@@ -39,6 +39,67 @@ The shell (top-level page) acts as a trusted network proxy. It's not sandboxed, 
 └─────────────────────────────────────────────────┘
 ```
 
+## The Full Request Chain
+
+```
+App GIF (sandboxed iframe)
+    ↓
+Shimmed fetch() / XMLHttpRequest
+    ↓  (postMessage)
+GIFOS Shell (top-level window)
+    ↓
+Try direct fetch()
+    ↓
+Works? → Return response via postMessage
+    ↓
+CORS blocked? → Retry through proxy.gifos.app (Cloudflare Worker)
+    ↓
+Return response via postMessage
+    ↓
+App gets its data, never knew the difference
+```
+
+Three layers of networking, zero complexity for the app developer. They write standard `fetch()` calls. The platform handles the rest.
+
+## The Fetch Shim
+
+When the shell loads an app GIF into the sandboxed iframe, it injects a replacement `fetch()` before the app code runs. The app developer never sees this — their code uses normal `fetch()` and it just works.
+
+```javascript
+// Injected into iframe before app code executes
+window.fetch = function(url, options) {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    window.addEventListener('message', function handler(e) {
+      if (e.data?.id === id) {
+        window.removeEventListener('message', handler);
+        if (e.data.error) {
+          reject(new Error(e.data.error));
+        } else {
+          resolve(new Response(e.data.body, {
+            status: e.data.status,
+            headers: new Headers(e.data.headers),
+          }));
+        }
+      }
+    });
+    parent.postMessage({
+      type: 'fetch-request',
+      id,
+      url,
+      method: options?.method || 'GET',
+      headers: options?.headers || {},
+      body: options?.body || null,
+    }, '*');
+
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Fetch request timed out'));
+    }, 30000);
+  });
+};
+```
+
 ### App-Side Code (inside the GIF app)
 
 ```javascript
@@ -116,7 +177,8 @@ window.addEventListener('message', async (event) => {
   }
 
   try {
-    const response = await fetch(url, { method, headers, body });
+    // Smart fallback: try direct, fall back to CORS proxy
+    const response = await smartFetch(url, { method, headers, body });
     const responseBody = await response.text();
 
     appFrame.postMessage({
@@ -259,6 +321,8 @@ A traditional server proxy (like LivePresenter's `/api/fetch`) runs on your own 
 ### Smart Fallback in the Shell
 
 The shell can try a direct fetch first, and only fall back to the proxy if CORS blocks it:
+
+The shell handles the three-layer fallback transparently:
 
 ```javascript
 async function smartFetch(url, options) {
