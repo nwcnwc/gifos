@@ -205,6 +205,90 @@ A few edge cases where a server proxy might be necessary:
 
 For these cases, gifos.app could offer an optional lightweight proxy. But 95%+ of use cases work with the direct postMessage bridge.
 
+## Fallback: Cloudflare Worker CORS Proxy
+
+Some APIs (e.g., Anthropic as of Feb 2026) don't send `Access-Control-Allow-Origin` headers, so even the shell's direct `fetch()` gets blocked by the browser. For these APIs, a lightweight Cloudflare Worker acts as a transparent CORS proxy.
+
+### Worker Code (~20 lines)
+
+```javascript
+export default {
+  async fetch(request) {
+    // Handle preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || '*',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+
+    // Target URL is the path: proxy.gifos.app/https://api.anthropic.com/v1/messages
+    const url = new URL(request.url);
+    const targetUrl = url.pathname.slice(1) + url.search;
+
+    // Forward request unchanged (API keys stay in headers, never stored)
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+    });
+
+    // Add the missing CORS header
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set('Access-Control-Allow-Origin', '*');
+    newResponse.headers.set('Access-Control-Allow-Credentials', 'true');
+    return newResponse;
+  }
+};
+```
+
+### Why This Is Different From a Server Proxy
+
+A traditional server proxy (like LivePresenter's `/api/fetch`) runs on your own server. A Cloudflare Worker:
+
+- **Runs on Cloudflare's edge** — 300+ locations, ~1ms added latency
+- **Free tier:** 100K requests/day (more than enough for most apps)
+- **Zero infrastructure** — no server to maintain, scale, or monitor
+- **Not storing anything** — it's a dumb pipe that adds one HTTP header
+- **API keys still flow directly from user to API** — the Worker forwards headers unchanged, doesn't log or persist them
+
+### Smart Fallback in the Shell
+
+The shell can try a direct fetch first, and only fall back to the proxy if CORS blocks it:
+
+```javascript
+async function smartFetch(url, options) {
+  try {
+    // Try direct first
+    return await fetch(url, options);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      // TypeError usually means CORS block — retry through proxy
+      const proxyUrl = `https://proxy.gifos.app/${url}`;
+      return await fetch(proxyUrl, options);
+    }
+    throw err;
+  }
+}
+```
+
+This means apps that work with CORS-friendly APIs (growing majority) never touch the proxy at all. The proxy is only used when strictly necessary.
+
+### Deployment
+
+```bash
+npm install -g wrangler
+wrangler init gifos-proxy
+# paste the worker code into src/index.js
+wrangler deploy
+# → https://gifos-proxy.<your-subdomain>.workers.dev
+# optionally map to proxy.gifos.app via custom domain
+```
+
 ## Future Enhancements
 
 - **Request logging** — shell could show users a network activity log (like browser DevTools)
