@@ -27,12 +27,12 @@
 
   async function seedIfEmpty() {
     if (items.length) return;
-    const samples = GifOS.samples.build();
+    const samples = await GifOS.samples.build();
     for (let i = 0; i < samples.length; i++) {
       const s = samples[i];
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: s.name, bytes: s.bytes, kind: 'gif',
-        isApp: gif.isGifosGif(s.bytes), appId: s.appId, accent: s.accent, mime: 'image/gif' });
+        isApp: true, appId: s.appId, accent: s.accent, mime: 'image/gif' });
       const pos = gridPosition(i);
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: s.name,
         parent: null, x: pos.x, y: pos.y, iconSize: 64 });
@@ -185,9 +185,10 @@
     for (const f of files) {
       const buf = new Uint8Array(await f.arrayBuffer());
       const isGif = f.type.includes('gif') || /\.gif$/i.test(f.name);
-      const isApp = isGif && gif.isGifosGif(buf);
+      const archive = isGif ? await gif.decode(buf) : null;
+      const isApp = !!archive;
       let appId = null, accent = null;
-      if (isApp) { const m = gif.readManifest(buf) || {}; appId = m.appId; accent = m.accent; }
+      if (isApp) { const m = gif.readManifest(archive) || {}; appId = m.appId; accent = m.accent; }
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: f.name, bytes: buf, kind: isGif ? 'gif' : 'other',
         isApp, appId, accent, mime: f.type || 'application/octet-stream' });
