@@ -121,19 +121,21 @@ Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates li
 
 **Built & tested**
 - ✅ Persistent **desktop** — icons, folders, drag-to-arrange, drag-into-folders, resize, rename, delete (IndexedDB, local-only)
-- ✅ **GIF filesystem codec** — packs a filesystem into a valid, viewable GIF89a and reads it back (verified in Chromium)
+- ✅ **GIF filesystem codec** — packs a filesystem into a valid, viewable GIF89a and reads it back (verified in Chromium), **deflate-compressed** via native `CompressionStream` (no dependencies; legacy uncompressed GIFs still decode)
 - ✅ **Double-click → run in a new tab**; unsupported files show a "not supported" message
 - ✅ **Runtime `window.gifos`** — `db()` (persists with the icon, syncs across tabs), `fetch()` bridge, `save()` snapshot
 - ✅ **Browsable-filesystem fallback** when a GIF has no `index.html`
-- ✅ **Snapshot/export** back to a self-contained GIF
-- ✅ **Remote multiplayer** — one browser hosts the DB, others join over a WebSocket relay via a share link. Host, client, and relay are built; the App GIF is delivered to joiners over the relay; DB reads/writes and live change broadcasts round-trip host↔client. Verified end-to-end across two isolated browsers (see [`test/e2e-relay.js`](test/e2e-relay.js)). Deploy the relay: [`relay/`](relay).
+- ✅ **Snapshot round-trip** — export the app + live state as one self-contained GIF; dropping a snapshot GIF on any desktop **resumes exactly where it was saved** (embedded state hydrates on first run)
+- ✅ **Remote multiplayer** — one browser hosts the DB, others join over a WebSocket relay via a share link; the App GIF itself is delivered to joiners through the relay ([`test/e2e-relay.js`](test/e2e-relay.js))
+- ✅ **Client capture** — a client saves a full copy of the app + live session state onto its own desktop
+- ✅ **Failover** — clients mirror the host's state; if the host browser dies, a client clicks **Become Host** and takes over the *same session* from its mirrored copy; remaining clients keep playing ([`test/e2e-failover.js`](test/e2e-failover.js))
+- ✅ **Lock-until-reopen** — the session id/token live with the desktop icon, so closing the host tab locks clients out and reopening the icon resumes hosting on the *same share link*
 
-**Not yet built**
-- ⏳ Snapshot **failover** handoff (the relay supports last-host-wins; the client reconnect/hand-off UX isn't wired) and server **lock/continue** on close
-- ⏳ pako compression (payloads are currently stored uncompressed)
-- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to your own Cloudflare account and set `js/relay-config.js`
+**Not yet done**
+- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to a Cloudflare account and set `js/relay-config.js` (everything above is verified against a protocol-identical local relay)
+- ⏳ "Continue while host browser stays online after tab close" (needs desktop-side hosting, e.g. a SharedWorker)
 
-See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests.
+See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests (37 checks across four suites).
 
 ## Architecture
 
