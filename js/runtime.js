@@ -1,13 +1,21 @@
 /*
  * runtime.js — The GifOS runtime library (runs in the app tab, run.html).
  *
- * Three modes, one app-facing API (window.gifos = { db(), fetch(), save() }):
+ * Modes, all behind one app-facing API (window.gifos = { db(), fetch(), save() }):
  *   - standalone/host : boot(mountEl, fileId) runs a local App GIF with a local
- *                       DB. becomeHost() opens a relay session so remote clients
- *                       can join; the local browser hosts the authoritative DB.
+ *                       DB persisted to the desktop icon. becomeHost() opens a
+ *                       relay session (reusing the icon's stored session id, so
+ *                       reopening the icon resumes the SAME share link) and this
+ *                       browser serves the authoritative DB to remote clients.
  *   - client          : bootClient(mountEl, {s,k,relay}) joins a host over the
  *                       relay, receives the App GIF, and runs it with a RemoteDB
- *                       whose reads/writes are forwarded to the host browser.
+ *                       forwarded to the host. Clients continuously mirror the
+ *                       host's full state, can save a full copy to their own
+ *                       desktop, and — if the host dies — can Become Host on the
+ *                       same session so remaining clients continue.
+ *
+ * First run of a GIF with embedded .state/db.json hydrates the icon's DB from
+ * the GIF, so dropping a snapshot GIF resumes exactly where it was saved.
  *
  * Attaches to `GifOS.runtime`.
  */
@@ -41,16 +49,20 @@
         pending[id] = { res: res, rej: rej };
         parent.postMessage(Object.assign({ ns:'gifos', id:id }, msg), '*');
       }); }
+      function refresh(collection){
+        (subs[collection]||[]).forEach(function(cb){
+          rpc({ type:'db', op:'getAll', collection:collection }).then(cb);
+        });
+      }
       window.addEventListener('message', function(e){
         var d = e.data; if(!d || d.ns!=='gifos') return;
         if(d.type==='reply' && pending[d.id]){
           d.ok ? pending[d.id].res(d.result) : pending[d.id].rej(new Error(d.error));
           delete pending[d.id];
         }
-        if(d.type==='db-change' && subs[d.collection]){
-          subs[d.collection].forEach(function(cb){
-            rpc({ type:'db', op:'getAll', collection:d.collection }).then(cb);
-          });
+        if(d.type==='db-change'){
+          if(d.collection==='*'){ Object.keys(subs).forEach(refresh); }
+          else refresh(d.collection);
         }
       });
       window.gifos = {
@@ -114,12 +126,15 @@
   }
 
   // ---- snapshot: re-pack app + current state into a self-contained GIF -----
-  function snapshot(files, manifest, db) {
+  function packSnapshot(files, manifest, state) {
+    const out = {};
+    for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
+    out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
+    return gif.encode(out, { accent: manifest.accent });
+  }
+  function downloadSnapshot(files, manifest, db) {
     return Promise.resolve(db.getFullState()).then((state) => {
-      const out = {};
-      for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
-      out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
-      const bytes = gif.encode(out, { accent: manifest.accent });
+      const bytes = packSnapshot(files, manifest, state);
       const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
       const a = document.createElement('a');
       const name = (manifest.appId || 'app') + '-snapshot.gif';
@@ -129,10 +144,25 @@
     });
   }
 
+  // ---- desktop capture: write app + state into THIS browser's desktop ------
+  function saveAppToDesktop(appBytes, manifest, state) {
+    const fileId = store.uid('file');
+    const name = (manifest.name || manifest.appId || 'App') + '.gif';
+    return store.putFile({ id: fileId, name, bytes: appBytes, kind: 'gif', isApp: true,
+      appId: manifest.appId, accent: manifest.accent, mime: 'image/gif' })
+      .then(() => store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
+        parent: null, x: 24, y: 24, iconSize: 64 }))
+      .then(() => (state ? store.setState(fileId, state) : null))
+      .then(() => fileId);
+  }
+
   // ---- DB backends ---------------------------------------------------------
+  function emptyState() { return { collections: {} }; }
+  function isEmptyState(s) { return !s || !s.collections || Object.keys(s.collections).length === 0; }
+
   // Local: authoritative store persisted with the icon; cross-tab via BroadcastChannel.
   function makeLocalDb(fileId, onChange) {
-    let state = { collections: {} };
+    let state = emptyState();
     const chan = ('BroadcastChannel' in root) ? new BroadcastChannel('gifos-app-' + fileId) : null;
     if (chan) chan.onmessage = (e) => { load().then(() => onChange(e.data.collection)); };
     const load = () => store.getState(fileId).then((s) => { if (s) state = s; return state; });
@@ -141,6 +171,7 @@
     const deep = () => JSON.parse(JSON.stringify(state));
     return {
       load,
+      import(s) { state = s; return persist(); },
       getFullState: () => load().then(deep),
       op(op, collection, key, value) {
         return load().then(() => {
@@ -160,8 +191,10 @@
   // Remote: forwards every op to the host browser over the relay.
   function makeRemoteDb(send) {
     let seq = 1; const pending = new Map();
+    let hostDown = false;
     const db = {
       op(op, collection, key, value) {
+        if (hostDown) return Promise.reject(new Error('host offline'));
         return new Promise((res, rej) => {
           const id = 'q' + (seq++); pending.set(id, { res, rej });
           send({ t: 'rpc', id, op, collection, key, value });
@@ -169,22 +202,28 @@
       },
       getFullState() { return db.op('dump'); },
       _reply(id, ok, result) { const p = pending.get(id); if (!p) return; pending.delete(id); ok ? p.res(result) : p.rej(new Error(result)); },
+      _setHostDown(v) {
+        hostDown = v;
+        if (v) { for (const p of pending.values()) p.rej(new Error('host offline')); pending.clear(); }
+      },
     };
     return db;
   }
 
   // ---- mount an app into an iframe with the given DB backend ----------------
   function mountApp(iframe, files, manifest, db) {
-    root.addEventListener('message', (e) => {
-      if (e.source !== iframe.contentWindow) return;
+    const handler = (e) => {
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
       const reply = (p) => iframe.contentWindow.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*');
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'fetch') bridgeFetch(manifest, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
-      else if (d.type === 'save') snapshot(files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      else if (d.type === 'save') downloadSnapshot(files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
-    });
+    };
+    root.addEventListener('message', handler);
     iframe.srcdoc = buildAppHtml(files);
+    return () => root.removeEventListener('message', handler);
   }
 
   function makeIframe() {
@@ -192,6 +231,35 @@
     iframe.setAttribute('sandbox', 'allow-scripts allow-forms'); // isolated: null origin
     iframe.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
     return iframe;
+  }
+
+  // ---- host-side relay wiring (shared by original host and failover host) --
+  function attachHost(ws, db, appBytes, onCount) {
+    let count = 0;
+    ws.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.t === 'peer-join') {
+        count++;
+        ws.send(JSON.stringify({ t: 'to', to: m.peer, msg: { t: 'app', gif: gif.b64encode(appBytes) } }));
+        onCount(count);
+      } else if (m.t === 'peer-leave') {
+        count = Math.max(0, count - 1); onCount(count);
+      } else if (m.t === 'from' && m.msg && m.msg.t === 'rpc') {
+        const req = m.msg;
+        db.op(req.op, req.collection, req.key, req.value)
+          .then((result) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: true, result } })))
+          .catch((err) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) } })));
+      }
+    };
+  }
+
+  function openHostSocket(relay, sid, token) {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token);
+      const timer = setTimeout(() => reject(new Error('relay timeout')), 8000);
+      ws.onopen = () => { clearTimeout(timer); resolve(ws); };
+      ws.onerror = () => { clearTimeout(timer); reject(new Error('relay connection failed')); };
+    });
   }
 
   // ---- standalone / host boot ----------------------------------------------
@@ -212,9 +280,9 @@
       mountEl.innerHTML = ''; mountEl.appendChild(iframe);
       if (!hasEntry) { iframe.srcdoc = buildFolderHtml(files); setStatus('Browsable filesystem (no index.html).'); return noop; }
 
-      let hostWs = null, clientCount = 0;
+      let hostWs = null;
       const emit = (collection) => {
-        iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
+        if (iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
         if (hostWs && hostWs.readyState === 1) hostWs.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection } }));
       };
       const db = makeLocalDb(fileId, emit);
@@ -222,54 +290,70 @@
       function becomeHost() {
         const relay = relayUrl();
         if (!relay) return Promise.reject(new Error('No relay configured (set window.GIFOS_RELAY).'));
-        const sid = store.uid('s'), token = store.uid('k');
-        return new Promise((resolve, reject) => {
-          const ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token);
-          const timer = setTimeout(() => reject(new Error('relay timeout')), 8000);
-          ws.onopen = () => {
-            clearTimeout(timer); hostWs = ws;
+        // Reuse the icon's stored session so reopening the app resumes the SAME
+        // share link — closing the tab "locks" clients until the icon reopens.
+        return store.getState(fileId + '::session').then((sess) => {
+          const sid = (sess && sess.sid) || store.uid('s');
+          const token = (sess && sess.token) || store.uid('k');
+          return openHostSocket(relay, sid, token).then((ws) => {
+            hostWs = ws;
+            attachHost(ws, db, appBytes, (n) => setStatus('Hosting · ' + n + ' player(s) connected'));
             setStatus('Hosting · 0 players connected');
-            resolve({ shareUrl: location.origin + location.pathname + '#s=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay) });
-          };
-          ws.onerror = () => { clearTimeout(timer); reject(new Error('relay connection failed')); };
-          ws.onmessage = (ev) => {
-            let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-            if (m.t === 'peer-join') { clientCount++; ws.send(JSON.stringify({ t: 'to', to: m.peer, msg: { t: 'app', gif: gif.b64encode(appBytes) } })); setStatus('Hosting · ' + clientCount + ' player(s) connected'); }
-            else if (m.t === 'peer-leave') { clientCount = Math.max(0, clientCount - 1); setStatus('Hosting · ' + clientCount + ' player(s) connected'); }
-            else if (m.t === 'from' && m.msg && m.msg.t === 'rpc') {
-              const req = m.msg;
-              db.op(req.op, req.collection, req.key, req.value)
-                .then((result) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: true, result } })))
-                .catch((err) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) } })));
-            }
-          };
+            // Wake any clients that were locked out while we were away.
+            ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
+            return store.setState(fileId + '::session', { sid, token, relay }).then(() => ({
+              shareUrl: location.origin + location.pathname + '#s=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay),
+            }));
+          });
         });
       }
 
-      return db.load().then(() => {
+      return db.load().then((state) => {
+        // First run of a snapshot GIF: hydrate the icon's DB from embedded state.
+        if (isEmptyState(state) && files['.state/db.json']) {
+          try {
+            const embedded = JSON.parse(gif.bytesToText(files['.state/db.json']));
+            if (embedded && embedded.collections) return db.import(embedded);
+          } catch (e) { /* corrupt embedded state — start fresh */ }
+        }
+      }).then(() => {
         mountApp(iframe, files, manifest, db);
         setStatus('Running · state saved to this icon');
-        return { save: () => snapshot(files, manifest, db), becomeHost };
+        return { save: () => downloadSnapshot(files, manifest, db), becomeHost };
       });
     });
   }
 
   // ---- client boot (join a host over the relay) ----------------------------
-  function bootClient(mountEl, params, statusEl) {
+  function bootClient(mountEl, params, statusEl, hooks) {
+    hooks = hooks || {};
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
-    if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve({ save: () => Promise.resolve(null) }); }
+    const idle = { save: () => Promise.resolve(null), saveToDesktop: () => Promise.reject(new Error('app not loaded yet')), becomeHost: () => Promise.reject(new Error('host still alive')) };
+    if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve(idle); }
     const ws = new WebSocket(params.relay.replace(/\/$/, '') + '/s/' + params.s + '?role=client&token=' + params.k);
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
+    let appBytes = null, lastDump = null, hostGone = false, tookOver = false;
+
+    const mirror = () => {
+      if (!remoteDb || hostGone) return;
+      remoteDb.getFullState().then((s) => { lastDump = s; }).catch(() => {});
+    };
+
     setStatus('Connecting to host…');
     ws.onerror = () => setStatus('Relay connection failed.');
-    ws.onclose = () => setStatus('Disconnected from host.');
+    ws.onclose = () => { if (!tookOver) setStatus('Disconnected from host.'); };
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.t === 'joined') setStatus('Connected · waiting for app…');
       else if (m.t === 'error') setStatus('Cannot join: ' + m.error);
-      else if (m.t === 'host-gone') setStatus('Host went offline. Snapshot to keep a copy.');
-      else if (m.t === 'app') {
-        const archive = gif.decode(gif.b64decode(m.gif));
+      else if (m.t === 'host-gone') {
+        hostGone = true;
+        if (remoteDb) remoteDb._setHostDown(true);
+        setStatus(lastDump ? 'Host went offline — you can Become Host from your mirrored copy.' : 'Host went offline before any state was mirrored.');
+        if (hooks.onHostGone) hooks.onHostGone(!!lastDump);
+      } else if (m.t === 'app') {
+        appBytes = gif.b64decode(m.gif);
+        const archive = gif.decode(appBytes);
         if (!archive) { setStatus('Bad app from host.'); return; }
         filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
         document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
@@ -277,10 +361,57 @@
         iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
         mountApp(iframe, filesRef, manifestRef, remoteDb);
         setStatus('Running as client · state hosted remotely');
-      } else if (m.t === 'rpc-reply') { if (remoteDb) remoteDb._reply(m.id, m.ok, m.result); }
-      else if (m.t === 'db-change') { if (iframe) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: m.collection }, '*'); }
+        mirror();
+      } else if (m.t === 'rpc-reply') {
+        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); }
+        if (remoteDb) remoteDb._reply(m.id, m.ok, m.result);
+      } else if (m.t === 'db-change') {
+        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); if (hooks.onHostBack) hooks.onHostBack(); }
+        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: m.collection }, '*');
+        mirror();
+      }
     };
-    return Promise.resolve({ save: () => (filesRef ? snapshot(filesRef, manifestRef, remoteDb) : Promise.resolve(null)) });
+
+    // Take over the SAME session from the mirrored state: remaining clients
+    // stay connected to the relay and keep working against the new host.
+    function becomeHost() {
+      if (!lastDump || !appBytes) return Promise.reject(new Error('No mirrored state to take over from.'));
+      // Durable capture first: the app + state land on THIS desktop, so the
+      // takeover survives a reload of this tab too.
+      return saveAppToDesktop(appBytes, manifestRef, lastDump).then((fileId) => {
+        try { ws.onclose = null; ws.close(); } catch (e) { /* already closed */ }
+        tookOver = true;
+        let hostWs = null;
+        const emit = (collection) => {
+          if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
+          if (hostWs && hostWs.readyState === 1) hostWs.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection } }));
+        };
+        const db = makeLocalDb(fileId, emit);
+        return openHostSocket(params.relay, params.s, params.k).then((ws2) => {
+          hostWs = ws2;
+          attachHost(ws2, db, appBytes, (n) => setStatus('Hosting (took over) · ' + n + ' player(s) connected'));
+          // Remount the app against the local DB and wake the other clients.
+          const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
+          iframe = fresh;
+          mountApp(fresh, filesRef, manifestRef, db);
+          ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
+          setStatus('Hosting (took over) · session continues');
+          return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay })
+            .then(() => ({ shareUrl: location.href, save: () => downloadSnapshot(filesRef, manifestRef, db) }));
+        });
+      });
+    }
+
+    function saveToDesktop() {
+      if (!appBytes) return Promise.reject(new Error('app not loaded yet'));
+      return saveAppToDesktop(appBytes, manifestRef, lastDump);
+    }
+
+    return Promise.resolve({
+      save: () => (filesRef && remoteDb ? downloadSnapshot(filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
+      saveToDesktop,
+      becomeHost,
+    });
   }
 
   GifOS.runtime = { boot, bootClient, buildAppHtml, buildFolderHtml, norm };
