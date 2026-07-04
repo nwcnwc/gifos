@@ -1,0 +1,19 @@
+name = "gifos-relay"
+main = "src/relay.js"
+compatibility_date = "2026-01-01"
+
+# One Durable Object class = one live session hub. Nothing is persisted to
+# storage; the DO only holds in-memory sockets while peers are connected.
+[[durable_objects.bindings]]
+name = "SESSION"
+class_name = "Session"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Session"]
+
+# After `wrangler deploy` you get https://gifos-relay.<subdomain>.workers.dev
+# Optionally map a custom route so clients connect to wss://relay.gifos.app:
+# [[routes]]
+# pattern = "relay.gifos.app/*"
+# custom_domain = true

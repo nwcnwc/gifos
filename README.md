@@ -126,11 +126,12 @@ Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates li
 - ✅ **Runtime `window.gifos`** — `db()` (persists with the icon, syncs across tabs), `fetch()` bridge, `save()` snapshot
 - ✅ **Browsable-filesystem fallback** when a GIF has no `index.html`
 - ✅ **Snapshot/export** back to a self-contained GIF
+- ✅ **Remote multiplayer** — one browser hosts the DB, others join over a WebSocket relay via a share link. Host, client, and relay are built; the App GIF is delivered to joiners over the relay; DB reads/writes and live change broadcasts round-trip host↔client. Verified end-to-end across two isolated browsers (see [`test/e2e-relay.js`](test/e2e-relay.js)). Deploy the relay: [`relay/`](relay).
 
 **Not yet built**
-- ⏳ **Remote** multiplayer over the `gifos.app` relay (today's server/client sync works across tabs on one machine; the cross-network WebSocket relay + join-URLs are the next step)
-- ⏳ Snapshot **failover** handoff, server **lock/continue** on close
+- ⏳ Snapshot **failover** handoff (the relay supports last-host-wins; the client reconnect/hand-off UX isn't wired) and server **lock/continue** on close
 - ⏳ pako compression (payloads are currently stored uncompressed)
+- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to your own Cloudflare account and set `js/relay-config.js`
 
 See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests.
 
