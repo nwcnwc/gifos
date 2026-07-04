@@ -2,66 +2,102 @@
 
 **Your GIF-powered operating system.**
 
-> One HTML shell. Apps are GIFs. Data is GIFs. Everything is just files.
+> One HTML shell. A desktop of GIFs. Every app is a file you own.
 
 🌐 [gifos.app](https://gifos.app)
 
 ## What is GifOS?
 
-GifOS is a radical rethinking of how software works:
+GifOS turns your browser into a desktop where **every app is a GIF**.
 
-- **The Shell** (`index.html`) — A universal runtime that loads and runs applications
-- **App GIFs** — Applications encoded as GIF images. Drop one onto the shell and it runs.
-- **Data GIFs** — Save files encoded as GIF images. Like `.doc` is to Word, Data GIFs are to App GIFs.
+Visit [gifos.app](https://gifos.app) and you land on a **desktop** — icons, folders, drag-and-drop, exactly like Windows or macOS. Every GIF (and any other file) you've ever dropped in is sitting there as an icon. Double-click an executable GIF and it opens in its own **browser tab** and runs. Everything is just files, and the files are yours.
 
-No servers. No accounts. No installs. Just files.
+- **The Desktop** (`index.html`) — A persistent web desktop that holds your GIFs and files as icons. It lives in your browser; nothing is stored on our servers.
+- **App GIFs** — Applications packed into GIF images. A GIF is a little filesystem; if it has an `index.html`, double-clicking runs it as an app. Its saved state travels **inside the same GIF**.
+- **gifos.app** — A stateless message relay. When apps go multiplayer, it passes messages (and GIFs) between browsers. It never stores anything.
 
-## How It Works
+No installs. No accounts. No app servers. Just files on a desktop.
 
-```
-shell.html + crm-app.gif                    = A CRM application
-shell.html + crm-app.gif + my-clients.gif   = A CRM with your data loaded
-shell.html + spreadsheet.gif + q4-budget.gif = A spreadsheet with your budget
-```
-
-### The Three Layers
+## The Desktop
 
 ```
-┌─────────────────────────────────────────────┐
-│           shell.html (THE RUNTIME)           │
-│                                              │
-│   Drop an App GIF to load an application     │
-│   Drop a Data GIF to restore your state      │
-│                                              │
-├──────────────────────┬───────────────────────┤
-│     App GIF 📦       │     Data GIF 💾        │
-│                      │                        │
-│  Contains:           │  Contains:             │
-│  • Application code  │  • IndexedDB state     │
-│  • UI definition     │  • Virtual filesystem  │
-│  • Default config    │  • User preferences    │
-│                      │                        │
-│  Viewable as:        │  Viewable as:          │
-│  • App icon/preview  │  • Save info + preview │
-│  • Description text  │  • Record count, date  │
-│  • QR code to shell  │  • QR code to app      │
-└──────────────────────┴───────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  gifos.app                                          ▢ ✕   │
+│                                                            │
+│   📦          💾          📁          🖼️                  │
+│  crm.gif   budget.gif   Work/     photo.jpg               │
+│                                                            │
+│   🎮          📦                                          │
+│  chess.gif  notes.gif      ← drop any file here            │
+│                                                            │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Why GIFs?
+- **Drop any file** onto the desktop — it becomes an icon.
+- **GIFs play** right in the icon; resize an icon to see the GIF better.
+- **Make folders** to organize things, just like a real desktop.
+- **Double-click an executable GIF** → it opens in a new tab and runs.
+- **Double-click anything else** (a `.jpg`, a `.pdf`, a plain `.gif`) → GifOS shows a **"not supported"** message. Only GifOS-format GIFs execute.
 
-GIF is the perfect container format:
-- **Universal** — every platform displays GIFs natively
-- **Multi-frame** — Frame 1 is a human-readable preview; remaining frames store encoded data
-- **Metadata support** — Application Extension blocks can store arbitrary data
-- **Shareable** — Send via chat, email, social media. It looks like an image because it IS an image.
-- **Durable** — No one strips GIFs. They survive every platform.
+Your desktop persists **locally in your browser** (IndexedDB / OPFS). There's no login and no sync — the desktop belongs to this browser, because nothing lives on our server.
 
-### The Magic
+## How an App GIF Runs
 
-Someone sends you a GIF in a group chat. It looks like an app screenshot. But drag it onto `shell.html` and it **becomes** that app, loaded with their data. 
+Double-click an executable GIF and GifOS:
 
-Share your work by sharing a GIF. Fork someone's project by loading their GIF. It's git for normal people.
+1. Opens a **new browser tab**.
+2. **Unpacks the GIF into a filesystem** inside that tab's iframe.
+3. Hands control to the app's **`index.html`**.
+4. If there's **no `index.html`**, the tab instead shows a **browsable filesystem** — like an unguarded folder served off a web server.
+
+```
+double-click crm.gif
+        │
+        ▼
+   new browser tab
+        │
+        ▼
+   unpack GIF → in-memory filesystem
+        │
+        ├── has index.html? → run it as an app
+        └── no index.html?  → browse it as a folder
+```
+
+## Multiplayer: Any Browser Can Be the Server
+
+The desktop (the parent window) exposes a **runtime library** to the app tab. If an app knows about it, it can ask for **database capabilities** — and that's what makes a GifOS app either a **server** or a **client**:
+
+- **Server** — your browser hosts the central database. The app reads and writes locally.
+- **Client** — the app connects to a **remote** database (someone else's browser) through the gifos.app relay.
+
+When an app launches, its tab has a **shareable URL**. Send it to friends and that URL carries everything the relay needs to (1) deliver the app GIF to them and (2) point their copy at **your** database instead of their own. They join your session — a multiplayer game, a shared document, a multi-user app — with one link.
+
+```
+   You (server browser)                 Friend (client browser)
+   ┌───────────────────┐                ┌───────────────────┐
+   │  chess.gif tab    │                │  chess.gif tab    │
+   │  ├ app            │  ── join URL ─▶ │  ├ app            │
+   │  └ central DB ◀───┼──── relay ──────┼──▶ (uses your DB) │
+   └───────────────────┘   gifos.app     └───────────────────┘
+                          (passes messages, stores nothing)
+```
+
+### State, resume, and failover
+
+- **State lives with the icon.** On the server, an app's state is always tied to its GIF icon on the desktop. Close the tab, double-click the icon again, and you're **right back where you were**.
+- **Clients can export** a full copy of the app — a complete GIF snapshot — at any time.
+- **When the server closes the tab**, they choose: **lock out** clients until they reopen the app, or **let clients keep going** — but only while the server's browser stays online.
+- **If the server dies**, any user holding a snapshot can **become the new server** from that snapshot. The session survives.
+
+## Why GIFs?
+
+GIF is the perfect container:
+- **Universal** — every platform displays GIFs natively.
+- **A filesystem in disguise** — Application Extension blocks and frames store an entire packed directory (code, assets, and saved state).
+- **Shareable** — send via chat, email, social. It looks like an image because it *is* an image.
+- **Durable** — no one strips GIFs. They survive every platform.
+
+Someone sends you a GIF in a group chat. It looks like a screenshot. Drop it on your desktop and double-click — it **becomes** that app, loaded with their data. Share your work by sharing a file. Fork someone's project by dropping their GIF. It's git for normal people.
 
 ## Getting Started
 
@@ -69,19 +105,20 @@ Share your work by sharing a GIF. Fork someone's project by loading their GIF. I
 # Clone the repo
 git clone https://github.com/nwcnwc/gifos.git
 
-# Open the shell in your browser
+# Open the desktop in your browser
 open index.html
 
-# Drop any App GIF onto the shell to get started
+# Drop any GIF onto the desktop, then double-click to run it
 ```
 
 ## Project Status
 
-🚧 **Early development** — Building the proof of concept.
+🚧 **Early development.** The design has moved from a single-app dropzone to the full **desktop + browser-as-server** model described above. The current `index.html` still implements the older inline runtime; the desktop, new-tab execution, filesystem-packed GIFs, the DB relay, and snapshot failover are being built. See [docs/architecture.md](docs/architecture.md).
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for the full technical design.
+- [docs/architecture.md](docs/architecture.md) — the desktop, the GIF filesystem format, execution model, persistence, and failover.
+- [docs/cors-and-networking.md](docs/cors-and-networking.md) — the browser-as-server DB relay and the external-API bridge.
 
 ## License
 

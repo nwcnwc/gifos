@@ -1,92 +1,140 @@
-# GIFOS Networking: The postMessage Bridge Pattern
+# GifOS Networking
+
+GifOS apps have two distinct networking needs, and this document covers both:
+
+1. **Browser-as-server** — one browser hosts a database and others connect to it, so an app can be multiplayer/multi-user. This is the primary model, built on the stateless `gifos.app` relay. **(Part 1)**
+2. **External APIs** — an app calls a third-party service (OpenAI, a weather API, a database-as-a-service). This uses a postMessage fetch bridge with a CORS-proxy fallback. **(Part 2)**
+
+Both share one principle: **nothing of the user's lives on our infrastructure.** The relay only passes messages; API keys only ever exist on the user's device.
+
+---
+
+# Part 1 — Browser-as-Server: The DB Relay
+
+## The Idea
+
+A GifOS app runs in its own tab. The desktop (parent/opener window) exposes a **runtime library** that gives the app a database. Where that database physically lives determines the app's role:
+
+- **Server** — this browser holds the authoritative DB. It's the host.
+- **Client** — this browser has no local DB for the session; its DB calls are forwarded to the server browser.
+
+`gifos.app` sits between them as a **stateless relay** — it routes messages (and GIF bytes) between browsers and **stores nothing**.
+
+```
+┌───────────────────────────┐        ┌───────────────────────────┐
+│  SERVER browser           │        │  CLIENT browser           │
+│                           │        │                           │
+│  ┌─────────────────────┐  │        │  ┌─────────────────────┐  │
+│  │ app tab (iframe)    │  │        │  │ app tab (iframe)    │  │
+│  │  calls runtime.db   │  │        │  │  calls runtime.db   │  │
+│  └──────────┬──────────┘  │        │  └──────────┬──────────┘  │
+│             ▼             │        │             ▼             │
+│  ┌─────────────────────┐  │        │  ┌─────────────────────┐  │
+│  │ runtime library     │  │        │  │ runtime library     │  │
+│  │  ► central DB (auth)│  │        │  │  ► remote DB proxy  │  │
+│  └──────────┬──────────┘  │        │  └──────────┬──────────┘  │
+└─────────────┼─────────────┘        └─────────────┼─────────────┘
+              │            ┌────────────────┐       │
+              └───────────▶│   gifos.app    │◀──────┘
+                           │  RELAY (dumb   │
+                           │  message pipe, │
+                           │  stores none)  │
+                           └────────────────┘
+```
+
+## One DB API, Two Resolutions
+
+The app developer writes against a single database API. The runtime resolves it based on the **launch URL**:
+
+- **No remote session in the URL** → the runtime creates/opens a **local** authoritative DB. The app is the **server**.
+- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB call over the relay to the server browser. The app is a **client**.
+
+```javascript
+// App-side — identical code whether server or client
+const db = gifos.db('chess');           // runtime decides local vs remote
+await db.put('moves', { n: 12, san: 'Qxf7#' });
+const moves = await db.getAll('moves'); // server: local read; client: relayed read
+db.subscribe('moves', render);          // server broadcasts changes to all clients
+```
+
+On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the call is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
+
+## Joining a Session (the Shareable URL)
+
+When an app opens, its tab URL can be shared. It encodes what a new client needs:
+
+```
+https://gifos.app/run#s=<session-id>&app=<gif-locator>&k=<join-token>
+```
+
+```
+Friend opens the join URL
+   │
+   ▼
+Relay delivers the app GIF ──▶ client unpacks it into a new tab
+   │
+   ▼
+Runtime sees s=/k= ──▶ CLIENT mode; opens a WebSocket to the relay
+   │
+   ▼
+Server runtime validates the join token k ──▶ wires the client to the central DB
+   │
+   ▼
+Client DB calls ⇄ relay ⇄ server DB;  server broadcasts ⇄ relay ⇄ clients
+```
+
+The **join token (`k`)** is a capability: it authorizes access to exactly one server session. The server's runtime validates it before bridging any DB traffic. The relay itself never reads or stores app data — it only routes by session id.
+
+## State, Resume, and Failover (networking view)
+
+- **Server state is authoritative and lives with the desktop icon.** Closing the tab suspends the session; reopening the icon restores the DB and issues a fresh session.
+- **On close, the server chooses** *lock* (suspend clients until reopened) or *continue* (clients keep going while the server browser stays online — because that browser still owns the DB).
+- **Clients can snapshot** the shared state to a self-contained GIF at any time.
+- **Failover:** if the server browser dies, a client holding a snapshot can **Become Server** — its runtime loads the snapshot as a new central DB and the relay issues a new join URL for the remaining clients to reconnect. Recovery is only as fresh as the newest snapshot, so periodic client snapshots add resilience.
+
+## Why Browser-as-Server
+
+| Property | Browser-as-server (GifOS) | Traditional app server |
+|----------|---------------------------|------------------------|
+| Where data lives | The host user's browser | Your servers |
+| Infra to run | A stateless relay only | Databases, app servers, scaling |
+| Cost model | Near-zero; relay is a message pipe | Grows with users and storage |
+| Privacy | You never see or store user data | You hold everything |
+| Failure mode | Snapshot failover to another peer | Central outage takes everyone down |
+
+The tradeoff: sessions depend on the **host browser staying online** (mitigated by snapshot failover), and a single host browser has finite capacity (see *Multi-server* in the architecture doc's future work).
+
+---
+
+# Part 2 — External APIs: The postMessage Fetch Bridge
+
+Some apps need to call third-party services (OpenAI, weather, a BaaS). Apps run inside an iframe, so the runtime brokers these calls — the app never gets raw network access or raw keys beyond what it supplies per request.
 
 ## The Problem
 
-GIFOS apps run inside sandboxed iframes. Sandboxed iframes get a `null` origin, which means:
-
-- Browsers block all cross-origin `fetch()` / `XMLHttpRequest` calls
-- External APIs reject requests from `null` origins
-- CORS headers don't help — there's no real origin to whitelist
-
-This is by design — the sandbox protects users from malicious app code. But legitimate apps need to talk to APIs (OpenAI, weather services, databases, etc.).
-
-## The Solution: postMessage Bridge
-
-The shell (top-level page) acts as a trusted network proxy. It's not sandboxed, so it can make normal `fetch()` calls with no CORS restrictions.
-
-### How It Works
-
-```
-┌─────────────────────────────────────────────────┐
-│  User's Browser                                 │
-│                                                 │
-│  ┌──────────────────────────────────────────┐   │
-│  │  GIFOS Shell (top-level page)            │   │
-│  │  - Real origin (gifos.app or file://)    │   │
-│  │  - Can fetch() any URL                   │   │
-│  │  - Enforces permission allowlist         │   │
-│  │                                          │   │
-│  │  ┌──────────────────────────────────┐    │   │
-│  │  │  App GIF (sandboxed iframe)      │    │   │
-│  │  │  - null origin                   │    │   │
-│  │  │  - Cannot fetch externally  ❌   │    │   │
-│  │  │  - CAN postMessage to parent ✅  │    │   │
-│  │  └──────────────────────────────────┘    │   │
-│  └──────────────────────────────────────────┘   │
-│                                                 │
-│  Direct connection: Browser ──→ External API    │
-│  No server in the middle.                       │
-└─────────────────────────────────────────────────┘
-```
-
-## The Full Request Chain
-
-```
-App GIF (sandboxed iframe)
-    ↓
-Shimmed fetch() / XMLHttpRequest
-    ↓  (postMessage)
-GIFOS Shell (top-level window)
-    ↓
-Try direct fetch()
-    ↓
-Works? → Return response via postMessage
-    ↓
-CORS blocked? → Retry through proxy.gifos.app (Cloudflare Worker)
-    ↓
-Return response via postMessage
-    ↓
-App gets its data, never knew the difference
-```
-
-Three layers of networking, zero complexity for the app developer. They write standard `fetch()` calls. The platform handles the rest.
+The app iframe should not be trusted with unrestricted network access, and some target APIs don't return CORS headers that satisfy a browser. The runtime solves both by proxying `fetch` on the app's behalf and enforcing the app's declared `network` allowlist.
 
 ## The Fetch Shim
 
-When the shell loads an app GIF into the sandboxed iframe, it injects a replacement `fetch()` before the app code runs. The app developer never sees this — their code uses normal `fetch()` and it just works.
+When the runtime mounts the app, it injects a replacement `fetch()` before app code runs. The app developer writes normal `fetch()`; the runtime handles the rest.
 
 ```javascript
-// Injected into iframe before app code executes
+// Injected into the app iframe before app code executes
 window.fetch = function(url, options) {
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     window.addEventListener('message', function handler(e) {
       if (e.data?.id === id) {
         window.removeEventListener('message', handler);
-        if (e.data.error) {
-          reject(new Error(e.data.error));
-        } else {
-          resolve(new Response(e.data.body, {
-            status: e.data.status,
-            headers: new Headers(e.data.headers),
-          }));
-        }
+        if (e.data.error) reject(new Error(e.data.error));
+        else resolve(new Response(e.data.body, {
+          status: e.data.status,
+          headers: new Headers(e.data.headers),
+        }));
       }
     });
     parent.postMessage({
-      type: 'fetch-request',
-      id,
-      url,
+      type: 'fetch-request', id, url,
       method: options?.method || 'GET',
       headers: options?.headers || {},
       body: options?.body || null,
@@ -100,247 +148,90 @@ window.fetch = function(url, options) {
 };
 ```
 
-### App-Side Code (inside the GIF app)
+## Runtime-Side Handler (permission-enforced)
 
 ```javascript
-// Request an external API call
-function apiFetch(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID();
-
-    function handler(event) {
-      if (event.data?.type === 'fetch-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.error) {
-          reject(new Error(event.data.error));
-        } else {
-          resolve({
-            status: event.data.status,
-            headers: event.data.headers,
-            body: event.data.body,
-            json: () => Promise.resolve(JSON.parse(event.data.body)),
-            text: () => Promise.resolve(event.data.body),
-          });
-        }
-      }
-    }
-
-    window.addEventListener('message', handler);
-    window.parent.postMessage({
-      type: 'fetch-request',
-      id,
-      url,
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      body: options.body || null,
-    }, '*');
-
-    // Timeout after 30s
-    setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('Fetch request timed out'));
-    }, 30000);
-  });
-}
-
-// Usage — feels just like normal fetch()
-const response = await apiFetch('https://api.openai.com/v1/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer sk-...',
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] }),
-});
-const data = await response.json();
-```
-
-### Shell-Side Code (in the GIFOS runtime)
-
-```javascript
-// Listen for fetch requests from sandboxed apps
 window.addEventListener('message', async (event) => {
   if (event.data?.type !== 'fetch-request') return;
-
   const { id, url, method, headers, body } = event.data;
   const appFrame = event.source;
 
-  // Check permissions — does this app have network access to this domain?
+  // Enforce the app's declared network allowlist (manifest.json capabilities.network)
   const domain = new URL(url).hostname;
   if (!isAllowedDomain(currentApp, domain)) {
-    appFrame.postMessage({
-      type: 'fetch-response',
-      id,
-      error: `Network access denied: ${domain} is not in this app's permissions`,
-    }, '*');
+    appFrame.postMessage({ type: 'fetch-response', id,
+      error: `Network access denied: ${domain} is not in this app's permissions` }, '*');
     return;
   }
 
   try {
-    // Smart fallback: try direct, fall back to CORS proxy
-    const response = await smartFetch(url, { method, headers, body });
+    const response = await smartFetch(url, { method, headers, body });  // direct, then proxy
     const responseBody = await response.text();
-
-    appFrame.postMessage({
-      type: 'fetch-response',
-      id,
+    appFrame.postMessage({ type: 'fetch-response', id,
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
-      body: responseBody,
-    }, '*');
+      body: responseBody }, '*');
   } catch (err) {
-    appFrame.postMessage({
-      type: 'fetch-response',
-      id,
-      error: err.message,
-    }, '*');
+    appFrame.postMessage({ type: 'fetch-response', id, error: err.message }, '*');
   }
 });
 
 function isAllowedDomain(app, domain) {
-  const allowed = app.permissions?.network || [];
-  return allowed.some(pattern =>
-    pattern === '*' || domain === pattern || domain.endsWith('.' + pattern)
-  );
+  const allowed = app.manifest?.capabilities?.network || [];
+  return allowed.some(p => p === '*' || domain === p || domain.endsWith('.' + p));
 }
 ```
 
-## Permission Model
-
-Apps declare required network access in their manifest:
+Apps declare what they may reach in `manifest.json`:
 
 ```json
-{
-  "permissions": {
-    "network": ["api.openai.com", "api.weather.gov", "*.supabase.co"]
-  }
-}
+{ "capabilities": { "network": ["api.openai.com", "*.supabase.co"] } }
 ```
 
-When an app is loaded, the shell can prompt the user:
+The runtime can surface this to the user on launch (**Allow / Deny / Allow once**) and enforces it on every request. API keys the app supplies flow straight to the target service and are never stored by GifOS.
 
-> **"Simple CRM" wants network access to:**
-> - api.openai.com
-> - *.supabase.co
->
-> **[Allow]** **[Deny]** **[Allow Once]**
+## CORS-Proxy Fallback (Cloudflare Worker)
 
-The shell enforces the allowlist on every request. Apps cannot reach domains they didn't declare.
-
-## Why This Is Better Than a Server Proxy
-
-Traditional approach (e.g., the `/api/fetch` pattern):
-
-```
-Browser → Your Server → External API → Your Server → Browser
-```
-
-Problems:
-- **API keys flow through your server** — security liability
-- **Bandwidth costs** — you pay for all proxied traffic
-- **Latency** — extra hop adds delay
-- **Scaling** — more users = more server load
-- **Single point of failure** — server goes down, all apps lose network
-- **Privacy** — you can see every request your users make
-
-GIFOS postMessage bridge:
-
-```
-Browser → External API → Browser
-```
-
-Benefits:
-- **API keys never leave the user's device** — zero key exposure
-- **Zero bandwidth costs** — traffic doesn't touch your infrastructure
-- **Lower latency** — direct connection, no middleman
-- **Infinite scaling** — no server involvement
-- **No single point of failure** — works offline (for cached APIs), works if gifos.app is down
-- **Full privacy** — you never see user traffic
-
-## When You Still Need a Server
-
-A few edge cases where a server proxy might be necessary:
-
-1. **APIs that restrict origins** — some APIs only allow server-to-server calls (no browser `Origin` header accepted). Rare but exists.
-2. **OAuth flows** — token exchange often requires a server-side secret. Could be handled by a minimal auth endpoint on gifos.app.
-3. **WebSocket bridges** — if an API only offers WebSocket and the sandbox blocks it.
-
-For these cases, gifos.app could offer an optional lightweight proxy. But 95%+ of use cases work with the direct postMessage bridge.
-
-## Fallback: Cloudflare Worker CORS Proxy
-
-Some APIs (e.g., Anthropic as of Feb 2026) don't send `Access-Control-Allow-Origin` headers, so even the shell's direct `fetch()` gets blocked by the browser. For these APIs, a lightweight Cloudflare Worker acts as a transparent CORS proxy.
-
-### Worker Code (~20 lines)
+Some APIs (e.g. Anthropic, as of early 2026) don't send `Access-Control-Allow-Origin`, so even a direct runtime `fetch()` is blocked by the browser. A tiny Cloudflare Worker acts as a transparent CORS proxy for those cases.
 
 ```javascript
 export default {
   async fetch(request) {
-    // Handle preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || '*',
-          'Access-Control-Max-Age': '86400',
-        },
-      });
+      return new Response(null, { headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || '*',
+        'Access-Control-Max-Age': '86400',
+      }});
     }
-
-    // Target URL is the path: proxy.gifos.app/https://api.anthropic.com/v1/messages
     const url = new URL(request.url);
-    const targetUrl = url.pathname.slice(1) + url.search;
-
-    // Forward request unchanged (API keys stay in headers, never stored)
+    const targetUrl = url.pathname.slice(1) + url.search;  // proxy.gifos.app/https://api.anthropic.com/...
     const response = await fetch(targetUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
+      method: request.method, headers: request.headers, body: request.body,
     });
-
-    // Add the missing CORS header
-    const newResponse = new Response(response.body, response);
-    newResponse.headers.set('Access-Control-Allow-Origin', '*');
-    newResponse.headers.set('Access-Control-Allow-Credentials', 'true');
-    return newResponse;
+    const out = new Response(response.body, response);
+    out.headers.set('Access-Control-Allow-Origin', '*');
+    out.headers.set('Access-Control-Allow-Credentials', 'true');
+    return out;
   }
 };
 ```
 
-### Why This Is Different From a Server Proxy
-
-A traditional server proxy (like LivePresenter's `/api/fetch`) runs on your own server. A Cloudflare Worker:
-
-- **Runs on Cloudflare's edge** — 300+ locations, ~1ms added latency
-- **Free tier:** 100K requests/day (more than enough for most apps)
-- **Zero infrastructure** — no server to maintain, scale, or monitor
-- **Not storing anything** — it's a dumb pipe that adds one HTTP header
-- **API keys still flow directly from user to API** — the Worker forwards headers unchanged, doesn't log or persist them
-
-### Smart Fallback in the Shell
-
-The shell can try a direct fetch first, and only fall back to the proxy if CORS blocks it:
-
-The shell handles the three-layer fallback transparently:
-
 ```javascript
 async function smartFetch(url, options) {
   try {
-    // Try direct first
-    return await fetch(url, options);
+    return await fetch(url, options);            // try direct first
   } catch (err) {
-    if (err instanceof TypeError) {
-      // TypeError usually means CORS block — retry through proxy
-      const proxyUrl = `https://proxy.gifos.app/${url}`;
-      return await fetch(proxyUrl, options);
+    if (err instanceof TypeError) {              // TypeError ≈ CORS block → retry via proxy
+      return await fetch(`https://proxy.gifos.app/${url}`, options);
     }
     throw err;
   }
 }
 ```
 
-This means apps that work with CORS-friendly APIs (growing majority) never touch the proxy at all. The proxy is only used when strictly necessary.
+The Worker is a dumb pipe: it adds one CORS header and forwards everything else unchanged. **API keys still flow directly from the user to the target API** — the Worker doesn't log or persist them. CORS-friendly APIs (the growing majority) never touch the proxy.
 
 ### Deployment
 
@@ -350,12 +241,22 @@ wrangler init gifos-proxy
 # paste the worker code into src/index.js
 wrangler deploy
 # → https://gifos-proxy.<your-subdomain>.workers.dev
-# optionally map to proxy.gifos.app via custom domain
+# optionally map to proxy.gifos.app via a custom domain
 ```
+
+## Two Relays, One Domain
+
+`gifos.app` hosts two stateless edge functions with distinct jobs — neither stores user data:
+
+| Endpoint | Job | Part |
+|----------|-----|------|
+| `gifos.app` relay (WebSocket) | Route DB messages + GIFs between server and client browsers | Part 1 |
+| `proxy.gifos.app` (Worker) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
 
 ## Future Enhancements
 
-- **Request logging** — shell could show users a network activity log (like browser DevTools)
-- **Rate limiting** — shell enforces per-app rate limits to prevent abuse
-- **Caching** — shell caches repeated requests (respect Cache-Control headers)
-- **Credential manager** — shell stores API keys securely, injects them into requests so apps never see raw keys (just a key reference ID)
+- **Network activity log** — the runtime shows users a DevTools-style request log.
+- **Rate limiting** — per-app request caps enforced by the runtime.
+- **Response caching** — respect `Cache-Control` for repeated external calls.
+- **Credential manager** — the runtime stores API keys and injects them by reference, so apps never see raw keys.
+- **End-to-end encrypted sessions** — encrypt relay payloads so even a compromised relay learns nothing.
