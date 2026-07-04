@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GifOS — Running…</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
@@ -16,6 +17,7 @@
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
   .bar button:hover { border-color: #7b5cff; }
+  .bar button.urgent { border-color: #ff5caa; box-shadow: 0 0 14px rgba(255,92,170,.35); }
   #mount { flex: 1; min-height: 0; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
@@ -29,6 +31,8 @@
   <div class="bar">
     <span class="title">📦 GifOS</span>
     <button id="host" title="Let friends join over the relay">👥 Go Multiplayer</button>
+    <button id="save-desktop" title="Keep a full copy of this app + its current state on your desktop" style="display:none">📥 Save to Desktop</button>
+    <button id="become-host" title="Continue this session as the new host from your mirrored state" style="display:none">👑 Become Host</button>
     <button id="save">💾 Snapshot</button>
     <span class="status" id="status">Loading…</span>
   </div>
@@ -50,15 +54,22 @@
       const status = document.getElementById('status');
       const hostBtn = document.getElementById('host');
       const saveBtn = document.getElementById('save');
+      const saveDeskBtn = document.getElementById('save-desktop');
+      const becomeBtn = document.getElementById('become-host');
       const share = document.getElementById('share');
       const shareUrl = document.getElementById('share-url');
       let controller = null;
 
+      function showShare(url) { shareUrl.value = url; share.classList.add('show'); }
+
       if (params.get('s')) {
-        // Client mode — join a host over the relay. No local file.
+        // Client mode — join a host over the relay.
         hostBtn.style.display = 'none';
-        GifOS.runtime.bootClient(mount, { s: params.get('s'), k: params.get('k'), relay: params.get('relay') }, status)
-          .then(function (c) { controller = c; });
+        saveDeskBtn.style.display = '';
+        GifOS.runtime.bootClient(mount, { s: params.get('s'), k: params.get('k'), relay: params.get('relay') }, status, {
+          onHostGone: function (canTakeOver) { if (canTakeOver) { becomeBtn.style.display = ''; becomeBtn.classList.add('urgent'); } },
+          onHostBack: function () { becomeBtn.style.display = 'none'; becomeBtn.classList.remove('urgent'); },
+        }).then(function (c) { controller = c; });
       } else {
         // Standalone / potential host — run a local App GIF.
         const fileId = params.get('id');
@@ -70,12 +81,31 @@
         if (!controller || !controller.becomeHost) return;
         hostBtn.disabled = true; hostBtn.textContent = 'Connecting…';
         controller.becomeHost().then(function (r) {
-          shareUrl.value = r.shareUrl; share.classList.add('show');
+          showShare(r.shareUrl);
           hostBtn.textContent = '👥 Hosting';
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = '👥 Go Multiplayer';
           status.textContent = 'Multiplayer failed: ' + err.message;
         });
+      });
+      becomeBtn.addEventListener('click', function () {
+        if (!controller) return;
+        becomeBtn.disabled = true; becomeBtn.textContent = 'Taking over…';
+        controller.becomeHost().then(function (r) {
+          becomeBtn.style.display = 'none';
+          showShare(r.shareUrl);
+          if (r.save) controller = Object.assign({}, controller, { save: r.save });
+        }).catch(function (err) {
+          becomeBtn.disabled = false; becomeBtn.textContent = '👑 Become Host';
+          status.textContent = 'Takeover failed: ' + err.message;
+        });
+      });
+      saveDeskBtn.addEventListener('click', function () {
+        if (!controller || !controller.saveToDesktop) return;
+        controller.saveToDesktop().then(function () {
+          saveDeskBtn.textContent = '✅ Saved to Desktop';
+          setTimeout(function () { saveDeskBtn.textContent = '📥 Save to Desktop'; }, 2500);
+        }).catch(function (err) { status.textContent = 'Save failed: ' + err.message; });
       });
       document.getElementById('copy').addEventListener('click', function () {
         shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}

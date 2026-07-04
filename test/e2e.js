@@ -89,6 +89,36 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bText = await B.locator('#list').textContent();
   check('guestbook entry from tab A appears live in tab B (cross-tab DB)', /hello from tab A/.test(bText));
 
+  // ---- snapshot hydration: a GIF with embedded .state resumes where it was saved ----
+  const deskPage = await context.newPage();
+  await deskPage.goto(BASE + '/index.html');
+  await deskPage.waitForSelector('.icon');
+  await deskPage.evaluate(async () => {
+    const appHtml = '<!doctype html><div id="out">loading</div><script>' +
+      "gifos.db('notes').getAll().then(a=>{document.getElementById('out').textContent=a.map(n=>n.text).join('|')});" +
+      '</scr' + 'ipt>';
+    const state = { collections: { notes: { items: { n1: { id: 'n1', text: 'resumed-from-gif' } }, seq: 2 } } };
+    const bytes = GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'resume-test', name: 'Resume', entry: 'index.html', capabilities: { db: true } }),
+      'index.html': appHtml,
+      '.state/db.json': JSON.stringify(state),
+    });
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: 'Resume.gif', bytes, kind: 'gif', isApp: true, appId: 'resume-test', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: 'Resume.gif', parent: null, x: 400, y: 200, iconSize: 64 });
+    await GifOS.desktop.load();
+    await GifOS.desktop.render();
+  });
+  const [resumePage] = await Promise.all([
+    context.waitForEvent('page'),
+    deskPage.locator('.icon', { hasText: 'Resume.gif' }).dblclick(),
+  ]);
+  await resumePage.waitForSelector('iframe');
+  const resumeApp = resumePage.frameLocator('iframe');
+  await resumePage.waitForTimeout(600);
+  const resumed = await resumeApp.locator('#out').textContent();
+  check('snapshot GIF hydrates its embedded state on first run', resumed === 'resumed-from-gif');
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
