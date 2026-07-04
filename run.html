@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GifOS — Running…</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
+         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  .bar { display: flex; align-items: center; gap: .75rem; padding: .5rem .9rem;
+         background: #14141f; border-bottom: 1px solid #2a2a3f; }
+  .bar .title { font-weight: 700; }
+  .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
+  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
+                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
+  .bar button:hover { border-color: #7b5cff; }
+  #mount { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="title">📦 GifOS</span>
+    <button id="save">💾 Snapshot</button>
+    <span class="status" id="status">Loading…</span>
+  </div>
+  <div id="mount"></div>
+
+  <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-store.js"></script>
+  <script src="js/runtime.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const fileId = params.get('id');
+      const mount = document.getElementById('mount');
+      const status = document.getElementById('status');
+      const saveBtn = document.getElementById('save');
+      if (!fileId) { status.textContent = 'No app id in URL.'; return; }
+      let controller = null;
+      GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; });
+      saveBtn.addEventListener('click', function () {
+        if (!controller) return;
+        controller.save().then(function (name) { if (name) status.textContent = 'Snapshot saved: ' + name; });
+      });
+    })();
+  </script>
+</body>
+</html>
