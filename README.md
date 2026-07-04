@@ -105,15 +105,34 @@ Someone sends you a GIF in a group chat. It looks like a screenshot. Drop it on 
 # Clone the repo
 git clone https://github.com/nwcnwc/gifos.git
 
-# Open the desktop in your browser
-open index.html
+# Serve the folder (any static server works)
+python3 -m http.server 8099
+# → open http://127.0.0.1:8099/index.html
 
-# Drop any GIF onto the desktop, then double-click to run it
+# The desktop seeds itself with sample App GIFs on first run.
+# Double-click Notes.gif or Guestbook.gif to run one in a new tab.
 ```
+
+Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates live. That's one browser hosting the database and another reading it, locally.
 
 ## Project Status
 
-🚧 **Early development.** The design has moved from a single-app dropzone to the full **desktop + browser-as-server** model described above. The current `index.html` still implements the older inline runtime; the desktop, new-tab execution, filesystem-packed GIFs, the DB relay, and snapshot failover are being built. See [docs/architecture.md](docs/architecture.md).
+🚧 **Working proof of concept (v0.2).** The desktop and the GIF-as-app runtime are built and tested end-to-end:
+
+**Built & tested**
+- ✅ Persistent **desktop** — icons, folders, drag-to-arrange, drag-into-folders, resize, rename, delete (IndexedDB, local-only)
+- ✅ **GIF filesystem codec** — packs a filesystem into a valid, viewable GIF89a and reads it back (verified in Chromium)
+- ✅ **Double-click → run in a new tab**; unsupported files show a "not supported" message
+- ✅ **Runtime `window.gifos`** — `db()` (persists with the icon, syncs across tabs), `fetch()` bridge, `save()` snapshot
+- ✅ **Browsable-filesystem fallback** when a GIF has no `index.html`
+- ✅ **Snapshot/export** back to a self-contained GIF
+
+**Not yet built**
+- ⏳ **Remote** multiplayer over the `gifos.app` relay (today's server/client sync works across tabs on one machine; the cross-network WebSocket relay + join-URLs are the next step)
+- ⏳ Snapshot **failover** handoff, server **lock/continue** on close
+- ⏳ pako compression (payloads are currently stored uncompressed)
+
+See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests.
 
 ## Architecture
 
