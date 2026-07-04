@@ -113,8 +113,23 @@
     return { width: W, height: H, palette, indices, minCodeSize: 7 };
   }
 
-  // ---- encode: filesystem archive -> GIF89a bytes -------------------------
-  // files: { "path": Uint8Array | string }
+  // ---- compression (native CompressionStream; no dependencies) ------------
+  // Payload framing: 0x01 + deflate-raw data, or legacy raw JSON (starts '{').
+  const COMPRESSED_FLAG = 0x01;
+  function hasCompression() {
+    return typeof root.CompressionStream !== 'undefined' && typeof root.Response !== 'undefined';
+  }
+  function deflate(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new root.CompressionStream('deflate-raw'));
+    return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
+  }
+  function inflate(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
+    return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
+  }
+
+  // ---- encode: filesystem archive -> GIF89a bytes (async) ------------------
+  // files: { "path": Uint8Array | string }  →  Promise<Uint8Array>
   function encode(files, opts) {
     opts = opts || {};
     const archive = { v: 1, files: {} };
@@ -123,7 +138,18 @@
       const bytes = typeof val === 'string' ? textToBytes(val) : val;
       archive.files[path] = b64encode(bytes);
     }
-    const payload = textToBytes(JSON.stringify(archive));
+    const json = textToBytes(JSON.stringify(archive));
+    const payloadP = hasCompression()
+      ? deflate(json).then((z) => {
+          const framed = new Uint8Array(z.length + 1);
+          framed[0] = COMPRESSED_FLAG; framed.set(z, 1);
+          return framed;
+        })
+      : Promise.resolve(json); // legacy uncompressed fallback
+    return payloadP.then((payload) => assemble(payload, opts));
+  }
+
+  function assemble(payload, opts) {
 
     const f = previewFrame(opts.accent);
     const w = new Writer();
@@ -152,9 +178,9 @@
     return w.done();
   }
 
-  // ---- decode: GIF89a bytes -> filesystem archive -------------------------
-  // Returns { files: { path: Uint8Array } } or null if not a GifOS GIF.
-  function decode(bytes) {
+  // ---- decode: GIF89a bytes -> filesystem archive (async) ------------------
+  // Returns Promise<{ files: { path: Uint8Array } } | null>.
+  function extractPayload(bytes) {
     const marker = textToBytes(GIFOS_MARKER);
     let pos = 0;
     while (pos < bytes.length - 14) {
@@ -174,14 +200,7 @@
           const assembled = new Uint8Array(total);
           let off = 0;
           for (const c of chunks) { assembled.set(c, off); off += c.length; }
-          try {
-            const archive = JSON.parse(bytesToText(assembled));
-            const out = { files: {} };
-            for (const path in archive.files) out.files[path] = b64decode(archive.files[path]);
-            return out;
-          } catch (e) {
-            return null;
-          }
+          return assembled;
         }
       }
       pos++;
@@ -189,22 +208,40 @@
     return null;
   }
 
-  // ---- helpers ------------------------------------------------------------
-  function isGifosGif(bytes) {
-    // Quick check: valid GIF header + our marker present.
-    if (bytes.length < 6 || bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return false;
-    return decode(bytes) !== null;
+  function parseArchive(jsonBytes) {
+    try {
+      const archive = JSON.parse(bytesToText(jsonBytes));
+      const out = { files: {} };
+      for (const path in archive.files) out.files[path] = b64decode(archive.files[path]);
+      return out;
+    } catch (e) { return null; }
   }
 
-  function readManifest(archiveOrBytes) {
-    const archive = archiveOrBytes instanceof Uint8Array ? decode(archiveOrBytes) : archiveOrBytes;
+  function decode(bytes) {
+    const payload = extractPayload(bytes);
+    if (!payload || payload.length === 0) return Promise.resolve(null);
+    if (payload[0] === COMPRESSED_FLAG) {
+      return inflate(payload.subarray(1)).then(parseArchive).catch(() => null);
+    }
+    return Promise.resolve(parseArchive(payload)); // legacy uncompressed JSON
+  }
+
+  // ---- helpers ------------------------------------------------------------
+  // Cheap sync check: valid GIF header + GIFOS marker present (no payload parse).
+  function looksLikeGifosGif(bytes) {
+    if (bytes.length < 6 || bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return false;
+    return extractPayload(bytes) !== null;
+  }
+
+  // readManifest takes a decoded archive (decode() is async now).
+  function readManifest(archive) {
     if (!archive || !archive.files['manifest.json']) return null;
     try { return JSON.parse(bytesToText(archive.files['manifest.json'])); }
     catch (e) { return null; }
   }
 
   GifOS.gif = {
-    encode, decode, isGifosGif, readManifest,
+    encode, decode, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     MARKER: GIFOS_MARKER,
   };

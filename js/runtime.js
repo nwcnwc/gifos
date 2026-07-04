@@ -130,11 +130,10 @@
     const out = {};
     for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
     out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
-    return gif.encode(out, { accent: manifest.accent });
+    return gif.encode(out, { accent: manifest.accent }); // Promise<Uint8Array>
   }
   function downloadSnapshot(files, manifest, db) {
-    return Promise.resolve(db.getFullState()).then((state) => {
-      const bytes = packSnapshot(files, manifest, state);
+    return Promise.resolve(db.getFullState()).then((state) => packSnapshot(files, manifest, state)).then((bytes) => {
       const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
       const a = document.createElement('a');
       const name = (manifest.appId || 'app') + '-snapshot.gif';
@@ -269,7 +268,10 @@
     return store.getFile(fileId).then((rec) => {
       if (!rec) { setStatus('File not found on this desktop.'); return noop; }
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-      const archive = gif.decode(appBytes);
+      return gif.decode(appBytes).then((archive) => bootDecoded(archive, appBytes, rec));
+    });
+
+    function bootDecoded(archive, appBytes, rec) {
       if (!archive) { setStatus('Not a GifOS app — nothing to run.'); return noop; }
       const files = archive.files;
       const manifest = gif.readManifest(archive) || { name: rec.name || 'App' };
@@ -321,7 +323,7 @@
         setStatus('Running · state saved to this icon');
         return { save: () => downloadSnapshot(files, manifest, db), becomeHost };
       });
-    });
+    }
   }
 
   // ---- client boot (join a host over the relay) ----------------------------
@@ -353,15 +355,16 @@
         if (hooks.onHostGone) hooks.onHostGone(!!lastDump);
       } else if (m.t === 'app') {
         appBytes = gif.b64decode(m.gif);
-        const archive = gif.decode(appBytes);
-        if (!archive) { setStatus('Bad app from host.'); return; }
-        filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
-        document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
-        remoteDb = makeRemoteDb((payload) => ws.send(JSON.stringify(payload)));
-        iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
-        mountApp(iframe, filesRef, manifestRef, remoteDb);
-        setStatus('Running as client · state hosted remotely');
-        mirror();
+        gif.decode(appBytes).then((archive) => {
+          if (!archive) { setStatus('Bad app from host.'); return; }
+          filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
+          document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
+          remoteDb = makeRemoteDb((payload) => ws.send(JSON.stringify(payload)));
+          iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
+          mountApp(iframe, filesRef, manifestRef, remoteDb);
+          setStatus('Running as client · state hosted remotely');
+          mirror();
+        });
       } else if (m.t === 'rpc-reply') {
         if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); }
         if (remoteDb) remoteDb._reply(m.id, m.ok, m.result);

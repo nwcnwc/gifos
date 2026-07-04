@@ -96,10 +96,11 @@
           'notes/todo.txt': 'buy milk\nship gifos',
         } },
     ];
-    return apps.map((a) => ({
-      name: a.name, appId: a.appId, accent: a.accent,
-      bytes: gif.encode(a.files, { accent: a.accent }),
-    }));
+    return Promise.all(apps.map((a) =>
+      gif.encode(a.files, { accent: a.accent }).then((bytes) => ({
+        name: a.name, appId: a.appId, accent: a.accent, bytes,
+      }))
+    ));
   }
 
   GifOS.samples = { build };
