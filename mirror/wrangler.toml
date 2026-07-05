@@ -1,0 +1,11 @@
+name = "gifos-mirror"
+main = "src/mirror.js"
+compatibility_date = "2026-01-01"
+
+# Wildcard route: catches every subdomain of gifos.app that Cloudflare proxies.
+# The relay is safe — relay.gifos.app's own custom-domain route is more
+# specific than this wildcard, and Cloudflare always picks the most specific.
+# Requires one proxied (orange-cloud) DNS record for "*" — see README.
+[[routes]]
+pattern = "*.gifos.app/*"
+zone_name = "gifos.app"
