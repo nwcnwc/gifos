@@ -136,8 +136,8 @@ async function openApp(page, ctx, folder, label) {
   const made = madePage.frameLocator('iframe');
   await made.locator('#b').waitFor({ timeout: 8000 });
   await made.locator('#b').click();
-  await sleep(300);
-  check('the AI-made app runs and uses gifos.db', (await made.locator('#n').textContent()) === '1');
+  const madeOk = await made.locator('#n').filter({ hasText: '1' }).waitFor({ timeout: 6000 }).then(() => true, () => false);
+  check('the AI-made app runs and uses gifos.db', madeOk);
   await madePage.close();
 
   // ---- ZIP import: a multi-file app (index.html + app.js) becomes a running App GIF ----

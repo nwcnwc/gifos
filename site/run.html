@@ -19,6 +19,20 @@
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
   .bar button:hover { border-color: #7b5cff; }
   .bar button.urgent { border-color: #ff5caa; box-shadow: 0 0 14px rgba(255,92,170,.35); }
+  /* Compact connection pill: a dot + one calm word (client), or per-status
+     counts (host). The verbose sentence lives in a click-to-open popover so
+     long status text can never wrap across the screen. */
+  .conn { display: flex; align-items: center; gap: .4rem; margin-left: auto; padding: .3rem .75rem;
+          border-radius: 1rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0;
+          cursor: pointer; font-size: .78rem; white-space: nowrap; }
+  .cdot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+  .cseg { display: inline-flex; align-items: center; gap: .3rem; padding: .05rem .5rem;
+          border: 1px solid; border-radius: 1rem; font-size: .75rem; }
+  .conn-pop { display: none; position: absolute; right: .9rem; top: 3rem; z-index: 30;
+              max-width: min(420px, 90vw); background: #14141f; border: 1px solid #2a2a3f;
+              border-radius: .6rem; padding: .6rem .8rem; font-size: .8rem; color: #8888aa;
+              box-shadow: 0 12px 40px rgba(0,0,0,.5); line-height: 1.4; }
+  .conn-pop.show { display: block; }
   #mount { flex: 1; min-height: 0; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
@@ -43,8 +57,9 @@
     <button id="save-desktop" title="Keep a full copy of this app + its current state on your Home Screen" style="display:none">Save to Home Screen</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
     <button id="save" title="Download this app — with everything in it — as one GIF file">Save a Copy</button>
-    <span class="status" id="status">Loading…</span>
+    <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
   </div>
+  <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
   <div class="share" id="share">
     <span class="hint">Send this link to friends — opening it brings them right in:</span>
     <input id="share-url" readonly>
@@ -79,6 +94,38 @@
       let controller = null;
 
       function showShare(url) { shareUrl.value = url; share.classList.add('show'); }
+
+      // ---- compact connection pill (colors, not sentences) ----
+      // Boot messages stay visible until the first structured state arrives;
+      // after that the popover is tap-to-open from the pill.
+      const connBtn = document.getElementById('conn');
+      const connPop = document.getElementById('conn-pop');
+      connBtn.addEventListener('click', function () { connPop.classList.toggle('show'); });
+      const COLOR = { up: '#34c759', soft: '#8fe6a1', warn: '#ffcc44', lost: '#ff5c5c' };
+      const WORD = { up: 'Connected', soft: 'Connected', warn: 'Reconnecting…', lost: 'Disconnected' };
+      const dot = (c) => '<span class="cdot" style="background:' + c + '"></span>';
+      const seg = (c, n) => '<span class="cseg" style="border-color:' + c + '">' + dot(c) + n + '</span>';
+      let firstConn = true;
+      window.addEventListener('gifos-conn', function (e) {
+        const d = e.detail || {};
+        if (firstConn) { firstConn = false; connPop.classList.remove('show'); connBtn.style.display = ''; }
+        if (d.mode === 'local') { connBtn.innerHTML = dot('#8888aa') + '<span>Local</span>'; return; }
+        if (d.mode === 'client') {
+          connBtn.innerHTML = dot(COLOR[d.grade] || COLOR.warn) + '<span>' + (WORD[d.grade] || '…') + '</span>';
+          return;
+        }
+        // host: one small counter per connection state (only non-empty ones)
+        const c = d.counts || { up: 0, soft: 0, warn: 0 };
+        let html = '';
+        if (d.self && d.self !== 'up') html += dot(COLOR[d.self] || COLOR.warn); // our own relay link is blinking
+        if (!d.total) html += dot(COLOR[d.self === 'up' ? 'up' : (d.self || 'up')]) + '<span>Live</span>';
+        else {
+          if (c.up) html += seg(COLOR.up, c.up);
+          if (c.soft) html += seg(COLOR.soft, c.soft);
+          if (c.warn) html += seg(COLOR.warn, c.warn);
+        }
+        connBtn.innerHTML = html;
+      });
 
       // Ask for a screen name before joining/hosting a multiplayer session, so
       // apps can attribute moves and messages. Skipping generates a Guest name.
@@ -129,6 +176,7 @@
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
           status.textContent = 'Could not create the invite: ' + err.message;
+          connPop.classList.add('show'); // errors deserve to be seen
         });
       });
       becomeBtn.addEventListener('click', function () {
@@ -141,6 +189,7 @@
         }).catch(function (err) {
           becomeBtn.disabled = false; becomeBtn.textContent = 'Take Over';
           status.textContent = 'Could not take over: ' + err.message;
+          connPop.classList.add('show');
         });
       });
       saveDeskBtn.addEventListener('click', function () {

@@ -118,7 +118,7 @@ server.on('upgrade', (req, socket) => {
       if (m.t === 'peer') { routePeer(peer, m); }
       else if (sess.host) sess.host.send(JSON.stringify({ t: 'from', from: peer, msg: m }));
     };
-    conn.onclose = () => { sess.clients.delete(peer); if (sess.host) sess.host.send(JSON.stringify({ t: 'peer-leave', peer })); roster(); };
+    conn.onclose = () => { if (sess.clients.get(peer) !== conn) return; sess.clients.delete(peer); if (sess.host) sess.host.send(JSON.stringify({ t: 'peer-leave', peer })); roster(); };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     sess.host.send(JSON.stringify({ t: 'peer-join', peer }));
     roster();

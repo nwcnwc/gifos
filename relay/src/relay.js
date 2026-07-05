@@ -110,6 +110,9 @@ export class Session {
       this.peerId.set(server, peer);
       server.addEventListener('message', (ev) => this.onClientMessage(peer, server, ev));
       server.addEventListener('close', () => {
+        // A reconnecting client reuses its peer id; if a NEWER socket already
+        // replaced this one, this stale close must not evict it.
+        if (this.clients.get(peer) !== server) return;
         this.clients.delete(peer);
         if (this.host) this.host.send(JSON.stringify({ t: 'peer-leave', peer }));
         this.roster();
