@@ -81,6 +81,8 @@ server.on('upgrade', (req, socket) => {
     };
     conn.onclose = () => { if (sess.host === conn) { sess.host = null; for (const c of sess.clients.values()) c.send(JSON.stringify({ t: 'host-gone' })); } };
     conn.send(JSON.stringify({ t: 'host-ready' }));
+    // Announce already-connected clients (lock/failover recovery), same as the Worker.
+    for (const peer of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer }));
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }
     if (sess.token && token !== sess.token) { conn.send(JSON.stringify({ t: 'error', error: 'bad token' })); conn.close(); return; }

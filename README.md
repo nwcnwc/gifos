@@ -126,7 +126,7 @@ Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates li
 - ✅ **Runtime `window.gifos`** — `db()` (persists with the icon, syncs across tabs), `fetch()` bridge, `save()` snapshot
 - ✅ **Browsable-filesystem fallback** when a GIF has no `index.html`
 - ✅ **Snapshot round-trip** — export the app + live state as one self-contained GIF; dropping a snapshot GIF on any desktop **resumes exactly where it was saved** (embedded state hydrates on first run)
-- ✅ **Remote multiplayer** — one browser hosts the DB, others join over a WebSocket relay via a share link; the App GIF itself is delivered to joiners through the relay ([`test/e2e-relay.js`](test/e2e-relay.js))
+- ✅ **Remote multiplayer, P2P-first** — one browser hosts the DB, others join via a share link. Traffic upgrades to a **direct WebRTC DataChannel** (DTLS-encrypted end-to-end; the relay only performs introductions) and **falls back to the relay automatically** when P2P can't be established — verified for both paths ([`test/e2e-relay.js`](test/e2e-relay.js))
 - ✅ **Client capture** — a client saves a full copy of the app + live session state onto its own desktop
 - ✅ **Failover** — clients mirror the host's state; if the host browser dies, a client clicks **Become Host** and takes over the *same session* from its mirrored copy; remaining clients keep playing ([`test/e2e-failover.js`](test/e2e-failover.js))
 - ✅ **Lock-until-reopen** — the session id/token live with the desktop icon, so closing the host tab locks clients out and reopening the icon resumes hosting on the *same share link*

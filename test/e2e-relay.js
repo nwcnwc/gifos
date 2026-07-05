@@ -1,5 +1,7 @@
-// Remote-relay e2e: a HOST browser and a CLIENT browser in separate contexts
-// (separate IndexedDB = separate "machines"), connected only via the local relay.
+// Remote-relay e2e: a HOST browser and CLIENT browsers in separate contexts
+// (separate IndexedDB = separate "machines"), connected via the local relay.
+// Verifies: app delivery, remote DB round-trip, live broadcasts, the P2P
+// DataChannel upgrade, and the automatic relay fallback when WebRTC is absent.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -10,7 +12,11 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME });
+  const browser = await chromium.launch({
+    executablePath: CHROME,
+    // Keep host ICE candidates usable between contexts in headless (no mDNS).
+    args: ['--disable-features=WebRtcHideLocalIpsWithMdns'],
+  });
   const setRelay = { content: "try{localStorage.setItem('gifos_relay','" + RELAY + "')}catch(e){}" };
 
   // ---------- HOST ----------
@@ -56,7 +62,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const clientSees = await clientApp.locator('#list').textContent();
   check('client sees host\'s existing DB state', /from host/.test(clientSees));
 
-  // client writes → should reach the host browser's DB and appear there
+  // ---------- P2P upgrade: DataChannel should open, relay drops to standby ----------
+  let p2pUp = true;
+  try {
+    await clientRun.waitForFunction(() => window.__gifosTransport === 'p2p', null, { timeout: 10000 });
+  } catch (e) { p2pUp = false; }
+  check('client upgraded to a direct P2P DataChannel', p2pUp);
+  if (p2pUp) {
+    const hostStats = await hostRun.evaluate(() => window.__gifosHostStats);
+    check('host reports the peer as P2P-connected', !!hostStats && hostStats.p2p >= 1);
+  } else {
+    check('host reports the peer as P2P-connected', false);
+  }
+
+  // client writes → host DB (now over the DataChannel when P2P is up)
   await clientApp.locator('#name').fill('Client');
   await clientApp.locator('#msg').fill('from client');
   await clientApp.locator('form button').click();
@@ -64,13 +83,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostSees = await hostApp.locator('#list').textContent();
   check('client\'s write appears in the HOST browser (remote DB round-trip)', /from client/.test(hostSees));
 
-  // host writes → should propagate to the client
+  // host writes → propagates to the client
   await hostApp.locator('#name').fill('Host');
   await hostApp.locator('#msg').fill('second from host');
   await hostApp.locator('form button').click();
   await sleep(600);
   const clientSees2 = await clientApp.locator('#list').textContent();
   check('host\'s write propagates live to the CLIENT', /second from host/.test(clientSees2));
+
+  // ---------- forced fallback: a client with NO WebRTC still works via relay ----------
+  const noRtcCtx = await browser.newContext();
+  await noRtcCtx.addInitScript({ content: "Object.defineProperty(window,'RTCPeerConnection',{value:undefined,configurable:false});" });
+  const noRtcRun = await noRtcCtx.newPage();
+  noRtcRun.on('console', (m) => { if (m.type() === 'error') console.log('  [no-rtc client]', m.text()); });
+  await noRtcRun.goto(shareUrl);
+  await noRtcRun.waitForSelector('iframe', { timeout: 10000 });
+  const noRtcApp = noRtcRun.frameLocator('iframe');
+  await noRtcApp.locator('#msg').waitFor({ timeout: 10000 });
+  await sleep(800);
+  const noRtcTransport = await noRtcRun.evaluate(() => window.__gifosTransport);
+  check('WebRTC-less client stays on the relay transport', noRtcTransport === 'relay');
+  await noRtcApp.locator('#name').fill('Fallback');
+  await noRtcApp.locator('#msg').fill('via relay only');
+  await noRtcApp.locator('form button').click();
+  await sleep(700);
+  const hostSees2 = await hostApp.locator('#list').textContent();
+  check('relay-only client\'s write still lands in the host DB', /via relay only/.test(hostSees2));
+  const clientSees3 = await clientApp.locator('#list').textContent();
+  check('relay-only client\'s write reaches the P2P client too', /via relay only/.test(clientSees3));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
