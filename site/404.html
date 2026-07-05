@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GifOS</title>
+<script>
+/*
+ * 404.html — the pretty-link router. GitHub Pages serves this for any path it
+ * doesn't know, which is exactly how gifos.app/join/<code> (an app session)
+ * and gifos.app/call/<code> (a video call) work on a fully static site: the
+ * code becomes the session id AND the join key on the relay, no server state
+ * anywhere. Anything unrecognized just goes home.
+ */
+(function () {
+  var m = location.pathname.match(/^\/(?:join|call)\/([a-z0-9]{4,64})\/?$/i);
+  if (m) {
+    var code = m[1];
+    var extra = location.search ? '&' + location.search.slice(1) : '';
+    if (location.pathname.indexOf('/call/') === 0) {
+      location.replace('/video.html#v=' + code + '&k=' + code + extra);
+    } else {
+      location.replace('/run.html#j=' + code + extra);
+    }
+    return;
+  }
+  location.replace('/');
+})();
+</script>
+</head>
+<body></body>
+</html>

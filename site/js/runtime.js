@@ -40,6 +40,30 @@
     catch (e) { return root.GIFOS_RELAY || ''; }
   }
 
+  // ---- friendly invite links ------------------------------------------------
+  // One short code is both the session id and the join key — the link IS the
+  // capability either way, so splitting them bought nothing but length. The
+  // alphabet drops lookalikes (0/O, 1/l/i) so codes survive being read aloud.
+  const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+  function shortCode(len) {
+    const n = len || 10; // 31^10 ≈ 2^49 — plenty for ephemeral, unlisted rooms
+    const buf = new Uint8Array(n);
+    (root.crypto || {}).getRandomValues ? root.crypto.getRandomValues(buf) : buf.forEach((_, i) => (buf[i] = i * 7));
+    let s = '';
+    for (let i = 0; i < n; i++) s += CODE_ALPHABET[buf[i] % CODE_ALPHABET.length];
+    return s;
+  }
+  // gifos.app/join/<code> on production (404.html routes it into run.html);
+  // hash form everywhere else (local dev, custom relays, legacy split ids).
+  function buildJoinUrl(page, sid, token, relay) {
+    const pretty = sid === token && /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
+    if (pretty) return location.origin + (page === 'video' ? '/call/' : '/join/') + sid;
+    const base = location.origin + (page === 'video' ? '/video.html' : '/run.html');
+    const pair = page === 'video' ? 'v=' + sid + '&k=' + token : (sid === token ? 'j=' + sid : 's=' + sid + '&k=' + token);
+    return base + '#' + pair + '&relay=' + encodeURIComponent(relay);
+  }
+  GifOS.links = { shortCode, buildJoinUrl };
+
   // Per-browser identity (defined in gifos-store.js so the desktop shares it).
   const identity = store.identity;
   const setName = store.setName;
@@ -561,8 +585,9 @@
         // Reuse the icon's stored session so reopening the app resumes the SAME
         // share link — closing the tab "locks" clients until the icon reopens.
         return store.getState(fileId + '::session').then((sess) => {
-          const sid = (sess && sess.sid) || store.uid('s');
-          const token = (sess && sess.token) || store.uid('k');
+          const code = shortCode();
+          const sid = (sess && sess.sid) || code;
+          const token = (sess && sess.token) || code;
           return openHostSocket(relay, sid, token).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
@@ -574,7 +599,7 @@
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
             return store.setState(fileId + '::session', { sid, token, relay }).then(() => ({
-              shareUrl: location.origin + location.pathname + '#s=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay),
+              shareUrl: buildJoinUrl('app', sid, token, relay),
             }));
           });
         });
@@ -793,7 +818,7 @@
           ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
           setStatus('Live (you took over) · the session continues');
           return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay })
-            .then(() => ({ shareUrl: location.href, save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
+            .then(() => ({ shareUrl: buildJoinUrl('app', params.s, params.k, params.relay), save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
         });
       });
     }

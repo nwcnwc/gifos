@@ -464,6 +464,26 @@ async function openApp(page, ctx, folder, label) {
   }, Array.from(appDlBytes));
   check('Download of an app produces a valid GifOS GIF', /\.gif$/.test(appDl.suggestedFilename()) && appDlOk);
 
+  // ---- pretty invite links: the 404 router maps /join/<code> into run.html ----
+  // (GitHub Pages serves 404.html for unknown paths; the local test server
+  // can't, so serve the real file via interception and exercise the router.)
+  const routed = await context.newPage();
+  await routed.route('**/join/*', (route) => route.fulfill({
+    status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
+  }));
+  await routed.goto(BASE + '/join/wkm4tr7q2x');
+  await routed.waitForURL(/run\.html#j=wkm4tr7q2x/, { timeout: 5000 });
+  check('/join/<code> routes into the app runner with the code', true);
+  await routed.close();
+  const called = await context.newPage();
+  await called.route('**/call/*', (route) => route.fulfill({
+    status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
+  }));
+  await called.goto(BASE + '/call/wkm4tr7q2x');
+  await called.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x/, { timeout: 5000 });
+  check('/call/<code> routes into the video page with the code', true);
+  await called.close();
+
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();
   await sys.goto(BASE + '/index.html');
