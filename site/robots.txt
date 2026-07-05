@@ -1,0 +1,5 @@
+# gifos.app — everything here is public; index it all.
+User-agent: *
+Allow: /
+
+Sitemap: https://gifos.app/sitemap.xml

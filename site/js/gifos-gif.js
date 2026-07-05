@@ -213,6 +213,31 @@
     });
   }
 
+  // ---- embed: hide an app inside ANY existing GIF ---------------------------
+  // The Easter-egg maker: take a GIF from your life or the wild and splice a
+  // GifOS filesystem into it, just before the trailer. Its animation plays
+  // untouched everywhere it's shared — but dropped on a GifOS Home Screen,
+  // it RUNS. (An existing GifOS gif just gets its payload swapped.)
+  function embed(hostBytes, files) {
+    if (!hostBytes || hostBytes.length < 13 || hostBytes[0] !== 0x47 || hostBytes[1] !== 0x49 || hostBytes[2] !== 0x46) {
+      return Promise.reject(new Error('host is not a GIF'));
+    }
+    if (looksLikeGifosGif(hostBytes)) return repack(hostBytes, files);
+    return buildPayload(files).then((payload) => {
+      const w = new Writer();
+      w.byte(0x21).byte(0xff).byte(0x0b).ascii(GIFOS_MARKER).ascii(GIFOS_AUTH);
+      w.subBlocks(payload);
+      const block = w.done();
+      let end = hostBytes.length;
+      if (hostBytes[end - 1] === 0x3b) end -= 1; // re-add the trailer after our block
+      const out = new Uint8Array(end + block.length + 1);
+      out.set(hostBytes.subarray(0, end), 0);
+      out.set(block, end);
+      out[out.length - 1] = 0x3b;
+      return out;
+    });
+  }
+
   function assemble(payload, opts) {
     // opts.preview (optional) is real static artwork (one frame); otherwise we
     // build an animated, looping icon. Normalize both to a { frames:[...] } shape.
@@ -318,7 +343,7 @@
   }
 
   GifOS.gif = {
-    encode, decode, repack, looksLikeGifosGif, readManifest,
+    encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     MARKER: GIFOS_MARKER,
   };

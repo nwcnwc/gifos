@@ -82,6 +82,20 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('repack rejects a non-GifOS gif', await gif.repack(new Uint8Array([0x47, 0x49, 0x46]), {})
     .then(() => false, () => true));
 
+  // embed: hide an app inside a WILD (non-GifOS) gif — the Easter egg path.
+  // The host's own bytes must survive untouched; only our block is spliced in.
+  const wildGif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 2, 0, 2, 0, 0, 0, 0, 0x3b]); // minimal plain GIF89a
+  const egg = await gif.embed(wildGif, { 'manifest.json': '{"gifos":"1.0","appId":"egg","name":"Egg"}', 'index.html': '<h1>surprise</h1>' });
+  check('embed keeps the wild gif\'s leading bytes byte-for-byte', (() => {
+    for (let i = 0; i < wildGif.length - 1; i++) if (egg[i] !== wildGif[i]) return false;
+    return true;
+  })());
+  check('embedded gif still ends with a trailer', egg[egg.length - 1] === 0x3b);
+  const eggBack = await gif.decode(egg);
+  check('the hidden app decodes out of the wild gif', !!eggBack && gif.bytesToText(eggBack.files['index.html']) === '<h1>surprise</h1>');
+  check('embed detects GifOS hosts and repacks instead', await gif.embed(artBytes, { 'index.html': '<h1>swap</h1>' })
+    .then(async (b) => gif.bytesToText((await gif.decode(b)).files['index.html']) === '<h1>swap</h1>'));
+
   fs.writeFileSync(path.join(__dirname, 'sample.gif'), Buffer.from(bytes));
   console.log('wrote test/sample.gif');
   process.exit(ok ? 0 : 1);
