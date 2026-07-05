@@ -16,7 +16,7 @@ wrangler deploy
 # → https://gifos-relay.<your-subdomain>.workers.dev
 ```
 
-Then point the app at it — edit `js/relay-config.js` in the repo root:
+Then point the app at it — edit `site/js/relay-config.js`:
 
 ```js
 window.GIFOS_RELAY = 'wss://gifos-relay.<your-subdomain>.workers.dev';
