@@ -21,7 +21,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: https://gifos.app/
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,19 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      # GitHub Pages' backend occasionally returns a transient
+      # "Deployment failed, try again later." even though the artifact
+      # uploaded fine. Retry the deploy a few times so a platform hiccup
+      # never strands the live site on an old build.
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - id: deployment3
+        if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
         uses: actions/deploy-pages@v4
       # Tell IndexNow-capable engines (Bing, Yandex, Seznam, Naver…) that the
       # site changed. Google doesn't use IndexNow — it discovers via the
