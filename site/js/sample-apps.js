@@ -329,6 +329,199 @@
   document.getElementById('reset').onclick=function(){ running=false; elapsed=0; base=0; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); tEl.textContent='00:00.0'; };
 </script>`;
 
+  const MINESWEEPER_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffd23c}
+  .bar{display:flex;gap:10px;align-items:center;margin:12px;flex-wrap:wrap;justify-content:center}
+  .bar button{padding:8px 14px;border:0;border-radius:8px;background:#1c1c2b;color:#e0e0f0;cursor:pointer}
+  .bar button.on{background:#ffd23c;color:#2a2400;font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(10,30px);gap:2px;touch-action:manipulation}
+  .c{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:#2a3350;cursor:pointer;font-weight:700;user-select:none}
+  .c.rev{background:#14141f;cursor:default}
+  .c.mine{background:#ff5c5c}
+  .n1{color:#5cc8ff}.n2{color:#5cff7b}.n3{color:#ff8f5c}.n4{color:#ff5caa}.n5{color:#ffd23c}.n6{color:#5cdcb4}
+  .status{margin:10px;min-height:20px;color:#8888aa;text-align:center;padding:0 12px}
+</style>
+<header>💣 Minesweeper — co-op</header>
+<div class="status" id="status">Loading…</div>
+<div class="bar">
+  <button id="mode">🚩 Flag mode: off</button>
+  <button id="new">New game</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+  const db=gifos.db('mine'), W=10, H=10, MINES=15;
+  let me={id:'local',name:'You'}, flagMode=false;
+  if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
+  const fresh=()=>({ id:'game', mines:null, rev:new Array(W*H).fill(false), flags:{}, over:false, win:false });
+  let g=fresh();
+  const gridEl=document.getElementById('grid'), statusEl=document.getElementById('status');
+  function nbrs(i){ const x=i%W,y=(i/W|0),out=[]; for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const nx=x+dx,ny=y+dy; if(nx>=0&&nx<W&&ny>=0&&ny<H)out.push(ny*W+nx); } return out; }
+  function count(i){ if(!g.mines)return 0; let n=0; nbrs(i).forEach(function(j){ if(g.mines.indexOf(j)>=0)n++; }); return n; }
+  function genMines(safe){ const ex=[safe].concat(nbrs(safe)), m=[]; while(m.length<MINES){ const r=Math.floor(Math.random()*W*H); if(ex.indexOf(r)<0&&m.indexOf(r)<0)m.push(r); } return m; }
+  function flood(i){ const st=[i]; while(st.length){ const c=st.pop(); if(g.rev[c])continue; g.rev[c]=true; if(count(c)===0&&g.mines.indexOf(c)<0) nbrs(c).forEach(function(j){ if(!g.rev[j])st.push(j); }); } }
+  function reveal(i){ if(g.over||g.rev[i]||g.flags[i])return;
+    if(!g.mines) g.mines=genMines(i);
+    if(g.mines.indexOf(i)>=0){ g.rev[i]=true; g.over=true; g.win=false; db.put(g); render(); return; }
+    flood(i);
+    if(g.rev.filter(Boolean).length===W*H-MINES){ g.over=true; g.win=true; }
+    db.put(g); render();
+  }
+  function flag(i){ if(g.over||g.rev[i])return; g.flags=Object.assign({},g.flags); if(g.flags[i])delete g.flags[i]; else g.flags[i]=me.name; db.put(g); render(); }
+  function render(){
+    gridEl.innerHTML='';
+    for(let i=0;i<W*H;i++){ const d=document.createElement('div'); d.className='c';
+      if(g.rev[i]){ d.classList.add('rev'); if(g.mines&&g.mines.indexOf(i)>=0){ d.classList.add('mine'); d.textContent='💣'; } else { const n=count(i); if(n){ d.textContent=n; d.classList.add('n'+n); } } }
+      else if(g.flags[i]){ d.textContent='🚩'; d.title=g.flags[i]; }
+      d.onclick=(function(k){ return function(){ flagMode?flag(k):reveal(k); }; })(i);
+      d.oncontextmenu=(function(k){ return function(e){ e.preventDefault(); flag(k); }; })(i);
+      gridEl.appendChild(d); }
+    statusEl.textContent = g.over ? (g.win?'🎉 Cleared! Everyone wins.':'💥 Boom! Game over — New game to retry.')
+      : (g.mines?('Mines: '+MINES+' · flags: '+Object.keys(g.flags).length):'Tap any square to start. Play together in multiplayer.');
+  }
+  document.getElementById('mode').onclick=function(){ flagMode=!flagMode; this.textContent='🚩 Flag mode: '+(flagMode?'on':'off'); this.className=flagMode?'on':''; };
+  document.getElementById('new').onclick=function(){ g=fresh(); db.put(g); render(); };
+  db.subscribe(function(items){ const b=items.find(function(x){return x.id==='game';}); if(b)g=b; render(); });
+  render();
+</script>`;
+
+  const CHESS_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#e8c37a}
+  .status{margin:10px;min-height:20px;color:#8888aa;text-align:center;padding:0 12px}
+  button{padding:8px 16px;border:0;border-radius:8px;background:#e8c37a;color:#241a04;font-weight:700;cursor:pointer;margin:6px}
+  .lobby{padding:16px;max-width:420px;text-align:center}
+  .players{list-style:none;padding:0;margin:12px 0}
+  .players li{padding:8px 12px;background:#14141f;border:1px solid #2a2a3f;border-radius:8px;margin:6px 0}
+  .bracket{display:flex;gap:24px;padding:16px;overflow:auto}
+  .round{display:flex;flex-direction:column;gap:12px;justify-content:center}
+  .match{background:#14141f;border:1px solid #2a2a3f;border-radius:8px;padding:8px 12px;min-width:140px;cursor:pointer}
+  .match.mine{border-color:#e8c37a}
+  .match .w{color:#5cff7b}
+  .board{display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(8,44px);margin:12px;border:2px solid #2a2a3f}
+  .sq{display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer}
+  .sq.l{background:#3a3550}.sq.d{background:#241f38}
+  .sq.sel{outline:3px solid #e8c37a;outline-offset:-3px}
+  .sq.mv{box-shadow:inset 0 0 0 4px rgba(92,255,123,.5)}
+  .back{background:#1c1c2b;color:#e0e0f0}
+</style>
+<header>♟️ Chess Tournament</header>
+<div class="status" id="status">Loading…</div>
+<div id="view"></div>
+<script>
+  const db=gifos.db('chess');
+  let me={id:'local',name:'You'}, viewMatch=null, sel=null;
+  const START='rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR';
+  const GLYPH={p:'♟',r:'♜',n:'♞',b:'♝',q:'♛',k:'♚',P:'♙',R:'♖',N:'♘',B:'♗',Q:'♕',K:'♔'};
+  const view=document.getElementById('view'), statusEl=document.getElementById('status');
+  let T={ id:'t', players:[], started:false, rounds:[], round:0 };
+
+  function save(){ return db.put(T); }
+  function joinLobby(){ if(T.started) return; if(!T.players.some(function(p){return p.id===me.id;})){ T.players=T.players.concat([{id:me.id,name:me.name}]); save(); } }
+  function startTournament(){
+    let ps=T.players.slice(); if(ps.length<2) return;
+    const matches=[]; for(let i=0;i<ps.length;i+=2){ matches.push(makeMatch(ps[i], ps[i+1]||null)); }
+    T.started=true; T.rounds=[matches]; T.round=0; save();
+  }
+  function makeMatch(a,b){ const m={ id:'m'+Math.random().toString(36).slice(2,8), a:a, b:b, board:START, turn:'w', winner:null };
+    if(!b){ m.winner=a; } return m; }
+  function curMatches(){ return T.rounds[T.round]||[]; }
+  function advance(){
+    const ms=curMatches(); if(!ms.every(function(m){return m.winner;})) return;
+    const winners=ms.map(function(m){return m.winner;});
+    if(winners.length===1){ save(); return; } // champion
+    const next=[]; for(let i=0;i<winners.length;i+=2){ next.push(makeMatch(winners[i], winners[i+1]||null)); }
+    T.rounds=T.rounds.concat([next]); T.round++; save();
+  }
+  // ---- chess rules (legal piece moves; king-capture wins; auto-queen) ----
+  function at(bd,x,y){ return (x<0||x>7||y<0||y>7)?null:bd[y*8+x]; }
+  function isW(p){ return p&&p>='A'&&p<='Z'; }
+  function mine(p,color){ return p&&p!=='.'&&(color==='w'?isW(p):!isW(p)); }
+  function moves(bd,x,y){
+    const p=bd[y*8+x]; if(p==='.') return []; const wh=isW(p); const out=[]; const t=p.toLowerCase();
+    const push=(nx,ny)=>{ const q=at(bd,nx,ny); if(q===null)return false; if(q==='.'){ out.push([nx,ny]); return true; } if(isW(q)!==wh){ out.push([nx,ny]); } return false; };
+    const ray=(dx,dy)=>{ let nx=x+dx,ny=y+dy; while(push(nx,ny)){ nx+=dx; ny+=dy; } };
+    if(t==='p'){ const dir=wh?-1:1, sy=wh?6:1;
+      if(at(bd,x,y+dir)==='.'){ out.push([x,y+dir]); if(y===sy&&at(bd,x,y+2*dir)==='.') out.push([x,y+2*dir]); }
+      [[-1,dir],[1,dir]].forEach(function(d){ const q=at(bd,x+d[0],y+d[1]); if(q&&q!=='.'&&isW(q)!==wh) out.push([x+d[0],y+d[1]]); });
+    } else if(t==='n'){ [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]].forEach(function(d){ const q=at(bd,x+d[0],y+d[1]); if(q!==null&&(q==='.'||isW(q)!==wh)) out.push([x+d[0],y+d[1]]); });
+    } else if(t==='b'){ ray(1,1);ray(1,-1);ray(-1,1);ray(-1,-1);
+    } else if(t==='r'){ ray(1,0);ray(-1,0);ray(0,1);ray(0,-1);
+    } else if(t==='q'){ ray(1,1);ray(1,-1);ray(-1,1);ray(-1,-1);ray(1,0);ray(-1,0);ray(0,1);ray(0,-1);
+    } else if(t==='k'){ [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(function(d){ const q=at(bd,x+d[0],y+d[1]); if(q!==null&&(q==='.'||isW(q)!==wh)) out.push([x+d[0],y+d[1]]); }); }
+    return out;
+  }
+  function mySeat(m){ return m.a&&m.a.id===me.id?'w':m.b&&m.b.id===me.id?'b':null; }
+  function doMove(m,fx,fy,tx,ty){
+    const seat=mySeat(m); if(seat!==m.turn) return;
+    const bd=m.board.split(''); const p=bd[fy*8+fx]; const target=bd[ty*8+tx];
+    bd[ty*8+tx]=p; bd[fy*8+fx]='.';
+    if(p==='P'&&ty===0) bd[ty*8+tx]='Q'; if(p==='p'&&ty===7) bd[ty*8+tx]='q'; // auto-queen
+    m.board=bd.join(''); m.turn=m.turn==='w'?'b':'w';
+    if(target==='k'||target==='K'){ m.winner=seat==='w'?m.a:m.b; }
+    save(); if(m.winner) advance(); sel=null; render();
+  }
+  // ---- rendering ----
+  function render(){
+    view.innerHTML='';
+    if(!T.started){ renderLobby(); return; }
+    if(viewMatch){ renderBoard(); return; }
+    renderBracket();
+  }
+  function renderLobby(){
+    const inList=T.players.some(function(p){return p.id===me.id;});
+    const d=document.createElement('div'); d.className='lobby';
+    d.innerHTML='<p>Join the lobby, then anyone can start. Players get paired into a single-elimination bracket — winners advance until one champion remains.</p>'+
+      '<ul class="players">'+T.players.map(function(p){return '<li>'+esc(p.name)+(p.id===me.id?' (you)':'')+'</li>';}).join('')+'</ul>';
+    const jb=document.createElement('button'); jb.textContent=inList?'Waiting… ('+T.players.length+' in)':'Join lobby'; jb.onclick=joinLobby;
+    const sb=document.createElement('button'); sb.textContent='Start tournament'; sb.disabled=T.players.length<2; sb.onclick=startTournament;
+    d.appendChild(jb); if(T.players.length>=2) d.appendChild(sb); view.appendChild(d);
+    statusEl.textContent='Lobby — '+T.players.length+' player(s). Go multiplayer and share the link to invite.';
+  }
+  function renderBracket(){
+    const wrap=document.createElement('div'); wrap.className='bracket';
+    T.rounds.forEach(function(ms,ri){ const rd=document.createElement('div'); rd.className='round';
+      ms.forEach(function(m){ const el=document.createElement('div'); el.className='match'+((mySeat(m))?' mine':'');
+        const an=m.a?m.a.name:'—', bn=m.b?m.b.name:'(bye)';
+        el.innerHTML='<div class="'+(m.winner&&m.winner.id===(m.a&&m.a.id)?'w':'')+'">'+esc(an)+'</div><div class="'+(m.winner&&m.b&&m.winner.id===m.b.id?'w':'')+'">'+esc(bn)+'</div>';
+        el.onclick=function(){ viewMatch=m.id; sel=null; render(); };
+        rd.appendChild(el); });
+      wrap.appendChild(rd); });
+    view.appendChild(wrap);
+    const champ=(T.rounds[T.rounds.length-1]||[]).length===1 && T.rounds[T.rounds.length-1][0].winner;
+    statusEl.textContent=champ?('🏆 Champion: '+esc(champ.name)):'Round '+(T.round+1)+' — tap a match to play or watch.';
+  }
+  function renderBoard(){
+    const m=findMatch(viewMatch); if(!m){ viewMatch=null; return render(); }
+    const back=document.createElement('button'); back.className='back'; back.textContent='← Bracket'; back.onclick=function(){ viewMatch=null; sel=null; render(); }; view.appendChild(back);
+    const seat=mySeat(m); const bd=m.board;
+    const legal = sel ? moves(bd, sel[0], sel[1]) : [];
+    const board=document.createElement('div'); board.className='board';
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){ const sq=document.createElement('div'); sq.className='sq '+(((x+y)%2)?'d':'l');
+      const p=bd[y*8+x]; if(p!=='.') sq.textContent=GLYPH[p];
+      if(sel&&sel[0]===x&&sel[1]===y) sq.classList.add('sel');
+      if(legal.some(function(c){return c[0]===x&&c[1]===y;})) sq.classList.add('mv');
+      sq.onclick=(function(cx,cy){ return function(){
+        if(m.winner||seat!==m.turn) return;
+        if(sel){ if(legal.some(function(c){return c[0]===cx&&c[1]===cy;})){ doMove(m,sel[0],sel[1],cx,cy); return; } sel=null; }
+        if(mine(bd[cy*8+cx], seat)) sel=[cx,cy];
+        render();
+      }; })(x,y);
+      board.appendChild(sq); }
+    view.appendChild(board);
+    statusEl.textContent = m.winner ? ('Winner: '+esc(m.winner.name))
+      : (seat? (m.turn===seat?'Your move ('+(seat==='w'?'White':'Black')+')':'Waiting for opponent') : 'Spectating')
+        + ' — '+esc(m.a?m.a.name:'?')+' vs '+esc(m.b?m.b.name:'?');
+  }
+  function findMatch(id){ for(const r of T.rounds){ for(const m of r){ if(m.id===id) return m; } } return null; }
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  db.subscribe(function(items){ const t=items.find(function(x){return x.id==='t';}); if(t)T=t; render(); });
+  if(window.gifos) gifos.me().then(function(mm){ me={id:mm.id,name:mm.name||'You'}; render(); });
+  render();
+</script>`;
+
   const WELCOME_README = [
     'WELCOME TO GIFOS',
     '================',
@@ -368,13 +561,16 @@
       name: name + '.gif', appId, accent,
       files: { 'manifest.json': manifest(appId, name, accent), 'index.html': html },
     });
-    const enc = (a) => gif.encode(a.files, { accent: a.accent })
+    const seedOf = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+    const enc = (a) => gif.encode(a.files, { accent: a.accent, seed: seedOf(a.appId) })
       .then((bytes) => ({ name: a.name, appId: a.appId, accent: a.accent, bytes }));
 
     const groups = [
       { name: 'Games', apps: [
         app('Tic-Tac-Toe', 'tictactoe', [92, 255, 123], TICTACTOE_HTML),
         app('Connect Four', 'connect4', [255, 180, 60], CONNECT_FOUR_HTML),
+        app('Minesweeper', 'minesweeper', [255, 210, 60], MINESWEEPER_HTML),
+        app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML),
       ] },
       { name: 'Studio', apps: [
         app('Paint', 'paint', [255, 92, 170], PAINT_HTML),
