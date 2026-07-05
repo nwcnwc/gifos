@@ -33,23 +33,40 @@
   // Copy-paste onramp: paste into any AI, it learns the format then asks what
   // to build, and returns a single index.html you paste back to make an app.
   const AI_PROMPT = [
-    'You are going to build a small app for GifOS, a system where every app is a single, self-contained HTML file.',
+    'Build an app for GifOS (https://gifos.app) and deliver it as a REAL, FINISHED .gif FILE I can download — not just code. A GifOS app is a genuine animated GIF with a tiny filesystem (the app) hidden inside; I will drop the file onto my GifOS Home Screen and it runs.',
     '',
-    'Rules for a GifOS app:',
-    '1. Output ONE complete HTML document (an index.html) with everything inline — all CSS in <style>, all JS in <script>. No external files, CDNs, frameworks, remote images, or web fonts: GifOS sandboxes apps and blocks all outside network and resource loading. Inline SVG and emoji are fine.',
-    '2. To save data, use the built-in async API (localStorage and cookies are disabled — do not use them):',
+    'APP RULES',
+    '1. The app is ONE complete self-contained index.html — all CSS in <style>, all JS in <script>. No external files, CDNs, frameworks, remote images, or web fonts: GifOS sandboxes apps and blocks all outside network access. Inline SVG and emoji are fine.',
+    '2. Persistence (localStorage/cookies/indexedDB are disabled — never use them):',
     "     const db = gifos.db('items');       // a named collection",
     '     await db.put({ id, ...fields });    // add or update; omit id to auto-assign one',
     '     await db.get(id); await db.getAll(); await db.delete(id);   // all async',
     '     db.subscribe(items => renderFrom(items));   // called immediately and on every change',
-    '   Anything stored with gifos.db() persists inside the app\'s own icon AND automatically syncs to other players if the app goes multiplayer. Keep all shared/saved state in gifos.db() and render from db.subscribe() to be multiplayer-ready for free.',
-    '3. Players/identity: const me = await gifos.me(); gives { id, name } — a stable id and the user\'s screen name. Stamp me.id / me.name onto records so the app attributes moves, messages, and scores to the right person across all players. Show names in the UI.',
-    '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state and a default name so the app still runs.',
-    '5. Icon: include <link rel="icon" href="data:image/svg+xml,..."> with a simple inline SVG (or an emoji-in-SVG) that represents the app — GifOS turns it into the app\'s GIF artwork/desktop icon.',
-    '6. One file is simplest, but multi-file is fine too — put extra files (app.js, style.css, assets) alongside index.html and reference them normally; I can hand you back a .zip to make the app. Mobile-friendly, dark theme by default.',
+    '   Everything in gifos.db() persists inside the icon AND syncs live to all players in multiplayer — keep all state there and render from subscribe().',
+    '3. Identity: const me = await gifos.me(); → { id, name }. Stamp me.id/me.name on records so every player sees who did what.',
+    '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state. Mobile-friendly, dark theme (#0a0a0f) by default.',
+    '',
+    'HOW TO DELIVER THE .gif (in order of preference)',
+    'A. If you have the GifOS MCP connector (https://mcp.gifos.app/mcp): call pack_app — it returns the finished file. Done.',
+    'B. If you can run code and attach files: (1) draw a small animated icon with PIL — 2 to 6 frames, 64x64, bold simple shapes on a dark #0a0a0f tile, and make it MOVE (blink, bounce, sweep); save with im.save("icon.gif", save_all=True, append_images=frames[1:], duration=120, loop=0). (2) Splice the app into that GIF with EXACTLY this function — the wbits=-15 raw deflate is required:',
+    '     import json, zlib, base64',
+    '     def pack_gifos(gif_bytes, files):',
+    '         a = {"v": 1, "files": {p: base64.b64encode(v.encode() if isinstance(v, str) else v).decode() for p, v in files.items()}}',
+    '         c = zlib.compressobj(9, zlib.DEFLATED, -15)',
+    '         payload = b"\\x01" + c.compress(json.dumps(a).encode()) + c.flush()',
+    '         block = b"\\x21\\xff\\x0bGIFOS1.0GOS"',
+    '         for i in range(0, len(payload), 255):',
+    '             block += bytes([len(payload[i:i+255])]) + payload[i:i+255]',
+    '         block += b"\\x00"',
+    '         end = len(gif_bytes) - (gif_bytes[-1] == 0x3B)',
+    '         return gif_bytes[:end] + block + b"\\x3b"',
+    '     manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App", "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})',
+    '     open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(), {"manifest.json": manifest, "index.html": HTML}))',
+    '   Attach the resulting "My App.gif" for me to download. Bonus Easter egg: if I give you a favorite GIF of mine, use ITS bytes instead of your drawn icon — the app hides inside my GIF with its animation untouched.',
+    'C. ONLY if you can do neither A nor B: reply with the complete index.html in a single ```html code block and tell me to paste it into GifOS → ＋ Add → "Create app from HTML".',
     '',
     'First, ask me exactly one question: "What app do you want to build?"',
-    'After I answer, reply with ONLY the complete index.html inside a single ```html code block (or, for a multi-file app, a file tree I can zip) — no explanation before or after. I will drop it into GifOS (＋ Add) to turn it into an app GIF I own.',
+    'After I answer, deliver the finished .gif (path A or B) with one line of instructions: open gifos.app, tap ＋ Add (or drag the file in), double-click the new icon.',
   ].join('\n');
 
   let items = [];                 // all desktop items (files + folders)
@@ -1015,13 +1032,13 @@
         '<button id="ad-folder">📁 New Folder</button>' +
       '</div>' +
       '<div class="add-sep"></div>' +
-      '<h4>✨ Make your own app with AI</h4>' +
-      '<p class="add-help">Copy this prompt into any AI (ChatGPT, Claude, Gemini…). It teaches the AI the GifOS app format, then asks what you want to build. Paste the HTML it gives back below to create your app.</p>' +
+      '<h4>✨ Ask an AI to build you an app</h4>' +
+      '<p class="add-help">Copy this prompt into any AI (Claude, ChatGPT, Gemini…). It asks what you want, then hands you back a <b>finished .gif file</b> — add it with ＋ Add file(s) above, or just drop it on your Home Screen.</p>' +
       '<textarea id="ad-prompt" class="mono" readonly rows="5">' + escapeHtml(AI_PROMPT) + '</textarea>' +
       '<button id="ad-copy" class="widebtn">📋 Copy prompt</button>' +
       '<div class="add-sep"></div>' +
-      '<h4>Create app from the AI\'s reply</h4>' +
-      '<p class="add-help">Paste a single index.html below, or use ＋ Add file(s) to drop a <b>.zip</b> for a multi-file app.</p>' +
+      '<h4>App builder — got HTML instead?</h4>' +
+      '<p class="add-help">If your AI could only reply with code, paste its complete index.html below and GifOS packs the GIF for you right here. (A <b>.zip</b> via ＋ Add file(s) works for multi-file apps.)</p>' +
       '<input id="ad-name" placeholder="App name (e.g. Todo)">' +
       '<textarea id="ad-html" rows="4" placeholder="Paste the AI&#39;s complete index.html here (a ```html code block is fine)"></textarea>' +
       '<div class="modal-actions">' +
