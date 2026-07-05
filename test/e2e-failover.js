@@ -14,11 +14,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
-  const setRelay = { content: "try{localStorage.setItem('gifos_relay','" + RELAY + "')}catch(e){}" };
+  const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "')}catch(e){}" });
 
   // ---------- HOST ----------
   const hostCtx = await browser.newContext();
-  await hostCtx.addInitScript(setRelay);
+  await hostCtx.addInitScript(setup('Host'));
   const hostDesk = await hostCtx.newPage();
   await hostDesk.goto(BASE + '/index.html');
   await hostDesk.waitForSelector('.icon');
@@ -29,7 +29,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await hostRun.waitForSelector('iframe');
   const hostApp = hostRun.frameLocator('iframe');
   await hostApp.locator('#msg').waitFor({ timeout: 8000 });
-  await hostApp.locator('#name').fill('Host');
   await hostApp.locator('#msg').fill('original entry');
   await hostApp.locator('form button').click();
   await sleep(200);
@@ -40,6 +39,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---------- CLIENT A and B (separate machines) ----------
   async function join(name) {
     const ctx = await browser.newContext();
+    await ctx.addInitScript(setup(name));
     const page = await ctx.newPage();
     page.on('console', (m) => { if (m.type() === 'error') console.log('  [' + name + ']', m.text()); });
     await page.goto(shareUrl);
@@ -78,7 +78,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('new host has the pre-failover state', /original entry/.test(aList));
 
   // ---------- client B continues against the new host ----------
-  await B.app.locator('#name').fill('B');
   await B.app.locator('#msg').fill('after failover');
   await B.app.locator('form button').click();
   await sleep(800);
