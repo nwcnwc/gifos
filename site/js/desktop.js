@@ -100,10 +100,22 @@
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
 
+  // Renders can be triggered concurrently (create, import, cross-tab sync).
+  // Build all icons off-DOM (each awaits getFile), then swap them in atomically;
+  // a superseded render bails before touching the DOM, so no duplicate icons.
+  let renderSeq = 0;
   async function render() {
+    const seq = ++renderSeq;
+    const visible = items.filter((it) => (it.parent || null) === currentFolder);
+    const els = [];
+    for (const it of visible) {
+      const el = await buildIcon(it);
+      if (seq !== renderSeq) return; // a newer render started — abandon this one
+      els.push(el);
+    }
+    if (seq !== renderSeq) return;
     surface.querySelectorAll('.icon, .hint').forEach((n) => n.remove());
     updateCrumbs();
-    const visible = items.filter((it) => (it.parent || null) === currentFolder);
     if (!visible.length) {
       const hint = document.createElement('div');
       hint.className = 'hint';
@@ -112,11 +124,11 @@
         : 'Drop any file here, or use ＋ Add. Double-click an app GIF to run it.';
       surface.appendChild(hint);
     }
-    for (const it of visible) await renderIcon(it);
+    els.forEach((el) => surface.appendChild(el));
     refreshStorage();
   }
 
-  async function renderIcon(it) {
+  async function buildIcon(it) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -149,8 +161,8 @@
 
     el.appendChild(thumb);
     el.appendChild(label);
-    surface.appendChild(el);
     wireIcon(el, it);
+    return el;
   }
 
   function updateCrumbs() {
@@ -309,6 +321,20 @@
     let i = 0;
     for (const f of fileList) {
       const buf = new Uint8Array(await f.arrayBuffer());
+
+      // A .zip becomes an App GIF: unpack its filesystem and pack it into a GIF.
+      if (/\.zip$/i.test(f.name) || (GifOS.zip && GifOS.zip.looksLikeZip(buf))) {
+        try {
+          const files = await GifOS.zip.unpack(buf);
+          const base = f.name.replace(/\.zip$/i, '');
+          await createAppFromFiles(base, files, null);
+        } catch (err) {
+          showModal('Could not open zip', escapeHtml(err.message || String(err)));
+        }
+        i++;
+        continue;
+      }
+
       const isGif = f.type.includes('gif') || /\.gif$/i.test(f.name);
       const archive = isGif ? await gif.decode(buf) : null;
       const m = archive ? (gif.readManifest(archive) || {}) : {};
@@ -711,27 +737,85 @@
   addBtn.addEventListener('click', showAddDialog);
 
   // Turn a pasted index.html into a real App GIF on the desktop.
-  async function createAppFromHtml(name, html) {
-    const appName = (name || 'My App').trim() || 'My App';
-    const slug = appName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'app';
-    const files = {
-      'manifest.json': JSON.stringify({ gifos: '1.0', appId: slug, name: appName, entry: 'index.html', capabilities: { db: true } }),
-      'index.html': html,
-    };
-    const bytes = await gif.encode(files, { accent: [123, 92, 255] });
+  async function createAppFromHtml(name, html, iconSrc) {
+    return createAppFromFiles(name, { 'index.html': html }, iconSrc);
+  }
+
+  // Turn a set of files (index.html + optional js/css/assets) into an App GIF.
+  // iconSrc (optional data URL) or a <link rel="icon"> inside index.html becomes
+  // the GIF's visible artwork + desktop thumbnail.
+  async function createAppFromFiles(name, files, iconSrc) {
+    let manifest = {};
+    if (files['manifest.json']) { try { manifest = JSON.parse(bytesToText(files['manifest.json'])); } catch (e) {} }
+    const appName = (name || manifest.name || 'My App').toString().trim() || 'My App';
+    const slug = (manifest.appId || appName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'app';
+    const hasIndex = !!files['index.html'];
+    files = Object.assign({}, files);
+    files['manifest.json'] = JSON.stringify(Object.assign(
+      { gifos: '1.0', appId: slug, name: appName, entry: 'index.html', capabilities: { db: true } }, manifest));
+
+    // Artwork: explicit icon, else an icon declared inside index.html.
+    let preview = null;
+    const idxHtml = !hasIndex ? '' : (typeof files['index.html'] === 'string' ? files['index.html'] : bytesToText(files['index.html']));
+    const src = iconSrc || (hasIndex ? iconFromHtml(idxHtml) : null);
+    if (src) { try { preview = await imageToPreview(src); } catch (e) { /* fall back to swatch */ } }
+
+    const bytes = await gif.encode(files, { accent: [123, 92, 255], preview });
     const fileId = store.uid('file');
     const iconName = appName + '.gif';
-    await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: true, appId: slug, mime: 'image/gif' });
+    await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: hasIndex, appId: slug, mime: 'image/gif' });
     const spot = nearestFreeCell(60, 60, currentFolder, null);
     await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
       parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
     await load(); render();
     return fileId;
   }
+  const bytesToText = (b) => gif.bytesToText(b);
   // Accept either raw HTML or an AI reply wrapped in a ```html fence.
   function extractHtml(s) {
     const m = s.match(/```(?:html)?\s*([\s\S]*?)```/i);
     return (m ? m[1] : s).trim();
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => resolve(null); r.readAsDataURL(file); });
+  }
+  function iconFromHtml(html) {
+    let m = html.match(/<link[^>]*rel=["']icon["'][^>]*href=["']([^"']+)["']/i);
+    if (m) return m[1];
+    m = html.match(/<meta[^>]*name=["']gifos-icon["'][^>]*content=["']([^"']+)["']/i);
+    return m ? m[1] : null;
+  }
+  // Rasterize an image (data URL / object URL, incl. SVG) to a 96×96 RGB332
+  // preview frame the GIF encoder can embed as the app's artwork.
+  function imageToPreview(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 96;
+        const c = document.createElement('canvas'); c.width = S; c.height = S;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0, 0, S, S);
+        // cover-fit
+        const scale = Math.max(S / (img.width || S), S / (img.height || S));
+        const w = (img.width || S) * scale, h = (img.height || S) * scale;
+        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+        const data = ctx.getImageData(0, 0, S, S).data;
+        const palette = new Array(256 * 3);
+        for (let i = 0; i < 256; i++) {
+          palette[i * 3] = Math.round(((i >> 5) & 7) * 255 / 7);
+          palette[i * 3 + 1] = Math.round(((i >> 2) & 7) * 255 / 7);
+          palette[i * 3 + 2] = Math.round((i & 3) * 255 / 3);
+        }
+        const indices = new Uint8Array(S * S);
+        for (let p = 0; p < S * S; p++) {
+          const r = data[p * 4], g = data[p * 4 + 1], b = data[p * 4 + 2];
+          indices[p] = ((r >> 5) & 7) << 5 | ((g >> 5) & 7) << 2 | ((b >> 6) & 3);
+        }
+        resolve({ width: S, height: S, palette, indices, numColors: 256, minCodeSize: 8 });
+      };
+      img.onerror = () => reject(new Error('could not load icon image'));
+      img.src = src;
+    });
   }
 
   function showAddDialog() {
@@ -750,9 +834,12 @@
       '<textarea id="ad-prompt" class="mono" readonly rows="5">' + escapeHtml(AI_PROMPT) + '</textarea>' +
       '<button id="ad-copy" class="widebtn">📋 Copy prompt</button>' +
       '<div class="add-sep"></div>' +
-      '<h4>Create app from HTML</h4>' +
+      '<h4>Create app from the AI\'s reply</h4>' +
+      '<p class="add-help">Paste a single index.html below, or use ＋ Add file(s) to drop a <b>.zip</b> for a multi-file app.</p>' +
       '<input id="ad-name" placeholder="App name (e.g. Todo)">' +
       '<textarea id="ad-html" rows="4" placeholder="Paste the AI&#39;s complete index.html here (a ```html code block is fine)"></textarea>' +
+      '<label class="add-help" for="ad-icon">Optional app artwork (an image becomes the GIF\'s icon):</label>' +
+      '<input id="ad-icon" type="file" accept="image/*">' +
       '<div class="modal-actions">' +
         '<button id="ad-create">Create app</button>' +
         '<button class="ghost" id="ad-close">Close</button>' +
@@ -770,8 +857,10 @@
     box.querySelector('#ad-create').onclick = async () => {
       const html = extractHtml(box.querySelector('#ad-html').value);
       if (!html) { box.querySelector('#ad-html').focus(); return; }
+      const iconFile = (box.querySelector('#ad-icon').files || [])[0];
+      const iconSrc = iconFile ? await fileToDataUrl(iconFile) : null;
       bg.remove();
-      await createAppFromHtml(box.querySelector('#ad-name').value, html);
+      await createAppFromHtml(box.querySelector('#ad-name').value, html, iconSrc);
     };
     box.querySelector('#ad-close').onclick = () => bg.remove();
     bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });

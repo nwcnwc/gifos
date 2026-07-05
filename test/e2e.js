@@ -7,6 +7,25 @@ let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Build a minimal STORED (uncompressed) zip — enough to exercise the reader.
+function buildZip(files) {
+  const u16 = (n) => Buffer.from([n & 255, (n >> 8) & 255]);
+  const u32 = (n) => Buffer.from([n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255]);
+  const local = [], central = []; let offset = 0;
+  for (const name of Object.keys(files)) {
+    const data = Buffer.from(files[name]); const nb = Buffer.from(name);
+    const lh = Buffer.concat([u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(0), u32(data.length), u32(data.length), u16(nb.length), u16(0), nb, data]);
+    local.push(lh);
+    central.push(Buffer.concat([u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(0), u32(data.length), u32(data.length), u16(nb.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nb]));
+    offset += lh.length;
+  }
+  const la = Buffer.concat(local), ca = Buffer.concat(central);
+  const eocd = Buffer.concat([u32(0x06054b50), u16(0), u16(0), u16(Object.keys(files).length), u16(Object.keys(files).length), u32(ca.length), u32(la.length), u16(0)]);
+  return Buffer.concat([la, ca, eocd]);
+}
+// 1×1 PNG, used as custom app artwork.
+const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg==', 'base64');
+
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
@@ -54,6 +73,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(300);
   check('the AI-made app runs and uses gifos.db', (await made.locator('#n').textContent()) === '1');
   await madePage.close();
+
+  // ---- ZIP import: a multi-file app (index.html + app.js) becomes a running App GIF ----
+  const zipBuf = buildZip({
+    'MyZipApp/index.html': '<!doctype html><div id="o">no-js</div><script src="app.js"></script>',
+    'MyZipApp/app.js': "document.getElementById('o').textContent = 'js-loaded';",
+  });
+  await page.setInputFiles('#file-input', { name: 'MyZipApp.zip', mimeType: 'application/zip', buffer: zipBuf });
+  await sleep(500);
+  const afterZip = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('ZIP import creates an app icon', afterZip.includes('MyZipApp.gif'));
+  const [zipPage] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('.icon', { hasText: 'MyZipApp.gif' }).dblclick(),
+  ]);
+  await zipPage.waitForSelector('iframe');
+  const zipApp = zipPage.frameLocator('iframe');
+  await zipApp.locator('#o').waitFor({ timeout: 8000 });
+  await sleep(300);
+  check('multi-file zip app runs (app.js from the GIF filesystem executed)', (await zipApp.locator('#o').textContent()) === 'js-loaded');
+  await zipPage.close();
+
+  // ---- custom artwork: an uploaded icon becomes the GIF frame (96×96) ----
+  await page.locator('#add-btn').click();
+  await page.locator('.modal.wide').waitFor();
+  await page.locator('#ad-name').fill('Artsy');
+  await page.locator('#ad-html').fill('<!doctype html><h1>art</h1>');
+  await page.setInputFiles('#ad-icon', { name: 'art.png', mimeType: 'image/png', buffer: PNG_1x1 });
+  await page.locator('#ad-create').click();
+  await sleep(500);
+  const artIcon = page.locator('.icon', { hasText: 'Artsy.gif' }).locator('.thumb img');
+  await artIcon.waitFor({ timeout: 4000 });
+  const artW = await artIcon.evaluate((img) => new Promise((res) => {
+    if (img.complete && img.naturalWidth) return res(img.naturalWidth);
+    img.onload = () => res(img.naturalWidth);
+  }));
+  check('custom artwork produces a 96×96 GIF frame (not the 32px swatch)', artW === 96);
 
   // ---- run the Notes app in a new tab ----
   const notesIcon = page.locator('.icon', { hasText: 'Notes.gif' });
