@@ -91,26 +91,46 @@
   const GIFOS_MARKER = 'GIFOS1.0'; // 8-byte application identifier
   const GIFOS_AUTH = 'GOS';        // 3-byte application authentication code
 
-  // ---- build a tiny valid preview frame -----------------------------------
-  // A 3-color diagonal swatch keyed off an accent color, so every GIF is a
-  // real image without needing a canvas. Returns {width,height,palette,indices}.
-  function previewFrame(accent) {
-    const W = 32, H = 32;
-    const [r, g, b] = accent || [123, 92, 255];
-    // 128-entry palette (2^7) so image min code size is 7 → few clear codes.
+  // ---- build an animated preview (multiple frames) ------------------------
+  // Every GIF is a real, looping animation keyed off an accent color — no
+  // canvas needed. The motion style varies by `seed` so apps look distinct.
+  // Returns { width, height, palette, numColors, minCodeSize, frames:[...], delayCs }.
+  function animatedPreview(accent, seed) {
+    const W = 32, H = 32, FRAMES = 6;
+    const a = accent || [123, 92, 255];
+    const r = a[0], g = a[1], b = a[2];
+    const clamp = (n) => Math.max(0, Math.min(255, n));
     const palette = new Array(128 * 3).fill(0);
-    const set = (i, rr, gg, bb) => { palette[i * 3] = rr; palette[i * 3 + 1] = gg; palette[i * 3 + 2] = bb; };
-    set(0, 10, 10, 15);              // background (near-black)
-    set(1, r, g, b);                 // accent
-    set(2, Math.min(255, r + 60), Math.min(255, g + 60), Math.min(255, b + 60)); // highlight
-    const indices = new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const d = (x + y) % 12;
-        indices[y * W + x] = d < 2 ? 2 : d < 6 ? 1 : 0;
+    const set = (i, rr, gg, bb) => { palette[i * 3] = clamp(rr); palette[i * 3 + 1] = clamp(gg); palette[i * 3 + 2] = clamp(bb); };
+    set(0, 10, 10, 15);            // background
+    set(1, r, g, b);              // accent
+    set(2, r + 70, g + 70, b + 70); // highlight
+    set(3, r - 45, g - 45, b - 45); // shadow
+    const type = (seed >>> 0) % 3;
+    const frames = [];
+    for (let f = 0; f < FRAMES; f++) {
+      const idx = new Uint8Array(W * H);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          let v = 0;
+          if (type === 0) {                              // scrolling diagonal stripes
+            const d = (x + y + f * 2) % 12;
+            v = d < 2 ? 2 : d < 6 ? 1 : 0;
+          } else if (type === 1) {                       // expanding rings
+            const dx = x - 15.5, dy = y - 15.5;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const p = (dist - f * 2.2 + 100) % 12;
+            v = p < 3 ? 1 : p < 6 ? 3 : 0;
+          } else {                                        // rolling wave
+            const wv = Math.sin(x / 5 + f * 0.9) * 4;
+            v = y > 18 + wv ? 1 : y > 14 + wv ? 3 : 0;
+          }
+          idx[y * W + x] = v;
+        }
       }
+      frames.push(idx);
     }
-    return { width: W, height: H, palette, indices, numColors: 128, minCodeSize: 7 };
+    return { width: W, height: H, palette, numColors: 128, minCodeSize: 7, frames, delayCs: 10 };
   }
 
   // ---- compression (native CompressionStream; no dependencies) ------------
@@ -150,9 +170,13 @@
   }
 
   function assemble(payload, opts) {
-    // opts.preview (optional) overrides the swatch with real artwork:
-    // { width, height, palette:[r,g,b,...], indices:Uint8Array, numColors, minCodeSize }.
-    const f = opts.preview || previewFrame(opts.accent);
+    // opts.preview (optional) is real static artwork (one frame); otherwise we
+    // build an animated, looping icon. Normalize both to a { frames:[...] } shape.
+    const f = opts.preview
+      ? { width: opts.preview.width, height: opts.preview.height, palette: opts.preview.palette,
+          numColors: opts.preview.numColors, minCodeSize: opts.preview.minCodeSize,
+          frames: [opts.preview.indices], delayCs: 0 }
+      : animatedPreview(opts.accent, opts.seed || 0);
     const numColors = f.numColors || (f.palette.length / 3);
     const sizeField = Math.round(Math.log2(numColors)) - 1; // 128→6, 256→7
     const w = new Writer();
@@ -160,24 +184,29 @@
     // Header + Logical Screen Descriptor
     w.ascii('GIF89a');
     w.u16(f.width).u16(f.height);
-    // packed: global color table flag=1, color res=7, sort=0, size=sizeField
     w.byte(0x80 | (0x7 << 4) | (sizeField & 0x7));
     w.byte(0).byte(0); // bg color index, aspect ratio
-    w.bytes(f.palette); // numColors * 3 bytes
+    w.bytes(f.palette);
 
     // Application Extension carrying the GifOS archive
     w.byte(0x21).byte(0xff).byte(0x0b).ascii(GIFOS_MARKER).ascii(GIFOS_AUTH);
     w.subBlocks(payload);
 
-    // Image Descriptor + LZW image data
-    w.byte(0x2c);
-    w.u16(0).u16(0).u16(f.width).u16(f.height);
-    w.byte(0); // no local color table
-    w.byte(f.minCodeSize);
-    w.subBlocks(lzwImageData(f.minCodeSize, f.indices));
+    // NETSCAPE2.0 loop-forever extension (animated icons only)
+    if (f.frames.length > 1) {
+      w.byte(0x21).byte(0xff).byte(0x0b).ascii('NETSCAPE').ascii('2.0');
+      w.byte(0x03).byte(0x01).u16(0).byte(0x00); // sub-block: loop count 0 = forever
+    }
 
-    // Trailer
-    w.byte(0x3b);
+    // Each frame: Graphic Control Extension (delay) + Image Descriptor + LZW data
+    for (const indices of f.frames) {
+      w.byte(0x21).byte(0xf9).byte(0x04).byte(0x00).u16(f.delayCs || 0).byte(0x00).byte(0x00);
+      w.byte(0x2c).u16(0).u16(0).u16(f.width).u16(f.height).byte(0);
+      w.byte(f.minCodeSize);
+      w.subBlocks(lzwImageData(f.minCodeSize, indices));
+    }
+
+    w.byte(0x3b); // trailer
     return w.done();
   }
 

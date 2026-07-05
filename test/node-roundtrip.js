@@ -35,6 +35,10 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
     return true;
   })());
   check('trailer byte present', bytes[bytes.length - 1] === 0x3b);
+  // animated icon → NETSCAPE loop extension + multiple image separators (0x2C)
+  const hay = Buffer.from(bytes).toString('latin1');
+  check('default icon is an animated GIF (NETSCAPE loop ext)', hay.indexOf('NETSCAPE2.0') >= 0);
+  check('animated icon has multiple frames', (bytes.filter((b) => b === 0x2c).length) >= 2);
   check('rejects non-GifOS data', (await gif.decode(new Uint8Array([0x47, 0x49, 0x46, 1, 2, 3]))) === null);
 
   // Legacy (uncompressed) format still decodes: encode without CompressionStream.

@@ -768,7 +768,8 @@
     const src = iconSrc || (hasIndex ? iconFromHtml(idxHtml) : null);
     if (src) { try { preview = await imageToPreview(src); } catch (e) { /* fall back to swatch */ } }
 
-    const bytes = await gif.encode(files, { accent: [123, 92, 255], preview });
+    let seed = 0; for (let i = 0; i < slug.length; i++) seed = (seed * 31 + slug.charCodeAt(i)) >>> 0;
+    const bytes = await gif.encode(files, { accent: [123, 92, 255], preview, seed });
     const fileId = store.uid('file');
     const iconName = appName + '.gif';
     await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: hasIndex, appId: slug, mime: 'image/gif' });

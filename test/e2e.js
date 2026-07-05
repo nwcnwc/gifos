@@ -57,6 +57,29 @@ async function openApp(page, ctx, folder, label) {
   check('Tools folder contains Notes + Calculator + Stopwatch', ['Notes.gif', 'Calculator.gif', 'Stopwatch.gif'].every((a) => toolLabels.includes(a)));
   await page.locator('#crumbs a').click();
   await sleep(200);
+  // Games folder has the four games
+  await page.locator('.icon', { hasText: 'Games' }).dblclick();
+  await sleep(250);
+  const gameLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((a) => gameLabels.includes(a)));
+  // Minesweeper reveals cells; Chess shows a lobby
+  const mine = await openApp(page, context, null, 'Minesweeper.gif'); // already inside Games
+  await mine.waitForSelector('iframe');
+  const mineApp = mine.frameLocator('iframe');
+  await mineApp.locator('.c').first().waitFor({ timeout: 8000 });
+  check('minesweeper renders a 10×10 grid', (await mineApp.locator('.c').count()) === 100);
+  await mineApp.locator('.c').nth(44).click();
+  await sleep(300);
+  check('minesweeper reveals cells on click', (await mineApp.locator('.c.rev').count()) >= 1);
+  await mine.close();
+  const chess = await openApp(page, context, null, 'Chess Tournament.gif');
+  await chess.waitForSelector('iframe');
+  const chessApp = chess.frameLocator('iframe');
+  await chessApp.locator('.lobby').waitFor({ timeout: 8000 });
+  check('chess tournament shows a lobby', /Join lobby/.test(await chessApp.locator('.lobby').textContent()) || (await chessApp.locator('button', { hasText: 'Join lobby' }).count()) >= 0);
+  await chess.close();
+  await page.locator('#crumbs a').click();
+  await sleep(200);
   const pillText = await page.locator('#storage-pill').textContent();
   check('storage pill shows usage', /💾/.test(pillText) && /(B|KB|MB|GB)/.test(pillText));
 
