@@ -254,7 +254,9 @@
     };
   }
 
-  // Remote: forwards every op to the host browser over the relay.
+  // Remote: forwards every op to the host browser over the relay. Requests are
+  // remembered until answered so they can be REPLAYED after a host blip —
+  // at-least-once on reconnect beats an app hung on a promise forever.
   function makeRemoteDb(send) {
     let seq = 1; const pending = new Map();
     let hostDown = false;
@@ -262,12 +264,15 @@
       op(op, collection, key, value) {
         if (hostDown) return Promise.reject(new Error('host offline'));
         return new Promise((res, rej) => {
-          const id = 'q' + (seq++); pending.set(id, { res, rej });
-          send({ t: 'rpc', id, op, collection, key, value });
+          const id = 'q' + (seq++);
+          const req = { t: 'rpc', id, op, collection, key, value };
+          pending.set(id, { res, rej, req });
+          send(req);
         });
       },
       getFullState() { return db.op('dump'); },
       _reply(id, ok, result) { const p = pending.get(id); if (!p) return; pending.delete(id); ok ? p.res(result) : p.rej(new Error(result)); },
+      _replay() { for (const p of pending.values()) { try { send(p.req); } catch (e) { /* still down */ } } },
       _setHostDown(v) {
         hostDown = v;
         if (v) { for (const p of pending.values()) p.rej(new Error('host offline')); pending.clear(); }
@@ -301,6 +306,82 @@
     return iframe;
   }
 
+  // ---- connection resilience -------------------------------------------------
+  // Phones freeze tabs and kill sockets the instant the user glances away.
+  // That must never end a session, and it must not raise alarms either:
+  //   up   (green)       — link healthy
+  //   soft (light green) — blip, down < SOFT ms; no cause for concern
+  //   warn (yellow)      — down but recoverable; we keep retrying
+  //   lost (red)         — down past LOST ms; genuinely gone
+  const CONN = { SOFT: 4000, LOST: 60000, PEER_DROP: 120000, TAKEOVER_HINT: 5000 };
+  function gradeOf(downSince) {
+    if (!downSince) return 'up';
+    const d = Date.now() - downSince;
+    return d < CONN.SOFT ? 'soft' : d < CONN.LOST ? 'warn' : 'lost';
+  }
+  // Structured connection state for the page chrome (the compact pill). The
+  // verbose sentence still goes to #status; this event carries the colors.
+  function announceConn(detail) {
+    root.__gifosConn = detail;
+    try { root.dispatchEvent(new CustomEvent('gifos-conn', { detail })); } catch (e) { /* non-DOM */ }
+  }
+
+  // A WebSocket that heals itself: exponential-backoff reconnect (instant on
+  // tab-visible/online — the "glanced at another app" case), an outbound queue
+  // while down, and a stable facade so callers wire handlers exactly once.
+  function steadySocket(makeUrl) {
+    const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now() };
+    let ws = null, closed = false, attempt = 0, timer = null;
+    const queue = [];
+    const setState = (st) => {
+      if (s.state === st) return;
+      s.state = st;
+      if (st === 'up') s.downSince = null;
+      else if (!s.downSince) s.downSince = Date.now();
+      if (s.onstate) s.onstate(st);
+    };
+    function connect() {
+      if (closed) return;
+      let sock;
+      try { sock = new WebSocket(makeUrl()); } catch (e) { schedule(); return; }
+      ws = sock;
+      sock.onopen = () => {
+        if (closed || ws !== sock) return;
+        attempt = 0;
+        setState('up');
+        for (const frame of queue.splice(0)) { try { sock.send(frame); } catch (e) { /* re-dropped */ } }
+        if (s.onopen) s.onopen();
+      };
+      sock.onmessage = (ev) => { if (ws === sock && s.onmessage) s.onmessage(ev); };
+      sock.onclose = () => { if (ws === sock) { ws = null; setState('down'); schedule(); } };
+      sock.onerror = () => { try { sock.close(); } catch (e) { /* already dead */ } };
+    }
+    function schedule() {
+      if (closed || timer) return;
+      const delay = Math.min(5000, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
+      timer = setTimeout(() => { timer = null; connect(); }, delay);
+    }
+    const kick = () => {
+      if (closed || (ws && ws.readyState <= 1)) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      attempt = 0;
+      connect();
+    };
+    if (root.addEventListener) root.addEventListener('online', kick);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+    s.send = (data) => {
+      if (ws && ws.readyState === 1) { try { ws.send(data); return; } catch (e) { /* fell through to queue */ } }
+      queue.push(data);
+      if (queue.length > 500) queue.shift();
+      kick();
+    };
+    s.close = () => { closed = true; if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
+    s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
+    connect();
+    (root.__gifosConns = root.__gifosConns || []).push(s);
+    return s;
+  }
+
   // ---- WebRTC ---------------------------------------------------------------
   // The relay is the signaling channel (introductions: SDP offers/answers and
   // ICE candidates). Once a DataChannel opens, session traffic flows directly
@@ -316,7 +397,11 @@
   // Returns { sendToAll, stats } so the caller can push db-change events over
   // whichever transport each peer ended up on (channel if open, else relay).
   function attachHost(ws, db, appBytes, onStats) {
-    const peers = new Map(); // peer -> { pc, channel }
+    // peer -> { pc, channel, away } — `away` is a timestamp while the peer's
+    // relay socket is down. Phones drop sockets constantly; an away peer keeps
+    // its seat (and its pending state) until PEER_DROP, and a rejoin under the
+    // same peer id slots straight back in with a fresh P2P offer.
+    const peers = new Map();
 
     const relayTo = (peer, msg) => ws.send(JSON.stringify({ t: 'to', to: peer, msg }));
     const sendTo = (peer, msg) => {
@@ -327,10 +412,30 @@
     const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
     const stats = () => {
       let p2p = 0;
-      for (const p of peers.values()) if (p.channel && p.channel.readyState === 'open') p2p++;
-      return { total: peers.size, p2p };
+      const counts = { up: 0, soft: 0, warn: 0 };
+      for (const p of peers.values()) {
+        if (p.channel && p.channel.readyState === 'open') p2p++;
+        const g = gradeOf(p.away);
+        counts[g === 'lost' ? 'warn' : g]++;    // lost peers get dropped by the sweeper
+      }
+      return { total: peers.size, p2p, counts, self: gradeOf(ws.downSince) };
     };
     const notify = () => onStats(stats());
+
+    // Peers that stay away past PEER_DROP are genuinely gone.
+    const sweeper = setInterval(() => {
+      let changed = false, anyAway = false;
+      for (const [peer, p] of peers) {
+        if (!p.away) continue;
+        anyAway = true;
+        if (Date.now() - p.away > CONN.PEER_DROP) {
+          if (p.pc) { try { p.pc.close(); } catch (e) { /* long dead */ } }
+          peers.delete(peer);
+          changed = true;
+        }
+      }
+      if (changed || anyAway || ws.downSince) notify(); // keep grades ticking soft→warn
+    }, 2000);
 
     const handleRpc = (peer, req) => {
       db.op(req.op, req.collection, req.key, req.value)
@@ -351,6 +456,12 @@
         if (m.t === 'rpc') handleRpc(peer, m);
       };
       pc.onicecandidate = (e) => { if (e.candidate) relayTo(peer, { t: 'sig', ice: e.candidate }); };
+      // A dead DataChannel with a live relay link = renegotiate P2P from scratch.
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState !== 'failed') return;
+        const cur = peers.get(peer);
+        if (cur && cur.pc === pc && !cur.away) { try { pc.close(); } catch (e) {} offerP2P(peer); }
+      };
       pc.createOffer()
         .then((offer) => pc.setLocalDescription(offer))
         .then(() => relayTo(peer, { t: 'sig', sdp: pc.localDescription }))
@@ -360,16 +471,21 @@
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.t === 'peer-join') {
-        const old = peers.get(m.peer);
-        if (old && old.pc) { try { old.pc.close(); } catch (e) { /* stale */ } }
-        peers.set(m.peer, { pc: null, channel: null });
-        relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes) });
+        const known = peers.get(m.peer);
+        if (known && known.pc) { try { known.pc.close(); } catch (e) { /* stale */ } }
+        peers.set(m.peer, { pc: null, channel: null, away: null });
+        // The app GIF only goes to genuinely new peers — a rejoining phone
+        // already has it (and the client dedups regardless), and skipping the
+        // resend keeps reconnect storms inside the relay's bandwidth budget.
+        if (!known) relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes) });
         offerP2P(m.peer);
         notify();
       } else if (m.t === 'peer-leave') {
         const p = peers.get(m.peer);
-        if (p && p.pc) { try { p.pc.close(); } catch (e) { /* already closed */ } }
-        peers.delete(m.peer);
+        if (p) {
+          p.away = Date.now();
+          if (p.pc) { try { p.pc.close(); } catch (e) { /* already closed */ } p.pc = null; p.channel = null; }
+        }
         notify();
       } else if (m.t === 'from' && m.msg) {
         if (m.msg.t === 'rpc') handleRpc(m.from, m.msg);
@@ -382,16 +498,24 @@
         }
       }
     };
+    // Our own relay socket healed: tell clients we're back and wake their
+    // views; the relay re-sends peer-joins, which re-offers P2P per peer.
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'host-back' } }));
+      ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
+      notify();
+    };
+    ws.onstate = () => notify();
 
-    return { sendToAll, stats };
+    return { sendToAll, stats, stop: () => clearInterval(sweeper) };
   }
 
   function openHostSocket(relay, sid, token) {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token);
-      const timer = setTimeout(() => reject(new Error('relay timeout')), 8000);
-      ws.onopen = () => { clearTimeout(timer); resolve(ws); };
-      ws.onerror = () => { clearTimeout(timer); reject(new Error('relay connection failed')); };
+      const sock = steadySocket(() => relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token);
+      const timer = setTimeout(() => { sock.close(); reject(new Error('relay connection failed')); }, 8000);
+      // First open resolves; attachHost then takes over onopen for reconnects.
+      sock.onopen = () => { clearTimeout(timer); sock.onopen = null; resolve(sock); };
     });
   }
 
@@ -442,8 +566,10 @@
           return openHostSocket(relay, sid, token).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
+              announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
             });
+            announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
             setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
@@ -464,6 +590,7 @@
         }
       }).then(() => {
         mountApp(iframe, files, manifest, db, appBytes);
+        announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
         return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost };
       });
@@ -476,9 +603,11 @@
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
     const idle = { save: () => Promise.resolve(null), saveToDesktop: () => Promise.reject(new Error('app not loaded yet')), becomeHost: () => Promise.reject(new Error('host still alive')) };
     if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve(idle); }
-    const ws = new WebSocket(params.relay.replace(/\/$/, '') + '/s/' + params.s + '?role=client&token=' + params.k);
+    let myPeer = null; // relay-assigned id; reused on reconnect so the host keeps our seat
+    const ws = steadySocket(() => params.relay.replace(/\/$/, '') + '/s/' + params.s +
+      '?role=client&token=' + params.k + (myPeer ? '&peer=' + myPeer : ''));
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
-    let appBytes = null, lastDump = null, hostGone = false, tookOver = false;
+    let appBytes = null, lastDump = null, hostGone = false, hostGoneAt = null, tookOver = false;
     let pc = null, channel = null; // P2P DataChannel to the host (when it opens)
 
     const mirror = () => {
@@ -496,13 +625,64 @@
       ? 'Running as client · P2P direct'
       : 'Running as client · Via relay');
 
+    // ---- calm connection grading ------------------------------------------
+    // Blips (phone glanced away, network hiccup) must not alarm anyone: soft
+    // for the first seconds, yellow while recoverable, red ONLY when the host
+    // is gone past LOST and can't be waited out. A live DataChannel counts as
+    // up even while the relay socket heals.
+    let takeoverHinted = false, lostDeclared = false;
+    const connGrade = () => {
+      if (tookOver) return 'up';
+      if (channel && channel.readyState === 'open') return 'up';
+      if (hostGone) return gradeOf(hostGoneAt);
+      if (ws.state !== 'up') return gradeOf(ws.downSince);
+      return filesRef ? 'up' : 'soft'; // connected, still waiting for the app
+    };
+    const announceClient = () => {
+      if (tookOver) return;
+      announceConn({ mode: 'client', grade: connGrade(), via: (channel && channel.readyState === 'open') ? 'p2p' : 'relay', hostAway: hostGone });
+    };
+    const escalator = setInterval(() => {
+      if (tookOver) { clearInterval(escalator); return; }
+      const g = connGrade();
+      // The Take Over hint appears once the host has been away a few seconds…
+      if (hostGone && !takeoverHinted && hostGoneAt && Date.now() - hostGoneAt > CONN.TAKEOVER_HINT) {
+        takeoverHinted = true;
+        setStatus(lastDump ? 'The host stepped away — waiting for them. You have a copy, so you can also Take Over.'
+          : 'The host stepped away — waiting for them to come back.');
+        if (hooks.onHostGone) hooks.onHostGone(!!lastDump);
+      }
+      // …but pending work is only abandoned when the host is genuinely lost.
+      if (hostGone && !lostDeclared && g === 'lost') {
+        lostDeclared = true;
+        if (remoteDb) remoteDb._setHostDown(true);
+        setStatus(lastDump ? 'The host is gone. Take Over to keep the session going from your copy.'
+          : 'The host is gone, and nothing was shared with you yet.');
+      }
+      announceClient();
+    }, 1000);
+
+    const hostIsBack = () => {
+      if (!hostGone) return;
+      hostGone = false; hostGoneAt = null; takeoverHinted = false;
+      if (remoteDb) {
+        if (lostDeclared) remoteDb._setHostDown(false);
+        lostDeclared = false;
+        remoteDb._replay(); // anything asked while they were away goes again
+      }
+      if (hooks.onHostBack) hooks.onHostBack();
+      if (filesRef) runningStatus();
+      announceClient();
+    };
+
     // Shared dispatch for host->client session messages, from either transport.
     const dispatch = (m) => {
+      if (m.t === 'host-back') { hostIsBack(); return; }
       if (m.t === 'rpc-reply') {
-        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); }
+        hostIsBack();
         if (remoteDb) remoteDb._reply(m.id, m.ok, m.result);
       } else if (m.t === 'db-change') {
-        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); if (hooks.onHostBack) hooks.onHostBack(); }
+        hostIsBack();
         if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: m.collection }, '*');
         mirror();
       }
@@ -533,22 +713,40 @@
     };
 
     setStatus('Connecting to host…');
-    ws.onerror = () => setStatus('Relay connection failed.');
-    ws.onclose = () => { if (!tookOver) setStatus('Disconnected from host.'); };
+    // Socket healed: re-sync the view and replay unanswered requests. The host
+    // sees our rejoin (same peer id) and re-offers P2P on its own.
+    ws.onopen = () => {
+      if (tookOver || !remoteDb) return;
+      remoteDb._replay();
+      if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: '*' }, '*');
+      mirror();
+      announceClient();
+    };
+    ws.onstate = () => announceClient();
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-      if (m.t === 'joined') setStatus('Connected · waiting for app…');
-      else if (m.t === 'error') setStatus('Cannot join: ' + m.error);
+      if (m.t === 'joined') { myPeer = m.peer; if (!filesRef) setStatus('Connected · waiting for app…'); }
+      else if (m.t === 'error') {
+        if (/token/i.test(m.error || '')) { ws.close(); setStatus('Cannot join: ' + m.error); }
+        else if (/no host/i.test(m.error || '')) {
+          // The room exists but the host hasn't (re)opened the icon yet — the
+          // steady socket keeps knocking and we walk in when they arrive.
+          hostGone = true; hostGoneAt = hostGoneAt || Date.now();
+          setStatus('Waiting for the host to open the app…');
+        } else setStatus('Cannot join: ' + m.error);
+      }
       else if (m.t === 'sig') onSignal(m);
       else if (m.t === 'host-gone') {
-        hostGone = true;
-        if (remoteDb) remoteDb._setHostDown(true);
-        setStatus(lastDump ? 'The host went offline — you have a copy, so you can Take Over and keep going.' : 'The host went offline before anything was shared with you.');
-        if (hooks.onHostGone) hooks.onHostGone(!!lastDump);
+        // No alarm yet: the host's phone probably just blinked. The escalator
+        // raises the Take Over hint after a few seconds and red only at LOST.
+        hostGone = true; hostGoneAt = Date.now();
+        announceClient();
       } else if (m.t === 'app') {
+        hostIsBack();
+        if (filesRef || tookOver) { runningStatus(); return; } // rejoin redelivery — already mounted
         appBytes = gif.b64decode(m.gif);
         gif.decode(appBytes).then((archive) => {
-          if (tookOver) return; // we are the host now — ignore late app delivery
+          if (tookOver || filesRef) return;
           if (!archive) { setStatus('Bad app from host.'); return; }
           filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
           document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
@@ -557,6 +755,7 @@
           mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes);
           root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
           runningStatus();
+          announceClient();
           mirror();
         });
       } else {
@@ -584,6 +783,7 @@
         return openHostSocket(params.relay, params.s, params.k).then((ws2) => {
           hostApi = attachHost(ws2, db, appBytes, (s) => {
             root.__gifosHostStats = s;
+            announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
             setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
           });
           // Remount the app against the local DB and wake the other clients.

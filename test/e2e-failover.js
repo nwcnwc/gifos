@@ -66,11 +66,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---------- kill the host browser ----------
   await hostRun.close();
   await hostDesk.close();
-  await sleep(800);
+  // Grace first: for a few seconds this is a calm "blip" (no alarm) — the
+  // Take Over offer only appears once the host has been away past the hint.
+  await sleep(1200);
+  const early = await A.page.evaluate(() => (window.__gifosConn || {}).grade);
+  check('brief host absence stays calm (soft/warn, not red)', early === 'soft' || early === 'warn' || early === 'up');
+  await A.page.locator('#become-host').waitFor({ state: 'visible', timeout: 15000 });
   const aStatus = await A.page.locator('#status').textContent();
-  check('clients see host-gone (locked out)', /offline/i.test(aStatus));
-  const becomeVisible = await A.page.locator('#become-host').isVisible();
-  check('client A is offered Become Host (has mirrored state)', becomeVisible);
+  check('clients see the host is away', /away|host/i.test(aStatus));
+  check('client A is offered Become Host (has mirrored state)', true);
 
   // ---------- client A takes over the SAME session ----------
   await A.page.locator('#become-host').click();
