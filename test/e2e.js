@@ -316,6 +316,43 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('#crumbs a').click();
   await sleep(200);
 
+  // ---- drop hint + endless scroll ----
+  check('soft drop hint is shown', await page.locator('.drop-hint').isVisible() &&
+    /drop files anywhere/i.test(await page.locator('.drop-hint').textContent()));
+  const scrollInfo = await page.evaluate(async () => {
+    const s = document.getElementById('desktop');
+    // park an icon two screens down — the surface must reach it and beyond
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'folder', name: 'Deep Folder', parent: null, x: 12, y: 1800, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+    const afterRender = s.scrollHeight;
+    s.scrollTop = s.scrollHeight; s.dispatchEvent(new Event('scroll'));   // chase the bottom…
+    s.scrollTop = s.scrollHeight; s.dispatchEvent(new Event('scroll'));   // …and again — it keeps growing
+    return { afterRender, afterChase: s.scrollHeight, viewport: s.clientHeight };
+  });
+  check('surface scrolls past the deepest icon', scrollInfo.afterRender > 1800 + scrollInfo.viewport - 200);
+  check('scrolling the bottom edge keeps extending (endless)', scrollInfo.afterChase > scrollInfo.afterRender);
+  // an OS drop while scrolled lands where the cursor is, in CONTENT coords
+  const dropY = await page.evaluate(async () => {
+    const s = document.getElementById('desktop');
+    s.scrollTop = 1000;
+    const dt = new DataTransfer();
+    dt.items.add(new File(['hello'], 'dropped.txt', { type: 'text/plain' }));
+    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt,
+      clientX: 200, clientY: s.getBoundingClientRect().top + 200 });
+    s.dispatchEvent(ev);
+    await new Promise((r) => setTimeout(r, 600));
+    const it = (await GifOS.store.allItems()).find((i) => i.name === 'dropped.txt');
+    return it ? it.y : -1;
+  });
+  check('drop while scrolled lands under the cursor (content coords)', dropY > 900 && dropY < 1500);
+  await page.evaluate(async () => {  // tidy up so later label counts stay stable
+    const all = await GifOS.store.allItems();
+    for (const it of all) if (it.name === 'Deep Folder' || it.name === 'dropped.txt') { await GifOS.store.deleteItem(it.id); if (it.fileId) await GifOS.store.deleteFile(it.fileId); }
+    document.getElementById('desktop').scrollTop = 0;
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  await sleep(300);
+
   // ---- drag a root icon: it should snap to a grid cell and persist ----
   const box = await page.locator('.icon', { hasText: 'Welcome.gif' }).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

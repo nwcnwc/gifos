@@ -55,14 +55,22 @@ body {
 
 /* desktop surface */
 #desktop {
-  position: absolute; inset: 40px 0 0 0; overflow: hidden;
+  position: absolute; inset: 40px 0 0 0;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
 }
 #desktop.dragover::after {
-  content: 'Drop files to add them to your desktop';
-  position: absolute; inset: 1.5rem; border: 2px dashed var(--accent); border-radius: 1rem;
+  content: 'Drop files to add them to your Home Screen';
+  position: fixed; inset: calc(40px + 1.2rem) 1.2rem 1.2rem; border: 2px dashed var(--accent); border-radius: 1rem;
   display: flex; align-items: center; justify-content: center; color: var(--accent);
-  font-size: 1.1rem; background: rgba(123,92,255,.06); pointer-events: none;
+  font-size: 1.1rem; background: rgba(123,92,255,.06); pointer-events: none; z-index: 4;
 }
+/* soft always-there reminder that the whole surface is a drop zone */
+.drop-hint {
+  position: fixed; bottom: .7rem; left: 50%; transform: translateX(-50%);
+  color: var(--muted); opacity: .4; font-size: .74rem; pointer-events: none; z-index: 3;
+  white-space: nowrap;
+}
+@media (pointer: coarse) { .drop-hint { display: none !important; } } /* no OS drag on phones */
 
 /* icons — cell width follows the desktop's grid pitch (--cell, set by JS) so
    at least 5 icons fit across on phones without wasted whitespace */
@@ -159,8 +167,8 @@ details.adv h4 { margin-top: .8rem; }
 .modal-actions button.danger:hover { background: #c22e2e; }
 .modal-actions button.ghost { background: none; border-color: var(--border); color: var(--muted); }
 
-/* empty hint */
+/* empty hint — fixed so it stays visible even though the surface scrolls */
 .hint {
-  position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
-  color: var(--muted); font-size: .8rem; pointer-events: none;
+  position: fixed; bottom: 2.4rem; left: 50%; transform: translateX(-50%);
+  color: var(--muted); font-size: .8rem; pointer-events: none; z-index: 3;
 }
