@@ -96,6 +96,29 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('embed detects GifOS hosts and repacks instead', await gif.embed(artBytes, { 'index.html': '<h1>swap</h1>' })
     .then(async (b) => gif.bytesToText((await gif.decode(b)).files['index.html']) === '<h1>swap</h1>'));
 
+  // transparency: preview.transparentIndex → GCE transparency flag + disposal 2
+  // (that's what makes icons float like stickers instead of sitting on a tile)
+  function firstGce(b) {
+    for (let i = 0; i < b.length - 7; i++) {
+      if (b[i] === 0x21 && b[i + 1] === 0xf9 && b[i + 2] === 0x04) return { packed: b[i + 3], transIdx: b[i + 6] };
+    }
+    return null;
+  }
+  const transBytes = await gif.encode(
+    { 'manifest.json': '{"appId":"t","name":"T"}', 'index.html': '<h1>t</h1>' },
+    { preview: { width: 4, height: 4, palette: pal, numColors: 256, minCodeSize: 8,
+        frames: [new Uint8Array(16), new Uint8Array(16).fill(1)], delayCs: 10, transparentIndex: 0 } });
+  const tg = firstGce(transBytes);
+  check('transparent preview sets GCE transparency flag + disposal 2', !!tg && tg.packed === ((2 << 2) | 0x01));
+  check('transparent preview writes the transparent color index', !!tg && tg.transIdx === 0);
+  const og = firstGce(artBytes);
+  check('opaque preview keeps a plain GCE (no transparency flag)', !!og && og.packed === 0x00);
+  check('default procedural icon is transparent too (sticker fallback)', (() => {
+    const g = firstGce(bytes); return !!g && (g.packed & 0x01) === 1 && ((g.packed >> 2) & 0x7) === 2;
+  })());
+  const transBack = await gif.decode(transBytes);
+  check('transparent GIF still carries its app payload', !!transBack && gif.bytesToText(transBack.files['index.html']) === '<h1>t</h1>');
+
   fs.writeFileSync(path.join(__dirname, 'sample.gif'), Buffer.from(bytes));
   console.log('wrote test/sample.gif');
   process.exit(ok ? 0 : 1);

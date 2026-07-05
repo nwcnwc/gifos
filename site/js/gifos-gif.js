@@ -102,7 +102,7 @@
     const clamp = (n) => Math.max(0, Math.min(255, n));
     const palette = new Array(128 * 3).fill(0);
     const set = (i, rr, gg, bb) => { palette[i * 3] = clamp(rr); palette[i * 3 + 1] = clamp(gg); palette[i * 3 + 2] = clamp(bb); };
-    set(0, 10, 10, 15);            // background
+    // index 0 is transparent — the pattern floats like a sticker
     set(1, r, g, b);              // accent
     set(2, r + 70, g + 70, b + 70); // highlight
     set(3, r - 45, g - 45, b - 45); // shadow
@@ -130,7 +130,7 @@
       }
       frames.push(idx);
     }
-    return { width: W, height: H, palette, numColors: 128, minCodeSize: 7, frames, delayCs: 10 };
+    return { width: W, height: H, palette, numColors: 128, minCodeSize: 7, frames, delayCs: 10, transparentIndex: 0 };
   }
 
   // ---- compression (native CompressionStream; no dependencies) ------------
@@ -248,7 +248,8 @@
       ? { width: opts.preview.width, height: opts.preview.height, palette: opts.preview.palette,
           numColors: opts.preview.numColors, minCodeSize: opts.preview.minCodeSize,
           frames: opts.preview.frames || [opts.preview.indices], // custom art may be animated (many frames)
-          delayCs: opts.preview.delayCs || 0 }
+          delayCs: opts.preview.delayCs || 0,
+          transparentIndex: opts.preview.transparentIndex }
       : animatedPreview(opts.accent, opts.seed || 0);
     const numColors = f.numColors || (f.palette.length / 3);
     const sizeField = Math.round(Math.log2(numColors)) - 1; // 128→6, 256→7
@@ -272,8 +273,13 @@
     }
 
     // Each frame: Graphic Control Extension (delay) + Image Descriptor + LZW data
+    // With a transparent color the GCE sets the transparency flag and disposal
+    // "restore to background" so animated stickers don't smear between frames.
+    const hasTrans = typeof f.transparentIndex === 'number';
+    const gcePacked = hasTrans ? ((2 << 2) | 0x01) : 0x00;
     for (const indices of f.frames) {
-      w.byte(0x21).byte(0xf9).byte(0x04).byte(0x00).u16(f.delayCs || 0).byte(0x00).byte(0x00);
+      w.byte(0x21).byte(0xf9).byte(0x04).byte(gcePacked).u16(f.delayCs || 0)
+        .byte(hasTrans ? f.transparentIndex : 0x00).byte(0x00);
       w.byte(0x2c).u16(0).u16(0).u16(f.width).u16(f.height).byte(0);
       w.byte(f.minCodeSize);
       w.subBlocks(lzwImageData(f.minCodeSize, indices));

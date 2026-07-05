@@ -23,9 +23,12 @@ Tools:
 ## Path B: build the .gif yourself with your code tool
 
 If you can run Python and attach files, you don't need the connector:
-1. Draw a small animated icon with PIL — 2-6 frames, 64x64, bold shapes on a
-   dark #0a0a0f tile, and make it MOVE. Save: im.save("icon.gif",
-   save_all=True, append_images=frames[1:], duration=120, loop=0)
+1. Draw a small animated icon with PIL — 2-6 frames, 64x64, and make it
+   MOVE. Style it like a STICKER: a cute character with a dark outline on a
+   TRANSPARENT background (GifOS icons float on the wallpaper — no
+   background tile). With PIL use mode "P", reserve palette index 0 for
+   transparency, and save: im.save("icon.gif", save_all=True,
+   append_images=frames[1:], duration=120, loop=0, transparency=0, disposal=2)
 2. Splice the app in with EXACTLY this (wbits=-15 raw deflate is required):
 
    import json, zlib, base64

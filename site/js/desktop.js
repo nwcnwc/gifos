@@ -48,7 +48,7 @@
     '',
     'HOW TO DELIVER THE .gif (in order of preference)',
     'A. If you have the GifOS MCP connector (https://mcp.gifos.app/mcp): call pack_app — it returns the finished file. Done.',
-    'B. If you can run code and attach files: (1) draw a small animated icon with PIL — 2 to 6 frames, 64x64, bold simple shapes on a dark #0a0a0f tile, and make it MOVE (blink, bounce, sweep); save with im.save("icon.gif", save_all=True, append_images=frames[1:], duration=120, loop=0). (2) Splice the app into that GIF with EXACTLY this function — the wbits=-15 raw deflate is required:',
+    'B. If you can run code and attach files: (1) draw a small animated icon with PIL — 2 to 6 frames, 64x64, styled like a cute STICKER: a little character with a dark outline on a TRANSPARENT background (GifOS icons float on the wallpaper — no background tile), and make it MOVE (blink, bounce, sweep); use mode "P" with palette index 0 reserved for transparency and save with im.save("icon.gif", save_all=True, append_images=frames[1:], duration=120, loop=0, transparency=0, disposal=2). (2) Splice the app into that GIF with EXACTLY this function — the wbits=-15 raw deflate is required:',
     '     import json, zlib, base64',
     '     def pack_gifos(gif_bytes, files):',
     '         a = {"v": 1, "files": {p: base64.b64encode(v.encode() if isinstance(v, str) else v).decode() for p, v in files.items()}}',
