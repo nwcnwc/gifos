@@ -145,6 +145,190 @@
   render();
 </script>`;
 
+  const CONNECT_FOUR_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffb43c}
+  .status{margin:14px 0 6px;color:#8888aa;min-height:20px;text-align:center;padding:0 12px}
+  .grid{display:grid;grid-template-columns:repeat(7,44px);gap:6px;background:#12203a;padding:10px;border-radius:12px;margin:6px 0}
+  .cell{width:44px;height:44px;border-radius:50%;background:#0a0a0f;cursor:pointer}
+  .cell.r{background:#ff5c5c}.cell.y{background:#ffd23c}
+  button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:#ffb43c;color:#0a0a0f;font-weight:700;cursor:pointer}
+</style>
+<header>🔴 Connect Four</header>
+<div class="status" id="status">Loading…</div>
+<div class="grid" id="grid"></div>
+<button id="new">New game</button>
+<script>
+  const db = gifos.db('game'), W=7, H=6;
+  const fresh = () => ({ id:'board', cells:new Array(W*H).fill(null), turn:'R', winner:null, players:{}, names:{} });
+  let cur = fresh(), me = { id:'local', name:'You' };
+  if (window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; render(); });
+  const gridEl = document.getElementById('grid'), statusEl = document.getElementById('status');
+  function opp(){ return (cur.players.R&&cur.players.R!==me.id)||(cur.players.Y&&cur.players.Y!==me.id); }
+  function myMark(){ return cur.players.R===me.id?'R':cur.players.Y===me.id?'Y':null; }
+  function canPlay(){ if(cur.winner) return false; if(!opp()) return true; const mm=myMark(); return mm?cur.turn===mm:!cur.players[cur.turn]; }
+  function label(s){ return cur.names&&cur.names[s]?cur.names[s]:s; }
+  function win(cells){
+    const dirs=[[1,0],[0,1],[1,1],[1,-1]];
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const c=cells[y*W+x]; if(!c) continue;
+      for(const d of dirs){ let n=1; for(let k=1;k<4;k++){ const nx=x+d[0]*k,ny=y+d[1]*k; if(nx<0||nx>=W||ny<0||ny>=H||cells[ny*W+nx]!==c) break; n++; } if(n>=4) return c; } }
+    return cells.every(Boolean)?'draw':null;
+  }
+  function drop(col){
+    if(!canPlay()) return;
+    let row=-1; for(let y=H-1;y>=0;y--){ if(!cur.cells[y*W+col]){ row=y; break; } }
+    if(row<0) return;
+    const seat=cur.turn;
+    cur.players=Object.assign({},cur.players); cur.players[seat]=cur.players[seat]||me.id;
+    cur.names=Object.assign({},cur.names); if(cur.players[seat]===me.id) cur.names[seat]=me.name;
+    cur.cells=cur.cells.slice(); cur.cells[row*W+col]=seat;
+    cur.winner=win(cur.cells); cur.turn=seat==='R'?'Y':'R';
+    db.put(cur); render();
+  }
+  function render(){
+    gridEl.innerHTML='';
+    for(let i=0;i<W*H;i++){ const d=document.createElement('div'); const v=cur.cells[i];
+      d.className='cell'+(v?' '+v.toLowerCase():''); d.onclick=function(){ drop(i%W); }; gridEl.appendChild(d); }
+    const vs='🔴 '+label('R')+'  vs  🟡 '+label('Y');
+    statusEl.textContent = cur.winner==='draw'?'Draw! — '+vs
+      : cur.winner?label(cur.winner)+' wins! 🎉 — '+vs
+      : (canPlay()?'Your move':'Waiting for '+label(cur.turn))+'  —  '+vs;
+  }
+  db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b) cur=b; render(); });
+  document.getElementById('new').onclick=function(){ return db.put(fresh()); };
+  render();
+</script>`;
+
+  const CHAT_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  *{box-sizing:border-box} html,body{height:100%}
+  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#5cdcb4}
+  #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
+  .m{max-width:80%;padding:8px 12px;border-radius:12px;background:#14141f;border:1px solid #2a2a3f}
+  .m.mine{align-self:flex-end;background:#173a30;border-color:#2a5a48}
+  .m b{color:#5cdcb4;font-size:12px;display:block;margin-bottom:2px}
+  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
+  input{flex:1;padding:10px 12px;border:1px solid #2a2a3f;border-radius:8px;background:#1c1c2b;color:#e0e0f0;font:inherit}
+  button{padding:10px 16px;border:0;border-radius:8px;background:#5cdcb4;color:#04231b;font-weight:700;cursor:pointer}
+</style>
+<header>💬 Chat</header>
+<div id="log"></div>
+<form id="f"><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
+<script>
+  const db=gifos.db('messages'), log=document.getElementById('log');
+  let me={id:'local',name:'You'};
+  if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  function render(items){
+    items=items.slice().sort(function(a,b){return (a.t||0)-(b.t||0);});
+    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'</b>'+esc(m.text)+'</div>'; }).join('');
+    log.scrollTop=log.scrollHeight;
+  }
+  db.subscribe(render);
+  document.getElementById('f').onsubmit=async function(e){ e.preventDefault();
+    const t=document.getElementById('t'); if(!t.value.trim()) return;
+    await db.put({ by:me.name, uid:me.id, text:t.value.trim(), t:Date.now() }); t.value='';
+  };
+</script>`;
+
+  const PAINT_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff5caa}
+  .board{display:grid;grid-template-columns:repeat(16,20px);gap:1px;background:#2a2a3f;padding:1px;margin:14px;touch-action:none}
+  .px{width:20px;height:20px;background:#14141f}
+  .palette{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 12px}
+  .sw{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent}
+  .sw.sel{border-color:#fff}
+  button{margin:12px;padding:8px 16px;border:0;border-radius:8px;background:#ff5caa;color:#fff;cursor:pointer}
+</style>
+<header>🎨 Paint — draw together</header>
+<div class="palette" id="pal"></div>
+<div class="board" id="board"></div>
+<button id="clear">Clear</button>
+<script>
+  const db=gifos.db('canvas'), N=16, COLORS=['#14141f','#ff5c5c','#ffd23c','#5cff7b','#5cc8ff','#7b5cff','#ff5caa','#ffffff'];
+  let board={ id:'board', cells:new Array(N*N).fill(0) }, color=1, painting=false, pending=false;
+  const boardEl=document.getElementById('board'), palEl=document.getElementById('pal');
+  COLORS.forEach(function(c,i){ const s=document.createElement('div'); s.className='sw'+(i===1?' sel':''); s.style.background=c;
+    s.onclick=function(){ color=i; palEl.querySelectorAll('.sw').forEach(function(x){x.classList.remove('sel');}); s.classList.add('sel'); }; palEl.appendChild(s); });
+  const cellEls=[];
+  for(let i=0;i<N*N;i++){ const d=document.createElement('div'); d.className='px'; cellEls.push(d);
+    const paint=function(){ if(board.cells[i]===color) return; board.cells=board.cells.slice(); board.cells[i]=color; d.style.background=COLORS[color]; schedule(); };
+    d.addEventListener('pointerdown',function(e){ e.preventDefault(); painting=true; paint(); });
+    d.addEventListener('pointerenter',function(){ if(painting) paint(); });
+    boardEl.appendChild(d); }
+  window.addEventListener('pointerup',function(){ painting=false; });
+  function schedule(){ if(pending) return; pending=true; setTimeout(function(){ pending=false; db.put(board); }, 60); }
+  function render(){ for(let i=0;i<N*N;i++) cellEls[i].style.background=COLORS[board.cells[i]||0]; }
+  db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b){ board=b; render(); } });
+  document.getElementById('clear').onclick=function(){ board={id:'board',cells:new Array(N*N).fill(0)}; render(); db.put(board); };
+</script>`;
+
+  const CALCULATOR_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#5cc8ff}
+  #disp{width:264px;margin:16px;padding:14px 16px;text-align:right;font-size:30px;background:#14141f;border:1px solid #2a2a3f;border-radius:12px;overflow:hidden}
+  .keys{display:grid;grid-template-columns:repeat(4,60px);gap:8px}
+  button{height:60px;border:0;border-radius:12px;background:#1c1c2b;color:#e0e0f0;font-size:20px;cursor:pointer}
+  button:hover{background:#26263a}
+  button.op{background:#5cc8ff;color:#04223a;font-weight:700}
+  button.eq{background:#5cff7b;color:#04231b;font-weight:700}
+  button.wide{grid-column:span 2}
+</style>
+<header>🔢 Calculator</header>
+<div id="disp">0</div>
+<div class="keys" id="keys"></div>
+<script>
+  const disp=document.getElementById('disp');
+  let acc=null, op=null, cur='0', fresh=true;
+  function show(){ disp.textContent=cur; }
+  function num(d){ if(fresh||cur==='0'){ cur=(d==='.'?'0.':d); fresh=false; } else if(!(d==='.'&&cur.indexOf('.')>=0)){ cur+=d; } show(); }
+  function apply(a,o,b){ a=parseFloat(a); b=parseFloat(b); return o==='+'?a+b:o==='-'?a-b:o==='×'?a*b:o==='÷'?(b?a/b:0):b; }
+  function setOp(o){ if(op&&!fresh){ acc=String(apply(acc,op,cur)); cur=acc; show(); } else { acc=cur; } op=o; fresh=true; }
+  function eq(){ if(op){ cur=String(apply(acc,op,cur)); op=null; acc=null; fresh=true; show(); } }
+  function clr(){ acc=null; op=null; cur='0'; fresh=true; show(); }
+  const rows=[['7','8','9','÷'],['4','5','6','×'],['1','2','3','-'],['0','.','=','+']];
+  const keys=document.getElementById('keys');
+  keys.appendChild(mk('C','wide',clr));
+  keys.appendChild(mk('⌫','', function(){ cur=cur.length>1?cur.slice(0,-1):'0'; show(); }));
+  rows.forEach(function(r){ r.forEach(function(k){
+    if(k==='=') keys.appendChild(mk('=','eq',eq));
+    else if('+-×÷'.indexOf(k)>=0) keys.appendChild(mk(k,'op',function(){ setOp(k); }));
+    else keys.appendChild(mk(k,'',function(){ num(k); }));
+  }); });
+  function mk(t,cls,fn){ const b=document.createElement('button'); b.textContent=t; if(cls) b.className=cls; b.onclick=fn; return b; }
+</script>`;
+
+  const TIMER_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff7878}
+  #t{font-size:56px;font-variant-numeric:tabular-nums;margin:40px 0 20px;letter-spacing:2px}
+  .row{display:flex;gap:10px}
+  button{padding:12px 24px;border:0;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;background:#1c1c2b;color:#e0e0f0}
+  button.go{background:#5cff7b;color:#04231b}button.stop{background:#ff7878;color:#2a0a0a}
+</style>
+<header>⏱️ Stopwatch</header>
+<div id="t">00:00.0</div>
+<div class="row">
+  <button id="go" class="go">Start</button>
+  <button id="reset">Reset</button>
+</div>
+<script>
+  let running=false, base=0, elapsed=0, raf=0;
+  const tEl=document.getElementById('t'), go=document.getElementById('go');
+  function fmt(ms){ const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, d=Math.floor(ms/100)%10;
+    return (m<10?'0':'')+m+':'+(s<10?'0':'')+s+'.'+d; }
+  function tick(){ tEl.textContent=fmt(elapsed+(running?Date.now()-base:0)); if(running) raf=requestAnimationFrame(tick); }
+  go.onclick=function(){ if(running){ elapsed+=Date.now()-base; running=false; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); }
+    else { base=Date.now(); running=true; go.textContent='Stop'; go.className='stop'; tick(); } };
+  document.getElementById('reset').onclick=function(){ running=false; elapsed=0; base=0; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); tEl.textContent='00:00.0'; };
+</script>`;
+
   const WELCOME_README = [
     'WELCOME TO GIFOS',
     '================',
@@ -180,25 +364,41 @@
 
   function build() {
     const gif = GifOS.gif;
-    const apps = [
-      { name: 'Notes.gif', appId: 'notes', accent: [123, 92, 255],
-        files: { 'manifest.json': manifest('notes', 'Notes', [123, 92, 255]), 'index.html': NOTES_HTML } },
-      { name: 'Tic-Tac-Toe.gif', appId: 'tictactoe', accent: [92, 255, 123],
-        files: { 'manifest.json': manifest('tictactoe', 'Tic-Tac-Toe', [92, 255, 123]), 'index.html': TICTACTOE_HTML } },
-      { name: 'Guestbook.gif', appId: 'guestbook', accent: [255, 92, 170],
-        files: { 'manifest.json': manifest('guestbook', 'Guestbook', [255, 92, 170]), 'index.html': GUESTBOOK_HTML } },
-      // A GIF with NO index.html → browsable filesystem fallback, doubling as the manual.
-      { name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
-        files: {
-          'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { entry: 'nonexistent.html' }),
-          'README.txt': WELCOME_README,
-        } },
+    const app = (name, appId, accent, html) => ({
+      name: name + '.gif', appId, accent,
+      files: { 'manifest.json': manifest(appId, name, accent), 'index.html': html },
+    });
+    const enc = (a) => gif.encode(a.files, { accent: a.accent })
+      .then((bytes) => ({ name: a.name, appId: a.appId, accent: a.accent, bytes }));
+
+    const groups = [
+      { name: 'Games', apps: [
+        app('Tic-Tac-Toe', 'tictactoe', [92, 255, 123], TICTACTOE_HTML),
+        app('Connect Four', 'connect4', [255, 180, 60], CONNECT_FOUR_HTML),
+      ] },
+      { name: 'Studio', apps: [
+        app('Paint', 'paint', [255, 92, 170], PAINT_HTML),
+      ] },
+      { name: 'Tools', apps: [
+        app('Notes', 'notes', [123, 92, 255], NOTES_HTML),
+        app('Calculator', 'calc', [92, 200, 255], CALCULATOR_HTML),
+        app('Stopwatch', 'timer', [255, 120, 120], TIMER_HTML),
+      ] },
+      { name: 'Social', apps: [
+        app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
+        app('Chat', 'chat', [92, 220, 180], CHAT_HTML),
+      ] },
     ];
-    return Promise.all(apps.map((a) =>
-      gif.encode(a.files, { accent: a.accent }).then((bytes) => ({
-        name: a.name, appId: a.appId, accent: a.accent, bytes,
-      }))
-    ));
+    // A GIF with NO index.html → browsable filesystem fallback, doubling as the manual.
+    const loose = [{
+      name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
+      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { entry: 'nonexistent.html' }), 'README.txt': WELCOME_README },
+    }];
+
+    return Promise.all([
+      Promise.all(groups.map((g) => Promise.all(g.apps.map(enc)).then((apps) => ({ name: g.name, apps })))),
+      Promise.all(loose.map(enc)),
+    ]).then((r) => ({ folders: r[0], loose: r[1] }));
   }
 
   GifOS.samples = { build };

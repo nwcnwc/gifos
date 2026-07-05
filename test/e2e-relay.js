@@ -26,6 +26,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   hostDesk.on('console', (m) => { if (m.type() === 'error') console.log('  [host desk]', m.text()); });
   await hostDesk.goto(BASE + '/index.html');
   await hostDesk.waitForSelector('.icon');
+  await hostDesk.locator('.icon', { hasText: 'Social' }).dblclick();
+  await hostDesk.waitForTimeout(250);
   const [hostRun] = await Promise.all([
     hostCtx.waitForEvent('page'),
     hostDesk.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),

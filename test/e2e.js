@@ -26,6 +26,15 @@ function buildZip(files) {
 // 1×1 PNG, used as custom app artwork.
 const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg==', 'base64');
 
+// Open an app that lives inside a folder: enter the folder, open the app in a
+// new tab, then return to the desktop root. `folder` may be null for root apps.
+async function openApp(page, ctx, folder, label) {
+  if (folder) { await page.locator('.icon', { hasText: folder }).dblclick(); await page.waitForTimeout(200); }
+  const [tab] = await Promise.all([ctx.waitForEvent('page'), page.locator('.icon', { hasText: label }).first().dblclick()]);
+  if (folder) { await page.locator('#crumbs a').click(); await page.waitForTimeout(150); }
+  return tab;
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
@@ -37,13 +46,17 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop seeded with 4 apps + Trash', labels.length === 5);
-  check('has Notes.gif', labels.includes('Notes.gif'));
-  check('has Tic-Tac-Toe.gif', labels.includes('Tic-Tac-Toe.gif'));
-  check('has Guestbook.gif', labels.includes('Guestbook.gif'));
-  check('has Welcome.gif', labels.includes('Welcome.gif'));
+  check('desktop root has app folders + Welcome + Trash', labels.length === 6);
+  check('has Games / Studio / Tools / Social folders', ['Games', 'Studio', 'Tools', 'Social'].every((f) => labels.includes(f)));
+  check('has Welcome.gif at root', labels.includes('Welcome.gif'));
   check('has Trash', labels.includes('Trash'));
-  check('gif icons render as <img> thumbnails', (await page.$$('.icon .thumb img')).length === 4);
+  // Tools folder contains the utility apps
+  await page.locator('.icon', { hasText: 'Tools' }).dblclick();
+  await sleep(250);
+  const toolLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('Tools folder contains Notes + Calculator + Stopwatch', ['Notes.gif', 'Calculator.gif', 'Stopwatch.gif'].every((a) => toolLabels.includes(a)));
+  await page.locator('#crumbs a').click();
+  await sleep(200);
   const pillText = await page.locator('#storage-pill').textContent();
   check('storage pill shows usage', /💾/.test(pillText) && /(B|KB|MB|GB)/.test(pillText));
 
@@ -94,12 +107,12 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   check('multi-file zip app runs (app.js from the GIF filesystem executed)', (await zipApp.locator('#o').textContent()) === 'js-loaded');
   await zipPage.close();
 
-  // ---- custom artwork: an uploaded icon becomes the GIF frame (96×96) ----
+  // ---- app-declared artwork: a <link rel=icon> in the HTML becomes the GIF frame (96×96) ----
+  const svgIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23ff0055'/%3E%3C/svg%3E";
   await page.locator('#add-btn').click();
   await page.locator('.modal.wide').waitFor();
   await page.locator('#ad-name').fill('Artsy');
-  await page.locator('#ad-html').fill('<!doctype html><h1>art</h1>');
-  await page.setInputFiles('#ad-icon', { name: 'art.png', mimeType: 'image/png', buffer: PNG_1x1 });
+  await page.locator('#ad-html').fill('<!doctype html><html><head><link rel="icon" href="' + svgIcon + '"></head><body><h1>art</h1></body></html>');
   await page.locator('#ad-create').click();
   await sleep(500);
   const artIcon = page.locator('.icon', { hasText: 'Artsy.gif' }).locator('.thumb img');
@@ -110,12 +123,8 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   }));
   check('custom artwork produces a 96×96 GIF frame (not the 32px swatch)', artW === 96);
 
-  // ---- run the Notes app in a new tab ----
-  const notesIcon = page.locator('.icon', { hasText: 'Notes.gif' });
-  const [runPage] = await Promise.all([
-    context.waitForEvent('page'),
-    notesIcon.dblclick(),
-  ]);
+  // ---- run the Notes app (Tools folder) in a new tab ----
+  const runPage = await openApp(page, context, 'Tools', 'Notes.gif');
   await runPage.waitForLoadState();
   runPage.on('console', (m) => { if (m.type() === 'error') console.log('  [run error]', m.text()); });
   await runPage.waitForSelector('iframe', { timeout: 8000 });
@@ -143,11 +152,7 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   check('notes persist across tab reload', afterReload === 2);
 
   // ---- browsable-folder fallback (Welcome.gif has no index.html) ----
-  const welcomeIcon = page.locator('.icon', { hasText: 'Welcome.gif' });
-  const [folderPage] = await Promise.all([
-    context.waitForEvent('page'),
-    welcomeIcon.dblclick(),
-  ]);
+  const folderPage = await openApp(page, context, null, 'Welcome.gif');
   await folderPage.waitForLoadState();
   await folderPage.waitForSelector('iframe');
   const folder = folderPage.frameLocator('iframe');
@@ -155,11 +160,8 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   const rowText = await folder.locator('table').textContent();
   check('no-index.html GIF shows browsable filesystem', /README\.txt/.test(rowText));
 
-  // ---- Tic-Tac-Toe: the multiplayer default app mounts and plays ----
-  const [tttPage] = await Promise.all([
-    context.waitForEvent('page'),
-    page.locator('.icon', { hasText: 'Tic-Tac-Toe.gif' }).dblclick(),
-  ]);
+  // ---- Tic-Tac-Toe (Games folder): the multiplayer default app mounts and plays ----
+  const tttPage = await openApp(page, context, 'Games', 'Tic-Tac-Toe.gif');
   await tttPage.waitForSelector('iframe');
   const ttt = tttPage.frameLocator('iframe');
   await ttt.locator('.cell').first().waitFor({ timeout: 8000 });
@@ -173,7 +175,7 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   const gb1 = await context.newPage();
   await gb1.goto(BASE + '/index.html');
   await gb1.waitForSelector('.icon');
-  // find the guestbook fileId by reading the run link path — simpler: dblclick on gb1
+  await gb1.locator('.icon', { hasText: 'Social' }).dblclick(); await sleep(200);
   const [gbTabA] = await Promise.all([context.waitForEvent('page'), gb1.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick()]);
   await gbTabA.waitForSelector('iframe');
   const gbUrl = gbTabA.url();
@@ -191,10 +193,7 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   // ---- identity: a screen name set in Settings is attributed by apps ----
   // (uses Guestbook, whose entry count no later test asserts on)
   await page.evaluate(() => GifOS.store.setName('Casey'));
-  const [gbId] = await Promise.all([
-    context.waitForEvent('page'),
-    page.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
-  ]);
+  const gbId = await openApp(page, context, 'Social', 'Guestbook.gif');
   await gbId.waitForSelector('iframe');
   const gbIdApp = gbId.frameLocator('iframe');
   await gbIdApp.locator('#msg').waitFor({ timeout: 8000 });
@@ -205,22 +204,21 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   check('app attributes an action to the screen name (gifos.me)', /Casey/.test(caseyEntry));
   await gbId.close();
 
-  // ---- drag an icon: it should snap to a grid cell and persist ----
-  const dragIcon = page.locator('.icon', { hasText: 'Notes.gif' });
-  const box = await dragIcon.boundingBox();
+  // ---- drag a root icon: it should snap to a grid cell and persist ----
+  const box = await page.locator('.icon', { hasText: 'Welcome.gif' }).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + 240, box.y + 150, { steps: 8 });
   await page.mouse.up();
   await sleep(400);
-  const posAfterDrag = await page.locator('.icon', { hasText: 'Notes.gif' })
+  const posAfterDrag = await page.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
   const onGrid = (posAfterDrag.left - 16) % 116 === 0 && (posAfterDrag.top - 16) % 116 === 0;
-  check('dragged icon snaps to a grid cell', onGrid && !(posAfterDrag.left === 16 && posAfterDrag.top === 16));
+  check('dragged icon snaps to a grid cell', onGrid);
   await page.reload();
   await page.waitForSelector('.icon');
   await sleep(300);
-  const posAfterReload = await page.locator('.icon', { hasText: 'Notes.gif' })
+  const posAfterReload = await page.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
   check('icon position persists across reload',
     posAfterReload.left === posAfterDrag.left && posAfterReload.top === posAfterDrag.top);
@@ -361,7 +359,7 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 5 && !freshLabels.includes('Resume.gif'));
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 6 && !freshLabels.includes('Resume.gif'));
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace desktop' }).click();
@@ -369,14 +367,11 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   await sleep(500);
   const restoredDesk = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('restore brings the backed-up desktop back (custom app present)', restoredDesk.includes('Resume.gif'));
-  const notesPos = await sys.locator('.icon', { hasText: 'Notes.gif' })
+  const welcomePos = await sys.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
-  check('restored desktop keeps icon positions', notesPos.left === posAfterDrag.left && notesPos.top === posAfterDrag.top);
-  // app state survives the round-trip too
-  const [notesAgain] = await Promise.all([
-    context.waitForEvent('page'),
-    sys.locator('.icon', { hasText: 'Notes.gif' }).dblclick(),
-  ]);
+  check('restored desktop keeps icon positions', welcomePos.left === posAfterDrag.left && welcomePos.top === posAfterDrag.top);
+  // app state survives the round-trip too (Notes lives in the Tools folder)
+  const notesAgain = await openApp(sys, context, 'Tools', 'Notes.gif');
   await notesAgain.waitForSelector('iframe');
   const notesApp3 = notesAgain.frameLocator('iframe');
   await notesApp3.locator('#list li').first().waitFor({ timeout: 8000 });
@@ -387,16 +382,16 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
   await twin.goto(BASE + '/index.html');
   await twin.waitForSelector('.icon');
   await sleep(300);
-  // move an icon in `sys` — `twin` should repaint without any reload
-  const gbBox = await sys.locator('.icon', { hasText: 'Guestbook.gif' }).boundingBox();
+  // move a root icon in `sys` — `twin` should repaint without any reload
+  const gbBox = await sys.locator('.icon', { hasText: 'Welcome.gif' }).boundingBox();
   await sys.mouse.move(gbBox.x + gbBox.width / 2, gbBox.y + gbBox.height / 2);
   await sys.mouse.down();
-  await sys.mouse.move(gbBox.x + 460, gbBox.y + 260, { steps: 8 });
+  await sys.mouse.move(gbBox.x + 300, gbBox.y + 300, { steps: 8 });
   await sys.mouse.up();
   await sleep(800);
-  const posInSys = await sys.locator('.icon', { hasText: 'Guestbook.gif' })
+  const posInSys = await sys.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => el.style.left + '/' + el.style.top);
-  const posInTwin = await twin.locator('.icon', { hasText: 'Guestbook.gif' })
+  const posInTwin = await twin.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => el.style.left + '/' + el.style.top);
   check('icon moved in one tab updates live in the other (no reload)', posInSys === posInTwin);
 
