@@ -72,25 +72,58 @@ server.on('upgrade', (req, socket) => {
   const token = url.searchParams.get('token') || '';
   const peer = url.searchParams.get('peer') || 'c_' + crypto.randomBytes(4).toString('hex');
 
+  // Bandwidth guard — mirrors the Worker (media must go P2P, not over the relay).
+  const MAX_MSG = 64 * 1024, RATE = 256 * 1024;
+  const meter = { winStart: Date.now(), bytes: 0, warned: false };
+  const allow = (data) => {
+    const now = Date.now();
+    if (now - meter.winStart >= 1000) { meter.winStart = now; meter.bytes = 0; meter.warned = false; }
+    const len = Buffer.byteLength(data || '');
+    meter.bytes += len;
+    if (len > MAX_MSG || meter.bytes > RATE) {
+      if (!meter.warned) { meter.warned = true; conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' })); }
+      return false;
+    }
+    return true;
+  };
+  const roster = () => {
+    const s = JSON.stringify({ t: 'roster', peers: Array.from(sess.clients.keys()) });
+    if (sess.host) sess.host.send(s);
+    for (const c of sess.clients.values()) c.send(s);
+  };
+  const routePeer = (from, m) => {
+    const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
+    const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
+    if (dest) dest.send(wrapped);
+  };
+
   if (role === 'host') {
     sess.host = conn; sess.token = token;
     conn.onmessage = (data) => {
+      if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
       if (m.t === 'to') { const c = sess.clients.get(m.to); if (c) c.send(JSON.stringify(m.msg)); }
       else if (m.t === 'bcast') { for (const c of sess.clients.values()) c.send(JSON.stringify(m.msg)); }
+      else if (m.t === 'peer') { routePeer('host', m); }
     };
     conn.onclose = () => { if (sess.host === conn) { sess.host = null; for (const c of sess.clients.values()) c.send(JSON.stringify({ t: 'host-gone' })); } };
     conn.send(JSON.stringify({ t: 'host-ready' }));
-    // Announce already-connected clients (lock/failover recovery), same as the Worker.
-    for (const peer of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer }));
+    for (const p of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer: p }));
+    roster();
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }
     if (sess.token && token !== sess.token) { conn.send(JSON.stringify({ t: 'error', error: 'bad token' })); conn.close(); return; }
     sess.clients.set(peer, conn);
-    conn.onmessage = (data) => { let m; try { m = JSON.parse(data); } catch (e) { return; } if (sess.host) sess.host.send(JSON.stringify({ t: 'from', from: peer, msg: m })); };
-    conn.onclose = () => { sess.clients.delete(peer); if (sess.host) sess.host.send(JSON.stringify({ t: 'peer-leave', peer })); };
+    conn.onmessage = (data) => {
+      if (!allow(data)) return;
+      let m; try { m = JSON.parse(data); } catch (e) { return; }
+      if (m.t === 'peer') { routePeer(peer, m); }
+      else if (sess.host) sess.host.send(JSON.stringify({ t: 'from', from: peer, msg: m }));
+    };
+    conn.onclose = () => { sess.clients.delete(peer); if (sess.host) sess.host.send(JSON.stringify({ t: 'peer-leave', peer })); roster(); };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     sess.host.send(JSON.stringify({ t: 'peer-join', peer }));
+    roster();
   }
 });
 
