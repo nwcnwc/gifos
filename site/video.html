@@ -277,11 +277,24 @@
         else if (m.t === 'host-gone') { closedToJoiners = true; dropPeer('host'); updateStatus(); }
         else if (m.t === 'error') setStatus('Relay: ' + m.error);
       };
-      const link = location.origin + location.pathname + '#v=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay);
-      shareUrl.value = link;
+      // gifos.app/call/<code> on production (routed by 404.html); hash form
+      // for local testing and custom relays. One code = session id + key.
+      const pretty = sid === token && /(^|\.)gifos\.app$/.test(location.hostname) && relay === window.GIFOS_RELAY;
+      shareUrl.value = pretty ? location.origin + '/call/' + sid
+        : location.origin + location.pathname + '#v=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay);
       if (asHost) share.classList.add('show');
     }
     let rosterSeen = false;
+
+    // Friendly one-word codes: no lookalike characters, short enough to read aloud.
+    function shortCode() {
+      const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+      const buf = new Uint8Array(10);
+      crypto.getRandomValues(buf);
+      let s = '';
+      for (let i = 0; i < buf.length; i++) s += alphabet[buf[i] % alphabet.length];
+      return s;
+    }
 
     // ---- boot ------------------------------------------------------------------
     const isJoin = !!params.get('v');
@@ -291,8 +304,8 @@
       localStream = stream;
       const t = makeTile('me', myName() + ' (you)', true);
       t.video.srcObject = stream;
-      if (isJoin) connect(false, params.get('v'), params.get('k') || '');
-      else connect(true, uid('vc'), uid('k'));
+      if (isJoin) connect(false, params.get('v'), params.get('k') || params.get('v'));
+      else { const code = shortCode(); connect(true, code, code); }
       updateStatus();
     }).catch((err) => {
       setStatus('Camera/microphone denied: ' + (err && err.message || err));
@@ -317,7 +330,13 @@
       camBtn.classList.toggle('off', !track.enabled);
       camBtn.textContent = track.enabled ? 'Camera off' : 'Camera on';
     };
-    document.getElementById('invite').onclick = () => share.classList.toggle('show');
+    document.getElementById('invite').onclick = () => {
+      share.classList.add('show'); // link stays visible/copyable behind the sheet
+      if (navigator.share && shareUrl.value) {
+        navigator.share({ title: 'Join my GifOS call', text: 'Tap this link and you’re in:', url: shareUrl.value })
+          .catch(() => { /* user closed the sheet — the copy row remains */ });
+      }
+    };
     document.getElementById('copy').onclick = () => {
       shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
       if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
