@@ -180,14 +180,20 @@
   }
 
   // ---- snapshot: re-pack app + current state into a self-contained GIF -----
-  function packSnapshot(files, manifest, state) {
+  // When we have the original GIF bytes we REPACK — swap only the embedded
+  // filesystem block and keep every pixel/artwork byte identical, so the app's
+  // custom animated icon survives the snapshot. We only fall back to a fresh
+  // encode (procedural preview) when the originals aren't available.
+  function packSnapshot(originalBytes, files, manifest, state) {
     const out = {};
     for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
     out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
-    return gif.encode(out, { accent: manifest.accent }); // Promise<Uint8Array>
+    return originalBytes && gif.repack
+      ? gif.repack(originalBytes, out)
+      : gif.encode(out, { accent: manifest.accent }); // Promise<Uint8Array>
   }
-  function downloadSnapshot(files, manifest, db) {
-    return Promise.resolve(db.getFullState()).then((state) => packSnapshot(files, manifest, state)).then((bytes) => {
+  function downloadSnapshot(originalBytes, files, manifest, db) {
+    return Promise.resolve(db.getFullState()).then((state) => packSnapshot(originalBytes, files, manifest, state)).then((bytes) => {
       const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
       const a = document.createElement('a');
       const name = (manifest.appId || 'app') + '-snapshot.gif';
@@ -271,14 +277,14 @@
   }
 
   // ---- mount an app into an iframe with the given DB backend ----------------
-  function mountApp(iframe, files, manifest, db) {
+  function mountApp(iframe, files, manifest, db, originalBytes) {
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
       const reply = (p) => iframe.contentWindow.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*');
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'fetch') bridgeFetch(manifest, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
-      else if (d.type === 'save') downloadSnapshot(files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
@@ -449,9 +455,9 @@
           } catch (e) { /* corrupt embedded state — start fresh */ }
         }
       }).then(() => {
-        mountApp(iframe, files, manifest, db);
+        mountApp(iframe, files, manifest, db, appBytes);
         setStatus('Running · state saved to this icon');
-        return { save: () => downloadSnapshot(files, manifest, db), becomeHost };
+        return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost };
       });
     }
   }
@@ -540,7 +546,7 @@
           document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
           remoteDb = makeRemoteDb(transportSend);
           iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
-          mountApp(iframe, filesRef, manifestRef, remoteDb);
+          mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes);
           root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
           runningStatus();
           mirror();
@@ -575,11 +581,11 @@
           // Remount the app against the local DB and wake the other clients.
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;
-          mountApp(fresh, filesRef, manifestRef, db);
+          mountApp(fresh, filesRef, manifestRef, db, appBytes);
           ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
           setStatus('Hosting (took over) · session continues');
           return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay })
-            .then(() => ({ shareUrl: location.href, save: () => downloadSnapshot(filesRef, manifestRef, db) }));
+            .then(() => ({ shareUrl: location.href, save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
         });
       });
     }
@@ -590,7 +596,7 @@
     }
 
     return Promise.resolve({
-      save: () => (filesRef && remoteDb ? downloadSnapshot(filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
+      save: () => (filesRef && remoteDb ? downloadSnapshot(appBytes, filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
       saveToDesktop,
       becomeHost,
     });

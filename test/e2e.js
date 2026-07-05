@@ -1,5 +1,6 @@
 // End-to-end: drive the real desktop in Chromium.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const fs = require('fs');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 
@@ -342,6 +343,33 @@ async function openApp(page, ctx, folder, label) {
   sawModal = await deskPage.locator('.modal-bg').count() > 0;
   check('plain GIF opens in a new tab (no "not supported" modal)', !sawModal && /^blob:/.test(photoTab.url()));
   await photoTab.close();
+
+  // ---- Download from the context menu: snapshot a GIF without opening it ----
+  await deskPage.locator('.icon', { hasText: 'photo.gif' }).click({ button: 'right' });
+  const [plainDl] = await Promise.all([
+    deskPage.waitForEvent('download'),
+    deskPage.locator('.ctx button', { hasText: 'Download' }).click(),
+  ]);
+  check('Download menu snapshots a plain file (right filename)', plainDl.suggestedFilename() === 'photo.gif');
+  // an actual GifOS app with saved state → downloads a valid GIF that still carries its app
+  const appDl = await (async () => {
+    const [dl] = await Promise.all([
+      deskPage.waitForEvent('download'),
+      (async () => {
+        await deskPage.locator('.icon', { hasText: 'Welcome' }).first().click({ button: 'right' });
+        await deskPage.locator('.ctx button', { hasText: 'Download' }).click();
+      })(),
+    ]);
+    return dl;
+  })();
+  const appDlPath = await appDl.path();
+  const appDlBytes = new Uint8Array(fs.readFileSync(appDlPath));
+  const appDlOk = await deskPage.evaluate(async (arr) => {
+    const b = new Uint8Array(arr);
+    const a = await GifOS.gif.decode(b);
+    return String.fromCharCode(b[0], b[1], b[2]) === 'GIF' && !!(a && a.files && a.files['README.txt']);
+  }, Array.from(appDlBytes));
+  check('Download of an app produces a valid GifOS GIF', /\.gif$/.test(appDl.suggestedFilename()) && appDlOk);
 
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();

@@ -148,10 +148,8 @@
     return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
   }
 
-  // ---- encode: filesystem archive -> GIF89a bytes (async) ------------------
-  // files: { "path": Uint8Array | string }  →  Promise<Uint8Array>
-  function encode(files, opts) {
-    opts = opts || {};
+  // ---- payload builder (shared by encode and repack) -----------------------
+  function buildPayload(files) {
     const archive = { v: 1, files: {} };
     for (const path in files) {
       const val = files[path];
@@ -159,14 +157,60 @@
       archive.files[path] = b64encode(bytes);
     }
     const json = textToBytes(JSON.stringify(archive));
-    const payloadP = hasCompression()
+    return hasCompression()
       ? deflate(json).then((z) => {
           const framed = new Uint8Array(z.length + 1);
           framed[0] = COMPRESSED_FLAG; framed.set(z, 1);
           return framed;
         })
       : Promise.resolve(json); // legacy uncompressed fallback
-    return payloadP.then((payload) => assemble(payload, opts));
+  }
+
+  // ---- encode: filesystem archive -> GIF89a bytes (async) ------------------
+  // files: { "path": Uint8Array | string }  →  Promise<Uint8Array>
+  function encode(files, opts) {
+    return buildPayload(files).then((payload) => assemble(payload, opts || {}));
+  }
+
+  // ---- repack: replace ONLY the GifOS data block inside an existing GIF ----
+  // Every pixel byte (header, palette, animation frames) stays identical — the
+  // artwork survives. Used to save current app state into the same GIF.
+  function findGifosSpan(bytes) {
+    const marker = textToBytes(GIFOS_MARKER);
+    let pos = 0;
+    while (pos < bytes.length - 14) {
+      if (bytes[pos] === 0x21 && bytes[pos + 1] === 0xff && bytes[pos + 2] === 0x0b) {
+        let match = true;
+        for (let i = 0; i < 8; i++) if (bytes[pos + 3 + i] !== marker[i]) { match = false; break; }
+        if (match) {
+          const headerEnd = pos + 3 + 11; // after identifier(8)+auth(3)
+          let p = headerEnd;
+          while (p < bytes.length) {
+            const size = bytes[p];
+            if (size === 0) return { headerEnd, end: p + 1 };
+            p += 1 + size;
+          }
+          return null;
+        }
+      }
+      pos++;
+    }
+    return null;
+  }
+
+  function repack(originalBytes, files) {
+    return buildPayload(files).then((payload) => {
+      const span = findGifosSpan(originalBytes);
+      if (!span) throw new Error('not a GifOS gif');
+      const w = new Writer();
+      w.subBlocks(payload);
+      const mid = w.done();
+      const out = new Uint8Array(span.headerEnd + mid.length + (originalBytes.length - span.end));
+      out.set(originalBytes.subarray(0, span.headerEnd), 0);
+      out.set(mid, span.headerEnd);
+      out.set(originalBytes.subarray(span.end), span.headerEnd + mid.length);
+      return out;
+    });
   }
 
   function assemble(payload, opts) {
@@ -274,7 +318,7 @@
   }
 
   GifOS.gif = {
-    encode, decode, looksLikeGifosGif, readManifest,
+    encode, decode, repack, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     MARKER: GIFOS_MARKER,
   };
