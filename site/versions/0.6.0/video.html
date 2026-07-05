@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Call — GifOS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%B9%3C/text%3E%3C/svg%3E">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
+         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
+         background: #14141f; border-bottom: 1px solid #2a2a3f; flex-wrap: wrap; }
+  .bar .title { font-weight: 700; }
+  .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
+  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
+                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
+  .bar button:hover { border-color: #5ca0ff; }
+  .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
+  .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
+           background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
+  .share.show { display: flex; }
+  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f;
+                 background: #0a0a0f; color: #5ca0ff; font-family: ui-monospace, monospace; font-size: .78rem; }
+  .share .hint { color: #8888aa; }
+  #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-content: center; }
+  .tile { position: relative; background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
+          overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+  .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72);
+                padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; }
+  .tile .note { color: #8888aa; font-size: .8rem; padding: 1rem; text-align: center; }
+  .tile.me { border-color: #5ca0ff; }
+  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid #1c1c2b; }
+  .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; }
+  .name-box { background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
+  .name-box h3 { margin-bottom: .5rem; }
+  .name-box p { color: #8888aa; font-size: .85rem; margin-bottom: 1rem; }
+  .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
+    border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #5ca0ff; background: #5ca0ff; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="title">📹 Video Call</span>
+    <button id="mic">🎙 Mute</button>
+    <button id="cam">📷 Camera off</button>
+    <button id="invite">🔗 Invite</button>
+    <span class="status" id="status">Starting camera…</span>
+  </div>
+  <div class="share" id="share">
+    <span class="hint">Share this link — friends open it to join the call:</span>
+    <input id="share-url" readonly>
+    <button id="copy">Copy</button>
+  </div>
+  <div id="grid"></div>
+  <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video, so if a direct route can't be found there is no call. Quality steps down automatically as more people join.</div>
+
+  <script src="js/gifos-store.js"></script>
+  <script src="js/relay-config.js"></script>
+  <script>
+  /*
+   * GifOS Video Call — a SYSTEM app (first-party page, not a sandboxed GIF app).
+   * Sandboxed apps have WebRTC deliberately neutered and no network, and camera
+   * permission can't be granted to an opaque origin — so live media has to run
+   * at this trusted level. The desktop icon is still a real GIF; its manifest
+   * says { system: "video" } and the runtime routes it here.
+   *
+   * Topology: full mesh. Every participant holds one RTCPeerConnection per
+   * other participant. The GifOS relay is used ONLY to exchange SDP/ICE
+   * (control messages); it hard-throttles anything heavier, so media cannot
+   * fall back to it — this app is P2P or nothing, by design.
+   */
+  (function () {
+    const ICE_SERVERS = [
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun.l.google.com:19302' },
+    ];
+    // Quality ladder: total participants → per-link video constraints. With a
+    // mesh, upload cost grows with (n-1) links, so both resolution and each
+    // link's bitrate step down to keep total upstream roughly flat.
+    const LADDER = [
+      { max: 2, w: 1280, h: 720, fps: 30, kbps: 1800, label: '720p' },
+      { max: 4, w: 854,  h: 480, fps: 24, kbps: 800,  label: '480p' },
+      { max: 6, w: 640,  h: 360, fps: 20, kbps: 450,  label: '360p' },
+      { max: 99, w: 426, h: 240, fps: 15, kbps: 250,  label: '240p' },
+    ];
+    const rung = (n) => LADDER.find((r) => n <= r.max);
+
+    const params = new URLSearchParams(location.hash.slice(1));
+    const grid = document.getElementById('grid');
+    const statusEl = document.getElementById('status');
+    const share = document.getElementById('share');
+    const shareUrl = document.getElementById('share-url');
+    const setStatus = (m) => { statusEl.textContent = m; };
+    const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+
+    let ws = null, myId = null, localStream = null, closedToJoiners = false;
+    const peers = new Map(); // peerId -> { pc, tile, video, name, connected }
+
+    // ---- screen name (same identity the rest of GifOS uses) ----------------
+    function ensureName() {
+      return new Promise((resolve) => {
+        const me = GifOS.store.identity();
+        if (me.name) { resolve(me); return; }
+        const bg = document.createElement('div'); bg.className = 'name-modal';
+        bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
+          '<p>Other people on the call will see this name.</p>' +
+          '<input id="nm" maxlength="40" placeholder="Your name" autocomplete="off">' +
+          '<button id="nmok">Continue</button></div>';
+        document.body.appendChild(bg);
+        const input = bg.querySelector('#nm'); input.focus();
+        const done = () => {
+          let v = input.value.trim();
+          if (!v) v = 'Guest ' + (1000 + Math.floor(Math.random() * 9000));
+          GifOS.store.setName(v); bg.remove(); resolve(GifOS.store.identity());
+        };
+        bg.querySelector('#nmok').onclick = done;
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+      });
+    }
+
+    // ---- tiles ---------------------------------------------------------------
+    function makeTile(id, name, isMe) {
+      const tile = document.createElement('div');
+      tile.className = 'tile' + (isMe ? ' me' : '');
+      tile.dataset.peer = id;
+      const video = document.createElement('video');
+      video.autoplay = true; video.playsInline = true;
+      if (isMe) video.muted = true;
+      const label = document.createElement('span');
+      label.className = 'name'; label.textContent = name || id;
+      tile.appendChild(video); tile.appendChild(label);
+      grid.appendChild(tile);
+      return { tile, video, label };
+    }
+    function tileNote(t, msg) {
+      t.video.style.display = 'none';
+      let n = t.tile.querySelector('.note');
+      if (!n) { n = document.createElement('div'); n.className = 'note'; t.tile.appendChild(n); }
+      n.textContent = msg;
+    }
+
+    // ---- adaptive quality ----------------------------------------------------
+    function participantCount() { return 1 + peers.size; }
+    function adapt() {
+      const n = participantCount();
+      const q = rung(n);
+      const track = localStream && localStream.getVideoTracks()[0];
+      if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
+      for (const p of peers.values()) {
+        for (const sender of p.pc.getSenders()) {
+          if (!sender.track || sender.track.kind !== 'video') continue;
+          const prm = sender.getParameters();
+          if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
+          prm.encodings[0].maxBitrate = q.kbps * 1000;
+          sender.setParameters(prm).catch(() => {});
+        }
+      }
+      updateStatus();
+      return q;
+    }
+    function updateStatus() {
+      const n = participantCount();
+      const live = Array.from(peers.values()).filter((p) => p.connected).length;
+      const q = rung(n);
+      setStatus(n === 1 ? 'Alone — share the invite link' :
+        n + ' on the call · ' + live + ' P2P link(s) live · ' + q.label + ' @ ' + q.kbps + ' kbps/link' +
+        (closedToJoiners ? ' · room closed to new joiners' : ''));
+    }
+
+    // ---- mesh plumbing ---------------------------------------------------------
+    const sendSig = (to, msg) => ws && ws.send(JSON.stringify({ t: 'peer', to, msg }));
+    const myName = () => GifOS.store.identity().name || 'Guest';
+
+    function makePeer(peerId, name) {
+      if (peers.has(peerId)) return peers.get(peerId);
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const t = makeTile(peerId, name, false);
+      const p = { pc, tile: t.tile, video: t.video, label: t.label, name, connected: false, pendingIce: [] };
+      peers.set(peerId, p);
+      if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+      pc.ontrack = (ev) => { if (ev.streams[0] && p.video.srcObject !== ev.streams[0]) p.video.srcObject = ev.streams[0]; };
+      pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(peerId, { kind: 'ice', candidate: ev.candidate }); };
+      pc.onconnectionstatechange = () => {
+        p.connected = pc.connectionState === 'connected';
+        if (pc.connectionState === 'failed') {
+          tileNote(p, (p.name || peerId) + ' — no direct P2P route. The relay never carries media, so this network can’t receive the call.');
+        }
+        updateStatus();
+        if (p.connected) adapt();
+      };
+      adapt();
+      return p;
+    }
+
+    function dropPeer(peerId) {
+      const p = peers.get(peerId);
+      if (!p) return;
+      try { p.pc.close(); } catch (e) {}
+      p.tile.remove();
+      peers.delete(peerId);
+      adapt();
+    }
+
+    // Newcomer initiates to everyone already in the room (deterministic — no glare).
+    function callPeer(peerId) {
+      const p = makePeer(peerId, null);
+      p.pc.createOffer().then((offer) => p.pc.setLocalDescription(offer))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName() }));
+    }
+
+    function onSignal(from, msg) {
+      if (!msg || !msg.kind) return;
+      if (msg.kind === 'offer') {
+        const p = makePeer(from, msg.name);
+        if (msg.name) { p.name = msg.name; p.label.textContent = msg.name; }
+        p.pc.setRemoteDescription(msg.sdp)
+          .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
+          .then(() => p.pc.createAnswer())
+          .then((ans) => p.pc.setLocalDescription(ans))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName() }));
+      } else if (msg.kind === 'answer') {
+        const p = peers.get(from);
+        if (!p) return;
+        if (msg.name) { p.name = msg.name; p.label.textContent = msg.name; }
+        p.pc.setRemoteDescription(msg.sdp)
+          .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); });
+      } else if (msg.kind === 'ice') {
+        const p = peers.get(from);
+        if (!p) return;
+        if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
+        else p.pendingIce.push(msg.candidate);
+      }
+    }
+
+    // ---- relay session (signaling only) ---------------------------------------
+    function relayUrl() {
+      let u = null; try { u = localStorage.getItem('gifos_relay'); } catch (e) {}
+      return params.get('relay') || u || window.GIFOS_RELAY || null;
+    }
+
+    function connect(asHost, sid, token) {
+      const relay = relayUrl();
+      if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
+      const role = asHost ? 'host' : 'client';
+      const peer = asHost ? 'host' : uid('v');
+      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + sid + '?role=' + role + '&token=' + token + '&peer=' + peer);
+      ws.onerror = () => setStatus('Relay connection failed.');
+      ws.onclose = () => { if (!closedToJoiners) setStatus('Disconnected from relay — existing P2P links stay up, but nobody new can join.'); };
+      ws.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.t === 'host-ready') { myId = 'host'; updateStatus(); }
+        else if (m.t === 'joined') {
+          myId = m.peer;
+          updateStatus();
+        } else if (m.t === 'roster') {
+          // Newcomer's first roster: call everyone already present (host included).
+          if (myId && myId !== 'host' && !rosterSeen) {
+            rosterSeen = true;
+            callPeer('host');
+            for (const pid of m.peers) if (pid !== myId) callPeer(pid);
+          }
+          // Anyone in the roster we track but who has left: clean up.
+          if (myId === 'host') for (const pid of Array.from(peers.keys())) if (!m.peers.includes(pid)) dropPeer(pid);
+          else for (const pid of Array.from(peers.keys())) if (pid !== 'host' && !m.peers.includes(pid)) dropPeer(pid);
+        }
+        else if (m.t === 'peer') onSignal(m.from, m.msg);
+        else if (m.t === 'peer-leave') dropPeer(m.peer);
+        else if (m.t === 'host-gone') { closedToJoiners = true; dropPeer('host'); updateStatus(); }
+        else if (m.t === 'error') setStatus('Relay: ' + m.error);
+      };
+      const link = location.origin + location.pathname + '#v=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay);
+      shareUrl.value = link;
+      if (asHost) share.classList.add('show');
+    }
+    let rosterSeen = false;
+
+    // ---- boot ------------------------------------------------------------------
+    const isJoin = !!params.get('v');
+    ensureName().then(() => navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
+    })).then((stream) => {
+      localStream = stream;
+      const t = makeTile('me', myName() + ' (you)', true);
+      t.video.srcObject = stream;
+      if (isJoin) connect(false, params.get('v'), params.get('k') || '');
+      else connect(true, uid('vc'), uid('k'));
+      updateStatus();
+    }).catch((err) => {
+      setStatus('Camera/microphone denied: ' + (err && err.message || err));
+      const t = makeTile('me', myName() + ' (you)', true);
+      tileNote(t, 'No camera. Grant permission and reload to join the call.');
+    });
+
+    // ---- controls ---------------------------------------------------------------
+    const micBtn = document.getElementById('mic');
+    const camBtn = document.getElementById('cam');
+    micBtn.onclick = () => {
+      if (!localStream) return;
+      const track = localStream.getAudioTracks()[0]; if (!track) return;
+      track.enabled = !track.enabled;
+      micBtn.classList.toggle('off', !track.enabled);
+      micBtn.textContent = track.enabled ? '🎙 Mute' : '🎙 Unmute';
+    };
+    camBtn.onclick = () => {
+      if (!localStream) return;
+      const track = localStream.getVideoTracks()[0]; if (!track) return;
+      track.enabled = !track.enabled;
+      camBtn.classList.toggle('off', !track.enabled);
+      camBtn.textContent = track.enabled ? '📷 Camera off' : '📷 Camera on';
+    };
+    document.getElementById('invite').onclick = () => share.classList.toggle('show');
+    document.getElementById('copy').onclick = () => {
+      shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
+      if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
+    };
+    window.addEventListener('beforeunload', () => { try { ws && ws.close(); } catch (e) {} });
+
+    // Test hook: lets the e2e suite observe mesh + quality state.
+    window.__gifosVideo = {
+      participants: participantCount,
+      liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
+      quality: () => rung(participantCount()).label,
+    };
+  })();
+  </script>
+</body>
+</html>

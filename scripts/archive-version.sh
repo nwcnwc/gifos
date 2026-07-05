@@ -17,7 +17,7 @@ if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwri
 
 mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
-cp "$SITE/index.html" "$SITE/run.html" "$DEST/"
+cp "$SITE/index.html" "$SITE/run.html" "$SITE/video.html" "$SITE/boot.html" "$DEST/"
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
 
 # Rebuild version.json: newest first, current = the new version.

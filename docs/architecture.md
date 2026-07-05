@@ -17,24 +17,28 @@ The desktop is the only "installed" component: a single HTML file that behaves l
 
 ### What it does
 
-- Renders **icons** for every GIF and file the user has dropped in.
-- Supports **drag-and-drop of any file**, **folders**, renaming, and arrangement.
-- **Plays GIFs in-icon**, with resizable icons for a larger preview.
+- Renders **icons** for every GIF and file the user has dropped in — GIFs animate right in the icon.
+- Supports **drag-and-drop of any file**, **folders**, grid-snap arrangement (mouse and touch), rename, resize.
+- **System bar**: the GifOS menu (About, whole-desktop Backup/Restore, Empty Trash, Settings, Reset), an ＋ Add button (file picker, New Folder, paste-an-AI-app, `.zip` import), and a storage pill (quota usage + persistent-storage request).
+- **Trash**: deletes are recoverable until emptied.
+- **Icon context menu**: Open, **Download** (exports the file — for apps, with saved state repacked in — without launching it), Rename, Bigger/Smaller icon, Move to Trash.
 - **Double-click dispatch:**
   - Executable GifOS GIF → open a new tab and run it (Layer 2).
-  - Anything else (`.jpg`, `.pdf`, a plain non-GifOS `.gif`, unknown formats) → show a **"not supported"** message.
-- **Persists locally.** The desktop's contents live in the browser via **IndexedDB / OPFS**. There is **no account, no login, no server sync** — the desktop belongs to this browser, consistent with "nothing lives on our server." (A desktop does not follow you to another device; move a file by sharing its GIF.)
+  - Whole-desktop backup GIF → offer to **boot it as a computer image** (see "Computer Images") or destructively restore it.
+  - Anything else (`.jpg`, `.pdf`, a plain non-GifOS `.gif`) → opens in its own tab like a normal file.
+- **Cross-tab live sync**: every mutation announces on a BroadcastChannel; other tabs of the same desktop re-render.
+- **Persists locally.** The desktop's contents live in the browser via **IndexedDB**. There is **no account, no login, no server sync** — the desktop belongs to this browser, consistent with "nothing lives on our server." (A desktop does not follow you to another device; move a file by sharing its GIF.)
 
 ### Desktop storage model
 
 ```
-IndexedDB / OPFS (this browser only)
-├── /desktop/                 ← icon layout, folders, positions
-├── /files/<id>.gif           ← the raw bytes of every dropped file
-└── /appstate/<gifId>/        ← saved state per app icon (see "State & Resume")
+IndexedDB database 'gifos' (this browser only)
+├── items      ← desktop icons + folders (layout, positions, sizes)
+├── files      ← the raw bytes of every dropped file (keyed by id)
+└── appstate   ← saved state per app icon (keyed by fileId)
 ```
 
-Because storage is local and unsynced, GifOS never needs an identity system. The "account" is the browser profile.
+The store is a **namespace factory**: the default desktop binds to the `gifos` database, and every **booted computer image** gets its own `gifos_vm_<fileId>` database with the identical schema — a whole computer per namespace (see "Computer Images"). Because storage is local and unsynced, GifOS never needs an identity system. The "account" is the browser profile (a screen name in `localStorage` is used to attribute multiplayer moves).
 
 ## Layer 2 — App GIFs
 
@@ -101,6 +105,7 @@ app.gif
 - `capabilities.db` — the app wants the runtime database library.
 - `capabilities.multiplayer` — the app can host/join sessions over the relay.
 - `capabilities.network` — external API hosts the app may call through the fetch bridge (see the networking doc).
+- `system` (optional) — names a **system app**. Live camera/microphone can't run in the sandbox (WebRTC is neutered there and an opaque origin can't be granted camera permission), so a manifest like `{ "system": "video" }` makes the runtime route the icon to a trusted first-party page instead of mounting the sandbox. The mapping is a **whitelist in the runtime** (`video → video.html`); a manifest cannot route to arbitrary URLs. The icon is still a real GIF — shareable, downloadable, with its own artwork — and carries a fallback `index.html` for non-GifOS environments.
 
 ## GIF Format: How a Filesystem is Stored
 
@@ -111,24 +116,19 @@ The low-level GIF mechanics are unchanged; only the payload's meaning changed (a
 ```
 GIF Header
 ├── Logical Screen Descriptor
-├── Global Color Table
-├── Frame 1: Human-Readable Preview
-│   ├── App name, icon, description
-│   ├── Save date, state summary
-│   └── Preview thumbnail
+├── Global Color Table (adaptive palette from the artwork)
+├── NETSCAPE2.0 loop extension (the icon animates forever)
+├── Frames 1..N: the app's ANIMATED ARTWORK
+│   └── hand-designed per app (SVG → canvas → adaptive-palette frames)
 ├── Application Extension Block: "GIFOS1.0"
-│   ├── Version
-│   ├── Compressed payload (chained 255-byte sub-blocks)
-│   │   └── Deflated archive: the app's filesystem + embedded .state/
-│   └── Checksum
-├── Frame 2+: Pixel-Encoded Backup Data (optional)
-│   └── RGB values encode bytes (~192KB per 256×256 frame)
+│   └── payload in chained 255-byte sub-blocks:
+│       flag byte (0x01 = deflate) + compressed JSON archive
+│       { v: 1, files: { path → base64 bytes } }  ← filesystem + .state/
 └── GIF Trailer
 ```
 
-- **Primary storage:** the `GIFOS1.0` Application Extension block holds a deflated archive of the whole filesystem, split across 255-byte sub-blocks.
-- **Backup path:** large assets can additionally be pixel-encoded in frames 2+ for platforms that strip extension blocks.
-- **Frame 1** stays a real, viewable image so the GIF looks like a screenshot everywhere.
+- **Primary storage:** the `GIFOS1.0` Application Extension block holds a deflate-compressed archive of the whole filesystem (native `CompressionStream`, no dependencies), split across 255-byte sub-blocks. Legacy uncompressed payloads still decode.
+- **The visible frames are real artwork.** Each default app ships hand-designed animated SVG art (`gifos-icons.js`), rasterized through an adaptive-palette quantizer into the GIF's frames — so an App GIF looks like a living icon everywhere, not machine noise. Apps a user creates get their declared `<link rel="icon">` SVG, or a generated animated tile.
 
 ## Encoding Pipeline (Export / Save)
 
@@ -136,23 +136,30 @@ GIF Header
 App filesystem + current state
     │
     ▼
-Serialize state (DB + preferences → .state/*.json)
+Serialize state (DB → .state/db.json)
     │
     ▼
-Pack filesystem into an archive
-    │
-    ▼
-Compress (pako deflate)
+Pack filesystem into a JSON archive → deflate (CompressionStream)
     │
     ▼
 Split into 255-byte sub-blocks → GIFOS1.0 Application Extension
     │
     ▼
-Render Frame 1 preview (Canvas)  ├─ optionally pixel-encode assets in Frame 2+
+Rasterize artwork frames (SVG → canvas → adaptive palette)
     │
     ▼
-Assemble GIF89a  →  download as .gif  (a full self-contained snapshot)
+Assemble GIF89a  →  a full self-contained snapshot
 ```
+
+### Repack: saves never touch the artwork
+
+Once a GIF exists, saving new state into it does **not** re-run the pipeline.
+`repack(originalBytes, files)` locates the `GIFOS1.0` extension block inside the
+existing GIF and swaps **only its sub-block payload**, leaving the header,
+palette, and every artwork frame byte-for-byte identical. Both the in-app
+**Snapshot** button and the desktop's **Download** menu use repack, so custom
+icon art survives every save-and-share cycle. A fresh encode happens only when
+no original bytes exist (first creation).
 
 ## Decoding Pipeline (Load / Run)
 
@@ -166,7 +173,7 @@ Parse GIF89a structure
 Find "GIFOS1.0" Application Extension
     │
     ├── Found?     → reassemble sub-blocks → decompress → unpack filesystem
-    └── Not found? → not a GifOS app → "not supported" message
+    └── Not found? → plain file → opens in its own tab like any image
     │
     ▼
 Open new tab, mount filesystem in iframe
@@ -216,12 +223,16 @@ The app developer writes against **one DB API**. Whether it resolves locally (se
 When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries everything the relay needs to bootstrap a client:
 
 ```
-https://gifos.app/run#s=<session-id>&app=<gif-locator>&k=<join-token>
+https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
 ```
 
-- `app` — how to obtain the app GIF (so a new client can download and unpack it).
-- `s` — the server session to connect to.
-- `k` — a join token the server validates before granting DB access.
+- `s` — the server session to connect to (a Durable Object instance on the relay).
+- `k` — a join token the relay checks against the host's token before admitting the client.
+- `relay` — which relay hosts the session (normally `wss://relay.gifos.app`).
+
+The app GIF itself is **delivered by the host browser** over the session on
+join — the relay never stores it, and the bandwidth guard's burst allowance
+(1 MB) exists precisely to let this one-time delivery through.
 
 Flow when a friend opens the link:
 
@@ -278,6 +289,39 @@ a new join URL is issued; remaining clients reconnect
 
 Recovery fidelity equals the **freshest available snapshot** — clients are encouraged to snapshot periodically for resilience.
 
+## Computer Images — GifOS Boots Inside Itself
+
+**GifOS menu → Back up desktop** packs the entire computer into one GIF: every
+file's bytes, every icon position, every app's saved state, all inside a
+`{ "type": "desktop" }` manifest. That GIF is a **computer image**, and it can
+be *booted*, not just restored.
+
+Double-clicking a computer image offers two paths:
+
+| Action | Effect |
+|--------|--------|
+| **▶ Boot this computer** | `boot.html` hydrates the image into its own IndexedDB namespace (`gifos_vm_<fileId>`) and runs the full desktop shell against it in a new tab. The host desktop is untouched. |
+| **Replace this desktop** | The classic destructive restore into the current namespace. |
+
+Properties of a booted image:
+
+- **Isolation is total.** The VM's items, files, and app state live in their own
+  database; its cross-tab sync and per-app channels are namespaced, so a booted
+  computer never repaints — or leaks state into — the host desktop.
+- **Apps work normally.** Icons inside the VM open through
+  `run.html#id=…&db=gifos_vm_…`, so app files and saved state resolve inside
+  the image. Multiplayer, snapshots, everything works.
+- **It persists.** Re-opening the same image resumes that computer exactly
+  where it left off. **⏏ Reboot fresh** wipes the namespace and re-hydrates
+  from the image bytes.
+- **It recurses.** A booted desktop can hold more computer images and boot
+  them; each nesting level is just another namespace. It can also back *itself*
+  up — producing a new image of the running VM.
+
+This is the whole thesis in one feature: if apps are files and state lives in
+files, then a computer is a file too — and a file can run anywhere, including
+inside another computer.
+
 ## Security Considerations
 
 ### App isolation & namespacing
@@ -318,13 +362,20 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
 ### Multiplayer & data
 
 - The runtime enforces per-app **capabilities** from `manifest.json` (db,
-  multiplayer, network allowlist).
-- **Join tokens** scope a client to a single server session; the server
-  validates every join.
+  multiplayer, network allowlist). System-app routing (`manifest.system`) is a
+  hardcoded whitelist — a GIF cannot name an arbitrary page.
+- **Join tokens** scope a client to a single server session; the relay
+  validates every join against the host's token.
 - Snapshots are plain GIFs — treat a shared snapshot as sharing the data it
   contains.
 - The relay is a dumb pipe: it routes by session but never inspects, stores, or
-  decrypts payloads; P2P DataChannels are DTLS-encrypted end-to-end.
+  decrypts payloads; P2P DataChannels are DTLS-encrypted end-to-end. A
+  server-side **token-bucket bandwidth guard** (1 MB burst, ~384 Kbps
+  sustained) makes it physically unusable for streaming media — see the
+  networking doc.
+- **Booted computer images** run in separate IndexedDB namespaces with
+  namespaced broadcast channels; a VM cannot read, write, or repaint the host
+  desktop (and vice versa).
 
 ## Versioning & Compatibility
 

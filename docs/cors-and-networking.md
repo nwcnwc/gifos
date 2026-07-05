@@ -93,7 +93,7 @@ On the **server**, writes hit the local DB and the runtime **broadcasts** the ch
 When an app opens, its tab URL can be shared. It encodes what a new client needs:
 
 ```
-https://gifos.app/run#s=<session-id>&app=<gif-locator>&k=<join-token>
+https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
 ```
 
 ```
@@ -120,6 +120,55 @@ The **join token (`k`)** is a capability: it authorizes access to exactly one se
 - **On close, the server chooses** *lock* (suspend clients until reopened) or *continue* (clients keep going while the server browser stays online — because that browser still owns the DB).
 - **Clients can snapshot** the shared state to a self-contained GIF at any time.
 - **Failover:** if the server browser dies, a client holding a snapshot can **Become Server** — its runtime loads the snapshot as a new central DB and the relay issues a new join URL for the remaining clients to reconnect. Recovery is only as fresh as the newest snapshot, so periodic client snapshots add resilience.
+
+## The Relay Bandwidth Guard — control plane only, enforced server-side
+
+The relay is for **control traffic**: DB ops, WebRTC signaling, one-time app
+delivery. To guarantee nobody tunnels audio/video through it, every connection
+gets a **token bucket** on the relay itself (`relay/src/relay.js` — not trusted
+to the app):
+
+- **Burst: 1 MB** — enough to deliver an App GIF to a joining client once.
+- **Refill: 48 KB/s (~384 Kbps)** — below even low-quality video, so sustained
+  streaming starves within seconds.
+- Over-budget messages are **dropped** and the sender gets one
+  `{ t:'error' }` explaining that media must go peer-to-peer.
+
+The consequence is architectural, not advisory: high-bandwidth apps work over
+direct WebRTC or not at all. The relay physically cannot become a media server.
+
+## Mesh Signaling — peer-addressed routing
+
+Beyond host↔client routing, the relay routes **peer-to-peer envelopes** so any
+two participants in a session can exchange WebRTC introductions directly:
+
+```
+any → relay : { t:'peer', to:<peerId|'host'>, msg:{...} }
+relay → dest: { t:'peer', from:<peerId|'host'>, msg:{...} }
+relay → all : { t:'roster', peers:[...] }     ← current participant list
+```
+
+The roster + peer routing is what lets a **full mesh** form (every participant
+connected to every other), which the Video Call app uses for media and which
+future apps can use for any N-way topology. The relay still only ever sees
+signaling envelopes.
+
+## Video Calls — strictly P2P mesh
+
+The Video Call system app (`video.html`) is the proof of the guard:
+
+- Every participant holds one `RTCPeerConnection` per other participant
+  (newcomer initiates offers to everyone present — deterministic, no glare).
+- **Media flows only browser-to-browser.** The relay carries SDP/ICE envelopes
+  and nothing else; if no direct route exists for a pair, that pair simply has
+  no video — there is no fallback, by design.
+- **Adaptive quality ladder**: with a mesh, upload cost grows with (n−1) links,
+  so the app steps resolution, framerate, and per-link `maxBitrate` down as
+  people join (720p/1.8Mbps → 480p/800k → 360p/450k → 240p/250k) and back up
+  as they leave. Unlimited participants, degrading gracefully.
+- It's a **system app** (trusted first-party page): the sandbox neuters WebRTC
+  and an opaque origin can't get camera permission, so live media runs at the
+  system level, routed from a whitelisted manifest field (see architecture doc).
 
 ## Why Browser-as-Server
 
@@ -280,8 +329,13 @@ wrangler deploy
 | Endpoint | Job | Part |
 |----------|-----|------|
 | `gifos.app` (GitHub Pages) | Serve the static desktop + runtime — byte-for-byte what's in the public repo, so anyone can audit it | — |
-| `relay.gifos.app` (Worker) | WebRTC signaling + fallback transport when P2P can't be established | Part 1 |
-| `proxy.gifos.app` (Worker) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
+| `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | WebRTC signaling, mesh peer routing, and fallback transport when P2P can't be established — bandwidth-guarded, stores nothing | Part 1 |
+| `*.gifos.app` numbered subdomains (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so every numeric subdomain is an isolated computer (per-origin storage) | — |
+| `proxy.gifos.app` (Worker, future) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
+
+Deploys: the site auto-publishes from `main` via GitHub Actions; the Workers
+are manual (`npx wrangler deploy` inside `relay/` or `mirror/`) — **changing
+relay code requires a redeploy**, pushing to GitHub is not enough.
 
 ## Future Enhancements
 
