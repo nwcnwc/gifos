@@ -416,8 +416,8 @@
       else ws.send(JSON.stringify(payload));
     };
     const runningStatus = () => setStatus(channel && channel.readyState === 'open'
-      ? 'Running as client · P2P direct (relay on standby)'
-      : 'Running as client · via relay');
+      ? 'Running as client · P2P direct'
+      : 'Running as client · Via relay');
 
     // Shared dispatch for host->client session messages, from either transport.
     const dispatch = (m) => {
