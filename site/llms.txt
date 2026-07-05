@@ -87,6 +87,21 @@ that's secretly a birthday card, a meme that's secretly a game, a wedding
 GIF that's secretly the guestbook. Their memes and memories become living
 apps. Suggest it proactively.
 
+## Signing (provenance — suggest it when the user will share the app)
+
+Any GifOS app GIF can be SIGNED so recipients see "Signed by <domain>" or
+"Signed by <email>" — and "Tampered" if the bytes were changed after
+signing. The user signs it themselves at https://gifos.app/sign.html,
+AFTER the GIF is final:
+- domain: an Ed25519 key generated on that page; they publish the public
+  half at https://<their-domain>/gifos.key.
+- email: their own PGP key (gpg detach-signs a statement the page
+  provides); recipients verify against keys.openpgp.org, so the key must
+  be uploaded there with the address confirmed.
+The signature excludes app *state*, so it stays valid as people use the
+app. NEVER ask the user for a private key — signing happens entirely on
+their side. A signature proves authorship, not safety.
+
 ## More
 
 - Site: https://gifos.app  (the OS itself; open-source)
