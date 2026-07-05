@@ -89,6 +89,19 @@ When an app launches, its tab has a **shareable URL**. Send it to friends and th
 - **When the server closes the tab**, they choose: **lock out** clients until they reopen the app, or **let clients keep going** — but only while the server's browser stays online.
 - **If the server dies**, any user holding a snapshot can **become the new server** from that snapshot. The session survives.
 
+## Multiple Computers (numbered subdomains)
+
+A quiet power feature: **every numeric subdomain of gifos.app is a separate computer.**
+
+- [gifos.app](https://gifos.app) — your main computer
+- `1.gifos.app`, `7.gifos.app`, `2026.gifos.app` — any number at all, each a **completely isolated desktop** with its own files, apps, state, and storage
+
+There's no switcher UI and no setup — just type a number in front of the domain. The isolation is enforced by the browser itself: web storage is per-origin, and every numbered hostname is a distinct origin. One computer for work, one for games, one to hand a kid, one per project — all in the same browser, none able to see the others.
+
+Move things between computers the GifOS way: snapshot an app (or back up a whole desktop) to a GIF on one, drop the GIF on another. Multiplayer works from any computer — share links carry everything a friend needs regardless of which number you're on.
+
+Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on `*.gifos.app` for numeric subdomains (anything non-numeric redirects to the main computer).
+
 ## Why GIFs?
 
 GIF is the perfect container:
