@@ -9,7 +9,36 @@ Both share one principle: **nothing of the user's lives on our infrastructure.**
 
 ---
 
-# Part 1 — Browser-as-Server: The DB Relay
+# Part 1 — Browser-as-Server: P2P with a Relay Fallback
+
+## Transport ladder
+
+Session traffic prefers a **direct browser-to-browser WebRTC DataChannel** and
+falls back to the relay WebSocket automatically:
+
+1. Both browsers connect to `relay.gifos.app` (they need it for signaling anyway).
+2. The host offers a WebRTC connection; SDP offers/answers and ICE candidates
+   are exchanged **through the relay** (it's the introduction service).
+3. Each browser learns its own public address by asking a STUN server, then
+   both sides fire packets at each other's candidate addresses simultaneously —
+   each side's outbound packet punches the NAT hole the other side's packet
+   flies through.
+4. If a DataChannel opens (~80–90% of networks): all DB traffic moves onto it,
+   direct and DTLS-encrypted end-to-end — even the relay can't read it. The
+   relay socket stays connected as standby.
+5. If it never opens (symmetric NATs, UDP-blocking firewalls, no WebRTC): the
+   session simply keeps flowing through the relay. **No TURN server needed —
+   the relay is Plan B.** The app can't tell the difference either way.
+
+```
+Host browser                relay.gifos.app              Client browser
+     │── ws connect ────────────►│◄──────────── ws connect ──│
+     │── SDP offer + ICE ───────►│── forwarded ─────────────►│
+     │◄─ forwarded ──────────────│◄─ SDP answer + ICE ───────│
+     │◄════ simultaneous packets punch NAT holes ═══════════►│
+     │◄══════ direct encrypted DataChannel (P2P) ═══════════►│
+     │        (relay idle — standby fallback only)           │
+```
 
 ## The Idea
 
@@ -250,7 +279,8 @@ wrangler deploy
 
 | Endpoint | Job | Part |
 |----------|-----|------|
-| `gifos.app` relay (WebSocket) | Route DB messages + GIFs between server and client browsers | Part 1 |
+| `gifos.app` (GitHub Pages) | Serve the static desktop + runtime — byte-for-byte what's in the public repo, so anyone can audit it | — |
+| `relay.gifos.app` (Worker) | WebRTC signaling + fallback transport when P2P can't be established | Part 1 |
 | `proxy.gifos.app` (Worker) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
 
 ## Future Enhancements

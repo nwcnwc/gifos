@@ -232,24 +232,89 @@
     return iframe;
   }
 
-  // ---- host-side relay wiring (shared by original host and failover host) --
-  function attachHost(ws, db, appBytes, onCount) {
-    let count = 0;
+  // ---- WebRTC ---------------------------------------------------------------
+  // The relay is the signaling channel (introductions: SDP offers/answers and
+  // ICE candidates). Once a DataChannel opens, session traffic flows directly
+  // browser-to-browser; the relay socket stays as automatic fallback for peers
+  // whose networks block hole punching. No TURN server: the relay IS plan B.
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.l.google.com:19302' },
+  ];
+  const hasP2P = () => typeof root.RTCPeerConnection === 'function';
+
+  // ---- host-side wiring (shared by original host and failover host) --------
+  // Returns { sendToAll, stats } so the caller can push db-change events over
+  // whichever transport each peer ended up on (channel if open, else relay).
+  function attachHost(ws, db, appBytes, onStats) {
+    const peers = new Map(); // peer -> { pc, channel }
+
+    const relayTo = (peer, msg) => ws.send(JSON.stringify({ t: 'to', to: peer, msg }));
+    const sendTo = (peer, msg) => {
+      const p = peers.get(peer);
+      if (p && p.channel && p.channel.readyState === 'open') p.channel.send(JSON.stringify(msg));
+      else relayTo(peer, msg);
+    };
+    const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
+    const stats = () => {
+      let p2p = 0;
+      for (const p of peers.values()) if (p.channel && p.channel.readyState === 'open') p2p++;
+      return { total: peers.size, p2p };
+    };
+    const notify = () => onStats(stats());
+
+    const handleRpc = (peer, req) => {
+      db.op(req.op, req.collection, req.key, req.value)
+        .then((result) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result }))
+        .catch((err) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) }));
+    };
+
+    function offerP2P(peer) {
+      if (!hasP2P()) return;
+      const entry = peers.get(peer);
+      const pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
+      entry.pc = pc;
+      const channel = pc.createDataChannel('gifos');
+      channel.onopen = () => { entry.channel = channel; notify(); };
+      channel.onclose = () => { if (entry.channel === channel) { entry.channel = null; notify(); } };
+      channel.onmessage = (e) => {
+        let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (m.t === 'rpc') handleRpc(peer, m);
+      };
+      pc.onicecandidate = (e) => { if (e.candidate) relayTo(peer, { t: 'sig', ice: e.candidate }); };
+      pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .then(() => relayTo(peer, { t: 'sig', sdp: pc.localDescription }))
+        .catch(() => { /* P2P offer failed — peer stays on the relay path */ });
+    }
+
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.t === 'peer-join') {
-        count++;
-        ws.send(JSON.stringify({ t: 'to', to: m.peer, msg: { t: 'app', gif: gif.b64encode(appBytes) } }));
-        onCount(count);
+        const old = peers.get(m.peer);
+        if (old && old.pc) { try { old.pc.close(); } catch (e) { /* stale */ } }
+        peers.set(m.peer, { pc: null, channel: null });
+        relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes) });
+        offerP2P(m.peer);
+        notify();
       } else if (m.t === 'peer-leave') {
-        count = Math.max(0, count - 1); onCount(count);
-      } else if (m.t === 'from' && m.msg && m.msg.t === 'rpc') {
-        const req = m.msg;
-        db.op(req.op, req.collection, req.key, req.value)
-          .then((result) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: true, result } })))
-          .catch((err) => ws.send(JSON.stringify({ t: 'to', to: m.from, msg: { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) } })));
+        const p = peers.get(m.peer);
+        if (p && p.pc) { try { p.pc.close(); } catch (e) { /* already closed */ } }
+        peers.delete(m.peer);
+        notify();
+      } else if (m.t === 'from' && m.msg) {
+        if (m.msg.t === 'rpc') handleRpc(m.from, m.msg);
+        else if (m.msg.t === 'sig') {
+          const p = peers.get(m.from);
+          if (p && p.pc) {
+            if (m.msg.sdp) p.pc.setRemoteDescription(m.msg.sdp).catch(() => {});
+            else if (m.msg.ice) p.pc.addIceCandidate(m.msg.ice).catch(() => {});
+          }
+        }
       }
     };
+
+    return { sendToAll, stats };
   }
 
   function openHostSocket(relay, sid, token) {
@@ -282,10 +347,10 @@
       mountEl.innerHTML = ''; mountEl.appendChild(iframe);
       if (!hasEntry) { iframe.srcdoc = buildFolderHtml(files); setStatus('Browsable filesystem (no index.html).'); return noop; }
 
-      let hostWs = null;
+      let hostApi = null;
       const emit = (collection) => {
         if (iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
-        if (hostWs && hostWs.readyState === 1) hostWs.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection } }));
+        if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
       };
       const db = makeLocalDb(fileId, emit);
 
@@ -298,8 +363,10 @@
           const sid = (sess && sess.sid) || store.uid('s');
           const token = (sess && sess.token) || store.uid('k');
           return openHostSocket(relay, sid, token).then((ws) => {
-            hostWs = ws;
-            attachHost(ws, db, appBytes, (n) => setStatus('Hosting · ' + n + ' player(s) connected'));
+            hostApi = attachHost(ws, db, appBytes, (s) => {
+              root.__gifosHostStats = s;
+              setStatus('Hosting · ' + s.total + ' player(s)' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+            });
             setStatus('Hosting · 0 players connected');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
@@ -335,10 +402,57 @@
     const ws = new WebSocket(params.relay.replace(/\/$/, '') + '/s/' + params.s + '?role=client&token=' + params.k);
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
     let appBytes = null, lastDump = null, hostGone = false, tookOver = false;
+    let pc = null, channel = null; // P2P DataChannel to the host (when it opens)
 
     const mirror = () => {
       if (!remoteDb || hostGone) return;
       remoteDb.getFullState().then((s) => { lastDump = s; }).catch(() => {});
+    };
+
+    // Transport ladder: DataChannel when open, relay WebSocket otherwise.
+    // The app never knows which one carried its request.
+    const transportSend = (payload) => {
+      if (channel && channel.readyState === 'open') channel.send(JSON.stringify(payload));
+      else ws.send(JSON.stringify(payload));
+    };
+    const runningStatus = () => setStatus(channel && channel.readyState === 'open'
+      ? 'Running as client · P2P direct (relay on standby)'
+      : 'Running as client · via relay');
+
+    // Shared dispatch for host->client session messages, from either transport.
+    const dispatch = (m) => {
+      if (m.t === 'rpc-reply') {
+        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); }
+        if (remoteDb) remoteDb._reply(m.id, m.ok, m.result);
+      } else if (m.t === 'db-change') {
+        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); if (hooks.onHostBack) hooks.onHostBack(); }
+        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: m.collection }, '*');
+        mirror();
+      }
+    };
+
+    // Host offered P2P: answer it. A fresh offer (e.g. after failover to a new
+    // host) replaces any previous connection.
+    const onSignal = (msg) => {
+      if (!hasP2P()) return; // no WebRTC here — we simply stay on the relay
+      if (msg.sdp && msg.sdp.type === 'offer') {
+        if (pc) { try { pc.close(); } catch (e) { /* stale */ } pc = null; channel = null; }
+        pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
+        pc.onicecandidate = (e) => { if (e.candidate) ws.send(JSON.stringify({ t: 'sig', ice: e.candidate })); };
+        pc.ondatachannel = (e) => {
+          const ch = e.channel;
+          ch.onopen = () => { channel = ch; root.__gifosTransport = 'p2p'; if (!hostGone && !tookOver) runningStatus(); };
+          ch.onclose = () => { if (channel === ch) { channel = null; root.__gifosTransport = 'relay'; if (!hostGone && !tookOver) runningStatus(); } };
+          ch.onmessage = (ev2) => { let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } dispatch(mm); };
+        };
+        pc.setRemoteDescription(msg.sdp)
+          .then(() => pc.createAnswer())
+          .then((answer) => pc.setLocalDescription(answer))
+          .then(() => ws.send(JSON.stringify({ t: 'sig', sdp: pc.localDescription })))
+          .catch(() => { /* negotiation failed — relay path continues */ });
+      } else if (msg.ice && pc) {
+        pc.addIceCandidate(msg.ice).catch(() => {});
+      }
     };
 
     setStatus('Connecting to host…');
@@ -348,6 +462,7 @@
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.t === 'joined') setStatus('Connected · waiting for app…');
       else if (m.t === 'error') setStatus('Cannot join: ' + m.error);
+      else if (m.t === 'sig') onSignal(m);
       else if (m.t === 'host-gone') {
         hostGone = true;
         if (remoteDb) remoteDb._setHostDown(true);
@@ -356,22 +471,19 @@
       } else if (m.t === 'app') {
         appBytes = gif.b64decode(m.gif);
         gif.decode(appBytes).then((archive) => {
+          if (tookOver) return; // we are the host now — ignore late app delivery
           if (!archive) { setStatus('Bad app from host.'); return; }
           filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
           document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
-          remoteDb = makeRemoteDb((payload) => ws.send(JSON.stringify(payload)));
+          remoteDb = makeRemoteDb(transportSend);
           iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
           mountApp(iframe, filesRef, manifestRef, remoteDb);
-          setStatus('Running as client · state hosted remotely');
+          root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
+          runningStatus();
           mirror();
         });
-      } else if (m.t === 'rpc-reply') {
-        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); }
-        if (remoteDb) remoteDb._reply(m.id, m.ok, m.result);
-      } else if (m.t === 'db-change') {
-        if (hostGone && remoteDb) { hostGone = false; remoteDb._setHostDown(false); if (hooks.onHostBack) hooks.onHostBack(); }
-        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: m.collection }, '*');
-        mirror();
+      } else {
+        dispatch(m);
       }
     };
 
@@ -383,16 +495,20 @@
       // takeover survives a reload of this tab too.
       return saveAppToDesktop(appBytes, manifestRef, lastDump).then((fileId) => {
         try { ws.onclose = null; ws.close(); } catch (e) { /* already closed */ }
+        if (pc) { try { pc.close(); } catch (e) { /* dead host */ } pc = null; channel = null; }
         tookOver = true;
-        let hostWs = null;
+        root.__gifosTransport = 'host';
+        let hostApi = null;
         const emit = (collection) => {
           if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
-          if (hostWs && hostWs.readyState === 1) hostWs.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection } }));
+          if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
         };
         const db = makeLocalDb(fileId, emit);
         return openHostSocket(params.relay, params.s, params.k).then((ws2) => {
-          hostWs = ws2;
-          attachHost(ws2, db, appBytes, (n) => setStatus('Hosting (took over) · ' + n + ' player(s) connected'));
+          hostApi = attachHost(ws2, db, appBytes, (s) => {
+            root.__gifosHostStats = s;
+            setStatus('Hosting (took over) · ' + s.total + ' player(s)' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+          });
           // Remount the app against the local DB and wake the other clients.
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;

@@ -47,6 +47,11 @@ export class Session {
         if (this.host === server) { this.host = null; this.broadcast({ t: 'host-gone' }); }
       });
       server.send(JSON.stringify({ t: 'host-ready' }));
+      // Announce clients that were already connected (waiting through a lock or
+      // a failover) so the new host re-delivers the app and re-offers P2P.
+      for (const peer of this.clients.keys()) {
+        server.send(JSON.stringify({ t: 'peer-join', peer }));
+      }
     } else {
       if (!this.host) {
         server.send(JSON.stringify({ t: 'error', error: 'no host for this session' }));

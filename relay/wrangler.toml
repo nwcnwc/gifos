@@ -8,12 +8,15 @@ compatibility_date = "2026-01-01"
 name = "SESSION"
 class_name = "Session"
 
+# SQLite-backed DO class: required on the Workers Free plan (we never write
+# to storage, but the class must still be declared this way).
 [[migrations]]
 tag = "v1"
-new_classes = ["Session"]
+new_sqlite_classes = ["Session"]
 
-# After `wrangler deploy` you get https://gifos-relay.<subdomain>.workers.dev
-# Optionally map a custom route so clients connect to wss://relay.gifos.app:
-# [[routes]]
-# pattern = "relay.gifos.app/*"
-# custom_domain = true
+# Branded domain. Requires the gifos.app zone to be on Cloudflare (nameservers
+# moved from GoDaddy). Alternatively add it in the dashboard after deploy:
+# Workers & Pages → gifos-relay → Settings → Domains & Routes → Custom Domain.
+[[routes]]
+pattern = "relay.gifos.app"
+custom_domain = true
