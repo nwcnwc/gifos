@@ -439,6 +439,7 @@
     } else if (it) {
       entries = [
         ...(it.kind === 'file' ? [{ label: 'Open', fn: () => openItem(it) }] : []),
+        ...(it.kind === 'file' ? [{ label: 'Download', fn: () => downloadItem(it) }] : []),
         { label: 'Rename', fn: () => beginRename(it) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
         { label: 'Smaller icon', fn: () => resizeIcon(it, -16) },
@@ -457,6 +458,34 @@
   window.addEventListener('pointerdown', (e) => { if (ctxEl && !ctxEl.contains(e.target)) closeContext(); });
 
   // ---------- item ops ----------
+  // Download a file's GIF straight from storage — no need to open the app first.
+  // For a GifOS app that has saved state on this desktop, we fold that state in
+  // with repack(), which swaps ONLY the embedded filesystem block and leaves the
+  // pixels/animated artwork byte-for-byte intact. Everything else downloads as-is.
+  async function downloadItem(it) {
+    const file = await store.getFile(it.fileId);
+    if (!file) return;
+    let bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    if (file.isApp && gif.repack) {
+      try {
+        const state = await store.getState(it.fileId);
+        if (state && state.collections && Object.keys(state.collections).length) {
+          const archive = await gif.decode(bytes);
+          if (archive && archive.files) {
+            const out = {};
+            for (const p in archive.files) if (!p.startsWith('.state/')) out[p] = archive.files[p];
+            out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
+            bytes = await gif.repack(bytes, out);
+          }
+        }
+      } catch (e) { /* fall back to the raw stored bytes */ }
+    }
+    const url = URL.createObjectURL(new Blob([bytes], { type: file.mime || 'image/gif' }));
+    const a = document.createElement('a');
+    const base = it.name || file.name || 'download';
+    a.href = url; a.download = /\.[a-z0-9]+$/i.test(base) ? base : base + '.gif'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
   async function resizeIcon(it, delta) {
     it.iconSize = Math.max(32, Math.min(160, (it.iconSize || 64) + delta));
     await store.putItem(it); render();

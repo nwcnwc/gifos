@@ -61,6 +61,27 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('custom-artwork GIF still carries its app payload', !!artBack && gif.bytesToText(artBack.files['index.html']) === '<h1>art</h1>');
   check('artwork GIF logical screen is the icon size (16×16)', artBytes[6] === 16 && artBytes[7] === 0 && artBytes[8] === 16 && artBytes[9] === 0);
 
+  // repack: swap only the embedded filesystem, keep the pixel/artwork bytes.
+  // This is what Download + in-app Snapshot use so custom animated icons survive
+  // when new state is folded into an existing GIF.
+  const repacked = await gif.repack(artBytes, {
+    'manifest.json': '{"appId":"art","name":"Art"}',
+    'index.html': '<h1>art</h1>',
+    '.state/db.json': JSON.stringify({ collections: { notes: { items: { a: 1 } } } }),
+  });
+  const repBack = await gif.decode(repacked);
+  check('repack keeps the app payload', !!repBack && gif.bytesToText(repBack.files['index.html']) === '<h1>art</h1>');
+  check('repack folds in the new state', !!repBack.files['.state/db.json'] &&
+    JSON.parse(gif.bytesToText(repBack.files['.state/db.json'])).collections.notes.items.a === 1);
+  check('repack preserves the artwork header byte-for-byte', (() => {
+    // logical screen descriptor + global color table are before any GifOS/data
+    // block; compare the leading pixel bytes to the original artwork GIF.
+    for (let i = 0; i < 13; i++) if (repacked[i] !== artBytes[i]) return false;
+    return artBytes[6] === 16 && artBytes[8] === 16; // still the 16×16 art canvas
+  })());
+  check('repack rejects a non-GifOS gif', await gif.repack(new Uint8Array([0x47, 0x49, 0x46]), {})
+    .then(() => false, () => true));
+
   fs.writeFileSync(path.join(__dirname, 'sample.gif'), Buffer.from(bytes));
   console.log('wrote test/sample.gif');
   process.exit(ok ? 0 : 1);
