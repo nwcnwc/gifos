@@ -83,6 +83,22 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('icon animates (NETSCAPE loop + 2 frames)', hay.indexOf('NETSCAPE2.0') >= 0 && bytes.filter((b) => b === 0x2c).length >= 2);
   check('icon is the 8x8 pixel art (logical screen size)', bytes[6] === 8 && bytes[8] === 8);
 
+  // ---- the Easter egg: hide the app inside a WILD gif ----
+  const wild = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 2, 0, 2, 0, 0, 0, 0, 0x3b]);
+  const egg = await rpc('tools/call', {
+    name: 'pack_app',
+    arguments: { name: 'Secret Egg', html: appHtml, hide_in_gif_base64: gif.b64encode(wild) },
+  });
+  check('hide_in_gif_base64 reports the hidden-inside note', /hidden inside the supplied GIF/.test(egg.body.result.content[0].text));
+  const eggBytes = gif.b64decode(egg.body.result.content[2].resource.blob);
+  check('the wild gif\'s own bytes lead the file untouched', (() => {
+    for (let i = 0; i < wild.length - 1; i++) if (eggBytes[i] !== wild[i]) return false;
+    return true;
+  })());
+  const eggBack = await gif.decode(eggBytes);
+  check('the hidden app decodes out of the wild gif', !!eggBack && gif.bytesToText(eggBack.files['index.html']) === appHtml);
+  check('guide + tool teach the Easter egg move', /hide_in_gif_base64/.test(guideText) && /Easter egg/i.test(guideText));
+
   // ---- procedural fallback when no icon supplied ----
   const plain = await rpc('tools/call', { name: 'pack_app', arguments: { name: 'Plain', html: appHtml } });
   check('pack_app without icon still yields an animated GIF', /procedural animated icon/.test(plain.body.result.content[0].text));

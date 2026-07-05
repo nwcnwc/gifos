@@ -67,6 +67,17 @@ bouncing ball, a sweeping hand. If you omit "icon", a decent procedural
 animated tile is generated from the accent color — but custom art is what
 makes an app feel loved.
 
+## The Easter egg move (people love this)
+
+Ask the user for their FAVORITE GIF — one from their camera roll, their group
+chat, or the wild internet. Pass its bytes to pack_app as
+"hide_in_gif_base64" and the app is spliced INSIDE that exact GIF: it still
+looks and animates like the original everywhere it's shared, but dropped on a
+GifOS Home Screen it secretly RUNS. A dancing-cat GIF that's secretly a
+birthday card. A meme that's secretly a game. A wedding GIF that's secretly
+the guestbook. Suggest this whenever the user hasn't asked for specific
+artwork — it turns their own memes and memories into living apps.
+
 ## Delivering to the user
 
 pack_app returns the GIF as base64 (an embedded resource named <App>.gif)
@@ -141,7 +152,7 @@ const TOOLS = [
   },
   {
     name: 'pack_app',
-    description: 'Pack a finished GifOS app into a real, valid, animated .gif file. Returns the GIF as base64 (save it as "<name>.gif" for the user) plus an inline preview. Supply pixel-art "icon" frames for custom animated artwork — see get_build_guide.',
+    description: 'Pack a finished GifOS app into a real, valid, animated .gif file. Returns the GIF as base64 (save it as "<name>.gif" for the user) plus an inline preview. Supply pixel-art "icon" frames for custom animated artwork, or hide_in_gif_base64 to splice the app INSIDE the user\'s own favorite GIF (it keeps its original animation — an Easter egg that runs). See get_build_guide.',
     inputSchema: {
       type: 'object',
       required: ['name', 'html'],
@@ -151,6 +162,7 @@ const TOOLS = [
         appId: { type: 'string', description: 'Optional slug id; derived from name if omitted' },
         accent: { type: 'string', description: 'Optional #rrggbb accent color (used for the procedural icon fallback)' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
+        hide_in_gif_base64: { type: 'string', description: 'Optional: base64 bytes of an EXISTING GIF (the user\'s favorite meme, a moment from their life). The app is hidden inside it and the original animation is preserved — the Easter egg move.' },
         icon: {
           type: 'object',
           description: 'Optional pixel-art animated icon: { palette: {char: "#hex"|"transparent"}, frames: [[row strings]], delay_cs }',
@@ -215,10 +227,20 @@ async function callTool(name, args) {
       }
     }
 
-    const preview = iconToPreview(args.icon);
-    let seed = 0;
-    for (let i = 0; i < slug.length; i++) seed = (seed * 31 + slug.charCodeAt(i)) >>> 0;
-    const bytes = await gif.encode(files, { accent, preview, seed });
+    let bytes, artNote;
+    if (args.hide_in_gif_base64) {
+      let host;
+      try { host = gif.b64decode(String(args.hide_in_gif_base64).replace(/^data:image\/gif;base64,/, '')); }
+      catch (e) { throw new Error('hide_in_gif_base64 is not valid base64'); }
+      bytes = await gif.embed(host, files);
+      artNote = 'hidden inside the supplied GIF — its original animation is untouched';
+    } else {
+      const preview = iconToPreview(args.icon);
+      let seed = 0;
+      for (let i = 0; i < slug.length; i++) seed = (seed * 31 + slug.charCodeAt(i)) >>> 0;
+      bytes = await gif.encode(files, { accent, preview, seed });
+      artNote = preview ? preview.frames.length + ' custom icon frames' : 'procedural animated icon';
+    }
     const b64 = b64encode(bytes);
     const fileName = appName.replace(/[\\/:*?"<>|]/g, '') + '.gif';
 
@@ -226,8 +248,7 @@ async function callTool(name, args) {
       content: [
         {
           type: 'text',
-          text: 'Packed "' + appName + '" into a GifOS app GIF (' + bytes.length + ' bytes, ' +
-            (preview ? preview.frames.length + ' custom icon frames' : 'procedural animated icon') + ').\n' +
+          text: 'Packed "' + appName + '" into a GifOS app GIF (' + bytes.length + ' bytes, ' + artNote + ').\n' +
             'Save the embedded resource below as "' + fileName + '" and give it to the user with these steps:\n' +
             '1. Open ' + SITE + '  2. Tap "+ Add" and pick the GIF (or drag it in)  3. Double-click the icon to run it.\n' +
             'The image content below is the actual file — it animates because the app GIF is a real GIF.',

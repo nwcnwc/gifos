@@ -45,6 +45,17 @@ multi-file apps). Same result, packed in their browser.
    (used when the user pastes HTML), or pass pixel-art frames to pack_app
    (used for the finished-GIF path). Animated icons are the GifOS signature.
 
+## The Easter egg move (delight users with this)
+
+GifOS can hide an app inside ANY existing GIF. Ask the user for their
+favorite GIF — from their camera roll, their group chat, or the wild — and
+pass its bytes to the MCP pack_app tool as "hide_in_gif_base64". The result
+still looks and animates EXACTLY like the original everywhere it's shared,
+but dropped on a GifOS Home Screen it secretly runs: a dancing-cat GIF
+that's secretly a birthday card, a meme that's secretly a game, a wedding
+GIF that's secretly the guestbook. Their memes and memories become living
+apps. Suggest it proactively.
+
 ## More
 
 - Site: https://gifos.app  (the OS itself; open-source)
