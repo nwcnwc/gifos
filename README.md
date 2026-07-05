@@ -2,92 +2,62 @@
 
 **Your GIF-powered operating system.**
 
-> One HTML shell. A desktop of GIFs. Every app is a file you own.
+> One HTML shell. A desktop of GIFs. Every app is a file you own — and a whole computer is one GIF.
 
-🌐 [gifos.app](https://gifos.app)
+🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · every numbered subdomain (`1.gifos.app`, `2026.gifos.app`, …) is a separate computer
 
 ## What is GifOS?
 
 GifOS turns your browser into a desktop where **every app is a GIF**.
 
-Visit [gifos.app](https://gifos.app) and you land on a **desktop** — icons, folders, drag-and-drop, exactly like Windows or macOS. Every GIF (and any other file) you've ever dropped in is sitting there as an icon. Double-click an executable GIF and it opens in its own **browser tab** and runs. Everything is just files, and the files are yours.
+Visit [gifos.app](https://gifos.app) and you land on a **desktop** — icons, folders, drag-and-drop with grid snap, a system bar, a Trash. Every GIF (and any other file) you've dropped in sits there as an icon. Double-click an executable GIF and it opens in its own **browser tab** and runs. Everything is just files, and the files are yours.
 
-- **The Desktop** (`index.html`) — A persistent web desktop that holds your GIFs and files as icons. It lives in your browser; nothing is stored on our servers.
-- **App GIFs** — Applications packed into GIF images. A GIF is a little filesystem; if it has an `index.html`, double-clicking runs it as an app. Its saved state travels **inside the same GIF**.
-- **gifos.app** — A stateless message relay. When apps go multiplayer, it passes messages (and GIFs) between browsers. It never stores anything.
+- **The Desktop** — a persistent web desktop that holds your GIFs and files as icons. It lives in your browser (IndexedDB); nothing is stored on our servers.
+- **App GIFs** — applications packed into real, viewable GIF images with **hand-designed animated artwork**. A GIF is a little filesystem; if it has an `index.html`, double-clicking runs it in a hardened sandbox. Its saved state travels **inside the same GIF**.
+- **Computer images** — back up your whole desktop as ONE GIF… then double-click that GIF anywhere and **boot it as a computer**, inside GifOS, without touching the desktop it's sitting on. GifOS boots inside itself.
+- **The relay** (`relay.gifos.app`) — a stateless message hub for multiplayer. It introduces browsers to each other and passes control messages; it never stores anything and **refuses to carry audio/video**.
 
 No installs. No accounts. No app servers. Just files on a desktop.
 
 ## The Desktop
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  gifos.app                                          ▢ ✕   │
-│                                                            │
-│   📦          💾          📁          🖼️                  │
-│  crm.gif   budget.gif   Work/     photo.jpg               │
-│                                                            │
-│   🎮          📦                                          │
-│  chess.gif  notes.gif      ← drop any file here            │
-│                                                            │
-└──────────────────────────────────────────────────────────┘
-```
+- **Drop any file** onto the desktop — it becomes an icon. GIFs animate right in the icon.
+- **Folders, drag-to-arrange (grid snap), rename, resize icons** — works with touch too.
+- **Trash** — deletes are recoverable until you empty it.
+- **System bar** — the GifOS menu (About, whole-desktop Backup/Restore, Empty Trash, Settings, Reset), an ＋ Add button (files, folders, paste-an-AI-app, zip import), and a storage pill (usage + one-click persistent storage).
+- **Right-click any icon** → Open, **Download** (snapshot the GIF — with saved state folded in — without launching it), Rename, resize, Trash.
+- **Cross-tab live sync** — two tabs of the same desktop stay identical in real time.
 
-- **Drop any file** onto the desktop — it becomes an icon.
-- **GIFs play** right in the icon; resize an icon to see the GIF better.
-- **Make folders** to organize things, just like a real desktop.
-- **Double-click an executable GIF** → it opens in a new tab and runs.
-- **Double-click anything else** (a `.jpg`, a `.pdf`, a plain `.gif`) → GifOS shows a **"not supported"** message. Only GifOS-format GIFs execute.
-
-Your desktop persists **locally in your browser** (IndexedDB / OPFS). There's no login and no sync — the desktop belongs to this browser, because nothing lives on our server.
+Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament), **Studio** (Paint), **Tools** (Notes, Calculator, Stopwatch), **Social** (Guestbook, Chat, **Video Call**) — each a genuine App GIF with its own custom animated icon art.
 
 ## How an App GIF Runs
 
-Double-click an executable GIF and GifOS:
+1. Double-click → a **new browser tab** opens.
+2. The GIF's embedded filesystem is unpacked; `index.html` is mounted in a **sandboxed iframe** (opaque origin, strict CSP — see security below).
+3. The app talks to GifOS only through `window.gifos`: `db()` (state that persists with the icon), `me()` (player identity), `fetch()` (manifest-gated), `save()` (snapshot).
+4. No `index.html`? The tab shows a **browsable filesystem** instead — like an open folder on a web server.
 
-1. Opens a **new browser tab**.
-2. **Unpacks the GIF into a filesystem** inside that tab's iframe.
-3. Hands control to the app's **`index.html`**.
-4. If there's **no `index.html`**, the tab instead shows a **browsable filesystem** — like an unguarded folder served off a web server.
+**Snapshots preserve the artwork.** Saving an app (in-app Snapshot or the icon's Download) *repacks* the GIF: only the embedded filesystem block is swapped, every pixel and animation byte stays identical. Your custom icon art survives every save.
 
-```
-double-click crm.gif
-        │
-        ▼
-   new browser tab
-        │
-        ▼
-   unpack GIF → in-memory filesystem
-        │
-        ├── has index.html? → run it as an app
-        └── no index.html?  → browse it as a folder
-```
+**Make your own apps**: ＋ Add → "Ask an AI to build an app" copies a prompt that teaches any AI the GifOS format; paste back the HTML it returns. Or drop in a single `.html`, or a **`.zip` for multi-file apps** (js/css/assets included).
 
 ## Multiplayer: Any Browser Can Be the Server
 
-The desktop (the parent window) exposes a **runtime library** to the app tab. If an app knows about it, it can ask for **database capabilities** — and that's what makes a GifOS app either a **server** or a **client**:
+Click **Go Multiplayer** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
 
-- **Server** — your browser hosts the central database. The app reads and writes locally.
-- **Client** — the app connects to a **remote** database (someone else's browser) through the gifos.app relay.
+- **P2P-first.** Traffic upgrades to a direct, DTLS-encrypted **WebRTC DataChannel** (~80–90% of networks); the relay stays connected as automatic fallback. The status bar shows *P2P direct* or *Via relay*.
+- **State lives with the icon.** Close the host tab and clients are locked out; reopen the icon and the **same share link resumes**.
+- **Failover.** Clients mirror the host's state. If the host dies, any client clicks **Become Host** and the same session continues from their mirrored copy.
+- **Video Call** (Social folder) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave. Unlimited participants, degrading gracefully.
 
-When an app launches, its tab has a **shareable URL**. Send it to friends and that URL carries everything the relay needs to (1) deliver the app GIF to them and (2) point their copy at **your** database instead of their own. They join your session — a multiplayer game, a shared document, a multi-user app — with one link.
+## A Whole Computer Is One GIF
 
-```
-   You (server browser)                 Friend (client browser)
-   ┌───────────────────┐                ┌───────────────────┐
-   │  chess.gif tab    │                │  chess.gif tab    │
-   │  ├ app            │  ── join URL ─▶ │  ├ app            │
-   │  └ central DB ◀───┼──── relay ──────┼──▶ (uses your DB) │
-   └───────────────────┘   gifos.app     └───────────────────┘
-                          (passes messages, stores nothing)
-```
+**GifOS menu → Back up desktop** produces one GIF containing everything: every file, every icon position, every app's saved state.
 
-### State, resume, and failover
+Double-click a backup GIF and choose:
 
-- **State lives with the icon.** On the server, an app's state is always tied to its GIF icon on the desktop. Close the tab, double-click the icon again, and you're **right back where you were**.
-- **Clients can export** a full copy of the app — a complete GIF snapshot — at any time.
-- **When the server closes the tab**, they choose: **lock out** clients until they reopen the app, or **let clients keep going** — but only while the server's browser stays online.
-- **If the server dies**, any user holding a snapshot can **become the new server** from that snapshot. The session survives.
+- **▶ Boot this computer** — it runs as a *computer inside your computer*, in its own isolated namespace. Your real desktop is untouched. Re-open the same image later and it resumes where it left off; **⏏ Reboot fresh** re-hydrates it from the image bytes. A booted desktop can hold more images — GifOS boots inside itself, recursively.
+- **Replace this desktop** — the classic destructive restore.
 
 ## Multiple Computers (numbered subdomains)
 
@@ -102,58 +72,87 @@ Move things between computers the GifOS way: snapshot an app (or back up a whole
 
 Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on `*.gifos.app` for numeric subdomains (anything non-numeric redirects to the main computer).
 
+## Security Model (short version)
+
+- Apps run in a **sandboxed iframe with an opaque origin** — no cookies, no localStorage, no reach into the desktop's storage. Each icon's data is keyed by its fileId; apps cannot name another icon's data.
+- An injected **CSP** (`default-src 'none'`, `connect-src 'none'`) blocks every direct network primitive; `RTCPeerConnection` is neutered in the app shim. The **only** way out is `gifos.fetch()`, which enforces the manifest's host allowlist.
+- Live camera/mic apps (Video Call) therefore can't be sandboxed apps — they're **system apps**: the icon is a GIF whose manifest names a whitelisted first-party page. Manifests cannot route to arbitrary URLs.
+- The relay is a dumb pipe with a **token-bucket bandwidth guard** (1 MB burst for app delivery, ~384 Kbps sustained) — enforced server-side, so nobody can tunnel media through it.
+
+Details: [docs/architecture.md](docs/architecture.md) · [docs/cors-and-networking.md](docs/cors-and-networking.md)
+
 ## Why GIFs?
 
 GIF is the perfect container:
 - **Universal** — every platform displays GIFs natively.
-- **A filesystem in disguise** — Application Extension blocks and frames store an entire packed directory (code, assets, and saved state).
+- **A filesystem in disguise** — a `GIFOS1.0` Application Extension block stores a whole deflate-compressed directory (code, assets, saved state) while the visible frames stay a real animated image.
 - **Shareable** — send via chat, email, social. It looks like an image because it *is* an image.
 - **Durable** — no one strips GIFs. They survive every platform.
 
-Someone sends you a GIF in a group chat. It looks like a screenshot. Drop it on your desktop and double-click — it **becomes** that app, loaded with their data. Share your work by sharing a file. Fork someone's project by dropping their GIF. It's git for normal people.
+Someone sends you a GIF in a group chat. It looks like an animated icon. Drop it on your desktop and double-click — it **becomes** that app, loaded with their data. Share your work by sharing a file. Fork someone's project by dropping their GIF. It's git for normal people.
 
 ## Getting Started
 
 ```bash
-# Clone the repo
 git clone https://github.com/nwcnwc/gifos.git
 
 # Serve the site folder (any static server works)
 python3 -m http.server 8099 -d site
 # → open http://127.0.0.1:8099/index.html
 
-# The desktop seeds itself with sample App GIFs on first run.
-# Double-click Notes.gif or Guestbook.gif to run one in a new tab.
+# Optional: local relay for multiplayer testing
+node test/relay-local.js          # ws://127.0.0.1:8790
+# then in the browser console: localStorage.setItem('gifos_relay','ws://127.0.0.1:8790')
 ```
 
-Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates live. That's one browser hosting the database and another reading it, locally.
+The desktop seeds itself with the default apps on first run. Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates live.
+
+### Tests
+
+```bash
+node test/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
+node test/e2e.js                  # the desktop, sandbox, versioning (Chromium)
+node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
+node test/e2e-failover.js         # host death → client takeover, same session
+node test/e2e-video.js            # 3-way P2P video mesh + adaptive quality
+node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
+```
+
+The e2e suites expect the static server on `:8099` and (for relay/video) `test/relay-local.js` on `:8790`.
+
+## Deployment
+
+| Piece | Where | How it deploys |
+|-------|-------|----------------|
+| Desktop site | GitHub Pages → `gifos.app` | **Automatic** on every push to `main` ([`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `site/` only) |
+| Relay | Cloudflare Worker → `relay.gifos.app` | **Manual**: `cd relay && npx wrangler deploy` |
+| Subdomain mirror | Cloudflare Worker → `*.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
+
+The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
+
+**Releases**: `gifos.app/` is always the latest build; every past build is archived under `/versions/<x.y.z>/` and users can pin one in deep Settings ([`scripts/archive-version.sh`](scripts/archive-version.sh) cuts a release).
 
 ## Project Status
 
-🚧 **Working proof of concept (v0.2).** The desktop and the GIF-as-app runtime are built and tested end-to-end:
+**v0.6.0 — live and tested end-to-end** (80+ automated checks across six suites):
 
-**Built & tested**
-- ✅ Persistent **desktop** — icons, folders, drag-to-arrange, drag-into-folders, resize, rename, delete (IndexedDB, local-only)
-- ✅ **GIF filesystem codec** — packs a filesystem into a valid, viewable GIF89a and reads it back (verified in Chromium), **deflate-compressed** via native `CompressionStream` (no dependencies; legacy uncompressed GIFs still decode)
-- ✅ **Double-click → run in a new tab**; unsupported files show a "not supported" message
-- ✅ **Runtime `window.gifos`** — `db()` (persists with the icon, syncs across tabs), `fetch()` bridge, `save()` snapshot
-- ✅ **Browsable-filesystem fallback** when a GIF has no `index.html`
-- ✅ **Snapshot round-trip** — export the app + live state as one self-contained GIF; dropping a snapshot GIF on any desktop **resumes exactly where it was saved** (embedded state hydrates on first run)
-- ✅ **Remote multiplayer, P2P-first** — one browser hosts the DB, others join via a share link. Traffic upgrades to a **direct WebRTC DataChannel** (DTLS-encrypted end-to-end; the relay only performs introductions) and **falls back to the relay automatically** when P2P can't be established — verified for both paths ([`test/e2e-relay.js`](test/e2e-relay.js))
-- ✅ **Client capture** — a client saves a full copy of the app + live session state onto its own desktop
-- ✅ **Failover** — clients mirror the host's state; if the host browser dies, a client clicks **Become Host** and takes over the *same session* from its mirrored copy; remaining clients keep playing ([`test/e2e-failover.js`](test/e2e-failover.js))
-- ✅ **Lock-until-reopen** — the session id/token live with the desktop icon, so closing the host tab locks clients out and reopening the icon resumes hosting on the *same share link*
+- ✅ Persistent desktop: folders, grid-snap drag (mouse + touch), Trash, rename, resize, cross-tab sync
+- ✅ GIF filesystem codec: deflate-compressed `GIFOS1.0` extension block inside a real animated GIF; `repack()` swaps data without touching artwork
+- ✅ Hand-designed animated icon artwork per default app (SVG → adaptive-palette GIF frames)
+- ✅ Hardened app sandbox: opaque origin + injected CSP + neutered WebRTC + per-icon DB namespacing
+- ✅ Multiplayer: P2P DataChannels with automatic relay fallback, screen names, lock-until-reopen, snapshot failover (Become Host)
+- ✅ Deployed: GitHub Pages (`gifos.app`), Cloudflare relay (`relay.gifos.app`) with server-side bandwidth guard + mesh peer routing, numbered-subdomain mirror
+- ✅ P2P Video Call: mesh media, adaptive quality ladder, relay-refuses-media by design
+- ✅ Computer images: whole-desktop backup GIFs that **boot** in isolated namespaces, recursively
+- ✅ Version pinning: archived builds under `/versions/`, update bar, additive-only data migrations
 
-**Not yet done**
-- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to a Cloudflare account (`site/js/relay-config.js` already points at `wss://relay.gifos.app`; everything above is verified against a protocol-identical local relay)
-- ⏳ "Continue while host browser stays online after tab close" (needs desktop-side hosting, e.g. a SharedWorker)
-
-See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests (37 checks across four suites).
+**Next ideas**: app directory, snapshot merge (git-style), end-to-end encrypted relay sessions, SharedWorker hosting so sessions survive tab close.
 
 ## Architecture
 
-- [docs/architecture.md](docs/architecture.md) — the desktop, the GIF filesystem format, execution model, persistence, and failover.
-- [docs/cors-and-networking.md](docs/cors-and-networking.md) — the browser-as-server DB relay and the external-API bridge.
+- [docs/architecture.md](docs/architecture.md) — the desktop, the GIF filesystem format, execution model, sandbox security, computer images, versioning.
+- [docs/cors-and-networking.md](docs/cors-and-networking.md) — browser-as-server, the transport ladder, the relay bandwidth guard, mesh signaling, video, and the external-API bridge.
+- [mirror/README.md](mirror/README.md) — how numbered subdomains are served.
 
 ## License
 
