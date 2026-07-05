@@ -278,6 +278,36 @@ async function openApp(page, ctx, folder, label) {
   check('app attributes an action to the screen name (gifos.me)', /Casey/.test(caseyEntry));
   await gbId.close();
 
+  // ---- touch: double-tap opens (iOS never synthesizes dblclick here), ----
+  // ---- and the context menu offers Open for folders too ----
+  const touchCtx = await browser.newContext({ hasTouch: true, viewport: { width: 800, height: 700 } });
+  const touchPage = await touchCtx.newPage();
+  await touchPage.goto(BASE + '/index.html');
+  await touchPage.waitForSelector('.icon', { timeout: 8000 });
+  await sleep(400);
+  const gamesBox = await touchPage.locator('.icon', { hasText: 'Games' }).boundingBox();
+  await touchPage.touchscreen.tap(gamesBox.x + gamesBox.width / 2, gamesBox.y + gamesBox.height / 2);
+  await touchPage.touchscreen.tap(gamesBox.x + gamesBox.width / 2, gamesBox.y + gamesBox.height / 2);
+  await sleep(400);
+  check('double-TAP opens a folder (touch devices)', (await touchPage.locator('#crumbs').textContent()).includes('Games'));
+  const tttBox = await touchPage.locator('.icon', { hasText: 'Tic-Tac-Toe.gif' }).boundingBox();
+  const [touchApp] = await Promise.all([
+    touchCtx.waitForEvent('page'),
+    (async () => {
+      await touchPage.touchscreen.tap(tttBox.x + tttBox.width / 2, tttBox.y + tttBox.height / 2);
+      await touchPage.touchscreen.tap(tttBox.x + tttBox.width / 2, tttBox.y + tttBox.height / 2);
+    })(),
+  ]);
+  check('double-TAP launches an app (touch devices)', /run\.html/.test(touchApp.url()));
+  await touchApp.close();
+  await touchCtx.close();
+  await page.locator('.icon', { hasText: 'Studio' }).click({ button: 'right' });
+  await page.locator('.ctx button', { hasText: 'Open' }).click();
+  await sleep(300);
+  check('context menu offers Open for folders', (await page.locator('#crumbs').textContent()).includes('Studio'));
+  await page.locator('#crumbs a').click();
+  await sleep(200);
+
   // ---- drag a root icon: it should snap to a grid cell and persist ----
   const box = await page.locator('.icon', { hasText: 'Welcome.gif' }).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

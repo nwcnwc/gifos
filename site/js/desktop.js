@@ -236,7 +236,7 @@
   // ---------- icon interaction (drag, double-click, select) ----------
   // Pointer events unify mouse + touch; long-press opens the context menu on touch.
   function wireIcon(el, it) {
-    let down = null, moved = false, lpTimer = null;
+    let down = null, moved = false, lpTimer = null, lastTap = 0;
     const clearLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
 
     el.addEventListener('pointerdown', (e) => {
@@ -247,7 +247,7 @@
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
       down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin };
       moved = false;
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ }
       if (e.pointerType !== 'mouse') {
         lpTimer = setTimeout(() => {                     // long-press → context menu
           if (!moved && down) { down = null; showContextMenu({ clientX: e.clientX, clientY: e.clientY }, it); }
@@ -268,7 +268,16 @@
       clearLp();
       if (!down) return;
       const wasMoved = moved; down = null;
-      if (!wasMoved) return;
+      if (!wasMoved) {
+        // Touch double-tap → open. iOS/WebKit never synthesizes dblclick once
+        // pointerdown is preventDefault'd, so we detect the two taps ourselves.
+        if (e.pointerType !== 'mouse') {
+          const now = Date.now();
+          if (now - lastTap < 400) { lastTap = 0; openItem(it); }
+          else lastTap = now;
+        }
+        return;
+      }
       const targetFolder = folderUnder(e, it);
       if (targetFolder && it.id !== TRASH_ID) {
         it.parent = targetFolder.id;                     // dropped into a folder (or Trash)
@@ -464,7 +473,7 @@
       ];
     } else if (it) {
       entries = [
-        ...(it.kind === 'file' ? [{ label: 'Open', fn: () => openItem(it) }] : []),
+        { label: 'Open', fn: () => openItem(it) },
         ...(it.kind === 'file' ? [{ label: 'Download', fn: () => downloadItem(it) }] : []),
         { label: 'Rename', fn: () => beginRename(it) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
