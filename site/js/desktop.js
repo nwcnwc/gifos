@@ -59,6 +59,10 @@
 
   // ---------- data ----------
   function load() { return store.allItems().then((all) => { items = all; }); }
+  // Namespace suffix for links to sibling pages (run.html, boot.html): the
+  // default desktop emits clean URLs; a booted computer image threads its
+  // own database name through so apps and nested boots stay inside it.
+  const nsParam = (key) => (store.dbName === 'gifos' ? '' : key + encodeURIComponent(store.dbName));
 
   function gridPosition(index) {
     const cols = Math.max(1, Math.floor((surface.clientWidth - 20) / 116));
@@ -298,18 +302,24 @@
     const file = await store.getFile(it.fileId);
     if (!file) return;
     if (file.kind === 'gif' && file.isApp) {
-      root.open('run.html#id=' + encodeURIComponent(it.fileId), '_blank');
+      root.open('run.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='), '_blank');
       return;
     }
     const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-    // A whole-desktop backup GIF: replacing your computer is a deliberate act.
+    // A whole-desktop backup GIF is a COMPUTER IMAGE. Booting it runs that
+    // computer in its own namespace (a computer inside this computer) and
+    // touches nothing here; replacing this desktop is the destructive path.
     if (file.kind === 'gif') {
       const archive = await gif.decode(bytes);
       const m = archive ? gif.readManifest(archive) : null;
       if (archive && m && m.type === 'desktop' && archive.files['desktop.json']) {
-        showConfirm('Restore this computer?',
-          '"' + escapeHtml(it.name) + '" is a full GifOS desktop backup. <b>Restoring replaces everything currently on this desktop.</b>',
-          [{ label: 'Replace this desktop', danger: true, fn: () => restoreDesktop(archive) }]);
+        showConfirm('This GIF is a whole computer',
+          '"' + escapeHtml(it.name) + '" is a full GifOS desktop image. <b>Boot it</b> to run that computer in a new tab — ' +
+          'your desktop here is untouched. Or <b>replace</b> this desktop with it (destructive).',
+          [
+            { label: '▶ Boot this computer', fn: () => root.open('boot.html#id=' + encodeURIComponent(it.fileId) + nsParam('&from='), '_blank') },
+            { label: 'Replace this desktop', danger: true, fn: () => restoreDesktop(archive) },
+          ]);
         return;
       }
     }
@@ -943,7 +953,7 @@
   // views matched. Every local mutation announces on a BroadcastChannel and
   // other tabs re-render; a visibility refresh catches anything missed.
   if ('BroadcastChannel' in root) {
-    const sync = new BroadcastChannel('gifos-desktop-sync');
+    const sync = new BroadcastChannel(store.syncChannel);
     for (const k of ['putItem', 'deleteItem', 'putFile', 'deleteFile', 'setState', 'deleteState', 'clearAll']) {
       const orig = store[k].bind(store);
       store[k] = (...args) => orig(...args).then((r) => { sync.postMessage(1); return r; });

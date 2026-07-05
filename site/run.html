@@ -51,6 +51,15 @@
   </div>
   <div id="mount"></div>
 
+  <script>
+    // Bind to the right computer BEFORE the store loads: apps opened from a
+    // booted computer image (boot.html) carry their namespace in the URL so
+    // their files and saved state resolve inside that image, not the host.
+    (function () {
+      var db = new URLSearchParams(location.hash.slice(1)).get('db');
+      if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+    })();
+  </script>
   <script src="js/gifos-gif.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/relay-config.js"></script>
