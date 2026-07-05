@@ -106,9 +106,9 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('details.adv summary').click();
   await page.locator('#set-relay').fill('ws://127.0.0.1:8790');
   await page.locator('#set-relay-test').click();
-  await page.waitForFunction(() => /✅|❌/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
+  await page.waitForFunction(() => /reachable|Could not|No answer|Error/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
   const relayStatus = await page.locator('#set-relay-status').textContent();
-  check('Settings can test relay reachability', /✅ Relay is reachable/.test(relayStatus));
+  check('Settings can test relay reachability', /^Relay is reachable/.test(relayStatus.trim()));
   await page.locator('#set-relay').fill('');
   await page.locator('#set-close').click();
   await sleep(200);
@@ -116,7 +116,7 @@ async function openApp(page, ctx, folder, label) {
   // ---- ＋ Add popup: has the AI prompt and a Create-app-from-HTML flow ----
   await page.locator('#add-btn').click();
   await page.locator('.modal.wide').waitFor({ timeout: 4000 });
-  check('Add opens a popup (not a dropdown)', (await page.locator('.modal.wide h3').textContent()).includes('Add to your desktop'));
+  check('Add opens a popup (not a dropdown)', (await page.locator('.modal.wide h3').textContent()).includes('Add to your Home Screen'));
   const promptVal = await page.locator('#ad-prompt').inputValue();
   check('popup contains a copyable AI prompt', /gifos\.db/.test(promptVal) && /What app do you want to build/.test(promptVal));
   const miniApp = "<!doctype html><meta charset=utf-8><body><button id='b'>tap</button><div id='n'>0</div>" +
@@ -478,7 +478,7 @@ async function openApp(page, ctx, folder, label) {
   const trashLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('trashed icon is inside Trash', trashLabels.includes('Resume.gif'));
   await sys.locator('.icon', { hasText: 'Resume.gif' }).click({ button: 'right' });
-  await sys.locator('.ctx button', { hasText: 'Restore to Desktop' }).click();
+  await sys.locator('.ctx button', { hasText: 'Put back on Home Screen' }).click();
   await sleep(400);
   await sys.locator('#crumbs a').click(); // back to Desktop
   await sleep(300);
@@ -489,13 +489,13 @@ async function openApp(page, ctx, folder, label) {
   await sys.locator('#sys-menu-btn').click();
   const [download] = await Promise.all([
     sys.waitForEvent('download'),
-    sys.locator('.ctx button', { hasText: 'Back up desktop…' }).click(),
+    sys.locator('.ctx button', { hasText: 'Back up Home Screen…' }).click(),
   ]);
   check('backup downloads a desktop GIF', download.suggestedFilename() === 'gifos-desktop.gif');
   const backupPath = await download.path();
 
   await sys.locator('#sys-menu-btn').click();
-  await sys.locator('.ctx button', { hasText: 'Reset desktop…' }).click();
+  await sys.locator('.ctx button', { hasText: 'Reset Home Screen…' }).click();
   await Promise.all([
     sys.waitForNavigation({ waitUntil: 'load' }),
     sys.locator('.modal-actions button', { hasText: 'Reset without backup' }).click(),
@@ -506,7 +506,7 @@ async function openApp(page, ctx, folder, label) {
   check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 7 && !freshLabels.includes('Resume.gif'));
 
   await sys.setInputFiles('#restore-input', backupPath);
-  await sys.locator('.modal-actions button', { hasText: 'Replace desktop' }).click();
+  await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();
   await sys.locator('.modal button', { hasText: 'OK' }).click(); // "Desktop restored"
   await sleep(500);
   const restoredDesk = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));

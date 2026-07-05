@@ -39,8 +39,8 @@
 </style>
 </head>
 <body>
-  <div class="vm-banner">💿 <span>Booted image: <b id="vm-name">…</b> — this computer runs in its own space; your real desktop is untouched.</span>
-    <button id="vm-reboot" title="Wipe this booted computer's changes and re-hydrate it from the image bytes">⏏ Reboot fresh</button>
+  <div class="vm-banner"><span>Booted image: <b id="vm-name">…</b> — this computer runs in its own space; your real Home Screen is untouched.</span>
+    <button id="vm-reboot" title="Wipe this booted computer's changes and re-hydrate it from the image bytes">Reboot fresh</button>
   </div>
   <div class="update-bar" id="update-bar" style="display:none">
     <span id="update-msg"></span>
@@ -49,7 +49,7 @@
   </div>
   <div class="menubar">
     <button class="brand-btn" id="sys-menu-btn"><span class="brand">GifOS</span><span class="caret">▾</span></button>
-    <span class="crumbs" id="crumbs">Desktop</span>
+    <span class="crumbs" id="crumbs">Home Screen</span>
     <span class="spacer"></span>
     <button id="add-btn">＋ Add</button>
   </div>
@@ -69,7 +69,7 @@
     var host = GifOS.store.namespace(window.__bootFrom);    // where the image bytes live
 
     function fail(msg) {
-      document.getElementById('desktop').innerHTML = '<div class="boot-fail">💿 ' + msg + '</div>';
+      document.getElementById('desktop').innerHTML = '<div class="boot-fail">' + msg + '</div>';
       document.getElementById('vm-name').textContent = 'boot failed';
     }
 
@@ -94,7 +94,7 @@
     if (!window.__bootImageId) { fail('No image id in URL.'); return; }
 
     host.getFile(window.__bootImageId).then(function (rec) {
-      if (!rec) { fail('Image not found on the host desktop (was it deleted?).'); return null; }
+      if (!rec) { fail('Image not found on the host Home Screen (was it deleted?).'); return null; }
       var name = rec.name || 'computer image';
       document.getElementById('vm-name').textContent = name;
       document.title = name + ' — booted image';

@@ -14,7 +14,8 @@
      look like every other running app, just with call controls in the bar. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
          background: #14141f; border-bottom: 1px solid #2a2a3f; flex-wrap: wrap; }
-  .bar .title { font-weight: 700; }
+  .bar .title { font-weight: 800; background: linear-gradient(135deg, #7b5cff, #ff5caa);
+         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
@@ -48,10 +49,10 @@
 </head>
 <body>
   <div class="bar">
-    <span class="title">📦 GifOS</span>
-    <button id="invite" title="Friends join you live with one link">🔗 Invite</button>
-    <button id="mic">🎙 Mute</button>
-    <button id="cam">📷 Camera off</button>
+    <span class="title">GifOS</span>
+    <button id="invite" title="Friends join you live with one link">Invite</button>
+    <button id="mic">Mute</button>
+    <button id="cam">Camera off</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
@@ -307,14 +308,14 @@
       const track = localStream.getAudioTracks()[0]; if (!track) return;
       track.enabled = !track.enabled;
       micBtn.classList.toggle('off', !track.enabled);
-      micBtn.textContent = track.enabled ? '🎙 Mute' : '🎙 Unmute';
+      micBtn.textContent = track.enabled ? 'Mute' : 'Unmute';
     };
     camBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getVideoTracks()[0]; if (!track) return;
       track.enabled = !track.enabled;
       camBtn.classList.toggle('off', !track.enabled);
-      camBtn.textContent = track.enabled ? '📷 Camera off' : '📷 Camera on';
+      camBtn.textContent = track.enabled ? 'Camera off' : 'Camera on';
     };
     document.getElementById('invite').onclick = () => share.classList.toggle('show');
     document.getElementById('copy').onclick = () => {

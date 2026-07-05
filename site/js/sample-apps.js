@@ -532,8 +532,8 @@
 </style><div class="card"><h2>📹 Video Call</h2>
 <p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
 app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
-opens the built-in video page when double-clicked on a GifOS desktop.</p>
-<p>Open this GIF on a desktop at <code>gifos.app</code> to start a call.</p></div>`;
+opens the built-in video page when opened in GifOS.</p>
+<p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a call.</p></div>`;
 
   // A real app now: friendly onboarding for non-technical people, with a live
   // checklist that demonstrates the core magic (state lives inside the icon).
@@ -562,26 +562,26 @@ opens the built-in video page when double-clicked on a GifOS desktop.</p>
   <p class="lead">Your own computer that lives in your browser. No account, no installs — and everything you make is a file <b>you</b> keep.</p>
 
   <div class="card"><h2><span class="emoji">🖼️</span>Every app is a GIF</h2>
-  <p>Those animated icons on your desktop are real GIF images — with a whole app tucked inside. Double-click one and it runs. Send one to a friend and they get your app <b>with your stuff in it</b>.</p></div>
+  <p>Those animated icons on your Home Screen are real GIF images — with a whole app tucked inside. Double-click one and it runs. Send one to a friend and they get your app <b>with your stuff in it</b>.</p></div>
 
   <div class="card"><h2><span class="emoji">💾</span>Your stuff stays put</h2>
   <p>Whatever you do in an app is saved with its icon automatically. Close the tab, come back tomorrow — you're right where you left off. Nothing is stored on anyone's servers.</p></div>
 
   <div class="card"><h2><span class="emoji">🔗</span>Play together with one link</h2>
-  <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b> on your desktop!</p></div>
+  <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b>, right on your Home Screen!</p></div>
 
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
   <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
 
   <div class="card"><h2><span class="emoji">💿</span>Your whole computer is one file</h2>
-  <p>GifOS menu (top-left) → <b>Back up desktop</b> gives you a single GIF holding everything. Keep it safe, or double-click it anywhere to boot your computer — even inside another one.</p></div>
+  <p>GifOS menu (top-left) → <b>Back up Home Screen</b> gives you a single GIF holding everything. Keep it safe, or double-click it anywhere to boot your computer — even inside another one.</p></div>
 
   <div class="try"><h2>🪄 See the magic for yourself</h2>
   <p>Check something off, close this tab, then open Welcome again — it remembers. That's your data living inside the icon.</p>
   <div id="list"></div><div class="magic" id="magic">Now close this tab and reopen Welcome from your desktop 😉</div></div>
 </div>
 <script>
-  var STEPS=[["look","Looked around my new desktop"],["run","Opened an app (this one counts!)"],["invite","Invited a friend with one link"],["make","Made my own app with ＋ Add"],["backup","Backed up my computer to one GIF"]];
+  var STEPS=[["look","Looked around my new Home Screen"],["run","Opened an app (this one counts!)"],["invite","Invited a friend with one link"],["make","Made my own app with ＋ Add"],["backup","Backed up my computer to one GIF"]];
   var db=window.gifos?gifos.db("welcome"):null,state={};
   function render(){var el=document.getElementById("list");el.innerHTML="";STEPS.forEach(function(s){
     var l=document.createElement("label");l.className="todo"+(state[s[0]]?" done":"");

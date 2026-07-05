@@ -10,25 +10,25 @@
 
 GifOS turns your browser into a desktop where **every app is a GIF**.
 
-Visit [gifos.app](https://gifos.app) and you land on a **desktop** — icons, folders, drag-and-drop with grid snap, a system bar, a Trash. Every GIF (and any other file) you've dropped in sits there as an icon. Double-click an executable GIF and it opens in its own **browser tab** and runs. Everything is just files, and the files are yours.
+Visit [gifos.app](https://gifos.app) and you land on your **Home Screen** — icons, folders, drag-and-drop with grid snap, a system bar, a Trash. Every GIF (and any other file) you've dropped in sits there as an icon. Double-click an executable GIF and it opens in its own **browser tab** and runs. Everything is just files, and the files are yours.
 
-- **The Desktop** — a persistent web desktop that holds your GIFs and files as icons. It lives in your browser (IndexedDB); nothing is stored on our servers.
+- **The Home Screen** — a persistent, phone-friendly home screen that holds your GIFs and files as icons. It lives in your browser (IndexedDB); nothing is stored on our servers.
 - **App GIFs** — applications packed into real, viewable GIF images with **hand-designed animated artwork**. A GIF is a little filesystem; if it has an `index.html`, double-clicking runs it in a hardened sandbox. Its saved state travels **inside the same GIF**.
 - **Computer images** — back up your whole desktop as ONE GIF… then double-click that GIF anywhere and **boot it as a computer**, inside GifOS, without touching the desktop it's sitting on. GifOS boots inside itself.
 - **The relay** (`relay.gifos.app`) — a stateless message hub for multiplayer. It introduces browsers to each other and passes control messages; it never stores anything and **refuses to carry audio/video**.
 
 No installs. No accounts. No app servers. Just files on a desktop.
 
-## The Desktop
+## The Home Screen
 
-- **Drop any file** onto the desktop — it becomes an icon. GIFs animate right in the icon.
+- **Drop any file** onto the Home Screen — it becomes an icon. GIFs animate right in the icon.
 - **Folders, drag-to-arrange (grid snap), rename, resize icons** — works with touch too.
 - **Trash** — deletes are recoverable until you empty it.
-- **System bar** — the GifOS menu (About, whole-desktop Backup/Restore, Empty Trash, Settings, Reset), an ＋ Add button (files, folders, paste-an-AI-app, zip import), and a storage pill (usage + one-click persistent storage).
+- **System bar** — the GifOS menu (About, whole-Home-Screen Backup/Restore, Empty Trash, Settings, Reset) and an ＋ Add button (files, folders, paste-an-AI-app, zip import). Persistent storage is requested automatically; usage details live under Settings → Advanced.
 - **Right-click any icon** → Open, **Download** (snapshot the GIF — with saved state folded in — without launching it), Rename, resize, Trash.
 - **Cross-tab live sync** — two tabs of the same desktop stay identical in real time.
 
-Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament), **Studio** (Paint), **Tools** (Notes, Calculator, Stopwatch), **Social** (Guestbook, Chat, **Video Call**) — each a genuine App GIF with its own custom animated icon art.
+Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament), **Studio** (Paint), **Tools** (Notes, Calculator, Stopwatch), **Social** (Guestbook, Chat) — with **Welcome** and **Video Call** right on the Home Screen — each a genuine App GIF with its own custom animated icon art.
 
 ## How an App GIF Runs
 
@@ -43,21 +43,21 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 ## Multiplayer: Any Browser Can Be the Server
 
-Click **Go Multiplayer** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
+Press **Invite** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
 
 - **P2P-first.** Traffic upgrades to a direct, DTLS-encrypted **WebRTC DataChannel** (~80–90% of networks); the relay stays connected as automatic fallback. The status bar shows *P2P direct* or *Via relay*.
 - **State lives with the icon.** Close the host tab and clients are locked out; reopen the icon and the **same share link resumes**.
-- **Failover.** Clients mirror the host's state. If the host dies, any client clicks **Become Host** and the same session continues from their mirrored copy.
-- **Video Call** (Social folder) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave. Unlimited participants, degrading gracefully.
+- **Failover.** Clients mirror the host's state. If the host dies, any client presses **Take Over** and the same session continues from their mirrored copy.
+- **Video Call** (front and center on the Home Screen) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave. Unlimited participants, degrading gracefully.
 
 ## A Whole Computer Is One GIF
 
-**GifOS menu → Back up desktop** produces one GIF containing everything: every file, every icon position, every app's saved state.
+**GifOS menu → Back up Home Screen** produces one GIF containing everything: every file, every icon position, every app's saved state.
 
 Double-click a backup GIF and choose:
 
-- **▶ Boot this computer** — it runs as a *computer inside your computer*, in its own isolated namespace. Your real desktop is untouched. Re-open the same image later and it resumes where it left off; **⏏ Reboot fresh** re-hydrates it from the image bytes. A booted desktop can hold more images — GifOS boots inside itself, recursively.
-- **Replace this desktop** — the classic destructive restore.
+- **Boot this computer** — it runs as a *computer inside your computer*, in its own isolated namespace. Your real Home Screen is untouched. Re-open the same image later and it resumes where it left off; **Reboot fresh** re-hydrates it from the image bytes. A booted desktop can hold more images — GifOS boots inside itself, recursively.
+- **Replace this Home Screen** — the classic destructive restore.
 
 ## Multiple Computers (numbered subdomains)
 

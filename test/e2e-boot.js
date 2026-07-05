@@ -25,7 +25,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.locator('#sys-menu-btn').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('.ctx button', { hasText: 'Back up desktop…' }).click(),
+    page.locator('.ctx button', { hasText: 'Back up Home Screen…' }).click(),
   ]);
   const bytes = Array.from(new Uint8Array(fs.readFileSync(await download.path())));
 
