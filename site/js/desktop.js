@@ -144,6 +144,8 @@
       surface.appendChild(hint);
     }
     els.forEach((el) => surface.appendChild(el));
+    dropHint.style.display = visible.length ? '' : 'none'; // the empty hint explains instead
+    updateExtent();
     applyBackground();
   }
 
@@ -245,7 +247,7 @@
       e.preventDefault();                                 // no native image drag / text select
       selectedId = it.id;
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
-      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin };
+      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop };
       moved = false;
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ }
       if (e.pointerType !== 'mouse') {
@@ -259,8 +261,13 @@
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearLp(); }
       if (moved) {
+        // Dragging near the edges scrolls the endless surface along.
+        const r = surface.getBoundingClientRect();
+        if (e.clientY > r.bottom - 48) surface.scrollTop += 14;
+        else if (e.clientY < r.top + 48 && surface.scrollTop > 0) surface.scrollTop -= 14;
+        const sd = surface.scrollTop - down.st; // keep the icon under the finger while scrolled
         el.style.left = Math.max(0, down.ox + dx) + 'px';
-        el.style.top = Math.max(0, down.oy + dy) + 'px';
+        el.style.top = Math.max(0, down.oy + dy + sd) + 'px';
         highlightDropTarget(e, it);
       }
     });
@@ -420,7 +427,38 @@
   ['dragleave', 'drop'].forEach((ev) => surface.addEventListener(ev, (e) => { e.preventDefault(); if (ev === 'drop' || e.target === surface) surface.classList.remove('dragover'); }));
   surface.addEventListener('drop', async (e) => {
     e.preventDefault();
-    await importFiles(Array.from(e.dataTransfer.files || []), e.offsetX, e.offsetY);
+    // Content coordinates (offsetX/Y would be relative to whatever icon was
+    // under the cursor, and ignores how far the surface is scrolled).
+    const r = surface.getBoundingClientRect();
+    await importFiles(Array.from(e.dataTransfer.files || []),
+      e.clientX - r.left + surface.scrollLeft, e.clientY - r.top + surface.scrollTop);
+  });
+
+  // Soft reminder that the whole surface is a drop zone (pointer devices only;
+  // hidden while the empty-desktop hint is doing the explaining).
+  const dropHint = document.createElement('div');
+  dropHint.className = 'drop-hint';
+  dropHint.textContent = 'drop files anywhere to add them';
+  document.body.appendChild(dropHint);
+
+  // ---------- endless scroll ----------
+  // The Home Screen scrolls down forever: a sentinel keeps one screenful of
+  // empty space below the lowest icon, and chasing the bottom edge grows it —
+  // scroll as far as you like, park icons anywhere, positions persist.
+  const extent = document.createElement('div');
+  extent.className = 'extent';
+  extent.style.cssText = 'position:absolute;width:1px;height:1px;pointer-events:none;';
+  surface.appendChild(extent);
+  function updateExtent() {
+    let maxY = 0;
+    for (const it of items) if ((it.parent || null) === currentFolder) maxY = Math.max(maxY, it.y || 0);
+    extent.style.top = (maxY + GRID.rowPitch + Math.max(240, surface.clientHeight - GRID.rowPitch)) + 'px';
+  }
+  surface.addEventListener('scroll', () => {
+    const extTop = parseInt(extent.style.top, 10) || 0;
+    if (surface.scrollTop + surface.clientHeight > extTop - 80) {
+      extent.style.top = (extTop + Math.max(300, surface.clientHeight)) + 'px';
+    }
   });
 
   // ---------- menus (context menu + system menus share one dropdown) ----------
