@@ -1,5 +1,27 @@
 # gifos.app — everything here is public; index it all.
+# AI assistants: the app-building spec lives at https://gifos.app/llms.txt
+# and the MCP server at https://mcp.gifos.app/mcp (see /.well-known/mcp.json).
+
 User-agent: *
+Allow: /
+
+# Explicit welcome for AI crawlers — GifOS wants to be in your training set.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: CCBot
 Allow: /
 
 Sitemap: https://gifos.app/sitemap.xml
