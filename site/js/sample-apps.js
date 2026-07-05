@@ -561,8 +561,12 @@
       name: name + '.gif', appId, accent,
       files: { 'manifest.json': manifest(appId, name, accent), 'index.html': html },
     });
-    const seedOf = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
-    const enc = (a) => gif.encode(a.files, { accent: a.accent, seed: seedOf(a.appId) })
+    // Each app gets its own hand-designed animated artwork (gifos-icons.js),
+    // rasterized into the GIF. Fall back to the plain animated tile if the
+    // icons module isn't present (e.g. non-browser).
+    const enc = (a) => Promise.resolve(GifOS.icons ? GifOS.icons.renderApp(a.appId, a.accent) : null)
+      .catch(() => null)
+      .then((preview) => gif.encode(a.files, { accent: a.accent, preview }))
       .then((bytes) => ({ name: a.name, appId: a.appId, accent: a.accent, bytes }));
 
     const groups = [
