@@ -1,7 +1,7 @@
 // Node round-trip test for the GIF codec + writes a sample GIF for browser check.
 const fs = require('fs');
 const path = require('path');
-require(path.join(__dirname, '..', 'js', 'gifos-gif.js'));
+require(path.join(__dirname, '..', 'site', 'js', 'gifos-gif.js'));
 const { gif } = globalThis.GifOS;
 
 let ok = true;

@@ -105,8 +105,8 @@ Someone sends you a GIF in a group chat. It looks like a screenshot. Drop it on 
 # Clone the repo
 git clone https://github.com/nwcnwc/gifos.git
 
-# Serve the folder (any static server works)
-python3 -m http.server 8099
+# Serve the site folder (any static server works)
+python3 -m http.server 8099 -d site
 # → open http://127.0.0.1:8099/index.html
 
 # The desktop seeds itself with sample App GIFs on first run.
@@ -132,7 +132,7 @@ Open **two tabs** of `Guestbook.gif` and sign it in one — the other updates li
 - ✅ **Lock-until-reopen** — the session id/token live with the desktop icon, so closing the host tab locks clients out and reopening the icon resumes hosting on the *same share link*
 
 **Not yet done**
-- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to a Cloudflare account and set `js/relay-config.js` (everything above is verified against a protocol-identical local relay)
+- ⏳ Hosted **`gifos.app` relay** — deploy [`relay/`](relay) to a Cloudflare account (`site/js/relay-config.js` already points at `wss://relay.gifos.app`; everything above is verified against a protocol-identical local relay)
 - ⏳ "Continue while host browser stays online after tab close" (needs desktop-side hosting, e.g. a SharedWorker)
 
 See [docs/architecture.md](docs/architecture.md) for the full design and [`test/`](test) for the codec and end-to-end tests (37 checks across four suites).
