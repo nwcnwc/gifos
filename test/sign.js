@@ -140,6 +140,32 @@ function buildApp(indexHtml, state) {
     fs.rmSync(home, { recursive: true, force: true });
   }
 
+  // ---- email leg with an RSA key (what most existing PGP users have) ----
+  const rsaHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gifos-rsa-'));
+  try {
+    fs.chmodSync(rsaHome, 0o700);
+    const env = Object.assign({}, process.env, { GNUPGHOME: rsaHome });
+    fs.writeFileSync(path.join(rsaHome, 'params'),
+      '%no-protection\nKey-Type: RSA\nKey-Length: 3072\nKey-Usage: sign\nName-Real: RSA Tester\nName-Email: bob@example.com\nExpire-Date: 0\n%commit\n');
+    execFileSync('gpg', ['--batch', '--gen-key', path.join(rsaHome, 'params')], { env, stdio: 'ignore' });
+    const stmt = await sign.emailStatement(app, 'bob@example.com');
+    const stmtPath = path.join(rsaHome, 'statement.bin');
+    fs.writeFileSync(stmtPath, Buffer.from(stmt));
+    execFileSync('gpg', ['--batch', '--yes', '--detach-sign', '--digest-algo', 'SHA256', '-o', stmtPath + '.sig', stmtPath], { env, stdio: 'ignore' });
+    const rsaSigned = sign.attachEmailSig(app, 'bob@example.com', new Uint8Array(fs.readFileSync(stmtPath + '.sig')), '2026-07-05');
+    const rsaArmored = execFileSync('gpg', ['--armor', '--export', 'bob@example.com'], { env }).toString();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => rsaArmored });
+    try {
+      const v = await sign.verify(rsaSigned);
+      check('REAL gpg RSA-3072 signature verifies through the full verify() path', v.status === 'valid' && v.id === 'bob@example.com');
+      const vT = await sign.verify(sign.writeSig(changedApp, sign.readSig(rsaSigned)));
+      check('tampered RSA-signed app reports TAMPERED', vT.status === 'tampered');
+    } finally { globalThis.fetch = realFetch; }
+  } finally {
+    fs.rmSync(rsaHome, { recursive: true, force: true });
+  }
+
   // ---- unsigned + verdict shape ----
   check('an unsigned GIF reports unsigned', (await sign.verify(app)).status === 'unsigned');
 
