@@ -110,6 +110,32 @@ function buildApp(indexHtml, state) {
     const okWrong = await sign._pgpVerify(stmt2, sign._b64ToBytes(sign.readSig(emailSigned).sig), wrongKey);
     check('a different key does NOT verify the signature', !okWrong);
     fs.rmSync(badHome, { recursive: true, force: true });
+
+    // ---- ASCII armor: what keyservers actually return ----
+    const armored = execFileSync('gpg', ['--armor', '--export', 'alice@example.com'], { env }).toString();
+    const armoredComment = execFileSync('gpg', ['--armor', '--comment', 'looked up via keyserver', '--export', 'alice@example.com'], { env }).toString();
+    const same = (a) => !!(a && a.length === keyBytes.length && a.every((b, i) => b === keyBytes[i]));
+    check('dearmor decodes a real gpg armored key byte-for-byte', same(sign._dearmor(armored)));
+    check('dearmor survives armor headers (Comment:)', same(sign._dearmor(armoredComment)));
+    check('dearmor survives CRLF line endings', same(sign._dearmor(armored.replace(/\n/g, '\r\n'))));
+
+    // ---- the FULL email verify() path, with only the network stubbed ----
+    // (the sandbox blocks keys.openpgp.org; everything else is the real code:
+    // statement rebuild → fetch → dearmor → OpenPGP parse → WebCrypto verify)
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      if (String(url).indexOf('keys.openpgp.org/vks/v1/by-email/alice%40example.com') === -1) throw new Error('unexpected URL ' + url);
+      return { ok: true, status: 200, text: async () => armoredComment };
+    };
+    try {
+      const verdict = await sign.verify(emailSigned);
+      check('full verify() says VALID for the email-signed GIF', verdict.status === 'valid' && verdict.id === 'alice@example.com');
+      const verdictT = await sign.verify(sign.writeSig(changedApp, sign.readSig(emailSigned)));
+      check('full verify() says TAMPERED for altered contents', verdictT.status === 'tampered');
+      globalThis.fetch = async () => { throw new Error('offline'); };
+      const verdictOff = await sign.verify(emailSigned);
+      check('full verify() degrades to UNVERIFIED when the keyserver is unreachable', verdictOff.status === 'unverified');
+    } finally { globalThis.fetch = realFetch; }
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
