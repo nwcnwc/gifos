@@ -152,7 +152,14 @@
       .then(() => store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
         parent: null, x: 24, y: 24, iconSize: 64 }))
       .then(() => (state ? store.setState(fileId, state) : null))
-      .then(() => fileId);
+      .then(() => {
+        // Let any open desktop tab repaint and show the new icon immediately.
+        if ('BroadcastChannel' in root) {
+          const chan = new BroadcastChannel('gifos-desktop-sync');
+          chan.postMessage(1); chan.close();
+        }
+        return fileId;
+      });
   }
 
   // ---- DB backends ---------------------------------------------------------
