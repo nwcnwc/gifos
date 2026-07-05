@@ -20,6 +20,10 @@
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
   .bar button:hover { border-color: #7b5cff; }
   .bar button.urgent { border-color: #ff5caa; box-shadow: 0 0 14px rgba(255,92,170,.35); }
+  .sig { display: inline-flex; align-items: center; gap: .3rem; }
+  .sig.ok  { border-color: #34c759; color: #7fe3a0; }
+  .sig.bad { border-color: #ff5c5c; color: #ff9c9c; }
+  .sig.unk { border-color: #8888aa; color: #b0b0c8; }
   /* Compact connection pill: a dot + one calm word (client), or per-status
      counts (host). The verbose sentence lives in a click-to-open popover so
      long status text can never wrap across the screen. */
@@ -54,6 +58,7 @@
 <body>
   <div class="bar">
     <span class="title">GifOS</span>
+    <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
     <button id="save-desktop" title="Keep a full copy of this app + its current state on your Home Screen" style="display:none">Save to Home Screen</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
@@ -78,6 +83,7 @@
     })();
   </script>
   <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
@@ -96,6 +102,26 @@
       let inviteUrl = null;
 
       function showShare(url) { shareUrl.value = url; share.classList.add('show'); }
+
+      // ---- provenance badge: verify the running app's signature ----
+      const sigBtn = document.getElementById('sig');
+      window.__gifosOnApp = function (bytes) {
+        if (!window.GifOS || !GifOS.sign) return;
+        const claim = GifOS.sign.readSig(bytes);
+        if (!claim) { sigBtn.style.display = 'none'; return; }
+        sigBtn.style.display = ''; sigBtn.className = 'sig unk';
+        sigBtn.textContent = '🛡 checking…';
+        GifOS.sign.verify(bytes).then(function (v) {
+          if (v.status === 'valid') { sigBtn.className = 'sig ok'; sigBtn.textContent = '✓ ' + v.id;
+            sigBtn.title = 'Signed by ' + v.id + (v.ts ? ' on ' + v.ts : '') + (v.type === 'email' ? ' (PGP)' : '') + ' — contents unchanged since signing. Proves authorship, not safety.'; }
+          else if (v.status === 'tampered') { sigBtn.className = 'sig bad'; sigBtn.textContent = '⚠ Tampered';
+            sigBtn.title = 'Claims to be signed by ' + (v.id || '?') + ' but the contents changed after signing — do not trust the source.'; }
+          else if (v.status === 'unverified') { sigBtn.className = 'sig unk'; sigBtn.textContent = '🛡 ' + (v.id || 'signed');
+            sigBtn.title = 'Signed by ' + (v.id || '?') + ', but the key could not be checked right now (' + (v.detail || 'offline') + ').'; }
+          else { sigBtn.style.display = 'none'; }
+        });
+        sigBtn.onclick = function () { alert(sigBtn.title); };
+      };
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).
       function shareLink(url) {

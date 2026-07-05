@@ -433,3 +433,56 @@ GIF has no hard size limit; the practical limit is what platforms will transmit 
 - **Merge** — combine two snapshots (git-style merge for shared app state).
 - **Encryption** — password-protected GIFs and end-to-end encrypted relay sessions.
 - **Multi-server** — sharded or replicated DBs for larger sessions instead of a single host browser.
+
+## Provenance Signatures
+
+Any App GIF can be **signed** so GifOS can display who made it — the DKIM model
+for files. A signature proves *authorship of these exact bytes*; it does **not**
+assert the app is safe, and anyone can strip a signature (the file just becomes
+anonymous). Verdicts are honest: **signed / unsigned / tampered** (never
+"malware" — a signature can't prove that).
+
+### Where the signature lives
+
+A `GIFOSSIG` Application Extension block, a sibling of the `GIFOS1.0` filesystem
+block, appended before the trailer. It holds JSON:
+`{ v, type: 'domain'|'email', id, alg, sig (base64), ts }`. Verification excises
+this block byte-for-byte before hashing, so a GIF can be signed after it's built
+and re-signed later.
+
+### What is signed (canonical content hash)
+
+`SHA-256( visualBytes ‖ 0x00 ‖ filesDigest )` where `visualBytes` is the GIF
+with the `GIFOS1.0` and `GIFOSSIG` blocks removed (all pixels/artwork), and
+`filesDigest` is `SHA-256` over the sorted `path\0sha256(bytes)` list of every
+app file **except `.state/**`**. Consequence: **saving app state never voids a
+signature** (state lives only in `GIFOS1.0`, and `.state` is excluded), but
+changing app code or artwork does. The identity string is folded into the signed
+statement, so a signature can't be re-attributed to a different identity that
+shares a key.
+
+### Deriving the key location from the identity (the security crux)
+
+The key URL is **never embedded** — it is derived from the identity being
+displayed, so "Signed by X" is exactly as strong as controlling X:
+
+- **domain** (`nathancheng.com`): Ed25519. The 32-byte public key must be
+  base64 at `https://nathancheng.com/gifos.key` (served with CORS). Signing and
+  verifying use native WebCrypto Ed25519 — zero dependencies.
+- **email** (`alice@example.com`): OpenPGP. The signer signs the canonical
+  statement with their own PGP key; the verifier fetches their key from
+  `keys.openpgp.org` by email and verifies a detached OpenPGP Ed25519 signature.
+  keys.openpgp.org only serves identity info for addresses the owner has
+  confirmed, so an email-bound key that verifies = the address owner signed. The
+  OpenPGP parser is hand-written (validated against real `gpg` output) — still
+  no dependency.
+
+### Trust boundary & UI
+
+Verification runs in the **desktop shell** (which may fetch cross-origin), never
+in the app sandbox. First-seen keys are pinned per identity (TOFU) and a key
+change is flagged. Verdicts are cached per session so icons don't re-ping key
+hosts on every render (also a privacy win). A shield badge sits on signed icons;
+the run bar shows **✓ Signed by …**; the icon context menu has **Verify
+signature**; signing happens at `sign.html` (private keys never leave the
+browser for domain; never touch the page at all for email).
