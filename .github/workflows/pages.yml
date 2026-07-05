@@ -31,3 +31,12 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
+      # Tell IndexNow-capable engines (Bing, Yandex, Seznam, Naver…) that the
+      # site changed. Google doesn't use IndexNow — it discovers via the
+      # sitemap + Search Console. Failures here must never fail a deploy.
+      - name: Ping IndexNow
+        continue-on-error: true
+        run: |
+          curl -sS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d '{"host":"gifos.app","key":"762b4690f472ea2ae0242c947cbc3cc3","keyLocation":"https://gifos.app/762b4690f472ea2ae0242c947cbc3cc3.txt","urlList":["https://gifos.app/","https://gifos.app/about.html","https://gifos.app/llms.txt","https://gifos.app/sitemap.xml"]}' || true
