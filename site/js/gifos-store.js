@@ -69,6 +69,9 @@
     // ---- app state (lives with the icon) ----
     getState: (fileId) => tx('appstate', 'readonly', (os) => reqP(os.get(fileId))).then((r) => (r ? r.state : null)),
     setState: (fileId, state) => tx('appstate', 'readwrite', (os) => reqP(os.put({ fileId, state, updatedAt: nowISO() }))),
+    deleteState: (fileId) => tx('appstate', 'readwrite', (os) => reqP(os.delete(fileId))),
+    allStates: () => tx('appstate', 'readonly', (os) => reqP(os.getAll())),
+    allFiles: () => tx('files', 'readonly', (os) => reqP(os.getAll())),
     // ---- misc ----
     clearAll: () => open().then((db) => Promise.all(['files', 'items', 'appstate'].map((s) =>
       tx(s, 'readwrite', (os) => reqP(os.clear()))))),
