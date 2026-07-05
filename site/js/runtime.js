@@ -215,7 +215,7 @@
       .then(() => {
         // Let any open desktop tab repaint and show the new icon immediately.
         if ('BroadcastChannel' in root) {
-          const chan = new BroadcastChannel('gifos-desktop-sync');
+          const chan = new BroadcastChannel(store.syncChannel);
           chan.postMessage(1); chan.close();
         }
         return fileId;
@@ -229,7 +229,7 @@
   // Local: authoritative store persisted with the icon; cross-tab via BroadcastChannel.
   function makeLocalDb(fileId, onChange) {
     let state = emptyState();
-    const chan = ('BroadcastChannel' in root) ? new BroadcastChannel('gifos-app-' + fileId) : null;
+    const chan = ('BroadcastChannel' in root) ? new BroadcastChannel(store.appChannel(fileId)) : null;
     if (chan) chan.onmessage = (e) => { load().then(() => onChange(e.data.collection)); };
     const load = () => store.getState(fileId).then((s) => { if (s) state = s; return state; });
     const persist = () => store.setState(fileId, state);
