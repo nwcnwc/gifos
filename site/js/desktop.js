@@ -185,9 +185,9 @@
   }
 
   function updateCrumbs() {
-    if (!currentFolder) { crumbs.textContent = 'Desktop'; return; }
+    if (!currentFolder) { crumbs.textContent = 'Home Screen'; return; }
     const folder = items.find((i) => i.id === currentFolder);
-    crumbs.innerHTML = '<a id="crumb-root">Desktop</a> › ' + (folder ? escapeHtml(folder.name) : '…');
+    crumbs.innerHTML = '<a id="crumb-root">Home Screen</a> › ' + (folder ? escapeHtml(folder.name) : '…');
     const rootLink = document.getElementById('crumb-root');
     if (rootLink) rootLink.onclick = () => { currentFolder = null; selectedId = null; render(); };
   }
@@ -339,11 +339,11 @@
       const m = archive ? gif.readManifest(archive) : null;
       if (archive && m && m.type === 'desktop' && archive.files['desktop.json']) {
         showConfirm('This GIF is a whole computer',
-          '"' + escapeHtml(it.name) + '" is a full GifOS desktop image. <b>Boot it</b> to run that computer in a new tab — ' +
-          'your desktop here is untouched. Or <b>replace</b> this desktop with it (destructive).',
+          '"' + escapeHtml(it.name) + '" holds a whole GifOS computer. <b>Boot it</b> to run that computer in a new tab — ' +
+          'your Home Screen here is untouched. Or <b>replace</b> this Home Screen with it (destructive).',
           [
-            { label: '▶ Boot this computer', fn: () => root.open('boot.html#id=' + encodeURIComponent(it.fileId) + nsParam('&from='), '_blank') },
-            { label: 'Replace this desktop', danger: true, fn: () => restoreDesktop(archive) },
+            { label: 'Boot this computer', fn: () => root.open('boot.html#id=' + encodeURIComponent(it.fileId) + nsParam('&from='), '_blank') },
+            { label: 'Replace this Home Screen', danger: true, fn: () => restoreDesktop(archive) },
           ]);
         return;
       }
@@ -386,8 +386,8 @@
       if (archive && m.type === 'desktop' && archive.files['desktop.json']) {
         await new Promise((done) => {
           showConfirm('Desktop backup detected',
-            '"' + escapeHtml(f.name) + '" is a full GifOS desktop backup. Restore it? ' +
-            '<b>This replaces everything currently on this desktop.</b>',
+            '"' + escapeHtml(f.name) + '" is a full GifOS backup. Restore it? ' +
+            '<b>This replaces everything currently on this Home Screen.</b>',
             [
               { label: 'Restore this backup', danger: true, fn: async () => { await restoreDesktop(archive); done(); } },
               { label: 'Add as a file instead', fn: async () => { await addFileIcon(f.name, buf, archive, m, baseX + i * 20, baseY + i * 20); done(); } },
@@ -467,7 +467,7 @@
       ];
     } else if (it && isInTrash(it)) {
       entries = [
-        { label: 'Restore to Desktop', fn: () => restoreFromTrash(it) },
+        { label: 'Put back on Home Screen', fn: () => restoreFromTrash(it) },
         'sep',
         { label: 'Delete permanently', cls: 'danger', fn: () => confirmDeletePermanently(it) },
       ];
@@ -630,7 +630,7 @@
     blobUrls.clear();
     currentFolder = null; selectedId = null;
     await load(); await ensureSystemItems(); render();
-    showModal('Desktop restored', 'Your desktop was restored from the backup GIF.');
+    showModal('Home Screen restored', 'Your Home Screen was restored from the backup GIF.');
   }
 
   // ---------- modals ----------
@@ -723,18 +723,18 @@
 
   sysBtn.addEventListener('click', () => menuUnder(sysBtn, [
     { label: 'About GifOS', fn: () => showModal('GifOS v' + VERSION,
-      'Your GIF-powered desktop. Apps are GIFs. Data is GIFs.<br><br>' +
-      'Everything on this desktop lives in this browser — nothing on our servers.<br><br>' +
+      'Your GIF-powered computer, right in your browser. Apps are GIFs. Data is GIFs.<br><br>' +
+      'Everything on this Home Screen lives in this browser — nothing on our servers.<br><br>' +
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
       '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
     'sep',
-    { label: 'Back up desktop…', fn: backupDesktop },
+    { label: 'Back up Home Screen…', fn: backupDesktop },
     { label: 'Restore from backup…', fn: () => restoreInput.click() },
     'sep',
     { label: 'Empty Trash', fn: emptyTrash },
     'sep',
     { label: 'Settings…', fn: showSettings },
-    { label: 'Reset desktop…', cls: 'danger', fn: resetFlow },
+    { label: 'Reset Home Screen…', cls: 'danger', fn: resetFlow },
   ]));
 
   // ---------- version: update nudge + pinning ----------
@@ -774,9 +774,9 @@
     closeContext();
     const pinned = pinnedVersion();
     const behind = cmpVer(latestVersion, VERSION) > 0;
-    const status = pinned ? '📌 Pinned to v' + VERSION + (behind ? ' (latest is v' + latestVersion + ')' : '')
-      : behind ? '⬆️ Update available: v' + latestVersion + ' — <a id="set-reload" href="#">reload</a>'
-      : '✅ You are on the latest version.';
+    const status = pinned ? 'Pinned to v' + VERSION + (behind ? ' (latest is v' + latestVersion + ')' : '')
+      : behind ? 'Update available: v' + latestVersion + ' — <a id="set-reload" href="#">reload</a>'
+      : 'You are on the latest version.';
     // Version rows (newest first); switching reloads through the bootstrap.
     const rows = availableVersions.slice().sort(cmpVer).reverse().map((v) => {
       const isLatest = v === latestVersion;
@@ -793,8 +793,8 @@
     const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted().catch(() => false) : false;
     const storageLine = est ? 'Using <b>' + fmtBytes(est.usage || 0) + '</b> of about ' + fmtBytes(est.quota || 0) + '.' : 'Storage details unavailable in this browser.';
     const persistLine = persisted
-      ? '✅ Protected — the browser won\'t clear this desktop to free space.'
-      : '⚠️ Not yet protected. GifOS asks automatically; browsers grant it once a site is used a bit. You can also keep a backup GIF (GifOS menu → Back up desktop).';
+      ? 'Protected — the browser won\'t clear this Home Screen to free space.'
+      : 'Not yet protected. GifOS asks automatically; browsers grant it once a site is used a bit. You can also keep a backup GIF (GifOS menu → Back up Home Screen).';
 
     let prefs = null; try { prefs = await store.getState('sys::prefs'); } catch (e) {}
     const curColor = (prefs && prefs.bg && prefs.bg.color) || '#0a0a0f';
@@ -811,14 +811,14 @@
       '<p class="add-help">Pick a color or use your own picture.</p>' +
       '<div class="bg-row">' +
         '<input type="color" id="set-bg-color" value="' + escapeHtml(curColor) + '" title="Background color">' +
-        '<button id="set-bg-image">🖼️ Use a picture…</button>' +
+        '<button id="set-bg-image">Use a picture…</button>' +
         '<button id="set-bg-reset" class="ghost">Reset</button>' +
       '</div>' +
       '<div class="add-sep"></div>' +
       '<details class="adv"><summary>Advanced settings</summary>' +
       '<h4>Storage</h4>' +
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
-      (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this desktop now</button>') +
+      (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this Home Screen now</button>') +
       '<h4>Version</h4>' +
       '<p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. ' + status + '</p>' +
       '<p class="add-help">Run a specific version — past builds are served unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
@@ -853,15 +853,15 @@
       const finish = (msg) => { if (!done) { done = true; out.textContent = msg; } };
       try {
         const ws = new WebSocket(url.replace(/\/$/, '') + '/s/connection-test?role=client');
-        const timer = setTimeout(() => { finish('❌ No answer after 8s — the relay is unreachable from here.'); try { ws.close(); } catch (e) {} }, 8000);
-        ws.onmessage = () => { clearTimeout(timer); finish('✅ Relay is reachable — invites will work.'); try { ws.close(); } catch (e) {} };
-        ws.onerror = () => { clearTimeout(timer); finish('❌ Could not connect. If this is the default relay, its Worker may not be deployed on this domain (see relay/ in the repo).'); };
-      } catch (e) { finish('❌ ' + (e.message || e)); }
+        const timer = setTimeout(() => { finish('No answer after 8 seconds — the relay is unreachable from here.'); try { ws.close(); } catch (e) {} }, 8000);
+        ws.onmessage = () => { clearTimeout(timer); finish('Relay is reachable — invites will work.'); try { ws.close(); } catch (e) {} };
+        ws.onerror = () => { clearTimeout(timer); finish('Could not connect. If this is the default relay, its Worker may not be deployed on this domain (see relay/ in the repo).'); };
+      } catch (e) { finish('Error: ' + (e.message || e)); }
     };
     const persistBtn = box.querySelector('#set-persist');
     if (persistBtn) persistBtn.onclick = async () => {
       const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
-      persistBtn.textContent = ok ? '✅ Protected' : 'The browser declined for now — it grants this once the site is used more';
+      persistBtn.textContent = ok ? 'Protected' : 'The browser declined for now — it grants this once the site is used more';
       persistBtn.disabled = true;
     };
     box.querySelector('#set-save').onclick = () => {
@@ -970,7 +970,7 @@
     const bg = document.createElement('div'); bg.className = 'modal-bg';
     const box = document.createElement('div'); box.className = 'modal wide';
     box.innerHTML =
-      '<h3>Add to your desktop</h3>' +
+      '<h3>Add to your Home Screen</h3>' +
       '<div class="add-actions">' +
         '<button id="ad-file">📄 Add file(s)…</button>' +
         '<button id="ad-folder">📁 New Folder</button>' +
@@ -997,7 +997,7 @@
       const t = box.querySelector('#ad-prompt'); t.select();
       try { document.execCommand('copy'); } catch (e) {}
       if (navigator.clipboard) navigator.clipboard.writeText(AI_PROMPT).catch(() => {});
-      box.querySelector('#ad-copy').textContent = '✅ Copied — now paste it into any AI';
+      box.querySelector('#ad-copy').textContent = 'Copied — now paste it into any AI';
     };
     box.querySelector('#ad-create').onclick = async () => {
       const html = extractHtml(box.querySelector('#ad-html').value);
@@ -1022,23 +1022,23 @@
     const bytes = new Uint8Array(await f.arrayBuffer());
     const archive = await gif.decode(bytes);
     if (!archive || !archive.files['desktop.json']) {
-      showModal('Not a desktop backup', 'That GIF is not a GifOS desktop backup. (App snapshots load by dropping them on the desktop.)');
+      showModal('Not a backup GIF', 'That GIF is not a GifOS backup. (App snapshots load by dropping them on the Home Screen.)');
       return;
     }
     showConfirm('Restore this backup?',
-      '<b>This replaces everything currently on this desktop</b> with the backup\'s contents.',
-      [{ label: 'Replace desktop', danger: true, fn: () => restoreDesktop(archive) }]);
+      '<b>This replaces everything currently on this Home Screen</b> with the backup\'s contents.',
+      [{ label: 'Replace Home Screen', danger: true, fn: () => restoreDesktop(archive) }]);
   });
 
   // Dev-only escape hatch — dies before 1.0. Backup is one click away on purpose.
   function resetFlow() {
-    showConfirm('Reset this desktop?',
+    showConfirm('Reset this Home Screen?',
       'This erases <b>every file, folder, and app state</b> stored in this browser. There is no undo and no server copy.',
       [
         { label: 'Back up first, then reset', fn: async () => {
           await backupDesktop();
-          showConfirm('Backup downloaded', 'Your desktop backup GIF is downloading. Reset now?',
-            [{ label: 'Reset desktop', danger: true, fn: async () => { await store.clearAll(); location.reload(); } }]);
+          showConfirm('Backup downloaded', 'Your backup GIF is downloading. Reset now?',
+            [{ label: 'Reset Home Screen', danger: true, fn: async () => { await store.clearAll(); location.reload(); } }]);
         } },
         { label: 'Reset without backup', danger: true, fn: async () => { await store.clearAll(); location.reload(); } },
       ]);
