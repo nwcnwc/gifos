@@ -1,0 +1,53 @@
+# GifOS — build apps for it
+
+> GifOS (https://gifos.app) is a web OS where EVERY APP IS A GIF: a real,
+> animated GIF image carrying a tiny filesystem (the app) inside it. Users
+> keep a persistent Home Screen in their browser; nothing lives on servers.
+> Apps go multiplayer with one invite link (P2P WebRTC, relay fallback).
+
+If a user asks you to build them a GifOS app, you can deliver a FINISHED,
+working app. Two ways:
+
+## Best: the GifOS MCP server (finished .gif, animated icon and all)
+
+Connect an MCP client to:  https://mcp.gifos.app/mcp
+(In Claude: Settings -> Connectors -> Add custom connector -> that URL.)
+
+Tools:
+- get_build_guide  — the full spec (read first)
+- validate_app     — static sandbox-rule checks on your HTML
+- pack_app         — packs your HTML (+ optional pixel-art animated icon)
+                     into a real .gif and returns the bytes (base64).
+                     Save as "<App>.gif" and hand the file to the user.
+
+## Also good: hand the user HTML they paste into GifOS
+
+GifOS itself packs HTML into an app GIF locally: the user opens
+https://gifos.app -> "+ Add" -> pastes your index.html (or drops a .zip for
+multi-file apps). Same result, packed in their browser.
+
+## The app rules (summary — get_build_guide has the full version)
+
+1. ONE complete self-contained index.html: all CSS in <style>, all JS in
+   <script>. No external files, CDNs, frameworks, remote images, or fonts —
+   the sandbox blocks all outside network. Inline SVG + emoji are fine.
+2. Persistence: localStorage/cookies/indexedDB are DISABLED. Use:
+     const db = gifos.db('items');
+     await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
+     db.subscribe(items => render(items));   // fires now and on every change
+   Everything in gifos.db() persists inside the app's icon AND syncs to all
+   players in multiplayer. Render from subscribe() = multiplayer for free.
+3. Identity: const me = await gifos.me(); -> { id, name }. Attribute records
+   to me.id/me.name so every player sees who did what.
+4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.
+5. Dark theme by default (#0a0a0f), mobile-friendly.
+6. Icon: include <link rel="icon" href="data:image/svg+xml,..."> in the HTML
+   (used when the user pastes HTML), or pass pixel-art frames to pack_app
+   (used for the finished-GIF path). Animated icons are the GifOS signature.
+
+## More
+
+- Site: https://gifos.app  (the OS itself; open-source)
+- Source + docs: https://github.com/nwcnwc/gifos
+- Multiplayer relay: wss://relay.gifos.app (control traffic only; media is
+  strictly peer-to-peer)

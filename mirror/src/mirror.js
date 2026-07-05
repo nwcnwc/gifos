@@ -28,10 +28,10 @@ export default {
     // If relay traffic lands here, the relay Worker's route is missing and
     // the wildcard swallowed it. Fail LOUDLY — a silent 301 turns into a
     // mystery "relay connection failed" on someone's phone.
-    if (sub === 'relay') {
+    if (sub === 'relay' || sub === 'mcp') {
       return new Response(
-        'gifos-mirror intercepted relay.gifos.app — the relay Worker route is missing.\n' +
-        'Fix: cd relay && npx wrangler deploy   (see mirror/README.md)\n',
+        'gifos-mirror intercepted ' + sub + '.gifos.app — that Worker\'s route is missing.\n' +
+        'Fix: cd ' + sub + ' && npx wrangler deploy   (see mirror/README.md)\n',
         { status: 530, headers: { 'content-type': 'text/plain' } });
     }
 
