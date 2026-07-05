@@ -83,6 +83,7 @@
         const img = document.createElement('img');
         img.src = blobUrlFor(it.fileId, file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes));
         img.alt = it.name;
+        img.draggable = false; // pointer-drag the icon, not the image
         thumb.appendChild(img);
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
@@ -106,37 +107,90 @@
     if (rootLink) rootLink.onclick = () => { currentFolder = null; selectedId = null; render(); };
   }
 
-  // ---------- icon interaction (drag, double-click, select) ----------
-  function wireIcon(el, it) {
-    let down = null, moved = false;
+  // ---------- grid snapping (Windows-style: drag anywhere, land on a cell) ----
+  const GRID = { origin: 16, pitch: 116 };
+  const gridCols = () => Math.max(1, Math.floor((surface.clientWidth - 20) / GRID.pitch));
+  function cellOf(x, y, cols) {
+    return {
+      col: Math.min(cols - 1, Math.max(0, Math.round(((x || GRID.origin) - GRID.origin) / GRID.pitch))),
+      row: Math.max(0, Math.round(((y || GRID.origin) - GRID.origin) / GRID.pitch)),
+    };
+  }
+  // Nearest empty cell to (px,py) among siblings in `parent`, ring-searching outward.
+  function nearestFreeCell(px, py, parent, excludeId) {
+    const cols = gridCols();
+    const target = cellOf(px, py, cols);
+    const taken = new Set(items
+      .filter((i) => (i.parent || null) === (parent || null) && i.id !== excludeId)
+      .map((i) => { const c = cellOf(i.x, i.y, cols); return c.col + ',' + c.row; }));
+    for (let r = 0; r < 200; r++) {
+      let best = null, bestD = Infinity;
+      for (let dc = -r; dc <= r; dc++) {
+        for (let dr = -r; dr <= r; dr++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue; // ring perimeter only
+          const col = target.col + dc, row = target.row + dr;
+          if (col < 0 || col >= cols || row < 0) continue;
+          const d = dc * dc + dr * dr;
+          if (d < bestD && !taken.has(col + ',' + row)) { bestD = d; best = { col, row }; }
+        }
+      }
+      if (best) return { x: GRID.origin + best.col * GRID.pitch, y: GRID.origin + best.row * GRID.pitch };
+    }
+    return { x: px, y: py }; // desktop is impossibly full — leave as dropped
+  }
 
-    el.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
+  // ---------- icon interaction (drag, double-click, select) ----------
+  // Pointer events unify mouse + touch; long-press opens the context menu on touch.
+  function wireIcon(el, it) {
+    let down = null, moved = false, lpTimer = null;
+    const clearLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.target.tagName === 'INPUT') return;          // renaming — let the input work
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();                                 // no native image drag / text select
       selectedId = it.id;
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
-      down = { x: e.clientX, y: e.clientY, ox: it.x || 16, oy: it.y || 16 };
+      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin };
       moved = false;
+      el.setPointerCapture(e.pointerId);
+      if (e.pointerType !== 'mouse') {
+        lpTimer = setTimeout(() => {                     // long-press → context menu
+          if (!moved && down) { down = null; showContextMenu({ clientX: e.clientX, clientY: e.clientY }, it); }
+        }, 500);
+      }
     });
-    window.addEventListener('mousemove', (e) => {
+    el.addEventListener('pointermove', (e) => {
       if (!down) return;
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
-      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearLp(); }
       if (moved) {
         el.style.left = Math.max(0, down.ox + dx) + 'px';
         el.style.top = Math.max(0, down.oy + dy) + 'px';
         highlightDropTarget(e, it);
       }
     });
-    window.addEventListener('mouseup', async (e) => {
+    el.addEventListener('pointerup', async (e) => {
+      clearLp();
       if (!down) return;
       const wasMoved = moved; down = null;
       if (!wasMoved) return;
       const targetFolder = folderUnder(e, it);
-      it.x = parseInt(el.style.left, 10); it.y = parseInt(el.style.top, 10);
-      if (targetFolder) { it.parent = targetFolder.id; }
+      if (targetFolder) {
+        it.parent = targetFolder.id;                     // dropped into a folder
+      } else {
+        const snapped = nearestFreeCell(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
+        it.x = snapped.x; it.y = snapped.y;
+      }
       await store.putItem(it);
       clearDropTargets();
       render();
+    });
+    el.addEventListener('pointercancel', () => {         // scroll/gesture stole the pointer
+      clearLp(); down = null;
+      el.style.left = (it.x || GRID.origin) + 'px';
+      el.style.top = (it.y || GRID.origin) + 'px';
+      clearDropTargets();
     });
 
     el.addEventListener('dblclick', () => openItem(it));
@@ -192,11 +246,13 @@
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: f.name, bytes: buf, kind: isGif ? 'gif' : 'other',
         isApp, appId, accent, mime: f.type || 'application/octet-stream' });
+      const spot = nearestFreeCell(e.offsetX + i * 20, e.offsetY + i * 20, currentFolder, null);
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: f.name,
-        parent: currentFolder, x: e.offsetX + i * 20, y: e.offsetY + i * 20, iconSize: 64 });
+        parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+      await load(); // refresh items so the next file's free-cell search sees this one
       i++;
     }
-    await load(); render();
+    render();
   });
 
   // ---------- context menu ----------
@@ -243,8 +299,9 @@
     await load(); render();
   }
   async function newFolder(x, y) {
+    const spot = nearestFreeCell(x || GRID.origin, y || GRID.origin, currentFolder, null);
     const it = { id: store.uid('item'), kind: 'folder', name: 'New Folder', parent: currentFolder,
-      x: x || 40, y: y || 40, iconSize: 64 };
+      x: spot.x, y: spot.y, iconSize: 64 };
     await store.putItem(it); await load(); render();
     beginRename(it);
   }
@@ -279,8 +336,8 @@
     }
   };
 
-  // deselect on empty click
-  surface.addEventListener('mousedown', (e) => { if (e.target === surface) { selectedId = null; surface.querySelectorAll('.icon.selected').forEach((n) => n.classList.remove('selected')); } });
+  // deselect on empty click/tap
+  surface.addEventListener('pointerdown', (e) => { if (e.target === surface) { selectedId = null; surface.querySelectorAll('.icon.selected').forEach((n) => n.classList.remove('selected')); } });
 
   // ---------- boot ----------
   load().then(seedIfEmpty).then(render);

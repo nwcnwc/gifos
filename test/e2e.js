@@ -89,6 +89,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bText = await B.locator('#list').textContent();
   check('guestbook entry from tab A appears live in tab B (cross-tab DB)', /hello from tab A/.test(bText));
 
+  // ---- drag an icon: it should snap to a grid cell and persist ----
+  const dragIcon = page.locator('.icon', { hasText: 'Notes.gif' });
+  const box = await dragIcon.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 240, box.y + 150, { steps: 8 });
+  await page.mouse.up();
+  await sleep(400);
+  const posAfterDrag = await page.locator('.icon', { hasText: 'Notes.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  const onGrid = (posAfterDrag.left - 16) % 116 === 0 && (posAfterDrag.top - 16) % 116 === 0;
+  check('dragged icon snaps to a grid cell', onGrid && !(posAfterDrag.left === 16 && posAfterDrag.top === 16));
+  await page.reload();
+  await page.waitForSelector('.icon');
+  await sleep(300);
+  const posAfterReload = await page.locator('.icon', { hasText: 'Notes.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  check('icon position persists across reload',
+    posAfterReload.left === posAfterDrag.left && posAfterReload.top === posAfterDrag.top);
+
   // ---- snapshot hydration: a GIF with embedded .state resumes where it was saved ----
   const deskPage = await context.newPage();
   await deskPage.goto(BASE + '/index.html');
