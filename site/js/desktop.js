@@ -192,6 +192,7 @@
         img.alt = it.name;
         img.draggable = false; // pointer-drag the icon, not the image
         thumb.appendChild(img);
+        signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
@@ -213,12 +214,15 @@
   // (open the app, or "Verify signature"), and the verdict is cached per
   // session so icons don't re-ping domains/keyservers on every render.
   const sigVerdicts = new Map(); // fileId -> verdict object
+  const signableFiles = new Set(); // fileId is a GIF (signing/verifying applies)
+  const signedFiles = new Set();   // fileId carries a GIFOSSIG block
   const SIG_ICON = { valid: '✓', tampered: '⚠', unverified: '🛡', pending: '🛡' };
   const SIG_CLASS = { valid: 'sig-ok', tampered: 'sig-bad', unverified: 'sig-unk', pending: 'sig-unk' };
   function addSigBadge(thumb, it, bytes) {
     if (!GifOS.sign) return;
     const sig = GifOS.sign.readSig(bytes);
-    if (!sig) return;
+    if (!sig) { signedFiles.delete(it.fileId); return; }
+    signedFiles.add(it.fileId);
     const cached = sigVerdicts.get(it.fileId);
     const state = cached ? cached.status : 'pending';
     const badge = document.createElement('span');
@@ -232,6 +236,12 @@
     if (v.status === 'tampered') return 'Tampered — contents changed after ' + (v.id ? v.id + ' ' : '') + 'signed';
     if (v.status === 'unverified') return 'Signed by ' + (v.id || '?') + ' — could not verify right now (' + (v.detail || 'offline') + ')';
     return 'Unsigned';
+  }
+  // Open the signing page with THIS GIF preloaded (by fileId + namespace),
+  // so the user lands ready to sign — no re-download/re-drop needed.
+  function signItem(it) {
+    closeContext();
+    root.open('sign.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='), '_blank');
   }
   async function verifyItem(it) {
     if (!GifOS.sign) return;
@@ -580,7 +590,11 @@
       entries = [
         { label: 'Open', fn: () => openItem(it) },
         ...(it.kind === 'file' ? [{ label: 'Download', fn: () => downloadItem(it) }] : []),
-        ...(it.kind === 'file' ? [{ label: 'Verify signature', fn: () => verifyItem(it) }] : []),
+        ...(it.kind === 'file' && signableFiles.has(it.fileId)
+          ? (signedFiles.has(it.fileId)
+              ? [{ label: 'Verify signature', fn: () => verifyItem(it) }, { label: 'Re-sign this GIF…', fn: () => signItem(it) }]
+              : [{ label: 'Sign this GIF…', fn: () => signItem(it) }])
+          : []),
         { label: 'Rename', fn: () => beginRename(it) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
         { label: 'Smaller icon', fn: () => resizeIcon(it, -16) },

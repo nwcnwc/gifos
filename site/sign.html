@@ -109,8 +109,17 @@
   <div class="foot">Signing proves authorship, not safety. Anyone can strip a signature (the file just becomes anonymous), and a signature only says the contents are unchanged since signing. <a href="/">← Back to GifOS</a></div>
 </div>
 
+<script>
+  // Bind to the right computer BEFORE the store loads, so "Sign this GIF" from
+  // a booted computer image reads that image's files, not the host's.
+  (function () {
+    var db = new URLSearchParams(location.hash.slice(1)).get('db');
+    if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+  })();
+</script>
 <script src="js/gifos-gif.js"></script>
 <script src="js/gifos-sign.js"></script>
+<script src="js/gifos-store.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -131,16 +140,28 @@
   drop.addEventListener('drop', (ev) => { const f = ev.dataTransfer.files[0]; if (f) loadFile(f); });
   $('file').onchange = (ev) => { if (ev.target.files[0]) loadFile(ev.target.files[0]); };
   async function loadFile(f) {
-    gifBytes = new Uint8Array(await f.arrayBuffer());
-    gifName = f.name.replace(/\.gif$/i, '');
+    setBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+  }
+  function setBytes(bytes, name) {
+    gifBytes = bytes;
+    gifName = (name || 'app.gif').replace(/\.gif$/i, '');
     if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) { msg('That is not a GIF file.', 'err'); return; }
     drop.classList.add('have');
-    drop.innerHTML = '<b>' + f.name + '</b> loaded — sign it below';
+    drop.innerHTML = '<b>' + gifName + '.gif</b> loaded — sign it below';
     $('signui').style.display = '';
     const existing = GifOS.sign.readSig(gifBytes);
     msg(existing ? 'Note: this GIF is already signed by ' + existing.id + '. Signing replaces it.' : '', existing ? 'err' : '');
     refresh();
   }
+  // Preloaded from the Home Screen: sign.html#id=<fileId>[&db=<namespace>]
+  (async function () {
+    const id = new URLSearchParams(location.hash.slice(1)).get('id');
+    if (!id || !window.GifOS || !GifOS.store) return;
+    try {
+      const rec = await GifOS.store.getFile(id);
+      if (rec && rec.bytes) setBytes(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), rec.name);
+    } catch (e) { /* fall back to the drop zone */ }
+  })();
 
   // ---- tabs ----
   function tab(which) {
