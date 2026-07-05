@@ -43,6 +43,14 @@
   // ---- app-facing shim injected into the sandboxed iframe -----------------
   function clientShim() {
     return `(function(){
+      // Neuter WebRTC: CSP's 'webrtc' directive is not universally supported,
+      // so hard-remove the constructors before app code runs. connect-src 'none'
+      // already blocks fetch/XHR/WebSocket/EventSource/beacons; this closes the
+      // one network primitive CSP can't reliably reach. frame-src/worker limits
+      // mean the app can't obtain a fresh copy from a child context.
+      ['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel'].forEach(function(k){
+        try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch(e){ try { window[k] = undefined; } catch(e2){} }
+      });
       var pending = {}, subs = {};
       function rpc(msg){ return new Promise(function(res, rej){
         var id = 'r'+Math.random().toString(36).slice(2);
@@ -85,6 +93,30 @@
     })();`;
   }
 
+  // ---- CSP injected into every app document ---------------------------------
+  // The browser itself refuses every direct network primitive from app code:
+  // fetch/XHR/WebSocket/EventSource/beacons (connect-src), image/media/font
+  // beacons, external form posts, nested frames, and WebRTC. The ONLY network
+  // path is the postMessage bridge — enforced by the runtime's manifest
+  // allowlist and executed from the runtime's origin, which this CSP does not
+  // govern. Inline code and data:/blob: assets (how apps are packed) stay legal.
+  const APP_CSP = [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    'img-src data: blob:',
+    'media-src data: blob:',
+    'font-src data:',
+    'worker-src blob:',
+    "connect-src 'none'",
+    "form-action 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    // (WebRTC is neutered in the shim instead of via a CSP 'webrtc' directive,
+    //  which is not supported across all browsers.)
+  ].join('; ');
+
   // ---- build a runnable, self-contained HTML doc from the archive ----------
   function buildAppHtml(files) {
     let html = gif.bytesToText(files['index.html']);
@@ -97,10 +129,26 @@
     html = html.replace(/\b(src|href)=["']([^"']+)["']/gi, (m, attr, ref) => {
       const key = norm(ref); return files[key] ? attr + '="' + dataUrl(key, files[key]) + '"' : m;
     });
-    const shim = '<script>' + clientShim() + '</script>';
-    if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => m + shim);
-    else html = shim + html;
-    return html;
+    // Parse to a real document so the CSP <meta> lands as the FIRST child of
+    // <head> (browsers ignore a CSP meta placed anywhere else). The parser
+    // normalizes fragments, apps with a partial <head>, and full documents
+    // alike, so the policy is always enforced. The shim rides right behind the
+    // CSP so window.gifos exists before any app code runs.
+    if (typeof DOMParser === 'function') {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const meta = doc.createElement('meta');
+      meta.setAttribute('http-equiv', 'Content-Security-Policy');
+      meta.setAttribute('content', APP_CSP);
+      const shim = doc.createElement('script');
+      shim.textContent = clientShim();
+      doc.head.insertBefore(shim, doc.head.firstChild);
+      doc.head.insertBefore(meta, doc.head.firstChild);
+      return '<!doctype html>' + doc.documentElement.outerHTML;
+    }
+    // Non-DOM fallback (tooling): best-effort inject into <head> if present.
+    const head = '<meta http-equiv="Content-Security-Policy" content="' + APP_CSP + '">' +
+      '<script>' + clientShim() + '</script>';
+    return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
   }
 
   function buildFolderHtml(files) {

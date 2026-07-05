@@ -280,11 +280,51 @@ Recovery fidelity equals the **freshest available snapshot** — clients are enc
 
 ## Security Considerations
 
-- Apps run in an **iframe within an isolated tab**; they reach the DB, relay, and network **only** through the runtime library, never directly.
-- The runtime enforces per-app **capabilities** from `manifest.json` (db, multiplayer, network allowlist).
-- **Join tokens** scope a client to a single server session; the server validates every join.
-- Snapshots are plain GIFs — treat a shared snapshot as sharing the data it contains.
-- The relay is a dumb pipe: it authenticates session routing but never inspects, stores, or decrypts payloads.
+### App isolation & namespacing
+
+Each app runs in a **sandboxed iframe** (`allow-scripts allow-forms`, no
+`allow-same-origin`), so it has an **opaque (null) origin**. Consequences:
+
+- **Storage is per-icon and collision-free.** The only persistence an app has is
+  `gifos.db()`, whose backend is keyed by the **desktop icon's fileId**, not by
+  `appId`. Two different apps → different fileIds → fully separate databases.
+  Duplicating an icon forks its data; opening the *same* icon twice shares it.
+- **Native browser storage is unavailable, not shared.** `localStorage`,
+  `IndexedDB`, and `cookies` throw in an opaque origin — so there's nothing to
+  collide in, and an app cannot reach the desktop's own `gifos` database.
+- **The postMessage bridge is bound per-iframe.** The runtime checks `e.source`
+  is that app's window, and its DB closure is hard-wired to that icon's fileId —
+  an app cannot name another icon's fileId to read a neighbor.
+
+### Network: the bridge is the only way out
+
+A **Content-Security-Policy** `<meta>` is injected as the first child of every
+app document (`default-src 'none'`; `connect-src 'none'`; inline script/style
+and `data:`/`blob:` assets only; `form-action`, `frame-src`, `object-src`,
+`base-uri` all `'none'`). The browser therefore refuses every direct network
+primitive from app code — `fetch`, `XMLHttpRequest`, `WebSocket`,
+`EventSource`, `sendBeacon`, image/media beacons, external form posts. WebRTC
+(whose DataChannels bypass `connect-src`, and whose CSP directive isn't
+universally supported) is neutered by removing `RTCPeerConnection` &co. in the
+injected shim before app code runs.
+
+The **only** network path is `gifos.fetch()` → postMessage → runtime, which
+enforces the manifest `network` allowlist and executes from the runtime's real
+origin (not governed by the app CSP). So the allowlist is real policy, not
+etiquette: an undeclared host is unreachable. Residual theoretical leak: an app
+can navigate *its own* window away (no CSP directive covers this), which is
+one-shot, low-bandwidth, and destroys the app UI in plain sight.
+
+### Multiplayer & data
+
+- The runtime enforces per-app **capabilities** from `manifest.json` (db,
+  multiplayer, network allowlist).
+- **Join tokens** scope a client to a single server session; the server
+  validates every join.
+- Snapshots are plain GIFs — treat a shared snapshot as sharing the data it
+  contains.
+- The relay is a dumb pipe: it routes by session but never inspects, stores, or
+  decrypts payloads; P2P DataChannels are DTLS-encrypted end-to-end.
 
 ## Size Limits
 

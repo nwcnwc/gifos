@@ -158,6 +158,54 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('snapshot GIF hydrates its embedded state on first run', resumed === 'resumed-from-gif');
   await resumePage.close();
 
+  // ---- CSP hardening: hostile app can't reach the network directly, ----
+  // ---- but the permission-gated bridge still works ----
+  await deskPage.evaluate(async (base) => {
+    const appHtml = '<!doctype html><div id="out">running</div><script>' +
+      'var v = 0;' +
+      "document.addEventListener('securitypolicyviolation', function(){ v++; });" +
+      "try { var x = new XMLHttpRequest(); x.open('GET', '" + base + "/index.html'); x.send(); } catch(e){}" +
+      "try { new WebSocket('ws://127.0.0.1:8099/'); } catch(e){}" +
+      "try { var im = new Image(); im.src = '" + base + "/index.html?beacon'; } catch(e){}" +
+      "var rtc = (typeof RTCPeerConnection === 'undefined') ? 'blocked' : 'available';" +
+      "try { new RTCPeerConnection(); rtc = 'made'; } catch(e){}" +
+      'setTimeout(function(){' +
+      "  gifos.fetch('" + base + "/index.html').then(function(r){" +
+      "    document.getElementById('out').textContent = JSON.stringify({ v: v, rtc: rtc, bridge: r.status });" +
+      '  }).catch(function(e){' +
+      "    document.getElementById('out').textContent = JSON.stringify({ v: v, rtc: rtc, bridge: 'ERR:' + e.message });" +
+      '  });' +
+      '}, 900);' +
+      '</scr' + 'ipt>';
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'hostile-test', name: 'Hostile', entry: 'index.html',
+        capabilities: { db: true, network: ['127.0.0.1'] } }),
+      'index.html': appHtml,
+    });
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: 'Hostile.gif', bytes, kind: 'gif', isApp: true, appId: 'hostile-test', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: 'Hostile.gif', parent: null, x: 520, y: 200, iconSize: 64 });
+    await GifOS.desktop.load();
+    await GifOS.desktop.render();
+  }, BASE);
+  const [hostilePage] = await Promise.all([
+    context.waitForEvent('page'),
+    deskPage.locator('.icon', { hasText: 'Hostile.gif' }).dblclick(),
+  ]);
+  // Catch the "CSP meta ignored (outside <head>)" warning — the app above has
+  // NO <head>, the exact case that was silently unprotected before.
+  let cspIgnored = false;
+  hostilePage.on('console', (m) => { if (/Content Security Policy.*ignored/i.test(m.text())) cspIgnored = true; });
+  await hostilePage.waitForSelector('iframe');
+  const hostileApp = hostilePage.frameLocator('iframe');
+  await hostilePage.waitForTimeout(1600);
+  const verdict = JSON.parse(await hostileApp.locator('#out').textContent());
+  check('CSP is actually applied to a no-<head> app (not ignored)', !cspIgnored);
+  check('CSP blocks direct XHR + WebSocket + image beacon (3 violations)', verdict.v >= 3);
+  check('WebRTC constructors neutered (no DataChannel exfil)', verdict.rtc === 'blocked');
+  check('permission-gated bridge fetch still works under CSP', verdict.bridge === 200);
+  await hostilePage.close();
+
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();
   await sys.goto(BASE + '/index.html');
