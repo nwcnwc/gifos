@@ -81,18 +81,26 @@ body {
 }
 .icon:hover { background: rgba(255,255,255,.05); }
 .icon.selected { background: rgba(123,92,255,.18); outline: 1px solid var(--accent); }
+/* Icons are transparent sticker GIFs — no box, no border: they float on the
+   wallpaper with a soft drop shadow and a happy little hover pop. */
 .icon .thumb {
   width: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
   height: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
   display: flex; align-items: center; justify-content: center;
-  border-radius: .5rem; overflow: hidden; background: rgba(255,255,255,.04);
-  border: 1px solid var(--border); font-size: calc(var(--isize, 64px) * .5);
+  font-size: calc(var(--isize, 64px) * .62);
 }
-.icon .thumb img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
-.icon.folder .thumb { background: rgba(123,92,255,.12); border-style: dashed; }
+.icon .thumb img {
+  width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45));
+  transition: transform .16s ease;
+}
+.icon:hover .thumb img { transform: translateY(-3px) scale(1.07); }
+.icon:active .thumb img { transform: translateY(0) scale(.96); }
 .icon .label {
   font-size: .78rem; max-width: calc(var(--cell, 104px) - 12px); word-break: break-word; line-height: 1.15;
   max-height: 2.4em; overflow: hidden;
+  /* readable on ANY wallpaper the user picks (light or photo) */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 6px rgba(0, 0, 0, .5);
 }
 .icon .label input {
   font: inherit; width: 88px; text-align: center; border: 1px solid var(--accent);

@@ -4,6 +4,11 @@
  * colors survive. This is NOT a procedural icon generator — each app has its
  * own drawn SVG. The result is packed into the app's GIF and displayed as-is.
  *
+ * Style: cute outlined "sticker" characters — thick ink outlines, kawaii
+ * faces, a little grass mound to stand on, a cream die-cut rim, and a fully
+ * TRANSPARENT background (the GIF's palette index 0 is transparent), so the
+ * icons float on any wallpaper like stickers.
+ *
  * Browser-only (needs canvas). Attaches to `GifOS.icons`.
  */
 (function (root) {
@@ -17,95 +22,244 @@
   const rgb = (a) => 'rgb(' + a[0] + ',' + a[1] + ',' + a[2] + ')';
   const dark = (a, d) => 'rgb(' + clamp(a[0] - d) + ',' + clamp(a[1] - d) + ',' + clamp(a[2] - d) + ')';
 
-  // A rounded tile with a vertical accent gradient; `inner` is the symbol art.
-  function tile(accent, inner) {
+  const INK = '#2b2440';   // outline ink
+  const PAPER = '#fffdf2'; // warm white bodies
+  const RIM = '#f4f0e6';   // die-cut sticker rim
+
+  // No background tile: art floats on transparency. A feMorphology dilate
+  // paints the cream die-cut rim around whatever is drawn, so stickers read
+  // on any wallpaper — light, dark, or a photo.
+  function sticker(inner) {
     return "<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'>"
-      + "<defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>"
-      + "<stop offset='0' stop-color='" + rgb(accent) + "'/><stop offset='1' stop-color='" + dark(accent, 80) + "'/></linearGradient>"
-      + "<linearGradient id='sh' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='rgba(255,255,255,.18)'/><stop offset='.5' stop-color='rgba(255,255,255,0)'/></linearGradient></defs>"
-      + "<rect x='3' y='3' width='90' height='90' rx='22' fill='url(#g)'/>"
-      + "<rect x='3' y='3' width='90' height='44' rx='22' fill='url(#sh)'/>"
-      + inner + "</svg>";
+      + "<defs><filter id='die' x='-12%' y='-12%' width='124%' height='124%'>"
+      + "<feMorphology in='SourceAlpha' operator='dilate' radius='2.2' result='fat'/>"
+      + "<feFlood flood-color='" + RIM + "'/><feComposite in2='fat' operator='in' result='rim'/>"
+      + "<feMerge><feMergeNode in='rim'/><feMergeNode in='SourceGraphic'/></feMerge>"
+      + "</filter></defs><g filter='url(#die)'>"
+      // fill the canvas: scale up around the ground line so stickers sit big
+      + "<g transform='translate(48,91) scale(1.18) translate(-48,-91)'>" + inner + "</g></g></svg>";
   }
-  const W = "#ffffff";
+
+  // The little grass mound every character stands on.
+  function ground() {
+    return "<ellipse cx='48' cy='83' rx='27' ry='7' fill='#8edc73' stroke='" + INK + "' stroke-width='3'/>"
+      + "<path d='M33 80 q1.5 -4.5 3 0 M60 81 q1.5 -4.5 3 0' stroke='#4f9e43' stroke-width='2.4' fill='none' stroke-linecap='round'/>";
+  }
+
+  // A kawaii face: dot eyes (curved shut when blinking), a smile, pink cheeks.
+  function face(x, y, blink, col, cheekDx) {
+    col = col || INK; cheekDx = cheekDx || 9;
+    const eyes = blink
+      ? "<path d='M" + (x - 7.5) + " " + y + " q3 2.4 6 0 M" + (x + 1.5) + " " + y + " q3 2.4 6 0' stroke='" + col + "' stroke-width='2.4' fill='none' stroke-linecap='round'/>"
+      : "<circle cx='" + (x - 4.5) + "' cy='" + y + "' r='2.3' fill='" + col + "'/><circle cx='" + (x + 4.5) + "' cy='" + y + "' r='2.3' fill='" + col + "'/>";
+    return eyes
+      + "<path d='M" + (x - 3) + " " + (y + 5.5) + " q3 3.4 6 0' stroke='" + col + "' stroke-width='2.2' fill='none' stroke-linecap='round'/>"
+      + "<circle cx='" + (x - cheekDx) + "' cy='" + (y + 4) + "' r='2.2' fill='#ff9eb0' opacity='.75'/>"
+      + "<circle cx='" + (x + cheekDx) + "' cy='" + (y + 4) + "' r='2.2' fill='#ff9eb0' opacity='.75'/>";
+  }
+
+  const bob = (f) => [0, -2, -3, -2][f % 4]; // gentle idle hop
+  const blinkAt = (f) => f === 3;            // everyone blinks on the last frame
 
   // ---- per-app art: (accent) => [svg frame strings] -----------------------
   const ART = {
-    notes: (a) => range(FR).map((f) => { const w = 8 + 26 * (f / (FR - 1));
-      return tile(a, "<rect x='28' y='22' width='40' height='52' rx='5' fill='" + W + "'/>"
-        + "<rect x='34' y='32' width='28' height='3' rx='1.5' fill='#c9c9e0'/>"
-        + "<rect x='34' y='42' width='28' height='3' rx='1.5' fill='#c9c9e0'/>"
-        + "<rect x='34' y='52' width='" + w + "' height='3' rx='1.5' fill='" + rgb(a) + "'/>"
-        + "<g transform='translate(" + (34 + w) + ",53) rotate(40)'><rect x='-2' y='-18' width='4' height='16' rx='1' fill='#3a3a4a'/><path d='M-2 -2 L2 -2 L0 3 Z' fill='#3a3a4a'/></g>"); }),
+    // A happy spiral notepad; a pencil hops along as the accent line is written.
+    notes: (a) => range(FR).map((f) => { const dy = bob(f), w = 6 + 16 * (f / (FR - 1));
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='30' y='30' width='36' height='46' rx='6' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='38' cy='30' r='2.6' fill='#e8e4f5' stroke='" + INK + "' stroke-width='2'/>"
+        + "<circle cx='48' cy='30' r='2.6' fill='#e8e4f5' stroke='" + INK + "' stroke-width='2'/>"
+        + "<circle cx='58' cy='30' r='2.6' fill='#e8e4f5' stroke='" + INK + "' stroke-width='2'/>"
+        + "<rect x='37' y='40' width='22' height='3.5' rx='1.75' fill='#ddd8ec'/>"
+        + "<rect x='37' y='47' width='" + w + "' height='3.5' rx='1.75' fill='" + rgb(a) + "'/>"
+        + face(48, 62, blinkAt(f))
+        + "</g>"
+        + "<g transform='translate(" + (39 + w) + "," + (46 + dy) + ") rotate(38)'>"
+        + "<rect x='-2.5' y='-16' width='5' height='13' rx='1.5' fill='#ffd23c' stroke='" + INK + "' stroke-width='2'/>"
+        + "<path d='M-2.5 -3 L2.5 -3 L0 2 Z' fill='" + INK + "'/></g>");
+    }),
 
-    tictactoe: (a) => range(FR).map((f) => { const on = Math.floor(f / (FR / 2)) % 2;
-      return tile(a, "<g stroke='" + W + "' stroke-width='4' stroke-linecap='round'>"
-        + "<line x1='45' y1='24' x2='45' y2='72'/><line x1='63' y1='24' x2='63' y2='72'/>"
-        + "<line x1='30' y1='40' x2='78' y2='40'/><line x1='30' y1='56' x2='78' y2='56'/></g>"
-        + "<g transform='translate(37,32)' stroke='" + (on ? W : 'rgba(255,255,255,.35)') + "' stroke-width='4' stroke-linecap='round'><line x1='-5' y1='-5' x2='5' y2='5'/><line x1='5' y1='-5' x2='-5' y2='5'/></g>"
-        + "<circle cx='70' cy='64' r='6' fill='none' stroke='" + (on ? 'rgba(255,255,255,.35)' : W) + "' stroke-width='4'/>"); }),
+    // A board where the X and the O take turns bouncing with excitement.
+    tictactoe: (a) => range(FR).map((f) => { const dy = bob(f), on = f % 2 === 0;
+      const px = on ? 1.25 : 1, po = on ? 1 : .45, ox = !on ? 1.25 : 1, oo = !on ? 1 : .45;
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='28' y='36' width='40' height='40' rx='9' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<g stroke='" + INK + "' stroke-width='2.6' stroke-linecap='round' opacity='.9'>"
+        + "<line x1='41.3' y1='41' x2='41.3' y2='71'/><line x1='54.6' y1='41' x2='54.6' y2='71'/>"
+        + "<line x1='33' y1='49.3' x2='63' y2='49.3'/><line x1='33' y1='62.6' x2='63' y2='62.6'/></g>"
+        + "<g transform='translate(35,43) scale(" + px + ")' stroke='#ff6b6b' stroke-width='3.4' stroke-linecap='round' opacity='" + po + "'>"
+        + "<line x1='-3.6' y1='-3.6' x2='3.6' y2='3.6'/><line x1='3.6' y1='-3.6' x2='-3.6' y2='3.6'/></g>"
+        + "<circle cx='48' cy='56' r='" + (4 * ox) + "' fill='none' stroke='#4dabf7' stroke-width='3.4' opacity='" + oo + "'/>"
+        + "</g>");
+    }),
 
-    connect4: (a) => range(FR).map((f) => { const y = 12 + (48) * (f / (FR - 1));
-      const holes = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) holes.push("<circle cx='" + (34 + c * 14) + "' cy='" + (38 + r * 14) + "' r='5' fill='" + dark(a, 120) + "'/>");
-      return tile(a, "<circle cx='34' cy='" + y + "' r='6' fill='#ff5c5c'/>"
-        + "<rect x='24' y='30' width='48' height='44' rx='6' fill='rgba(20,20,40,.55)'/>" + holes.join('')); }),
+    // A smiling red disc drops into the board and settles in the top hole.
+    connect4: (a) => range(FR).map((f) => { const dropY = [25, 33, 42, 52][f]; const landed = f === 3;
+      const holes = [];
+      for (const cx of [36, 48, 60]) holes.push("<circle cx='" + cx + "' cy='52' r='5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.2'/>");
+      for (const cx of [48, 60]) holes.push("<circle cx='" + cx + "' cy='66' r='5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.2'/>");
+      holes.push("<circle cx='36' cy='66' r='5' fill='#ffd23c' stroke='" + INK + "' stroke-width='2.2'/>");
+      const disc = landed
+        ? "<circle cx='36' cy='52' r='5' fill='#ff6b6b' stroke='" + INK + "' stroke-width='2.2'/>"
+        : "<g transform='translate(36," + dropY + ")'><circle r='7' fill='#ff6b6b' stroke='" + INK + "' stroke-width='2.6'/>"
+          + "<circle cx='-2.6' cy='-1' r='1.5' fill='" + INK + "'/><circle cx='2.6' cy='-1' r='1.5' fill='" + INK + "'/>"
+          + "<path d='M-2 2.2 q2 2.2 4 0' stroke='" + INK + "' stroke-width='1.8' fill='none' stroke-linecap='round'/></g>";
+      return sticker(ground()
+        + (landed ? '' : disc)
+        + "<rect x='26' y='42' width='44' height='34' rx='7' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + holes.join('') + (landed ? disc : ''));
+    }),
 
-    minesweeper: (a) => range(FR).map((f) => { const s = f % 2 ? 6 : 3, o = f % 2 ? 1 : .5;
-      return tile(a, "<circle cx='46' cy='54' r='18' fill='#14141f'/><rect x='58' y='30' width='4' height='16' rx='2' transform='rotate(30 60 38)' fill='#14141f'/>"
-        + "<circle cx='40' cy='48' r='4' fill='rgba(255,255,255,.5)'/>"
-        + "<circle cx='66' cy='28' r='" + s + "' fill='#ffd23c' opacity='" + o + "'/>"
-        + "<circle cx='66' cy='28' r='" + (s + 2) + "' fill='#ff8f3c' opacity='" + (o * .5) + "'/>"); }),
+    // A round bomb buddy, totally unbothered, spark fizzing on its fuse.
+    minesweeper: (a) => range(FR).map((f) => { const dy = bob(f), s = f % 2 ? 5 : 3, o = f % 2 ? 1 : .55;
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<circle cx='46' cy='59' r='17' fill='#443d63' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='39' cy='51' r='3.4' fill='rgba(255,255,255,.35)'/>"
+        + "<path d='M56 46 q6 -8 12 -6' stroke='" + INK + "' stroke-width='3' fill='none' stroke-linecap='round'/>"
+        + face(46, 58, blinkAt(f), PAPER, 10)
+        + "</g>"
+        + "<g transform='translate(69," + (39 + dy) + ")' opacity='" + o + "'>"
+        + "<circle r='" + (s + 2) + "' fill='#ff8f3c' opacity='.5'/><circle r='" + s + "' fill='#ffd23c'/>"
+        + "<path d='M-" + (s + 4) + " 0 H" + (s + 4) + " M0 -" + (s + 4) + " V" + (s + 4) + "' stroke='#ffd23c' stroke-width='2' stroke-linecap='round'/></g>");
+    }),
 
-    chess: (a) => range(FR).map((f) => { const dy = Math.sin((f / FR) * 6.28) * 2;
-      const checks = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) if ((r + c) % 2) checks.push("<rect x='" + (26 + c * 12) + "' y='" + (60 + r * 6) + "' width='12' height='6' fill='rgba(255,255,255,.25)'/>");
-      return tile(a, "<g transform='translate(0," + dy + ")'>"
-        + "<circle cx='48' cy='30' r='8' fill='" + W + "'/><path d='M41 40 h14 l4 20 h-22 Z' fill='" + W + "'/></g>"
-        + "<rect x='26' y='60' width='44' height='12' rx='2' fill='" + W + "'/>" + checks.join('')); }),
+    // A pawn pal with a proper base, hopping in place.
+    chess: (a) => range(FR).map((f) => { const dy = bob(f);
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<path d='M43 51 L39.5 70 h17 L52.5 51 Z' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<rect x='40' y='47' width='16' height='5' rx='2.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<circle cx='48' cy='38' r='9.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + face(48, 37, blinkAt(f), INK, 8)
+        + "</g>"
+        + "<rect x='34' y='70' width='28' height='8' rx='3.5' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>");
+    }),
 
-    paint: (a) => range(FR).map((f) => { const dash = 40 - 40 * (f / (FR - 1));
-      return tile(a, "<path d='M48 24 a24 20 0 1 0 4 40 c-6 0 -4 -8 2 -8 h8 a10 10 0 0 0 10 -12 a24 20 0 0 0 -24 -20 Z' fill='" + W + "'/>"
-        + "<circle cx='40' cy='40' r='3.5' fill='#ff5c5c'/><circle cx='54' cy='36' r='3.5' fill='#5cc8ff'/><circle cx='60' cy='48' r='3.5' fill='#ffd23c'/><circle cx='42' cy='52' r='3.5' fill='#5cff7b'/>"
-        + "<path d='M30 74 q14 -12 30 -22' stroke='#ff5caa' stroke-width='4' fill='none' stroke-linecap='round' stroke-dasharray='40' stroke-dashoffset='" + dash + "'/>"); }),
+    // A palette on the grass; a brush bounces above, flicking a paint drop.
+    paint: (a) => range(FR).map((f) => { const bdy = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
+      const drip = f > 0 ? "<circle cx='71' cy='" + (40 + f * 8) + "' r='2.4' fill='" + rgb(a) + "' opacity='" + (1 - f * .22) + "'/>" : '';
+      return sticker(ground()
+        + "<ellipse cx='46' cy='60' rx='22' ry='16' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='54' cy='65' r='4' fill='none' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<circle cx='36' cy='53' r='3.4' fill='#ff6b6b' stroke='" + INK + "' stroke-width='1.8'/>"
+        + "<circle cx='46' cy='50' r='3.4' fill='#4dabf7' stroke='" + INK + "' stroke-width='1.8'/>"
+        + "<circle cx='56' cy='53' r='3.4' fill='#ffd23c' stroke='" + INK + "' stroke-width='1.8'/>"
+        + "<circle cx='36' cy='63' r='3.4' fill='#7bd96a' stroke='" + INK + "' stroke-width='1.8'/>"
+        + "<g transform='translate(66," + (36 - bdy) + ") rotate(32)'>"
+        + "<rect x='-2.5' y='-4' width='5' height='16' rx='2' fill='#e8a34e' stroke='" + INK + "' stroke-width='2'/>"
+        + "<rect x='-3' y='-9' width='6' height='5' rx='1' fill='#c9c9d9' stroke='" + INK + "' stroke-width='1.8'/>"
+        + "<path d='M-3 -9 q3 -8 6 0 Z' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='1.8' stroke-linejoin='round'/></g>"
+        + drip);
+    }),
 
-    calc: (a) => range(FR).map((f) => { const lit = f % FR;
-      const btn = []; let i = 0; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++, i++) btn.push("<rect x='" + (32 + c * 12) + "' y='" + (50 + r * 11) + "' width='8' height='8' rx='2' fill='" + (i === lit % 9 ? rgb(a) : '#d5d5e5') + "'/>");
-      return tile(a, "<rect x='28' y='22' width='40' height='52' rx='6' fill='#20202e'/>"
-        + "<rect x='32' y='27' width='32' height='16' rx='3' fill='#5cff7b'/><rect x='36' y='33' width='16' height='4' rx='2' fill='#0a2a12'/>" + btn.join('')); }),
+    // A calculator whose screen IS its face; buttons twinkle below.
+    calc: (a) => range(FR).map((f) => { const dy = bob(f), lit = f % FR;
+      const btn = []; let i = 0;
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++, i++)
+        btn.push("<rect x='" + (37.5 + c * 7.5) + "' y='" + (52 + r * 7.5) + "' width='5.5' height='5.5' rx='1.8' fill='" + (i === lit * 2 % 9 ? '#ffd23c' : PAPER) + "' stroke='" + INK + "' stroke-width='1.6'/>");
+      const blink = blinkAt(f);
+      const eyes = blink
+        ? "<path d='M42 40 q2.4 2 4.8 0 M49.2 40 q2.4 2 4.8 0' stroke='" + INK + "' stroke-width='2' fill='none' stroke-linecap='round'/>"
+        : "<circle cx='44.5' cy='40' r='1.9' fill='" + INK + "'/><circle cx='51.5' cy='40' r='1.9' fill='" + INK + "'/>";
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='32' y='28' width='32' height='48' rx='7' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<rect x='37' y='33' width='22' height='14' rx='3.5' fill='#d6f5c3' stroke='" + INK + "' stroke-width='2.4'/>"
+        + eyes
+        + "<path d='M45.5 43.5 q2.5 2.4 5 0' stroke='" + INK + "' stroke-width='1.8' fill='none' stroke-linecap='round'/>"
+        + btn.join('') + "</g>");
+    }),
 
-    timer: (a) => range(FR).map((f) => { const ang = (f / FR) * 360;
-      return tile(a, "<circle cx='48' cy='52' r='22' fill='#20202e' stroke='" + W + "' stroke-width='3'/><rect x='44' y='20' width='8' height='6' rx='2' fill='" + W + "'/>"
-        + "<line x1='48' y1='52' x2='48' y2='36' stroke='#ff5c5c' stroke-width='3' stroke-linecap='round' transform='rotate(" + ang + " 48 52)'/>"
-        + "<circle cx='48' cy='52' r='3' fill='" + W + "'/>"); }),
+    // A classic twin-bell alarm clock, ringing so hard it wiggles.
+    timer: (a) => range(FR).map((f) => { const wig = [-4, 4, -4, 4][f], ang = f * 90;
+      return sticker(ground()
+        + "<g transform='rotate(" + wig + " 48 74)'>"
+        + "<path d='M39 71 L34 78 M57 71 L62 78' stroke='" + INK + "' stroke-width='3.4' stroke-linecap='round'/>"
+        + "<circle cx='36' cy='34' r='5.5' fill='#ffd23c' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<circle cx='60' cy='34' r='5.5' fill='#ffd23c' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<circle cx='48' cy='55' r='19' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<line x1='48' y1='55' x2='48' y2='44' stroke='#ff6b6b' stroke-width='3' stroke-linecap='round' transform='rotate(" + ang + " 48 55)'/>"
+        + "<circle cx='48' cy='55' r='2.4' fill='" + INK + "'/>"
+        + face(48, 62, blinkAt(f), INK, 8)
+        + "</g>");
+    }),
 
-    guestbook: (a) => range(FR).map((f) => { const dy = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
-      return tile(a, "<path d='M24 30 q24 -8 24 4 v34 q-24 -10 -24 -2 Z' fill='" + W + "'/><path d='M72 30 q-24 -8 -24 4 v34 q24 -10 24 -2 Z' fill='#e6e6f5'/>"
-        + "<line x1='48' y1='34' x2='48' y2='68' stroke='" + dark(a, 40) + "' stroke-width='2'/>"
-        + "<g transform='translate(60," + (28 + dy) + ") rotate(35)'><rect x='-1.5' y='-14' width='3' height='14' fill='#3a3a4a'/><path d='M-1.5 0 L1.5 0 L0 4 Z' fill='#3a3a4a'/></g>"); }),
+    // An open book with a beating heart on the page; a pen hops as it signs.
+    guestbook: (a) => range(FR).map((f) => { const pdy = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
+      const hs = f % 2 ? 1.18 : 1;
+      return sticker(ground()
+        + "<path d='M26 44 Q37 38 48 44 V76 Q37 70 26 76 Z' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<path d='M70 44 Q59 38 48 44 V76 Q59 70 70 76 Z' fill='#f1ecdf' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<line x1='48' y1='44' x2='48' y2='76' stroke='" + INK + "' stroke-width='2'/>"
+        + "<g transform='translate(37,56) scale(" + hs + ")'>"
+        + "<path d='M0 6 C-6 1 -5 -5 0 -3 C5 -5 6 1 0 6 Z' fill='#ff6b6b' stroke='" + INK + "' stroke-width='2' stroke-linejoin='round'/></g>"
+        + "<path d='M54 55 h10 M54 61 h8' stroke='#ddd8ec' stroke-width='2.6' stroke-linecap='round'/>"
+        + "<g transform='translate(62," + (44 - pdy) + ") rotate(35)'>"
+        + "<rect x='-2' y='-14' width='4' height='12' rx='1.5' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='2'/>"
+        + "<path d='M-2 -2 L2 -2 L0 3 Z' fill='" + INK + "'/></g>");
+    }),
 
-    chat: (a) => range(FR).map((f) => { const d = (c) => (f % 3) === c ? W : 'rgba(255,255,255,.4)';
-      return tile(a, "<path d='M26 28 h32 a6 6 0 0 1 6 6 v14 a6 6 0 0 1 -6 6 h-20 l-8 8 v-8 a6 6 0 0 1 -4 -6 v-14 a6 6 0 0 1 6 -6 Z' fill='" + W + "'/>"
-        + "<circle cx='36' cy='41' r='3' fill='" + d(0) + "'/><circle cx='45' cy='41' r='3' fill='" + d(1) + "'/><circle cx='54' cy='41' r='3' fill='" + d(2) + "'/>"
-        + "<path d='M52 54 h16 a5 5 0 0 1 5 5 v10 a5 5 0 0 1 -5 5 h-3 v6 l-8 -6 h-5 a5 5 0 0 1 -5 -5 v-10 a5 5 0 0 1 5 -5 Z' fill='" + rgb(a) + "' stroke='" + W + "' stroke-width='2'/>"); }),
+    // Two bubble buddies chatting — the typing dots do the wave.
+    chat: (a) => range(FR).map((f) => { const dy = bob(f);
+      const dots = [36, 44, 52].map((x, i) =>
+        "<circle cx='" + x + "' cy='45' r='3' fill='" + ((f % 3) === i ? rgb(a) : '#d8d2ea') + "'/>").join('');
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='24' y='32' width='40' height='26' rx='10' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M33 56 l-3 9 l10 -7' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.6' stroke-linejoin='round'/>"
+        + "<rect x='31' y='55' width='12' height='3' fill='" + PAPER + "'/>"
+        + dots + "</g>"
+        + "<g transform='translate(0," + (-dy) + ")'>"
+        + "<rect x='52' y='56' width='26' height='18' rx='8' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='61' cy='63' r='1.8' fill='" + PAPER + "'/><circle cx='69' cy='63' r='1.8' fill='" + PAPER + "'/>"
+        + "<path d='M62.5 67 q2.5 2.4 5 0' stroke='" + PAPER + "' stroke-width='2' fill='none' stroke-linecap='round'/>"
+        + "</g>");
+    }),
 
-    folder: (a) => range(FR).map((f) => { const lift = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
-      return tile(a, "<path d='M24 34 h16 l6 6 h26 a4 4 0 0 1 4 4 v26 a4 4 0 0 1 -4 4 h-48 a4 4 0 0 1 -4 -4 v-32 a4 4 0 0 1 4 -4 Z' fill='" + dark(a, 90) + "'/>"
-        + "<rect x='30' y='" + (36 - lift) + "' width='14' height='10' rx='2' fill='#e6e6f5'/>"
-        + "<rect x='48' y='" + (34 - lift * 0.6) + "' width='14' height='12' rx='2' fill='#cfcfe4'/>"
-        + "<path d='M20 44 h22 l5 -6 h29 a4 4 0 0 1 4 4 l-4 28 a4 4 0 0 1 -4 4 h-48 a4 4 0 0 1 -4 -4 Z' fill='" + W + "' opacity='.92'/>"
-        + "<path d='M20 44 h22 l5 -6 h29' stroke='rgba(0,0,0,.12)' stroke-width='1.5' fill='none'/>"); }),
+    // A folder friend hugging its papers — they peek out to look around.
+    folder: (a) => range(FR).map((f) => { const lift = Math.abs(Math.sin((f / FR) * 6.28)) * 5;
+      return sticker(ground()
+        + "<path d='M26 44 q0 -5 5 -5 h11 l5 5 h18 q5 0 5 5 v4 h-44 Z' fill='" + dark(a, 60) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<g transform='translate(0," + (-lift) + ")'>"
+        + "<rect x='33' y='40' width='28' height='14' rx='2.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<path d='M38 45 h14 M38 49 h10' stroke='#ddd8ec' stroke-width='2' stroke-linecap='round'/></g>"
+        + "<rect x='24' y='50' width='48' height='27' rx='6' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + face(48, 61, blinkAt(f)));
+    }),
 
-    video: (a) => range(FR).map((f) => { const on = f % 2 === 0, ring = 4 + 5 * (f / (FR - 1));
-      return tile(a, "<rect x='22' y='34' width='36' height='28' rx='6' fill='" + W + "'/>"
-        + "<path d='M58 42 L74 32 L74 64 L58 54 Z' fill='" + W + "'/>"
-        + "<circle cx='40' cy='48' r='8' fill='" + dark(a, 100) + "'/><circle cx='40' cy='48' r='4' fill='#1a1a2a'/>"
-        + "<circle cx='43' cy='45' r='1.6' fill='rgba(255,255,255,.8)'/>"
-        + "<circle cx='28' cy='40' r='3' fill='" + (on ? '#ff4444' : 'rgba(255,68,68,.35)') + "'/>"
-        + "<circle cx='40' cy='48' r='" + (8 + ring) + "' fill='none' stroke='rgba(255,255,255,.4)' stroke-width='2' opacity='" + (1 - f / FR) + "'/>"); }),
+    // A camcorder with one big curious eye — it looks around, REC light blinking.
+    video: (a) => range(FR).map((f) => { const dy = bob(f), px = [-2, 0, 2, 0][f], on = f % 2 === 0;
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<path d='M58 51 L72 43 V71 L58 63 Z' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<rect x='22' y='48' width='36' height='28' rx='8' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<rect x='28' y='42' width='18' height='7' rx='3.5' fill='" + dark(a, 60) + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<circle cx='38' cy='59' r='8.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='" + (38 + px) + "' cy='59' r='3.6' fill='" + INK + "'/>"
+        + "<circle cx='" + (39.4 + px) + "' cy='57.6' r='1.1' fill='" + PAPER + "'/>"
+        + "<path d='M35 70 q3 2.6 6 0' stroke='" + INK + "' stroke-width='2.2' fill='none' stroke-linecap='round'/>"
+        + "<circle cx='52' cy='54' r='3' fill='" + (on ? '#ff5252' : '#7a3a3a') + "' stroke='" + INK + "' stroke-width='2'/>"
+        + "</g>");
+    }),
 
-    welcome: (a) => range(FR).map((f) => { const lift = Math.abs(Math.sin((f / FR) * 6.28)) * 5;
-      return tile(a, "<path d='M28 44 L48 34 L68 44 L48 54 Z' fill='#e6e6f5' transform='translate(0,-" + lift + ")'/>"
-        + "<path d='M28 44 L48 54 L48 76 L28 66 Z' fill='" + W + "'/><path d='M68 44 L48 54 L48 76 L68 66 Z' fill='#d5d5e8'/>"
-        + "<rect x='45' y='30' width='6' height='" + (10 + lift) + "' fill='rgba(255,255,255,.5)'/>"); }),
+    // Home sweet home — a cozy cottage with smoke puffing from the chimney.
+    welcome: (a) => range(FR).map((f) => {
+      const puffs = range(2).map((i) => {
+        const t = (f + i * 2) % 4;
+        return "<circle cx='" + (61.5 + t * 1.2) + "' cy='" + (30 - t * 3) + "' r='" + (2 + t * .7) + "' fill='#e8e4f5' stroke='" + INK + "' stroke-width='1.6' opacity='" + (.95 - t * .22) + "'/>";
+      }).join('');
+      return sticker(ground()
+        + puffs
+        + "<rect x='57' y='34' width='8' height='13' fill='#c96f4a' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<rect x='33' y='52' width='30' height='24' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M28 53 L48 32 L68 53 Z' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<rect x='44' y='62' width='10' height='14' rx='4' fill='" + dark(a, 30) + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<circle cx='52' cy='70' r='1.2' fill='" + INK + "'/>"
+        + "<circle cx='38.5' cy='59' r='3.4' fill='" + (f % 2 ? '#ffe9a8' : '#ffd23c') + "' stroke='" + INK + "' stroke-width='2.4'/>");
+    }),
   };
 
   // ---- render SVG frames → animated GIF preview (adaptive palette) ----------
@@ -118,30 +272,31 @@
     });
   }
 
+  // Palette index 0 is reserved as the TRANSPARENT color; visible colors live
+  // in 1..255. Transparent pixels never influence the adaptive palette.
   function buildPalette(rgbFrames) {
     const key = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
     const counts = new Map();
     for (const data of rgbFrames) {
       for (let p = 0; p < data.length; p += 4) {
-        let r = data[p], g = data[p + 1], b = data[p + 2];
-        if (data[p + 3] < 128) { r = 10; g = 10; b = 15; } // transparent → tile-edge dark
-        const k = key(r, g, b);
+        if (data[p + 3] < 128) continue; // transparent → reserved index 0
+        const k = key(data[p], data[p + 1], data[p + 2]);
         counts.set(k, (counts.get(k) || 0) + 1);
       }
     }
-    const top = Array.from(counts.keys()).sort((x, y) => counts.get(y) - counts.get(x)).slice(0, 256);
+    const top = Array.from(counts.keys()).sort((x, y) => counts.get(y) - counts.get(x)).slice(0, 255);
     const centers = top.map((k) => [(((k >> 10) & 31) << 3) | 4, (((k >> 5) & 31) << 3) | 4, ((k & 31) << 3) | 4]);
     const palette = new Array(256 * 3).fill(0);
-    for (let i = 0; i < centers.length; i++) { palette[i * 3] = centers[i][0]; palette[i * 3 + 1] = centers[i][1]; palette[i * 3 + 2] = centers[i][2]; }
+    for (let i = 0; i < centers.length; i++) { palette[(i + 1) * 3] = centers[i][0]; palette[(i + 1) * 3 + 1] = centers[i][1]; palette[(i + 1) * 3 + 2] = centers[i][2]; }
     const cache = new Map();
     const map = (r, g, b, a) => {
-      if (a < 128) { r = 10; g = 10; b = 15; }
+      if (a < 128) return 0;
       const k = key(r, g, b);
       let idx = cache.get(k);
       if (idx === undefined) {
         let best = 0, bd = 1e12;
         for (let i = 0; i < centers.length; i++) { const dr = r - centers[i][0], dg = g - centers[i][1], db = b - centers[i][2]; const d = dr * dr + dg * dg + db * db; if (d < bd) { bd = d; best = i; } }
-        idx = best; cache.set(k, idx);
+        idx = best + 1; cache.set(k, idx);
       }
       return idx;
     };
@@ -156,19 +311,23 @@
       const rgbFrames = imgs.map((img) => { ctx.clearRect(0, 0, S, S); ctx.drawImage(img, 0, 0, S, S); return ctx.getImageData(0, 0, S, S).data; });
       const { palette, map } = buildPalette(rgbFrames);
       const frames = rgbFrames.map((data) => { const idx = new Uint8Array(S * S); for (let p = 0; p < S * S; p++) idx[p] = map(data[p * 4], data[p * 4 + 1], data[p * 4 + 2], data[p * 4 + 3]); return idx; });
-      return { width: S, height: S, palette, numColors: 256, minCodeSize: 8, frames, delayCs: DELAY };
+      return { width: S, height: S, palette, numColors: 256, minCodeSize: 8, frames, delayCs: DELAY, transparentIndex: 0 };
     });
   }
 
   // Render an app's custom icon as an animated GIF preview. Falls back to a
-  // lettered tile for unknown apps.
+  // lettered blob buddy for unknown apps.
   function renderApp(appId, accent) {
     accent = accent || [123, 92, 255];
     const art = ART[appId];
     if (art) return renderFrames(art(accent));
     const letter = (appId || '?')[0].toUpperCase();
-    const svg = tile(accent, "<text x='48' y='66' font-family='system-ui,sans-serif' font-size='46' font-weight='800' fill='#ffffff' text-anchor='middle'>" + letter + "</text>");
-    return renderFrames([svg]);
+    const svgs = range(FR).map((f) => sticker(ground()
+      + "<g transform='translate(0," + bob(f) + ")'>"
+      + "<rect x='28' y='36' width='40' height='40' rx='13' fill='" + rgb(accent) + "' stroke='" + INK + "' stroke-width='3'/>"
+      + "<text x='48' y='66' font-family='system-ui,sans-serif' font-size='26' font-weight='800' fill='" + PAPER + "' text-anchor='middle'>" + letter + "</text>"
+      + "</g>"));
+    return renderFrames(svgs);
   }
 
   GifOS.icons = { renderApp, renderFrames, has: (id) => !!ART[id] };

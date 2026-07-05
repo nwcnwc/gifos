@@ -56,7 +56,10 @@ Call pack_app with the finished HTML. You get back a complete, valid,
 animated .gif — give that file to the user; they drop it on gifos.app.
 
 The ICON is the soul of the app — every GifOS app has hand-designed animated
-artwork. Supply pixel art via the "icon" argument:
+artwork. The GifOS house style is cute STICKERS: little characters with dark
+outlines on a TRANSPARENT background (they float on the wallpaper — no
+background tile; use "transparent" generously). Supply pixel art via the
+"icon" argument:
   "icon": {
     "palette": { ".": "transparent", "a": "#7b5cff", "b": "#ffffff" },
     "frames": [ ["..aa..", ".abba.", "..."], ["..."] ],   // 2-6 frames
@@ -66,8 +69,8 @@ Each frame is an array of equal-length strings (one char per pixel, 8-64 px
 square works; 16 or 24 is the sweet spot — GifOS upscales crisply with
 pixelated rendering). Design something that MOVES: a blinking light, a
 bouncing ball, a sweeping hand. If you omit "icon", a decent procedural
-animated tile is generated from the accent color — but custom art is what
-makes an app feel loved.
+animated sticker is generated from the accent color — but custom art is
+what makes an app feel loved.
 
 ## The Easter egg move (people love this)
 
@@ -127,7 +130,6 @@ function iconToPreview(icon) {
   if (!Array.isArray(rows0) || !rows0.length) throw new Error('icon.frames must be arrays of row strings');
   const H = rows0.length, W = String(rows0[0]).length;
   if (W < 4 || H < 4 || W > 64 || H > 64) throw new Error('icon must be between 4x4 and 64x64 pixels');
-  const BG = [10, 10, 15]; // GifOS dark — used for "transparent"
   const chars = Object.keys(icon.palette || {});
   if (!chars.length) throw new Error('icon.palette is required (char -> #hex or "transparent")');
   const colorOf = {};
@@ -136,8 +138,7 @@ function iconToPreview(icon) {
     colorOf[ch] = (v === 'transparent' || v === 'none') ? { idx: 0 } : { idx: i + 1, rgb: hexToRgb(v) };
     if (colorOf[ch].rgb === null) throw new Error('bad color for "' + ch + '": ' + v);
   });
-  const palette = new Array(256 * 3).fill(0);
-  palette[0] = BG[0]; palette[1] = BG[1]; palette[2] = BG[2];
+  const palette = new Array(256 * 3).fill(0); // index 0 = transparent
   chars.forEach((ch) => {
     const c = colorOf[ch];
     if (c.rgb) { palette[c.idx * 3] = c.rgb[0]; palette[c.idx * 3 + 1] = c.rgb[1]; palette[c.idx * 3 + 2] = c.rgb[2]; }
@@ -156,7 +157,7 @@ function iconToPreview(icon) {
     return idx;
   });
   const delay = Math.max(2, Math.min(100, (icon.delay_cs | 0) || 12));
-  return { width: W, height: H, palette, numColors: 256, minCodeSize: 8, frames, delayCs: delay };
+  return { width: W, height: H, palette, numColors: 256, minCodeSize: 8, frames, delayCs: delay, transparentIndex: 0 };
 }
 
 // ---- tools -------------------------------------------------------------------

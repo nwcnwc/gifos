@@ -128,7 +128,7 @@ GIF Header
 ```
 
 - **Primary storage:** the `GIFOS1.0` Application Extension block holds a deflate-compressed archive of the whole filesystem (native `CompressionStream`, no dependencies), split across 255-byte sub-blocks. Legacy uncompressed payloads still decode.
-- **The visible frames are real artwork.** Each default app ships hand-designed animated SVG art (`gifos-icons.js`), rasterized through an adaptive-palette quantizer into the GIF's frames — so an App GIF looks like a living icon everywhere, not machine noise. Apps a user creates get their declared `<link rel="icon">` SVG, or a generated animated tile.
+- **The visible frames are real artwork.** Each default app ships hand-designed animated SVG art (`gifos-icons.js`) in the GifOS house style — cute outlined sticker characters on a fully transparent background (GIF transparency flag, palette index 0 reserved) — rasterized through an adaptive-palette quantizer into the GIF's frames, so an App GIF looks like a living sticker everywhere, not machine noise. Apps a user creates get their declared `<link rel="icon">` SVG, or a generated animated sticker.
 
 ## Encoding Pipeline (Export / Save)
 
