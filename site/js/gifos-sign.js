@@ -212,12 +212,28 @@
     }
     return false;
   }
+  // ASCII armor per RFC 4880 §6.2: BEGIN line, optional "Key: value" armor
+  // headers, a blank line, base64 body, an optional "=XXXX" CRC24 line, END.
+  // Validated against real gpg output incl. Comment headers and CRLF endings.
   function dearmor(text) {
-    const m = /-----BEGIN PGP[^-]*-----[\r\n]+([\s\S]*?)[\r\n]+=[\s\S]{4}[\r\n]+-----END/.exec(text)
-      || /-----BEGIN PGP[^-]*-----[\r\n]+([\s\S]*?)[\r\n]+-----END/.exec(text);
+    const m = /-----BEGIN PGP[^-]*-----([\s\S]*?)-----END PGP/.exec(text);
     if (!m) return null;
-    const body = m[1].replace(/[\r\n]+/g, '').replace(/=[^=]*$/, (s) => (s.length === 5 ? '' : s)); // drop CRC24 tail if it slipped in
-    try { return b64ToBytes(m[1].split('\n').filter((l) => l.indexOf('=') !== 0 || l.length > 5).join('')); }
+    const b64 = [];
+    let inBody = false;
+    // strip the BEGIN line's own trailing newline(s) so the first line we see
+    // is a real header/body line, not a phantom blank that ends the headers
+    for (const raw of m[1].replace(/^[\r\n]+/, '').split(/\r?\n/)) {
+      const l = raw.trim();
+      if (!inBody) {
+        if (l === '') { inBody = true; continue; }        // blank line ends headers
+        if (/^[A-Za-z][A-Za-z-]*: /.test(l)) continue;    // armor header (Comment:, Version:, …)
+        inBody = true;                                     // tolerant: body with no blank line
+      }
+      if (!l) continue;
+      if (l[0] === '=' && l.length === 5) break;           // CRC24 line
+      b64.push(l);
+    }
+    try { const out = b64ToBytes(b64.join('')); return out.length ? out : null; }
     catch (e) { return null; }
   }
 
