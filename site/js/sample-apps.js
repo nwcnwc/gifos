@@ -522,6 +522,19 @@
   render();
 </script>`;
 
+  // Shown only if this GIF is run somewhere WITHOUT the GifOS system routing
+  // (an old build, another host). On a real desktop the runtime never mounts
+  // this — it routes the icon straight to the trusted video.html page.
+  const VIDEO_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
+  body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+  .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
+  h2{color:#5ca0ff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#5ca0ff}
+</style><div class="card"><h2>📹 Video Call</h2>
+<p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
+app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
+opens the built-in video page when double-clicked on a GifOS desktop.</p>
+<p>Open this GIF on a desktop at <code>gifos.app</code> to start a call.</p></div>`;
+
   const WELCOME_README = [
     'WELCOME TO GIFOS',
     '================',
@@ -587,6 +600,9 @@
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
         app('Chat', 'chat', [92, 220, 180], CHAT_HTML),
+        { name: 'Video Call.gif', appId: 'video', accent: [92, 160, 255],
+          files: { 'manifest.json': manifest('video', 'Video Call', [92, 160, 255], { system: 'video' }),
+                   'index.html': VIDEO_FALLBACK_HTML } },
       ] },
     ];
     // A GIF with NO index.html → browsable filesystem fallback, doubling as the manual.
