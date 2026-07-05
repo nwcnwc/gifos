@@ -97,6 +97,24 @@ body {
   padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent);
   background: var(--accent); color: #fff; cursor: pointer;
 }
+.modal.wide { max-width: 560px; width: 92vw; max-height: 86vh; overflow-y: auto; text-align: left; }
+.modal.wide h3 { text-align: center; }
+.modal.wide h4 { margin: .2rem 0 .5rem; font-size: .95rem; }
+.add-actions { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.add-actions button { flex: 1; padding: .6rem; border-radius: .5rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; }
+.add-actions button:hover { border-color: var(--accent); }
+.add-sep { height: 1px; background: var(--border); margin: 1rem 0; }
+.add-help { color: var(--muted); font-size: .82rem; line-height: 1.4; margin-bottom: .6rem; }
+.modal.wide textarea, .modal.wide input {
+  width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--border); background: #0a0a0f; color: var(--text); font: inherit; margin-bottom: .5rem;
+}
+.modal.wide textarea { resize: vertical; }
+.modal.wide textarea.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; color: var(--muted); }
+.modal.wide .widebtn { width: 100%; padding: .55rem; border-radius: .5rem; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; cursor: pointer; margin-bottom: .3rem; }
+#ad-create { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
 .modal-actions { display: flex; flex-direction: column; gap: .5rem; }
 .modal-actions button { width: 100%; }
 .modal-actions button.danger { background: #a12626; border-color: #a12626; }

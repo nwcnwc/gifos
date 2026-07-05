@@ -16,9 +16,29 @@
   const surface = document.getElementById('desktop');
   const crumbs = document.getElementById('crumbs');
 
-  const VERSION = '0.4.0';
+  const VERSION = '0.5.0';
   const TRASH_ID = 'sys_trash';
   const REPO_URL = 'https://github.com/nwcnwc/gifos';
+
+  // Copy-paste onramp: paste into any AI, it learns the format then asks what
+  // to build, and returns a single index.html you paste back to make an app.
+  const AI_PROMPT = [
+    'You are going to build a small app for GifOS, a system where every app is a single, self-contained HTML file.',
+    '',
+    'Rules for a GifOS app:',
+    '1. Output ONE complete HTML document (an index.html) with everything inline — all CSS in <style>, all JS in <script>. No external files, CDNs, frameworks, remote images, or web fonts: GifOS sandboxes apps and blocks all outside network and resource loading. Inline SVG and emoji are fine.',
+    '2. To save data, use the built-in API (localStorage and cookies are disabled — do not use them):',
+    "     const db = gifos.db('items');       // a named collection",
+    '     await db.put({ id, ...fields });    // add or update; omit id to auto-assign one',
+    '     await db.get(id); await db.getAll(); await db.delete(id);   // all async',
+    '     db.subscribe(items => renderFrom(items));   // called immediately and on every change',
+    '   Anything stored with gifos.db() persists inside the app\'s own icon AND automatically syncs to other players if the app goes multiplayer. So keep all shared/saved state in gifos.db() and render from db.subscribe() to be multiplayer-ready for free.',
+    '3. If window.gifos is undefined (e.g. opened outside GifOS), degrade gracefully to in-memory state so the app still runs.',
+    '4. One file. Mobile-friendly. Dark theme by default.',
+    '',
+    'First, ask me exactly one question: "What app do you want to build?"',
+    'After I answer, reply with ONLY the complete index.html inside a single ```html code block — no explanation before or after. I will paste it into GifOS (＋ Add → Create app from HTML) to turn it into an app GIF I own.',
+  ].join('\n');
 
   let items = [];                 // all desktop items (files + folders)
   let currentFolder = null;       // null = root, else folder id
@@ -244,11 +264,32 @@
   async function openItem(it) {
     if (it.kind === 'folder') { currentFolder = it.id; selectedId = null; return render(); }
     const file = await store.getFile(it.fileId);
-    if (file && file.kind === 'gif' && file.isApp) {
+    if (!file) return;
+    if (file.kind === 'gif' && file.isApp) {
       root.open('run.html#id=' + encodeURIComponent(it.fileId), '_blank');
-    } else {
-      showModal('Not supported', 'GifOS can only run executable GIFs in its format. "' + escapeHtml(it.name) + '" opened as a file, not an app.');
+      return;
     }
+    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    // A whole-desktop backup GIF: replacing your computer is a deliberate act.
+    if (file.kind === 'gif') {
+      const archive = await gif.decode(bytes);
+      const m = archive ? gif.readManifest(archive) : null;
+      if (archive && m && m.type === 'desktop' && archive.files['desktop.json']) {
+        showConfirm('Restore this computer?',
+          '"' + escapeHtml(it.name) + '" is a full GifOS desktop backup. <b>Restoring replaces everything currently on this desktop.</b>',
+          [{ label: 'Replace this desktop', danger: true, fn: () => restoreDesktop(archive) }]);
+        return;
+      }
+    }
+    // Any other plain file (a normal GIF, an image, …) just opens in its own tab.
+    openFileTab(file);
+  }
+
+  function openFileTab(file) {
+    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    const url = URL.createObjectURL(new Blob([bytes], { type: file.mime || 'application/octet-stream' }));
+    root.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   // ---------- import files (shared by OS drag-drop and the ＋ Add picker) -----
@@ -566,10 +607,74 @@
     { label: 'Reset desktop…', cls: 'danger', fn: resetFlow },
   ]));
 
-  addBtn.addEventListener('click', () => menuUnder(addBtn, [
-    { label: 'Add file(s)…', fn: () => fileInput.click() },
-    { label: 'New Folder', fn: () => newFolder(60, 60) },
-  ]));
+  addBtn.addEventListener('click', showAddDialog);
+
+  // Turn a pasted index.html into a real App GIF on the desktop.
+  async function createAppFromHtml(name, html) {
+    const appName = (name || 'My App').trim() || 'My App';
+    const slug = appName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'app';
+    const files = {
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: slug, name: appName, entry: 'index.html', capabilities: { db: true } }),
+      'index.html': html,
+    };
+    const bytes = await gif.encode(files, { accent: [123, 92, 255] });
+    const fileId = store.uid('file');
+    const iconName = appName + '.gif';
+    await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: true, appId: slug, mime: 'image/gif' });
+    const spot = nearestFreeCell(60, 60, currentFolder, null);
+    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
+      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+    await load(); render();
+    return fileId;
+  }
+  // Accept either raw HTML or an AI reply wrapped in a ```html fence.
+  function extractHtml(s) {
+    const m = s.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    return (m ? m[1] : s).trim();
+  }
+
+  function showAddDialog() {
+    closeContext();
+    const bg = document.createElement('div'); bg.className = 'modal-bg';
+    const box = document.createElement('div'); box.className = 'modal wide';
+    box.innerHTML =
+      '<h3>Add to your desktop</h3>' +
+      '<div class="add-actions">' +
+        '<button id="ad-file">📄 Add file(s)…</button>' +
+        '<button id="ad-folder">📁 New Folder</button>' +
+      '</div>' +
+      '<div class="add-sep"></div>' +
+      '<h4>✨ Make your own app with AI</h4>' +
+      '<p class="add-help">Copy this prompt into any AI (ChatGPT, Claude, Gemini…). It teaches the AI the GifOS app format, then asks what you want to build. Paste the HTML it gives back below to create your app.</p>' +
+      '<textarea id="ad-prompt" class="mono" readonly rows="5">' + escapeHtml(AI_PROMPT) + '</textarea>' +
+      '<button id="ad-copy" class="widebtn">📋 Copy prompt</button>' +
+      '<div class="add-sep"></div>' +
+      '<h4>Create app from HTML</h4>' +
+      '<input id="ad-name" placeholder="App name (e.g. Todo)">' +
+      '<textarea id="ad-html" rows="4" placeholder="Paste the AI&#39;s complete index.html here (a ```html code block is fine)"></textarea>' +
+      '<div class="modal-actions">' +
+        '<button id="ad-create">Create app</button>' +
+        '<button class="ghost" id="ad-close">Close</button>' +
+      '</div>';
+    bg.appendChild(box); document.body.appendChild(bg);
+
+    box.querySelector('#ad-file').onclick = () => { bg.remove(); fileInput.click(); };
+    box.querySelector('#ad-folder').onclick = () => { bg.remove(); newFolder(60, 60); };
+    box.querySelector('#ad-copy').onclick = () => {
+      const t = box.querySelector('#ad-prompt'); t.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      if (navigator.clipboard) navigator.clipboard.writeText(AI_PROMPT).catch(() => {});
+      box.querySelector('#ad-copy').textContent = '✅ Copied — now paste it into any AI';
+    };
+    box.querySelector('#ad-create').onclick = async () => {
+      const html = extractHtml(box.querySelector('#ad-html').value);
+      if (!html) { box.querySelector('#ad-html').focus(); return; }
+      bg.remove();
+      await createAppFromHtml(box.querySelector('#ad-name').value, html);
+    };
+    box.querySelector('#ad-close').onclick = () => bg.remove();
+    bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
+  }
 
   fileInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
