@@ -64,23 +64,26 @@ body {
   font-size: 1.1rem; background: rgba(123,92,255,.06); pointer-events: none;
 }
 
-/* icons */
+/* icons — cell width follows the desktop's grid pitch (--cell, set by JS) so
+   at least 5 icons fit across on phones without wasted whitespace */
 .icon {
-  position: absolute; width: 96px; display: flex; flex-direction: column; align-items: center;
-  gap: .35rem; padding: .4rem; border-radius: .6rem; cursor: pointer; text-align: center;
+  position: absolute; width: calc(var(--cell, 104px) - 8px); display: flex; flex-direction: column; align-items: center;
+  gap: .35rem; padding: .4rem .1rem; border-radius: .6rem; cursor: pointer; text-align: center;
   touch-action: none; /* touch drags move the icon, not the page */
 }
 .icon:hover { background: rgba(255,255,255,.05); }
 .icon.selected { background: rgba(123,92,255,.18); outline: 1px solid var(--accent); }
 .icon .thumb {
-  width: var(--isize, 64px); height: var(--isize, 64px); display: flex; align-items: center; justify-content: center;
+  width: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
+  height: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
+  display: flex; align-items: center; justify-content: center;
   border-radius: .5rem; overflow: hidden; background: rgba(255,255,255,.04);
   border: 1px solid var(--border); font-size: calc(var(--isize, 64px) * .5);
 }
 .icon .thumb img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
 .icon.folder .thumb { background: rgba(123,92,255,.12); border-style: dashed; }
 .icon .label {
-  font-size: .78rem; max-width: 92px; word-break: break-word; line-height: 1.15;
+  font-size: .78rem; max-width: calc(var(--cell, 104px) - 12px); word-break: break-word; line-height: 1.15;
   max-height: 2.4em; overflow: hidden;
 }
 .icon .label input {
@@ -127,6 +130,20 @@ body {
 .add-actions button:hover { border-color: var(--accent); }
 .add-sep { height: 1px; background: var(--border); margin: 1rem 0; }
 .add-help { color: var(--muted); font-size: .82rem; line-height: 1.4; margin-bottom: .6rem; }
+
+/* settings: background picker row + collapsed Advanced section */
+.bg-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.modal.wide .bg-row input[type="color"], .bg-row input[type="color"] {
+  width: 3.2rem; min-width: 3.2rem; flex: 0 0 auto; height: 2.2rem; padding: .15rem;
+  border: 1px solid var(--border); border-radius: .4rem; background: var(--surface); cursor: pointer; }
+.bg-row button { padding: .45rem .8rem; border-radius: .45rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: .82rem; }
+.bg-row button:hover { border-color: var(--accent); }
+details.adv summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .3rem 0;
+  user-select: none; }
+details.adv summary:hover { color: var(--text); }
+details.adv[open] summary { color: var(--text); margin-bottom: .4rem; }
+details.adv h4 { margin-top: .8rem; }
 .modal.wide textarea, .modal.wide input {
   width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
   border: 1px solid var(--border); background: #0a0a0f; color: var(--text); font: inherit; margin-bottom: .5rem;

@@ -65,30 +65,37 @@
   const nsParam = (key) => (store.dbName === 'gifos' ? '' : key + encodeURIComponent(store.dbName));
 
   function gridPosition(index) {
-    const cols = Math.max(1, Math.floor((surface.clientWidth - 20) / 116));
-    return { x: 16 + (index % cols) * 116, y: 16 + Math.floor(index / cols) * 116 };
+    const cols = Math.max(1, Math.floor((surface.clientWidth - 20) / GRID.pitch));
+    return { x: GRID.origin + (index % cols) * GRID.pitch, y: GRID.origin + Math.floor(index / cols) * GRID.rowPitch };
   }
 
   async function seedIfEmpty() {
     if (items.length) return;
     const seed = await GifOS.samples.build();
-    const putApp = async (a, parent, n) => {
+    const putApp = async (a, parent, pos) => {
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
         isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif' });
-      const pos = gridPosition(n);
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
         parent, x: pos.x, y: pos.y, iconSize: 64 });
     };
-    let root = 0;
+    // Layout: Welcome top-left; Video Call (the killer app) alone in the
+    // top-right corner; the app folders run down the right-hand side under it.
+    const cols = Math.max(2, Math.floor((surface.clientWidth - 20) / GRID.pitch));
+    const rightX = GRID.origin + (cols - 1) * GRID.pitch;
+    const rowY = (r) => GRID.origin + r * GRID.rowPitch;
+    let rightRow = 0, leftRow = 0;
+    for (const a of seed.loose) {
+      if (a.appId === 'video') await putApp(a, null, { x: rightX, y: rowY(rightRow++) });
+      else await putApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
+    }
     for (const folder of seed.folders) {
       const folderId = store.uid('item');
-      const fp = gridPosition(root++);
-      await store.putItem({ id: folderId, kind: 'folder', name: folder.name, parent: null, x: fp.x, y: fp.y, iconSize: 64 });
+      await store.putItem({ id: folderId, kind: 'folder', name: folder.name, parent: null,
+        x: rightX, y: rowY(rightRow++), iconSize: 64 });
       let inside = 0;
-      for (const a of folder.apps) await putApp(a, folderId, inside++);
+      for (const a of folder.apps) await putApp(a, folderId, gridPosition(inside++));
     }
-    for (const a of seed.loose) await putApp(a, null, root++);
     await load();
   }
 
@@ -137,7 +144,7 @@
       surface.appendChild(hint);
     }
     els.forEach((el) => surface.appendChild(el));
-    refreshStorage();
+    applyBackground();
   }
 
   async function buildIcon(it) {
@@ -186,12 +193,21 @@
   }
 
   // ---------- grid snapping (Windows-style: drag anywhere, land on a cell) ----
-  const GRID = { origin: 16, pitch: 116 };
+  // Cell pitch adapts to the screen: at least 5 icons fit across on phones,
+  // capped on big screens so the desktop doesn't feel like sparse whitespace.
+  function computePitch() {
+    const w = surface.clientWidth || document.documentElement.clientWidth || 1024;
+    return Math.max(72, Math.min(104, Math.floor((w - 24) / 5)));
+  }
+  // Rows stay tall enough for icon + two label lines even when columns tighten.
+  const GRID = { origin: 12, pitch: computePitch(), rowPitch: Math.max(computePitch(), 104) };
+  surface.style.setProperty('--cell', GRID.pitch + 'px');
+  surface.style.setProperty('--row', GRID.rowPitch + 'px');
   const gridCols = () => Math.max(1, Math.floor((surface.clientWidth - 20) / GRID.pitch));
   function cellOf(x, y, cols) {
     return {
       col: Math.min(cols - 1, Math.max(0, Math.round(((x || GRID.origin) - GRID.origin) / GRID.pitch))),
-      row: Math.max(0, Math.round(((y || GRID.origin) - GRID.origin) / GRID.pitch)),
+      row: Math.max(0, Math.round(((y || GRID.origin) - GRID.origin) / GRID.rowPitch)),
     };
   }
   // Nearest empty cell to (px,py) among siblings in `parent`, ring-searching outward.
@@ -212,7 +228,7 @@
           if (d < bestD && !taken.has(col + ',' + row)) { bestD = d; best = { col, row }; }
         }
       }
-      if (best) return { x: GRID.origin + best.col * GRID.pitch, y: GRID.origin + best.row * GRID.pitch };
+      if (best) return { x: GRID.origin + best.col * GRID.pitch, y: GRID.origin + best.row * GRID.rowPitch };
     }
     return { x: px, y: py }; // desktop is impossibly full — leave as dropped
   }
@@ -640,36 +656,55 @@
 
   const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  // ---------- storage pill ----------
-  const storagePill = document.getElementById('storage-pill');
+  // ---------- storage ----------
+  // Persistent storage is requested automatically at boot — normal people
+  // shouldn't have to know eviction exists. Details live in Settings→Advanced.
   function fmtBytes(n) {
     if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
     if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MB';
     if (n >= 1e3) return (n / 1e3).toFixed(0) + ' KB';
     return n + ' B';
   }
-  async function refreshStorage() {
-    if (!navigator.storage || !navigator.storage.estimate) { storagePill.style.display = 'none'; return; }
+  function requestPersistence() {
     try {
-      const est = await navigator.storage.estimate();
-      storagePill.textContent = '💾 ' + fmtBytes(est.usage || 0);
-      storagePill.title = fmtBytes(est.usage || 0) + ' used of ~' + fmtBytes(est.quota || 0) + ' available';
-    } catch (e) { /* estimate unsupported */ }
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) { /* unsupported */ }
   }
-  storagePill.addEventListener('click', async () => {
-    const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : { usage: 0, quota: 0 };
-    const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
-    const status = persisted
-      ? '✅ <b>Persistent storage is ON.</b> The browser will not evict this desktop under storage pressure.'
-      : '⚠️ <b>Persistent storage is OFF.</b> Under storage pressure the browser could evict this desktop. Enable it — and keep a backup GIF (GifOS menu → Back up desktop).';
-    showConfirm('Storage',
-      'This desktop lives entirely in this browser.<br><br>Used: <b>' + fmtBytes(est.usage || 0) + '</b> of ~' + fmtBytes(est.quota || 0) + '<br><br>' + status,
-      persisted ? [] : [{ label: 'Enable persistent storage', fn: async () => {
-        const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
-        showModal('Persistent storage', ok ? 'Enabled — the browser will protect this desktop from eviction.'
-          : 'The browser declined for now. It usually grants this once a site is used more (or bookmarked/installed). Keep a backup GIF meanwhile.');
-      } }]);
-  });
+
+  // ---------- background (wallpaper) ----------
+  const WALLPAPER_ID = 'sys_wallpaper';
+  let wallpaperUrl = null;
+  async function applyBackground() {
+    let prefs = null;
+    try { prefs = await store.getState('sys::prefs'); } catch (e) {}
+    const bg = prefs && prefs.bg;
+    if (bg && bg.image) {
+      const rec = await store.getFile(WALLPAPER_ID);
+      if (rec) {
+        if (wallpaperUrl) URL.revokeObjectURL(wallpaperUrl);
+        wallpaperUrl = URL.createObjectURL(new Blob([rec.bytes], { type: rec.mime || 'image/jpeg' }));
+        surface.style.background = 'url(' + wallpaperUrl + ') center / cover no-repeat fixed';
+        return;
+      }
+    }
+    if (bg && bg.color) { surface.style.background = bg.color; return; }
+    surface.style.background = '';   // the default CSS gradient
+  }
+  async function setBackgroundColor(color) {
+    await store.setState('sys::prefs', { bg: { color } });
+    applyBackground();
+  }
+  async function setBackgroundImage(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await store.putFile({ id: WALLPAPER_ID, name: file.name, bytes, kind: 'wallpaper', mime: file.type || 'image/jpeg' });
+    await store.setState('sys::prefs', { bg: { image: true } });
+    applyBackground();
+  }
+  async function resetBackground() {
+    await store.setState('sys::prefs', { bg: null });
+    await store.deleteFile(WALLPAPER_ID);
+    applyBackground();
+  }
 
   // ---------- system bar ----------
   const fileInput = document.getElementById('file-input');
@@ -726,7 +761,7 @@
     } catch (e) { /* offline or no version.json — stay silent */ }
   }
 
-  function showSettings() {
+  async function showSettings() {
     closeContext();
     const pinned = pinnedVersion();
     const behind = cmpVer(latestVersion, VERSION) > 0;
@@ -744,27 +779,64 @@
     }).join('');
     let relay = ''; try { relay = localStorage.getItem('gifos_relay') || ''; } catch (e) {}
 
+    // Storage facts for the Advanced section.
+    const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null;
+    const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted().catch(() => false) : false;
+    const storageLine = est ? 'Using <b>' + fmtBytes(est.usage || 0) + '</b> of about ' + fmtBytes(est.quota || 0) + '.' : 'Storage details unavailable in this browser.';
+    const persistLine = persisted
+      ? '✅ Protected — the browser won\'t clear this desktop to free space.'
+      : '⚠️ Not yet protected. GifOS asks automatically; browsers grant it once a site is used a bit. You can also keep a backup GIF (GifOS menu → Back up desktop).';
+
+    let prefs = null; try { prefs = await store.getState('sys::prefs'); } catch (e) {}
+    const curColor = (prefs && prefs.bg && prefs.bg.color) || '#0a0a0f';
+
     const bg = document.createElement('div'); bg.className = 'modal-bg';
     const box = document.createElement('div'); box.className = 'modal wide';
     box.innerHTML =
       '<h3>Settings</h3>' +
+      '<h4>Your name</h4>' +
+      '<p class="add-help">Friends see this name when you play or work together.</p>' +
+      '<input id="set-name" maxlength="40" placeholder="Your name" value="' + escapeHtml(store.identity().name) + '">' +
+      '<div class="add-sep"></div>' +
+      '<h4>Background</h4>' +
+      '<p class="add-help">Pick a color or use your own picture.</p>' +
+      '<div class="bg-row">' +
+        '<input type="color" id="set-bg-color" value="' + escapeHtml(curColor) + '" title="Background color">' +
+        '<button id="set-bg-image">🖼️ Use a picture…</button>' +
+        '<button id="set-bg-reset" class="ghost">Reset</button>' +
+      '</div>' +
+      '<div class="add-sep"></div>' +
+      '<details class="adv"><summary>Advanced settings</summary>' +
+      '<h4>Storage</h4>' +
+      '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
+      (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this desktop now</button>') +
       '<h4>Version</h4>' +
       '<p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. ' + status + '</p>' +
       '<p class="add-help">Run a specific version — past builds are served unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
       '<div class="vlist">' + rows + '</div>' +
-      '<div class="add-sep"></div>' +
-      '<h4>Your screen name</h4>' +
-      '<p class="add-help">Shown to other players in multiplayer apps (Tic-Tac-Toe, Guestbook, and any app that tracks players).</p>' +
-      '<input id="set-name" maxlength="40" placeholder="Your name" value="' + escapeHtml(store.identity().name) + '">' +
-      '<div class="add-sep"></div>' +
-      '<h4>Advanced</h4>' +
-      '<p class="add-help">Custom multiplayer relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
+      '<h4>Multiplayer relay</h4>' +
+      '<p class="add-help">Custom relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
+      '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
 
     box.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
     const rel = box.querySelector('#set-reload'); if (rel) rel.onclick = (e) => { e.preventDefault(); location.reload(); };
+    box.querySelector('#set-bg-color').addEventListener('input', (e) => setBackgroundColor(e.target.value));
+    box.querySelector('#set-bg-image').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = () => { if (inp.files[0]) setBackgroundImage(inp.files[0]); };
+      inp.click();
+    };
+    box.querySelector('#set-bg-reset').onclick = () => resetBackground();
+    const persistBtn = box.querySelector('#set-persist');
+    if (persistBtn) persistBtn.onclick = async () => {
+      const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
+      persistBtn.textContent = ok ? '✅ Protected' : 'The browser declined for now — it grants this once the site is used more';
+      persistBtn.disabled = true;
+    };
     box.querySelector('#set-save').onclick = () => {
       const v = box.querySelector('#set-relay').value.trim();
       try { if (v) localStorage.setItem('gifos_relay', v); else localStorage.removeItem('gifos_relay'); } catch (e) {}
@@ -969,6 +1041,7 @@
   });
 
   // ---------- boot ----------
+  requestPersistence();
   load().then(seedIfEmpty).then(ensureSystemItems).then(render).then(checkForUpdate);
 
   GifOS.desktop = { render, load };

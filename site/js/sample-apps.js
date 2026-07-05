@@ -535,6 +535,62 @@ app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this i
 opens the built-in video page when double-clicked on a GifOS desktop.</p>
 <p>Open this GIF on a desktop at <code>gifos.app</code> to start a call.</p></div>`;
 
+  // A real app now: friendly onboarding for non-technical people, with a live
+  // checklist that demonstrates the core magic (state lives inside the icon).
+  const WELCOME_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box;margin:0}
+  body{font:16px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#0a0a0f;color:#e0e0f0;padding:1.2rem}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:1.7rem;margin:.8rem 0 .3rem;background:linear-gradient(135deg,#7b5cff,#5cc8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .lead{color:#9a9ab5;margin-bottom:1.2rem}
+  .card{background:#14141f;border:1px solid #2a2a3f;border-radius:1rem;padding:1rem 1.1rem;margin-bottom:.8rem}
+  .card h2{font-size:1.02rem;margin-bottom:.3rem}
+  .card p{color:#9a9ab5;font-size:.92rem}
+  .card b{color:#cfcfe8}
+  .emoji{font-size:1.3rem;margin-right:.4rem}
+  .try{margin-top:1.2rem}
+  .try h2{font-size:1.05rem;margin-bottom:.2rem}
+  .try p{color:#9a9ab5;font-size:.9rem;margin-bottom:.7rem}
+  label.todo{display:flex;align-items:center;gap:.6rem;background:#14141f;border:1px solid #2a2a3f;border-radius:.7rem;padding:.6rem .8rem;margin-bottom:.5rem;cursor:pointer}
+  label.todo input{width:1.15rem;height:1.15rem;accent-color:#7b5cff}
+  label.todo.done span{text-decoration:line-through;color:#667}
+  .magic{color:#5cc8ff;font-size:.85rem;margin-top:.6rem;display:none}
+  .magic.show{display:block}
+</style></head><body><div class="wrap">
+  <h1>👋 Welcome to GifOS</h1>
+  <p class="lead">Your own computer that lives in your browser. No account, no installs — and everything you make is a file <b>you</b> keep.</p>
+
+  <div class="card"><h2><span class="emoji">🖼️</span>Every app is a GIF</h2>
+  <p>Those animated icons on your desktop are real GIF images — with a whole app tucked inside. Double-click one and it runs. Send one to a friend and they get your app <b>with your stuff in it</b>.</p></div>
+
+  <div class="card"><h2><span class="emoji">💾</span>Your stuff stays put</h2>
+  <p>Whatever you do in an app is saved with its icon automatically. Close the tab, come back tomorrow — you're right where you left off. Nothing is stored on anyone's servers.</p></div>
+
+  <div class="card"><h2><span class="emoji">🔗</span>Play together with one link</h2>
+  <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b> on your desktop!</p></div>
+
+  <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
+  <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
+
+  <div class="card"><h2><span class="emoji">💿</span>Your whole computer is one file</h2>
+  <p>GifOS menu (top-left) → <b>Back up desktop</b> gives you a single GIF holding everything. Keep it safe, or double-click it anywhere to boot your computer — even inside another one.</p></div>
+
+  <div class="try"><h2>🪄 See the magic for yourself</h2>
+  <p>Check something off, close this tab, then open Welcome again — it remembers. That's your data living inside the icon.</p>
+  <div id="list"></div><div class="magic" id="magic">Now close this tab and reopen Welcome from your desktop 😉</div></div>
+</div>
+<script>
+  var STEPS=[["look","Looked around my new desktop"],["run","Opened an app (this one counts!)"],["invite","Invited a friend with one link"],["make","Made my own app with ＋ Add"],["backup","Backed up my computer to one GIF"]];
+  var db=window.gifos?gifos.db("welcome"):null,state={};
+  function render(){var el=document.getElementById("list");el.innerHTML="";STEPS.forEach(function(s){
+    var l=document.createElement("label");l.className="todo"+(state[s[0]]?" done":"");
+    var c=document.createElement("input");c.type="checkbox";c.checked=!!state[s[0]];
+    c.onchange=function(){state[s[0]]=c.checked;if(db)db.put({id:s[0],done:c.checked});document.getElementById("magic").classList.add("show");render();};
+    var t=document.createElement("span");t.textContent=s[1];l.appendChild(c);l.appendChild(t);el.appendChild(l);});}
+  if(db){db.subscribe(function(items){state={};items.forEach(function(i){state[i.id]=i.done;});render();});}else{render();}
+</script></body></html>`;
+
   const WELCOME_README = [
     'WELCOME TO GIFOS',
     '================',
@@ -605,15 +661,18 @@ opens the built-in video page when double-clicked on a GifOS desktop.</p>
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
         app('Chat', 'chat', [92, 220, 180], CHAT_HTML),
-        { name: 'Video Call.gif', appId: 'video', accent: [92, 160, 255],
-          files: { 'manifest.json': manifest('video', 'Video Call', [92, 160, 255], { system: 'video' }),
-                   'index.html': VIDEO_FALLBACK_HTML } },
       ] },
     ];
-    // A GIF with NO index.html → browsable filesystem fallback, doubling as the manual.
+    // Loose icons live at the desktop root: Welcome (a real onboarding app —
+    // the README travels inside its GIF too) and Video Call (the killer app,
+    // pinned top-right by the seeder, not buried in a folder).
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
-      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { entry: 'nonexistent.html' }), 'README.txt': WELCOME_README },
+      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': WELCOME_HTML, 'README.txt': WELCOME_README },
+    }, {
+      name: 'Video Call.gif', appId: 'video', accent: [92, 160, 255],
+      files: { 'manifest.json': manifest('video', 'Video Call', [92, 160, 255], { system: 'video' }),
+               'index.html': VIDEO_FALLBACK_HTML },
     }];
 
     return Promise.all([
