@@ -11,8 +11,9 @@
  * no logic beyond the hostname check.
  *
  * Non-numeric subdomains redirect to the main computer. relay.gifos.app is
- * unaffected: its own custom-domain route is more specific than the
- * *.gifos.app wildcard, so Cloudflare routes it to the relay Worker first.
+ * kept out of our hands by the relay Worker's own explicit zone route —
+ * Cloudflare ROUTES BEAT CUSTOM DOMAINS, and route-vs-route the relay's
+ * non-wildcard pattern outranks our wildcard (see relay/wrangler.toml).
  */
 
 const ORIGIN = 'https://gifos.app';
@@ -23,6 +24,16 @@ export default {
     const sub = url.hostname.endsWith('.gifos.app')
       ? url.hostname.slice(0, -'.gifos.app'.length)
       : null;
+
+    // If relay traffic lands here, the relay Worker's route is missing and
+    // the wildcard swallowed it. Fail LOUDLY — a silent 301 turns into a
+    // mystery "relay connection failed" on someone's phone.
+    if (sub === 'relay') {
+      return new Response(
+        'gifos-mirror intercepted relay.gifos.app — the relay Worker route is missing.\n' +
+        'Fix: cd relay && npx wrangler deploy   (see mirror/README.md)\n',
+        { status: 530, headers: { 'content-type': 'text/plain' } });
+    }
 
     if (!sub || !/^\d+$/.test(sub)) {
       return Response.redirect(ORIGIN + url.pathname + url.search, 301);

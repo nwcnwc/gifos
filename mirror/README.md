@@ -36,26 +36,34 @@ Worker to run. Cloudflare's free Universal SSL already covers `*.gifos.app`.
 **Verify:** open `https://7.gifos.app` → the GifOS desktop, with its own
 separate storage. `https://anything-else.gifos.app` → redirects to gifos.app.
 
-## Why relay.gifos.app is unaffected
+## How relay.gifos.app stays out of the mirror's hands
 
-Explicit DNS records beat the `*` wildcard, and Cloudflare routes requests to
-the **most specific** matching Worker route — `relay.gifos.app`'s custom
-domain wins over `*.gifos.app/*`. The mirror also guards itself: a non-numeric
-subdomain never proxies, it only redirects.
+**Cloudflare's precedence rule: ROUTES BEAT CUSTOM DOMAINS.** When a request
+matches both a Worker route and another Worker's custom domain, the route
+Worker runs — specificity only breaks ties *between routes*. So the mirror's
+`*.gifos.app/*` wildcard route will happily swallow `relay.gifos.app` even
+after the relay's custom domain exists (this bit us in production: every
+invite died with "relay connection failed" while `wrangler deploy` looked
+perfectly successful).
 
-**⚠️ … but only if the relay's custom domain actually exists.** The custom
-domain is created by deploying the relay with the `[[routes]]
-pattern = "relay.gifos.app"` block present in `relay/wrangler.toml` (it was
-commented out in the very first deploy). If the relay was last deployed
-before that block existed, `relay.gifos.app` has no route of its own — the
-`*` wildcard catches it, the mirror 301-redirects it, and every WebSocket
-handshake fails with "relay connection failed." Fix:
+The fix, baked into `relay/wrangler.toml`, is that the relay binds **both**:
+
+1. a **custom domain** `relay.gifos.app` — manages DNS + the TLS certificate;
+2. an explicit **zone route** `relay.gifos.app/*` — route-vs-route, this
+   non-wildcard pattern outranks the mirror's wildcard and actually wins the
+   traffic.
+
+The mirror also fails loudly as a backstop: if relay traffic ever reaches it,
+it returns a 530 with the fix instructions instead of silently redirecting.
+
+**Verify** after deploying both Workers:
 
 ```bash
-cd relay && npx wrangler deploy   # creates the relay.gifos.app custom domain
+curl https://relay.gifos.app/        # → "gifos relay ok"
 ```
 
-If wrangler complains that a `relay` DNS record already exists (from an old
-manual CNAME), delete that record in Cloudflare → DNS first, then deploy
-again. Verify with Settings → Advanced → **Test connection** in GifOS, or
-`curl https://relay.gifos.app/` → `gifos relay ok`.
+or in GifOS: Settings → Advanced → **Test connection**. Note that browsers
+cache the old 301 redirect aggressively — test in a private window after
+fixing. If wrangler ever complains that a `relay` DNS record already exists
+(a manual CNAME from early setup), delete that record in Cloudflare → DNS and
+deploy again.

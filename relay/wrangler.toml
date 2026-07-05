@@ -14,9 +14,20 @@ class_name = "Session"
 tag = "v1"
 new_sqlite_classes = ["Session"]
 
-# Branded domain. Requires the gifos.app zone to be on Cloudflare (nameservers
-# moved from GoDaddy). Alternatively add it in the dashboard after deploy:
-# Workers & Pages → gifos-relay → Settings → Domains & Routes → Custom Domain.
+# Branded domain — TWO bindings on purpose:
+#
+# 1. The custom domain manages DNS + the TLS certificate for relay.gifos.app.
+# 2. The explicit zone ROUTE is what actually wins the traffic. Cloudflare's
+#    precedence rule is: ROUTES BEAT CUSTOM DOMAINS when both match a request
+#    — specificity only breaks ties between routes. The gifos-mirror Worker
+#    holds a `*.gifos.app/*` wildcard route (numbered subdomains), and without
+#    our own route it intercepts relay.gifos.app and 301s it to the desktop,
+#    killing every WebSocket handshake. Route-vs-route, the non-wildcard
+#    `relay.gifos.app/*` is more specific and wins.
 [[routes]]
 pattern = "relay.gifos.app"
 custom_domain = true
+
+[[routes]]
+pattern = "relay.gifos.app/*"
+zone_name = "gifos.app"
