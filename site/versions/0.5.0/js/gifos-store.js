@@ -21,12 +21,6 @@
     dbp = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
-        // COMPATIBILITY RULE: migrations here are ADDITIVE ONLY. Never drop or
-        // rename a store, and never require a field old records lack — read
-        // defensively with defaults instead. This is what lets an archived
-        // build under /versions/ (older shell code) safely share this same
-        // per-origin database with the latest build. Bump DB_VERSION only to
-        // add a store/index, and backfill defaults for existing rows.
         const db = e.target.result;
         if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('items')) db.createObjectStore('items', { keyPath: 'id' });

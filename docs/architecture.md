@@ -326,6 +326,44 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
 - The relay is a dumb pipe: it routes by session but never inspects, stores, or
   decrypts payloads; P2P DataChannels are DTLS-encrypted end-to-end.
 
+## Versioning & Compatibility
+
+The site is static files. `gifos.app/` is always the **latest** build; every past
+build is archived unchanged under `/versions/<x.y.z>/`. Because web storage is
+**per-origin, not per-path**, all builds on `gifos.app` share one IndexedDB —
+which drives the compatibility rules below.
+
+### Two compatibility surfaces
+
+1. **Shell ↔ stored desktop data** (the `gifos` IndexedDB: items, files,
+   appstate). Migrations are **additive-only**: never drop/rename a store, never
+   require a field old records lack; read defensively with defaults. This is
+   what lets an older archived build safely read a desktop the latest build has
+   touched — the guarantee that makes version pinning safe rather than a trap.
+2. **App-GIF ↔ runtime API** (`window.gifos`). App GIFs are files that outlive
+   the shell they were made on (saved, shared, received in chats), so the API is
+   a **stable, add-only contract**, keyed by the manifest's `gifos` version. The
+   runtime only *adds* surface; if a breaking change is ever unavoidable, the
+   runtime branches on the declared version so old GIFs keep running.
+
+### Update delivery
+
+The shell bakes in its version (`window.GIFOS_VERSION`) and, on load, fetches
+`/version.json` (no-store) to learn the deployed `current`. If it's behind, a
+dismissible **update bar** invites a reload — the user chooses when, so state is
+never yanked mid-use. (GitHub Pages' short HTML cache means a reload picks up the
+new build.)
+
+### Version pinning
+
+Deep **Settings → Version** lists the archived versions and lets a user pin one.
+Pinning writes `localStorage.gifos_pin`; a tiny bootstrap in the canonical
+`index.html` reads it before anything else loads and redirects to
+`/versions/<pin>/`. `gifos.app/?unpin` (or "Return to latest" in Settings)
+clears it. Archived builds live under `/versions/` and never re-redirect, so
+there is no loop, and because every pinnable build carries the Settings UI,
+unpinning is always available. Cutting a release: `scripts/archive-version.sh`.
+
 ## Size Limits
 
 | Scenario | GIF size | Capacity |

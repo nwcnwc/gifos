@@ -329,6 +329,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     .evaluate((el) => el.style.left + '/' + el.style.top);
   check('icon moved in one tab updates live in the other (no reload)', posInSys === posInTwin);
 
+  // ---- versioning: pin decision logic ----
+  const pinDecisions = await page.evaluate(() => ({
+    none: window.gifosPinTarget('/', ''),
+    same: (localStorage.setItem('gifos_pin', window.GIFOS_VERSION), window.gifosPinTarget('/', '')),
+    old: (localStorage.setItem('gifos_pin', '0.4.0'), window.gifosPinTarget('/', '')),
+    underVersions: window.gifosPinTarget('/versions/0.4.0/', ''),
+    unpin: (window.gifosPinTarget('/', '?unpin=1')),
+    pinAfterUnpin: localStorage.getItem('gifos_pin'),
+  }));
+  check('no pin → no redirect', pinDecisions.none === null);
+  check('pin == current → no redirect', pinDecisions.same === null);
+  check('pin to old version → redirects to its subfolder', pinDecisions.old && pinDecisions.old.redirect === '/versions/0.4.0/');
+  check('already under /versions/ → never re-redirects (no loop)', pinDecisions.underVersions === null);
+  check('?unpin clears the pin', pinDecisions.unpin && pinDecisions.unpin.clear === true && pinDecisions.pinAfterUnpin === null);
+
+  // ---- versioning: Settings modal shows the running version ----
+  await page.locator('#sys-menu-btn').click();
+  await page.locator('.ctx button', { hasText: 'Settings…' }).click();
+  await page.locator('.modal.wide').waitFor({ timeout: 4000 });
+  const settingsText = await page.locator('.modal.wide').textContent();
+  check('Settings shows current version and a version list', /Running/.test(settingsText) && /v0\.5\.0/.test(settingsText));
+  await page.locator('#set-close').click();
+
+  // ---- versioning: archived build under /versions/0.5.0/ serves a working desktop ----
+  const archived = await context.newPage();
+  await archived.goto(BASE + '/versions/0.5.0/index.html');
+  await archived.waitForSelector('.icon', { timeout: 8000 });
+  check('archived /versions/0.5.0/ build boots a working desktop', (await archived.$$('.icon')).length >= 5);
+  await archived.close();
+
+  // ---- versioning: update bar appears when a newer version is deployed ----
+  const upCtx = await browser.newContext();
+  const upPage = await upCtx.newPage();
+  await upPage.route('**/version.json*', (r) => r.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ current: '9.9.9', versions: ['9.9.9', '0.5.0'] }),
+  }));
+  await upPage.goto(BASE + '/index.html');
+  await upPage.waitForSelector('.icon');
+  await upPage.locator('#update-bar').waitFor({ state: 'visible', timeout: 6000 });
+  const upMsg = await upPage.locator('#update-msg').textContent();
+  check('update bar shows when a newer version is available', /9\.9\.9/.test(upMsg));
+  await upCtx.close();
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
