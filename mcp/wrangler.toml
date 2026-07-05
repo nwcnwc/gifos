@@ -1,0 +1,16 @@
+name = "gifos-mcp"
+main = "src/mcp.mjs"
+compatibility_date = "2026-01-01"
+
+# Branded domain — the same TWO bindings as the relay, for the same reason:
+# Cloudflare ROUTES BEAT CUSTOM DOMAINS, and the gifos-mirror Worker holds a
+# *.gifos.app/* wildcard route. The custom domain manages DNS + TLS; the
+# explicit zone route is what actually wins the traffic (route-vs-route,
+# the non-wildcard pattern outranks the mirror's wildcard).
+[[routes]]
+pattern = "mcp.gifos.app"
+custom_domain = true
+
+[[routes]]
+pattern = "mcp.gifos.app/*"
+zone_name = "gifos.app"

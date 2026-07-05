@@ -41,6 +41,8 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 **Make your own apps**: ＋ Add → "Ask an AI to build an app" copies a prompt that teaches any AI the GifOS format; paste back the HTML it returns. Or drop in a single `.html`, or a **`.zip` for multi-file apps** (js/css/assets included).
 
+**Or let your AI do the whole thing (MCP).** Add the GifOS connector to Claude (Settings → Connectors → `https://mcp.gifos.app/mcp`) and just say *"build me a habit tracker for GifOS"* — the AI reads the build guide, writes the app, designs a pixel-art animated icon, and hands you a **finished `.gif` file** via the `pack_app` tool. Drop it on your Home Screen; done. AIs that merely browse the web learn the format from [`gifos.app/llms.txt`](site/llms.txt) and can produce paste-into-＋Add apps with no connector at all. See [`mcp/`](mcp).
+
 ## Multiplayer: Any Browser Can Be the Server
 
 Press **Invite** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
@@ -127,6 +129,7 @@ The e2e suites expect the static server on `:8099` and (for relay/video) `test/r
 | Desktop site | GitHub Pages → `gifos.app` | **Automatic** on every push to `main` ([`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `site/` only) |
 | Relay | Cloudflare Worker → `relay.gifos.app` | **Manual**: `cd relay && npx wrangler deploy` |
 | Subdomain mirror | Cloudflare Worker → `*.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
+| MCP app builder | Cloudflare Worker → `mcp.gifos.app` | **Manual**: `cd mcp && npx wrangler deploy` |
 
 The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
 
