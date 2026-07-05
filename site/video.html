@@ -10,19 +10,21 @@
   html, body { height: 100%; }
   body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  /* Same system bar as run.html — Video Call is a system app, but it should
+     look like every other running app, just with call controls in the bar. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
          background: #14141f; border-bottom: 1px solid #2a2a3f; flex-wrap: wrap; }
   .bar .title { font-weight: 700; }
   .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
-  .bar button:hover { border-color: #5ca0ff; }
+  .bar button:hover { border-color: #7b5cff; }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
   .share.show { display: flex; }
   .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                 background: #0a0a0f; color: #5ca0ff; font-family: ui-monospace, monospace; font-size: .78rem; }
+                 background: #0a0a0f; color: #7b5cff; font-family: ui-monospace, monospace; font-size: .78rem; }
   .share .hint { color: #8888aa; }
   #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px;
           grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-content: center; }
@@ -41,19 +43,19 @@
   .name-box p { color: #8888aa; font-size: .85rem; margin-bottom: 1rem; }
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
-  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #5ca0ff; background: #5ca0ff; color: #fff; cursor: pointer; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff; background: #7b5cff; color: #fff; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="bar">
-    <span class="title">📹 Video Call</span>
+    <span class="title">📦 GifOS</span>
+    <button id="invite" title="Friends join you live with one link">🔗 Invite</button>
     <button id="mic">🎙 Mute</button>
     <button id="cam">📷 Camera off</button>
-    <button id="invite">🔗 Invite</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
-    <span class="hint">Share this link — friends open it to join the call:</span>
+    <span class="hint">Send this link to friends — opening it brings them right in:</span>
     <input id="share-url" readonly>
     <button id="copy">Copy</button>
   </div>
