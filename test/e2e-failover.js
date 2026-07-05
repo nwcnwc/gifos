@@ -22,6 +22,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostDesk = await hostCtx.newPage();
   await hostDesk.goto(BASE + '/index.html');
   await hostDesk.waitForSelector('.icon');
+  await hostDesk.locator('.icon', { hasText: 'Social' }).dblclick();
+  await hostDesk.waitForTimeout(250);
   const [hostRun] = await Promise.all([
     hostCtx.waitForEvent('page'),
     hostDesk.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
@@ -88,6 +90,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostDesk2 = await hostCtx.newPage();
   await hostDesk2.goto(BASE + '/index.html');
   await hostDesk2.waitForSelector('.icon');
+  await hostDesk2.locator('.icon', { hasText: 'Social' }).dblclick();
+  await hostDesk2.waitForTimeout(250);
   const [hostRun2] = await Promise.all([
     hostCtx.waitForEvent('page'),
     hostDesk2.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),

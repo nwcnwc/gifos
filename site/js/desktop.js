@@ -67,16 +67,24 @@
 
   async function seedIfEmpty() {
     if (items.length) return;
-    const samples = await GifOS.samples.build();
-    for (let i = 0; i < samples.length; i++) {
-      const s = samples[i];
+    const seed = await GifOS.samples.build();
+    const putApp = async (a, parent, n) => {
       const fileId = store.uid('file');
-      await store.putFile({ id: fileId, name: s.name, bytes: s.bytes, kind: 'gif',
-        isApp: true, appId: s.appId, accent: s.accent, mime: 'image/gif' });
-      const pos = gridPosition(i);
-      await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: s.name,
-        parent: null, x: pos.x, y: pos.y, iconSize: 64 });
+      await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
+        isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif' });
+      const pos = gridPosition(n);
+      await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
+        parent, x: pos.x, y: pos.y, iconSize: 64 });
+    };
+    let root = 0;
+    for (const folder of seed.folders) {
+      const folderId = store.uid('item');
+      const fp = gridPosition(root++);
+      await store.putItem({ id: folderId, kind: 'folder', name: folder.name, parent: null, x: fp.x, y: fp.y, iconSize: 64 });
+      let inside = 0;
+      for (const a of folder.apps) await putApp(a, folderId, inside++);
     }
+    for (const a of seed.loose) await putApp(a, null, root++);
     await load();
   }
 
@@ -776,14 +784,14 @@
     const m = s.match(/```(?:html)?\s*([\s\S]*?)```/i);
     return (m ? m[1] : s).trim();
   }
-  function fileToDataUrl(file) {
-    return new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => resolve(null); r.readAsDataURL(file); });
-  }
   function iconFromHtml(html) {
-    let m = html.match(/<link[^>]*rel=["']icon["'][^>]*href=["']([^"']+)["']/i);
-    if (m) return m[1];
-    m = html.match(/<meta[^>]*name=["']gifos-icon["'][^>]*content=["']([^"']+)["']/i);
-    return m ? m[1] : null;
+    // Find the whole <link rel="icon"> tag, then pull href from it (any attr
+    // order); the delimiter backreference tolerates quotes inside a data URL.
+    const link = html.match(/<link\b[^>]*\brel=["']icon["'][^>]*>/i);
+    if (link) { const h = link[0].match(/\bhref=(["'])([\s\S]*?)\1/i); if (h) return h[2]; }
+    const meta = html.match(/<meta\b[^>]*\bname=["']gifos-icon["'][^>]*>/i);
+    if (meta) { const c = meta[0].match(/\bcontent=(["'])([\s\S]*?)\1/i); if (c) return c[2]; }
+    return null;
   }
   // Rasterize an image (data URL / object URL, incl. SVG) to a 96×96 RGB332
   // preview frame the GIF encoder can embed as the app's artwork.
@@ -838,8 +846,6 @@
       '<p class="add-help">Paste a single index.html below, or use ＋ Add file(s) to drop a <b>.zip</b> for a multi-file app.</p>' +
       '<input id="ad-name" placeholder="App name (e.g. Todo)">' +
       '<textarea id="ad-html" rows="4" placeholder="Paste the AI&#39;s complete index.html here (a ```html code block is fine)"></textarea>' +
-      '<label class="add-help" for="ad-icon">Optional app artwork (an image becomes the GIF\'s icon):</label>' +
-      '<input id="ad-icon" type="file" accept="image/*">' +
       '<div class="modal-actions">' +
         '<button id="ad-create">Create app</button>' +
         '<button class="ghost" id="ad-close">Close</button>' +
@@ -857,10 +863,8 @@
     box.querySelector('#ad-create').onclick = async () => {
       const html = extractHtml(box.querySelector('#ad-html').value);
       if (!html) { box.querySelector('#ad-html').focus(); return; }
-      const iconFile = (box.querySelector('#ad-icon').files || [])[0];
-      const iconSrc = iconFile ? await fileToDataUrl(iconFile) : null;
       bg.remove();
-      await createAppFromHtml(box.querySelector('#ad-name').value, html, iconSrc);
+      await createAppFromHtml(box.querySelector('#ad-name').value, html);
     };
     box.querySelector('#ad-close').onclick = () => bg.remove();
     bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
