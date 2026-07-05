@@ -29,10 +29,12 @@ inside the icon, and any app can go multiplayer with one invite link.
 
 ## The app itself
 
-An app is one complete HTML document (index.html) — everything inline:
-1. ALL CSS in <style>, ALL JS in <script>. No external files, CDNs,
-   frameworks, remote images, or web fonts — GifOS sandboxes apps and blocks
-   every outside network request. Inline SVG and emoji are fine.
+The entry point is index.html; multi-file apps are fully supported:
+1. app.js, style.css, assets/… referenced normally (<script src="app.js">)
+   all travel inside the GIF — pass them via pack_app's extra_files. The
+   ONLY hard rule: NOTHING EXTERNAL. No CDNs, frameworks, remote images, or
+   web fonts — GifOS sandboxes apps and blocks every outside network
+   request. Inline SVG and emoji are fine.
 2. Persistence — localStorage/cookies/IndexedDB are DISABLED in the sandbox.
    Use the built-in async API instead:
      const db = gifos.db('items');        // a named collection
