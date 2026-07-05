@@ -175,7 +175,8 @@
     const f = opts.preview
       ? { width: opts.preview.width, height: opts.preview.height, palette: opts.preview.palette,
           numColors: opts.preview.numColors, minCodeSize: opts.preview.minCodeSize,
-          frames: [opts.preview.indices], delayCs: 0 }
+          frames: opts.preview.frames || [opts.preview.indices], // custom art may be animated (many frames)
+          delayCs: opts.preview.delayCs || 0 }
       : animatedPreview(opts.accent, opts.seed || 0);
     const numColors = f.numColors || (f.palette.length / 3);
     const sizeField = Math.round(Math.log2(numColors)) - 1; // 128→6, 256→7

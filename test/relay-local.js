@@ -72,19 +72,17 @@ server.on('upgrade', (req, socket) => {
   const token = url.searchParams.get('token') || '';
   const peer = url.searchParams.get('peer') || 'c_' + crypto.randomBytes(4).toString('hex');
 
-  // Bandwidth guard — mirrors the Worker (media must go P2P, not over the relay).
-  const MAX_MSG = 64 * 1024, RATE = 256 * 1024;
-  const meter = { winStart: Date.now(), bytes: 0, warned: false };
+  // Bandwidth guard — token bucket, mirrors the Worker (media must go P2P).
+  const BURST = 1024 * 1024, REFILL = 48 * 1024;
+  const meter = { tokens: BURST, last: Date.now(), warned: false };
   const allow = (data) => {
     const now = Date.now();
-    if (now - meter.winStart >= 1000) { meter.winStart = now; meter.bytes = 0; meter.warned = false; }
+    meter.tokens = Math.min(BURST, meter.tokens + ((now - meter.last) / 1000) * REFILL);
+    meter.last = now;
     const len = Buffer.byteLength(data || '');
-    meter.bytes += len;
-    if (len > MAX_MSG || meter.bytes > RATE) {
-      if (!meter.warned) { meter.warned = true; conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' })); }
-      return false;
-    }
-    return true;
+    if (len <= BURST && meter.tokens >= len) { meter.tokens -= len; meter.warned = false; return true; }
+    if (!meter.warned) { meter.warned = true; conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' })); }
+    return false;
   };
   const roster = () => {
     const s = JSON.stringify({ t: 'roster', peers: Array.from(sess.clients.keys()) });

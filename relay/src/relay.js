@@ -21,16 +21,22 @@
  *   relay  → client: { t:'joined', peer } / { t:'host-gone' } / { t:'error', error }
  */
 
-const MAX_MSG_BYTES = 64 * 1024;        // 64 KB — generous for SDP/DB, far below media rate
-const RATE_BYTES_PER_SEC = 256 * 1024;  // sustained cap: streaming video is Mbps, so it can't fit
+// Token bucket: a one-time BURST (delivering an App GIF) is fine, but SUSTAINED
+// throughput is refilled far below any usable audio/video bitrate — so media
+// can't stream through the relay, while normal control traffic and app delivery
+// pass freely. Media must go peer-to-peer over WebRTC.
+const BURST_BYTES = 1024 * 1024;       // 1 MB one-time burst (e.g. an App GIF)
+const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even low-quality video
 
-function makeMeter() { return { winStart: Date.now(), bytes: 0, warned: false }; }
-// Returns true if this message must be DROPPED (too big, or over the rate budget).
+function makeMeter() { return { tokens: BURST_BYTES, last: Date.now(), warned: false }; }
+// Returns true if this message must be DROPPED (would overrun the budget).
 function overBudget(meter, len) {
   const now = Date.now();
-  if (now - meter.winStart >= 1000) { meter.winStart = now; meter.bytes = 0; meter.warned = false; }
-  meter.bytes += len;
-  return len > MAX_MSG_BYTES || meter.bytes > RATE_BYTES_PER_SEC;
+  meter.tokens = Math.min(BURST_BYTES, meter.tokens + ((now - meter.last) / 1000) * REFILL_BYTES_PER_SEC);
+  meter.last = now;
+  if (len > BURST_BYTES) return true;
+  if (meter.tokens >= len) { meter.tokens -= len; meter.warned = false; return false; }
+  return true;
 }
 
 export class Session {
