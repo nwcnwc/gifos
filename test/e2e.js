@@ -118,7 +118,7 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('.modal.wide').waitFor({ timeout: 4000 });
   check('Add opens a popup (not a dropdown)', (await page.locator('.modal.wide h3').textContent()).includes('Add to your Home Screen'));
   const promptVal = await page.locator('#ad-prompt').inputValue();
-  check('popup contains a copyable AI prompt', /gifos\.db/.test(promptVal) && /What app do you want to build/.test(promptVal));
+  check('popup prompt demands a FINISHED .gif (with the packer recipe)', /FINISHED \.gif/.test(promptVal) && /pack_gifos/.test(promptVal) && /gifos\.db/.test(promptVal) && /What app do you want to build/.test(promptVal));
   const miniApp = "<!doctype html><meta charset=utf-8><body><button id='b'>tap</button><div id='n'>0</div>" +
     "<script>const db=gifos.db('c');let n=0;db.subscribe(function(items){n=items.length;document.getElementById('n').textContent=n});" +
     "document.getElementById('b').onclick=function(){db.put({t:Date.now()})}</scr" + "ipt>";

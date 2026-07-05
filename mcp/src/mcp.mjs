@@ -80,9 +80,11 @@ artwork — it turns their own memes and memories into living apps.
 
 ## Delivering to the user
 
-pack_app returns the GIF as base64 (an embedded resource named <App>.gif)
-plus an inline image preview. Save the bytes as "<App>.gif" and give the file
-to the user with these instructions:
+THE DELIVERABLE IS THE FINISHED .gif FILE — never hand the user raw HTML
+unless they explicitly ask for source code. pack_app returns the GIF as
+base64 (an embedded resource named <App>.gif) plus an inline image preview.
+Save the bytes as "<App>.gif" and give the file to the user with these
+instructions:
   1. Open ${SITE} (their GifOS Home Screen).
   2. Tap "+ Add" (or drag the file in) and pick the GIF.
   3. Double-click the new icon — the app runs; their data lives inside it.

@@ -5,10 +5,10 @@
 > keep a persistent Home Screen in their browser; nothing lives on servers.
 > Apps go multiplayer with one invite link (P2P WebRTC, relay fallback).
 
-If a user asks you to build them a GifOS app, you can deliver a FINISHED,
-working app. Two ways:
+If a user asks you to build them a GifOS app, YOUR DELIVERABLE IS A REAL,
+FINISHED .gif FILE — not code. Three paths, in order of preference:
 
-## Best: the GifOS MCP server (finished .gif, animated icon and all)
+## Path A (best): the GifOS MCP server
 
 Connect an MCP client to:  https://mcp.gifos.app/mcp
 (In Claude: Settings -> Connectors -> Add custom connector -> that URL.)
@@ -16,15 +16,42 @@ Connect an MCP client to:  https://mcp.gifos.app/mcp
 Tools:
 - get_build_guide  — the full spec (read first)
 - validate_app     — static sandbox-rule checks on your HTML
-- pack_app         — packs your HTML (+ optional pixel-art animated icon)
-                     into a real .gif and returns the bytes (base64).
-                     Save as "<App>.gif" and hand the file to the user.
+- pack_app         — packs your HTML (+ pixel-art animated icon, or hidden
+                     inside the user's own GIF) into a real .gif and returns
+                     the bytes (base64). Save as "<App>.gif", hand it over.
 
-## Also good: hand the user HTML they paste into GifOS
+## Path B: build the .gif yourself with your code tool
 
-GifOS itself packs HTML into an app GIF locally: the user opens
-https://gifos.app -> "+ Add" -> pastes your index.html (or drops a .zip for
-multi-file apps). Same result, packed in their browser.
+If you can run Python and attach files, you don't need the connector:
+1. Draw a small animated icon with PIL — 2-6 frames, 64x64, bold shapes on a
+   dark #0a0a0f tile, and make it MOVE. Save: im.save("icon.gif",
+   save_all=True, append_images=frames[1:], duration=120, loop=0)
+2. Splice the app in with EXACTLY this (wbits=-15 raw deflate is required):
+
+   import json, zlib, base64
+   def pack_gifos(gif_bytes, files):
+       a = {"v": 1, "files": {p: base64.b64encode(v.encode() if isinstance(v, str) else v).decode() for p, v in files.items()}}
+       c = zlib.compressobj(9, zlib.DEFLATED, -15)
+       payload = b"\x01" + c.compress(json.dumps(a).encode()) + c.flush()
+       block = b"\x21\xff\x0bGIFOS1.0GOS"
+       for i in range(0, len(payload), 255):
+           block += bytes([len(payload[i:i+255])]) + payload[i:i+255]
+       block += b"\x00"
+       end = len(gif_bytes) - (gif_bytes[-1] == 0x3B)
+       return gif_bytes[:end] + block + b"\x3b"
+
+   manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App",
+       "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})
+   open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(),
+       {"manifest.json": manifest, "index.html": HTML}))
+
+Attach the resulting file for the user to download.
+
+## Path C (last resort): hand the user HTML to paste
+
+Only if you can neither use MCP nor run code: give the complete index.html
+and tell the user to open https://gifos.app -> "+ Add" -> paste it into the
+app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
 
 ## The app rules (summary — get_build_guide has the full version)
 
