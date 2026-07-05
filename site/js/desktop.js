@@ -88,6 +88,35 @@
     return { x: GRID.origin + (index % cols) * GRID.pitch, y: GRID.origin + Math.floor(index / cols) * GRID.rowPitch };
   }
 
+  // ---------- folders ARE GIFs ----------
+  // Every folder owns a real animated folder GIF (its icon and its shareable
+  // form). Day-to-day the children live as store rows for speed; Download
+  // packs a self-contained BUNDLE — children (state folded in) inside the
+  // folder's own GIF, recursively — and dropping a bundle unpacks it back.
+  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180] };
+  function accentFor(name) {
+    if (FOLDER_ACCENTS[name]) return FOLDER_ACCENTS[name];
+    let h = 0; const s = String(name || 'Folder');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    const pool = [[255, 200, 80], [123, 92, 255], [92, 220, 180], [255, 92, 170], [92, 160, 255], [92, 255, 123]];
+    return pool[h % pool.length];
+  }
+  async function makeFolderGif(name, accent) {
+    accent = accent || accentFor(name);
+    const files = { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name }) };
+    let preview = null;
+    if (GifOS.icons) { try { preview = await GifOS.icons.renderApp('folder', accent); } catch (e) { /* plain tile */ } }
+    return gif.encode(files, { accent, preview });
+  }
+  async function createFolder(name, parent, x, y) {
+    const fileId = store.uid('file');
+    const bytes = await makeFolderGif(name);
+    await store.putFile({ id: fileId, name: name + '.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+    const it = { id: store.uid('item'), kind: 'folder', name, parent: parent || null, x, y, iconSize: 64, fileId };
+    await store.putItem(it);
+    return it;
+  }
+
   async function seedIfEmpty() {
     if (items.length) return;
     const seed = await GifOS.samples.build();
@@ -109,11 +138,9 @@
       else await putApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
     for (const folder of seed.folders) {
-      const folderId = store.uid('item');
-      await store.putItem({ id: folderId, kind: 'folder', name: folder.name, parent: null,
-        x: rightX, y: rowY(rightRow++), iconSize: 64 });
+      const f = await createFolder(folder.name, null, rightX, rowY(rightRow++));
       let inside = 0;
-      for (const a of folder.apps) await putApp(a, folderId, gridPosition(inside++));
+      for (const a of folder.apps) await putApp(a, f.id, gridPosition(inside++));
     }
     await load();
   }
@@ -182,7 +209,20 @@
     if (it.id === TRASH_ID) {
       thumb.textContent = items.some((i) => i.parent === TRASH_ID) ? '🗑️' : '🗑';
     } else if (it.kind === 'folder') {
-      thumb.textContent = '📁';
+      // folders are GIFs too — the icon IS the folder's own animated GIF
+      const ffile = it.fileId ? await store.getFile(it.fileId) : null;
+      if (ffile) {
+        const fbytes = ffile.bytes instanceof Uint8Array ? ffile.bytes : new Uint8Array(ffile.bytes);
+        const fimg = document.createElement('img');
+        fimg.src = blobUrlFor(it.fileId, fbytes);
+        fimg.alt = it.name;
+        fimg.draggable = false;
+        thumb.appendChild(fimg);
+        signableFiles.add(it.fileId);
+        addSigBadge(thumb, it, fbytes);
+      } else {
+        thumb.textContent = '📁'; // system folders (Trash) have no GIF
+      }
     } else {
       const file = await store.getFile(it.fileId);
       if (file && file.kind === 'gif') {
@@ -466,6 +506,13 @@
       const archive = isGif ? await gif.decode(buf) : null;
       const m = archive ? (gif.readManifest(archive) || {}) : {};
 
+      // A folder bundle GIF unpacks into a live folder with all its children.
+      if (archive && m.type === 'folder' && archive.files['folder.json']) {
+        await unpackFolderBundle(buf, archive, m, baseX + i * 20, baseY + i * 20, currentFolder);
+        i++;
+        continue;
+      }
+
       // A whole-desktop backup GIF gets offered as a restore, not an icon.
       if (archive && m.type === 'desktop' && archive.files['desktop.json']) {
         await new Promise((done) => {
@@ -589,8 +636,9 @@
     } else if (it) {
       entries = [
         { label: 'Open', fn: () => openItem(it) },
-        ...(it.kind === 'file' ? [{ label: 'Download', fn: () => downloadItem(it) }] : []),
-        ...(it.kind === 'file' && signableFiles.has(it.fileId)
+        // Files AND folders are GIFs → both download (folders as a bundle) and sign.
+        ...(it.fileId ? [{ label: it.kind === 'folder' ? 'Download (as one GIF)' : 'Download', fn: () => downloadItem(it) }] : []),
+        ...(it.fileId && signableFiles.has(it.fileId)
           ? (signedFiles.has(it.fileId)
               ? [{ label: 'Verify signature', fn: () => verifyItem(it) }, { label: 'Re-sign this GIF…', fn: () => signItem(it) }]
               : [{ label: 'Sign this GIF…', fn: () => signItem(it) }])
@@ -613,17 +661,16 @@
   window.addEventListener('pointerdown', (e) => { if (ctxEl && !ctxEl.contains(e.target)) closeContext(); });
 
   // ---------- item ops ----------
-  // Download a file's GIF straight from storage — no need to open the app first.
-  // For a GifOS app that has saved state on this desktop, we fold that state in
-  // with repack(), which swaps ONLY the embedded filesystem block and leaves the
-  // pixels/animated artwork byte-for-byte intact. Everything else downloads as-is.
-  async function downloadItem(it) {
-    const file = await store.getFile(it.fileId);
-    if (!file) return;
+  // A file's shareable bytes: for a GifOS app with saved state, fold the state
+  // in with repack() — swaps ONLY the embedded filesystem block, every pixel
+  // and artwork byte stays intact. Everything else exports as-is.
+  async function exportBytes(fileId) {
+    const file = await store.getFile(fileId);
+    if (!file) return null;
     let bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
     if (file.isApp && gif.repack) {
       try {
-        const state = await store.getState(it.fileId);
+        const state = await store.getState(fileId);
         if (state && state.collections && Object.keys(state.collections).length) {
           const archive = await gif.decode(bytes);
           if (archive && archive.files) {
@@ -635,11 +682,92 @@
         }
       } catch (e) { /* fall back to the raw stored bytes */ }
     }
-    const url = URL.createObjectURL(new Blob([bytes], { type: file.mime || 'image/gif' }));
+    return { bytes, file };
+  }
+  function triggerDownload(bytes, name, mime) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'image/gif' }));
     const a = document.createElement('a');
-    const base = it.name || file.name || 'download';
-    a.href = url; a.download = /\.[a-z0-9]+$/i.test(base) ? base : base + '.gif'; a.click();
+    a.href = url; a.download = /\.[a-z0-9]+$/i.test(name) ? name : name + '.gif'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  // Download a file's GIF straight from storage — no need to open the app first.
+  // Downloading a FOLDER packs a self-contained bundle: the folder's own GIF
+  // with every child inside it (apps carrying their live state), recursively.
+  async function downloadItem(it) {
+    if (it.kind === 'folder') {
+      const bytes = await packFolderBundle(it);
+      if (bytes) triggerDownload(bytes, (it.name || 'Folder') + '.gif', 'image/gif');
+      return;
+    }
+    const ex = await exportBytes(it.fileId);
+    if (ex) triggerDownload(ex.bytes, it.name || ex.file.name || 'download', ex.file.mime);
+  }
+
+  // ---------- folder bundles (folders ARE GIFs) ----------
+  // Pack: folder's own GIF artwork + folder.json (layout + per-child metadata)
+  // + files/<n> (each child's shareable bytes; nested folders recurse into
+  // bundles of their own). One GIF = the whole folder, hand it to anyone.
+  async function packFolderBundle(folderIt) {
+    const payload = { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name: folderIt.name }) };
+    const list = [];
+    let n = 0;
+    for (const kid of items.filter((i) => i.parent === folderIt.id)) {
+      const path = 'files/' + (n++);
+      const base = { name: kid.name, x: kid.x, y: kid.y, iconSize: kid.iconSize || 64, file: path };
+      if (kid.kind === 'folder') {
+        payload[path] = await packFolderBundle(kid);
+        list.push(Object.assign(base, { kind: 'folder' }));
+      } else {
+        const ex = await exportBytes(kid.fileId);
+        if (!ex) { n--; continue; }
+        payload[path] = ex.bytes;
+        list.push(Object.assign(base, {
+          kind: 'file', fileKind: ex.file.kind, mime: ex.file.mime,
+          isApp: !!ex.file.isApp, appId: ex.file.appId || null, accent: ex.file.accent || null,
+        }));
+      }
+    }
+    payload['folder.json'] = JSON.stringify({ v: 1, items: list });
+    const shell = folderIt.fileId ? await store.getFile(folderIt.fileId) : null;
+    if (shell) {
+      const shellBytes = shell.bytes instanceof Uint8Array ? shell.bytes : new Uint8Array(shell.bytes);
+      try { return await gif.repack(shellBytes, payload); } catch (e) { /* shell not repackable */ }
+    }
+    return gif.encode(payload, { accent: accentFor(folderIt.name) });
+  }
+  // Unpack: recreate the live folder (its GIF keeps the artwork, children
+  // stripped from the payload) and hydrate every child — recursively.
+  async function unpackFolderBundle(bundleBytes, archive, m, x, y, parent) {
+    const name = m.name || 'Folder';
+    let shellBytes = bundleBytes;
+    try { shellBytes = await gif.repack(bundleBytes, { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name }) }); }
+    catch (e) { /* keep full bundle bytes as the shell */ }
+    const fileId = store.uid('file');
+    await store.putFile({ id: fileId, name: name + '.gif', bytes: shellBytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+    const spot = nearestFreeCell(x, y, parent || null, null);
+    const folderId = store.uid('item');
+    await store.putItem({ id: folderId, kind: 'folder', name, parent: parent || null, x: spot.x, y: spot.y, iconSize: 64, fileId });
+    let fj = null;
+    try { fj = JSON.parse(bytesToText(archive.files['folder.json'])); } catch (e) { /* empty folder bundle */ }
+    for (const entry of (fj && fj.items) || []) {
+      const data = archive.files[entry.file];
+      if (!data) continue;
+      if (entry.kind === 'folder') {
+        const subArchive = await gif.decode(data);
+        const subM = subArchive ? (gif.readManifest(subArchive) || {}) : {};
+        if (subArchive && subM.type === 'folder') {
+          await unpackFolderBundle(data, subArchive, subM, entry.x || GRID.origin, entry.y || GRID.origin, folderId);
+        }
+      } else {
+        const fid = store.uid('file');
+        await store.putFile({ id: fid, name: entry.name, bytes: data, kind: entry.fileKind || 'gif',
+          isApp: !!entry.isApp, appId: entry.appId || null, accent: entry.accent || null,
+          mime: entry.mime || 'image/gif' });
+        await store.putItem({ id: store.uid('item'), kind: 'file', fileId: fid, name: entry.name,
+          parent: folderId, x: entry.x || GRID.origin, y: entry.y || GRID.origin, iconSize: entry.iconSize || 64 });
+      }
+    }
+    await load();
   }
   async function resizeIcon(it, delta) {
     it.iconSize = Math.max(32, Math.min(160, (it.iconSize || 64) + delta));
@@ -699,9 +827,8 @@
   }
   async function newFolder(x, y) {
     const spot = nearestFreeCell(x || GRID.origin, y || GRID.origin, currentFolder, null);
-    const it = { id: store.uid('item'), kind: 'folder', name: 'New Folder', parent: currentFolder,
-      x: spot.x, y: spot.y, iconSize: 64 };
-    await store.putItem(it); await load(); render();
+    const it = await createFolder('New Folder', currentFolder, spot.x, spot.y);
+    await load(); render();
     beginRename(it);
   }
   function beginRename(it) {
@@ -711,7 +838,23 @@
     const input = document.createElement('input');
     input.value = it.name; label.innerHTML = ''; label.appendChild(input);
     input.focus(); input.select();
-    const commit = async () => { it.name = input.value.trim() || it.name; await store.putItem(it); render(); };
+    const commit = async () => {
+      it.name = input.value.trim() || it.name;
+      await store.putItem(it);
+      // keep a folder GIF's embedded manifest in sync with its display name
+      if (it.kind === 'folder' && it.fileId) {
+        const rec = await store.getFile(it.fileId);
+        if (rec) {
+          const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+          try {
+            const renamed = await gif.repack(bytes, { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name: it.name }) });
+            await store.putFile(Object.assign({}, rec, { name: it.name + '.gif', bytes: renamed }));
+            if (blobUrls.has(it.fileId)) { URL.revokeObjectURL(blobUrls.get(it.fileId)); blobUrls.delete(it.fileId); }
+          } catch (e) { /* not repackable — keep the old gif */ }
+        }
+      }
+      render();
+    };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') render(); });
     input.addEventListener('blur', commit);
   }

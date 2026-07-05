@@ -87,6 +87,13 @@
         + "<circle cx='36' cy='41' r='3' fill='" + d(0) + "'/><circle cx='45' cy='41' r='3' fill='" + d(1) + "'/><circle cx='54' cy='41' r='3' fill='" + d(2) + "'/>"
         + "<path d='M52 54 h16 a5 5 0 0 1 5 5 v10 a5 5 0 0 1 -5 5 h-3 v6 l-8 -6 h-5 a5 5 0 0 1 -5 -5 v-10 a5 5 0 0 1 5 -5 Z' fill='" + rgb(a) + "' stroke='" + W + "' stroke-width='2'/>"); }),
 
+    folder: (a) => range(FR).map((f) => { const lift = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
+      return tile(a, "<path d='M24 34 h16 l6 6 h26 a4 4 0 0 1 4 4 v26 a4 4 0 0 1 -4 4 h-48 a4 4 0 0 1 -4 -4 v-32 a4 4 0 0 1 4 -4 Z' fill='" + dark(a, 90) + "'/>"
+        + "<rect x='30' y='" + (36 - lift) + "' width='14' height='10' rx='2' fill='#e6e6f5'/>"
+        + "<rect x='48' y='" + (34 - lift * 0.6) + "' width='14' height='12' rx='2' fill='#cfcfe4'/>"
+        + "<path d='M20 44 h22 l5 -6 h29 a4 4 0 0 1 4 4 l-4 28 a4 4 0 0 1 -4 4 h-48 a4 4 0 0 1 -4 -4 Z' fill='" + W + "' opacity='.92'/>"
+        + "<path d='M20 44 h22 l5 -6 h29' stroke='rgba(0,0,0,.12)' stroke-width='1.5' fill='none'/>"); }),
+
     video: (a) => range(FR).map((f) => { const on = f % 2 === 0, ring = 4 + 5 * (f / (FR - 1));
       return tile(a, "<rect x='22' y='34' width='36' height='28' rx='6' fill='" + W + "'/>"
         + "<path d='M58 42 L74 32 L74 64 L58 54 Z' fill='" + W + "'/>"
