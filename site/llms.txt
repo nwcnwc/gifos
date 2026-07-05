@@ -55,9 +55,13 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
 
 ## The app rules (summary — get_build_guide has the full version)
 
-1. ONE complete self-contained index.html: all CSS in <style>, all JS in
-   <script>. No external files, CDNs, frameworks, remote images, or fonts —
-   the sandbox blocks all outside network. Inline SVG + emoji are fine.
+1. The entry point is index.html. Multi-file apps are fully supported:
+   app.js, style.css, assets/... referenced normally all travel inside the
+   GIF (include them in the files you pack / pass as extra_files to
+   pack_app). The ONLY hard rule: nothing external — no CDNs, frameworks,
+   remote images, or web fonts; the sandbox blocks all outside network.
+   Inline SVG + emoji are fine. (Only the paste-HTML fallback, Path C, is
+   limited to a single file.)
 2. Persistence: localStorage/cookies/indexedDB are DISABLED. Use:
      const db = gifos.db('items');
      await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
