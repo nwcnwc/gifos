@@ -28,6 +28,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pillText = await page.locator('#storage-pill').textContent();
   check('storage pill shows usage', /💾/.test(pillText) && /(B|KB|MB|GB)/.test(pillText));
 
+  // ---- ＋ Add popup: has the AI prompt and a Create-app-from-HTML flow ----
+  await page.locator('#add-btn').click();
+  await page.locator('.modal.wide').waitFor({ timeout: 4000 });
+  check('Add opens a popup (not a dropdown)', (await page.locator('.modal.wide h3').textContent()).includes('Add to your desktop'));
+  const promptVal = await page.locator('#ad-prompt').inputValue();
+  check('popup contains a copyable AI prompt', /gifos\.db/.test(promptVal) && /What app do you want to build/.test(promptVal));
+  const miniApp = "<!doctype html><meta charset=utf-8><body><button id='b'>tap</button><div id='n'>0</div>" +
+    "<script>const db=gifos.db('c');let n=0;db.subscribe(function(items){n=items.length;document.getElementById('n').textContent=n});" +
+    "document.getElementById('b').onclick=function(){db.put({t:Date.now()})}</scr" + "ipt>";
+  await page.locator('#ad-name').fill('MadeByAI');
+  await page.locator('#ad-html').fill('```html\n' + miniApp + '\n```'); // fenced, as an AI would return
+  await page.locator('#ad-create').click();
+  await sleep(400);
+  const afterCreate = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('Create app from HTML adds an app icon', afterCreate.includes('MadeByAI.gif'));
+  const [madePage] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('.icon', { hasText: 'MadeByAI.gif' }).dblclick(),
+  ]);
+  await madePage.waitForSelector('iframe');
+  const made = madePage.frameLocator('iframe');
+  await made.locator('#b').waitFor({ timeout: 8000 });
+  await made.locator('#b').click();
+  await sleep(300);
+  check('the AI-made app runs and uses gifos.db', (await made.locator('#n').textContent()) === '1');
+  await madePage.close();
+
   // ---- run the Notes app in a new tab ----
   const notesIcon = page.locator('.icon', { hasText: 'Notes.gif' });
   const [runPage] = await Promise.all([
@@ -205,6 +232,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('WebRTC constructors neutered (no DataChannel exfil)', verdict.rtc === 'blocked');
   check('permission-gated bridge fetch still works under CSP', verdict.bridge === 200);
   await hostilePage.close();
+
+  // ---- plain (non-app) GIF opens in its own tab instead of an error ----
+  await deskPage.evaluate(async () => {
+    // a real but non-GifOS gif (1x1) — bytes don't matter, just that it's a file, not an app
+    const bytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0, 0, 0, 0x3b]);
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: 'photo.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: 'photo.gif', parent: null, x: 640, y: 320, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  let sawModal = false;
+  const [photoTab] = await Promise.all([
+    context.waitForEvent('page'),
+    deskPage.locator('.icon', { hasText: 'photo.gif' }).dblclick(),
+  ]);
+  sawModal = await deskPage.locator('.modal-bg').count() > 0;
+  check('plain GIF opens in a new tab (no "not supported" modal)', !sawModal && /^blob:/.test(photoTab.url()));
+  await photoTab.close();
 
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();
