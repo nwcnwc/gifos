@@ -826,6 +826,8 @@
       '<h4>Multiplayer relay</h4>' +
       '<p class="add-help">Custom relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
+      '<button class="widebtn" id="set-relay-test">Test connection</button>' +
+      '<p class="add-help" id="set-relay-status"></p>' +
       '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
@@ -840,6 +842,22 @@
       inp.click();
     };
     box.querySelector('#set-bg-reset').onclick = () => resetBackground();
+    // Reachability probe: joining a session with no host makes a healthy relay
+    // answer { t:'error', 'no host …' } — ANY message back proves it's alive.
+    box.querySelector('#set-relay-test').onclick = () => {
+      const out = box.querySelector('#set-relay-status');
+      let url = box.querySelector('#set-relay').value.trim() || root.GIFOS_RELAY || '';
+      if (!url) { out.textContent = 'No relay configured.'; return; }
+      out.textContent = 'Testing ' + url + ' …';
+      let done = false;
+      const finish = (msg) => { if (!done) { done = true; out.textContent = msg; } };
+      try {
+        const ws = new WebSocket(url.replace(/\/$/, '') + '/s/connection-test?role=client');
+        const timer = setTimeout(() => { finish('❌ No answer after 8s — the relay is unreachable from here.'); try { ws.close(); } catch (e) {} }, 8000);
+        ws.onmessage = () => { clearTimeout(timer); finish('✅ Relay is reachable — invites will work.'); try { ws.close(); } catch (e) {} };
+        ws.onerror = () => { clearTimeout(timer); finish('❌ Could not connect. If this is the default relay, its Worker may not be deployed on this domain (see relay/ in the repo).'); };
+      } catch (e) { finish('❌ ' + (e.message || e)); }
+    };
     const persistBtn = box.querySelector('#set-persist');
     if (persistBtn) persistBtn.onclick = async () => {
       const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;

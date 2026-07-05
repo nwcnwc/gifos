@@ -102,6 +102,14 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('#set-bg-reset').click();
   await sleep(300);
   check('background reset returns to the default', (await page.evaluate(() => document.getElementById('desktop').style.background)) === '');
+  // Relay reachability probe (points at the local test relay)
+  await page.locator('details.adv summary').click();
+  await page.locator('#set-relay').fill('ws://127.0.0.1:8790');
+  await page.locator('#set-relay-test').click();
+  await page.waitForFunction(() => /✅|❌/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
+  const relayStatus = await page.locator('#set-relay-status').textContent();
+  check('Settings can test relay reachability', /✅ Relay is reachable/.test(relayStatus));
+  await page.locator('#set-relay').fill('');
   await page.locator('#set-close').click();
   await sleep(200);
 

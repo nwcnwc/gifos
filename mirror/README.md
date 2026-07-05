@@ -42,3 +42,20 @@ Explicit DNS records beat the `*` wildcard, and Cloudflare routes requests to
 the **most specific** matching Worker route — `relay.gifos.app`'s custom
 domain wins over `*.gifos.app/*`. The mirror also guards itself: a non-numeric
 subdomain never proxies, it only redirects.
+
+**⚠️ … but only if the relay's custom domain actually exists.** The custom
+domain is created by deploying the relay with the `[[routes]]
+pattern = "relay.gifos.app"` block present in `relay/wrangler.toml` (it was
+commented out in the very first deploy). If the relay was last deployed
+before that block existed, `relay.gifos.app` has no route of its own — the
+`*` wildcard catches it, the mirror 301-redirects it, and every WebSocket
+handshake fails with "relay connection failed." Fix:
+
+```bash
+cd relay && npx wrangler deploy   # creates the relay.gifos.app custom domain
+```
+
+If wrangler complains that a `relay` DNS record already exists (from an old
+manual CNAME), delete that record in Cloudflare → DNS first, then deploy
+again. Verify with Settings → Advanced → **Test connection** in GifOS, or
+`curl https://relay.gifos.app/` → `gifos relay ok`.
