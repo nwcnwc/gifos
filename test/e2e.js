@@ -56,6 +56,71 @@ async function openApp(page, ctx, folder, label) {
   const surfW = await page.evaluate(() => document.getElementById('desktop').clientWidth);
   check('Video Call sits in the top-right corner', vcPos.top === 12 && vcPos.left > surfW / 2);
   check('has Trash', labels.includes('Trash'));
+  // folders are GIFs too — each renders its own folder GIF, not an emoji
+  check('folders render as GIF images (folders are GIFs)',
+    (await page.locator('.icon', { hasText: 'Games' }).locator('img').count()) === 1);
+
+  // ---- folder bundle round-trip: Download a folder → one GIF → re-import ----
+  // Play a game inside Games so a child app carries live state into the bundle.
+  const mineForState = await openApp(page, context, 'Games', 'Minesweeper.gif');
+  await mineForState.frameLocator('iframe').locator('.c').first().waitFor({ timeout: 8000 });
+  await mineForState.frameLocator('iframe').locator('.c').nth(12).click();
+  await sleep(400);
+  await mineForState.close();
+  await page.locator('.icon', { hasText: 'Games' }).click({ button: 'right' });
+  const [folderDl] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('.ctx button', { hasText: 'Download (as one GIF)' }).click(),
+  ]);
+  check('folder downloads as a single GIF bundle', /Games\.gif/.test(folderDl.suggestedFilename()));
+  const bundlePath = await folderDl.path();
+  const bundleBytes = Array.from(new Uint8Array(fs.readFileSync(bundlePath)));
+  // the bundle is a valid folder GIF carrying folder.json + 4 children
+  const bundleOk = await page.evaluate(async (arr) => {
+    const a = await GifOS.gif.decode(new Uint8Array(arr));
+    if (!a) return null;
+    const m = GifOS.gif.readManifest(a);
+    const fj = JSON.parse(new TextDecoder().decode(a.files['folder.json']));
+    return { type: m.type, name: m.name, kids: fj.items.length, hasFiles: !!a.files['files/0'] };
+  }, bundleBytes);
+  check('bundle is a folder GIF with 4 children inside', bundleOk && bundleOk.type === 'folder' && bundleOk.kids === 4 && bundleOk.hasFiles);
+  // import the bundle → a new "Games" folder appears with its games
+  await page.setInputFiles('#file-input', { name: 'Games.gif', mimeType: 'image/gif', buffer: Buffer.from(bundleBytes) });
+  await sleep(600);
+  const rootAfter = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent).filter((t) => t === 'Games'));
+  check('importing a folder bundle recreates the folder', rootAfter.length === 2); // original + imported
+  // open the imported folder (the second Games) and confirm its games came along
+  const gamesIcons = page.locator('.icon', { hasText: 'Games' });
+  await gamesIcons.nth(1).dblclick();
+  await sleep(400);
+  const importedKids = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('imported folder contains its games', ['Tic-Tac-Toe.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((g) => importedKids.includes(g)));
+  // and the minesweeper state survived the bundle round-trip
+  const [mineAgain] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('.icon', { hasText: 'Minesweeper.gif' }).first().dblclick(),
+  ]);
+  await mineAgain.frameLocator('iframe').locator('.c').first().waitFor({ timeout: 8000 });
+  await mineAgain.waitForTimeout(600);
+  check('app state survives the folder bundle round-trip', (await mineAgain.frameLocator('iframe').locator('.c.rev').count()) >= 1);
+  await mineAgain.close();
+  await page.locator('#crumbs a').click();
+  await sleep(200);
+  // clean up the imported copy so later label counts stay stable
+  await page.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const dupes = items.filter((i) => i.name === 'Games');
+    if (dupes.length > 1) {
+      const victim = dupes[1];
+      const kill = [victim];
+      const walk = (pid) => { for (const c of items.filter((i) => i.parent === pid)) { kill.push(c); walk(c.id); } };
+      walk(victim.id);
+      for (const k of kill) { if (k.fileId) { await GifOS.store.deleteFile(k.fileId); await GifOS.store.deleteState(k.fileId); } await GifOS.store.deleteItem(k.id); }
+    }
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  await sleep(300);
+
   // Tools folder contains the utility apps
   await page.locator('.icon', { hasText: 'Tools' }).dblclick();
   await sleep(250);
