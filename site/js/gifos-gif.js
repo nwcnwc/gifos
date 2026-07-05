@@ -110,7 +110,7 @@
         indices[y * W + x] = d < 2 ? 2 : d < 6 ? 1 : 0;
       }
     }
-    return { width: W, height: H, palette, indices, minCodeSize: 7 };
+    return { width: W, height: H, palette, indices, numColors: 128, minCodeSize: 7 };
   }
 
   // ---- compression (native CompressionStream; no dependencies) ------------
@@ -150,17 +150,20 @@
   }
 
   function assemble(payload, opts) {
-
-    const f = previewFrame(opts.accent);
+    // opts.preview (optional) overrides the swatch with real artwork:
+    // { width, height, palette:[r,g,b,...], indices:Uint8Array, numColors, minCodeSize }.
+    const f = opts.preview || previewFrame(opts.accent);
+    const numColors = f.numColors || (f.palette.length / 3);
+    const sizeField = Math.round(Math.log2(numColors)) - 1; // 128→6, 256→7
     const w = new Writer();
 
     // Header + Logical Screen Descriptor
     w.ascii('GIF89a');
     w.u16(f.width).u16(f.height);
-    // packed: global color table = 1, color res = 7 (bits-1), sort 0, size = 6 (→128)
-    w.byte(0b1_111_0_110);
+    // packed: global color table flag=1, color res=7, sort=0, size=sizeField
+    w.byte(0x80 | (0x7 << 4) | (sizeField & 0x7));
     w.byte(0).byte(0); // bg color index, aspect ratio
-    w.bytes(f.palette); // 128 * 3 bytes
+    w.bytes(f.palette); // numColors * 3 bytes
 
     // Application Extension carrying the GifOS archive
     w.byte(0x21).byte(0xff).byte(0x0b).ascii(GIFOS_MARKER).ascii(GIFOS_AUTH);

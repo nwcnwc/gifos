@@ -47,6 +47,16 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('legacy uncompressed payload still decodes', !!legacyBack && gif.bytesToText(legacyBack.files['index.html']) === files['index.html']);
   check('compression actually shrinks the payload', bytes.length < legacyBytes.length);
 
+  // custom-artwork preview (256-color) still carries the app payload + is a valid GIF
+  const pal = []; for (let i = 0; i < 256; i++) pal.push(i, 255 - i, (i * 3) & 255);
+  const idx = new Uint8Array(16 * 16); for (let i = 0; i < idx.length; i++) idx[i] = i & 255;
+  const artBytes = await gif.encode(
+    { 'manifest.json': '{"appId":"art","name":"Art"}', 'index.html': '<h1>art</h1>' },
+    { preview: { width: 16, height: 16, palette: pal, indices: idx, numColors: 256, minCodeSize: 8 } });
+  const artBack = await gif.decode(artBytes);
+  check('custom-artwork GIF still carries its app payload', !!artBack && gif.bytesToText(artBack.files['index.html']) === '<h1>art</h1>');
+  check('artwork GIF logical screen is the icon size (16×16)', artBytes[6] === 16 && artBytes[7] === 0 && artBytes[8] === 16 && artBytes[9] === 0);
+
   fs.writeFileSync(path.join(__dirname, 'sample.gif'), Buffer.from(bytes));
   console.log('wrote test/sample.gif');
   process.exit(ok ? 0 : 1);
