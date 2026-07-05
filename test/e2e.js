@@ -134,9 +134,11 @@ async function openApp(page, ctx, folder, label) {
   ]);
   await madePage.waitForSelector('iframe');
   const made = madePage.frameLocator('iframe');
-  await made.locator('#b').waitFor({ timeout: 8000 });
+  // Wait for the app's db.subscribe() to have rendered the initial count (0)
+  // before clicking, so the click can't land before the app is interactive.
+  await made.locator('#n', { hasText: '0' }).waitFor({ timeout: 8000 });
   await made.locator('#b').click();
-  const madeOk = await made.locator('#n').filter({ hasText: '1' }).waitFor({ timeout: 6000 }).then(() => true, () => false);
+  const madeOk = await made.locator('#n', { hasText: /^[1-9]/ }).waitFor({ timeout: 8000 }).then(() => true, () => false);
   check('the AI-made app runs and uses gifos.db', madeOk);
   await madePage.close();
 
@@ -315,6 +317,19 @@ async function openApp(page, ctx, folder, label) {
   check('context menu offers Open for folders', (await page.locator('#crumbs').textContent()).includes('Studio'));
   await page.locator('#crumbs a').click();
   await sleep(200);
+
+  // ---- unsigned GIFs offer "Sign this GIF…" in the context menu ----
+  await page.locator('.icon', { hasText: 'Welcome.gif' }).click({ button: 'right' });
+  check('unsigned GIF offers "Sign this GIF…"', (await page.locator('.ctx button', { hasText: 'Sign this GIF' }).count()) === 1);
+  check('unsigned GIF has no "Verify signature" yet', (await page.locator('.ctx button', { hasText: 'Verify signature' }).count()) === 0);
+  await page.keyboard.press('Escape');
+  // sign.html preloads a GIF by fileId (what "Sign this GIF…" opens)
+  const wId = await page.evaluate(async () => (await GifOS.store.allItems()).find((i) => i.name === 'Welcome.gif').fileId);
+  const signPage = await context.newPage();
+  await signPage.goto(BASE + '/sign.html#id=' + wId);
+  await signPage.waitForFunction(() => document.getElementById('signui') && document.getElementById('signui').style.display !== 'none', null, { timeout: 5000 });
+  check('sign.html preloads the GIF passed by fileId', /Welcome\.gif/.test(await signPage.locator('#drop').textContent()));
+  await signPage.close();
 
   // ---- drop hint + endless scroll ----
   check('soft drop hint is shown', await page.locator('.drop-hint').isVisible() &&
