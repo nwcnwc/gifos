@@ -218,6 +218,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await notesApp3.locator('#list li').first().waitFor({ timeout: 8000 });
   check('restored desktop keeps app state (notes intact)', (await notesApp3.locator('#list li').count()) === 2);
 
+  // ---- cross-tab desktop sync: two tabs of the same desktop stay matched ----
+  const twin = await context.newPage();
+  await twin.goto(BASE + '/index.html');
+  await twin.waitForSelector('.icon');
+  await sleep(300);
+  // move an icon in `sys` — `twin` should repaint without any reload
+  const gbBox = await sys.locator('.icon', { hasText: 'Guestbook.gif' }).boundingBox();
+  await sys.mouse.move(gbBox.x + gbBox.width / 2, gbBox.y + gbBox.height / 2);
+  await sys.mouse.down();
+  await sys.mouse.move(gbBox.x + 460, gbBox.y + 260, { steps: 8 });
+  await sys.mouse.up();
+  await sleep(800);
+  const posInSys = await sys.locator('.icon', { hasText: 'Guestbook.gif' })
+    .evaluate((el) => el.style.left + '/' + el.style.top);
+  const posInTwin = await twin.locator('.icon', { hasText: 'Guestbook.gif' })
+    .evaluate((el) => el.style.left + '/' + el.style.top);
+  check('icon moved in one tab updates live in the other (no reload)', posInSys === posInTwin);
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

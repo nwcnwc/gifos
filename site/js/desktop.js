@@ -609,6 +609,26 @@
   // deselect on empty click/tap
   surface.addEventListener('pointerdown', (e) => { if (e.target === surface) { selectedId = null; surface.querySelectorAll('.icon.selected').forEach((n) => n.classList.remove('selected')); } });
 
+  // ---------- cross-tab live sync ----------
+  // Two tabs on the same origin ARE the same desktop (one IndexedDB); keep the
+  // views matched. Every local mutation announces on a BroadcastChannel and
+  // other tabs re-render; a visibility refresh catches anything missed.
+  if ('BroadcastChannel' in root) {
+    const sync = new BroadcastChannel('gifos-desktop-sync');
+    for (const k of ['putItem', 'deleteItem', 'putFile', 'deleteFile', 'setState', 'deleteState', 'clearAll']) {
+      const orig = store[k].bind(store);
+      store[k] = (...args) => orig(...args).then((r) => { sync.postMessage(1); return r; });
+    }
+    let pending = null;
+    sync.onmessage = () => { // messages never echo to the posting tab
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => { pending = null; load().then(render); }, 200);
+    };
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) load().then(render);
+  });
+
   // ---------- boot ----------
   load().then(seedIfEmpty).then(ensureSystemItems).then(render);
 
