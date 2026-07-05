@@ -74,7 +74,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- client A takes over the SAME session ----------
   await A.page.locator('#become-host').click();
-  await A.page.waitForFunction(() => document.getElementById('status').textContent.includes('Hosting'), null, { timeout: 10000 });
+  await A.page.waitForFunction(() => document.getElementById('status').textContent.includes('Live'), null, { timeout: 10000 });
   await sleep(800); // B gets the wake-up broadcast
   const aList = await A.app.locator('#list').textContent();
   check('new host has the pre-failover state', /original entry/.test(aList));

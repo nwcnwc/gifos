@@ -38,14 +38,14 @@
 <body>
   <div class="bar">
     <span class="title">📦 GifOS</span>
-    <button id="host" title="Let friends join over the relay">👥 Go Multiplayer</button>
+    <button id="host" title="Friends join you live with one link">🔗 Invite</button>
     <button id="save-desktop" title="Keep a full copy of this app + its current state on your desktop" style="display:none">📥 Save to Desktop</button>
-    <button id="become-host" title="Continue this session as the new host from your mirrored state" style="display:none">👑 Become Host</button>
-    <button id="save">💾 Snapshot</button>
+    <button id="become-host" title="Keep this session going from your copy" style="display:none">👑 Take Over</button>
+    <button id="save" title="Download this app — with everything in it — as one GIF file">💾 Save a Copy</button>
     <span class="status" id="status">Loading…</span>
   </div>
   <div class="share" id="share">
-    <span class="hint">Share this link — friends open it to join your session:</span>
+    <span class="hint">Send this link to friends — opening it brings them right in:</span>
     <input id="share-url" readonly>
     <button id="copy">Copy</button>
   </div>
@@ -124,10 +124,10 @@
         hostBtn.disabled = true; hostBtn.textContent = 'Connecting…';
         ensureName().then(function () { return controller.becomeHost(); }).then(function (r) {
           showShare(r.shareUrl);
-          hostBtn.textContent = '👥 Hosting';
+          hostBtn.textContent = '🔗 Invite link ready';
         }).catch(function (err) {
-          hostBtn.disabled = false; hostBtn.textContent = '👥 Go Multiplayer';
-          status.textContent = 'Multiplayer failed: ' + err.message;
+          hostBtn.disabled = false; hostBtn.textContent = '🔗 Invite';
+          status.textContent = 'Could not create the invite: ' + err.message;
         });
       });
       becomeBtn.addEventListener('click', function () {
@@ -138,8 +138,8 @@
           showShare(r.shareUrl);
           if (r.save) controller = Object.assign({}, controller, { save: r.save });
         }).catch(function (err) {
-          becomeBtn.disabled = false; becomeBtn.textContent = '👑 Become Host';
-          status.textContent = 'Takeover failed: ' + err.message;
+          becomeBtn.disabled = false; becomeBtn.textContent = '👑 Take Over';
+          status.textContent = 'Could not take over: ' + err.message;
         });
       });
       saveDeskBtn.addEventListener('click', function () {

@@ -33,11 +33,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   desk.on('console', (m) => { if (m.type() === 'error') console.log('  [desk]', m.text()); });
   await desk.goto(BASE + '/index.html');
   await desk.waitForSelector('.icon');
-  await desk.locator('.icon', { hasText: 'Social' }).dblclick();
-  await desk.waitForTimeout(250);
   const [aPage] = await Promise.all([
     aCtx.waitForEvent('page'),
-    desk.locator('.icon', { hasText: 'Video Call.gif' }).dblclick(),
+    desk.locator('.icon', { hasText: 'Video Call.gif' }).dblclick(),   // root icon, top-right
   ]);
   aPage.on('console', (m) => { if (m.type() === 'error') console.log('  [ada]', m.text()); });
   await aPage.waitForURL(/video\.html/, { timeout: 8000 });

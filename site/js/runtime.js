@@ -442,9 +442,9 @@
           return openHostSocket(relay, sid, token).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
-              setStatus('Hosting · ' + s.total + ' player(s)' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+              setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
             });
-            setStatus('Hosting · 0 players connected');
+            setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
             return store.setState(fileId + '::session', { sid, token, relay }).then(() => ({
@@ -543,7 +543,7 @@
       else if (m.t === 'host-gone') {
         hostGone = true;
         if (remoteDb) remoteDb._setHostDown(true);
-        setStatus(lastDump ? 'Host went offline — you can Become Host from your mirrored copy.' : 'Host went offline before any state was mirrored.');
+        setStatus(lastDump ? 'The host went offline — you have a copy, so you can Take Over and keep going.' : 'The host went offline before anything was shared with you.');
         if (hooks.onHostGone) hooks.onHostGone(!!lastDump);
       } else if (m.t === 'app') {
         appBytes = gif.b64decode(m.gif);
@@ -584,14 +584,14 @@
         return openHostSocket(params.relay, params.s, params.k).then((ws2) => {
           hostApi = attachHost(ws2, db, appBytes, (s) => {
             root.__gifosHostStats = s;
-            setStatus('Hosting (took over) · ' + s.total + ' player(s)' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+            setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
           });
           // Remount the app against the local DB and wake the other clients.
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;
           mountApp(fresh, filesRef, manifestRef, db, appBytes);
           ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-          setStatus('Hosting (took over) · session continues');
+          setStatus('Live (you took over) · the session continues');
           return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay })
             .then(() => ({ shareUrl: location.href, save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
         });

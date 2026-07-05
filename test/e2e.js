@@ -47,9 +47,14 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has app folders + Welcome + Trash', labels.length === 6);
+  check('desktop root has folders + Welcome + Video Call + Trash', labels.length === 7);
   check('has Games / Studio / Tools / Social folders', ['Games', 'Studio', 'Tools', 'Social'].every((f) => labels.includes(f)));
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
+  check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
+  const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  const surfW = await page.evaluate(() => document.getElementById('desktop').clientWidth);
+  check('Video Call sits in the top-right corner', vcPos.top === 12 && vcPos.left > surfW / 2);
   check('has Trash', labels.includes('Trash'));
   // Tools folder contains the utility apps
   await page.locator('.icon', { hasText: 'Tools' }).dblclick();
@@ -81,8 +86,24 @@ async function openApp(page, ctx, folder, label) {
   await chess.close();
   await page.locator('#crumbs a').click();
   await sleep(200);
-  const pillText = await page.locator('#storage-pill').textContent();
-  check('storage pill shows usage', /💾/.test(pillText) && /(B|KB|MB|GB)/.test(pillText));
+  check('storage pill is gone from the system bar (moved to Settings)', (await page.locator('#storage-pill').count()) === 0);
+  await page.locator('#sys-menu-btn').click();
+  await page.locator('.ctx button', { hasText: 'Settings…' }).click();
+  await page.locator('.modal.wide').waitFor({ timeout: 4000 });
+  const advText = await page.locator('details.adv').textContent();
+  check('Settings has an Advanced section with storage info', /Advanced settings/.test(advText) && /Using/.test(advText) && /(B|KB|MB|GB)/.test(advText));
+  check('Settings basic section has a background picker', (await page.locator('#set-bg-color').count()) === 1);
+  const advOpen = await page.locator('details.adv').evaluate((el) => el.open);
+  check('Advanced section starts collapsed (mom-proof)', advOpen === false);
+  await page.locator('#set-bg-color').fill('#224466');
+  await sleep(400);
+  const bgApplied = await page.evaluate(() => document.getElementById('desktop').style.background);
+  check('background color picker changes the desktop', /rgb\(34, 68, 102\)|#224466/.test(bgApplied));
+  await page.locator('#set-bg-reset').click();
+  await sleep(300);
+  check('background reset returns to the default', (await page.evaluate(() => document.getElementById('desktop').style.background)) === '');
+  await page.locator('#set-close').click();
+  await sleep(200);
 
   // ---- ＋ Add popup: has the AI prompt and a Create-app-from-HTML flow ----
   await page.locator('#add-btn').click();
@@ -175,8 +196,37 @@ async function openApp(page, ctx, folder, label) {
   const afterReload = await app2.locator('#list li').count();
   check('notes persist across tab reload', afterReload === 2);
 
-  // ---- browsable-folder fallback (Welcome.gif has no index.html) ----
-  const folderPage = await openApp(page, context, null, 'Welcome.gif');
+  // ---- Welcome is a real onboarding app with a persistent checklist ----
+  const welcomePage = await openApp(page, context, null, 'Welcome.gif');
+  await welcomePage.waitForSelector('iframe');
+  const welcome = welcomePage.frameLocator('iframe');
+  await welcome.locator('label.todo').first().waitFor({ timeout: 8000 });
+  check('Welcome runs as a real app (onboarding checklist)', (await welcome.locator('label.todo').count()) === 5);
+  await welcome.locator('label.todo input').first().check();
+  await sleep(400);
+  await welcomePage.close();
+  const welcomeAgain = await openApp(page, context, null, 'Welcome.gif');
+  await welcomeAgain.waitForSelector('iframe');
+  const welcome2 = welcomeAgain.frameLocator('iframe');
+  await welcome2.locator('label.todo').first().waitFor({ timeout: 8000 });
+  await welcomeAgain.waitForTimeout(500);
+  check('Welcome checklist persists (state lives in the icon)', await welcome2.locator('label.todo input').first().isChecked());
+  await welcomeAgain.close();
+
+  // ---- browsable-folder fallback (a GIF with no index.html) ----
+  await page.evaluate(async () => {
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'papers', name: 'Papers' }),
+      'README.txt': 'just files in here',
+      'notes/ideas.txt': 'more files',
+    });
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: 'Papers.gif', bytes, kind: 'gif', isApp: true, appId: 'papers', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: 'Papers.gif', parent: null, x: 500, y: 300, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  await sleep(300);
+  const folderPage = await openApp(page, context, null, 'Papers.gif');
   await folderPage.waitForLoadState();
   await folderPage.waitForSelector('iframe');
   const folder = folderPage.frameLocator('iframe');
@@ -237,7 +287,12 @@ async function openApp(page, ctx, folder, label) {
   await sleep(400);
   const posAfterDrag = await page.locator('.icon', { hasText: 'Welcome.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
-  const onGrid = (posAfterDrag.left - 16) % 116 === 0 && (posAfterDrag.top - 16) % 116 === 0;
+  const grid = await page.evaluate(() => {
+    const s = document.getElementById('desktop');
+    return { pitch: parseInt(getComputedStyle(s).getPropertyValue('--cell'), 10),
+             row: parseInt(getComputedStyle(s).getPropertyValue('--row'), 10), origin: 12 };
+  });
+  const onGrid = (posAfterDrag.left - grid.origin) % grid.pitch === 0 && (posAfterDrag.top - grid.origin) % grid.row === 0;
   check('dragged icon snaps to a grid cell', onGrid);
   await page.reload();
   await page.waitForSelector('.icon');
@@ -410,7 +465,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 6 && !freshLabels.includes('Resume.gif'));
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 7 && !freshLabels.includes('Resume.gif'));
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace desktop' }).click();
