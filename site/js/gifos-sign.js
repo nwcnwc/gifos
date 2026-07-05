@@ -163,27 +163,35 @@
   }
   const mpi = (b, o) => { const bits = (b[o] << 8) | b[o + 1]; const n = (bits + 7) >> 3; return { val: b.subarray(o + 2, o + 2 + n), next: o + 2 + n }; };
 
-  // Extract every Ed25519 public key (32 bytes) from a transferable public key.
-  function pgpEd25519Keys(keyBytes) {
+  // Extract every signing-capable public key from a transferable public key.
+  // Supported: EdDSA/Ed25519 (algo 22/27) and RSA >= 2048 bits (algo 1/3).
+  function pgpKeys(keyBytes) {
     const keys = [];
     for (const pk of pgpPackets(keyBytes)) {
       if (pk.tag !== 6 && pk.tag !== 14) continue; // primary key / subkey
       const b = pk.body;
       if (b[0] !== 4) continue;                    // v4 only
-      if (b[5] !== 22 && b[5] !== 27) continue;    // EdDSA(22) / Ed25519(27)
-      let o = 6;
-      const oidLen = b[o]; o += 1 + oidLen;        // curve OID (length-prefixed, not an MPI)
-      const pt = mpi(b, o);
-      keys.push(pt.val[0] === 0x40 ? pt.val.subarray(1) : pt.val);
+      const algo = b[5];
+      if (algo === 22 || algo === 27) {            // EdDSA / Ed25519
+        let o = 6;
+        const oidLen = b[o]; o += 1 + oidLen;      // curve OID (length-prefixed, not an MPI)
+        const pt = mpi(b, o);
+        keys.push({ kind: 'ed25519', pub: pt.val[0] === 0x40 ? pt.val.subarray(1) : pt.val });
+      } else if (algo === 1 || algo === 3) {       // RSA (encrypt+sign / sign-only)
+        const n = mpi(b, 6);
+        const e = mpi(b, n.next);
+        if (n.val.length * 8 >= 2048) keys.push({ kind: 'rsa', n: n.val, e: e.val });
+      }
     }
     return keys;
   }
-  // Parse a detached OpenPGP signature; return { hashAlgo, hashedPortion, sig64 }.
+  // Parse a detached OpenPGP signature; return { pubAlgo, hashAlgo, hashedPortion, mpis }.
   function pgpParseSig(sigBytes) {
     for (const sp of pgpPackets(sigBytes)) {
       if (sp.tag !== 2) continue;
       const b = sp.body;
       if (b[0] !== 4) return null;                 // v4 sigs only
+      const pubAlgo = b[2];
       const hashAlgo = b[3];
       const hashedLen = (b[4] << 8) | b[5];
       const hashedEnd = 6 + hashedLen;
@@ -191,13 +199,13 @@
       let o = hashedEnd;
       const unhashedLen = (b[o] << 8) | b[o + 1]; o += 2 + unhashedLen;
       o += 2;                                       // left 16 bits of hash
-      const r = mpi(b, o); const s = mpi(b, r.next);
-      const sig64 = new Uint8Array(64);
-      sig64.set(r.val, 32 - r.val.length); sig64.set(s.val, 64 - s.val.length);
-      return { hashAlgo, hashedPortion, sig64 };
+      const mpis = [];
+      while (o < b.length - 1) { const m = mpi(b, o); mpis.push(m.val); o = m.next; }
+      return { pubAlgo, hashAlgo, hashedPortion, mpis };
     }
     return null;
   }
+  const b64url = (a) => bytesToB64(a).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   // Verify a detached OpenPGP signature over `data` against a transferable key.
   async function pgpVerify(data, sigBytes, keyBytes) {
     const parsed = pgpParseSig(sigBytes);
@@ -206,11 +214,40 @@
     if (!hashName || hashName === 'SHA-1') return false; // refuse weak hashes
     const tl = parsed.hashedPortion.length;
     const trailer = Uint8Array.from([0x04, 0xff, (tl >>> 24) & 255, (tl >>> 16) & 255, (tl >>> 8) & 255, tl & 255]);
-    const digest = new Uint8Array(await subtle.digest(hashName, concat([data, parsed.hashedPortion, trailer])));
-    for (const pub of pgpEd25519Keys(keyBytes)) {
-      if (await ed25519Verify(pub, parsed.sig64, digest)) return true;
+    const message = concat([data, parsed.hashedPortion, trailer]);
+
+    if (parsed.pubAlgo === 22 || parsed.pubAlgo === 27) {
+      // EdDSA signs the digest; the signature is two 32-byte MPIs (R, S).
+      if (parsed.mpis.length < 2) return false;
+      const digest = new Uint8Array(await subtle.digest(hashName, message));
+      const sig64 = new Uint8Array(64);
+      sig64.set(parsed.mpis[0], 32 - parsed.mpis[0].length);
+      sig64.set(parsed.mpis[1], 64 - parsed.mpis[1].length);
+      for (const k of pgpKeys(keyBytes)) {
+        if (k.kind === 'ed25519' && await ed25519Verify(k.pub, sig64, digest)) return true;
+      }
+      return false;
     }
-    return false;
+
+    if (parsed.pubAlgo === 1 || parsed.pubAlgo === 3) {
+      // RSA: PGP uses EMSA-PKCS1-v1_5 — exactly WebCrypto's RSASSA-PKCS1-v1_5,
+      // which hashes `message` itself. One MPI; left-pad to the modulus size.
+      if (!parsed.mpis.length) return false;
+      for (const k of pgpKeys(keyBytes)) {
+        if (k.kind !== 'rsa') continue;
+        const sig = new Uint8Array(k.n.length);
+        if (parsed.mpis[0].length > k.n.length) continue;
+        sig.set(parsed.mpis[0], k.n.length - parsed.mpis[0].length);
+        try {
+          const key = await subtle.importKey('jwk',
+            { kty: 'RSA', n: b64url(k.n), e: b64url(k.e), alg: undefined, ext: true },
+            { name: 'RSASSA-PKCS1-v1_5', hash: hashName }, false, ['verify']);
+          if (await subtle.verify({ name: 'RSASSA-PKCS1-v1_5' }, key, sig, message)) return true;
+        } catch (e) { /* malformed key material — try the next key */ }
+      }
+      return false;
+    }
+    return false; // unsupported public-key algorithm
   }
   // ASCII armor per RFC 4880 §6.2: BEGIN line, optional "Key: value" armor
   // headers, a blank line, base64 body, an optional "=XXXX" CRC24 line, END.

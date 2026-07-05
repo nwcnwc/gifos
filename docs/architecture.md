@@ -471,7 +471,8 @@ displayed, so "Signed by X" is exactly as strong as controlling X:
   verifying use native WebCrypto Ed25519 — zero dependencies.
 - **email** (`alice@example.com`): OpenPGP. The signer signs the canonical
   statement with their own PGP key; the verifier fetches their key from
-  `keys.openpgp.org` by email and verifies a detached OpenPGP Ed25519 signature.
+  `keys.openpgp.org` by email and verifies a detached OpenPGP signature — Ed25519, or RSA ≥2048 (via WebCrypto
+  RSASSA-PKCS1-v1_5; most existing PGP keys are RSA).
   keys.openpgp.org only serves identity info for addresses the owner has
   confirmed, so an email-bound key that verifies = the address owner signed. The
   OpenPGP parser is hand-written (validated against real `gpg` output) — still
