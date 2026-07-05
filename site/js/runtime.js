@@ -409,6 +409,14 @@
       if (!archive) { setStatus('Not a GifOS app — nothing to run.'); return noop; }
       const files = archive.files;
       const manifest = gif.readManifest(archive) || { name: rec.name || 'App' };
+      // System apps run as trusted first-party pages, not in the sandbox —
+      // live media (camera/mic + WebRTC) is impossible from an opaque origin.
+      // Whitelist only; a manifest can't route to arbitrary URLs.
+      const SYSTEM_PAGES = { video: 'video.html' };
+      if (manifest.system && SYSTEM_PAGES[manifest.system]) {
+        location.replace(SYSTEM_PAGES[manifest.system]);
+        return noop;
+      }
       document.title = (manifest.name || 'App') + ' — GifOS';
 
       const hasEntry = !!files[norm(manifest.entry || 'index.html')] || !!files['index.html'];
