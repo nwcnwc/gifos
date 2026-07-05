@@ -175,8 +175,10 @@
   // ---- repack: replace ONLY the GifOS data block inside an existing GIF ----
   // Every pixel byte (header, palette, animation frames) stays identical — the
   // artwork survives. Used to save current app state into the same GIF.
-  function findGifosSpan(bytes) {
-    const marker = textToBytes(GIFOS_MARKER);
+  // Find an Application Extension block by its 8-byte identifier. Returns the
+  // block's outer bounds ({start,end}) and where sub-blocks begin (headerEnd).
+  function findAppExtSpan(bytes, marker8) {
+    const marker = textToBytes(marker8);
     let pos = 0;
     while (pos < bytes.length - 14) {
       if (bytes[pos] === 0x21 && bytes[pos + 1] === 0xff && bytes[pos + 2] === 0x0b) {
@@ -187,7 +189,7 @@
           let p = headerEnd;
           while (p < bytes.length) {
             const size = bytes[p];
-            if (size === 0) return { headerEnd, end: p + 1 };
+            if (size === 0) return { start: pos, headerEnd, end: p + 1 };
             p += 1 + size;
           }
           return null;
@@ -197,6 +199,7 @@
     }
     return null;
   }
+  function findGifosSpan(bytes) { return findAppExtSpan(bytes, GIFOS_MARKER); }
 
   function repack(originalBytes, files) {
     return buildPayload(files).then((payload) => {
@@ -342,9 +345,19 @@
     catch (e) { return null; }
   }
 
+  // Writer helper exposed so the signing module can build/splice its own
+  // application-extension block with the identical sub-block framing.
+  function appExtBlock(marker8, auth3, payload) {
+    const w = new Writer();
+    w.byte(0x21).byte(0xff).byte(0x0b).ascii(marker8).ascii(auth3);
+    w.subBlocks(payload);
+    return w.done();
+  }
+
   GifOS.gif = {
     encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
+    findAppExtSpan, appExtBlock,
     MARKER: GIFOS_MARKER,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

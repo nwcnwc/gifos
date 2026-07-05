@@ -81,6 +81,8 @@ Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cl
 - Live camera/mic apps (Video Call) therefore can't be sandboxed apps — they're **system apps**: the icon is a GIF whose manifest names a whitelisted first-party page. Manifests cannot route to arbitrary URLs.
 - The relay is a dumb pipe with a **token-bucket bandwidth guard** (1 MB burst for app delivery, ~384 Kbps sustained) — enforced server-side, so nobody can tunnel media through it.
 
+- **Provenance signatures** — anyone can sign an app GIF with their **domain** (Ed25519; public key at `https://domain/gifos.key`) or **email** (OpenPGP via keyservers). GifOS shows **✓ Signed by nathancheng.com**, **Unsigned**, or **⚠ Tampered** (contents changed after signing). Signing proves authorship, not safety, and a signature can always be stripped. The signed hash excludes app *state*, so saving data never voids it. Sign at [gifos.app/sign.html](https://gifos.app/sign.html).
+
 Details: [docs/architecture.md](docs/architecture.md) · [docs/cors-and-networking.md](docs/cors-and-networking.md)
 
 ## Why GIFs?

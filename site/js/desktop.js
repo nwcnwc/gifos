@@ -184,11 +184,13 @@
     } else {
       const file = await store.getFile(it.fileId);
       if (file && file.kind === 'gif') {
+        const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
         const img = document.createElement('img');
-        img.src = blobUrlFor(it.fileId, file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes));
+        img.src = blobUrlFor(it.fileId, bytes);
         img.alt = it.name;
         img.draggable = false; // pointer-drag the icon, not the image
         thumb.appendChild(img);
+        addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
       }
@@ -201,6 +203,52 @@
     el.appendChild(label);
     wireIcon(el, it);
     return el;
+  }
+
+  // ---------- provenance signatures ----------
+  // Reading the sig BLOCK is local (no network) — so we can show a shield the
+  // instant an icon renders. VERIFYING (fetching the key) happens on demand
+  // (open the app, or "Verify signature"), and the verdict is cached per
+  // session so icons don't re-ping domains/keyservers on every render.
+  const sigVerdicts = new Map(); // fileId -> verdict object
+  const SIG_ICON = { valid: '✓', tampered: '⚠', unverified: '🛡', pending: '🛡' };
+  const SIG_CLASS = { valid: 'sig-ok', tampered: 'sig-bad', unverified: 'sig-unk', pending: 'sig-unk' };
+  function addSigBadge(thumb, it, bytes) {
+    if (!GifOS.sign) return;
+    const sig = GifOS.sign.readSig(bytes);
+    if (!sig) return;
+    const cached = sigVerdicts.get(it.fileId);
+    const state = cached ? cached.status : 'pending';
+    const badge = document.createElement('span');
+    badge.className = 'sig-badge ' + (SIG_CLASS[state] || 'sig-unk');
+    badge.textContent = SIG_ICON[state] || '🛡';
+    badge.title = cached ? sigLabel(cached) : ('Signed by ' + sig.id + ' — tap Verify to check');
+    thumb.appendChild(badge);
+  }
+  function sigLabel(v) {
+    if (v.status === 'valid') return 'Signed by ' + v.id + (v.ts ? ' · ' + v.ts : '') + (v.keyChanged ? ' (key changed since first seen!)' : '');
+    if (v.status === 'tampered') return 'Tampered — contents changed after ' + (v.id ? v.id + ' ' : '') + 'signed';
+    if (v.status === 'unverified') return 'Signed by ' + (v.id || '?') + ' — could not verify right now (' + (v.detail || 'offline') + ')';
+    return 'Unsigned';
+  }
+  async function verifyItem(it) {
+    if (!GifOS.sign) return;
+    const file = await store.getFile(it.fileId);
+    if (!file) return;
+    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    const sig = GifOS.sign.readSig(bytes);
+    if (!sig) { showModal('No signature', 'This GIF is <b>unsigned</b> — it carries no provenance. Anyone can make an unsigned GIF, so treat it like a file from an unknown source.'); return; }
+    showModal('Checking signature…', 'Fetching the key for <b>' + escapeHtml(sig.id) + '</b>…');
+    const v = await GifOS.sign.verify(bytes);
+    sigVerdicts.set(it.fileId, v);
+    render();
+    const body = {
+      valid: '✅ <b>Signed by ' + escapeHtml(v.id) + '</b>' + (v.type === 'email' ? ' (email/PGP)' : ' (domain)') + '.<br><br>The contents are unchanged since it was signed' + (v.ts ? ' on ' + escapeHtml(v.ts) : '') + '. This proves authorship — not that the app is safe.' + (v.keyChanged ? '<br><br>⚠️ The signing key is <b>different</b> from the first one you saw for this identity.' : ''),
+      tampered: '⚠️ <b>Tampered.</b> This GIF claims to be signed by ' + escapeHtml(v.id || '?') + ', but its contents were <b>changed after signing</b>. Do not trust it as coming from them.',
+      unverified: '🛡 <b>Signed by ' + escapeHtml(v.id || '?') + '</b>, but the signature couldn\'t be checked right now: ' + escapeHtml(v.detail || 'offline') + '.<br><br>' + (v.type === 'domain' ? 'The key must be published at <span class="mono">https://' + escapeHtml(v.id || '') + '/gifos.key</span> (with CORS).' : 'Their key must be on keys.openpgp.org.'),
+      unsigned: 'This GIF is unsigned.',
+    }[v.status] || 'Unknown signature state.';
+    showModal(v.status === 'valid' ? 'Verified' : v.status === 'tampered' ? 'Tampered!' : 'Signature', body);
   }
 
   function updateCrumbs() {
@@ -530,6 +578,7 @@
       entries = [
         { label: 'Open', fn: () => openItem(it) },
         ...(it.kind === 'file' ? [{ label: 'Download', fn: () => downloadItem(it) }] : []),
+        ...(it.kind === 'file' ? [{ label: 'Verify signature', fn: () => verifyItem(it) }] : []),
         { label: 'Rename', fn: () => beginRename(it) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
         { label: 'Smaller icon', fn: () => resizeIcon(it, -16) },
@@ -1041,6 +1090,8 @@
       '<p class="add-help">If your AI could only reply with code, paste its complete index.html below and GifOS packs the GIF for you right here. (A <b>.zip</b> via ＋ Add file(s) works for multi-file apps.)</p>' +
       '<input id="ad-name" placeholder="App name (e.g. Todo)">' +
       '<textarea id="ad-html" rows="4" placeholder="Paste the AI&#39;s complete index.html here (a ```html code block is fine)"></textarea>' +
+      '<div class="add-sep"></div>' +
+      '<p class="add-help">Made an app? <a href="sign.html" target="_blank" rel="noopener">Sign it 🛡️</a> so people see “Signed by you” — with your domain or email.</p>' +
       '<div class="modal-actions">' +
         '<button id="ad-create">Create app</button>' +
         '<button class="ghost" id="ad-close">Close</button>' +

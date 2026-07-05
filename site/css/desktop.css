@@ -100,6 +100,18 @@ body {
 }
 .icon.drop-target .thumb { outline: 2px solid var(--accent2); }
 
+/* provenance shield on signed GIFs (bottom-right of the thumbnail) */
+.icon .thumb { position: relative; }
+.sig-badge {
+  position: absolute; right: -3px; bottom: -3px; width: 1.05rem; height: 1.05rem;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  font-size: .68rem; font-weight: 800; color: #fff; border: 2px solid var(--bg);
+  line-height: 1; pointer-events: none;
+}
+.sig-badge.sig-ok  { background: #34c759; }
+.sig-badge.sig-bad { background: #ff5c5c; }
+.sig-badge.sig-unk { background: #8888aa; }
+
 /* context menu */
 .ctx {
   position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border);

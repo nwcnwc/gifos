@@ -615,6 +615,7 @@
         }
       }).then(() => {
         mountApp(iframe, files, manifest, db, appBytes);
+        if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
         return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost };
@@ -778,6 +779,7 @@
           remoteDb = makeRemoteDb(transportSend);
           iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
           mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes);
+          if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
           root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
           runningStatus();
           announceClient();
