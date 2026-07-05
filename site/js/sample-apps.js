@@ -24,17 +24,19 @@
 <ul id="list"></ul>
 <script>
   const db = gifos.db('notes'), list = document.getElementById('list');
-  const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  let me = { name: 'You' };
+  if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' }; });
+  const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   function render(items){
     list.innerHTML = items.length
-      ? items.map(n => '<li><span>'+esc(n.text)+'</span><button data-id="'+n.id+'">Delete</button></li>').join('')
+      ? items.map(n => '<li><span>'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'">Delete</button></li>').join('')
       : '<div class="empty">No notes yet. Your notes persist in this GIF icon.</div>';
   }
   db.subscribe(render);
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
     const t = document.getElementById('t');
-    if (t.value.trim()) { await db.put({ text: t.value.trim() }); t.value=''; }
+    if (t.value.trim()) { await db.put({ text: t.value.trim(), by: me.name }); t.value=''; }
   };
   list.onclick = async e => { if (e.target.dataset.id) await db.delete(e.target.dataset.id); };
 </script>`;
@@ -53,24 +55,26 @@
   li b{color:#ff5caa}
 </style>
 <header>📖 Shared Guestbook</header>
-<div class="hint">Open this same GIF in two tabs — entries sync live across them (one browser hosts the DB, the other reads it).</div>
+<div class="hint" id="hint">Go multiplayer and share the link — everyone signs with their screen name.</div>
 <form id="f">
-  <input id="name" placeholder="Your name" autocomplete="off">
   <input id="msg" placeholder="Say something…" autocomplete="off">
   <button>Sign</button>
 </form>
 <ul id="list"></ul>
 <script>
   const db = gifos.db('entries'), list = document.getElementById('list');
-  const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  let me = { name: 'You' };
+  if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' };
+    document.getElementById('hint').textContent = 'Signing as ' + me.name + '. Go multiplayer to sign with friends.'; });
+  const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   function render(items){
-    list.innerHTML = items.map(e => '<li><b>'+esc(e.name||'anon')+'</b>: '+esc(e.msg)+'</li>').reverse().join('');
+    list.innerHTML = items.map(e => '<li><b>'+esc(e.by||'anon')+'</b>: '+esc(e.msg)+'</li>').reverse().join('');
   }
   db.subscribe(render);
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
-    const name = document.getElementById('name'), msg = document.getElementById('msg');
-    if (msg.value.trim()) { await db.put({ name: name.value.trim(), msg: msg.value.trim() }); msg.value=''; }
+    const msg = document.getElementById('msg');
+    if (msg.value.trim()) { await db.put({ by: me.name, msg: msg.value.trim() }); msg.value=''; }
   };
 </script>`;
 
@@ -92,30 +96,49 @@
 <script>
   const db = gifos.db('game');
   const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  const fresh = () => ({ id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', winner:null });
+  const fresh = () => ({ id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', winner:null, players:{}, names:{} });
   let current = fresh();
+  let me = { id: 'local', name: 'You' };
+  if (window.gifos) gifos.me().then(function(m){ me = { id: m.id, name: m.name || 'You' }; render(); });
   const boardEl = document.getElementById('board'), statusEl = document.getElementById('status');
   function winnerOf(c){ for (const w of WINS) if (c[w[0]] && c[w[0]]===c[w[1]] && c[w[0]]===c[w[2]]) return c[w[0]];
     return c.every(Boolean) ? 'draw' : null; }
+  function myMark(){ return current.players.X===me.id ? 'X' : current.players.O===me.id ? 'O' : null; }
+  function opponentPresent(){
+    return (current.players.X && current.players.X!==me.id) || (current.players.O && current.players.O!==me.id);
+  }
+  function canPlayTurn(){
+    if (current.winner) return false;
+    if (!opponentPresent()) return true;          // alone → hot-seat, play both marks
+    const mm = myMark();
+    if (mm) return current.turn === mm;           // real opponent → locked to my seat
+    return !current.players[current.turn];        // unseated → may take the still-open seat on its turn
+  }
+  function label(s){ return current.names && current.names[s] ? current.names[s] : (s==='X'||s==='O'? s : ''); }
   function render(){
     boardEl.innerHTML = '';
+    const playable = canPlayTurn();
     current.cells.forEach(function(v,i){
       const d = document.createElement('div');
       d.className = 'cell' + (v ? ' ' + v.toLowerCase() : '');
       d.textContent = v || '';
       d.onclick = async function(){
-        if (current.winner || current.cells[i]) return;
-        current.cells[i] = current.turn;
+        if (current.cells[i] || !canPlayTurn()) return;
+        const seat = current.turn;
+        current.players = Object.assign({}, current.players); current.players[seat] = current.players[seat] || me.id;
+        current.names = Object.assign({}, current.names); if (current.players[seat]===me.id) current.names[seat] = me.name;
+        current.cells = current.cells.slice(); current.cells[i] = seat;
         current.winner = winnerOf(current.cells);
-        current.turn = current.turn === 'X' ? 'O' : 'X';
+        current.turn = seat === 'X' ? 'O' : 'X';
         await db.put(current);
         render();
       };
       boardEl.appendChild(d);
     });
-    statusEl.textContent = current.winner === 'draw' ? 'Draw! Start a new game.'
-      : current.winner ? current.winner + ' wins! 🎉'
-      : current.turn + ' to move — go multiplayer and play a friend';
+    const vs = 'X: ' + label('X') + '  ·  O: ' + label('O');
+    statusEl.textContent = current.winner === 'draw' ? 'Draw! Tap New game. — ' + vs
+      : current.winner ? label(current.winner) + ' (' + current.winner + ') wins! 🎉 — ' + vs
+      : (playable ? 'Your move (' + current.turn + ')' : 'Waiting for ' + (label(current.turn) || current.turn)) + '  —  ' + vs;
   }
   db.subscribe(function(items){ const b = items.find(function(x){ return x.id === 'board'; }); if (b) current = b; render(); });
   document.getElementById('new').onclick = function(){ return db.put(fresh()); };

@@ -37,17 +37,19 @@
     '',
     'Rules for a GifOS app:',
     '1. Output ONE complete HTML document (an index.html) with everything inline — all CSS in <style>, all JS in <script>. No external files, CDNs, frameworks, remote images, or web fonts: GifOS sandboxes apps and blocks all outside network and resource loading. Inline SVG and emoji are fine.',
-    '2. To save data, use the built-in API (localStorage and cookies are disabled — do not use them):',
+    '2. To save data, use the built-in async API (localStorage and cookies are disabled — do not use them):',
     "     const db = gifos.db('items');       // a named collection",
     '     await db.put({ id, ...fields });    // add or update; omit id to auto-assign one',
     '     await db.get(id); await db.getAll(); await db.delete(id);   // all async',
     '     db.subscribe(items => renderFrom(items));   // called immediately and on every change',
-    '   Anything stored with gifos.db() persists inside the app\'s own icon AND automatically syncs to other players if the app goes multiplayer. So keep all shared/saved state in gifos.db() and render from db.subscribe() to be multiplayer-ready for free.',
-    '3. If window.gifos is undefined (e.g. opened outside GifOS), degrade gracefully to in-memory state so the app still runs.',
-    '4. One file. Mobile-friendly. Dark theme by default.',
+    '   Anything stored with gifos.db() persists inside the app\'s own icon AND automatically syncs to other players if the app goes multiplayer. Keep all shared/saved state in gifos.db() and render from db.subscribe() to be multiplayer-ready for free.',
+    '3. Players/identity: const me = await gifos.me(); gives { id, name } — a stable id and the user\'s screen name. Stamp me.id / me.name onto records so the app attributes moves, messages, and scores to the right person across all players. Show names in the UI.',
+    '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state and a default name so the app still runs.',
+    '5. Icon: include <link rel="icon" href="data:image/svg+xml,..."> with a simple inline SVG (or an emoji-in-SVG) that represents the app — GifOS turns it into the app\'s GIF artwork/desktop icon.',
+    '6. One file is simplest, but multi-file is fine too — put extra files (app.js, style.css, assets) alongside index.html and reference them normally; I can hand you back a .zip to make the app. Mobile-friendly, dark theme by default.',
     '',
     'First, ask me exactly one question: "What app do you want to build?"',
-    'After I answer, reply with ONLY the complete index.html inside a single ```html code block — no explanation before or after. I will paste it into GifOS (＋ Add → Create app from HTML) to turn it into an app GIF I own.',
+    'After I answer, reply with ONLY the complete index.html inside a single ```html code block (or, for a multi-file app, a file tree I can zip) — no explanation before or after. I will drop it into GifOS (＋ Add) to turn it into an app GIF I own.',
   ].join('\n');
 
   let items = [];                 // all desktop items (files + folders)
@@ -678,6 +680,10 @@
       '<p class="add-help">Run a specific version — past builds are served unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
       '<div class="vlist">' + rows + '</div>' +
       '<div class="add-sep"></div>' +
+      '<h4>Your screen name</h4>' +
+      '<p class="add-help">Shown to other players in multiplayer apps (Tic-Tac-Toe, Guestbook, and any app that tracks players).</p>' +
+      '<input id="set-name" maxlength="40" placeholder="Your name" value="' + escapeHtml(store.identity().name) + '">' +
+      '<div class="add-sep"></div>' +
       '<h4>Advanced</h4>' +
       '<p class="add-help">Custom multiplayer relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
@@ -689,6 +695,7 @@
     box.querySelector('#set-save').onclick = () => {
       const v = box.querySelector('#set-relay').value.trim();
       try { if (v) localStorage.setItem('gifos_relay', v); else localStorage.removeItem('gifos_relay'); } catch (e) {}
+      store.setName(box.querySelector('#set-name').value);
       bg.remove();
     };
     box.querySelector('#set-close').onclick = () => bg.remove();

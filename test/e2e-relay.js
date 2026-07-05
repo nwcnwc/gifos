@@ -17,11 +17,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // Keep host ICE candidates usable between contexts in headless (no mDNS).
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns'],
   });
-  const setRelay = { content: "try{localStorage.setItem('gifos_relay','" + RELAY + "')}catch(e){}" };
+  const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "')}catch(e){}" });
 
   // ---------- HOST ----------
   const hostCtx = await browser.newContext();
-  await hostCtx.addInitScript(setRelay);
+  await hostCtx.addInitScript(setup('Host'));
   const hostDesk = await hostCtx.newPage();
   hostDesk.on('console', (m) => { if (m.type() === 'error') console.log('  [host desk]', m.text()); });
   await hostDesk.goto(BASE + '/index.html');
@@ -35,8 +35,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostApp = hostRun.frameLocator('iframe');
   await hostApp.locator('#msg').waitFor({ timeout: 8000 });
 
-  // host signs the guestbook BEFORE anyone joins
-  await hostApp.locator('#name').fill('Host');
+  // host signs the guestbook BEFORE anyone joins (name comes from identity)
   await hostApp.locator('#msg').fill('from host');
   await hostApp.locator('form button').click();
   await sleep(200);
@@ -49,6 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- CLIENT (separate context = separate machine) ----------
   const clientCtx = await browser.newContext();
+  await clientCtx.addInitScript(setup('Ada'));
   const clientRun = await clientCtx.newPage();
   clientRun.on('console', (m) => { if (m.type() === 'error') console.log('  [client]', m.text()); });
   await clientRun.goto(shareUrl);
@@ -76,7 +76,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
 
   // client writes → host DB (now over the DataChannel when P2P is up)
-  await clientApp.locator('#name').fill('Client');
   await clientApp.locator('#msg').fill('from client');
   await clientApp.locator('form button').click();
   await sleep(600);
@@ -84,7 +83,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('client\'s write appears in the HOST browser (remote DB round-trip)', /from client/.test(hostSees));
 
   // host writes → propagates to the client
-  await hostApp.locator('#name').fill('Host');
   await hostApp.locator('#msg').fill('second from host');
   await hostApp.locator('form button').click();
   await sleep(600);
@@ -93,6 +91,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- forced fallback: a client with NO WebRTC still works via relay ----------
   const noRtcCtx = await browser.newContext();
+  await noRtcCtx.addInitScript(setup('Fallback'));
   await noRtcCtx.addInitScript({ content: "Object.defineProperty(window,'RTCPeerConnection',{value:undefined,configurable:false});" });
   const noRtcRun = await noRtcCtx.newPage();
   noRtcRun.on('console', (m) => { if (m.type() === 'error') console.log('  [no-rtc client]', m.text()); });
@@ -103,7 +102,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(800);
   const noRtcTransport = await noRtcRun.evaluate(() => window.__gifosTransport);
   check('WebRTC-less client stays on the relay transport', noRtcTransport === 'relay');
-  await noRtcApp.locator('#name').fill('Fallback');
   await noRtcApp.locator('#msg').fill('via relay only');
   await noRtcApp.locator('form button').click();
   await sleep(700);

@@ -89,5 +89,22 @@
   }
   store.nowISO = nowISO;
 
+  // Per-browser identity, shared by every app on this origin (this "computer").
+  // id is stable; name is the user's screen name (blank until set).
+  store.identity = function () {
+    let id = '', name = '';
+    try {
+      id = localStorage.getItem('gifos_uid') || '';
+      if (!id) { id = uid('user'); localStorage.setItem('gifos_uid', id); }
+      name = localStorage.getItem('gifos_name') || '';
+    } catch (e) { if (!id) id = 'user_anon'; }
+    return { id, name };
+  };
+  store.setName = function (name) {
+    const n = String(name || '').trim().slice(0, 40);
+    try { if (n) localStorage.setItem('gifos_name', n); else localStorage.removeItem('gifos_name'); } catch (e) {}
+    return store.identity();
+  };
+
   GifOS.store = store;
 })(typeof window !== 'undefined' ? window : globalThis);

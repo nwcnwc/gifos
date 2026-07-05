@@ -77,7 +77,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const noteCount = await app.locator('#list li').count();
   check('two notes added via gifos.db', noteCount === 2);
   const firstNote = await app.locator('#list li span').first().textContent();
-  check('note text persisted through DB round-trip', firstNote === 'buy milk');
+  check('note text persisted through DB round-trip', /buy milk/.test(firstNote));
 
   // ---- persistence: reload the run tab, notes should survive (state lives with icon) ----
   await runPage.reload();
@@ -127,12 +127,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await gbTabB.waitForSelector('iframe');
   const A = gbTabA.frameLocator('iframe'), B = gbTabB.frameLocator('iframe');
   await A.locator('#msg').waitFor();
-  await A.locator('#name').fill('Ada');
   await A.locator('#msg').fill('hello from tab A');
   await A.locator('form button').click();
   await sleep(500);
   const bText = await B.locator('#list').textContent();
   check('guestbook entry from tab A appears live in tab B (cross-tab DB)', /hello from tab A/.test(bText));
+
+  // ---- identity: a screen name set in Settings is attributed by apps ----
+  // (uses Guestbook, whose entry count no later test asserts on)
+  await page.evaluate(() => GifOS.store.setName('Casey'));
+  const [gbId] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
+  ]);
+  await gbId.waitForSelector('iframe');
+  const gbIdApp = gbId.frameLocator('iframe');
+  await gbIdApp.locator('#msg').waitFor({ timeout: 8000 });
+  await gbIdApp.locator('#msg').fill('signed by casey');
+  await gbIdApp.locator('form button').click();
+  await sleep(400);
+  const caseyEntry = await gbIdApp.locator('#list li').filter({ hasText: 'signed by casey' }).textContent();
+  check('app attributes an action to the screen name (gifos.me)', /Casey/.test(caseyEntry));
+  await gbId.close();
 
   // ---- drag an icon: it should snap to a grid cell and persist ----
   const dragIcon = page.locator('.icon', { hasText: 'Notes.gif' });

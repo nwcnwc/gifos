@@ -40,6 +40,10 @@
     catch (e) { return root.GIFOS_RELAY || ''; }
   }
 
+  // Per-browser identity (defined in gifos-store.js so the desktop shares it).
+  const identity = store.identity;
+  const setName = store.setName;
+
   // ---- app-facing shim injected into the sandboxed iframe -----------------
   function clientShim() {
     return `(function(){
@@ -88,7 +92,9 @@
               json:function(){return Promise.resolve(JSON.parse(r.body));}, text:function(){return Promise.resolve(r.body);} }; });
         },
         save: function(){ return rpc({type:'save'}); },
-        info: function(){ return rpc({type:'info'}); }
+        info: function(){ return rpc({type:'info'}); },
+        me: function(){ return rpc({type:'me'}); },
+        setName: function(n){ return rpc({type:'setName', name:n}); }
       };
     })();`;
   }
@@ -274,6 +280,8 @@
       else if (d.type === 'fetch') bridgeFetch(manifest, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'save') downloadSnapshot(files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
+      else if (d.type === 'me') reply({ ok: true, result: identity() });
+      else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
     };
     root.addEventListener('message', handler);
     iframe.srcdoc = buildAppHtml(files);
