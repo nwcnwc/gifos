@@ -80,6 +80,53 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const tilesOnC = await cPage.locator('.tile').count();
   check('late joiner sees all 3 tiles (me + 2 peers)', tilesOnC === 3);
 
+  // ---------- quiet joins, status overlays, blur, group moderation ----------
+  // Everyone joins muted with camera off, and the overlays say so everywhere.
+  check('you join muted with camera off (quiet by default)',
+    await bPage.evaluate(() => document.getElementById('mic').textContent === 'Unmute'
+      && document.getElementById('cam').textContent === 'Camera on'
+      && document.querySelector('.tile.me').classList.contains('cam-off')));
+  await aPage.locator('.tile:not(.me)', { hasText: 'Bob' }).locator('.chips span', { hasText: 'camera off' }).waitFor({ timeout: 10000 });
+  check('everyone sees Bob\'s muted/camera-off status on his tile', true);
+
+  // Bob turns his camera on → the chip clears on Ada's screen.
+  await bPage.locator('#cam').click();
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && !t.classList.contains('cam-off');
+  }, null, { timeout: 10000 });
+  check('turning the camera on updates everyone\'s overlay live', true);
+
+  // Bob blurs himself → his video is blurred on Ada's screen, with a chip.
+  await bPage.locator('#blur').click();
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && t.querySelector('video').classList.contains('blurred') && /blurred/.test(t.textContent);
+  }, null, { timeout: 10000 });
+  check('self-blur completely blurs your video on every other screen', true);
+
+  // Ada mutes Cai FOR EVERYONE — enforced on each receiver, attributed to Ada.
+  const caiTileOnAda = aPage.locator('.tile:not(.me)', { hasText: 'Cai' });
+  await caiTileOnAda.hover();
+  await caiTileOnAda.locator('button[data-mod="mute"]').click();
+  await bPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    return t && t.querySelector('video').muted && /muted for everyone by Ada/.test(t.textContent);
+  }, null, { timeout: 10000 });
+  check('group-mute silences the target on OTHER phones too, attributed to who did it', true);
+  await cPage.waitForFunction(() => /muted for everyone by Ada/.test(document.querySelector('.tile.me').textContent), null, { timeout: 10000 });
+  check('the muted person sees who muted them', true);
+
+  // And Bob (not Ada!) can lift it — anyone moderates, always attributed.
+  const caiTileOnBob = bPage.locator('.tile:not(.me)', { hasText: 'Cai' });
+  await caiTileOnBob.hover();
+  await caiTileOnBob.locator('button[data-mod="mute"]').click();
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    return t && !t.querySelector('video').muted;
+  }, null, { timeout: 10000 });
+  check('anyone can lift a group-mute (and it clears everywhere)', true);
+
   // ---------- a participant leaves → tiles + quality recover ----------
   await cPage.close(); await cCtx.close();
   await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
