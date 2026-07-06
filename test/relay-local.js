@@ -127,7 +127,9 @@ server.on('upgrade', (req, socket) => {
     roster();
   } else if (role === 'mesh') {
     // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
-    if (sess.meshToken === null) sess.meshToken = token;
+    // Token + password are occupancy state: the first arrival to an EMPTY
+    // room re-establishes both from their own session (no persistence).
+    if (sess.clients.size === 0) { sess.meshToken = token; sess.pw = (url.searchParams.get('pw') || '') || null; }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
     const name = (url.searchParams.get('name') || '').slice(0, 40);

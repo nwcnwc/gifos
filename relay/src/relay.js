@@ -10,9 +10,13 @@
  * idle session or call room costs NOTHING while nobody is talking: the DO is
  * evicted from memory between messages and Cloudflare only bills actual
  * activity, not wall-clock call length. Everything a handler needs to know
- * about a socket (role, peer id, name, ip) rides in its serialized
- * attachment, which survives eviction; per-socket rate meters are in-memory
- * and simply start fresh after a wake.
+ * about a socket (role, peer id, name, ip, token, room password) rides in
+ * its serialized attachment, which survives eviction but DIES WITH THE
+ * CONNECTION — the relay persists nothing, ever. A room's token and password
+ * are therefore properties of its CURRENT OCCUPANTS: the first arrival to an
+ * empty room re-establishes them from their own session, and everyone after
+ * that must match the people already inside. Per-socket rate meters are
+ * in-memory and simply start fresh after a wake.
  *
  * BANDWIDTH GUARD — the relay is for CONTROL traffic only (DB ops, WebRTC
  * signaling). It hard-caps message size and per-connection throughput so
@@ -126,34 +130,35 @@ export class Session {
     if (log.length > MAX_JOINS_PER_IP_MIN) return reject('joining too fast — slow down', 1013);
 
     if (role === 'host') {
-      await this.state.storage.put('token', token);
-      // a new host replaces any previous host socket (Take Over / reconnect)
+      // a new host replaces any previous host socket (Take Over / reconnect);
+      // the join token rides in the host's own attachment — nothing stored
       for (const ws of this.state.getWebSockets('role:host')) { try { ws.close(4001, 'replaced by a new host'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:host', 'peer:host']);
-      server.serializeAttachment({ role: 'host', peer: 'host', ip });
+      server.serializeAttachment({ role: 'host', peer: 'host', ip, tok: token });
       this.send(server, { t: 'host-ready' });
       for (const ws of this.members()) this.send(server, { t: 'peer-join', peer: this.att(ws).peer });
       this.roster();
     } else if (role === 'mesh') {
       // Host-less ROOM: every participant is equal and the room lives at its
-      // URL forever (the token persists in storage, so even a fully idle,
-      // hibernated, or evicted room accepts the same link years later).
-      let meshToken = await this.state.storage.get('meshToken');
-      if (meshToken === undefined || meshToken === null) { meshToken = token; await this.state.storage.put('meshToken', token); }
-      if (meshToken !== token) return reject('bad room token', 1008);
-      // Optional room password: set by anyone INSIDE the room (see 'setpw'),
-      // stored durably, demanded of every joiner while it's set.
-      const roomPw = (await this.state.storage.get('pw')) || '';
-      if (roomPw && (url.searchParams.get('pw') || '') !== roomPw) return reject('password required', 4003);
-      for (const ws of this.members()) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
+      // URL forever. Its token and password are whatever the CURRENT
+      // occupants carry in their attachments — the first person to arrive at
+      // an empty room re-establishes both from their own session, and
+      // everyone after them has to match. No storage anywhere.
+      const occupants = this.members();
+      const first = occupants[0] ? this.att(occupants[0]) : null;
+      if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
+      const offeredPw = url.searchParams.get('pw') || '';
+      const roomPw = first ? (first.pw || '') : offeredPw;
+      if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
+      for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip });
+      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw });
       this.send(server, { t: 'joined', peer });
       this.roster();
     } else {
       const h = this.hostSock();
       if (!h) return reject('no host for this session', 1011);
-      const tok = await this.state.storage.get('token');
+      const tok = this.att(h).tok || '';
       if (tok && token !== tok) return reject('bad join token', 1008);
       for (const ws of this.members()) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:client', 'peer:' + peer]);
@@ -188,10 +193,14 @@ export class Session {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — no host to fall back to
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Only someone already IN the room can reach this — that's the
-        // authorization. The new password propagates to every member so
-        // their sessions keep working, and empty removes the lock.
+        // authorization. The new password is written into every current
+        // occupant's attachment (the room's only "memory") and propagated
+        // so their sessions keep working; empty removes the lock.
         const pw = m.pw.slice(0, 64);
-        if (pw) this.state.storage.put('pw', pw); else this.state.storage.delete('pw');
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2); a2.pw = pw;
+          try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
         this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
       }
     } else if (a.role === 'client') {
