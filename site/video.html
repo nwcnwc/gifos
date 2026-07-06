@@ -83,6 +83,20 @@
   #chatform { display: flex; gap: .4rem; padding: .5rem .6rem; border-top: 1px solid #2a2a3f; }
   #chatform input[type=text] { flex: 1; padding: .4rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; font-size: .85rem; }
   #chatform button { padding: .4rem .7rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
+  .tile .cap { position: absolute; left: 50%; transform: translateX(-50%); bottom: 2.1rem; max-width: 92%;
+               background: rgba(10,10,15,.82); border: 1px solid #2a2a3f; border-radius: .45rem;
+               padding: .18rem .55rem; font-size: .78rem; z-index: 3; pointer-events: none;
+               opacity: 0; transition: opacity .25s; }
+  .tile .cap.show { opacity: 1; }
+  #recbtn.on { border-color: #ff5c5c; color: #ff9c9c; }
+  #ccbtn.on { border-color: #5cff7b; color: #9cffb4; }
+  .trline { font-size: .82rem; padding: .15rem 0; overflow-wrap: anywhere; }
+  .trline b { color: #7b9cff; margin-right: .35rem; }
+  #trwrap { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  #trwrap.show { display: flex; }
+  #trlog { flex: 1; overflow-y: auto; padding: .6rem; }
+  #trfoot { padding: .45rem .6rem; border-top: 1px solid #2a2a3f; display: flex; gap: .4rem; }
+  #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .78rem; }
   .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid #1c1c2b; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
@@ -104,6 +118,8 @@
     <button id="pwbtn" title="Lock this room with a password">🔒 Password</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">✋ Hand</button>
     <button id="chatbtn" title="Chat and shared files — peer-to-peer, never on a server">💬 Chat</button>
+    <button id="recbtn" title="Record this call ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">⏺ Record</button>
+    <button id="ccbtn" title="Transcribe what YOUR microphone hears using this browser's speech service, and share the lines to the call's live transcript">CC</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
@@ -115,8 +131,13 @@
   <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video. If two people can't reach each other directly, a mutual friend in the call relays between them, browser to browser; if no path exists at all, the tile says so. Quality steps down automatically as more people join.</div>
 
   <div id="chatpanel">
-    <div id="chathead">💬 Call chat <small style="color:#667;font-weight:400">· P2P, gone when the room empties</small><button id="chatclose">✕</button></div>
+    <div id="chathead">💬 <span id="paneltitle">Call chat</span> <small style="color:#667;font-weight:400">· P2P, gone when the room empties</small>
+      <button id="trtab" style="margin-left:auto">📝 Transcript</button><button id="chatclose">✕</button></div>
     <div id="chatlog"></div>
+    <div id="trwrap">
+      <div id="trlog"><small style="color:#667">Tap CC in the bar — each phone transcribes its own speaker and the lines merge here, attributed.</small></div>
+      <div id="trfoot"><button id="trdl">⬇ Download transcript</button></div>
+    </div>
     <div id="cfiles"><h4>📎 Files pinned to this call</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
     <form id="chatform">
       <button type="button" id="cattach" title="Pin a file to the call">📎</button>
@@ -226,7 +247,7 @@
     // can mute or blur anyone FOR THE WHOLE GROUP — enforced on every
     // receiver's device (so a bad actor's own client can't refuse) and always
     // attributed to who did it. Latest change wins (timestamped).
-    const myStatus = { muted: true, camOff: true, blur: false, hand: null }; // join quiet by default
+    const myStatus = { muted: true, camOff: true, blur: false, hand: null, rec: false, cc: false }; // join quiet by default
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
 
@@ -277,7 +298,9 @@
       label.className = 'name'; label.textContent = name || '…';
       const chips = document.createElement('div');
       chips.className = 'chips';
-      tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips);
+      const cap = document.createElement('div');
+      cap.className = 'cap';
+      tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips); tile.appendChild(cap);
       const maxbtn = document.createElement('button');
       maxbtn.className = 'maxbtn'; maxbtn.textContent = '⤢'; maxbtn.title = 'Make this the focus feed';
       maxbtn.addEventListener('click', (e) => { e.stopPropagation(); focusId = focusId === id ? null : id; layout(); });
@@ -298,7 +321,7 @@
         tile.addEventListener('click', () => tile.classList.toggle('menu')); // tap = menu on phones
       }
       grid.appendChild(tile);
-      return { tile, video, label, avatar, chips, modbar };
+      return { tile, video, label, avatar, chips, cap, modbar };
     }
 
     // Repaint one tile's overlay: mute/blur/camera chips (attributed when the
@@ -315,6 +338,8 @@
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
       else if (!isMe && t.noRoute) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
+      if (st.rec) chips.push('<span class="warn">⏺ recording this call</span>');
+      if (st.cc) chips.push('<span>📝 transcribing</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
@@ -451,7 +476,7 @@
       if (peers.has(peerId)) return peers.get(peerId);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const t = makeTile(peerId, name, false);
-      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, modbar: t.modbar,
+      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar,
         name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
       peers.set(peerId, p);
       if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
@@ -825,7 +850,7 @@
     function wireDc(p, dc) {
       p.dc = dc;
       dc.onopen = () => {
-        try { dc.send(JSON.stringify({ k: 'hi', chats: Array.from(chat.values()).slice(-500), metas: fileMetas(), tombs: tombObj() })); } catch (e) {}
+        try { dc.send(JSON.stringify({ k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() })); } catch (e) {}
       };
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
@@ -835,6 +860,9 @@
     function onDc(p, dc, m) {
       if (m.k === 'hi') {
         (m.chats || []).forEach(takeChat);
+        let trNew = false;
+        (m.trs || []).forEach((l) => { if (takeTr(l)) trNew = true; });
+        if (trNew) renderTranscript();
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
         (m.metas || []).forEach((meta) => takeMeta(meta, dc));
         renderChat(); renderFiles();
@@ -865,6 +893,12 @@
         }
       } else if (m.k === 'fdel') {
         if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); dcAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
+      } else if (m.k === 'tr') {
+        if (takeTr(m.m)) {
+          renderTranscript();
+          showCaption(m.m.byId, m.m.text);
+          dcAll({ k: 'tr', m: m.m }); // gossip onward, like chat
+        }
       } else if (m.k === 'relay-req') {
         startRelayJob(p, String(m.target || ''));
       } else if (m.k === 'relay-no') {
@@ -1082,6 +1116,217 @@
       layout();
     };
 
+    // ---- live transcript: each phone transcribes ITS OWN speaker -------------
+    // The browser's speech engine hears only this device's microphone; final
+    // lines gossip over the DataChannels (dedupe by id, exactly like chat) and
+    // merge into one attributed transcript on every phone. No server anywhere —
+    // though note the browser itself may use its vendor's speech service.
+    const trs = new Map(); // id -> { id, byId, by, at, text }
+    function takeTr(m) {
+      if (!m || !m.id || trs.has(m.id)) return false;
+      trs.set(m.id, { id: m.id, byId: m.byId, by: String(m.by || '?').slice(0, 40), at: m.at || 0, text: String(m.text || '').slice(0, 400) });
+      return true;
+    }
+    function showCaption(byId, text) {
+      const t = byId === myId ? meTile : peers.get(byId);
+      if (!t || !t.cap) return;
+      t.cap.textContent = text;
+      t.cap.classList.add('show');
+      clearTimeout(t.capT);
+      t.capT = setTimeout(() => t.cap.classList.remove('show'), 6000);
+    }
+    function renderTranscript() {
+      const log = document.getElementById('trlog');
+      const lines = Array.from(trs.values()).sort((a, b) => a.at - b.at);
+      log.innerHTML = lines.length
+        ? lines.map((l) => '<div class="trline"><b>' + esc(l.by) + '</b>' + esc(l.text) + '</div>').join('')
+        : '<small style="color:#667">Tap CC in the bar — each phone transcribes its own speaker and the lines merge here, attributed.</small>';
+      log.scrollTop = log.scrollHeight;
+    }
+    function addTranscriptLine(text) {
+      text = String(text || '').trim();
+      if (!text) return;
+      const m = { id: uid('t'), byId: myId, by: myName(), at: Date.now(), text: text.slice(0, 400) };
+      trs.set(m.id, m);
+      dcAll({ k: 'tr', m });
+      renderTranscript();
+      showCaption(myId, m.text);
+    }
+    let speech = null;
+    function speechRunning() { return !!speech; }
+    function startSpeech() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { setStatus('Transcription is not available in this browser.'); return false; }
+      try {
+        speech = new SR();
+        speech.continuous = true;
+        speech.interimResults = false;
+        speech.lang = navigator.language || 'en-US';
+        speech.onresult = (e) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) addTranscriptLine(e.results[i][0].transcript);
+          }
+        };
+        speech.onend = () => { if (myStatus.cc && !myStatus.muted && speech) { try { speech.start(); } catch (e) {} } };
+        speech.onerror = (e) => {
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'language-not-supported') {
+            stopSpeech();
+            myStatus.cc = false;
+            document.getElementById('ccbtn').classList.remove('on');
+            setStatus('Transcription is not available here (' + e.error + ').');
+            broadcastStatus();
+          }
+        };
+        speech.start();
+        return true;
+      } catch (e) { speech = null; return false; }
+    }
+    function stopSpeech() {
+      const sp = speech;
+      speech = null; // onend sees null → no restart
+      if (sp) { try { sp.stop(); } catch (e) {} }
+    }
+    function syncSpeech() { // CC follows the mic: muted people aren't transcribed
+      const want = myStatus.cc && !myStatus.muted;
+      if (want && !speechRunning()) startSpeech();
+      if (!want && speechRunning()) stopSpeech();
+    }
+    document.getElementById('ccbtn').onclick = () => {
+      myStatus.cc = !myStatus.cc;
+      document.getElementById('ccbtn').classList.toggle('on', myStatus.cc);
+      syncSpeech();
+      if (myStatus.cc && myStatus.muted) setStatus('Transcription starts when you unmute — it captions what your mic hears.');
+      broadcastStatus();
+    };
+    document.getElementById('trtab').onclick = () => {
+      const w = document.getElementById('trwrap'), c = document.getElementById('chatlog');
+      const showingTr = !w.classList.contains('show');
+      w.classList.toggle('show', showingTr);
+      c.style.display = showingTr ? 'none' : '';
+      document.getElementById('paneltitle').textContent = showingTr ? 'Transcript' : 'Call chat';
+      document.getElementById('trtab').textContent = showingTr ? '💬 Chat' : '📝 Transcript';
+      if (showingTr) renderTranscript();
+    };
+    document.getElementById('trdl').onclick = () => {
+      const lines = Array.from(trs.values()).sort((a, b) => a.at - b.at)
+        .map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + ': ' + l.text);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }));
+      a.download = 'gifos-call-transcript.txt';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+
+    // ---- recording: this call, composited ON YOUR DEVICE ---------------------
+    // Tiles are drawn to a canvas (blur applied for real — a blurred feed is
+    // recorded blurred), audio is mixed (group-muted people contribute
+    // silence), and MediaRecorder writes a .webm that never leaves your
+    // machine. Everyone in the call sees the ⏺ chip while you record.
+    let recRec = null, recTimer = null, recDraw = null, recChunks = [], recStart = 0, recSrcs = new Map(), recDest = null;
+    const recBtn = document.getElementById('recbtn');
+    function recMixIn(id, stream) {
+      if (!recDest || !stream || recSrcs.has(id)) return;
+      const track = stream.getAudioTracks()[0];
+      if (!track) return;
+      try {
+        const src = ac.createMediaStreamSource(new MediaStream([track]));
+        const gain = ac.createGain();
+        src.connect(gain); gain.connect(recDest);
+        recSrcs.set(id, { src, gain });
+      } catch (e) {}
+    }
+    function recTiles() {
+      const list = [{ id: 'me', name: myName() + ' (you)', video: meTile.video, st: myStatus, stream: localStream }];
+      for (const [pid, p] of peers) {
+        const st = statusOf.get(pid) || {};
+        list.push({ id: pid, name: p.name || '…', video: p.video, st, stream: p.video.srcObject });
+      }
+      return list;
+    }
+    function startRec() {
+      if (!ensureAc()) { setStatus('Recording needs audio support.'); return; }
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280; canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      recDest = ac.createMediaStreamDestination();
+      recSrcs = new Map();
+      const draw = () => {
+        const list = recTiles();
+        const cols = Math.ceil(Math.sqrt(list.length)), rows = Math.ceil(list.length / cols);
+        const cw = canvas.width / cols, ch = canvas.height / rows;
+        ctx.filter = 'none';
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        list.forEach((t, i) => {
+          const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
+          const gBlur = modOf(t.id).blur && modOf(t.id).blur.on;
+          const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
+          const mix = recSrcs.get(t.id);
+          if (mix) mix.gain.gain.value = gMute ? 0 : 1;  // hear what the room hears
+          else if (t.stream) recMixIn(t.id, t.stream);
+          const v = t.video;
+          if (!t.st.camOff && v && v.videoWidth) {
+            const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
+            const dw = v.videoWidth * s, dh = v.videoHeight * s;
+            ctx.filter = (gBlur || t.st.blur) ? 'blur(22px)' : 'none';
+            ctx.drawImage(v, x + (cw - dw) / 2, y + (ch - dh) / 2, dw, dh);
+            ctx.filter = 'none';
+          } else {
+            ctx.fillStyle = '#14141f';
+            ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
+            ctx.fillStyle = '#3a3a55';
+            ctx.font = 'bold ' + (ch * .4 | 0) + 'px system-ui';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText((t.name || '•')[0].toUpperCase(), x + cw / 2, y + ch / 2);
+          }
+          ctx.fillStyle = 'rgba(10,10,15,.75)';
+          ctx.fillRect(x + 6, y + ch - 26, Math.min(cw - 12, 8 + t.name.length * 9), 20);
+          ctx.fillStyle = '#e0e0f0';
+          ctx.font = '13px system-ui';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText(t.name, x + 10, y + ch - 16);
+        });
+      };
+      draw();
+      recDraw = setInterval(draw, 66); // ~15 fps
+      const stream = canvas.captureStream(15);
+      for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+      recChunks = [];
+      recRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1200000, audioBitsPerSecond: 64000 });
+      recRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+      recRec.onstop = () => {
+        clearInterval(recDraw); clearInterval(recTimer);
+        for (const m of recSrcs.values()) { try { m.src.disconnect(); } catch (e) {} }
+        recSrcs.clear(); recDest = null;
+        const blob = new Blob(recChunks, { type: 'video/webm' });
+        recChunks = [];
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'gifos-call-' + room + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.webm';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        recBtn.classList.remove('on');
+        recBtn.textContent = '⏺ Record';
+        myStatus.rec = false;
+        broadcastStatus();
+      };
+      recRec.start(1000);
+      recStart = Date.now();
+      recBtn.classList.add('on');
+      recTimer = setInterval(() => {
+        const sec = ((Date.now() - recStart) / 1000) | 0;
+        recBtn.textContent = '⏹ Stop ' + ((sec / 60) | 0) + ':' + ('0' + sec % 60).slice(-2);
+      }, 1000);
+      recBtn.textContent = '⏹ Stop 0:00';
+      myStatus.rec = true;
+      broadcastStatus();
+    }
+    recBtn.onclick = () => {
+      if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} recRec = null; }
+      else startRec();
+    };
+
     // ---- controls ---------------------------------------------------------------
     const micBtn = document.getElementById('mic');
     const camBtn = document.getElementById('cam');
@@ -1099,6 +1344,7 @@
       myStatus.muted = !track.enabled;
       micBtn.classList.toggle('off', !track.enabled);
       micBtn.textContent = track.enabled ? 'Mute' : 'Unmute';
+      syncSpeech(); // CC pauses while muted, resumes on unmute
       broadcastStatus();
     };
     camBtn.onclick = () => {
@@ -1138,6 +1384,9 @@
       roomPw: () => roomPw,
       micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
       chatTexts: () => Array.from(chat.values()).sort((a, b) => a.at - b.at).map((m) => m.text),
+      addTranscript: (t) => addTranscriptLine(t),
+      transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
+      recording: () => !!(recRec && recRec.state !== 'inactive'),
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
     };
   })();
