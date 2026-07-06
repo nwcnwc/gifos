@@ -71,7 +71,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await vmApp.close();
 
   // ---- changes inside the VM never leak to the host ----
-  await vmPage.locator('.icon', { hasText: 'Games' }).click({ button: 'right' });
+  await vmPage.locator('.icon', { hasText: /^Games$/ }).click({ button: 'right' });
   await vmPage.locator('.ctx button', { hasText: 'Move to Trash' }).click();
   await sleep(400);
   const vmAfter = await vmPage.$$eval('.icon .label', (els) => els.map((e) => e.textContent));

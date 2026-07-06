@@ -15,30 +15,39 @@
   button{padding:9px 14px;border:0;border-radius:8px;background:#7b5cff;color:#fff;cursor:pointer;font:inherit}
   ul{list-style:none;margin:0;padding:0 18px 18px}
   li{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #eee;border-radius:8px;margin-bottom:8px}
-  li span{flex:1}
+  li span{flex:1;cursor:pointer}
+  li.done span{text-decoration:line-through;color:#aaa}
   li button{background:#eee;color:#900;padding:4px 8px}
   .empty{color:#999;padding:0 18px}
+  .hint{color:#bbb;font-size:12px;padding:0 18px 10px}
 </style>
 <header>📝 Notes</header>
 <form id="f"><input id="t" placeholder="Write a note and press Add…" autocomplete="off"><button>Add</button></form>
+<div class="hint">Tap a note to check it off.</div>
 <ul id="list"></ul>
 <script>
   const db = gifos.db('notes'), list = document.getElementById('list');
   let me = { name: 'You' };
+  let notes = [];
   if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' }; });
   const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   function render(items){
+    notes = items;
     list.innerHTML = items.length
-      ? items.map(n => '<li><span>'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'">Delete</button></li>').join('')
+      ? items.map(n => '<li'+(n.done?' class="done"':'')+'><span data-t="'+n.id+'">'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'">Delete</button></li>').join('')
       : '<div class="empty">No notes yet. Your notes persist in this GIF icon.</div>';
   }
   db.subscribe(render);
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
     const t = document.getElementById('t');
-    if (t.value.trim()) { await db.put({ text: t.value.trim(), by: me.name }); t.value=''; }
+    if (t.value.trim()) { await db.put({ text: t.value.trim(), by: me.name, done: false }); t.value=''; }
   };
-  list.onclick = async e => { if (e.target.dataset.id) await db.delete(e.target.dataset.id); };
+  list.onclick = async e => {
+    if (e.target.dataset.id) { await db.delete(e.target.dataset.id); return; }
+    const tid = e.target.dataset.t || (e.target.closest('span') && e.target.closest('span').dataset.t);
+    if (tid) { const n = notes.find(x => x.id === tid); if (n) await db.put(Object.assign({}, n, { done: !n.done })); }
+  };
 </script>`;
 
   const GUESTBOOK_HTML = `<!doctype html><meta charset="utf-8">
@@ -60,9 +69,16 @@
   <input id="msg" placeholder="Say something…" autocomplete="off">
   <button>Sign</button>
 </form>
+<div style="display:flex;gap:6px;padding:0 18px 10px" id="stamps"></div>
 <ul id="list"></ul>
 <script>
   const db = gifos.db('entries'), list = document.getElementById('list');
+  ['💜','🎉','⭐','🌈','✍️','🐸'].forEach(function(s){
+    const b=document.createElement('button'); b.type='button'; b.textContent=s;
+    b.style.cssText='background:#1c1c2b;border:1px solid #2a2a3f;font-size:17px;padding:5px 9px;border-radius:8px;cursor:pointer';
+    b.onclick=function(){ const m=document.getElementById('msg'); m.value+=s; m.focus(); };
+    document.getElementById('stamps').appendChild(b);
+  });
   let me = { name: 'You' };
   if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' };
     document.getElementById('hint').textContent = 'Signing as ' + me.name + '. Go multiplayer to sign with friends.'; });
@@ -87,21 +103,25 @@
   .cell{background:#14141f;border:1px solid #2a2a3f;border-radius:12px;font-size:44px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
   .cell:hover{border-color:#5cff7b}
   .cell.x{color:#7b5cff}.cell.o{color:#ff5caa}
+  .cell.win{background:#233a18;border-color:#5cff7b}
+  .score{color:#e0e0f0;font-size:14px;margin-top:2px}
   button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:#5cff7b;color:#0a0a0f;cursor:pointer;font:inherit;font-weight:700}
 </style>
 <header>⭕ Tic-Tac-Toe</header>
 <div class="status" id="status">Loading…</div>
+<div class="score" id="score"></div>
 <div class="board" id="board"></div>
 <button id="new">New game</button>
 <script>
   const db = gifos.db('game');
   const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  const fresh = () => ({ id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', winner:null, players:{}, names:{} });
+  const fresh = () => ({ id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', starts:'X', winner:null, line:null, players:{}, names:{}, score:{X:0,O:0,D:0} });
   let current = fresh();
   let me = { id: 'local', name: 'You' };
   if (window.gifos) gifos.me().then(function(m){ me = { id: m.id, name: m.name || 'You' }; render(); });
   const boardEl = document.getElementById('board'), statusEl = document.getElementById('status');
-  function winnerOf(c){ for (const w of WINS) if (c[w[0]] && c[w[0]]===c[w[1]] && c[w[0]]===c[w[2]]) return c[w[0]];
+  function lineOf(c){ for (const w of WINS) if (c[w[0]] && c[w[0]]===c[w[1]] && c[w[0]]===c[w[2]]) return w; return null; }
+  function winnerOf(c){ const l=lineOf(c); if(l) return c[l[0]];
     return c.every(Boolean) ? 'draw' : null; }
   function myMark(){ return current.players.X===me.id ? 'X' : current.players.O===me.id ? 'O' : null; }
   function opponentPresent(){
@@ -129,19 +149,32 @@
         current.names = Object.assign({}, current.names); if (current.players[seat]===me.id) current.names[seat] = me.name;
         current.cells = current.cells.slice(); current.cells[i] = seat;
         current.winner = winnerOf(current.cells);
+        current.line = lineOf(current.cells);
+        if (current.winner){ const sc = Object.assign({X:0,O:0,D:0}, current.score);
+          sc[current.winner==='draw'?'D':current.winner]++; current.score = sc; }
         current.turn = seat === 'X' ? 'O' : 'X';
         await db.put(current);
         render();
       };
+      if (current.line && current.line.indexOf(i) >= 0) d.classList.add('win');
       boardEl.appendChild(d);
     });
     const vs = 'X: ' + label('X') + '  ·  O: ' + label('O');
     statusEl.textContent = current.winner === 'draw' ? 'Draw! Tap New game. — ' + vs
       : current.winner ? label(current.winner) + ' (' + current.winner + ') wins! 🎉 — ' + vs
       : (playable ? 'Your move (' + current.turn + ')' : 'Waiting for ' + (label(current.turn) || current.turn)) + '  —  ' + vs;
+    const sc = Object.assign({X:0,O:0,D:0}, current.score);
+    document.getElementById('score').textContent = 'Series — X: ' + sc.X + ' · O: ' + sc.O + ' · draws: ' + sc.D;
   }
   db.subscribe(function(items){ const b = items.find(function(x){ return x.id === 'board'; }); if (b) current = b; render(); });
-  document.getElementById('new').onclick = function(){ return db.put(fresh()); };
+  // New game keeps the series score and alternates who starts.
+  document.getElementById('new').onclick = function(){
+    const nxt = fresh();
+    nxt.score = Object.assign({X:0,O:0,D:0}, current.score);
+    nxt.starts = current.starts === 'X' ? 'O' : 'X'; nxt.turn = nxt.starts;
+    nxt.players = current.players; nxt.names = current.names;
+    return db.put(nxt);
+  };
   render();
 </script>`;
 
@@ -153,15 +186,18 @@
   .grid{display:grid;grid-template-columns:repeat(7,44px);gap:6px;background:#12203a;padding:10px;border-radius:12px;margin:6px 0}
   .cell{width:44px;height:44px;border-radius:50%;background:#0a0a0f;cursor:pointer}
   .cell.r{background:#ff5c5c}.cell.y{background:#ffd23c}
+  .cell.win{box-shadow:0 0 0 4px #5cff7b inset,0 0 10px #5cff7b}
+  .score{color:#e0e0f0;font-size:14px}
   button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:#ffb43c;color:#0a0a0f;font-weight:700;cursor:pointer}
 </style>
 <header>🔴 Connect Four</header>
 <div class="status" id="status">Loading…</div>
+<div class="score" id="score"></div>
 <div class="grid" id="grid"></div>
 <button id="new">New game</button>
 <script>
   const db = gifos.db('game'), W=7, H=6;
-  const fresh = () => ({ id:'board', cells:new Array(W*H).fill(null), turn:'R', winner:null, players:{}, names:{} });
+  const fresh = () => ({ id:'board', cells:new Array(W*H).fill(null), turn:'R', starts:'R', winner:null, line:null, players:{}, names:{}, score:{R:0,Y:0,D:0} });
   let cur = fresh(), me = { id:'local', name:'You' };
   if (window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; render(); });
   const gridEl = document.getElementById('grid'), statusEl = document.getElementById('status');
@@ -172,8 +208,8 @@
   function win(cells){
     const dirs=[[1,0],[0,1],[1,1],[1,-1]];
     for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const c=cells[y*W+x]; if(!c) continue;
-      for(const d of dirs){ let n=1; for(let k=1;k<4;k++){ const nx=x+d[0]*k,ny=y+d[1]*k; if(nx<0||nx>=W||ny<0||ny>=H||cells[ny*W+nx]!==c) break; n++; } if(n>=4) return c; } }
-    return cells.every(Boolean)?'draw':null;
+      for(const d of dirs){ const run=[y*W+x]; for(let k=1;k<4;k++){ const nx=x+d[0]*k,ny=y+d[1]*k; if(nx<0||nx>=W||ny<0||ny>=H||cells[ny*W+nx]!==c) break; run.push(ny*W+nx); } if(run.length>=4) return {mark:c,cells:run}; } }
+    return cells.every(Boolean)?{mark:'draw',cells:[]}:null;
   }
   function drop(col){
     if(!canPlay()) return;
@@ -183,20 +219,34 @@
     cur.players=Object.assign({},cur.players); cur.players[seat]=cur.players[seat]||me.id;
     cur.names=Object.assign({},cur.names); if(cur.players[seat]===me.id) cur.names[seat]=me.name;
     cur.cells=cur.cells.slice(); cur.cells[row*W+col]=seat;
-    cur.winner=win(cur.cells); cur.turn=seat==='R'?'Y':'R';
+    const w=win(cur.cells);
+    cur.winner=w?w.mark:null; cur.line=w?w.cells:null;
+    if(cur.winner){ const sc=Object.assign({R:0,Y:0,D:0},cur.score); sc[cur.winner==='draw'?'D':cur.winner]++; cur.score=sc; }
+    cur.turn=seat==='R'?'Y':'R';
     db.put(cur); render();
   }
   function render(){
     gridEl.innerHTML='';
     for(let i=0;i<W*H;i++){ const d=document.createElement('div'); const v=cur.cells[i];
-      d.className='cell'+(v?' '+v.toLowerCase():''); d.onclick=function(){ drop(i%W); }; gridEl.appendChild(d); }
+      d.className='cell'+(v?' '+v.toLowerCase():'');
+      if(cur.line&&cur.line.indexOf(i)>=0) d.classList.add('win');
+      d.onclick=function(){ drop(i%W); }; gridEl.appendChild(d); }
     const vs='🔴 '+label('R')+'  vs  🟡 '+label('Y');
     statusEl.textContent = cur.winner==='draw'?'Draw! — '+vs
       : cur.winner?label(cur.winner)+' wins! 🎉 — '+vs
       : (canPlay()?'Your move':'Waiting for '+label(cur.turn))+'  —  '+vs;
+    const sc=Object.assign({R:0,Y:0,D:0},cur.score);
+    document.getElementById('score').textContent='Series — 🔴 '+sc.R+' · 🟡 '+sc.Y+' · draws: '+sc.D;
   }
   db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b) cur=b; render(); });
-  document.getElementById('new').onclick=function(){ return db.put(fresh()); };
+  // New game keeps the series score and alternates who starts.
+  document.getElementById('new').onclick=function(){
+    const nxt=fresh();
+    nxt.score=Object.assign({R:0,Y:0,D:0},cur.score);
+    nxt.starts=cur.starts==='R'?'Y':'R'; nxt.turn=nxt.starts;
+    nxt.players=cur.players; nxt.names=cur.names;
+    return db.put(nxt);
+  };
   render();
 </script>`;
 
@@ -209,24 +259,34 @@
   .m{max-width:80%;padding:8px 12px;border-radius:12px;background:#14141f;border:1px solid #2a2a3f}
   .m.mine{align-self:flex-end;background:#173a30;border-color:#2a5a48}
   .m b{color:#5cdcb4;font-size:12px;display:block;margin-bottom:2px}
+  .m small{color:#667;font-size:10px;margin-left:6px;font-weight:400}
   form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
   input{flex:1;padding:10px 12px;border:1px solid #2a2a3f;border-radius:8px;background:#1c1c2b;color:#e0e0f0;font:inherit}
   button{padding:10px 16px;border:0;border-radius:8px;background:#5cdcb4;color:#04231b;font-weight:700;cursor:pointer}
+  .quick{display:flex;gap:4px;padding:0 18px 8px}
+  .quick button{background:#1c1c2b;font-size:18px;padding:6px 10px}
 </style>
 <header>💬 Chat</header>
 <div id="log"></div>
+<div class="quick" id="quick"></div>
 <form id="f"><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
 <script>
   const db=gifos.db('messages'), log=document.getElementById('log');
   let me={id:'local',name:'You'};
   if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  function hhmm(t){ if(!t) return ''; const d=new Date(t); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
   function render(items){
     items=items.slice().sort(function(a,b){return (a.t||0)-(b.t||0);});
-    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'</b>'+esc(m.text)+'</div>'; }).join('');
+    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small></b>'+esc(m.text)+'</div>'; }).join('');
     log.scrollTop=log.scrollHeight;
   }
   db.subscribe(render);
+  ['👍','❤️','😂','🎉','😮','🔥'].forEach(function(e){
+    const b=document.createElement('button'); b.type='button'; b.textContent=e;
+    b.onclick=function(){ db.put({ by:me.name, uid:me.id, text:e, t:Date.now() }); };
+    document.getElementById('quick').appendChild(b);
+  });
   document.getElementById('f').onsubmit=async function(e){ e.preventDefault();
     const t=document.getElementById('t'); if(!t.value.trim()) return;
     await db.put({ by:me.name, uid:me.id, text:t.value.trim(), t:Date.now() }); t.value='';
@@ -237,8 +297,8 @@
 <style>
   body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
   header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff5caa}
-  .board{display:grid;grid-template-columns:repeat(16,20px);gap:1px;background:#2a2a3f;padding:1px;margin:14px;touch-action:none}
-  .px{width:20px;height:20px;background:#14141f}
+  .board{display:grid;grid-template-columns:repeat(16,var(--px,20px));gap:1px;background:#2a2a3f;padding:1px;margin:14px;touch-action:none;--px:min(20px,5.2vw)}
+  .px{width:var(--px,20px);height:var(--px,20px);background:#14141f}
   .palette{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 12px}
   .sw{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent}
   .sw.sel{border-color:#fff}
@@ -249,7 +309,7 @@
 <div class="board" id="board"></div>
 <button id="clear">Clear</button>
 <script>
-  const db=gifos.db('canvas'), N=16, COLORS=['#14141f','#ff5c5c','#ffd23c','#5cff7b','#5cc8ff','#7b5cff','#ff5caa','#ffffff'];
+  const db=gifos.db('canvas'), N=16, COLORS=['#14141f','#ff5c5c','#ff8f3c','#ffd23c','#5cff7b','#5cdcb4','#5cc8ff','#7b5cff','#ff5caa','#a06a4a','#8888aa','#ffffff'];
   let board={ id:'board', cells:new Array(N*N).fill(0) }, color=1, painting=false, pending=false;
   const boardEl=document.getElementById('board'), palEl=document.getElementById('pal');
   COLORS.forEach(function(c,i){ const s=document.createElement('div'); s.className='sw'+(i===1?' sel':''); s.style.background=c;
@@ -301,32 +361,72 @@
     else keys.appendChild(mk(k,'',function(){ num(k); }));
   }); });
   function mk(t,cls,fn){ const b=document.createElement('button'); b.textContent=t; if(cls) b.className=cls; b.onclick=fn; return b; }
+  // full keyboard support
+  window.addEventListener('keydown',function(e){
+    const k=e.key;
+    if(k>='0'&&k<='9'||k==='.') num(k);
+    else if(k==='+') setOp('+'); else if(k==='-') setOp('-');
+    else if(k==='*'||k==='x') setOp('×'); else if(k==='/'){ e.preventDefault(); setOp('÷'); }
+    else if(k==='Enter'||k==='=') eq();
+    else if(k==='Backspace'){ cur=cur.length>1?cur.slice(0,-1):'0'; show(); }
+    else if(k==='Escape'||k==='c'||k==='C') clr();
+    else if(k==='%'){ cur=String(parseFloat(cur)/100); show(); }
+  });
 </script>`;
 
-  const TIMER_HTML = `<!doctype html><meta charset="utf-8">
+  const TIMER_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
   header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff7878}
-  #t{font-size:56px;font-variant-numeric:tabular-nums;margin:40px 0 20px;letter-spacing:2px}
-  .row{display:flex;gap:10px}
+  .tabs{display:flex;gap:8px;margin:16px 0 0}
+  .tabs button{padding:8px 18px;border:0;border-radius:999px;background:#1c1c2b;color:#8888aa;font:inherit;font-weight:700;cursor:pointer}
+  .tabs button.on{background:#ff7878;color:#2a0a0a}
+  #t{font-size:56px;font-variant-numeric:tabular-nums;margin:28px 0 8px;letter-spacing:2px}
+  #t.done{color:#ff7878;animation:blink .5s step-end infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:8px 0}
   button{padding:12px 24px;border:0;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;background:#1c1c2b;color:#e0e0f0}
   button.go{background:#5cff7b;color:#04231b}button.stop{background:#ff7878;color:#2a0a0a}
+  .chips button{padding:8px 14px;font-size:14px;border-radius:999px}
 </style>
-<header>⏱️ Stopwatch</header>
+<header>⏱️ Timer &amp; Stopwatch</header>
+<div class="tabs"><button id="tabS" class="on">Stopwatch</button><button id="tabT">Timer</button></div>
 <div id="t">00:00.0</div>
+<div class="chips row" id="presets" style="display:none">
+  <button data-add="60">+1 min</button><button data-add="300">+5 min</button><button data-add="600">+10 min</button><button data-add="10">+10 s</button>
+</div>
 <div class="row">
   <button id="go" class="go">Start</button>
   <button id="reset">Reset</button>
 </div>
 <script>
-  let running=false, base=0, elapsed=0, raf=0;
+  let mode='sw', running=false, base=0, elapsed=0, raf=0, left=0, target=0;
   const tEl=document.getElementById('t'), go=document.getElementById('go');
-  function fmt(ms){ const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, d=Math.floor(ms/100)%10;
+  function beep(f,ms){ try{ const C=window.AudioContext||window.webkitAudioContext; if(!C)return; window.__ac=window.__ac||new C();
+    const o=__ac.createOscillator(), g=__ac.createGain(); o.frequency.value=f; g.gain.value=.15; o.connect(g); g.connect(__ac.destination);
+    o.start(); setTimeout(function(){o.stop();},ms); }catch(e){} }
+  function fmtSw(ms){ const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, d=Math.floor(ms/100)%10;
     return (m<10?'0':'')+m+':'+(s<10?'0':'')+s+'.'+d; }
-  function tick(){ tEl.textContent=fmt(elapsed+(running?Date.now()-base:0)); if(running) raf=requestAnimationFrame(tick); }
-  go.onclick=function(){ if(running){ elapsed+=Date.now()-base; running=false; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); }
-    else { base=Date.now(); running=true; go.textContent='Stop'; go.className='stop'; tick(); } };
-  document.getElementById('reset').onclick=function(){ running=false; elapsed=0; base=0; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); tEl.textContent='00:00.0'; };
+  function fmtT(ms){ const s=Math.max(0,Math.ceil(ms/1000)); return Math.floor(s/60)+':'+('0'+s%60).slice(-2); }
+  function draw(){ if(mode==='sw'){ tEl.textContent=fmtSw(elapsed+(running?Date.now()-base:0)); }
+    else { const rem=running?target-Date.now():left; tEl.textContent=fmtT(rem);
+      if(running&&rem<=0){ stop(); tEl.classList.add('done'); beep(880,250); setTimeout(function(){beep(880,250);},350); setTimeout(function(){beep(660,600);},750); left=0; } }
+    if(running) raf=requestAnimationFrame(draw); }
+  function stop(){ if(mode==='sw'&&running) elapsed+=Date.now()-base; if(mode==='t'&&running) left=Math.max(0,target-Date.now());
+    running=false; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); }
+  function start(){ if(mode==='t'&&left<=0) return; tEl.classList.remove('done');
+    if(mode==='sw') base=Date.now(); else target=Date.now()+left;
+    running=true; go.textContent='Pause'; go.className='stop'; draw(); }
+  go.onclick=function(){ running?stop():start(); };
+  document.getElementById('reset').onclick=function(){ stop(); elapsed=0; left=0; tEl.classList.remove('done'); draw0(); };
+  function draw0(){ tEl.textContent=mode==='sw'?'00:00.0':fmtT(left); }
+  document.getElementById('presets').onclick=function(e){ const a=e.target.dataset.add; if(!a||running) return;
+    left+=a*1000; tEl.classList.remove('done'); draw0(); };
+  function setMode(m){ stop(); mode=m; elapsed=0;
+    document.getElementById('tabS').className=m==='sw'?'on':''; document.getElementById('tabT').className=m==='t'?'on':'';
+    document.getElementById('presets').style.display=m==='t'?'flex':'none'; tEl.classList.remove('done'); draw0(); }
+  document.getElementById('tabS').onclick=function(){ setMode('sw'); };
+  document.getElementById('tabT').onclick=function(){ setMode('t'); };
 </script>`;
 
   const MINESWEEPER_HTML = `<!doctype html><meta charset="utf-8">
@@ -376,9 +476,16 @@
       else if(g.flags[i]){ d.textContent='🚩'; d.title=g.flags[i]; }
       d.onclick=(function(k){ return function(){ flagMode?flag(k):reveal(k); }; })(i);
       d.oncontextmenu=(function(k){ return function(e){ e.preventDefault(); flag(k); }; })(i);
+      // long-press = flag (phones have no right-click)
+      (function(k){ let t=null, moved=false;
+        d.addEventListener('pointerdown',function(){ moved=false; t=setTimeout(function(){ t=null; flag(k); },450); });
+        d.addEventListener('pointermove',function(){ moved=true; if(t){clearTimeout(t);t=null;} });
+        d.addEventListener('pointerup',function(e){ if(t){ clearTimeout(t); t=null; } else if(!moved){ e.preventDefault(); } });
+      })(i);
       gridEl.appendChild(d); }
     statusEl.textContent = g.over ? (g.win?'🎉 Cleared! Everyone wins.':'💥 Boom! Game over — New game to retry.')
-      : (g.mines?('Mines: '+MINES+' · flags: '+Object.keys(g.flags).length):'Tap any square to start. Play together in multiplayer.');
+      : (g.mines?('💣 left: '+Math.max(0,MINES-Object.keys(g.flags).length)+' of '+MINES+' · long-press to flag')
+                :'Tap any square to start. Long-press (or 🚩 mode) to flag. Play together in multiplayer.');
   }
   document.getElementById('mode').onclick=function(){ flagMode=!flagMode; this.textContent='🚩 Flag mode: '+(flagMode?'on':'off'); this.className=flagMode?'on':''; };
   document.getElementById('new').onclick=function(){ g=fresh(); db.put(g); render(); };
@@ -400,11 +507,21 @@
   .match{background:#14141f;border:1px solid #2a2a3f;border-radius:8px;padding:8px 12px;min-width:140px;cursor:pointer}
   .match.mine{border-color:#e8c37a}
   .match .w{color:#5cff7b}
-  .board{display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(8,44px);margin:12px;border:2px solid #2a2a3f}
-  .sq{display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer}
-  .sq.l{background:#3a3550}.sq.d{background:#241f38}
-  .sq.sel{outline:3px solid #e8c37a;outline-offset:-3px}
-  .sq.mv{box-shadow:inset 0 0 0 4px rgba(92,255,123,.5)}
+  .settings{background:#14141f;border:1px solid #2a2a3f;border-radius:10px;padding:10px 14px;margin:12px 0;text-align:left}
+  .settings h3{margin:0 0 2px;font-size:14px;color:#e8c37a}
+  .settings .hint{color:#8888aa;font-size:12px;margin-bottom:8px}
+  .settings label{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:14px}
+  .settings select{padding:6px 8px;border-radius:8px;background:#1c1c2b;color:#e0e0f0;border:1px solid #2a2a3f;font:inherit}
+  .clock{display:flex;justify-content:center;font-variant-numeric:tabular-nums;font-weight:700;padding:4px 10px;margin:2px auto;border-radius:8px;background:#14141f;border:1px solid #2a2a3f;width:fit-content}
+  .clock.live{border-color:#e8c37a;color:#e8c37a}
+  .clock.low{color:#ff7878}
+  .board{display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(8,44px);margin:12px;border:3px solid #241a04;border-radius:4px}
+  .sq{display:flex;align-items:center;justify-content:center;font-size:32px;cursor:pointer;line-height:1}
+  .sq.l{background:#ecd9b5}.sq.d{background:#b08150}
+  .sq.pw{color:#fffdf2;text-shadow:0 0 2px #241a04,0 1px 2px rgba(0,0,0,.55)}
+  .sq.pb{color:#241a2e;text-shadow:0 0 2px rgba(255,255,255,.35)}
+  .sq.sel{outline:3px solid #7b5cff;outline-offset:-3px}
+  .sq.mv{box-shadow:inset 0 0 0 4px rgba(40,160,70,.65)}
   .back{background:#1c1c2b;color:#e0e0f0}
 </style>
 <header>♟️ Chess Tournament</header>
@@ -414,18 +531,29 @@
   const db=gifos.db('chess');
   let me={id:'local',name:'You'}, viewMatch=null, sel=null;
   const START='rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR';
-  const GLYPH={p:'♟',r:'♜',n:'♞',b:'♝',q:'♛',k:'♚',P:'♙',R:'♖',N:'♘',B:'♗',Q:'♕',K:'♔'};
+  // Both sides use the FILLED glyphs and get their color from CSS (.pw/.pb):
+  // the outline glyphs ♙♖… inherit whatever text color the platform font
+  // picks, which made white and black pieces indistinguishable.
+  const GLYPH={p:'♟',r:'♜',n:'♞',b:'♝',q:'♛',k:'♚'};
   const view=document.getElementById('view'), statusEl=document.getElementById('status');
-  let T={ id:'t', players:[], started:false, rounds:[], round:0 };
+  let T={ id:'t', players:[], started:false, rounds:[], round:0, settings:{ clock:'5+0', shuffle:true } };
+  // Time controls: 'none' or 'base+inc' (minutes+seconds). Applies to EVERY
+  // game in the tournament — set in the lobby, locked once play starts.
+  const CLOCKS=[['none','No clock'],['1+0','Bullet 1 min'],['3+0','Blitz 3 min'],['3+2','Blitz 3|2'],['5+0','Blitz 5 min'],['5+3','Blitz 5|3'],['10+0','Rapid 10 min']];
+  function clockSpec(){ const c=(T.settings&&T.settings.clock)||'none'; if(c==='none') return null;
+    const p=c.split('+'); return { base:parseInt(p[0],10)*60000, inc:(parseInt(p[1],10)||0)*1000 }; }
 
   function save(){ return db.put(T); }
   function joinLobby(){ if(T.started) return; if(!T.players.some(function(p){return p.id===me.id;})){ T.players=T.players.concat([{id:me.id,name:me.name}]); save(); } }
   function startTournament(){
     let ps=T.players.slice(); if(ps.length<2) return;
+    if(T.settings&&T.settings.shuffle){ for(let i=ps.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=ps[i]; ps[i]=ps[j]; ps[j]=t; } }
     const matches=[]; for(let i=0;i<ps.length;i+=2){ matches.push(makeMatch(ps[i], ps[i+1]||null)); }
     T.started=true; T.rounds=[matches]; T.round=0; save();
   }
-  function makeMatch(a,b){ const m={ id:'m'+Math.random().toString(36).slice(2,8), a:a, b:b, board:START, turn:'w', winner:null };
+  function makeMatch(a,b){ const spec=clockSpec();
+    const m={ id:'m'+Math.random().toString(36).slice(2,8), a:a, b:b, board:START, turn:'w', winner:null,
+      clock: spec?{ w:spec.base, b:spec.base, inc:spec.inc, last:null }:null };
     if(!b){ m.winner=a; } return m; }
   function curMatches(){ return T.rounds[T.round]||[]; }
   function advance(){
@@ -454,8 +582,19 @@
     return out;
   }
   function mySeat(m){ return m.a&&m.a.id===me.id?'w':m.b&&m.b.id===me.id?'b':null; }
+  function remaining(m,side){ if(!m.clock) return null;
+    let r=m.clock[side]; if(m.turn===side&&m.clock.last&&!m.winner) r-=Date.now()-m.clock.last; return r; }
+  function flagFall(m){ // a player ran out of time — the other side wins
+    if(!m.clock||m.winner) return false;
+    if(remaining(m,'w')<=0){ m.winner=m.b; } else if(remaining(m,'b')<=0){ m.winner=m.a; } else return false;
+    save(); advance(); render(); return true;
+  }
   function doMove(m,fx,fy,tx,ty){
     const seat=mySeat(m); if(seat!==m.turn) return;
+    if(m.clock){ const now=Date.now();
+      if(m.clock.last){ m.clock[seat]-=now-m.clock.last; }
+      if(m.clock[seat]<=0){ flagFall(m); return; }
+      m.clock[seat]+=m.clock.inc||0; m.clock.last=now; }
     const bd=m.board.split(''); const p=bd[fy*8+fx]; const target=bd[ty*8+tx];
     bd[ty*8+tx]=p; bd[fy*8+fx]='.';
     if(p==='P'&&ty===0) bd[ty*8+tx]='Q'; if(p==='p'&&ty===7) bd[ty*8+tx]='q'; // auto-queen
@@ -475,6 +614,20 @@
     const d=document.createElement('div'); d.className='lobby';
     d.innerHTML='<p>Join the lobby, then anyone can start. Players get paired into a single-elimination bracket — winners advance until one champion remains.</p>'+
       '<ul class="players">'+T.players.map(function(p){return '<li>'+esc(p.name)+(p.id===me.id?' (you)':'')+'</li>';}).join('')+'</ul>';
+    // Tournament settings — one place, applies to every game, locked at start.
+    const st=document.createElement('div'); st.className='settings';
+    st.innerHTML='<h3>Tournament settings</h3><div class="hint">Apply to every game. Locked once the bracket starts.</div>';
+    const row=document.createElement('label'); row.textContent='Time control ';
+    const selEl=document.createElement('select');
+    CLOCKS.forEach(function(c){ const o=document.createElement('option'); o.value=c[0]; o.textContent=c[1]; selEl.appendChild(o); });
+    selEl.value=(T.settings&&T.settings.clock)||'none';
+    selEl.onchange=function(){ T.settings=Object.assign({},T.settings,{clock:selEl.value}); save(); };
+    row.appendChild(selEl); st.appendChild(row);
+    const shl=document.createElement('label'); const shc=document.createElement('input'); shc.type='checkbox';
+    shc.checked=!(T.settings&&T.settings.shuffle===false);
+    shc.onchange=function(){ T.settings=Object.assign({},T.settings,{shuffle:shc.checked}); save(); };
+    shl.appendChild(shc); shl.appendChild(document.createTextNode(' Shuffle the bracket seeding'));
+    st.appendChild(shl); d.appendChild(st);
     const jb=document.createElement('button'); jb.textContent=inList?'Waiting… ('+T.players.length+' in)':'Join lobby'; jb.onclick=joinLobby;
     const sb=document.createElement('button'); sb.textContent='Start tournament'; sb.disabled=T.players.length<2; sb.onclick=startTournament;
     d.appendChild(jb); if(T.players.length>=2) d.appendChild(sb); view.appendChild(d);
@@ -493,14 +646,25 @@
     const champ=(T.rounds[T.rounds.length-1]||[]).length===1 && T.rounds[T.rounds.length-1][0].winner;
     statusEl.textContent=champ?('🏆 Champion: '+esc(champ.name)):'Round '+(T.round+1)+' — tap a match to play or watch.';
   }
+  function fmtClock(ms){ ms=Math.max(0,ms|0); const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+('0'+s%60).slice(-2); }
+  function clockRow(m,side){
+    const el=document.createElement('div'); el.className='clock'+(m.turn===side&&!m.winner?' live':'');
+    const who=side==='w'?m.a:m.b;
+    const r=remaining(m,side);
+    el.textContent=(side==='w'?'⚪ ':'⚫ ')+(who?who.name:'?')+'  '+fmtClock(r);
+    if(r<30000) el.classList.add('low');
+    el.dataset.side=side;
+    return el;
+  }
   function renderBoard(){
     const m=findMatch(viewMatch); if(!m){ viewMatch=null; return render(); }
     const back=document.createElement('button'); back.className='back'; back.textContent='← Bracket'; back.onclick=function(){ viewMatch=null; sel=null; render(); }; view.appendChild(back);
     const seat=mySeat(m); const bd=m.board;
+    if(m.clock) view.appendChild(clockRow(m,'b'));
     const legal = sel ? moves(bd, sel[0], sel[1]) : [];
     const board=document.createElement('div'); board.className='board';
     for(let y=0;y<8;y++)for(let x=0;x<8;x++){ const sq=document.createElement('div'); sq.className='sq '+(((x+y)%2)?'d':'l');
-      const p=bd[y*8+x]; if(p!=='.') sq.textContent=GLYPH[p];
+      const p=bd[y*8+x]; if(p!=='.'){ sq.textContent=GLYPH[p.toLowerCase()]; sq.classList.add(p>='A'&&p<='Z'?'pw':'pb'); }
       if(sel&&sel[0]===x&&sel[1]===y) sq.classList.add('sel');
       if(legal.some(function(c){return c[0]===x&&c[1]===y;})) sq.classList.add('mv');
       sq.onclick=(function(cx,cy){ return function(){
@@ -511,13 +675,25 @@
       }; })(x,y);
       board.appendChild(sq); }
     view.appendChild(board);
+    if(m.clock) view.appendChild(clockRow(m,'w'));
     statusEl.textContent = m.winner ? ('Winner: '+esc(m.winner.name))
       : (seat? (m.turn===seat?'Your move ('+(seat==='w'?'White':'Black')+')':'Waiting for opponent') : 'Spectating')
         + ' — '+esc(m.a?m.a.name:'?')+' vs '+esc(m.b?m.b.name:'?');
   }
+  // tick the visible clocks (and catch flag falls) without rebuilding the board
+  setInterval(function(){
+    if(!viewMatch) return; const m=findMatch(viewMatch); if(!m||!m.clock||m.winner) return;
+    if(mySeat(m)&&flagFall(m)) return;
+    view.querySelectorAll('.clock').forEach(function(el){
+      const side=el.dataset.side, who=side==='w'?m.a:m.b, r=remaining(m,side);
+      el.textContent=(side==='w'?'⚪ ':'⚫ ')+(who?who.name:'?')+'  '+fmtClock(r);
+      el.classList.toggle('low',r<30000);
+      el.classList.toggle('live',m.turn===side&&!m.winner);
+    });
+  }, 500);
   function findMatch(id){ for(const r of T.rounds){ for(const m of r){ if(m.id===id) return m; } } return null; }
   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  db.subscribe(function(items){ const t=items.find(function(x){return x.id==='t';}); if(t)T=t; render(); });
+  db.subscribe(function(items){ const t=items.find(function(x){return x.id==='t';}); if(t){ T=t; T.settings=T.settings||{clock:'none',shuffle:true}; } render(); });
   if(window.gifos) gifos.me().then(function(mm){ me={id:mm.id,name:mm.name||'You'}; render(); });
   render();
 </script>`;
@@ -569,6 +745,9 @@ opens the built-in video page when opened in GifOS.</p>
 
   <div class="card"><h2><span class="emoji">🔗</span>Play together with one link</h2>
   <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b>, right on your Home Screen!</p></div>
+
+  <div class="card"><h2><span class="emoji">🎉</span>Games for real-life hangouts</h2>
+  <p>The <b>IRL Games</b> folder is for game night: the phone deals the secret words, keeps time, and counts the votes — the laughing, acting, and accusing happens face to face. One phone is enough for the whole room.</p></div>
 
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
   <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
@@ -662,6 +841,10 @@ opens the built-in video page when opened in GifOS.</p>
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
         app('Chat', 'chat', [92, 220, 180], CHAT_HTML),
       ] },
+      // Party games where the phone just facilitates — dealing secrets,
+      // keeping time, counting votes — and the action happens in person.
+      { name: 'IRL Games', apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) =>
+        app(g.name, g.appId, g.accent, g.html)) },
     ];
     // Loose icons live at the desktop root: Welcome (a real onboarding app —
     // the README travels inside its GIF too) and Video Call (the killer app,

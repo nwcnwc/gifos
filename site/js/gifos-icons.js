@@ -245,6 +245,69 @@
         + "</g>");
     }),
 
+    // Three matching buddies and one imposter whose eyes dart around.
+    imposter: (a) => range(FR).map((f) => { const dy = bob(f), px = [-2, 0, 2, 0][f];
+      const buddy = (cx, col) => "<circle cx='" + cx + "' cy='62' r='9' fill='" + col + "' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<circle cx='" + (cx - 3) + "' cy='60' r='1.6' fill='" + INK + "'/><circle cx='" + (cx + 3) + "' cy='60' r='1.6' fill='" + INK + "'/>"
+        + "<path d='M" + (cx - 2) + " 65 q2 2 4 0' stroke='" + INK + "' stroke-width='1.8' fill='none' stroke-linecap='round'/>";
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + buddy(28, PAPER) + buddy(48, PAPER)
+        + "<circle cx='68' cy='62' r='9' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<circle cx='" + (65 + px) + "' cy='60' r='1.8' fill='" + INK + "'/><circle cx='" + (71 + px) + "' cy='60' r='1.8' fill='" + INK + "'/>"
+        + "<path d='M66 66 h4' stroke='" + INK + "' stroke-width='1.8' stroke-linecap='round'/>"
+        + "<path d='M22 40 q6 -6 12 0 M42 36 q6 -6 12 0' stroke='" + INK + "' stroke-width='2.4' fill='none' stroke-linecap='round' opacity='.35'/>"
+        + "<text x='62' y='44' font-family='system-ui' font-size='15' font-weight='800' fill='" + INK + "'>?</text>"
+        + "</g>");
+    }),
+
+    // A shifty spy in a fedora; the magnifying glass sweeps back and forth.
+    spy: (a) => range(FR).map((f) => { const dy = bob(f), mx = [0, 6, 12, 6][f];
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<path d='M34 58 q0 -18 14 -18 q14 0 14 18 l-4 18 h-20 Z' fill='#5a6475' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<circle cx='48' cy='46' r='12' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<rect x='38' y='42' width='20' height='6' rx='3' fill='" + INK + "'/>"
+        + "<path d='M32 38 h32 l-4 -7 h-24 Z' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='2.6' stroke-linejoin='round'/>"
+        + "<path d='M44 53 q4 3 8 0' stroke='" + INK + "' stroke-width='2' fill='none' stroke-linecap='round'/>"
+        + "</g>"
+        + "<g transform='translate(" + (58 + mx) + "," + (60 + dy) + ")'>"
+        + "<circle r='7.5' fill='rgba(180,220,255,.55)' stroke='" + INK + "' stroke-width='3'/>"
+        + "<line x1='5' y1='5' x2='11' y2='11' stroke='" + INK + "' stroke-width='4' stroke-linecap='round'/></g>");
+    }),
+
+    // A giggling face with a phone stuck to its forehead, tilting to score.
+    tilt: (a) => range(FR).map((f) => { const rot = [-14, 0, 14, 0][f];
+      return sticker(ground()
+        + "<circle cx='48' cy='60' r='16' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='42.5' cy='60' r='2.2' fill='" + INK + "'/><circle cx='53.5' cy='60' r='2.2' fill='" + INK + "'/>"
+        + "<path d='M43 66 q5 4.5 10 0' stroke='" + INK + "' stroke-width='2.2' fill='none' stroke-linecap='round'/>"
+        + "<circle cx='38' cy='65' r='2.2' fill='#ff9eb0' opacity='.75'/><circle cx='58' cy='65' r='2.2' fill='#ff9eb0' opacity='.75'/>"
+        + "<g transform='rotate(" + rot + " 48 34)'>"
+        + "<rect x='34' y='24' width='28' height='18' rx='4' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<text x='48' y='37' font-family='system-ui' font-size='11' font-weight='800' fill='" + PAPER + "' text-anchor='middle'>?!</text></g>");
+    }),
+
+    // A radio-dial gauge whose needle hunts for the group's wavelength.
+    dial: (a) => range(FR).map((f) => { const ang = [-52, -15, 30, -15][f];
+      return sticker(ground()
+        + "<path d='M22 70 a26 26 0 0 1 52 0 Z' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<path d='M60 51 a26 26 0 0 1 8 12 l-12 7 Z' fill='" + rgb(a) + "' opacity='.85'/>"
+        + "<g transform='rotate(" + ang + " 48 70)'><line x1='48' y1='70' x2='48' y2='48' stroke='" + INK + "' stroke-width='4' stroke-linecap='round'/></g>"
+        + "<circle cx='48' cy='70' r='4.5' fill='" + INK + "'/>"
+        + "<circle cx='30' cy='64' r='1.6' fill='" + INK + "' opacity='.4'/><circle cx='48' cy='52' r='1.6' fill='" + INK + "' opacity='.4'/><circle cx='66' cy='64' r='1.6' fill='" + INK + "' opacity='.4'/>");
+    }),
+
+    // A deck of party cards; the top one pops up, bossy as ever.
+    roulette: (a) => range(FR).map((f) => { const pop = [0, -5, -8, -5][f];
+      return sticker(ground()
+        + "<rect x='30' y='52' width='36' height='24' rx='5' fill='#e5ddf2' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<rect x='27' y='58' width='42' height='18' rx='5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<g transform='translate(0," + pop + ")'>"
+        + "<rect x='33' y='30' width='30' height='24' rx='5' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<text x='48' y='47' font-family='system-ui' font-size='16' font-weight='900' fill='" + PAPER + "' text-anchor='middle'>!</text></g>");
+    }),
+
     // Home sweet home — a cozy cottage with smoke puffing from the chimney.
     welcome: (a) => range(FR).map((f) => {
       const puffs = range(2).map((i) => {

@@ -93,7 +93,7 @@
   // form). Day-to-day the children live as store rows for speed; Download
   // packs a self-contained BUNDLE — children (state folded in) inside the
   // folder's own GIF, recursively — and dropping a bundle unpacks it back.
-  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180] };
+  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60] };
   function accentFor(name) {
     if (FOLDER_ACCENTS[name]) return FOLDER_ACCENTS[name];
     let h = 0; const s = String(name || 'Folder');
