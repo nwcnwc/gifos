@@ -16,7 +16,10 @@
   // /call/<room>/<verifier> is an ADMIN-MANAGED room — a DIFFERENT room from
   // /call/<room>. The verifier segment is part of the room's identity (safe
   // to share publicly); admin power is knowing the password it derives from.
-  var m = location.pathname.match(/^\/(?:join|call)\/([a-z0-9]{4,64})(?:\/([a-f0-9]{16,64}))?\/?$/i);
+  // Room ids can be as short as ONE character: gifos.app/call/a is a global
+  // public channel anyone in the world can wander into. Group moderation
+  // (anyone can mute/blur anyone) keeps the low channels civilized.
+  var m = location.pathname.match(/^\/(?:join|call)\/([a-z0-9]{1,64})(?:\/([a-f0-9]{16,64}))?\/?$/i);
   if (m) {
     var code = m[1];
     var av = m[2] ? '&av=' + m[2].toLowerCase() : '';
