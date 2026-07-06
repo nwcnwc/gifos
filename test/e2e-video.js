@@ -308,6 +308,61 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 30000 });
   check('a blocked pair shows "no direct path — firewall blocks P2P" instead of silent black', true);
 
+  // ---------- islands: A reaches B and C, but B↔C can't connect ----------
+  // B's ICE to/from C specifically is swallowed (two different firewalls).
+  // Expect: C sinks to the bottom of B's grid, labeled — and chat/files still
+  // reach B↔C by hopping through A (gossip over the working DataChannels).
+  const hubCtx = await newUser('Hub');
+  const hubPage = await hubCtx.newPage();
+  hubPage.on('console', (m) => { if (m.type() === 'error') console.log('  [hub]', m.text()); });
+  await hubPage.goto(BASE + '/video.html');
+  await hubPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
+  const islandLink = await hubPage.locator('#share-url').inputValue();
+  const cIsleCtx = await newUser('RightIsle');
+  const cIslePage = await cIsleCtx.newPage();
+  await cIslePage.goto(islandLink);
+  await cIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  const cPeerId = await cIslePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
+  const bIsleCtx = await newUser('LeftIsle');
+  await bIsleCtx.addInitScript({ content: `
+    const BLOCK = ${JSON.stringify(cPeerId)};
+    const OW = window.WebSocket;
+    window.WebSocket = function (u, p) {
+      const ws = p ? new OW(u, p) : new OW(u);
+      const send0 = ws.send.bind(ws);
+      ws.send = (d) => { if (typeof d === 'string' && d.includes('"kind":"ice"') && d.includes(BLOCK)) return; return send0(d); };
+      let userOnMsg = null;
+      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
+      ws.addEventListener('message', (e) => { if (typeof e.data === 'string' && e.data.includes('"kind":"ice"') && e.data.includes(BLOCK)) return; if (userOnMsg) userOnMsg(e); });
+      return ws;
+    };
+    window.WebSocket.prototype = OW.prototype;
+  ` });
+  const bIslePage = await bIsleCtx.newPage();
+  bIslePage.on('console', (m) => { if (m.type() === 'error') console.log('  [leftisle]', m.text()); });
+  await bIslePage.goto(islandLink);
+  await bIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await hubPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 2, null, { timeout: 25000 });
+  // the unreachable island sinks to the bottom of B's grid, labeled
+  await bIslePage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
+    return t && parseInt(t.style.order || '0', 10) >= 100000 && /no direct path/.test(t.textContent) && t.classList.contains('noroute');
+  }, null, { timeout: 35000 });
+  check('an unreachable person sinks to the bottom of the grid, clearly labeled', true);
+  // chat hops LeftIsle → Hub → RightIsle
+  await bIslePage.locator('#chatbtn').click();
+  await bIslePage.locator('#chat-in').fill('across the water');
+  await bIslePage.locator('#chatform button[type=submit]').click();
+  await cIslePage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('across the water'), null, { timeout: 15000 });
+  check('chat between unreachable peers hops through a mutual friend', true);
+  // …and a pinned file makes the same journey, bytes included
+  await bIslePage.setInputFiles('#cfile-in', { name: 'message-in-a-bottle.txt', mimeType: 'text/plain', buffer: Buffer.from('gossip-carried bytes') });
+  await cIslePage.waitForFunction(() => {
+    const fs = window.__gifosVideo.pinnedFiles();
+    return fs.length === 1 && fs[0].name === 'message-in-a-bottle.txt' && fs[0].have;
+  }, null, { timeout: 20000 });
+  check('pinned files reach unreachable peers through the mutual friend too', true);
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');
   process.exit(failures ? 1 : 0);
