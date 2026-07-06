@@ -54,14 +54,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const B = await join('clientB');
   await sleep(800); // let A/B mirror the host state
 
-  // client A: Save to Desktop → full copy with live state
+  // client A: Steal App → the app lands on A's desktop, WITHOUT its data
+  // (Download Snapshot is the capture-the-data path; takeover keeps data too)
   await A.page.locator('#save-desktop').click();
   await sleep(500);
   const aDesk = await A.ctx.newPage();
   await aDesk.goto(BASE + '/index.html');
   await aDesk.waitForSelector('.icon', { timeout: 8000 });
   const aIcons = await aDesk.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('client A captured a full copy onto its own desktop', aIcons.includes('Guestbook.gif'));
+  check('client A stole the app onto its own desktop', aIcons.includes('Guestbook.gif'));
+  const [aStolen] = await Promise.all([
+    A.ctx.waitForEvent('page'),
+    aDesk.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
+  ]);
+  await aStolen.waitForSelector('iframe');
+  const stolenApp = aStolen.frameLocator('iframe');
+  await stolenApp.locator('#msg').waitFor({ timeout: 8000 });
+  await sleep(400);
+  check('stolen app arrives FRESH — no session data inside', (await stolenApp.locator('#list li').count()) === 0);
+  await aStolen.close();
+  await aDesk.close();
 
   // ---------- kill the host browser ----------
   await hostRun.close();
