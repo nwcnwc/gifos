@@ -28,15 +28,34 @@
   .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                  background: #0a0a0f; color: #7b5cff; font-family: ui-monospace, monospace; font-size: .78rem; }
   .share .hint { color: #8888aa; }
-  #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px;
-          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-content: center; }
+  /* The wall of tiles wraps into rows and SCROLLS once it outgrows the
+     screen — any number of people fit; you scroll the crowd like a feed. */
+  #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto;
+          grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
+          grid-auto-rows: max-content; align-content: safe center; }
   .tile { position: relative; background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
           overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  /* "completely blurs" — heavy blur + overscale so no readable edge survives */
+  .tile video.blurred { filter: blur(26px) saturate(.75); transform: scale(1.15); }
   .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72);
-                padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; }
+                padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; z-index: 2; }
   .tile .note { color: #8888aa; font-size: .8rem; padding: 1rem; text-align: center; }
   .tile.me { border-color: #5ca0ff; }
+  .tile .avatar { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+                  font-size: 3rem; font-weight: 800; color: #3a3a55; background: #14141f; }
+  .tile.cam-off .avatar { display: flex; }
+  .tile .chips { position: absolute; top: .4rem; left: .4rem; display: flex; flex-direction: column;
+                 gap: .25rem; align-items: flex-start; z-index: 3; pointer-events: none; }
+  .tile .chips span { background: rgba(10,10,15,.78); border: 1px solid #2a2a3f; border-radius: .4rem;
+                      padding: .12rem .45rem; font-size: .68rem; color: #cfcfe8; }
+  .tile .chips span.warn { border-color: #b0742a; color: #ffd23c; }
+  .tile .modbar { position: absolute; right: .4rem; top: .4rem; display: none; flex-direction: column;
+                  gap: .3rem; z-index: 4; }
+  .tile:hover .modbar, .tile.menu .modbar { display: flex; }
+  .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid #2a2a3f;
+                         background: rgba(10,10,15,.85); color: #e0e0f0; cursor: pointer; font-size: .68rem; }
+  .tile .modbar button:hover { border-color: #ff5caa; }
   .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid #1c1c2b; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
@@ -52,8 +71,9 @@
   <div class="bar">
     <span class="title">GifOS</span>
     <button id="invite" title="Friends join you live with one link">Invite</button>
-    <button id="mic">Mute</button>
-    <button id="cam">Camera off</button>
+    <button id="mic" class="off">Unmute</button>
+    <button id="cam" class="off">Camera on</button>
+    <button id="blur" title="Completely blur your video for everyone">Blur</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
@@ -142,6 +162,40 @@
       });
     }
 
+    // ---- everyone's live status + room moderation ------------------------------
+    // myStatus travels to every peer (and rides in offers/answers so newcomers
+    // sync instantly). modTable is the room's shared moderation state: anyone
+    // can mute or blur anyone FOR THE WHOLE GROUP — enforced on every
+    // receiver's device (so a bad actor's own client can't refuse) and always
+    // attributed to who did it. Latest change wins (timestamped).
+    const myStatus = { muted: true, camOff: true, blur: false }; // join quiet by default
+    const statusOf = new Map();  // peerId -> { muted, camOff, blur }
+    const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
+
+    function broadcastStatus() {
+      for (const pid of peers.keys()) sendSig(pid, { kind: 'status', s: myStatus });
+      updateTile('me');
+    }
+    function mergeMod(incoming) {
+      let changed = false;
+      for (const target in incoming || {}) {
+        const mine = modTable[target] = modTable[target] || {};
+        for (const field of ['mute', 'blur']) {
+          const inc = incoming[target][field];
+          if (inc && (!mine[field] || inc.at > mine[field].at)) { mine[field] = inc; changed = true; }
+        }
+      }
+      if (changed) refreshAllTiles();
+    }
+    function setMod(target, field, on) {
+      const mine = modTable[target] = modTable[target] || {};
+      mine[field] = { on, by: myName(), at: Date.now() };
+      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      refreshAllTiles();
+    }
+    function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
+    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); }
+
     // ---- tiles ---------------------------------------------------------------
     function makeTile(id, name, isMe) {
       const tile = document.createElement('div');
@@ -150,12 +204,68 @@
       const video = document.createElement('video');
       video.autoplay = true; video.playsInline = true;
       if (isMe) video.muted = true;
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar'; avatar.textContent = (name || '•')[0].toUpperCase();
       const label = document.createElement('span');
-      label.className = 'name'; label.textContent = name || id;
-      tile.appendChild(video); tile.appendChild(label);
+      label.className = 'name'; label.textContent = name || '…';
+      const chips = document.createElement('div');
+      chips.className = 'chips';
+      tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips);
+      let modbar = null;
+      if (!isMe) {
+        modbar = document.createElement('div');
+        modbar.className = 'modbar';
+        modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>';
+        modbar.addEventListener('click', (e) => {
+          const f = e.target.dataset.mod;
+          if (!f) return;
+          e.stopPropagation();
+          const cur = modOf(id)[f];
+          setMod(id, f, !(cur && cur.on));
+        });
+        tile.appendChild(modbar);
+        tile.addEventListener('click', () => tile.classList.toggle('menu')); // tap = menu on phones
+      }
       grid.appendChild(tile);
-      return { tile, video, label };
+      return { tile, video, label, avatar, chips, modbar };
     }
+
+    // Repaint one tile's overlay: mute/blur/camera chips (attributed when the
+    // group applied them), receiver-side ENFORCEMENT of group mute/blur, and
+    // the moderation menu's labels.
+    function updateTile(id) {
+      const isMe = id === 'me';
+      const t = isMe ? meTile : peers.get(id);
+      if (!t) return;
+      const st = (isMe ? myStatus : statusOf.get(id)) || {};
+      const mod = modOf(id);
+      const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on;
+      const chips = [];
+      if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
+      else if (st.muted) chips.push('<span>🎤 muted</span>');
+      if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
+      else if (st.blur) chips.push('<span>🌫 blurred</span>');
+      if (st.camOff) chips.push('<span>📷 camera off</span>');
+      t.chips.innerHTML = chips.join('');
+      t.tile.classList.toggle('cam-off', !!st.camOff);
+      t.video.classList.toggle('blurred', !!(gBlur || st.blur));
+      if (!isMe) {
+        t.video.muted = !!gMute;               // group mute is enforced on MY device
+        if (t.modbar) {
+          t.modbar.children[0].textContent = gMute ? 'Unmute for everyone' : 'Mute for everyone';
+          t.modbar.children[1].textContent = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
+        }
+      } else if (gMute && localStream) {
+        // the group muted ME: cut the source too, not just everyone's speakers
+        const a = localStream.getAudioTracks()[0];
+        if (a && a.enabled) {
+          a.enabled = false; myStatus.muted = true;
+          const b = document.getElementById('mic');
+          b.classList.add('off'); b.textContent = 'Unmute';
+        }
+      }
+    }
+    const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function tileNote(t, msg) {
       t.video.style.display = 'none';
       let n = t.tile.querySelector('.note');
@@ -203,7 +313,8 @@
       if (peers.has(peerId)) return peers.get(peerId);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const t = makeTile(peerId, name, false);
-      const p = { pc, tile: t.tile, video: t.video, label: t.label, name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
+      const p = { pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, modbar: t.modbar,
+        name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
       peers.set(peerId, p);
       if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
       else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
@@ -231,25 +342,31 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable }))
         .catch(() => {});
+    }
+
+    function learn(from, msg, p) {
+      if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
+      if (msg.st) { statusOf.set(from, msg.st); updateTile(from); }
+      if (msg.mod) mergeMod(msg.mod);
     }
 
     function onSignal(from, msg) {
       if (!msg || !msg.kind) return;
       if (msg.kind === 'offer') {
         const p = makePeer(from, msg.name);
-        if (msg.name) { p.name = msg.name; p.label.textContent = msg.name; }
+        learn(from, msg, p);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
         if (!p) return;
-        if (msg.name) { p.name = msg.name; p.label.textContent = msg.name; }
+        learn(from, msg, p);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .catch(() => {});
@@ -258,6 +375,11 @@
         if (!p) return;
         if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
         else p.pendingIce.push(msg.candidate);
+      } else if (msg.kind === 'status') {
+        statusOf.set(from, msg.s || {});
+        updateTile(from);
+      } else if (msg.kind === 'mod') {
+        mergeMod(msg.mod);
       }
     }
 
@@ -315,7 +437,7 @@
       };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') { myId = m.peer; updateStatus(); }
+        if (m.t === 'joined') { myId = m.peer; updateStatus(); broadcastStatus(); }
         else if (m.t === 'roster') reconcile(m.peers, m.names);
         else if (m.t === 'peer') onSignal(m.from, m.msg);
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
@@ -401,9 +523,13 @@
         video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
       }).then((stream) => { localStream = stream; }, () => { localStream = null; }))
       .then(() => {
+        // Join QUIET by default: mic and camera acquired (permission granted,
+        // instant to switch on) but disabled until you choose to be seen/heard.
+        if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
         meTile = makeTile('me', myName() + ' (you)', true);
         if (localStream) meTile.video.srcObject = localStream;
         else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
+        updateTile('me');
         joinRoom();
         updateStatus();
       });
@@ -411,19 +537,30 @@
     // ---- controls ---------------------------------------------------------------
     const micBtn = document.getElementById('mic');
     const camBtn = document.getElementById('cam');
+    const blurBtn = document.getElementById('blur');
     micBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getAudioTracks()[0]; if (!track) return;
       track.enabled = !track.enabled;
+      myStatus.muted = !track.enabled;
       micBtn.classList.toggle('off', !track.enabled);
       micBtn.textContent = track.enabled ? 'Mute' : 'Unmute';
+      broadcastStatus();
     };
     camBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getVideoTracks()[0]; if (!track) return;
       track.enabled = !track.enabled;
+      myStatus.camOff = !track.enabled;
       camBtn.classList.toggle('off', !track.enabled);
       camBtn.textContent = track.enabled ? 'Camera off' : 'Camera on';
+      broadcastStatus();
+    };
+    blurBtn.onclick = () => {
+      myStatus.blur = !myStatus.blur;
+      blurBtn.classList.toggle('off', myStatus.blur);
+      blurBtn.textContent = myStatus.blur ? 'Unblur' : 'Blur';
+      broadcastStatus();
     };
     document.getElementById('invite').onclick = () => {
       share.classList.add('show'); // link stays visible/copyable behind the sheet
