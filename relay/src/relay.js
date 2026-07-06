@@ -93,7 +93,7 @@ export class Session {
       if (a.name) names[a.peer] = a.name;
       if (a.adm) admins.push(a.peer);
       if (a.dev) devs[a.peer] = a.dev;
-      if (a.admV && !admV) { admV = a.admV; ban = a.ban || []; }
+      if (a.av && !admV) { admV = a.av; ban = a.ban || []; }
     }
     const h = this.hostSock();
     const msg = { t: 'roster', peers, names };
@@ -172,30 +172,35 @@ export class Session {
       // an empty room re-establishes both from their own session, and
       // everyone after them has to match. No storage anywhere.
       //
-      // ADMIN rooms: the admin link carries a key K (hash of the admin
-      // password salted with the room id). Occupancy holds only the VERIFIER
-      // SHA-256(K) — seeing room state never grants adminship; presenting K
-      // does. Admin sockets get privileged actions (setpw, ban/unban) and
-      // their routed signals are stamped adm:true so receivers can trust
-      // group-moderation messages. The ban list rides in attachments too
-      // (device ids are client-persisted random tokens — honest limitation:
-      // wiping site data mints a new device).
+      // ADMIN rooms: the verifier V is part of the ROOM'S IDENTITY (the
+      // /call/<room>/<V> link everyone shares — the session id is the
+      // room+V composite, so /call/<room> is a DIFFERENT room that can
+      // NEVER have an admin). Joining an admin room is structural consent
+      // to be administered. Admin power = knowledge of the password: the
+      // client derives K from it (PBKDF2, room-salted) and presents K;
+      // this room admits it as admin iff SHA-256(K) === V. Nothing is
+      // claimed, nothing rotates, nothing is stored — V lives in the URL
+      // forever, like the room id itself. Admin sockets get privileged
+      // actions (setpw, ban/unban) and their routed signals are stamped
+      // adm:true so receivers can trust group moderation. The ban list
+      // rides in occupants' attachments (device ids are client-persisted
+      // random tokens — honest limitation: wiping site data mints a new
+      // device).
       const occupants = this.members();
       const first = occupants[0] ? this.att(occupants[0]) : null;
       if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
       const offeredPw = url.searchParams.get('pw') || '';
       const roomPw = first ? (first.pw || '') : offeredPw;
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
+      const av = (url.searchParams.get('av') || '').slice(0, 64);
       const admK = (url.searchParams.get('adm') || '').slice(0, 128);
-      const admOffer = admK ? await sha256hex(admK) : null;
-      const admV = first ? (first.admV || null) : admOffer;
-      const isAdmin = !!(admV && admOffer === admV);
+      const isAdmin = !!(av && admK && (await sha256hex(admK)) === av);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
       const ban = first ? (first.ban || []) : [];
       if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
       for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, admV, adm: isAdmin, dev, ban });
+      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
       this.roster();
     } else {
@@ -247,21 +252,6 @@ export class Session {
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
         this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
-      } else if (m.t === 'setadm' && typeof m.v === 'string' && m.v.length >= 16) {
-        // Claim admin of an UNadministered room from inside it (same trust
-        // rule as setpw). The claimer holds K; the room learns only SHA-256(K).
-        if (this.meshAdmV()) { if (!a.adm) this.send(ws, { t: 'error', error: 'admins only: this room already has an admin' }); return; }
-        const v = m.v.slice(0, 128);
-        // ONE read-modify-write per socket: attachments are value copies, so
-        // a second serialize from a stale copy would clobber the first.
-        for (const ws2 of this.members()) {
-          const a2 = this.att(ws2);
-          a2.admV = v;
-          if (a2.peer === a.peer) a2.adm = true; // the claimer holds K
-          try { ws2.serializeAttachment(a2); } catch (e) {}
-        }
-        this.broadcast({ t: 'adm-on', by: a.name || '' });
-        this.roster();
       } else if ((m.t === 'ban' || m.t === 'unban') && a.adm && typeof m.dev === 'string') {
         const dev = m.dev.slice(0, 16);
         if (!dev) return;
@@ -307,9 +297,10 @@ export class Session {
     if (dest) this.send(dest, adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
   }
 
-  // The room's admin verifier, if any — held by every occupant's attachment.
+  // Is this an admin room? The verifier rides in every occupant's attachment
+  // (it's part of the room identity they all connected with).
   meshAdmV() {
-    for (const ws of this.members()) { const v = this.att(ws).admV; if (v) return v; }
+    for (const ws of this.members()) { const v = this.att(ws).av; if (v) return v; }
     return null;
   }
 
