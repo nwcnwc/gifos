@@ -43,6 +43,7 @@
     '     await db.get(id); await db.getAll(); await db.delete(id);   // all async',
     '     db.subscribe(items => renderFrom(items));   // called immediately and on every change',
     '   Everything in gifos.db() persists inside the icon AND syncs live to all players in multiplayer — keep all state there and render from subscribe().',
+    '   HONESTY RULE for any in-app copy about saving: there is NO cloud and NO automatic cross-device sync. Data lives on THIS device only, inside the app\'s GIF in this browser. It reaches other devices exactly two ways: live sync while people are connected through an invite link, or by sharing/downloading the GIF file itself (state travels inside the file). Never claim the app "syncs across your devices" or "backs up to the cloud" — say something true instead, like "Saved on this device inside the app\'s GIF".',
     '3. Identity: const me = await gifos.me(); → { id, name }. Stamp me.id/me.name on records so every player sees who did what.',
     '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state. Mobile-friendly, dark theme (#0a0a0f) by default.',
     '5. LIVE MEDIA IS OFF-LIMITS, by design: the sandbox blocks camera, microphone, screen capture, and WebRTC, so a video/voice/streaming app cannot work as a GifOS app — do not attempt one; if I ask for video chat, tell me GifOS already ships it (the Video Call icon on my Home Screen). Apps CAN bundle and display static media (images, GIFs, audio files) inside the GIF and store binary blobs (base64) in gifos.db.',

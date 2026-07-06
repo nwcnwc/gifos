@@ -44,6 +44,13 @@ The entry point is index.html; multi-file apps are fully supported:
    Everything in gifos.db() saves into the app's own icon AND syncs live to
    all players when the app goes multiplayer. Keep all state there and render
    from subscribe() — that makes the app multiplayer-ready for free.
+   HONESTY: there is NO cloud and NO automatic cross-device sync. Data lives
+   on the user's device, inside the app's GIF in that browser. It reaches
+   other devices exactly two ways: live, while people are connected through
+   an invite link, or by sharing the GIF file itself (state travels inside
+   the file). Never write UI copy claiming the app "syncs across your
+   devices" or "backs up to the cloud" — say something true instead, like
+   "Saved on this device inside the app's GIF".
 3. Identity — const me = await gifos.me(); → { id, name }. Stamp me.id/me.name
    on records so moves, messages, and scores are attributed per player.
 4. Degrade gracefully if window.gifos is undefined (opened outside GifOS):
