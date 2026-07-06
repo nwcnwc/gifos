@@ -202,8 +202,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const c = t && t.querySelector('.cap');
     return !!(c && c.classList.contains('show') && /hello transcript world/.test(c.textContent));
   }));
+  // Once captions are in play, a Transcript button surfaces in the TOP BAR —
+  // it must not hide behind Chat. It opens the panel straight to the transcript.
+  await bPage.locator('#trbtn').waitFor({ state: 'visible', timeout: 8000 });
+  await bPage.locator('#trbtn').click();
+  await bPage.locator('.trline', { hasText: 'hello transcript world' }).waitFor({ timeout: 5000 });
+  check('a top-bar Transcript button appears and opens straight to the transcript', true);
+  // The panel remembers its view: reopening via Chat lands back on the
+  // transcript, and the header tab still toggles between the two.
+  await bPage.locator('#chatclose').click();
   await bPage.locator('#chatbtn').click();
-  await bPage.locator('#trtab').click();
   await bPage.locator('.trline', { hasText: 'hello transcript world' }).waitFor({ timeout: 5000 });
   const [trDl] = await Promise.all([
     bPage.waitForEvent('download'),
