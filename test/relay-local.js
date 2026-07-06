@@ -113,7 +113,9 @@ server.on('upgrade', (req, socket) => {
   };
   const roster = () => {
     const names = {}; for (const [p, n] of sess.names) names[p] = n;
-    const s = JSON.stringify({ t: 'roster', peers: Array.from(sess.clients.keys()), names });
+    const msg = { t: 'roster', peers: Array.from(sess.clients.keys()), names };
+    if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
+    const s = JSON.stringify(msg);
     if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
@@ -124,7 +126,18 @@ server.on('upgrade', (req, socket) => {
   };
 
   if (role === 'host') {
-    sess.host = conn; sess.token = token;
+    // Epoch-guarded host slot (mirrors the Worker): a takeover claims epoch+1;
+    // a stale returning host is bounced to rejoin as a guest; a same-epoch
+    // claim from a different machine loses the race. Same hostid = reconnect.
+    const epoch = Math.max(0, parseInt(url.searchParams.get('epoch') || '0', 10) || 0);
+    const hostid = (url.searchParams.get('hostid') || '').slice(0, 64);
+    if (sess.host) {
+      const curEpoch = sess.hostEpoch || 0;
+      if (epoch < curEpoch) { rejectConn('host-stale'); return; }
+      if (epoch === curEpoch && hostid && sess.hostHostid && hostid !== sess.hostHostid) { rejectConn('host-taken'); return; }
+      try { sess.host.close(); } catch (e) {}
+    }
+    sess.host = conn; sess.token = token; sess.hostEpoch = epoch; sess.hostHostid = hostid;
     conn.onmessage = (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
@@ -133,7 +146,7 @@ server.on('upgrade', (req, socket) => {
       else if (m.t === 'peer') { routePeer('host', m); }
     };
     conn.onclose = () => { if (sess.host === conn) { sess.host = null; for (const c of sess.clients.values()) c.send(JSON.stringify({ t: 'host-gone' })); } };
-    conn.send(JSON.stringify({ t: 'host-ready' }));
+    conn.send(JSON.stringify({ t: 'host-ready', epoch }));
     for (const p of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer: p }));
     roster();
   } else if (role === 'mesh') {

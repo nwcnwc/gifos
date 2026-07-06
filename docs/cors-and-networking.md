@@ -223,9 +223,9 @@ The Video Call system app (`video.html`) is the proof of the guard:
 | Infra to run | A stateless relay only | Databases, app servers, scaling |
 | Cost model | Near-zero; relay is a message pipe | Grows with users and storage |
 | Privacy | You never see or store user data | You hold everything |
-| Failure mode | Snapshot failover to another peer | Central outage takes everyone down |
+| Failure mode | Self-healing: peers elect the freshest mirror as the new host | Central outage takes everyone down |
 
-The tradeoff: sessions depend on the **host browser staying online** (mitigated by snapshot failover), and a single host browser has finite capacity (see *Multi-server* in the architecture doc's future work).
+The tradeoff: sessions depend on the **host browser staying online**, and a single host browser has finite capacity (see *Multi-server* in the architecture doc's future work). Host loss is **self-healing**: clients continuously mirror the full app state, and if the host stays gone (~25s) they gossip candidacies and the freshest mirror automatically takes over hosting on the *same* session — the share link keeps working, no clicks required. The host slot at the relay is guarded by an **epoch** (connection state only, nothing stored): each takeover claims epoch+1, so a stale original host coming back later is bounced — it automatically rejoins its own session as a guest instead of clobbering the newer state. A session with everyone gone goes dormant and resumes when anyone who holds a copy (the original icon, or a taker-over's saved copy) reopens it.
 
 Staying online includes staying *runnable*: browsers freeze hidden tabs after a
 few minutes (Chrome's Page Lifecycle), which would suspend the host's JS and
