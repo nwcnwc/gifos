@@ -227,6 +227,16 @@ The Video Call system app (`video.html`) is the proof of the guard:
 
 The tradeoff: sessions depend on the **host browser staying online** (mitigated by snapshot failover), and a single host browser has finite capacity (see *Multi-server* in the architecture doc's future work).
 
+Staying online includes staying *runnable*: browsers freeze hidden tabs after a
+few minutes (Chrome's Page Lifecycle), which would suspend the host's JS and
+hang every client until the host refocuses. Any tab with a live session — host
+or client — therefore holds a **Web Lock** (`gifos-live-session`), the
+documented opt-out from tab freezing, and kicks its sockets on the lifecycle
+`resume`/`pageshow` events in case a freeze happened anyway. A phone that
+suspends the whole browser (screen off, app switch) is beyond any page's
+control — that path is covered by reconnect, host-back re-sync, and Take Over
+failover.
+
 ---
 
 # Part 2 — External APIs: The postMessage Fetch Bridge

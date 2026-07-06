@@ -395,8 +395,11 @@
       attempt = 0;
       connect();
     };
-    if (root.addEventListener) root.addEventListener('online', kick);
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+    if (root.addEventListener) { root.addEventListener('online', kick); root.addEventListener('pageshow', kick); }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+      document.addEventListener('resume', kick); // Page Lifecycle: tab just unfroze
+    }
     s.send = (data) => {
       if (ws && ws.readyState === 1) { try { ws.send(data); return; } catch (e) { /* fell through to queue */ } }
       queue.push(data);
@@ -420,6 +423,24 @@
     { urls: 'stun:stun.l.google.com:19302' },
   ];
   const hasP2P = () => typeof root.RTCPeerConnection === 'function';
+
+  // Browsers FREEZE hidden tabs after a few minutes (Chrome's Page Lifecycle),
+  // suspending ALL JS — fatal for a live session: the host tab carries the
+  // authoritative DB, so a frozen host hangs every client until refocused.
+  // Holding a Web Lock is the documented opt-out from freezing (and costs
+  // nothing), so any page with a live multiplayer session — host or client —
+  // holds one for its lifetime; it releases automatically when the tab closes.
+  // A phone that suspends the whole browser is beyond any page's control:
+  // that path stays covered by reconnect, host-back re-sync, and Take Over.
+  let sessionLockHeld = false;
+  function holdSessionLock() {
+    if (sessionLockHeld) return;
+    sessionLockHeld = true;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request)
+        navigator.locks.request('gifos-live-session', () => new Promise(() => {}));
+    } catch (e) { /* unsupported — the reconnect machinery still covers recovery */ }
+  }
 
   // ---- transport fragmentation ---------------------------------------------
   // Every transport has a per-MESSAGE ceiling (browsers cap a DataChannel
@@ -477,6 +498,7 @@
   // Returns { sendToAll, stats } so the caller can push db-change events over
   // whichever transport each peer ended up on (channel if open, else relay).
   function attachHost(ws, db, appBytes, onStats) {
+    holdSessionLock(); // friends now depend on THIS tab staying runnable
     // peer -> { pc, channel, away } — `away` is a timestamp while the peer's
     // relay socket is down. Phones drop sockets constantly; an away peer keeps
     // its seat (and its pending state) until PEER_DROP, and a rejoin under the
@@ -695,6 +717,7 @@
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
     const idle = { save: () => Promise.resolve(null), saveToDesktop: () => Promise.reject(new Error('app not loaded yet')), becomeHost: () => Promise.reject(new Error('host still alive')) };
     if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve(idle); }
+    holdSessionLock(); // a frozen client tab would silently miss the session too
     let myPeer = null; // relay-assigned id; reused on reconnect so the host keeps our seat
     const ws = steadySocket(() => params.relay.replace(/\/$/, '') + '/s/' + params.s +
       '?role=client&token=' + params.k + (myPeer ? '&peer=' + myPeer : ''));

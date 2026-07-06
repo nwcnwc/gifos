@@ -77,6 +77,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('host reports the peer as P2P-connected', false);
   }
 
+  // ---------- anti-freeze: live sessions hold a Web Lock so Chrome never
+  // freezes the hidden tab (a frozen HOST would hang every client) ----------
+  const heldLocks = (p) => p.evaluate(() => navigator.locks.query().then((q) => q.held.map((l) => l.name)));
+  check('hosting tab holds the anti-freeze session lock', (await heldLocks(hostRun)).includes('gifos-live-session'));
+  check('client tab holds the anti-freeze session lock too', (await heldLocks(clientRun)).includes('gifos-live-session'));
+
   // client writes → host DB (now over the DataChannel when P2P is up)
   await clientApp.locator('#msg').fill('from client');
   await clientApp.locator('form button').click();
