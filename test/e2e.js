@@ -251,6 +251,7 @@ async function openApp(page, ctx, folder, label) {
   const promptVal = await page.locator('#ad-prompt').inputValue();
   check('popup prompt demands a FINISHED .gif (with the packer recipe)', /FINISHED \.gif/.test(promptVal) && /pack_gifos/.test(promptVal) && /gifos\.db/.test(promptVal) && /What app do you want to build/.test(promptVal));
   check('popup prompt forbids false sync/cloud claims', /HONESTY RULE/.test(promptVal) && /NO cloud/.test(promptVal) && /syncs across your devices/.test(promptVal));
+  check('popup prompt encourages modding existing apps', /MODDING IS ENCOURAGED/.test(promptVal) && /GIFOS1\.0GOS/.test(promptVal) && /GIFOSSIG/.test(promptVal));
   const miniApp = "<!doctype html><meta charset=utf-8><body><button id='b'>tap</button><div id='n'>0</div>" +
     "<script>const db=gifos.db('c');let n=0;db.subscribe(function(items){n=items.length;document.getElementById('n').textContent=n});" +
     "document.getElementById('b').onclick=function(){db.put({t:Date.now()})}</scr" + "ipt>";

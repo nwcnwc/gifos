@@ -122,6 +122,43 @@ game, a wedding GIF that's secretly the guestbook. Their art and memories
 become living apps. Only draw your own animation when they have no GIF —
 and even then, ask what kind of cute animation they'd like first.
 
+## Modding other people's apps (encouraged — remix culture is the point)
+
+Any GifOS app GIF can be handed to an AI for a REMIX: "make the buttons
+bigger", "add a dark mode", "turn this counter into a tracker". Apps are
+files, files get modded, and GifOS celebrates it — deliver the modified
+.gif back and it drops straight onto their Home Screen.
+
+Via MCP: unpack_app (returns the manifest + every file inside, including
+saved .state/ data) → edit → pack_app with hide_in_gif_base64 = the SAME
+original GIF. The payload swaps in place, the animation survives
+byte-for-byte, and the user's data rides along if you pass the .state/
+files through unchanged.
+
+With Python: cut the old app block out, then pack the modified files into
+the remaining bytes with the pack_gifos recipe above:
+
+   def unpack_gifos(b):
+       i = b.find(b"\x21\xff\x0bGIFOS1.0GOS")
+       if i < 0: return None, b
+       j = i + 14; payload = b""
+       while b[j]:
+           n = b[j]; payload += b[j+1:j+1+n]; j += 1 + n
+       host = b[:i] + b[j+1:]           # the pure animation, app block removed
+       a = json.loads(zlib.decompress(payload[1:], -15))
+       files = {p: base64.b64decode(v) for p, v in a["files"].items()}
+       return files, host
+
+   files, host = unpack_gifos(open("Their App.gif", "rb").read())
+   files["index.html"] = MODIFIED_HTML.encode()
+   open("Their App (mod).gif", "wb").write(pack_gifos(host, files))
+
+Keep ".state/…" entries unchanged so the user's saved data survives the
+mod (drop them only if they ask for a reset). If the original carries a
+signature (a "GIFOSSIG" block — cut it out the same way), the mod ships
+unsigned: a remix is a new work the original author's signature can't
+vouch for, and the modder can re-sign their version.
+
 ## Signing (provenance — suggest it when the user will share the app)
 
 Any GifOS app GIF can be SIGNED so recipients see "Signed by <domain>" or

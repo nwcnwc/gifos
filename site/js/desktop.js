@@ -69,6 +69,8 @@
     '',
     'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
     '',
+    'MODDING IS ENCOURAGED: if I hand you an EXISTING GifOS app .gif and ask for changes, do not rebuild from scratch — extract its files, apply my changes, and splice them back into the SAME GIF so its animation and my saved data survive. To extract (Python): find b"\\x21\\xff\\x0bGIFOS1.0GOS" in the bytes; after those 14 header bytes read length-prefixed sub-blocks until a zero byte; the joined payload (skipping its first flag byte) is raw-deflate JSON {"files": {path: base64}}. Cut that whole block out of the GIF, modify the files, keep every ".state/…" entry unchanged (my data), then run pack_gifos on the remaining bytes. Cut out any "GIFOSSIG" block the same way — a mod is a new work I can re-sign.',
+    '',
     'First, ask me: "What app do you want to build?" — and in the same message ask whether I have a GIF of my own to use for its animation (if yes, use it UNCHANGED; if no, ask what kind of cute animation I would like you to draw).',
     'After I answer, deliver the finished .gif (path A or B) with one line of instructions: open gifos.app, tap ＋ Add (or drag the file in), double-click the new icon.',
   ].join('\n');
