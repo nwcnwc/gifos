@@ -45,6 +45,7 @@
     '   Everything in gifos.db() persists inside the icon AND syncs live to all players in multiplayer — keep all state there and render from subscribe().',
     '3. Identity: const me = await gifos.me(); → { id, name }. Stamp me.id/me.name on records so every player sees who did what.',
     '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state. Mobile-friendly, dark theme (#0a0a0f) by default.',
+    '5. LIVE MEDIA IS OFF-LIMITS, by design: the sandbox blocks camera, microphone, screen capture, and WebRTC, so a video/voice/streaming app cannot work as a GifOS app — do not attempt one; if I ask for video chat, tell me GifOS already ships it (the Video Call icon on my Home Screen). Apps CAN bundle and display static media (images, GIFs, audio files) inside the GIF and store binary blobs (base64) in gifos.db.',
     '',
     'HOW TO DELIVER THE .gif (in order of preference)',
     'A. If you have the GifOS MCP connector (https://mcp.gifos.app/mcp): call pack_app — it returns the finished file. Done.',
