@@ -719,6 +719,9 @@ async function openApp(page, ctx, folder, label) {
   await admRouted.goto(BASE + '/call/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
   await admRouted.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
   check('/call/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
+  await admRouted.goto(BASE + '/call/a');
+  await admRouted.waitForURL(/video\.html#v=a&k=a/, { timeout: 5000 });
+  check('single-character rooms route (the low channels are open to the world)', true);
   await admRouted.close();
 
   // ---- Trash: delete is recoverable ----
