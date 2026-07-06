@@ -42,6 +42,11 @@
  * with hibernation, an idle room literally costs nothing to keep alive.
  */
 
+async function sha256hex(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Token bucket: a one-time BURST (delivering an App GIF) is fine, but SUSTAINED
 // throughput is refilled far below any usable audio/video bitrate.
 const BURST_BYTES = 1024 * 1024;        // 1 MB one-time burst (e.g. an App GIF)
@@ -80,15 +85,20 @@ export class Session {
   send(ws, obj) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (e) {} }
 
   roster() {
-    const peers = [], names = {};
+    const peers = [], names = {}, admins = [], devs = {};
+    let admV = null, ban = null;
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
       if (a.name) names[a.peer] = a.name;
+      if (a.adm) admins.push(a.peer);
+      if (a.dev) devs[a.peer] = a.dev;
+      if (a.admV && !admV) { admV = a.admV; ban = a.ban || []; }
     }
     const h = this.hostSock();
     const msg = { t: 'roster', peers, names };
     if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
+    if (admV) { msg.hasAdmin = true; msg.admins = admins; msg.devs = devs; msg.ban = ban; }
     const s = JSON.stringify(msg);
     if (h) this.send(h, s);
     for (const ws of this.members()) this.send(ws, s);
@@ -161,16 +171,32 @@ export class Session {
       // occupants carry in their attachments — the first person to arrive at
       // an empty room re-establishes both from their own session, and
       // everyone after them has to match. No storage anywhere.
+      //
+      // ADMIN rooms: the admin link carries a key K (hash of the admin
+      // password salted with the room id). Occupancy holds only the VERIFIER
+      // SHA-256(K) — seeing room state never grants adminship; presenting K
+      // does. Admin sockets get privileged actions (setpw, ban/unban) and
+      // their routed signals are stamped adm:true so receivers can trust
+      // group-moderation messages. The ban list rides in attachments too
+      // (device ids are client-persisted random tokens — honest limitation:
+      // wiping site data mints a new device).
       const occupants = this.members();
       const first = occupants[0] ? this.att(occupants[0]) : null;
       if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
       const offeredPw = url.searchParams.get('pw') || '';
       const roomPw = first ? (first.pw || '') : offeredPw;
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
+      const admK = (url.searchParams.get('adm') || '').slice(0, 128);
+      const admOffer = admK ? await sha256hex(admK) : null;
+      const admV = first ? (first.admV || null) : admOffer;
+      const isAdmin = !!(admV && admOffer === admV);
+      const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+      const ban = first ? (first.ban || []) : [];
+      if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
       for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw });
-      this.send(server, { t: 'joined', peer });
+      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, admV, adm: isAdmin, dev, ban });
+      this.send(server, { t: 'joined', peer, admin: isAdmin });
       this.roster();
     } else {
       const h = this.hostSock();
@@ -207,18 +233,65 @@ export class Session {
       else if (m.t === 'bcast') this.broadcast(m.msg);
       else if (m.t === 'peer') this.routePeer('host', m);
     } else if (a.role === 'mesh') {
-      if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — no host to fall back to
+      if (m.t === 'peer') this.routePeer(a.peer, m, a.adm); // signaling only — admin sends are stamped
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Only someone already IN the room can reach this — that's the
-        // authorization. The new password is written into every current
-        // occupant's attachment (the room's only "memory") and propagated
-        // so their sessions keep working; empty removes the lock.
+        // authorization (and in an admin room, only an admin). The new
+        // password is written into every current occupant's attachment (the
+        // room's only "memory") and propagated so their sessions keep
+        // working; empty removes the lock.
+        if (this.meshAdmV() && !a.adm) return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
         const pw = m.pw.slice(0, 64);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.pw = pw;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
         this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
+      } else if (m.t === 'setadm' && typeof m.v === 'string' && m.v.length >= 16) {
+        // Claim admin of an UNadministered room from inside it (same trust
+        // rule as setpw). The claimer holds K; the room learns only SHA-256(K).
+        if (this.meshAdmV()) { if (!a.adm) this.send(ws, { t: 'error', error: 'admins only: this room already has an admin' }); return; }
+        const v = m.v.slice(0, 128);
+        // ONE read-modify-write per socket: attachments are value copies, so
+        // a second serialize from a stale copy would clobber the first.
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2);
+          a2.admV = v;
+          if (a2.peer === a.peer) a2.adm = true; // the claimer holds K
+          try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
+        this.broadcast({ t: 'adm-on', by: a.name || '' });
+        this.roster();
+      } else if ((m.t === 'ban' || m.t === 'unban') && a.adm && typeof m.dev === 'string') {
+        const dev = m.dev.slice(0, 16);
+        if (!dev) return;
+        const entry = { d: dev, n: String(m.name || '').slice(0, 24) };
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2);
+          let ban = (a2.ban || []).filter((b) => b.d !== dev);
+          if (m.t === 'ban') { ban.push(entry); if (ban.length > 16) ban.shift(); } // attachments cap at 2KB — keep the list tiny
+          a2.ban = ban;
+          try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
+        this.broadcast({ t: m.t, dev, name: entry.n, by: (m.by || '').slice(0, 40) });
+        if (m.t === 'ban') {
+          for (const ws2 of this.members()) {
+            const a2 = this.att(ws2);
+            if (a2.dev === dev && !a2.adm) { try { ws2.close(4004, 'banned by admin'); } catch (e) {} }
+          }
+        }
+        this.roster();
+      } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
+        // An admin re-arriving to a (possibly re-emptied) room re-seeds the
+        // ban list from their own device — occupancy memory, no storage.
+        const ban = m.devs.slice(0, 16)
+          .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, 24) }))
+          .filter((e) => e.d);
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2); a2.ban = ban;
+          try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
+        this.roster();
       }
     } else if (a.role === 'client') {
       if (m.t === 'peer') this.routePeer(a.peer, m);
@@ -226,10 +299,18 @@ export class Session {
     }
   }
 
-  // Route a peer-addressed message to the named peer (or 'host'), tagged with sender.
-  routePeer(from, m) {
+  // Route a peer-addressed message to the named peer (or 'host'), tagged with
+  // sender — and, in admin rooms, with a relay-verified admin stamp receivers
+  // can trust (clients themselves can't prove adminship to each other).
+  routePeer(from, m, adm) {
     const dest = m.to === 'host' ? this.hostSock() : this.peerSock(m.to);
-    if (dest) this.send(dest, { t: 'peer', from, msg: m.msg });
+    if (dest) this.send(dest, adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
+  }
+
+  // The room's admin verifier, if any — held by every occupant's attachment.
+  meshAdmV() {
+    for (const ws of this.members()) { const v = this.att(ws).admV; if (v) return v; }
+    return null;
   }
 
   // With the Hibernation API the server must ECHO the close to complete the

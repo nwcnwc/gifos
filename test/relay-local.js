@@ -115,12 +115,18 @@ server.on('upgrade', (req, socket) => {
     const names = {}; for (const [p, n] of sess.names) names[p] = n;
     const msg = { t: 'roster', peers: Array.from(sess.clients.keys()), names };
     if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
+    if (sess.admV) {
+      msg.hasAdmin = true;
+      msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
+      msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
+      msg.ban = sess.ban || [];
+    }
     const s = JSON.stringify(msg);
     if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
-  const routePeer = (from, m) => {
-    const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
+  const routePeer = (from, m, adm) => {
+    const wrapped = JSON.stringify(adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
     if (dest) dest.send(wrapped);
   };
@@ -151,22 +157,55 @@ server.on('upgrade', (req, socket) => {
     roster();
   } else if (role === 'mesh') {
     // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
-    // Token + password are occupancy state: the first arrival to an EMPTY
-    // room re-establishes both from their own session (no persistence).
-    if (sess.clients.size === 0) { sess.meshToken = token; sess.pw = (url.searchParams.get('pw') || '') || null; }
+    // Token + password + admin verifier + ban list are occupancy state: the
+    // first arrival to an EMPTY room re-establishes them (no persistence).
+    const admK = (url.searchParams.get('adm') || '').slice(0, 128);
+    const admOffer = admK ? crypto.createHash('sha256').update(admK).digest('hex') : null;
+    if (sess.clients.size === 0) {
+      sess.meshToken = token;
+      sess.pw = (url.searchParams.get('pw') || '') || null;
+      sess.admV = admOffer;
+      sess.ban = [];
+    }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
+    const isAdmin = !!(sess.admV && admOffer === sess.admV);
+    const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+    if (!isAdmin && dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
+    conn.isAdmin = isAdmin; conn.dev = dev;
     const name = (url.searchParams.get('name') || '').slice(0, 40);
     if (name) sess.names.set(peer, name);
     sess.clients.set(peer, conn);
     conn.onmessage = (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
-      if (m.t === 'peer') routePeer(peer, m);
+      if (m.t === 'peer') routePeer(peer, m, conn.isAdmin);
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
+        if (sess.admV && !conn.isAdmin) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
         sess.pw = m.pw.slice(0, 64) || null;
         const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: (m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
+      } else if (m.t === 'setadm' && typeof m.v === 'string' && m.v.length >= 16) {
+        if (sess.admV) { if (!conn.isAdmin) conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room already has an admin' })); return; }
+        sess.admV = m.v.slice(0, 128); sess.ban = sess.ban || [];
+        conn.isAdmin = true;
+        const s = JSON.stringify({ t: 'adm-on', by: name });
+        for (const c of sess.clients.values()) c.send(s);
+        roster();
+      } else if ((m.t === 'ban' || m.t === 'unban') && conn.isAdmin && typeof m.dev === 'string') {
+        const d = m.dev.slice(0, 16);
+        if (!d) return;
+        sess.ban = (sess.ban || []).filter((b) => b.d !== d);
+        if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, 24) }); if (sess.ban.length > 16) sess.ban.shift(); }
+        const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, 24), by: (m.by || '').slice(0, 40) });
+        for (const c of sess.clients.values()) c.send(s);
+        if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(); } catch (e) {} }
+        roster();
+      } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
+        sess.ban = m.devs.slice(0, 16)
+          .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, 24) }))
+          .filter((e) => e.d);
+        roster();
       }
     };
     conn.onclose = () => {
@@ -176,7 +215,7 @@ server.on('upgrade', (req, socket) => {
       for (const c of sess.clients.values()) c.send(s);
       roster();
     };
-    conn.send(JSON.stringify({ t: 'joined', peer }));
+    conn.send(JSON.stringify({ t: 'joined', peer, admin: isAdmin }));
     roster();
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }

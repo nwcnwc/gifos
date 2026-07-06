@@ -284,6 +284,15 @@
         thumb.appendChild(img);
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
+        if (file.appId === 'video') {
+          // Honest signage: this launcher opens a SYSTEM page that runs with
+          // camera/mic/WebRTC — capabilities sandboxed apps never get.
+          const sys = document.createElement('span');
+          sys.className = 'sysbadge';
+          sys.textContent = 'SYSTEM';
+          sys.title = 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.';
+          thumb.appendChild(sys);
+        }
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
       }

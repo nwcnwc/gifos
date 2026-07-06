@@ -13,12 +13,15 @@
  * anywhere. Anything unrecognized just goes home.
  */
 (function () {
-  var m = location.pathname.match(/^\/(?:join|call)\/([a-z0-9]{4,64})\/?$/i);
+  // /call/<room>/<adminKey> is an ADMIN link: the second segment is the hashed
+  // (room-salted) admin password — a bearer credential, never stored anywhere.
+  var m = location.pathname.match(/^\/(?:join|call)\/([a-z0-9]{4,64})(?:\/([a-f0-9]{16,128}))?\/?$/i);
   if (m) {
     var code = m[1];
+    var adm = m[2] ? '&adm=' + m[2] : '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
     if (location.pathname.indexOf('/call/') === 0) {
-      location.replace('/video.html#v=' + code + '&k=' + code + extra);
+      location.replace('/video.html#v=' + code + '&k=' + code + adm + extra);
     } else {
       location.replace('/run.html#j=' + code + extra);
     }
