@@ -1023,8 +1023,15 @@
     }
 
     function saveToDesktop() {
-      if (!appBytes) return Promise.reject(new Error('app not loaded yet'));
-      return saveAppToDesktop(appBytes, manifestRef, lastDump);
+      if (!appBytes || !filesRef) return Promise.reject(new Error('app not loaded yet'));
+      // Steal the APP, not its data: no session state is captured, and any
+      // state baked into the GIF itself (snapshot-origin apps) is stripped,
+      // so the stolen copy opens fresh. Download Snapshot captures the data.
+      const clean = {};
+      let hadState = false;
+      for (const p in filesRef) { if (p.startsWith('.state/')) hadState = true; else clean[p] = filesRef[p]; }
+      const bytes = hadState && gif.repack ? gif.repack(appBytes, clean) : appBytes;
+      return Promise.resolve(bytes).then((b) => saveAppToDesktop(b, manifestRef, null));
     }
 
     return Promise.resolve({
