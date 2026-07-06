@@ -82,9 +82,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- a participant leaves → tiles + quality recover ----------
   await cPage.close(); await cCtx.close();
-  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 15000 });
+  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
   const q2 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('peer-leave shrinks the mesh and quality steps back up', q2 === '720p');
+
+  // ---------- the room is PERMANENT: it outlives its creator ----------
+  check('creator URL carries the room (reload-safe)', await aPage.evaluate(() => /v=/.test(location.hash)));
+  await aPage.close(); await aCtx.close(); // the creator is GONE
+  const dCtx = await newUser('Dee');
+  const dPage = await dCtx.newPage();
+  dPage.on('console', (m) => { if (m.type() === 'error') console.log('  [dee]', m.text()); });
+  await dPage.goto(link);
+  await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  check('room survives its creator — a new joiner still connects (no host)', true);
+
+  // ---------- everyone leaves; the same URL still works later ----------
+  await bPage.close(); await bCtx.close();
+  await dPage.close(); await dCtx.close();
+  await sleep(1200); // the room sits empty
+  const eCtx = await newUser('Eve');
+  const ePage = await eCtx.newPage();
+  ePage.on('console', (m) => { if (m.type() === 'error') console.log('  [eve]', m.text()); });
+  await ePage.goto(link);
+  await ePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  const fCtx = await newUser('Fox');
+  const fPage = await fCtx.newPage();
+  fPage.on('console', (m) => { if (m.type() === 'error') console.log('  [fox]', m.text()); });
+  await fPage.goto(link);
+  await ePage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await fPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  check('an emptied room is still joinable later — the URL works forever', true);
+
+  // ---------- a reload drops back into the SAME room and re-links ----------
+  await fPage.reload();
+  await fPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await ePage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  check('a reload rejoins the same room and the call re-establishes', true);
 
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');

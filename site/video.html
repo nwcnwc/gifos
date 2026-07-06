@@ -74,10 +74,23 @@
    * at this trusted level. The desktop icon is still a real GIF; its manifest
    * says { system: "video" } and the runtime routes it here.
    *
-   * Topology: full mesh. Every participant holds one RTCPeerConnection per
-   * other participant. The GifOS relay is used ONLY to exchange SDP/ICE
-   * (control messages); it hard-throttles anything heavier, so media cannot
-   * fall back to it — this app is P2P or nothing, by design.
+   * Topology: full mesh over a PERMANENT, HOST-LESS ROOM. The room IS its URL:
+   * nobody owns it, so nobody's departure (including the creator's) can break
+   * it — whoever opens the link joins whoever is there, forever. The relay's
+   * "mesh" role introduces browsers and carries ONLY SDP/ICE; it hard-throttles
+   * anything heavier, so media cannot fall back to it — P2P or nothing.
+   *
+   * Resilience, in order of likely failure:
+   *  - relay socket dies (phone locks, network blips) → auto-reconnect with
+   *    backoff, kicked instantly on visibility/online; live P2P links stay up
+   *  - a P2P link degrades → the deterministic initiator (larger peer id)
+   *    re-offers with an ICE restart until it heals
+   *  - a peer truly leaves → their tile is dropped only after a grace period,
+   *    so a phone-lock never kills a tile that's about to come back
+   *  - the camera dies in a background tab → re-acquired and re-plugged into
+   *    every link when the tab returns
+   *  - no camera permission at all → you still JOIN (view-only) instead of
+   *    being locked out
    */
   (function () {
     const ICE_SERVERS = [
@@ -103,8 +116,9 @@
     const setStatus = (m) => { statusEl.textContent = m; };
     const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 
-    let ws = null, myId = null, localStream = null, closedToJoiners = false;
-    const peers = new Map(); // peerId -> { pc, tile, video, name, connected }
+    let ws = null, myId = null, localStream = null, meTile = null, leaving = false;
+    const peers = new Map(); // peerId -> { pc, tile, video, name, connected, absentSince, lastKick }
+    const ABSENT_GRACE = 12000; // roster-absent AND link-down this long → tile drops
 
     // ---- screen name (same identity the rest of GifOS uses) ----------------
     function ensureName() {
@@ -172,29 +186,31 @@
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
       const q = rung(n);
-      setStatus(n === 1 ? 'Alone — share the invite link' :
-        n + ' on the call · ' + live + ' P2P link(s) live · ' + q.label + ' @ ' + q.kbps + ' kbps/link' +
-        (closedToJoiners ? ' · room closed to new joiners' : ''));
+      const link = ws && ws.readyState === 1 ? '' : ' · reconnecting to the room…';
+      setStatus((n === 1 ? 'Just you — send the invite; the link works forever'
+        : n + ' on the call · ' + live + ' P2P link(s) live · ' + q.label + ' @ ' + q.kbps + ' kbps/link') + link);
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
     const sendSig = (to, msg) => ws && ws.send(JSON.stringify({ t: 'peer', to, msg }));
     const myName = () => GifOS.store.identity().name || 'Guest';
 
+    // Exactly ONE side initiates each pairing, chosen by peer-id order — the
+    // same rule no matter who joined, rejoined, or reloaded first. No glare.
+    const iInitiate = (peerId) => myId && myId > peerId;
+
     function makePeer(peerId, name) {
       if (peers.has(peerId)) return peers.get(peerId);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const t = makeTile(peerId, name, false);
-      const p = { pc, tile: t.tile, video: t.video, label: t.label, name, connected: false, pendingIce: [] };
+      const p = { pc, tile: t.tile, video: t.video, label: t.label, name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
       peers.set(peerId, p);
       if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+      else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
       pc.ontrack = (ev) => { if (ev.streams[0] && p.video.srcObject !== ev.streams[0]) p.video.srcObject = ev.streams[0]; };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(peerId, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
         p.connected = pc.connectionState === 'connected';
-        if (pc.connectionState === 'failed') {
-          tileNote(p, (p.name || peerId) + ' — no direct P2P route. The relay never carries media, so this network can’t receive the call.');
-        }
         updateStatus();
         if (p.connected) adapt();
       };
@@ -211,11 +227,12 @@
       adapt();
     }
 
-    // Newcomer initiates to everyone already in the room (deterministic — no glare).
-    function callPeer(peerId) {
+    function sendOffer(peerId, iceRestart) {
       const p = makePeer(peerId, null);
-      p.pc.createOffer().then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName() }));
+      const opts = iceRestart ? { iceRestart: true } : undefined;
+      p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName() }))
+        .catch(() => {});
     }
 
     function onSignal(from, msg) {
@@ -227,13 +244,15 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName() }));
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName() }))
+          .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
         if (!p) return;
         if (msg.name) { p.name = msg.name; p.label.textContent = msg.name; }
         p.pc.setRemoteDescription(msg.sdp)
-          .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); });
+          .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
+          .catch(() => {});
       } else if (msg.kind === 'ice') {
         const p = peers.get(from);
         if (!p) return;
@@ -242,50 +261,127 @@
       }
     }
 
-    // ---- relay session (signaling only) ---------------------------------------
+    // Reconcile the mesh against the room's live roster. Present peers get a
+    // link (initiated by whichever side the id-order rule picks); absent peers
+    // start a grace clock instead of being dropped on the spot — a locked
+    // phone rejoining in ten seconds keeps its tile and its call.
+    function reconcile(list, names) {
+      names = names || {};
+      for (const pid of list) {
+        if (pid === myId) continue;
+        let p = peers.get(pid);
+        if (!p) {
+          if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
+          else p = makePeer(pid, names[pid] || null); // their offer is on its way
+        }
+        p.absentSince = 0;
+        if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
+      }
+      for (const [pid, p] of peers) {
+        if (!list.includes(pid) && !p.absentSince) p.absentSince = Date.now();
+      }
+      updateStatus();
+    }
+
+    // ---- the room: a reconnecting relay socket (signaling only) ---------------
     function relayUrl() {
       let u = null; try { u = localStorage.getItem('gifos_relay'); } catch (e) {}
       return params.get('relay') || u || window.GIFOS_RELAY || null;
     }
 
-    function connect(asHost, sid, token) {
+    let room = null, roomToken = null, backoff = 500, reopenTimer = null;
+    // A per-tab, per-room peer id: a reload reconnects AS the same peer and
+    // the relay's stale-close guard swaps the socket instead of duplicating us.
+    function myPeerId() {
+      const key = 'gifos_vpeer_' + room;
+      let id = null; try { id = sessionStorage.getItem(key); } catch (e) {}
+      if (!id) { id = uid('v'); try { sessionStorage.setItem(key, id); } catch (e) {} }
+      return id;
+    }
+
+    function openSock() {
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
-      const role = asHost ? 'host' : 'client';
-      const peer = asHost ? 'host' : uid('v');
-      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + sid + '?role=' + role + '&token=' + token + '&peer=' + peer);
-      ws.onerror = () => setStatus('Relay connection failed.');
-      ws.onclose = () => { if (!closedToJoiners) setStatus('Disconnected from relay — existing P2P links stay up, but nobody new can join.'); };
+      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + room + '?role=mesh&token=' + roomToken +
+        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()));
+      ws.onopen = () => { backoff = 500; updateStatus(); };
+      ws.onerror = () => { try { ws.close(); } catch (e) {} };
+      ws.onclose = () => {
+        if (leaving) return;
+        updateStatus(); // live P2P links stay up; we quietly rejoin the room
+        clearTimeout(reopenTimer);
+        backoff = Math.min(5000, backoff * 2);
+        reopenTimer = setTimeout(openSock, backoff + Math.random() * 250);
+      };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'host-ready') { myId = 'host'; updateStatus(); }
-        else if (m.t === 'joined') {
-          myId = m.peer;
-          updateStatus();
-        } else if (m.t === 'roster') {
-          // Newcomer's first roster: call everyone already present (host included).
-          if (myId && myId !== 'host' && !rosterSeen) {
-            rosterSeen = true;
-            callPeer('host');
-            for (const pid of m.peers) if (pid !== myId) callPeer(pid);
-          }
-          // Anyone in the roster we track but who has left: clean up.
-          if (myId === 'host') for (const pid of Array.from(peers.keys())) if (!m.peers.includes(pid)) dropPeer(pid);
-          else for (const pid of Array.from(peers.keys())) if (pid !== 'host' && !m.peers.includes(pid)) dropPeer(pid);
-        }
+        if (m.t === 'joined') { myId = m.peer; updateStatus(); }
+        else if (m.t === 'roster') reconcile(m.peers, m.names);
         else if (m.t === 'peer') onSignal(m.from, m.msg);
-        else if (m.t === 'peer-leave') dropPeer(m.peer);
-        else if (m.t === 'host-gone') { closedToJoiners = true; dropPeer('host'); updateStatus(); }
+        else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
         else if (m.t === 'error') setStatus('Relay: ' + m.error);
       };
-      // gifos.app/call/<code> on production (routed by 404.html); hash form
-      // for local testing and custom relays. One code = session id + key.
-      const pretty = sid === token && /(^|\.)gifos\.app$/.test(location.hostname) && relay === window.GIFOS_RELAY;
-      shareUrl.value = pretty ? location.origin + '/call/' + sid
-        : location.origin + location.pathname + '#v=' + sid + '&k=' + token + '&relay=' + encodeURIComponent(relay);
-      if (asHost) share.classList.add('show');
     }
-    let rosterSeen = false;
+    function kickSock() {
+      if (leaving || !room) return;
+      if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+      clearTimeout(reopenTimer);
+      openSock();
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { kickSock(); reviveCamera(); } });
+    window.addEventListener('online', kickSock);
+
+    // The sweeper heals what it can and buries what's really gone:
+    //  - absent + link down past grace → tile removed
+    //  - present + link down → the initiator side re-offers with an ICE restart
+    setInterval(() => {
+      const now = Date.now();
+      for (const [pid, p] of Array.from(peers)) {
+        const st = p.pc.connectionState;
+        if (p.absentSince && !p.connected && now - p.absentSince > ABSENT_GRACE) { dropPeer(pid); continue; }
+        if (!p.absentSince && iInitiate(pid) && (st === 'failed' || st === 'disconnected') && now - p.lastKick > 6000) {
+          p.lastKick = now + Math.random() * 1500;
+          sendOffer(pid, true);
+        }
+      }
+      updateStatus();
+    }, 2000);
+
+    // If the tab was backgrounded long enough for the OS to kill the camera,
+    // grab it again and swap the fresh tracks into every live link.
+    function reviveCamera() {
+      if (!localStream) return;
+      const vt = localStream.getVideoTracks()[0], at = localStream.getAudioTracks()[0];
+      if ((!vt || vt.readyState !== 'ended') && (!at || at.readyState !== 'ended')) return;
+      navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+        .then((s) => {
+          const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
+          for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
+            if (sender.track && sender.track.kind === 'video' && nv) sender.replaceTrack(nv).catch(() => {});
+            if (sender.track && sender.track.kind === 'audio' && na) sender.replaceTrack(na).catch(() => {});
+          }
+          localStream = s;
+          if (meTile) meTile.video.srcObject = s;
+          adapt();
+        }).catch(() => {});
+    }
+
+    // Join (or create) the room. The room id lives in the URL from the very
+    // first moment — a reload, a bookmark, or a share all land in the SAME
+    // room, and the room outlives everyone in it.
+    function joinRoom() {
+      room = params.get('v') || shortCode();
+      roomToken = params.get('k') || room;
+      const relay = relayUrl();
+      const custom = relay && relay !== window.GIFOS_RELAY;
+      const wantHash = '#v=' + room + '&k=' + roomToken + (custom ? '&relay=' + encodeURIComponent(relay) : '');
+      if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
+      const pretty = room === roomToken && /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
+      shareUrl.value = pretty ? location.origin + '/call/' + room
+        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+      if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
+      openSock();
+    }
 
     // Friendly one-word codes: no lookalike characters, short enough to read aloud.
     function shortCode() {
@@ -298,21 +394,19 @@
     }
 
     // ---- boot ------------------------------------------------------------------
-    const isJoin = !!params.get('v');
-    ensureName().then(() => navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
-    })).then((stream) => {
-      localStream = stream;
-      const t = makeTile('me', myName() + ' (you)', true);
-      t.video.srcObject = stream;
-      if (isJoin) connect(false, params.get('v'), params.get('k') || params.get('v'));
-      else { const code = shortCode(); connect(true, code, code); }
-      updateStatus();
-    }).catch((err) => {
-      setStatus('Camera/microphone denied: ' + (err && err.message || err));
-      const t = makeTile('me', myName() + ' (you)', true);
-      tileNote(t, 'No camera. Grant permission and reload to join the call.');
-    });
+    // Camera trouble must never lock anyone out of the room: no permission →
+    // join view-only. The room doesn't care what you bring.
+    ensureName()
+      .then(() => navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
+      }).then((stream) => { localStream = stream; }, () => { localStream = null; }))
+      .then(() => {
+        meTile = makeTile('me', myName() + ' (you)', true);
+        if (localStream) meTile.video.srcObject = localStream;
+        else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
+        joinRoom();
+        updateStatus();
+      });
 
     // ---- controls ---------------------------------------------------------------
     const micBtn = document.getElementById('mic');
@@ -342,13 +436,14 @@
       shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
       if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
     };
-    window.addEventListener('beforeunload', () => { try { ws && ws.close(); } catch (e) {} });
+    window.addEventListener('beforeunload', () => { leaving = true; try { ws && ws.close(); } catch (e) {} });
 
     // Test hook: lets the e2e suite observe mesh + quality state.
     window.__gifosVideo = {
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       quality: () => rung(participantCount()).label,
+      room: () => room,
     };
   })();
   </script>

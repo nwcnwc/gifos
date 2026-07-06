@@ -153,12 +153,25 @@ connected to every other), which the Video Call app uses for media and which
 future apps can use for any N-way topology. The relay still only ever sees
 signaling envelopes.
 
-## Video Calls — strictly P2P mesh
+## Video Calls — strictly P2P mesh over permanent rooms
 
 The Video Call system app (`video.html`) is the proof of the guard:
 
-- Every participant holds one `RTCPeerConnection` per other participant
-  (newcomer initiates offers to everyone present — deterministic, no glare).
+- **The room IS its URL — host-less and permanent.** The relay's `mesh` role
+  has no host: whoever opens the link joins whoever is there, and the room
+  outlives everyone in it (an empty room revives on the next join). The
+  unguessable room code is the capability. Nobody's departure — including the
+  creator's — can close a call link.
+- Every participant holds one `RTCPeerConnection` per other participant. For
+  each pair, exactly one side initiates, chosen by peer-id order — the same
+  deterministic rule for joins, rejoins, and reloads, so there is no glare.
+- **Self-healing**: the relay socket auto-reconnects with backoff (kicked
+  instantly on visibility/online); a degraded pair is re-offered with an ICE
+  restart by its initiator; a roster-absent peer keeps its tile through a
+  grace window (a locked phone is not a departure); a camera killed by tab
+  backgrounding is re-acquired and `replaceTrack`ed into every link; and a
+  participant with no camera permission joins view-only instead of being
+  locked out.
 - **Media flows only browser-to-browser.** The relay carries SDP/ICE envelopes
   and nothing else; if no direct route exists for a pair, that pair simply has
   no video — there is no fallback, by design.

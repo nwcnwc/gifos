@@ -44,7 +44,9 @@ export class Session {
     this.state = state;
     this.host = null;
     this.token = null;
+    this.meshToken = null;    // set by the first mesh joiner; room id = capability
     this.clients = new Map(); // peerId -> WebSocket
+    this.names = new Map();   // peerId -> display name (mesh rooms)
     this.meters = new WeakMap();
     this.peerId = new WeakMap();
   }
@@ -65,7 +67,8 @@ export class Session {
 
   roster() {
     const peers = Array.from(this.clients.keys());
-    const s = JSON.stringify({ t: 'roster', peers });
+    const names = {}; for (const [p, n] of this.names) names[p] = n;
+    const s = JSON.stringify({ t: 'roster', peers, names });
     if (this.host) { try { this.host.send(s); } catch (e) {} }
     for (const c of this.clients.values()) { try { c.send(s); } catch (e) {} }
   }
@@ -94,6 +97,31 @@ export class Session {
       });
       server.send(JSON.stringify({ t: 'host-ready' }));
       for (const p of this.clients.keys()) server.send(JSON.stringify({ t: 'peer-join', peer: p }));
+      this.roster();
+    } else if (role === 'mesh') {
+      // Host-less ROOM: every participant is equal and the room lives at its
+      // URL forever. Whoever opens the link joins whoever is there — nobody's
+      // departure (including the creator's) can close it. The unguessable
+      // room id is the capability; the first joiner (re)establishes the token.
+      if (this.meshToken === null) this.meshToken = token;
+      if (this.meshToken !== token) {
+        server.send(JSON.stringify({ t: 'error', error: 'bad room token' }));
+        server.close(1008, 'bad token');
+        return new Response(null, { status: 101, webSocket: client });
+      }
+      const name = (url.searchParams.get('name') || '').slice(0, 40);
+      if (name) this.names.set(peer, name);
+      this.clients.set(peer, server);
+      this.peerId.set(server, peer);
+      server.addEventListener('message', (ev) => this.onMeshMessage(peer, server, ev));
+      server.addEventListener('close', () => {
+        if (this.clients.get(peer) !== server) return; // stale close of a replaced socket
+        this.clients.delete(peer);
+        this.names.delete(peer);
+        this.broadcast({ t: 'peer-leave', peer });
+        this.roster();
+      });
+      server.send(JSON.stringify({ t: 'joined', peer }));
       this.roster();
     } else {
       if (!this.host) {
@@ -136,6 +164,12 @@ export class Session {
     } else if (m.t === 'peer') {
       this.routePeer('host', m);
     }
+  }
+
+  onMeshMessage(peer, socket, ev) {
+    if (!this.allow(socket, ev.data)) return;
+    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.t === 'peer') this.routePeer(peer, m); // signaling only — no host to fall back to
   }
 
   onClientMessage(peer, socket, ev) {
