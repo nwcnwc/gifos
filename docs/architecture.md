@@ -435,6 +435,20 @@ GIF has no hard size limit; the practical limit is what platforms will transmit 
 - **Merge** — combine two snapshots (git-style merge for shared app state).
 - **Encryption** — password-protected GIFs and end-to-end encrypted relay sessions.
 - **Multi-server** — sharded or replicated DBs for larger sessions instead of a single host browser.
+- **Signed-app phone-home (possibility, not a commitment)** — let an app
+  signed by a domain talk to *that domain only*: the signature would
+  **constrain** the existing manifest-gated API bridge rather than grant a
+  new power (an app may only request hosts matching its signing domain, so
+  the badge identity and the data's destination are provably the same
+  party). Conditions that make it defensible: explicit per-app user
+  permission, all traffic shell-mediated through the bridge (never raw
+  network in the sandbox), a loud always-visible indicator while the app is
+  phoning home, and a per-app traffic log ("sent 14 KB to notes-app.com
+  today"). Known costs it would trade against the core promises: the author
+  is exactly the party most motivated to collect user data, and a
+  phone-home app's behavior becomes server-controlled — the bytes still
+  verify while the conduct can change — so this stays opt-in, loudly
+  indicated, and off by default if it ever ships at all.
 
 ## Provenance Signatures
 
