@@ -1,7 +1,7 @@
 /*
  * gifos-sign.js — provenance signatures for App GIFs.
  *
- * "Signed by nathancheng.com" or "signed by alice@example.com" means: someone
+ * "Signed by example.com" or "signed by alice@example.com" means: someone
  * who controls that domain / that email signed THESE EXACT app bytes. It is the
  * DKIM model for files. It does NOT assert the app is safe, and a signature can
  * always be stripped (the file just becomes anonymous) — the UI is honest about

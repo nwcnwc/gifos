@@ -83,7 +83,7 @@ Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cl
 - Live camera/mic apps (Video Call) therefore can't be sandboxed apps — they're **system apps**: the icon is a GIF whose manifest names a whitelisted first-party page. Manifests cannot route to arbitrary URLs.
 - The relay is a dumb pipe with a **token-bucket bandwidth guard** (1 MB burst for app delivery, ~384 Kbps sustained) — enforced server-side, so nobody can tunnel media through it.
 
-- **Provenance signatures** — anyone can sign an app GIF with their **domain** (Ed25519; public key at `https://domain/gifos.key`) or **email** (OpenPGP via keyservers). GifOS shows **✓ Signed by nathancheng.com**, **Unsigned**, or **⚠ Tampered** (contents changed after signing). Signing proves authorship, not safety, and a signature can always be stripped. The signed hash excludes app *state*, so saving data never voids it. Sign at [gifos.app/sign.html](https://gifos.app/sign.html).
+- **Provenance signatures** — anyone can sign an app GIF with their **domain** (Ed25519; public key at `https://domain/gifos.key`) or **email** (OpenPGP via keyservers — **Ed25519 or RSA ≥2048** keys both work, so your existing gpg key is fine). GifOS shows **✓ Signed by yourdomain.com**, **Unsigned**, or **⚠ Tampered** (contents changed after signing). Signing proves authorship, not safety, and a signature can always be stripped. The signed hash excludes app *state*, so saving data never voids it. Sign at [gifos.app/sign.html](https://gifos.app/sign.html).
 
 Details: [docs/architecture.md](docs/architecture.md) · [docs/cors-and-networking.md](docs/cors-and-networking.md)
 
@@ -124,7 +124,7 @@ node test/e2e-video.js            # video rooms: mesh, permanence, moderation, p
 node test/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
 node test/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
-node test/sign.js                 # provenance: Ed25519 + OpenPGP against real gpg
+node test/sign.js                 # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
 node test/mcp-server.js           # the MCP app builder end-to-end
 ```
 
@@ -155,7 +155,7 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 - ✅ Deployed: GitHub Pages (`gifos.app`), Cloudflare relay (`relay.gifos.app`) with server-side bandwidth guard + mesh peer routing, numbered-subdomain mirror
 - ✅ P2P Video Call: permanent host-less rooms (a link works forever), mesh media, adaptive quality, quiet joins, blur, attributed group moderation, occupant-held room passwords — relay-refuses-media by design
 - ✅ IRL party games: secret roles, hidden ballots, and simultaneous reveals dealt to each player's own phone; the drama happens in the room
-- ✅ Provenance signatures: sign app GIFs by domain (Ed25519) or email (OpenPGP); verified against real gpg in CI
+- ✅ Provenance signatures: sign app GIFs by domain (Ed25519) or email (OpenPGP — Ed25519 or RSA keys); verified against real gpg in CI
 - ✅ Scale-hardened relay: WebSocket hibernation (idle sessions cost nothing), zero persistence, per-IP and per-session abuse guards
 - ✅ Computer images: whole-desktop backup GIFs that **boot** in isolated namespaces, recursively
 - ✅ Version pinning: archived builds under `/versions/`, update bar, additive-only data migrations

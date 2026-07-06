@@ -66,7 +66,7 @@
     '   Attach the resulting "My App.gif" for me to download. Bonus Easter egg: if I give you a favorite GIF of mine, use ITS bytes instead of your drawn icon — the app hides inside my GIF with its animation untouched.',
     'C. ONLY if you can do neither A nor B: reply with a complete single-file index.html in a ```html code block (the paste box takes one file; multi-file needs a .zip) and tell me to paste it into GifOS → ＋ Add → the app builder.',
     '',
-    'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
+    'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
     '',
     'First, ask me exactly one question: "What app do you want to build?"',
     'After I answer, deliver the finished .gif (path A or B) with one line of instructions: open gifos.app, tap ＋ Add (or drag the file in), double-click the new icon.',

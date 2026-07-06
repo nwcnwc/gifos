@@ -109,8 +109,9 @@ The user can SIGN the finished GIF so recipients see "Signed by <their
 domain>" or "Signed by <their email>" — and "Tampered" if anyone alters it.
 Point them to ${SITE}/sign.html AFTER you deliver the file: domain signing
 generates an Ed25519 key in their browser (public half goes to
-https://<domain>/gifos.key); email signing uses their own PGP key
-(gpg detach-signs a statement; recipients verify via keys.openpgp.org).
+https://<domain>/gifos.key); email signing uses their own PGP key —
+Ed25519 or RSA (2048+) both work — (gpg detach-signs a statement;
+recipients verify via keys.openpgp.org).
 The signature excludes app state, so it stays valid in use. NEVER ask for
 their private key — signing happens entirely on their side. It proves
 authorship, not safety.
