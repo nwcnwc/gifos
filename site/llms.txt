@@ -80,6 +80,13 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      db.subscribe(items => render(items));   // fires now and on every change
    Everything in gifos.db() persists inside the app's icon AND syncs to all
    players in multiplayer. Render from subscribe() = multiplayer for free.
+   HONESTY: there is NO cloud and NO automatic cross-device sync. Data
+   lives on the user's device, inside the app's GIF in that browser. It
+   reaches other devices exactly two ways: live, while people are
+   connected through an invite link, or by sharing the GIF file itself
+   (state travels inside the file). Never write UI copy claiming the app
+   "syncs across your devices" or "backs up to the cloud" — say something
+   true, like "Saved on this device inside the app's GIF".
 3. Identity: const me = await gifos.me(); -> { id, name }. Attribute records
    to me.id/me.name so every player sees who did what.
 4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.

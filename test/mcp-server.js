@@ -98,6 +98,7 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   const eggBack = await gif.decode(eggBytes);
   check('the hidden app decodes out of the wild gif', !!eggBack && gif.bytesToText(eggBack.files['index.html']) === appHtml);
   check('guide + tool prefer the user\'s own GIF, used wholesale', /hide_in_gif_base64/.test(guideText) && /USER'S OWN GIF ALWAYS COMES/.test(guideText) && /WHOLESALE/.test(guideText));
+  check('guide forbids false sync/cloud claims', /NO cloud and NO automatic cross-device sync/.test(guideText) && /syncs across your\s+devices/.test(guideText));
 
   // ---- procedural fallback when no icon supplied ----
   const plain = await rpc('tools/call', { name: 'pack_app', arguments: { name: 'Plain', html: appHtml } });
