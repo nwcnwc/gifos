@@ -34,7 +34,7 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   check('notifications are acknowledged with 202', notif.status === 202);
   const list = await rpc('tools/list');
   const names = (list.body.result.tools || []).map((t) => t.name).sort();
-  check('tools/list exposes the three tools', JSON.stringify(names) === JSON.stringify(['get_build_guide', 'pack_app', 'validate_app']));
+  check('tools/list exposes the four tools', JSON.stringify(names) === JSON.stringify(['get_build_guide', 'pack_app', 'unpack_app', 'validate_app']));
 
   // ---- the guide ----
   const guide = await rpc('tools/call', { name: 'get_build_guide', arguments: {} });
@@ -98,6 +98,34 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
   const eggBack = await gif.decode(eggBytes);
   check('the hidden app decodes out of the wild gif', !!eggBack && gif.bytesToText(eggBack.files['index.html']) === appHtml);
   check('guide + tool prefer the user\'s own GIF, used wholesale', /hide_in_gif_base64/.test(guideText) && /USER'S OWN GIF ALWAYS COMES/.test(guideText) && /WHOLESALE/.test(guideText));
+
+  // ---- modding: unpack an app, change it, repack into the SAME gif ----
+  const un = await rpc('tools/call', { name: 'unpack_app', arguments: { gif_base64: gif.b64encode(eggBytes) } });
+  const unText = un.body.result.content[0].text;
+  check('unpack_app returns the files inside (index.html + manifest)',
+    /--- index\.html ---/.test(unText) && unText.includes("gifos.db('taps')") && /--- manifest\.json ---/.test(unText));
+  const modHtml = appHtml + '<!--modded-->';
+  const remix = await rpc('tools/call', { name: 'pack_app', arguments: { name: 'Secret Egg DX', html: modHtml, hide_in_gif_base64: gif.b64encode(eggBytes) } });
+  const modBytes = gif.b64decode(remix.body.result.content[2].resource.blob);
+  check('mod keeps the host animation bytes untouched', (() => {
+    for (let i = 0; i < wild.length - 1; i++) if (modBytes[i] !== wild[i]) return false;
+    return true;
+  })());
+  const modBack = await gif.decode(modBytes);
+  check('mod swaps the payload in place (new files, no stale copy)',
+    !!modBack && gif.bytesToText(modBack.files['index.html']) === modHtml);
+  // a signed original comes back unsigned: fake a GIFOSSIG block, mod, verify gone
+  const sigBlock = Uint8Array.from([0x21, 0xff, 0x0b, ...Array.from('GIFOSSIGGOS', (c) => c.charCodeAt(0)), 4, 0x7b, 0x7d, 0x7d, 0x7d, 0x00]);
+  const signedEgg = new Uint8Array(eggBytes.length - 1 + sigBlock.length + 1);
+  signedEgg.set(eggBytes.subarray(0, eggBytes.length - 1), 0);
+  signedEgg.set(sigBlock, eggBytes.length - 1);
+  signedEgg[signedEgg.length - 1] = 0x3b;
+  const unSigned = await rpc('tools/call', { name: 'unpack_app', arguments: { gif_base64: gif.b64encode(signedEgg) } });
+  check('unpack_app warns about the signature on a signed original', /SIGNED/.test(unSigned.body.result.content[0].text));
+  const mod2 = await rpc('tools/call', { name: 'pack_app', arguments: { name: 'Egg Mod', html: modHtml, hide_in_gif_base64: gif.b64encode(signedEgg) } });
+  const mod2Bytes = gif.b64decode(mod2.body.result.content[2].resource.blob);
+  check('modding a signed app strips the stale signature', !gif.findAppExtSpan(mod2Bytes, 'GIFOSSIG') && /signature was removed/.test(mod2.body.result.content[0].text));
+  check('guide teaches the modding flow', /Modding other people/i.test(guideText) && /unpack_app/.test(guideText));
   check('guide forbids false sync/cloud claims', /NO cloud and NO automatic cross-device sync/.test(guideText) && /syncs across your\s+devices/.test(guideText));
 
   // ---- procedural fallback when no icon supplied ----

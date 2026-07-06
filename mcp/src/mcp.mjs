@@ -111,6 +111,22 @@ that becomes their hand-made app. Never redraw or "improve" a GIF the
 user provides; if they have none, ask what kind of cute animation they'd
 like drawn.
 
+## Modding other people's apps (ENCOURAGED — remix culture is the point)
+
+Any GifOS app GIF can be handed to you for a REMIX: "make the buttons
+bigger", "add a dark mode", "translate it", "turn this counter into a
+tracker". Apps are files, files get modded, and GifOS celebrates it. Flow:
+1. unpack_app with the GIF's bytes — you get the manifest, every file,
+   and any saved .state/ data inside.
+2. Make exactly the changes the user asked for.
+3. pack_app with hide_in_gif_base64 = the ORIGINAL GIF: the app payload is
+   swapped in place, the animation survives byte-for-byte, and the user's
+   saved data rides along if you pass the .state/ files through unchanged
+   (as extra_files) — only reset state if they ask.
+A signed original comes back unsigned — a mod is a NEW work the original
+author's signature can't vouch for; the modder can sign THEIR version at
+${SITE}/sign.html.
+
 ## Delivering to the user
 
 THE DELIVERABLE IS THE FINISHED .gif FILE — never hand the user raw HTML
@@ -222,6 +238,15 @@ const TOOLS = [
     },
   },
   {
+    name: 'unpack_app',
+    description: 'Open an existing GifOS app GIF and return everything inside: manifest, every file, and any saved .state/ data. USE THIS TO MOD APPS — remixing other people\'s apps is encouraged! Flow: unpack_app → edit the files → pack_app with hide_in_gif_base64 set to the SAME original GIF (the payload swaps in place, the animation survives byte-for-byte). Pass .state/ files through unchanged to keep the user\'s data.',
+    inputSchema: {
+      type: 'object',
+      required: ['gif_base64'],
+      properties: { gif_base64: { type: 'string', description: 'Base64 bytes of the GifOS app GIF to open' } },
+    },
+  },
+  {
     name: 'validate_app',
     description: 'Static checks on GifOS app HTML: external resource loads (blocked by the sandbox), forbidden storage APIs, missing gifos.db usage. Run before pack_app.',
     inputSchema: { type: 'object', required: ['html'], properties: { html: { type: 'string' } } },
@@ -248,6 +273,29 @@ async function callTool(name, args) {
       ? 'Issues found:\n- ' + problems.join('\n- ')
       : 'Looks good — no sandbox violations detected. Ready for pack_app.';
     return { content: [{ type: 'text', text }] };
+  }
+
+  if (name === 'unpack_app') {
+    let bytes;
+    try { bytes = gif.b64decode(String(args.gif_base64 || '').replace(/^data:image\/gif;base64,/, '')); }
+    catch (e) { throw new Error('gif_base64 is not valid base64'); }
+    const archive = await gif.decode(bytes);
+    if (!archive) throw new Error('no GifOS app found inside this GIF — nothing to unpack');
+    const files = archive.files;
+    const signed = !!gif.findAppExtSpan(bytes, 'GIFOSSIG');
+    const isText = (p) => /\.(html?|js|mjs|css|json|txt|md|svg|csv|xml)$/i.test(p);
+    const paths = Object.keys(files).sort();
+    const parts = [
+      'Unpacked ' + paths.length + ' file(s) from this GifOS app GIF.' +
+      (signed ? '\nNOTE: the original is SIGNED. A mod is a new work — repacking removes the signature; the modder can re-sign at ' + SITE + '/sign.html.' : '') +
+      '\nTo deliver a MOD: edit the files, then call pack_app with hide_in_gif_base64 = this SAME original GIF (payload swaps in place; animation survives byte-for-byte). Pass .state/ files through unchanged as extra_files to keep the user\'s saved data.',
+    ];
+    for (const p of paths) {
+      const f = files[p];
+      if (isText(p)) parts.push('--- ' + p + ' ---\n' + gif.bytesToText(f));
+      else parts.push('--- ' + p + ' (binary, ' + f.length + ' bytes, base64) ---\n' + b64encode(f));
+    }
+    return { content: [{ type: 'text', text: parts.join('\n\n') }] };
   }
 
   if (name === 'pack_app') {
@@ -280,6 +328,17 @@ async function callTool(name, args) {
       catch (e) { throw new Error('hide_in_gif_base64 is not valid base64'); }
       bytes = await gif.embed(host, files);
       artNote = 'hidden inside the supplied GIF — its original animation is untouched';
+      // A remix is a new work: the original author's signature can't vouch for
+      // modified files and would render as "Tampered" — strip it instead. The
+      // modder can sign their own version.
+      const sig = gif.findAppExtSpan(bytes, 'GIFOSSIG');
+      if (sig) {
+        const cut = new Uint8Array(bytes.length - (sig.end - sig.start));
+        cut.set(bytes.subarray(0, sig.start), 0);
+        cut.set(bytes.subarray(sig.end), sig.start);
+        bytes = cut;
+        artNote += '; the original signature was removed — a mod is a new work, re-signable at ' + SITE + '/sign.html';
+      }
     } else {
       const preview = iconToPreview(args.icon);
       let seed = 0;
