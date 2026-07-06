@@ -90,6 +90,17 @@
         +'<button class="btn" id="start" '+(ps.length<min?'disabled':'')+'>'+(startLabel||'Start')+' ('+ps.length+' players)</button>'
         +(ps.length<min?'<div class="muted center">Needs at least '+min+' players</div>':'');
     },
+    // Re-render without eating what the player is typing: live db changes
+    // (someone else's answer landing) redraw the screen, so the input's value,
+    // focus, and caret must survive the rebuild.
+    setHtml(el, html){
+      const inp=el.querySelector('#inp');
+      const v=inp?inp.value:null, hadFocus=inp&&document.activeElement===inp;
+      el.innerHTML=html;
+      const n=el.querySelector('#inp');
+      if(n&&v){ n.value=v; }
+      if(n&&hadFocus){ n.focus(); try{ n.setSelectionRange(n.value.length,n.value.length); }catch(e){} }
+    },
     bindLobby(onStart){
       const s=document.getElementById('start'); if(s) s.onclick=onStart;
       document.querySelectorAll('[data-drop]').forEach(function(el){
@@ -862,7 +873,7 @@ function render(){
     }
     html+='<div class="waitbar">'+have+'/'+need+' lies in'+(g.mode==='about'?(truthDoc?' · truth in':' · waiting for the truth'):'')+'</div>';
     if(allIn) html+='<button class="btn" id="toVote">Everyone\\'s in → show the ballot</button>';
-    M.innerHTML=html+scoreTable(g);
+    IRL.setHtml(M, html+scoreTable(g));
     const sub=document.getElementById('sub');
     if(sub) sub.onclick=function(){
       const v=document.getElementById('inp').value.trim(); if(!v) return;
@@ -995,7 +1006,7 @@ function render(){
                 :'<h2>Your ONE one-word clue</h2><input type="text" id="inp" maxlength="24"><button class="btn" id="sub">Lock it in</button>')+'</div>';
     }
     if(cs.length>=need) html+='<button class="btn" id="show">All clues in → show the guesser</button>';
-    M.innerHTML=html;
+    IRL.setHtml(M, html);
     const sub=document.getElementById('sub');
     if(sub) sub.onclick=function(){ const v=document.getElementById('inp').value.trim().split(/\\s+/)[0];
       if(!v) return; if(IRL.norm(v)===IRL.norm(word)){ alert('That IS the word — nice try 😄'); return; }
@@ -1117,7 +1128,7 @@ function render(){
               :'<input type="text" id="inp" maxlength="40" placeholder="What will the HERD say?"><button class="btn" id="sub">Lock it in</button>')+'</div>'
       +'<div class="waitbar">'+as.length+'/'+g.ids.length+' answers in</div>';
     if(as.length>=g.ids.length) html+='<button class="btn" id="rev">🐄 Stampede! (reveal)</button>';
-    M.innerHTML=html+scoreTable(g);
+    IRL.setHtml(M, html+scoreTable(g));
     const sub=document.getElementById('sub');
     if(sub) sub.onclick=function(){ const v=document.getElementById('inp').value.trim(); if(v) IRL.put({id:'a'+g.round+'_'+meId,text:v}); };
     const rv=document.getElementById('rev');

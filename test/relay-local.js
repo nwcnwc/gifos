@@ -53,8 +53,8 @@ class Conn {
 }
 
 // ---- session hub (mirrors the Durable Object) ----
-const sessions = new Map(); // id -> { host, token, clients:Map }
-function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, clients: new Map() }); return sessions.get(id); }
+const sessions = new Map(); // id -> { host, token, meshToken, clients:Map, names:Map }
+function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, meshToken: null, clients: new Map(), names: new Map() }); return sessions.get(id); }
 
 const server = http.createServer((req, res) => { res.writeHead(200); res.end('gifos relay (local)'); });
 
@@ -85,7 +85,8 @@ server.on('upgrade', (req, socket) => {
     return false;
   };
   const roster = () => {
-    const s = JSON.stringify({ t: 'roster', peers: Array.from(sess.clients.keys()) });
+    const names = {}; for (const [p, n] of sess.names) names[p] = n;
+    const s = JSON.stringify({ t: 'roster', peers: Array.from(sess.clients.keys()), names });
     if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
@@ -107,6 +108,27 @@ server.on('upgrade', (req, socket) => {
     conn.onclose = () => { if (sess.host === conn) { sess.host = null; for (const c of sess.clients.values()) c.send(JSON.stringify({ t: 'host-gone' })); } };
     conn.send(JSON.stringify({ t: 'host-ready' }));
     for (const p of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer: p }));
+    roster();
+  } else if (role === 'mesh') {
+    // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
+    if (sess.meshToken === null) sess.meshToken = token;
+    if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
+    const name = (url.searchParams.get('name') || '').slice(0, 40);
+    if (name) sess.names.set(peer, name);
+    sess.clients.set(peer, conn);
+    conn.onmessage = (data) => {
+      if (!allow(data)) return;
+      let m; try { m = JSON.parse(data); } catch (e) { return; }
+      if (m.t === 'peer') routePeer(peer, m);
+    };
+    conn.onclose = () => {
+      if (sess.clients.get(peer) !== conn) return;
+      sess.clients.delete(peer); sess.names.delete(peer);
+      const s = JSON.stringify({ t: 'peer-leave', peer });
+      for (const c of sess.clients.values()) c.send(s);
+      roster();
+    };
+    conn.send(JSON.stringify({ t: 'joined', peer }));
     roster();
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }
