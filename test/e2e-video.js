@@ -117,6 +117,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await cPage.waitForFunction(() => /muted for everyone by Ada/.test(document.querySelector('.tile.me').textContent), null, { timeout: 10000 });
   check('the muted person sees who muted them', true);
 
+  // The target cannot lift it themselves: their Unmute button refuses.
+  await cPage.locator('#mic').click();
+  await sleep(300);
+  check('a group-muted person cannot reopen their own mic',
+    (await cPage.evaluate(() => window.__gifosVideo.micEnabled())) === false
+    && /another participant has to lift it/.test(await cPage.locator('#status').textContent()));
+
   // And Bob (not Ada!) can lift it — anyone moderates, always attributed.
   const caiTileOnBob = bPage.locator('.tile:not(.me)', { hasText: 'Cai' });
   await caiTileOnBob.hover();
@@ -166,6 +173,38 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await fPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   await ePage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
   check('a reload rejoins the same room and the call re-establishes', true);
+
+  // ---------- room password: set by one, propagated to all, demanded of joiners ----------
+  await fPage.locator('#pwbtn').click();
+  await fPage.locator('#pw-new').fill('sesame');
+  await fPage.locator('#pw-save').click();
+  // Eve was already in the room → the new password reaches her session live
+  await ePage.waitForFunction(() => window.__gifosVideo.roomPw() === 'sesame', null, { timeout: 10000 });
+  check('a password set by one participant propagates to every attached session', true);
+  // …and her "Show current password" reveals it
+  await ePage.locator('#pwbtn').click();
+  await ePage.locator('#pw-show').click();
+  check('Show current password reveals the live password',
+    (await ePage.locator('#pw-cur').inputValue()) === 'sesame'
+    && (await ePage.locator('#pw-cur').getAttribute('type')) === 'text');
+  await ePage.locator('#pw-cancel').click();
+  // a newcomer without the password is stopped at the door
+  const gCtx = await newUser('Gil');
+  const gPage = await gCtx.newPage();
+  gPage.on('console', (m) => { if (m.type() === 'error') console.log('  [gil]', m.text()); });
+  await gPage.goto(link);
+  await gPage.waitForSelector('#pw-modal', { state: 'visible', timeout: 15000 });
+  check('a locked room prompts new joiners for the password', /locked/i.test(await gPage.locator('#pw-title').textContent()));
+  // wrong password → bounced straight back to the prompt
+  await gPage.locator('#pw-new').fill('wrong-guess');
+  await gPage.locator('#pw-save').click();
+  await gPage.waitForSelector('#pw-modal', { state: 'visible', timeout: 15000 });
+  check('a wrong password bounces back to the prompt', true);
+  // right password → in, talking to everyone
+  await gPage.locator('#pw-new').fill('sesame');
+  await gPage.locator('#pw-save').click();
+  await gPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 2, null, { timeout: 25000 });
+  check('the correct password admits the joiner into the call', true);
 
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');

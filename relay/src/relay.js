@@ -141,6 +141,10 @@ export class Session {
       let meshToken = await this.state.storage.get('meshToken');
       if (meshToken === undefined || meshToken === null) { meshToken = token; await this.state.storage.put('meshToken', token); }
       if (meshToken !== token) return reject('bad room token', 1008);
+      // Optional room password: set by anyone INSIDE the room (see 'setpw'),
+      // stored durably, demanded of every joiner while it's set.
+      const roomPw = (await this.state.storage.get('pw')) || '';
+      if (roomPw && (url.searchParams.get('pw') || '') !== roomPw) return reject('password required', 4003);
       for (const ws of this.members()) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
       server.serializeAttachment({ role: 'mesh', peer, name, ip });
@@ -182,6 +186,14 @@ export class Session {
       else if (m.t === 'peer') this.routePeer('host', m);
     } else if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — no host to fall back to
+      else if (m.t === 'setpw' && typeof m.pw === 'string') {
+        // Only someone already IN the room can reach this — that's the
+        // authorization. The new password propagates to every member so
+        // their sessions keep working, and empty removes the lock.
+        const pw = m.pw.slice(0, 64);
+        if (pw) this.state.storage.put('pw', pw); else this.state.storage.delete('pw');
+        this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
+      }
     } else if (a.role === 'client') {
       if (m.t === 'peer') this.routePeer(a.peer, m);
       else { const h = this.hostSock(); if (h) this.send(h, { t: 'from', from: a.peer, msg: m }); }

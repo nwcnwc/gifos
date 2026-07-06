@@ -129,6 +129,7 @@ server.on('upgrade', (req, socket) => {
     // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
     if (sess.meshToken === null) sess.meshToken = token;
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
+    if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
     const name = (url.searchParams.get('name') || '').slice(0, 40);
     if (name) sess.names.set(peer, name);
     sess.clients.set(peer, conn);
@@ -136,6 +137,11 @@ server.on('upgrade', (req, socket) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
       if (m.t === 'peer') routePeer(peer, m);
+      else if (m.t === 'setpw' && typeof m.pw === 'string') {
+        sess.pw = m.pw.slice(0, 64) || null;
+        const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: (m.by || '').slice(0, 40) });
+        for (const c of sess.clients.values()) c.send(s);
+      }
     };
     conn.onclose = () => {
       if (sess.clients.get(peer) !== conn) return;

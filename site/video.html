@@ -74,6 +74,7 @@
     <button id="mic" class="off">Unmute</button>
     <button id="cam" class="off">Camera on</button>
     <button id="blur" title="Completely blur your video for everyone">Blur</button>
+    <button id="pwbtn" title="Lock this room with a password">🔒 Password</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
@@ -83,6 +84,22 @@
   </div>
   <div id="grid"></div>
   <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video, so if a direct route can't be found there is no call. Quality steps down automatically as more people join.</div>
+
+  <div class="name-modal" id="pw-modal" style="display:none">
+    <div class="name-box">
+      <h3 id="pw-title">Room password</h3>
+      <p id="pw-hint">Anyone in the call can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
+      <div id="pw-cur-row" style="display:flex;gap:.5rem;margin-bottom:.8rem">
+        <input id="pw-cur" type="password" readonly>
+        <button id="pw-show" style="white-space:nowrap;background:#1c1c2b;border:1px solid #2a2a3f">Show current password</button>
+      </div>
+      <input id="pw-new" maxlength="64" placeholder="New password" autocomplete="off">
+      <div style="display:flex;gap:.5rem;justify-content:center">
+        <button id="pw-save">Save</button>
+        <button id="pw-cancel" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script src="js/gifos-store.js"></script>
   <script src="js/relay-config.js"></script>
@@ -182,14 +199,19 @@
         const mine = modTable[target] = modTable[target] || {};
         for (const field of ['mute', 'blur']) {
           const inc = incoming[target][field];
-          if (inc && (!mine[field] || inc.at > mine[field].at)) { mine[field] = inc; changed = true; }
+          if (!inc) continue;
+          // The TARGET cannot lift a restriction the group put on them —
+          // every receiver rejects a self-authored "off" independently.
+          if (inc.on === false && inc.byId === target) continue;
+          if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
       if (changed) refreshAllTiles();
     }
     function setMod(target, field, on) {
+      if (target === myId) return; // you moderate others, never yourself
       const mine = modTable[target] = modTable[target] || {};
-      mine[field] = { on, by: myName(), at: Date.now() };
+      mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
       for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
       refreshAllTiles();
     }
@@ -412,6 +434,10 @@
     }
 
     let room = null, roomToken = null, backoff = 500, reopenTimer = null;
+    let roomPw = '', pwBlocked = false;
+    const pwKey = () => 'gifos_vpw_' + room;
+    function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
+    function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // A per-tab, per-room peer id: a reload reconnects AS the same peer and
     // the relay's stale-close guard swaps the socket instead of duplicating us.
     function myPeerId() {
@@ -425,11 +451,11 @@
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
       ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + room + '?role=mesh&token=' + roomToken +
-        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()));
+        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw));
       ws.onopen = () => { backoff = 500; updateStatus(); };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
       ws.onclose = () => {
-        if (leaving) return;
+        if (leaving || pwBlocked) return; // pw prompt owns the reconnect now
         updateStatus(); // live P2P links stay up; we quietly rejoin the room
         clearTimeout(reopenTimer);
         backoff = Math.min(5000, backoff * 2);
@@ -441,7 +467,16 @@
         else if (m.t === 'roster') reconcile(m.peers, m.names);
         else if (m.t === 'peer') onSignal(m.from, m.msg);
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
-        else if (m.t === 'error') setStatus('Relay: ' + m.error);
+        else if (m.t === 'pw') {
+          // someone in the room changed the password — every attached session
+          // adopts it so reconnects and reloads keep working seamlessly
+          storePw(m.pw);
+          setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated') : '🔓 Password removed' + (m.by ? ' by ' + m.by : ''));
+        }
+        else if (m.t === 'error') {
+          if (/password required/.test(m.error || '')) { pwBlocked = true; clearTimeout(reopenTimer); showPwModal(true); }
+          else setStatus('Relay: ' + m.error);
+        }
       };
     }
     function kickSock() {
@@ -491,9 +526,55 @@
     // Join (or create) the room. The room id lives in the URL from the very
     // first moment — a reload, a bookmark, or a share all land in the SAME
     // room, and the room outlives everyone in it.
+    // ---- room password UI: one modal, two moods -------------------------------
+    const pwModal = document.getElementById('pw-modal');
+    function showPwModal(locked) {
+      document.getElementById('pw-title').textContent = locked ? '🔒 This room is locked' : '🔒 Room password';
+      document.getElementById('pw-hint').textContent = locked
+        ? 'Enter the room password to join the call.'
+        : 'Anyone in the call can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
+      document.getElementById('pw-cur-row').style.display = locked ? 'none' : 'flex';
+      document.getElementById('pw-cur').value = roomPw;
+      document.getElementById('pw-cur').type = 'password';
+      document.getElementById('pw-show').textContent = 'Show current password';
+      const inp = document.getElementById('pw-new');
+      inp.value = ''; inp.placeholder = locked ? 'Password' : 'New password';
+      document.getElementById('pw-save').textContent = locked ? 'Join' : 'Save';
+      document.getElementById('pw-cancel').style.display = locked ? 'none' : '';
+      pwModal.dataset.mode = locked ? 'join' : 'manage';
+      pwModal.style.display = 'flex';
+      inp.focus();
+    }
+    document.getElementById('pwbtn').onclick = () => showPwModal(false);
+    document.getElementById('pw-cancel').onclick = () => { pwModal.style.display = 'none'; };
+    document.getElementById('pw-show').onclick = (e) => {
+      const cur = document.getElementById('pw-cur');
+      const showing = cur.type === 'text';
+      cur.type = showing ? 'password' : 'text';
+      e.target.textContent = showing ? 'Show current password' : 'Hide password';
+    };
+    document.getElementById('pw-save').onclick = () => {
+      const v = document.getElementById('pw-new').value.trim();
+      if (pwModal.dataset.mode === 'join') {
+        if (!v) return;
+        storePw(v);
+        pwBlocked = false;
+        pwModal.style.display = 'none';
+        setStatus('Trying the password…');
+        clearTimeout(reopenTimer);
+        openSock(); // wrong password → the relay bounces us right back here
+      } else {
+        storePw(v);
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'setpw', pw: v, by: myName() }));
+        pwModal.style.display = 'none';
+      }
+    };
+    document.getElementById('pw-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('pw-save').click(); });
+
     function joinRoom() {
       room = params.get('v') || shortCode();
       roomToken = params.get('k') || room;
+      loadPw();
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const wantHash = '#v=' + room + '&k=' + roomToken + (custom ? '&relay=' + encodeURIComponent(relay) : '');
@@ -541,6 +622,12 @@
     micBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getAudioTracks()[0]; if (!track) return;
+      const gm = modOf('me').mute;
+      if (!track.enabled && gm && gm.on) {
+        // group-muted: the target can't reopen their own mic — someone else must lift it
+        setStatus('You were muted for everyone by ' + gm.by + ' — another participant has to lift it.');
+        return;
+      }
       track.enabled = !track.enabled;
       myStatus.muted = !track.enabled;
       micBtn.classList.toggle('off', !track.enabled);
@@ -581,6 +668,8 @@
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       quality: () => rung(participantCount()).label,
       room: () => room,
+      roomPw: () => roomPw,
+      micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
     };
   })();
   </script>
