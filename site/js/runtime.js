@@ -731,7 +731,7 @@
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
-              setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+              setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
             }, { onDisplaced: displaced });
             announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
             setStatus('Live — send your invite link so friends can join');
@@ -803,8 +803,8 @@
       else sendChunked(payload, (piece, str) => ws.send(str));
     };
     const runningStatus = () => setStatus(channel && channel.readyState === 'open'
-      ? 'Running as client · P2P direct'
-      : 'Running as client · Via relay');
+      ? 'Connected · a direct line to the host'
+      : 'Connected · via GifOS');
 
     // ---- calm connection grading ------------------------------------------
     // Blips (phone glanced away, network hiccup) must not alarm anyone: soft
@@ -1011,7 +1011,7 @@
           hostApi = attachHost(ws2, db, appBytes, (s) => {
             root.__gifosHostStats = s;
             announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
-            setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+            setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
           }, {
             selfPeer: myPeer,
             onDisplaced: () => {
