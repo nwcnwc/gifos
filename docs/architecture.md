@@ -468,8 +468,8 @@ shares a key.
 The key URL is **never embedded** — it is derived from the identity being
 displayed, so "Signed by X" is exactly as strong as controlling X:
 
-- **domain** (`nathancheng.com`): Ed25519. The 32-byte public key must be
-  base64 at `https://nathancheng.com/gifos.key` (served with CORS). Signing and
+- **domain** (e.g. `example.com`): Ed25519. The 32-byte public key must be
+  base64 at `https://example.com/gifos.key` (served with CORS). Signing and
   verifying use native WebCrypto Ed25519 — zero dependencies.
 - **email** (`alice@example.com`): OpenPGP. The signer signs the canonical
   statement with their own PGP key; the verifier fetches their key from

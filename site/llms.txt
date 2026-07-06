@@ -106,8 +106,9 @@ AFTER the GIF is final:
 - domain: an Ed25519 key generated on that page; they publish the public
   half at https://<their-domain>/gifos.key.
 - email: their own PGP key (gpg detach-signs a statement the page
-  provides); recipients verify against keys.openpgp.org, so the key must
-  be uploaded there with the address confirmed.
+  provides) — Ed25519 and RSA (2048+) keys both work; recipients verify
+  against keys.openpgp.org, so the key must be uploaded there with the
+  address confirmed.
 The signature excludes app *state*, so it stays valid as people use the
 app. NEVER ask the user for a private key — signing happens entirely on
 their side. A signature proves authorship, not safety.

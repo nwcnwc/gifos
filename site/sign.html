@@ -62,7 +62,7 @@
     <div class="pane on" id="pane-domain">
       <p>Signs with an <b>Ed25519</b> key you generate here. Publish the public half at <code id="keyurl">https://yourdomain/gifos.key</code> and anyone can verify — the key location is derived from the domain, so “Signed by it” means you control it.</p>
       <label>Your domain</label>
-      <input id="domain" placeholder="nathancheng.com" autocomplete="off">
+      <input id="domain" placeholder="yourdomain.com" autocomplete="off">
       <div class="box">
         <p style="margin:0 0 .5rem"><span class="step">1.</span> Get a signing key</p>
         <button class="act ghost" id="gen">Generate a new key</button>
@@ -84,7 +84,7 @@
 
     <!-- EMAIL -->
     <div class="pane" id="pane-email">
-      <p>Signs with your own <b>OpenPGP</b> key using your existing tools — your private key never touches this page. Others verify against the copy of your key on <a href="https://keys.openpgp.org" target="_blank">keys.openpgp.org</a>, so <b>publish your key there first</b> and confirm your email.</p>
+      <p>Signs with your own <b>OpenPGP</b> key using your existing tools — <b>Ed25519 and RSA (2048+) keys both work</b>, and your private key never touches this page. Others verify against the copy of your key on <a href="https://keys.openpgp.org" target="_blank">keys.openpgp.org</a>, so <b>publish your key there first</b> and confirm your email.</p>
       <label>Your email</label>
       <input id="email" placeholder="you@example.com" autocomplete="off">
       <div class="box">

@@ -45,13 +45,13 @@ function buildApp(indexHtml, state) {
 
   // ---- domain leg: Ed25519 ----
   const { keyPair, publicKeyB64 } = await sign.generateDomainKey();
-  const signedGif = await sign.signDomain(app, 'nathancheng.com', keyPair, '2026-07-05');
+  const signedGif = await sign.signDomain(app, 'example-signer.com', keyPair, '2026-07-05');
   check('signed GIF still decodes as the same app', gif.bytesToText((await gif.decode(signedGif)).files['index.html']) === '<h1>hello signed world</h1>');
-  check('a signature block is present + readable', sign.readSig(signedGif).id === 'nathancheng.com');
+  check('a signature block is present + readable', sign.readSig(signedGif).id === 'example-signer.com');
 
   // verify the domain signature directly (bypassing the network fetch)
   const pub = sign._b64ToBytes(publicKeyB64);
-  const st = sign.statement('domain', 'nathancheng.com', Buffer.from(await sign.contentHash(signedGif)).toString('hex'));
+  const st = sign.statement('domain', 'example-signer.com', Buffer.from(await sign.contentHash(signedGif)).toString('hex'));
   const rawSig = sign._b64ToBytes(sign.readSig(signedGif).sig);
   check('domain Ed25519 signature verifies for the derived key', await sign._ed25519Verify(pub, rawSig, st));
 
@@ -59,12 +59,12 @@ function buildApp(indexHtml, state) {
   // separate block, so repack of state must NOT touch it)
   // Simulate: fold in state via the app's own path, then re-verify content hash.
   const stateOnSigned = sign.writeSig(app, sign.readSig(signedGif)); // sig block on a state-changed base
-  const st2 = sign.statement('domain', 'nathancheng.com', Buffer.from(await sign.contentHash(stateOnSigned)).toString('hex'));
+  const st2 = sign.statement('domain', 'example-signer.com', Buffer.from(await sign.contentHash(stateOnSigned)).toString('hex'));
   check('signature still matches after re-attaching to state-bearing bytes', await sign._ed25519Verify(pub, rawSig, st2));
 
   // tamper: change the app AFTER signing → must fail
   const tampered = sign.writeSig(changedApp, sign.readSig(signedGif));
-  const stT = sign.statement('domain', 'nathancheng.com', Buffer.from(await sign.contentHash(tampered)).toString('hex'));
+  const stT = sign.statement('domain', 'example-signer.com', Buffer.from(await sign.contentHash(tampered)).toString('hex'));
   check('tampering after signing breaks verification', !(await sign._ed25519Verify(pub, rawSig, stT)));
 
   // ---- email leg: a REAL gpg Ed25519 detached signature ----
