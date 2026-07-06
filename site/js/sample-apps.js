@@ -747,7 +747,7 @@ opens the built-in video page when opened in GifOS.</p>
   <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b>, right on your Home Screen!</p></div>
 
   <div class="card"><h2><span class="emoji">🎉</span>Games for real-life hangouts</h2>
-  <p>The <b>IRL Games</b> folder is for game night: the phone deals the secret words, keeps time, and counts the votes — the laughing, acting, and accusing happens face to face. One phone is enough for the whole room.</p></div>
+  <p>The <b>IRL Games</b> folder is for game night: everyone keeps their own phone — open a game, press <b>Invite</b>, and secret roles, hidden votes, and sneaky lies get dealt to each player's screen while the laughing and accusing happens face to face. Only one phone in the room? The <b>Single Phone</b> subfolder has pass-around versions.</p></div>
 
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
   <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
@@ -843,8 +843,12 @@ opens the built-in video page when opened in GifOS.</p>
       ] },
       // Party games where the phone just facilitates — dealing secrets,
       // keeping time, counting votes — and the action happens in person.
-      { name: 'IRL Games', apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) =>
-        app(g.name, g.appId, g.accent, g.html)) },
+      // Top level: everyone joins from their own phone via Invite. The
+      // pass-the-phone versions live in a "Single Phone" subfolder.
+      { name: 'IRL Games',
+        apps: (GifOS.irl ? GifOS.irl.netApps : []).map((g) => app(g.name, g.appId, g.accent, g.html)),
+        sub: [{ name: 'Single Phone',
+          apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html)) }] },
     ];
     // Loose icons live at the desktop root: Welcome (a real onboarding app —
     // the README travels inside its GIF too) and Video Call (the killer app,
@@ -858,8 +862,12 @@ opens the built-in video page when opened in GifOS.</p>
                'index.html': VIDEO_FALLBACK_HTML },
     }];
 
+    const encGroup = (g) => Promise.all([
+      Promise.all(g.apps.map(enc)),
+      Promise.all((g.sub || []).map(encGroup)),
+    ]).then((r) => ({ name: g.name, apps: r[0], sub: r[1] }));
     return Promise.all([
-      Promise.all(groups.map((g) => Promise.all(g.apps.map(enc)).then((apps) => ({ name: g.name, apps })))),
+      Promise.all(groups.map(encGroup)),
       Promise.all(loose.map(enc)),
     ]).then((r) => ({ folders: r[0], loose: r[1] }));
   }

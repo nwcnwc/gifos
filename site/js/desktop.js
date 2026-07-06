@@ -93,7 +93,7 @@
   // form). Day-to-day the children live as store rows for speed; Download
   // packs a self-contained BUNDLE — children (state folded in) inside the
   // folder's own GIF, recursively — and dropping a bundle unpacks it back.
-  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60] };
+  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60], 'Single Phone': [92, 200, 255] };
   function accentFor(name) {
     if (FOLDER_ACCENTS[name]) return FOLDER_ACCENTS[name];
     let h = 0; const s = String(name || 'Folder');
@@ -137,11 +137,14 @@
       if (a.appId === 'video') await putApp(a, null, { x: rightX, y: rowY(rightRow++) });
       else await putApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
-    for (const folder of seed.folders) {
-      const f = await createFolder(folder.name, null, rightX, rowY(rightRow++));
+    const putFolder = async (folder, parent, x, y) => {
+      const f = await createFolder(folder.name, parent, x, y);
       let inside = 0;
       for (const a of folder.apps) await putApp(a, f.id, gridPosition(inside++));
-    }
+      for (const sub of folder.sub || []) { const p = gridPosition(inside++); await putFolder(sub, f.id, p.x, p.y); }
+      return f;
+    };
+    for (const folder of seed.folders) await putFolder(folder, null, rightX, rowY(rightRow++));
     await load();
   }
 

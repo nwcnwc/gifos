@@ -69,6 +69,34 @@
     beep(freq,ms){ try{ const C=window.AudioContext||window.webkitAudioContext; if(!C)return; IRL.ac=IRL.ac||new C();
       const o=IRL.ac.createOscillator(), g=IRL.ac.createGain(); o.frequency.value=freq||880; g.gain.value=.12;
       o.connect(g); g.connect(IRL.ac.destination); o.start(); setTimeout(function(){o.stop();},ms||180); }catch(e){} },
+    // deterministic shuffle: same seed → same order on every phone
+    seeded(seed){ let a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+      t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; },
+    seededShuffle(arr,seed){ const r=IRL.seeded(seed), a=arr.slice();
+      for(let i=a.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; },
+    norm(s){ s=String(s||'').toLowerCase().trim().replace(/[^a-z0-9 ]/g,'');
+      if(s.length>3&&s.slice(-1)==='s') s=s.slice(0,-1); return s; },
+    // docs for this round with a given prefix, e.g. IRL.docs('v', g.round)
+    docs(prefix,round){ return (IRL.extra||[]).filter(function(x){ return String(x.id).indexOf(prefix+round+'_')===0; }); },
+    coordinator(g){ return g&&g.ids&&g.ids[0]===IRL.me.id; },
+    // the everyone-joins lobby: live player chips (tap a chip to drop a stale
+    // player), invite guidance, and a start button gated on the minimum count
+    lobby(min,title,text,startLabel){
+      const ps=IRL.players;
+      return '<div class="card"><h2>'+title+'</h2><div class="muted">'+text+'</div></div>'
+        +'<div class="card"><h2>Players here ('+ps.length+')</h2><div class="chips">'
+        +ps.map(function(p){ return '<span class="chip'+(p.id==='p_'+IRL.me.id?' me':'')+'" data-drop="'+p.id+'">'+IRL.esc(p.name)+'</span>'; }).join('')
+        +'</div><div class="muted">📲 Everyone plays on their OWN phone: tap <b>Invite</b> in the top bar, send the link, and friends appear here as they open it.</div></div>'
+        +'<button class="btn" id="start" '+(ps.length<min?'disabled':'')+'>'+(startLabel||'Start')+' ('+ps.length+' players)</button>'
+        +(ps.length<min?'<div class="muted center">Needs at least '+min+' players</div>':'');
+    },
+    bindLobby(onStart){
+      const s=document.getElementById('start'); if(s) s.onclick=onStart;
+      document.querySelectorAll('[data-drop]').forEach(function(el){
+        el.onclick=function(){ const pid=el.dataset.drop;
+          if(pid!=='p_'+IRL.me.id && confirm('Remove '+el.textContent+' from the lobby?')) IRL.del(pid); };
+      });
+    },
   };
   `;
 
@@ -719,7 +747,623 @@ function rCard(){
 IRL.init(); rSetup();
 </script>`;
 
+  // ============================ FAKE FACTS ===================================
+  // Everyone invents a lie on their own phone; the truth hides among them.
+  // Reading the options aloud and watching friends fall for YOUR lie is the game.
+  const ABOUT_PROMPTS = [
+    'The weirdest thing {s} has ever eaten is ___','{s}’s first celebrity crush was ___',
+    'The movie that made {s} cry is ___','{s}’s most-used emoji is ___',
+    'The chore {s} secretly enjoys is ___','{s}’s irrational fear is ___',
+    'The app {s} wastes the most time on is ___','{s}’s go-to karaoke song is ___',
+    'The food {s} refuses to try is ___','{s}’s hidden talent is ___',
+    'At age 8, {s} wanted to be ___','The item {s} would grab first in a fire is ___',
+    '{s}’s most rewatched show is ___','The word {s} can never spell is ___',
+    '{s}’s weirdest habit is ___','The smell {s} loves that others find odd is ___',
+    '{s}’s go-to excuse for canceling plans is ___','The thing {s} is always losing is ___',
+    '{s}’s dream vacation is ___','{s}’s most controversial opinion is ___',
+  ];
+  const TRUE_FACTS = [
+    ['In Switzerland it is illegal to own just one ___','guinea pig'],
+    ['The national animal of Scotland is the ___','unicorn'],
+    ['A group of flamingos is called a ___','flamboyance'],
+    ['Bananas are technically ___','berries'],
+    ['The Eiffel Tower grows about 6 inches taller every ___','summer'],
+    ['Astronauts in space cannot ___','cry'],
+    ['A shrimp’s heart is located in its ___','head'],
+    ['Sea otters sleep holding each other’s ___','paws'],
+    ['Wombat poop is shaped like a ___','cube'],
+    ['The first thing ever sold on eBay was a broken ___','laser pointer'],
+    ['Scotland has 421 words for ___','snow'],
+    ['In France it is illegal to name a pig ___','Napoleon'],
+    ['Honey is the one food that never ___','spoils'],
+    ['An octopus has ___ hearts','three'],
+    ['It is impossible for most people to lick their own ___','elbow'],
+    ['A bolt of lightning is five times hotter than the surface of the ___','sun'],
+  ];
+
+  const FAKEFACTS_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${STYLE('#d4703d')}
+  .opt{border:3px solid #2b2440;border-radius:14px;background:#fff;padding:12px 14px;font-weight:700;margin:8px 0;cursor:pointer}
+  .opt.sel{background:#d4703d;color:#fff}
+  .opt.truth{background:#3ba55d;color:#fff}
+  .opt .who{display:block;font-size:12.5px;font-weight:600;margin-top:4px;opacity:.85}
+  .waitbar{font-weight:800;text-align:center;margin:6px 0}
+</style>
+<header>🤥 Fake Facts</header>
+<main id="m"></main>
+<script>
+${PARTY_LIB}
+const ABOUT=${JSON.stringify(ABOUT_PROMPTS)};
+const FACTS=${JSON.stringify(TRUE_FACTS)};
+const M=document.getElementById('m');
+let myPick=null;
+
+function start(mode){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  IRL.save({ phase:'write', mode:mode, round:0, ids:ids, names:names,
+    seed:Math.floor(Math.random()*1e9), scores:{}, order:IRL.shuffle(ids) });
+}
+function promptFor(g){
+  if(g.mode==='about'){ const s=g.names[g.ids.indexOf(g.order[g.round%g.ids.length])];
+    return IRL.seededShuffle(ABOUT,g.seed)[g.round%ABOUT.length].replace('{s}','<b>'+IRL.esc(s)+'</b>'); }
+  return IRL.esc(IRL.seededShuffle(FACTS,g.seed)[g.round%FACTS.length][0]);
+}
+function truthOf(g){
+  if(g.mode==='about'){ const t=IRL.docs('t',g.round)[0]; return t?t.text:null; }
+  return IRL.seededShuffle(FACTS,g.seed)[g.round%FACTS.length][1];
+}
+function subjectId(g){ return g.mode==='about' ? g.order[g.round%g.ids.length] : null; }
+function writersOf(g){ const s=subjectId(g); return g.ids.filter(function(id){ return id!==s; }); }
+function options(g){
+  const truth=truthOf(g); if(truth===null) return null;
+  const opts=[{k:'t',text:truth,authors:[]}];
+  IRL.docs('f',g.round).forEach(function(f){
+    const pid=f.id.split('_')[1];
+    if(IRL.norm(f.text)===IRL.norm(truth)){ return; } // a fake that IS the truth folds into it
+    const dup=opts.find(function(o){ return o.k!=='t'&&IRL.norm(o.text)===IRL.norm(f.text); });
+    if(dup){ dup.authors.push(pid); } else opts.push({k:pid,text:f.text,authors:[pid]});
+  });
+  return IRL.seededShuffle(opts, g.seed+g.round*7+1);
+}
+function nameOf(g,pid){ return g.names[g.ids.indexOf(pid)]||'?'; }
+function scoreTable(g){ const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
+  return '<div class="card"><h2>Scores</h2><table class="scores">'+ks.map(function(k){return '<tr><td>'+IRL.esc(nameOf(g,k))+'</td><td><b>'+(sc[k]||0)+'</b></td></tr>';}).join('')+'</table></div>'; }
+
+function render(){
+  const g=IRL.g;
+  if(!g||!g.phase||g.phase==='lobby'){
+    M.innerHTML=IRL.lobby(3,'The truth is hiding among your lies 🤥',
+      'A question appears on every phone. Everyone secretly types a convincing FAKE answer, then all answers (plus the real one) show up on all phones — read them aloud, vote, and cackle at who fell for whose lie.','Pick a mode to start')
+      +'<div class="card"><h2>Mode</h2>'
+      +'<button class="btn alt" id="mAbout">🫵 About Us — the truth comes from YOU (one round per player)</button>'
+      +'<button class="btn alt" id="mFacts">🌍 Weird But True — real trivia, unbelievable answers</button></div>';
+    const st=document.getElementById('start'); if(st) st.style.display='none'; // the mode buttons ARE the start
+    document.getElementById('mAbout').onclick=function(){ if(IRL.players.length>=3) start('about'); };
+    document.getElementById('mFacts').onclick=function(){ if(IRL.players.length>=3) start('facts'); };
+    IRL.bindLobby(function(){});
+    return;
+  }
+  const meId=IRL.me.id, subj=subjectId(g);
+  if(g.phase==='write'){
+    myPick=null;
+    const fakes=IRL.docs('f',g.round), truthDoc=IRL.docs('t',g.round)[0];
+    const need=writersOf(g).length, have=fakes.length;
+    const allIn=have>=need && (g.mode!=='about'||!!truthDoc);
+    let html='<div class="card"><h2>Round '+(g.round+1)+'</h2><div class="bigword" style="font-size:22px">'+promptFor(g)+'</div></div>';
+    const iWrote=fakes.some(function(f){return f.id==='f'+g.round+'_'+meId;});
+    if(meId===subj){
+      html+= truthDoc?'<div class="card center"><h2>✅ Truth locked in</h2><div class="muted">Now look innocent while they write lies about you.</div></div>'
+        :'<div class="card"><h2>You\\'re the subject! Type the TRUE answer</h2><input type="text" id="inp" maxlength="60"><button class="btn" id="sub">Lock in the truth</button></div>';
+    } else if(!iWrote){
+      html+='<div class="card"><h2>Type a convincing FAKE answer</h2><input type="text" id="inp" maxlength="60"><button class="btn" id="sub">Submit my lie</button></div>';
+    } else {
+      html+='<div class="card center"><h2>😇 Lie submitted</h2><div class="muted">Keep a straight face.</div></div>';
+    }
+    html+='<div class="waitbar">'+have+'/'+need+' lies in'+(g.mode==='about'?(truthDoc?' · truth in':' · waiting for the truth'):'')+'</div>';
+    if(allIn) html+='<button class="btn" id="toVote">Everyone\\'s in → show the ballot</button>';
+    M.innerHTML=html+scoreTable(g);
+    const sub=document.getElementById('sub');
+    if(sub) sub.onclick=function(){
+      const v=document.getElementById('inp').value.trim(); if(!v) return;
+      if(meId===subj){ IRL.put({id:'t'+g.round,text:v}); return; }
+      const tr=truthOf(g);
+      if(tr!==null&&IRL.norm(v)===IRL.norm(tr)){ alert('Ooh — too close to the truth! Try a different lie.'); return; }
+      IRL.put({id:'f'+g.round+'_'+meId,text:v});
+    };
+    const tv=document.getElementById('toVote');
+    if(tv) tv.onclick=function(){ IRL.save(Object.assign({},g,{phase:'vote'})); };
+    if(allIn&&IRL.coordinator(g)) IRL.save(Object.assign({},g,{phase:'vote'}));
+  } else if(g.phase==='vote'){
+    const opts=options(g)||[];
+    const votes=IRL.docs('v',g.round);
+    const voters=g.mode==='about'?writersOf(g):g.ids;
+    const canVote=voters.indexOf(meId)>=0;
+    const mine=votes.find(function(v){return v.id==='v'+g.round+'_'+meId;});
+    let html='<div class="card"><h2>🗣 Read these aloud… which is TRUE?</h2><div class="muted">'+promptFor(g)+'</div></div>';
+    html+=opts.map(function(o,i){
+      const isMine=o.authors.indexOf(meId)>=0;
+      const sel=mine&&mine.k===o.k;
+      return '<div class="opt'+(sel?' sel':'')+'" data-k="'+IRL.esc(o.k)+'">'+IRL.esc(o.text)
+        +(isMine?'<span class="who">(that\\'s your lie — can\\'t vote for it)</span>':'')+'</div>';
+    }).join('');
+    html+='<div class="waitbar">'+votes.length+'/'+voters.length+' votes in</div>';
+    if(votes.length>=voters.length) html+='<button class="btn" id="rev">🥁 The big reveal</button>';
+    M.innerHTML=html+scoreTable(g);
+    if(canVote&&!g.revealed) M.querySelectorAll('.opt').forEach(function(el){
+      el.onclick=function(){ const k=el.dataset.k;
+        const o=opts.find(function(x){return x.k===k;});
+        if(o&&o.authors.indexOf(meId)>=0){ IRL.beep(220,150); return; }
+        IRL.put({id:'v'+g.round+'_'+meId,k:k}); };
+    });
+    const rv=document.getElementById('rev');
+    if(rv) rv.onclick=function(){ advance(g); };
+    if(votes.length>=voters.length&&IRL.coordinator(g)) advance(g);
+  } else if(g.phase==='reveal'){
+    const opts=options(g)||[];
+    const votes=IRL.docs('v',g.round);
+    let html='<div class="card"><h2>The truth comes out 🎉</h2></div>';
+    opts.forEach(function(o){
+      const fooled=votes.filter(function(v){return v.k===o.k;}).map(function(v){return nameOf(g,v.id.split('_')[1]);});
+      if(o.k==='t') html+='<div class="opt truth">'+IRL.esc(o.text)+'<span class="who">✅ THE TRUTH — found by: '+(fooled.join(', ')||'nobody!')+'</span></div>';
+      else html+='<div class="opt">'+IRL.esc(o.text)+'<span class="who">🤥 '+o.authors.map(function(a){return IRL.esc(nameOf(g,a));}).join(' & ')+' fooled: '+(fooled.join(', ')||'no one')+'</span></div>';
+    });
+    const last=g.mode==='about'?g.round+1>=g.ids.length:g.round+1>=8;
+    html+='<button class="btn" id="next">'+(last?'Final scores':'Next round')+'</button>';
+    M.innerHTML=html+scoreTable(g);
+    document.getElementById('next').onclick=function(){
+      if(last){ IRL.save(Object.assign({},g,{phase:'end'})); }
+      else IRL.save(Object.assign({},g,{phase:'write',round:g.round+1}));
+    };
+  } else if(g.phase==='end'){
+    const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
+    M.innerHTML='<div class="card center"><h2>🏆 '+IRL.esc(nameOf(g,ks[0]))+' is the smoothest liar</h2></div>'+scoreTable(g)
+      +'<button class="btn" id="again">Back to the lobby</button>';
+    document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
+  }
+}
+// tally votes into scores exactly once, on the vote→reveal transition
+function advance(g){
+  if(g.phase!=='vote') return;
+  const opts=options(g)||[], votes=IRL.docs('v',g.round);
+  const sc=Object.assign({},g.scores||{});
+  votes.forEach(function(v){
+    const voter=v.id.split('_')[1];
+    const o=opts.find(function(x){return x.k===v.k;});
+    if(!o) return;
+    if(o.k==='t'){ sc[voter]=(sc[voter]||0)+1000; }
+    else o.authors.forEach(function(a){ if(a!==voter) sc[a]=(sc[a]||0)+500; });
+  });
+  IRL.save(Object.assign({},g,{phase:'reveal',scores:sc}));
+}
+IRL.onchange=render;
+IRL.init().then(render); render();
+</script>`;
+
+  // ============================ ONE CLUE =====================================
+  // Cooperative: everyone secretly writes ONE one-word clue; duplicates
+  // vanish before the guesser sees them. Four people writing "banana" is the game.
+  const ONECLUE_WORDS = ['Pirate','Chocolate','Rainbow','Dentist','Volcano','Paris','Guitar','Penguin','Birthday','Shadow','Honey','Astronaut','Pillow','Thunder','Circus','Spaghetti','Diamond','Robot','Beach','Winter','Magician','Bridge','Cactus','Whisper','Trophy','Jungle','Clock','Marshmallow','Lighthouse','Karate'];
+
+  const ONECLUE_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${STYLE('#3ba5a0')}
+  .clue{display:inline-block;border:3px solid #2b2440;border-radius:12px;background:#fff;padding:8px 14px;font-weight:800;font-size:19px;margin:4px}
+  .clue.dead{opacity:.4;text-decoration:line-through;background:#eee}
+  .waitbar{font-weight:800;text-align:center;margin:6px 0}
+</style>
+<header>💡 One Clue</header>
+<main id="m"></main>
+<script>
+${PARTY_LIB}
+const WORDS=${JSON.stringify(ONECLUE_WORDS)};
+const M=document.getElementById('m');
+
+function start(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  IRL.save({ phase:'clue', ids:ids, names:names, seed:Math.floor(Math.random()*1e9),
+    turn:0, round:0, idx:0, score:0, results:[] });
+}
+function deck(g){ return IRL.seededShuffle(WORDS,g.seed).slice(0,13); }
+function guesserId(g){ return g.ids[g.turn%g.ids.length]; }
+function nameOf(g,pid){ return g.names[g.ids.indexOf(pid)]||'?'; }
+function clueDocs(g){ return IRL.docs('c',g.round); }
+function surviving(g){
+  const cs=clueDocs(g).map(function(c){ return {pid:c.id.split('_')[1], text:c.text, n:IRL.norm(c.text)}; });
+  cs.forEach(function(c){ c.dead=cs.some(function(o){ return o!==c&&o.n===c.n; }); });
+  return cs;
+}
+function render(){
+  const g=IRL.g;
+  if(!g||!g.phase||g.phase==='lobby'){
+    M.innerHTML=IRL.lobby(3,'One word each. No collisions. 💡',
+      'The whole room sees a mystery word — except the guesser. Everyone secretly writes ONE one-word clue on their phone… and identical clues CANCEL OUT before the guesser sees them. You win or lose together: 13 words.','Start the 13 words');
+    IRL.bindLobby(function(){ if(IRL.players.length>=3) start(); });
+    return;
+  }
+  const meId=IRL.me.id, word=deck(g)[g.idx], gsr=guesserId(g), isGuesser=meId===gsr;
+  const progress='<div class="waitbar">Word '+(g.idx+1)+'/13 · team score '+g.score+'</div>';
+  if(g.phase==='clue'){
+    const cs=clueDocs(g), need=g.ids.length-1;
+    const iWrote=cs.some(function(c){return c.id==='c'+g.round+'_'+meId;});
+    let html='<div class="card center"><h2>'+IRL.esc(nameOf(g,gsr))+' is guessing</h2>'+progress+'</div>';
+    if(isGuesser){
+      html+='<div class="card center"><h2>🙈 Eyes on your friends, not their phones</h2><div class="muted">They\\'re writing clues for you… '+cs.length+'/'+need+' in.</div></div>';
+    } else {
+      html+='<div class="card"><h2>The word is</h2><div class="bigword">'+IRL.esc(word)+'</div>'
+        +(iWrote?'<div class="muted center">Clue locked in ('+cs.length+'/'+need+'). If someone wrote the same one, both vanish!</div>'
+                :'<h2>Your ONE one-word clue</h2><input type="text" id="inp" maxlength="24"><button class="btn" id="sub">Lock it in</button>')+'</div>';
+    }
+    if(cs.length>=need) html+='<button class="btn" id="show">All clues in → show the guesser</button>';
+    M.innerHTML=html;
+    const sub=document.getElementById('sub');
+    if(sub) sub.onclick=function(){ const v=document.getElementById('inp').value.trim().split(/\\s+/)[0];
+      if(!v) return; if(IRL.norm(v)===IRL.norm(word)){ alert('That IS the word — nice try 😄'); return; }
+      IRL.put({id:'c'+g.round+'_'+meId,text:v}); };
+    const sh=document.getElementById('show');
+    if(sh) sh.onclick=function(){ IRL.save(Object.assign({},g,{phase:'guess'})); };
+    if(clueDocs(g).length>=need&&IRL.coordinator(g)) IRL.save(Object.assign({},g,{phase:'guess'}));
+  } else if(g.phase==='guess'){
+    const cs=surviving(g);
+    let html='<div class="card center"><h2>'+(isGuesser?'Your clues — say your guess OUT LOUD':'The clues '+IRL.esc(nameOf(g,gsr))+' can see')+'</h2>'+progress+'</div><div class="card center">';
+    cs.forEach(function(c){
+      if(isGuesser){ if(!c.dead) html+='<span class="clue">'+IRL.esc(c.text)+'</span>'; }
+      else html+='<span class="clue'+(c.dead?' dead':'')+'">'+IRL.esc(c.text)+'</span>';
+    });
+    if(isGuesser&&!cs.some(function(c){return !c.dead;})) html+='<div class="muted">…every clue cancelled out. Ouch. Good luck!</div>';
+    if(!isGuesser) html+='<div class="muted" style="margin-top:8px">Word: <b>'+IRL.esc(word)+'</b> · struck clues cancelled out</div>';
+    html+='</div>';
+    if(!isGuesser){
+      html+='<div class="card"><h2>Did they get it?</h2>'
+        +'<button class="btn" id="ok">✅ Correct (+1)</button>'
+        +'<button class="btn alt" id="skip">⏭ They passed (lose this word)</button>'
+        +'<button class="btn alt" id="no">❌ Wrong (lose this word AND the next)</button></div>';
+    }
+    M.innerHTML=html;
+    const done=function(delta,pts){ return function(){
+      const idx=g.idx+delta, score=g.score+pts;
+      if(idx>=13) IRL.save(Object.assign({},g,{phase:'end',idx:Math.min(idx,13),score:score}));
+      else IRL.save(Object.assign({},g,{phase:'clue',idx:idx,score:score,turn:g.turn+1,round:g.round+1}));
+    };};
+    const ok=document.getElementById('ok'); if(ok){ ok.onclick=done(1,1);
+      document.getElementById('skip').onclick=done(1,0);
+      document.getElementById('no').onclick=done(2,0); }
+  } else if(g.phase==='end'){
+    const s=g.score;
+    const band=s>=13?'PERFECT. Frame this.':s>=12?'Amazing!':s>=10?'Great minds!':s>=7?'Solid team.':s>=4?'Not bad…':'Try again — with more coffee.';
+    M.innerHTML='<div class="card center"><h2>'+s+' / 13</h2><div class="bigword" style="font-size:24px">'+band+'</div></div>'
+      +'<button class="btn" id="again">Play again</button>';
+    document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
+  }
+}
+IRL.onchange=render;
+IRL.init().then(render); render();
+</script>`;
+
+  // ============================ SAME BRAIN ===================================
+  // Type what the MAJORITY will type. Lone weird answer = the Pink Cow,
+  // and you cannot win while you hold the cow.
+  const SAMEBRAIN_QS = [
+    'Name a food that’s better the next day','The best pizza topping','A famous wizard',
+    'The worst chore','An animal you’d hate to be chased by','The best superpower',
+    'A fruit that doesn’t belong in fruit salad','The best decade for music','Something you always lose',
+    'The best movie snack','A sport that’s boring to watch','The scariest room in a house at night',
+    'The best day of the week','An instrument that’s annoying to live with','Something you shouldn’t microwave',
+    'The best holiday','A job that deserves more money','The best sauce for fries',
+    'An animal that would be rude if it could talk','The most useless school subject as an adult',
+    'The best breakfast food','Something everyone pretends to understand','The best age to be',
+    'A word that’s fun to say','The best ice cream flavor','The most overrated fast food chain',
+    'The best board game','Something you’d grab first in a fire (besides people or pets)',
+  ];
+
+  const SAMEBRAIN_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${STYLE('#e05c8a')}
+  .grp{border:3px solid #2b2440;border-radius:14px;background:#fff;padding:10px 14px;margin:8px 0}
+  .grp.win{background:#ffe3ee;border-color:#e05c8a}
+  .grp b{font-size:18px}
+  .grp .who{display:block;font-size:13px;color:#7a7391}
+  .cow{background:#ffd7e6;border:3px solid #2b2440;border-radius:14px;padding:10px 14px;font-weight:800;margin:8px 0;text-align:center}
+  .waitbar{font-weight:800;text-align:center;margin:6px 0}
+</style>
+<header>🐮 Same Brain</header>
+<main id="m"></main>
+<script>
+${PARTY_LIB}
+const QS=${JSON.stringify(SAMEBRAIN_QS)};
+const M=document.getElementById('m');
+
+function start(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  IRL.save({ phase:'answer', ids:ids, names:names, seed:Math.floor(Math.random()*1e9),
+    round:0, scores:{}, cow:null });
+}
+function q(g){ return IRL.seededShuffle(QS,g.seed)[g.round%QS.length]; }
+function nameOf(g,pid){ return g.names[g.ids.indexOf(pid)]||'?'; }
+function grouped(g){
+  const as=IRL.docs('a',g.round).map(function(a){ return {pid:a.id.split('_')[1], text:a.text, n:IRL.norm(a.text)}; });
+  const map={};
+  as.forEach(function(a){ (map[a.n]=map[a.n]||[]).push(a); });
+  const groups=Object.keys(map).map(function(k){ return map[k]; });
+  groups.sort(function(x,y){ return y.length-x.length; });
+  return groups;
+}
+function outcome(g){
+  const groups=grouped(g);
+  const top=groups.length?groups[0].length:0;
+  const winners=(top>1&&groups.filter(function(gr){return gr.length===top;}).length===1)?groups[0]:[];
+  const solos=groups.filter(function(gr){return gr.length===1;});
+  const cow=(solos.length===1&&groups.length>1)?solos[0][0].pid:null;
+  return { groups:groups, winners:winners, cow:cow };
+}
+function scoreTable(g){ const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
+  return '<div class="card"><h2>🐄 Herd points (first to 8 wins — unless you hold the Pink Cow)</h2><table class="scores">'
+    +ks.map(function(k){return '<tr><td>'+IRL.esc(nameOf(g,k))+(g.cow===k?' 🩷🐮':'')+'</td><td><b>'+(sc[k]||0)+'</b></td></tr>';}).join('')+'</table></div>'; }
+
+function render(){
+  const g=IRL.g;
+  if(!g||!g.phase||g.phase==='lobby'){
+    M.innerHTML=IRL.lobby(3,'Think like the herd 🐮',
+      'A question shows on every phone; everyone secretly types what they think MOST people will type. Match the majority to score. The one player left alone with a weird answer gets the Pink Cow — and you can\\'t win while you\\'re holding it.','Start mooing');
+    IRL.bindLobby(function(){ if(IRL.players.length>=3) start(); });
+    return;
+  }
+  const meId=IRL.me.id;
+  if(g.phase==='answer'){
+    const as=IRL.docs('a',g.round);
+    const iWrote=as.some(function(a){return a.id==='a'+g.round+'_'+meId;});
+    let html='<div class="card"><h2>Round '+(g.round+1)+'</h2><div class="bigword" style="font-size:24px">'+IRL.esc(q(g))+'</div>'
+      +(iWrote?'<div class="muted center">Locked in. Stare at your friends menacingly.</div>'
+              :'<input type="text" id="inp" maxlength="40" placeholder="What will the HERD say?"><button class="btn" id="sub">Lock it in</button>')+'</div>'
+      +'<div class="waitbar">'+as.length+'/'+g.ids.length+' answers in</div>';
+    if(as.length>=g.ids.length) html+='<button class="btn" id="rev">🐄 Stampede! (reveal)</button>';
+    M.innerHTML=html+scoreTable(g);
+    const sub=document.getElementById('sub');
+    if(sub) sub.onclick=function(){ const v=document.getElementById('inp').value.trim(); if(v) IRL.put({id:'a'+g.round+'_'+meId,text:v}); };
+    const rv=document.getElementById('rev');
+    if(rv) rv.onclick=function(){ reveal(g); };
+    if(as.length>=g.ids.length&&IRL.coordinator(g)) reveal(g);
+  } else if(g.phase==='reveal'){
+    const o=outcome(g);
+    let html='<div class="card"><h2>'+IRL.esc(q(g))+'</h2></div>';
+    o.groups.forEach(function(gr){
+      const win=o.winners===gr;
+      html+='<div class="grp'+(win?' win':'')+'"><b>'+IRL.esc(gr[0].text)+'</b> ×'+gr.length+(win?' 🏆 +1':'')
+        +'<span class="who">'+gr.map(function(a){return IRL.esc(nameOf(g,a.pid));}).join(', ')+'</span></div>';
+    });
+    if(o.cow) html+='<div class="cow">🩷🐮 The Pink Cow moos over to '+IRL.esc(nameOf(g,o.cow))+' — all alone with that answer</div>';
+    if(!o.winners.length) html+='<div class="muted center">Tie for the biggest herd — nobody scores!</div>';
+    html+='<button class="btn" id="next">Next question</button>';
+    M.innerHTML=html+scoreTable(g);
+    document.getElementById('next').onclick=function(){
+      const sc=Object.assign({},g.scores||{});
+      o.winners.forEach(function(a){ sc[a.pid]=(sc[a.pid]||0)+1; });
+      const cow=o.cow||g.cow;
+      const champ=g.ids.find(function(id){ return (sc[id]||0)>=8&&cow!==id; });
+      if(champ) IRL.save(Object.assign({},g,{phase:'won',scores:sc,cow:cow,champ:champ}));
+      else IRL.save(Object.assign({},g,{phase:'answer',round:g.round+1,scores:sc,cow:cow}));
+    };
+  } else if(g.phase==='won'){
+    M.innerHTML='<div class="card center"><h2>🏆 '+IRL.esc(nameOf(g,g.champ))+' thinks like everyone!</h2><div class="muted">Which is a compliment. Probably.</div></div>'
+      +scoreTable(g)+'<button class="btn" id="again">Play again</button>';
+    document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
+  }
+}
+// reveal is a pure phase flip; scoring happens once on "Next question"
+function reveal(g){ if(g.phase==='answer') IRL.save(Object.assign({},g,{phase:'reveal'})); }
+IRL.onchange=render;
+IRL.init().then(render); render();
+</script>`;
+
+  // ========================== ONE NIGHT WOLVES ===============================
+  // Roles dealt silently to each phone, one secret night action each, five
+  // loud minutes of accusations, one vote. No moderator, no elimination.
+  const WOLVES_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${STYLE('#5a4a8a')}
+  body{background:#221d33;color:#efe9db}
+  .card{background:#2e2745;border-color:#0f0c1a;color:#efe9db;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+  .muted{color:#a99ec7}
+  .role{background:#0f0c1a;color:#fff;border-radius:16px;padding:22px 16px;text-align:center;margin:10px 0}
+  .role .r{font-size:26px;font-weight:900;min-height:36px}
+  .pick{border:3px solid #0f0c1a;border-radius:12px;background:#3a3157;color:#efe9db;padding:10px 12px;font-weight:700;margin:6px 0;cursor:pointer}
+  .pick.sel{background:#8a6bd6}
+  .waitbar{font-weight:800;text-align:center;margin:6px 0}
+  .timer{color:#f5cf6e}
+  input[type=text]{background:#3a3157;color:#efe9db;border-color:#0f0c1a}
+  table{width:100%;border-collapse:collapse}
+  td{padding:5px 8px;border-bottom:1px solid #3a3157}
+</style>
+<header>🌙 One Night Wolves</header>
+<main id="m"></main>
+<script>
+${PARTY_LIB}
+const M=document.getElementById('m');
+const ORDER=['Werewolf','Seer','Robber','Troublemaker','Insomniac'];
+const DESC={
+  Werewolf:'You know the other wolf. Survive the vote — lie, deflect, accuse!',
+  Seer:'You peeked at the truth. Share it… or someone claiming to be you is lying.',
+  Robber:'You stole a card in the night — you ARE that role now. The old you? Someone else\\'s problem.',
+  Troublemaker:'You swapped two OTHER players\\' cards. They don\\'t know. Watch the chaos.',
+  Insomniac:'You woke at dawn and checked your own card — the only player who KNOWS what they are now.',
+  Villager:'Plain villager. Your weapon is logic (and yelling).',
+  Hunter:'If the group votes you out, whoever YOU voted for goes down with you.',
+};
+function buildRoles(n){
+  const roles=['Werewolf','Werewolf','Seer','Robber','Troublemaker','Villager','Villager'];
+  const extras=['Insomniac','Hunter','Villager','Villager','Villager','Villager'];
+  for(let i=0;i<n-4;i++) roles.push(extras[i]);
+  return roles;
+}
+function start(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  const seed=Math.floor(Math.random()*1e9);
+  IRL.save({ phase:'night', ids:ids, names:names, seed:seed, round:(IRL.g&&IRL.g.round||0)+1,
+    deal:IRL.seededShuffle(buildRoles(ids.length),seed), scores:(IRL.g&&IRL.g.scores)||{} });
+}
+function myIdx(g){ return g.ids.indexOf(IRL.me.id); }
+function nameOf(g,i){ return g.names[i]||'?'; }
+function acts(g){ return IRL.docs('a',g.round); }
+function actOf(g,i){ return acts(g).find(function(a){ return a.id==='a'+g.round+'_'+g.ids[i]; })||null; }
+function idxOfRole(g,role){ for(let i=0;i<g.ids.length;i++) if(g.deal[i]===role) return i; return -1; }
+// robber then troublemaker swaps, applied to the dealt cards
+function finalRoles(g){
+  const fr=g.deal.slice();
+  const ri=idxOfRole(g,'Robber');
+  if(ri>=0){ const a=actOf(g,ri); if(a&&typeof a.target==='number'){ const t=fr[a.target]; fr[a.target]=fr[ri]; fr[ri]=t; } }
+  const ti=idxOfRole(g,'Troublemaker');
+  if(ti>=0){ const a=actOf(g,ti); if(a&&typeof a.a==='number'){ const t=fr[a.a]; fr[a.a]=fr[a.b]; fr[a.b]=t; } }
+  return fr;
+}
+function swapsDone(g){
+  return ['Robber','Troublemaker'].every(function(r){ const i=idxOfRole(g,r); return i<0||!!actOf(g,i); });
+}
+function myNightInfo(g){
+  const i=myIdx(g), role=g.deal[i], a=actOf(g,i);
+  if(role==='Werewolf'){ const others=[]; for(let j=0;j<g.ids.length;j++) if(j!==i&&g.deal[j]==='Werewolf') others.push(nameOf(g,j));
+    let s=others.length?('Your fellow wolf: '+others.join(', ')):'You are the LONE wolf.';
+    if(a&&typeof a.peek==='number') s+=' Center card '+(a.peek+1)+' was: '+g.deal[g.ids.length+a.peek]+'.';
+    return s; }
+  if(role==='Seer'&&a){ if(typeof a.player==='number') return nameOf(g,a.player)+' was dealt: '+g.deal[a.player]+'.';
+    if(a.center) return 'Center cards '+(a.center[0]+1)+' & '+(a.center[1]+1)+': '+g.deal[g.ids.length+a.center[0]]+' & '+g.deal[g.ids.length+a.center[1]]+'.'; }
+  if(role==='Robber'&&a&&typeof a.target==='number') return 'You stole from '+nameOf(g,a.target)+' — you are now: '+g.deal[a.target]+'.';
+  if(role==='Troublemaker'&&a&&typeof a.a==='number') return 'You swapped '+nameOf(g,a.a)+' and '+nameOf(g,a.b)+'.';
+  if(role==='Insomniac') return swapsDone(g)?('At dawn your card reads: '+finalRoles(g)[i]+'.'):'(waiting for dawn…)';
+  return 'You slept like a rock.';
+}
+function scoreTable(g){ const sc=g.scores||{}; if(!Object.keys(sc).length) return '';
+  const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
+  return '<div class="card"><h2>Wins</h2><table>'+ks.map(function(k,i){return '<tr><td>'+IRL.esc(g.names[g.ids.indexOf(k)])+'</td><td><b>'+(sc[k]||0)+'</b></td></tr>';}).join('')+'</table></div>'; }
+
+let dayInt=null;
+function render(){
+  clearInterval(dayInt);
+  const g=IRL.g;
+  if(!g||!g.phase||g.phase==='lobby'){
+    M.innerHTML=IRL.lobby(4,'One night. One vote. No mercy. 🌙',
+      'Each phone secretly receives a role — two players are werewolves. Everyone does one hidden night action on their own phone, then FIVE minutes of loud accusations in the room, then a vote. Village wins if a wolf goes down. Roles may have been SWAPPED in the night… even yours.','Deal the roles');
+    IRL.bindLobby(function(){ if(IRL.players.length>=4) start(); });
+    return;
+  }
+  const i=myIdx(g), role=i>=0?g.deal[i]:null, n=g.ids.length;
+  if(g.phase==='night'){
+    const done=acts(g).length, mine=i>=0?actOf(g,i):true;
+    let html='<div class="card center"><h2>🌙 Night falls — total silence</h2><div class="muted">Do your night action below. Nobody talks until dawn.</div></div>'
+      +'<div class="role"><div class="muted" style="color:#888">Hold to peek — your secret role</div><div class="r" id="r">·····</div></div>';
+    if(i<0){ html+='<div class="card center"><div class="muted">You\\'re watching this one.</div></div>'; }
+    else if(mine){ html+='<div class="card center"><h2>😴 Action done</h2><div class="muted">'+IRL.esc(myNightInfo(g))+'</div></div>'; }
+    else if(role==='Werewolf'){
+      const others=g.deal.slice(0,n).filter(function(r,j){return j!==i&&r==='Werewolf';}).length;
+      html+='<div class="card"><h2>'+(others?'You know your pack. Sleep.':'Lone wolf — peek at one center card?')+'</h2>';
+      if(!others) html+='[0,1,2]'.replace('[0,1,2]', [0,1,2].map(function(c){return '<button class="pick" data-peek="'+c+'">Center card '+(c+1)+'</button>';}).join(''));
+      html+='<button class="btn" id="sleep">'+(others?'Back to sleep':'Skip the peek')+'</button></div>';
+    }
+    else if(role==='Seer'){
+      html+='<div class="card"><h2>Peek at one player…</h2>'+g.names.map(function(nm,j){ return j===i?'':'<button class="pick" data-player="'+j+'">'+IRL.esc(nm)+'</button>'; }).join('')
+        +'<h2>…or two center cards</h2>'
+        +[[0,1],[0,2],[1,2]].map(function(p){return '<button class="pick" data-c="'+p[0]+p[1]+'">Cards '+(p[0]+1)+' & '+(p[1]+1)+'</button>';}).join('')+'</div>';
+    }
+    else if(role==='Robber'){
+      html+='<div class="card"><h2>Steal someone\\'s role</h2>'+g.names.map(function(nm,j){ return j===i?'':'<button class="pick" data-rob="'+j+'">'+IRL.esc(nm)+'</button>'; }).join('')+'</div>';
+    }
+    else if(role==='Troublemaker'){
+      html+='<div class="card"><h2>Swap two OTHER players (tap two)</h2><div id="tm">'+g.names.map(function(nm,j){ return j===i?'':'<button class="pick" data-tm="'+j+'">'+IRL.esc(nm)+'</button>'; }).join('')+'</div></div>';
+    }
+    else { // Villager, Hunter, Insomniac
+      html+='<div class="card center"><div class="muted">'+(role==='Insomniac'?'You\\'ll check your card at dawn.':'Nothing to do tonight.')+'</div><button class="btn" id="sleep">😴 Sleep</button></div>';
+    }
+    html+='<div class="waitbar">'+done+'/'+n+' asleep</div>';
+    const allIn=done>=n;
+    if(allIn) html+='<button class="btn" id="dawn">🌅 Dawn breaks — wake up!</button>';
+    M.innerHTML=html;
+    const r=document.getElementById('r');
+    ['pointerdown','touchstart'].forEach(function(ev){ r.parentElement.addEventListener(ev,function(e){ e.preventDefault(); r.textContent=role||'(spectator)'; }); });
+    ['pointerup','pointerleave','touchend'].forEach(function(ev){ r.parentElement.addEventListener(ev,function(){ r.textContent='·····'; }); });
+    const submit=function(v){ IRL.put(Object.assign({id:'a'+g.round+'_'+IRL.me.id},v)); };
+    const sleep=document.getElementById('sleep'); if(sleep) sleep.onclick=function(){ submit({}); };
+    M.querySelectorAll('[data-peek]').forEach(function(el){ el.onclick=function(){ submit({peek:+el.dataset.peek}); }; });
+    M.querySelectorAll('[data-player]').forEach(function(el){ el.onclick=function(){ submit({player:+el.dataset.player}); }; });
+    M.querySelectorAll('[data-c]').forEach(function(el){ el.onclick=function(){ submit({center:[+el.dataset.c[0],+el.dataset.c[1]]}); }; });
+    M.querySelectorAll('[data-rob]').forEach(function(el){ el.onclick=function(){ submit({target:+el.dataset.rob}); }; });
+    let tmSel=[];
+    M.querySelectorAll('[data-tm]').forEach(function(el){ el.onclick=function(){
+      el.classList.toggle('sel');
+      const j=+el.dataset.tm;
+      if(tmSel.indexOf(j)>=0) tmSel=tmSel.filter(function(x){return x!==j;}); else tmSel.push(j);
+      if(tmSel.length===2) submit({a:tmSel[0],b:tmSel[1]});
+    }; });
+    const dawn=document.getElementById('dawn');
+    if(dawn) dawn.onclick=function(){ IRL.save(Object.assign({},g,{phase:'day',dayEnds:Date.now()+5*60000})); };
+    if(allIn&&IRL.coordinator(g)) IRL.save(Object.assign({},g,{phase:'day',dayEnds:Date.now()+5*60000}));
+  } else if(g.phase==='day'){
+    const votes=IRL.docs('v',g.round);
+    const mine=votes.find(function(v){return v.id==='v'+g.round+'_'+IRL.me.id;});
+    let html='<div class="card center"><h2>☀️ Talk. Accuse. Lie.</h2><div class="timer" id="tm">5:00</div>'
+      +'<div class="muted">Remember: your card may have been swapped. You might not BE what you were dealt.</div></div>'
+      +'<div class="role"><div class="muted" style="color:#888">Hold to peek — your night recap</div><div class="r" id="r">·····</div></div>'
+      +'<div class="card"><h2>🗳 Your vote ('+votes.length+'/'+n+' in — hidden until all are in)</h2>'
+      +g.names.map(function(nm,j){ return '<button class="pick'+(mine&&mine.t===j?' sel':'')+'" data-v="'+j+'">'+IRL.esc(nm)+'</button>'; }).join('')
+      +'<button class="pick'+(mine&&mine.t==='x'?' sel':'')+'" data-v="x">🕊 No one dies</button></div>';
+    if(votes.length>=n) html+='<button class="btn" id="rev">Reveal the vote!</button>';
+    M.innerHTML=html;
+    const r=document.getElementById('r');
+    const recap=(role?('Dealt: '+role+'. ')+myNightInfo(g):'(spectator)');
+    ['pointerdown','touchstart'].forEach(function(ev){ r.parentElement.addEventListener(ev,function(e){ e.preventDefault(); r.textContent=recap; r.style.fontSize='16px'; }); });
+    ['pointerup','pointerleave','touchend'].forEach(function(ev){ r.parentElement.addEventListener(ev,function(){ r.textContent='·····'; r.style.fontSize=''; }); });
+    M.querySelectorAll('[data-v]').forEach(function(el){ el.onclick=function(){
+      const t=el.dataset.v==='x'?'x':+el.dataset.v;
+      IRL.put({id:'v'+g.round+'_'+IRL.me.id,t:t}); }; });
+    const tick=function(){ const el=document.getElementById('tm'); if(!el) return;
+      const left=Math.max(0,(g.dayEnds||0)-Date.now()), s=Math.ceil(left/1000);
+      el.textContent=Math.floor(s/60)+':'+('0'+s%60).slice(-2);
+      if(!left){ el.textContent='⏰ VOTE NOW'; } };
+    tick(); dayInt=setInterval(tick,500);
+    const rv=document.getElementById('rev');
+    if(rv) rv.onclick=function(){ IRL.save(Object.assign({},g,{phase:'reveal'})); };
+    if(votes.length>=n&&IRL.coordinator(g)) IRL.save(Object.assign({},g,{phase:'reveal'}));
+  } else if(g.phase==='reveal'){
+    const fr=finalRoles(g), votes=IRL.docs('v',g.round);
+    const tally={}; votes.forEach(function(v){ tally[v.t]=(tally[v.t]||0)+1; });
+    let max=0; Object.keys(tally).forEach(function(k){ if(tally[k]>max) max=tally[k]; });
+    let dead=[];
+    if(!(tally['x']===max&&Object.keys(tally).filter(function(k){return tally[k]===max;}).length===1)){
+      for(let j=0;j<n;j++) if(tally[j]===max) dead.push(j);
+    }
+    // the Hunter drags their vote target down with them
+    dead.slice().forEach(function(d){ if(fr[d]==='Hunter'){ const hv=votes.find(function(v){return v.id==='v'+g.round+'_'+g.ids[d];});
+      if(hv&&hv.t!=='x'&&dead.indexOf(hv.t)<0) dead.push(hv.t); } });
+    const wolves=[]; for(let j=0;j<n;j++) if(fr[j]==='Werewolf') wolves.push(j);
+    const wolfDied=dead.some(function(d){ return fr[d]==='Werewolf'; });
+    const villageWins=wolves.length?wolfDied:dead.length===0;
+    let html='<div class="card center"><h2>'+(villageWins?'🏡 The village wins!':'🐺 The wolves win!')+'</h2>'
+      +'<div class="muted">'+(wolves.length?('The wolv'+(wolves.length>1?'es were':'f was')+': '+wolves.map(function(w){return IRL.esc(nameOf(g,w));}).join(' & ')):'Nobody was a wolf — both cards slept in the center!')+'</div></div>';
+    html+='<div class="card"><h2>Who ended up as what</h2><table>';
+    for(let j=0;j<n;j++){
+      html+='<tr><td>'+(dead.indexOf(j)>=0?'💀 ':'')+IRL.esc(nameOf(g,j))+'</td><td>'+g.deal[j]+(fr[j]!==g.deal[j]?' → <b>'+fr[j]+'</b>':'')+'</td><td>'+(tally[j]||0)+' votes</td></tr>';
+    }
+    html+='</table><div class="muted" style="margin-top:6px">Center cards: '+g.deal.slice(n).join(', ')+'</div></div>';
+    html+='<button class="btn" id="next">🌙 Another night</button>';
+    // score the win once, at reveal render, keyed by round — idempotent write
+    if(!g.scored){
+      const sc=Object.assign({},g.scores||{});
+      for(let j=0;j<n;j++){ const isWolf=fr[j]==='Werewolf'; if(isWolf!==villageWins) sc[g.ids[j]]=(sc[g.ids[j]]||0)+1; }
+      if(IRL.coordinator(g)) IRL.save(Object.assign({},g,{scored:true,scores:sc}));
+    }
+    M.innerHTML=html+scoreTable(g);
+    document.getElementById('next').onclick=start;
+  }
+}
+IRL.onchange=render;
+IRL.init().then(render); render();
+</script>`;
+
   GifOS.irl = {
+    netApps: [
+      { name: 'Fake Facts',       appId: 'fakefacts', accent: [212, 112, 61],  html: FAKEFACTS_HTML },
+      { name: 'One Clue',         appId: 'oneclue',   accent: [59, 165, 160],  html: ONECLUE_HTML },
+      { name: 'Same Brain',       appId: 'samebrain', accent: [224, 92, 138],  html: SAMEBRAIN_HTML },
+      { name: 'One Night Wolves', appId: 'wolves',    accent: [90, 74, 138],   html: WOLVES_HTML },
+    ],
     apps: [
       { name: 'Odd Word Out',   appId: 'imposter', accent: [59, 165, 93],   html: ODDWORD_HTML },
       { name: 'Catch the Spy',  appId: 'spy',      accent: [77, 124, 214],  html: SPY_HTML },
