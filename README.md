@@ -43,6 +43,8 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 **Or let your AI do the whole thing (MCP).** Add the GifOS connector to Claude (Settings → Connectors → `https://mcp.gifos.app/mcp`) and just say *"build me a habit tracker for GifOS"* — the AI reads the build guide, writes the app, designs a pixel-art animated icon, and hands you a **finished `.gif` file** via the `pack_app` tool. Drop it on your Home Screen; done. AIs that merely browse the web learn the format from [`gifos.app/llms.txt`](site/llms.txt) and can produce paste-into-＋Add apps with no connector at all. See [`mcp/`](mcp).
 
+**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the MCP `unpack_app` tool opens everything inside, `pack_app` splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. (`llms.txt` carries the equivalent Python recipe for AIs without the connector.) See an app you like in a friend's session? **Steal App** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
+
 ## Multiplayer: Any Browser Can Be the Server
 
 Press **Invite** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
