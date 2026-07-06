@@ -684,13 +684,21 @@
       navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
         .then((s) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
+          // fresh tracks come back live — restore the user's actual choices
+          if (nv) nv.enabled = !myStatus.camOff;
+          if (na) na.enabled = !myStatus.muted;
           for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
             if (sender.track && sender.track.kind === 'video' && nv) sender.replaceTrack(nv).catch(() => {});
             if (sender.track && sender.track.kind === 'audio' && na) sender.replaceTrack(na).catch(() => {});
           }
-          localStream = s;
-          if (meTile) meTile.video.srcObject = s;
-          meterFor('me', s);
+          // Mutate the SAME MediaStream rather than swapping it: its id is
+          // what we announce as "our" stream (peers use it to tell own media
+          // from friend-relayed media), so it must never change mid-call.
+          for (const old of localStream.getTracks()) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
+          if (nv) localStream.addTrack(nv);
+          if (na) localStream.addTrack(na);
+          if (meTile) meTile.video.srcObject = localStream;
+          meterFor('me', localStream);
           adapt();
         }).catch(() => {});
     }
