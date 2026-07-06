@@ -3,6 +3,7 @@
 // Verifies: system-app routing (icon → video.html), mesh connect, adaptive
 // quality stepping down as participants join, and peer-leave cleanup.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const fs = require('fs');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -173,6 +174,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return fs.length === 1 && fs[0].name === 'pinned.txt' && fs[0].have;
   }, null, { timeout: 15000 });
   check('a pinned file replicates to every participant, bytes and all', true);
+
+  // ---------- recording: on-device, loudly attributed ----------
+  await aPage.locator('#recbtn').click();
+  await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
+    .some((t) => t.textContent.includes('Ada') && /recording this call/.test(t.textContent)), null, { timeout: 10000 });
+  check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
+  await sleep(3500);
+  const [recDl] = await Promise.all([
+    aPage.waitForEvent('download'),
+    aPage.locator('#recbtn').click(),
+  ]);
+  const recPath = await recDl.path();
+  check('stopping saves a real .webm on the recorder\'s device only',
+    /\.webm$/.test(recDl.suggestedFilename()) && fs.statSync(recPath).size > 20000);
+  await bPage.waitForFunction(() => !Array.from(document.querySelectorAll('.tile'))
+    .some((t) => /recording this call/.test(t.textContent)), null, { timeout: 10000 });
+  check('the recording chip clears everywhere on stop', true);
+
+  // ---------- transcription: per-speaker lines merge P2P ----------
+  await aPage.evaluate(() => window.__gifosVideo.addTranscript('hello transcript world'));
+  await bPage.waitForFunction(() => window.__gifosVideo.transcriptTexts()
+    .some((l) => l === 'Ada: hello transcript world'), null, { timeout: 15000 });
+  check('transcript lines reach every phone, attributed to the speaker', true);
+  check('the line shows as a live caption on the speaker\'s tile', await bPage.evaluate(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Ada'));
+    const c = t && t.querySelector('.cap');
+    return !!(c && c.classList.contains('show') && /hello transcript world/.test(c.textContent));
+  }));
+  await bPage.locator('#chatbtn').click();
+  await bPage.locator('#trtab').click();
+  await bPage.locator('.trline', { hasText: 'hello transcript world' }).waitFor({ timeout: 5000 });
+  const [trDl] = await Promise.all([
+    bPage.waitForEvent('download'),
+    bPage.locator('#trdl').click(),
+  ]);
+  check('the merged transcript downloads as text', /transcript\.txt$/.test(trDl.suggestedFilename()));
+  await bPage.locator('#chatclose').click();
 
   // ---------- a participant leaves → tiles + quality recover ----------
   await cPage.close(); await cCtx.close();
