@@ -308,6 +308,62 @@
         + "<text x='48' y='47' font-family='system-ui' font-size='16' font-weight='900' fill='" + PAPER + "' text-anchor='middle'>!</text></g>");
     }),
 
+    // A long nose that grows and shrinks — somebody here is lying.
+    fakefacts: (a) => range(FR).map((f) => { const dy = bob(f), nose = [6, 11, 16, 11][f];
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<circle cx='44' cy='54' r='16' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='38.5' cy='51' r='2.2' fill='" + INK + "'/><circle cx='49' cy='51' r='2.2' fill='" + INK + "'/>"
+        + "<path d='M38 62 q5 -3 10 0' stroke='" + INK + "' stroke-width='2.2' fill='none' stroke-linecap='round'/>"
+        + "<circle cx='34' cy='57' r='2.2' fill='#ff9eb0' opacity='.75'/>"
+        + "<rect x='58' y='53' width='" + nose + "' height='6' rx='3' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<path d='M30 34 q4 -6 8 0 M40 30 q4 -6 8 0' stroke='" + INK + "' stroke-width='2.2' fill='none' stroke-linecap='round' opacity='.4'/>"
+        + "</g>");
+    }),
+
+    // One bright bulb; matching clue cards blink out in a puff.
+    oneclue: (a) => range(FR).map((f) => { const dy = bob(f), on = f % 2 === 0;
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='24' y='52' width='18' height='13' rx='3.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.4' transform='rotate(-8 33 58)'/>"
+        + "<rect x='54' y='52' width='18' height='13' rx='3.5' fill='" + (on ? PAPER : '#cfc8bd') + "' stroke='" + INK + "' stroke-width='2.4' transform='rotate(8 63 58)'/>"
+        + (on ? '' : "<path d='M56 51 L70 64 M70 51 L56 64' stroke='#c25353' stroke-width='2.6' stroke-linecap='round'/>")
+        + "<circle cx='48' cy='38' r='11' fill='" + (on ? '#ffe28a' : PAPER) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<rect x='43.5' y='47' width='9' height='7' rx='2' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + (on ? "<path d='M33 28 l4 3 M63 28 l-4 3 M48 21 v5' stroke='#f0b429' stroke-width='2.6' stroke-linecap='round'/>" : '')
+        + "<circle cx='44.5' cy='37' r='1.7' fill='" + INK + "'/><circle cx='51.5' cy='37' r='1.7' fill='" + INK + "'/>"
+        + "<path d='M45.5 41 q2.5 2 5 0' stroke='" + INK + "' stroke-width='1.8' fill='none' stroke-linecap='round'/>"
+        + "</g>");
+    }),
+
+    // A happy pink cow — the badge of shame you moo-st avoid.
+    samebrain: (a) => range(FR).map((f) => { const dy = bob(f), tail = [-10, 6, -10, 6][f];
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        + "<rect x='30' y='46' width='34' height='24' rx='11' fill='#ffd7e6' stroke='" + INK + "' stroke-width='3'/>"
+        + "<circle cx='38' cy='53' r='3.4' fill='#e08ab0'/><circle cx='56' cy='62' r='4.2' fill='#e08ab0'/>"
+        + "<g transform='rotate(" + tail + " 64 50)'><path d='M64 50 q7 -3 8 -9' stroke='" + INK + "' stroke-width='2.4' fill='none' stroke-linecap='round'/></g>"
+        + "<circle cx='34' cy='40' r='10' fill='#ffd7e6' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M25 32 q-4 -4 -1 -7 q4 -1 5 4 M43 32 q4 -4 1 -7 q-4 -1 -5 4' fill='#ffd7e6' stroke='" + INK + "' stroke-width='2.2'/>"
+        + "<rect x='28' y='42' width='12' height='7' rx='3.5' fill='#ffb3cd' stroke='" + INK + "' stroke-width='2'/>"
+        + "<circle cx='31' cy='45.5' r='1' fill='" + INK + "'/><circle cx='37' cy='45.5' r='1' fill='" + INK + "'/>"
+        + "<circle cx='31' cy='38' r='1.8' fill='" + INK + "'/><circle cx='37.5' cy='38' r='1.8' fill='" + INK + "'/>"
+        + "<path d='M28 70 v6 M38 70 v6 M52 70 v6 M60 70 v6' stroke='" + INK + "' stroke-width='3.4' stroke-linecap='round'/>"
+        + "</g>");
+    }),
+
+    // A wolf silhouette howling under a moon that phases.
+    wolves: (a) => range(FR).map((f) => { const howl = [0, -2, -4, -2][f], moonG = [0.55, 0.75, 1, 0.75][f];
+      return sticker(ground()
+        + "<circle cx='66' cy='28' r='8.5' fill='#ffe9a8' stroke='" + INK + "' stroke-width='2.6' opacity='" + moonG + "'/>"
+        + "<g transform='rotate(" + howl + " 42 70)'>"
+        + "<path d='M30 74 q-2 -16 8 -24 l-2 -9 6 5 q3 -2 7 -2 l5 -6 2 8 q8 6 6 17 l-4 11 Z' fill='#4a4266' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
+        + "<path d='M52 44 q6 -4 10 -10' stroke='" + INK + "' stroke-width='3' stroke-linecap='round' fill='none'/>"
+        + "<circle cx='41' cy='52' r='1.8' fill='#ffe9a8'/>"
+        + "</g>"
+        + (f % 2 ? "<text x='58' y='40' font-family='system-ui' font-size='9' font-weight='800' fill='" + PAPER + "'>a-woo!</text>" : ''));
+    }),
+
     // Home sweet home — a cozy cottage with smoke puffing from the chimney.
     welcome: (a) => range(FR).map((f) => {
       const puffs = range(2).map((i) => {

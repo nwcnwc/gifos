@@ -60,13 +60,28 @@ async function openApp(page, ctx, folder, label) {
   check('folders render as GIF images (folders are GIFs)',
     (await page.locator('.icon', { hasText: /^Games$/ }).locator('img').count()) === 1);
 
-  // ---- IRL Games: the party folder seeds all five games and they mount ----
+  // ---- IRL Games: own-phone games at the top, pass-the-phone in a subfolder ----
   await page.locator('.icon', { hasText: 'IRL Games' }).dblclick();
   await sleep(300);
   const irlLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('IRL Games folder has all five party games',
-    ['Odd Word Out.gif', 'Catch the Spy.gif', 'Tilt.gif', 'The Dial.gif', 'Party Roulette.gif'].every((g) => irlLabels.includes(g)));
-  const owPage = await openApp(page, context, null, 'Odd Word Out.gif'); // already inside the folder
+  check('IRL Games folder has the four own-phone games + Single Phone subfolder',
+    ['Fake Facts.gif', 'One Clue.gif', 'Same Brain.gif', 'One Night Wolves.gif', 'Single Phone'].every((g) => irlLabels.includes(g)));
+  // an own-phone game opens into a lobby that pushes the Invite flow
+  const ffPage = await openApp(page, context, null, 'One Clue.gif'); // already inside the folder
+  await ffPage.waitForSelector('iframe');
+  const ff = ffPage.frameLocator('iframe');
+  await ff.locator('#start').waitFor({ timeout: 8000 });
+  const ffText = await ff.locator('main').textContent();
+  check('own-phone lobby registers me and pushes Invite', /1\)/.test(ffText) && /Invite/.test(ffText));
+  check('own-phone lobby gates the start on a minimum crowd', await ff.locator('#start').isDisabled());
+  await ffPage.close();
+  // the pass-the-phone originals live one level deeper
+  await page.locator('.icon', { hasText: 'Single Phone' }).dblclick();
+  await sleep(300);
+  const spLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('Single Phone subfolder has all five pass-the-phone games',
+    ['Odd Word Out.gif', 'Catch the Spy.gif', 'Tilt.gif', 'The Dial.gif', 'Party Roulette.gif'].every((g) => spLabels.includes(g)));
+  const owPage = await openApp(page, context, null, 'Odd Word Out.gif'); // already inside the subfolder
   await owPage.waitForSelector('iframe');
   const ow = owPage.frameLocator('iframe');
   await ow.locator('#nm').waitFor({ timeout: 8000 });
@@ -75,7 +90,7 @@ async function openApp(page, ctx, folder, label) {
   await ow.locator('.peek').first().waitFor({ timeout: 4000 });
   check('Odd Word Out deals a hidden word (pass-the-phone)', (await ow.locator('#w').textContent()) === '·····');
   await owPage.close();
-  await page.locator('#crumbs a').click();
+  await page.locator('#crumbs a').first().click(); // back to the root
   await sleep(250);
 
   // ---- folder bundle round-trip: Download a folder → one GIF → re-import ----
