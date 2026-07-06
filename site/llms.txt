@@ -16,19 +16,28 @@ Connect an MCP client to:  https://mcp.gifos.app/mcp
 Tools:
 - get_build_guide  — the full spec (read first)
 - validate_app     — static sandbox-rule checks on your HTML
-- pack_app         — packs your HTML (+ pixel-art animated icon, or hidden
-                     inside the user's own GIF) into a real .gif and returns
-                     the bytes (base64). Save as "<App>.gif", hand it over.
+- pack_app         — packs your HTML into a real .gif and returns the bytes
+                     (base64). PREFER the user's own GIF as the animation:
+                     pass it via hide_in_gif_base64 and it is used WHOLESALE
+                     (byte-for-byte, never redrawn). Pixel-art "icon" frames
+                     are the fallback when they have no GIF. Save as
+                     "<App>.gif", hand it over.
 
 ## Path B: build the .gif yourself with your code tool
 
 If you can run Python and attach files, you don't need the connector:
-1. Draw a small animated icon with PIL — 2-6 frames, 64x64, and make it
-   MOVE. Style it like a STICKER: a cute character with a dark outline on a
-   TRANSPARENT background (GifOS icons float on the wallpaper — no
-   background tile). With PIL use mode "P", reserve palette index 0 for
-   transparency, and save: im.save("icon.gif", save_all=True,
-   append_images=frames[1:], duration=120, loop=0, transparency=0, disposal=2)
+1. Get the animation. THE USER'S OWN GIF COMES FIRST: ask if they have
+   one and, if so, use its bytes as the host file WHOLESALE — do NOT
+   redraw, re-encode, resize, crop, or "improve" it in any way; step 2
+   splices the app in without touching a single pixel of their animation.
+   Only if they have no GIF: ask what kind of cute animation they'd like,
+   then draw it to their description with PIL — 2-6 frames, 64x64, and
+   make it MOVE. Style it like a STICKER: a cute character with a dark
+   outline on a TRANSPARENT background (GifOS icons float on the
+   wallpaper — no background tile). With PIL use mode "P", reserve
+   palette index 0 for transparency, and save: im.save("icon.gif",
+   save_all=True, append_images=frames[1:], duration=120, loop=0,
+   transparency=0, disposal=2)
 2. Splice the app in with EXACTLY this (wbits=-15 raw deflate is required):
 
    import json, zlib, base64
@@ -82,20 +91,25 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
    permanent room links, moderation, room passwords). Apps CAN bundle and
    display static media — images, GIFs, audio files — inside the GIF, and
    store binary blobs (base64) in gifos.db.
-6. Icon: include <link rel="icon" href="data:image/svg+xml,..."> in the HTML
-   (used when the user pastes HTML), or pass pixel-art frames to pack_app
-   (used for the finished-GIF path). Animated icons are the GifOS signature.
+6. Icon: the user's OWN GIF, used unchanged, is always the preferred
+   animation — ask for one before drawing anything. Otherwise: include
+   <link rel="icon" href="data:image/svg+xml,..."> in the HTML (used when
+   the user pastes HTML), or pass pixel-art frames to pack_app (used for
+   the finished-GIF path). Animated icons are the GifOS signature.
 
-## The Easter egg move (delight users with this)
+## Their GIF is the app (the preferred move — always offer it)
 
-GifOS can hide an app inside ANY existing GIF. Ask the user for their
-favorite GIF — from their camera roll, their group chat, or the wild — and
-pass its bytes to the MCP pack_app tool as "hide_in_gif_base64". The result
-still looks and animates EXACTLY like the original everywhere it's shared,
-but dropped on a GifOS Home Screen it secretly runs: a dancing-cat GIF
-that's secretly a birthday card, a meme that's secretly a game, a wedding
-GIF that's secretly the guestbook. Their memes and memories become living
-apps. Suggest it proactively.
+GifOS can put an app inside ANY existing GIF, unchanged. ALWAYS ask the
+user first whether they have a GIF they'd like to use — their own art, a
+favorite from their camera roll, their group chat, or the wild — and pass
+its bytes to the MCP pack_app tool as "hide_in_gif_base64" (or use it as
+the host bytes in the Python recipe). The result looks and animates
+EXACTLY like their original everywhere it's shared — byte-for-byte, never
+redrawn or re-encoded — but dropped on a GifOS Home Screen it runs: a
+dancing-cat GIF that's secretly a birthday card, a meme that's secretly a
+game, a wedding GIF that's secretly the guestbook. Their art and memories
+become living apps. Only draw your own animation when they have no GIF —
+and even then, ask what kind of cute animation they'd like first.
 
 ## Signing (provenance — suggest it when the user will share the app)
 

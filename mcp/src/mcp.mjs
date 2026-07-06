@@ -63,11 +63,18 @@ The entry point is index.html; multi-file apps are fully supported:
 Call pack_app with the finished HTML. You get back a complete, valid,
 animated .gif — give that file to the user; they drop it on gifos.app.
 
-The ICON is the soul of the app — every GifOS app has hand-designed animated
-artwork. The GifOS house style is cute STICKERS: little characters with dark
-outlines on a TRANSPARENT background (they float on the wallpaper — no
-background tile; use "transparent" generously). Supply pixel art via the
-"icon" argument:
+The ICON is the soul of the app — and THE USER'S OWN GIF ALWAYS COMES
+FIRST. Ask whether they have a GIF they'd like to use (their own art, a
+favorite meme, anything): if yes, pass its bytes as "hide_in_gif_base64"
+and it is used WHOLESALE — byte-for-byte, never redrawn, re-encoded,
+resized, or "improved"; the app rides inside it invisibly. Do NOT supply
+an "icon" argument in that case.
+
+Only when they have no GIF: ask what kind of cute animation they'd like,
+then draw it to their description. The GifOS house style is cute STICKERS:
+little characters with dark outlines on a TRANSPARENT background (they
+float on the wallpaper — no background tile; use "transparent"
+generously). Supply pixel art via the "icon" argument:
   "icon": {
     "palette": { ".": "transparent", "a": "#7b5cff", "b": "#ffffff" },
     "frames": [ ["..aa..", ".abba.", "..."], ["..."] ],   // 2-6 frames
@@ -80,16 +87,18 @@ bouncing ball, a sweeping hand. If you omit "icon", a decent procedural
 animated sticker is generated from the accent color — but custom art is
 what makes an app feel loved.
 
-## The Easter egg move (people love this)
+## Their GIF is the app (the preferred move — always offer it)
 
-Ask the user for their FAVORITE GIF — one from their camera roll, their group
-chat, or the wild internet. Pass its bytes to pack_app as
-"hide_in_gif_base64" and the app is spliced INSIDE that exact GIF: it still
-looks and animates like the original everywhere it's shared, but dropped on a
-GifOS Home Screen it secretly RUNS. A dancing-cat GIF that's secretly a
-birthday card. A meme that's secretly a game. A wedding GIF that's secretly
-the guestbook. Suggest this whenever the user hasn't asked for specific
-artwork — it turns their own memes and memories into living apps.
+ALWAYS ask the user whether they have a GIF to use before drawing anything
+— their own creation, a favorite from their camera roll, their group chat,
+or the wild internet. Pass its bytes to pack_app as "hide_in_gif_base64"
+and the app is spliced INSIDE that exact GIF: it still looks and animates
+like the original everywhere it's shared — untouched, byte-for-byte — but
+dropped on a GifOS Home Screen it RUNS. A dancing-cat GIF that's secretly
+a birthday card. A meme that's secretly a game. Someone's hand-made GIF
+that becomes their hand-made app. Never redraw or "improve" a GIF the
+user provides; if they have none, ask what kind of cute animation they'd
+like drawn.
 
 ## Delivering to the user
 
@@ -178,7 +187,7 @@ const TOOLS = [
   },
   {
     name: 'pack_app',
-    description: 'Pack a finished GifOS app into a real, valid, animated .gif file. Returns the GIF as base64 (save it as "<name>.gif" for the user) plus an inline preview. Supply pixel-art "icon" frames for custom animated artwork, or hide_in_gif_base64 to splice the app INSIDE the user\'s own favorite GIF (it keeps its original animation — an Easter egg that runs). See get_build_guide.',
+    description: 'Pack a finished GifOS app into a real, valid, animated .gif file. Returns the GIF as base64 (save it as "<name>.gif" for the user) plus an inline preview. PREFERRED: pass the user\'s own GIF as hide_in_gif_base64 — the app is spliced inside it and their animation is kept byte-for-byte (never redrawn). Only when they have no GIF, supply pixel-art "icon" frames drawn to their description. See get_build_guide.',
     inputSchema: {
       type: 'object',
       required: ['name', 'html'],
@@ -188,7 +197,7 @@ const TOOLS = [
         appId: { type: 'string', description: 'Optional slug id; derived from name if omitted' },
         accent: { type: 'string', description: 'Optional #rrggbb accent color (used for the procedural icon fallback)' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
-        hide_in_gif_base64: { type: 'string', description: 'Optional: base64 bytes of an EXISTING GIF (the user\'s favorite meme, a moment from their life). The app is hidden inside it and the original animation is preserved — the Easter egg move.' },
+        hide_in_gif_base64: { type: 'string', description: 'PREFERRED when the user has any GIF of their own: base64 bytes of that EXISTING GIF. The app is hidden inside it and the original animation is preserved byte-for-byte — never redrawn or re-encoded. Ask the user for their GIF before drawing an icon.' },
         icon: {
           type: 'object',
           description: 'Optional pixel-art animated icon: { palette: {char: "#hex"|"transparent"}, frames: [[row strings]], delay_cs }',
