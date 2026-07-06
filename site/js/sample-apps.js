@@ -260,6 +260,9 @@
   .m.mine{align-self:flex-end;background:#173a30;border-color:#2a5a48}
   .m b{color:#5cdcb4;font-size:12px;display:block;margin-bottom:2px}
   .m small{color:#667;font-size:10px;margin-left:6px;font-weight:400}
+  .m .st{font-size:10px;color:#889;margin-left:5px;font-weight:400}
+  .m .st.ok{color:#5cdcb4}
+  .m .st.fail{color:#ffb86c;cursor:pointer}
   .m img{display:block;max-width:100%;border-radius:8px;margin-top:4px}
   .m a.file{display:inline-flex;gap:6px;align-items:center;color:#5cdcb4;margin-top:4px;text-decoration:none;border:1px solid #2a5a48;border-radius:8px;padding:6px 10px}
   .m .fsz{color:#889;font-size:11px;font-weight:400}
@@ -313,21 +316,46 @@
     if(String(m.mime).indexOf('image/')===0) return '<img src="'+a+'" alt="'+esc(m.name)+'">';
     return '<a class="file" download="'+esc(m.name)+'" href="'+a+'">📄 '+esc(m.name)+' <span class="fsz">'+fmt(m.size)+'</span></a>';
   }
+  // Optimistic sends with delivery receipts: your message appears the moment
+  // you hit Send (🕓 = on its way), flips to ✓ when the HOST's browser has
+  // stored it, and ⚠️ lets you tap to resend if the host stays unreachable.
+  // Without this, a backgrounded host makes your own message invisible to you.
+  let pend=[]; // own messages not yet confirmed in the shared db
+  function mark(m){
+    if(m.uid!==me.id||m.kind==='file') return '';
+    if(m.state==='sending') return '<span class="st" title="Sending…">🕓</span>';
+    if(m.state==='failed') return '<span class="st fail" title="Not delivered — tap to resend">⚠️ tap to resend</span>';
+    return '<span class="st ok" title="Received by the host">✓</span>';
+  }
   function paint(){
-    const items=last.slice().sort(function(a,b){return (a.t||0)-(b.t||0);});
-    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small></b>'+body(m)+'</div>'; }).join('');
+    const seen={}; last.forEach(function(m){ if(m.id!=null) seen[m.id]=1; });
+    pend=pend.filter(function(p){ return !seen[p.id]; });
+    const items=last.concat(pend).sort(function(a,b){return (a.t||0)-(b.t||0);});
+    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"'+(m.state==='failed'?' data-retry="'+esc(m.id)+'"':'')+'><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small>'+mark(m)+'</b>'+body(m)+'</div>'; }).join('');
     log.scrollTop=log.scrollHeight;
     items.forEach(function(m){ if(m.kind==='file'&&m.att&&!atts[m.att]) fetchAtt(m); });
   }
   db.subscribe(function(items){ last=items; paint(); });
+  function sendText(text){
+    const rec={ id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36), by:me.name, uid:me.id, text:text, t:Date.now() };
+    const p=Object.assign({state:'sending'},rec);
+    pend.push(p); paint();
+    db.put(rec).then(function(){ p.state='sent'; paint(); },function(){ p.state='failed'; paint(); });
+  }
+  log.addEventListener('click',function(ev){
+    const el=ev.target.closest?ev.target.closest('.m[data-retry]'):null; if(!el) return;
+    const p=pend.find(function(x){ return x.id===el.getAttribute('data-retry')&&x.state==='failed'; }); if(!p) return;
+    p.state='sending'; paint();
+    db.put({id:p.id,by:p.by,uid:p.uid,text:p.text,t:p.t}).then(function(){ p.state='sent'; paint(); },function(){ p.state='failed'; paint(); });
+  });
   ['👍','❤️','😂','🎉','😮','🔥'].forEach(function(e){
     const b=document.createElement('button'); b.type='button'; b.textContent=e;
-    b.onclick=function(){ db.put({ by:me.name, uid:me.id, text:e, t:Date.now() }); };
+    b.onclick=function(){ sendText(e); };
     document.getElementById('quick').appendChild(b);
   });
-  document.getElementById('f').onsubmit=async function(e){ e.preventDefault();
+  document.getElementById('f').onsubmit=function(e){ e.preventDefault();
     const t=document.getElementById('t'); if(!t.value.trim()) return;
-    await db.put({ by:me.name, uid:me.id, text:t.value.trim(), t:Date.now() }); t.value='';
+    sendText(t.value.trim()); t.value='';
   };
   // ---- attachments ----
   const fi=document.getElementById('fi'), attBtn=document.getElementById('att');

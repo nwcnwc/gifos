@@ -352,6 +352,8 @@ async function openApp(page, ctx, folder, label) {
   await chat.locator('#t').press('Enter');
   await chat.locator('.m', { hasText: 'hello attachments' }).waitFor({ timeout: 5000 });
   check('chat sends a text message', true);
+  await chat.locator('.m .st.ok').waitFor({ timeout: 5000 });
+  check('own message shows the received-by-host receipt (✓)', true);
   await chat.locator('#fi').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1x1 });
   await chat.locator('.m img').waitFor({ timeout: 8000 });
   check('image attachment renders inline in chat', true);
