@@ -11,13 +11,23 @@
   html, body { height: 100%; }
   body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  /* Labels never stack into word-towers: buttons keep to one line and the bar
+     scrolls sideways on narrow phones instead of pushing the layout around. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
-         background: #14141f; border-bottom: 1px solid #2a2a3f; }
+         background: #14141f; border-bottom: 1px solid #2a2a3f;
+         overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .bar::-webkit-scrollbar { display: none; }
+  .bar > * { flex: 0 0 auto; }
   .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, #7b5cff, #ff5caa);
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
+                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem;
+                white-space: nowrap; }
+  @media (max-width: 600px) {
+    .bar { gap: .35rem; padding: .45rem .55rem; }
+    .bar button { padding: .3rem .55rem; font-size: .72rem; }
+  }
   .bar button:hover { border-color: #7b5cff; }
   .bar button.urgent { border-color: #ff5caa; box-shadow: 0 0 14px rgba(255,92,170,.35); }
   .sig { display: inline-flex; align-items: center; gap: .3rem; }
@@ -60,9 +70,9 @@
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
-    <button id="save-desktop" title="Keep a full copy of this app + its current state on your Home Screen" style="display:none">Save to Home Screen</button>
+    <button id="save-desktop" title="Steal this app: a full copy — with everything in it — lands on your Home Screen" style="display:none">Steal App</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
-    <button id="save" title="Download this app — with everything in it — as one GIF file">Save a Copy</button>
+    <button id="save" title="Download this app — with everything in it — as one GIF file">Download Snapshot</button>
     <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
   </div>
   <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
@@ -243,8 +253,8 @@
       saveDeskBtn.addEventListener('click', function () {
         if (!controller || !controller.saveToDesktop) return;
         controller.saveToDesktop().then(function () {
-          saveDeskBtn.textContent = 'Saved!';
-          setTimeout(function () { saveDeskBtn.textContent = 'Save to Home Screen'; }, 2500);
+          saveDeskBtn.textContent = 'Stolen! 😏';
+          setTimeout(function () { saveDeskBtn.textContent = 'Steal App'; }, 2500);
         }).catch(function (err) { status.textContent = 'Save failed: ' + err.message; });
       });
       document.getElementById('copy').addEventListener('click', function () {
