@@ -158,12 +158,15 @@ signaling envelopes.
 - **WebSocket hibernation**: the Durable Object accepts sockets through the
   Hibernation API, so an idle session or call room is evicted from memory and
   accrues **no duration charges** — Cloudflare bills actual messages, not
-  wall-clock call length. Each socket's identity (role, peer id, name, ip)
-  rides in its serialized attachment and survives eviction; the only stored
-  state is the session/room token (bytes), which is what makes call links
-  permanent. One subtlety the hard way: with hibernation the server must
-  **echo `ws.close()`** from `webSocketClose`, or the browser's close
-  handshake never completes and client-side reconnect logic never fires.
+  wall-clock call length. Each socket's identity (role, peer id, name, ip,
+  token, room password) rides in its serialized attachment, which survives
+  eviction but dies with the connection — **the relay persists nothing,
+  ever**. A room's token and password are properties of its current
+  occupants: the first arrival to an empty room re-establishes them from
+  their own session; everyone after that must match the people inside. One
+  subtlety learned the hard way: with hibernation the server must **echo
+  `ws.close()`** from `webSocketClose`, or the browser's close handshake
+  never completes and client-side reconnect logic never fires.
 - **Abuse guards**: 64 sockets per session, 8 per IP per session, 120
   joins/min per IP per session, plus a best-effort per-IP upgrade limiter in
   the outer Worker. Generous for humans (a NAT'd household of flappy phones

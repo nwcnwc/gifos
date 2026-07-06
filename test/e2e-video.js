@@ -206,6 +206,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await gPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 2, null, { timeout: 25000 });
   check('the correct password admits the joiner into the call', true);
 
+  // ---------- no server persistence: occupancy re-establishes the lock ----------
+  // Everyone leaves; the relay remembers NOTHING. Eve returns first — her
+  // session still carries the password, so her arrival re-locks the room.
+  await fPage.close(); await gPage.close(); await gCtx.close(); await ePage.close();
+  await sleep(1200);
+  const e2Page = await eCtx.newPage(); // Eve's browser kept the password locally
+  e2Page.on('console', (m) => { if (m.type() === 'error') console.log('  [eve2]', m.text()); });
+  await e2Page.goto(link);
+  await e2Page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  await sleep(600);
+  const hCtx = await newUser('Hal');
+  const hPage = await hCtx.newPage();
+  await hPage.goto(link);
+  await hPage.waitForSelector('#pw-modal', { state: 'visible', timeout: 15000 });
+  check('first returning occupant re-locks the empty room from their own session (no server storage)', true);
+  await hPage.locator('#pw-new').fill('sesame');
+  await hPage.locator('#pw-save').click();
+  await hPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  check('…and the password still admits people, exactly as before', true);
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');
   process.exit(failures ? 1 : 0);

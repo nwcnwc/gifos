@@ -4,8 +4,9 @@ compatibility_date = "2026-01-01"
 
 # One Durable Object class = one live session hub. Sockets are accepted via
 # the WebSocket HIBERNATION API, so idle sessions are evicted from memory and
-# accrue no duration charges. The only stored state is the session/room token
-# (a few bytes), which is what makes call-room URLs work forever.
+# accrue no duration charges. NOTHING is persisted — tokens and room
+# passwords ride in socket attachments (connection state that dies with the
+# connection), so a room's lock is a property of its current occupants.
 [[durable_objects.bindings]]
 name = "SESSION"
 class_name = "Session"
