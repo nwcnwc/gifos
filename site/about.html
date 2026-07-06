@@ -63,7 +63,20 @@
     <h2>Video calls, strictly peer-to-peer</h2>
     <p>The built-in Video Call connects everyone directly, browser to browser.
     The relay only performs introductions — it physically refuses to carry
-    audio or video. Quality adapts automatically as more people join.</p>
+    audio or video. Quality adapts automatically as more people join. A call is
+    a <b>permanent room</b>: the link works forever, no matter who created it or
+    who left. Everyone joins muted with the camera off, you can fully
+    <b>blur</b> your video, anyone can mute or blur a misbehaving participant
+    for the whole room (always attributed), and any participant can lock the
+    room with a <b>password</b> that only the people in the call hold.</p>
+
+    <h2>Game night, on everyone's phones</h2>
+    <p>The <b>IRL Games</b> folder is for people in the same room: one person
+    opens a game and taps Invite, everyone joins from their own phone, and
+    secret roles, hidden votes, and sneaky lies appear on each screen while the
+    laughing and accusing happens face to face — social-deduction, bluffing,
+    and mind-meld games included. Only one phone in the room? There's a
+    pass-the-phone folder too.</p>
 
     <h2>Let your AI build your apps</h2>
     <p>Tell Claude (or any AI) what you want. AIs learn the GifOS format from
@@ -86,7 +99,7 @@
       <li>Everything lives in <b>your browser</b> (IndexedDB). No accounts, no sync, no tracking.</li>
       <li>Apps run in a sandbox with <b>no network access</b> — a strict CSP blocks every request.</li>
       <li>The multiplayer relay is a stateless message pipe: it stores nothing, ever.</li>
-      <li>Every numbered subdomain (<b>7.gifos.app</b>, <b>2026.gifos.app</b>…) is a fully separate computer, isolated by the browser itself.</li>
+      <li>Each digit subdomain (<b>0.gifos.app</b> … <b>9.gifos.app</b>) is a fully separate computer, isolated by the browser itself.</li>
     </ul>
 
     <h2>Free and open source</h2>

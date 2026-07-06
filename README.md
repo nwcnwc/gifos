@@ -15,7 +15,7 @@ Visit [gifos.app](https://gifos.app) and you land on your **Home Screen** — ic
 - **The Home Screen** — a persistent, phone-friendly home screen that holds your GIFs and files as icons. It lives in your browser (IndexedDB); nothing is stored on our servers.
 - **App GIFs** — applications packed into real, viewable GIF images with **hand-designed animated artwork**. A GIF is a little filesystem; if it has an `index.html`, double-clicking runs it in a hardened sandbox. Its saved state travels **inside the same GIF**.
 - **Computer images** — back up your whole desktop as ONE GIF… then double-click that GIF anywhere and **boot it as a computer**, inside GifOS, without touching the desktop it's sitting on. GifOS boots inside itself.
-- **The relay** (`relay.gifos.app`) — a stateless message hub for multiplayer. It introduces browsers to each other and passes control messages; it never stores anything and **refuses to carry audio/video**.
+- **The relay** (`relay.gifos.app`) — a stateless message hub for multiplayer. It introduces browsers to each other and passes control messages; it persists nothing (even room passwords live in the occupants' connections), hibernates when idle, and **refuses to carry audio/video**.
 
 No installs. No accounts. No app servers. Just files on a desktop.
 
@@ -28,7 +28,7 @@ No installs. No accounts. No app servers. Just files on a desktop.
 - **Right-click any icon** → Open, **Download** (snapshot the GIF — with saved state folded in — without launching it), Rename, resize, Trash.
 - **Cross-tab live sync** — two tabs of the same desktop stay identical in real time.
 
-Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament), **Studio** (Paint), **Tools** (Notes, Calculator, Stopwatch), **Social** (Guestbook, Chat) — with **Welcome** and **Video Call** right on the Home Screen — each a genuine App GIF with its own custom animated icon art.
+Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament with time controls), **Studio** (Paint), **Tools** (Notes, Calculator, Timer & Stopwatch), **Social** (Guestbook, Chat), and **IRL Games** — party games for game night where everyone joins from their own phone (Fake Facts, One Clue, Same Brain, One Night Wolves) with pass-the-phone versions in a **Single Phone** subfolder (Odd Word Out, Catch the Spy, Tilt, The Dial, Party Roulette) — plus **Welcome** and **Video Call** right on the Home Screen. Every icon is a genuine App GIF with hand-drawn animated **sticker artwork on a transparent background**.
 
 ## How an App GIF Runs
 
@@ -50,7 +50,9 @@ Press **Invite** in a running app: your browser becomes the host and the tab sho
 - **P2P-first.** Traffic upgrades to a direct, DTLS-encrypted **WebRTC DataChannel** (~80–90% of networks); the relay stays connected as automatic fallback. The status bar shows *P2P direct* or *Via relay*.
 - **State lives with the icon.** Close the host tab and clients are locked out; reopen the icon and the **same share link resumes**.
 - **Failover.** Clients mirror the host's state. If the host dies, any client presses **Take Over** and the same session continues from their mirrored copy.
-- **Video Call** (front and center on the Home Screen) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave. Unlimited participants, degrading gracefully.
+- **Video Call** (front and center on the Home Screen) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave; the tile wall scrolls, so any number fit.
+- **A call is a permanent, host-less room.** The room IS its URL: nobody owns it, the creator leaving changes nothing, an emptied room revives on the next join — a call link works forever. Sockets self-heal, broken pairs re-offer with ICE restarts, and a locked phone keeps its tile through a grace window.
+- **Calls are civilized.** Everyone joins muted with camera off; a **Blur** button completely blurs your video for everyone; every tile shows live mute/blur/camera status; and **anyone can mute or blur anyone for the whole room** — enforced on every receiver's device, always attributed ("muted for everyone by Ada"), and the target can't lift it themselves. Rooms can be **password-locked** by anyone inside; the password propagates live to participants and is demanded of new joiners — held only by the room's occupants, never stored on a server.
 
 ## A Whole Computer Is One GIF
 
@@ -66,9 +68,9 @@ Double-click a backup GIF and choose:
 A quiet power feature: **each single-digit subdomain of gifos.app is a separate computer** — `0.gifos.app` through `9.gifos.app`, ten spares.
 
 - [gifos.app](https://gifos.app) — your main computer
-- `1.gifos.app`, `7.gifos.app`, `2026.gifos.app` — any number at all, each a **completely isolated desktop** with its own files, apps, state, and storage
+- `1.gifos.app` … `9.gifos.app` — each a **completely isolated desktop** with its own files, apps, state, and storage
 
-There's no switcher UI and no setup — just type a number in front of the domain. The isolation is enforced by the browser itself: web storage is per-origin, and every numbered hostname is a distinct origin. One computer for work, one for games, one to hand a kid, one per project — all in the same browser, none able to see the others.
+There's no switcher UI and no setup — just type a digit in front of the domain. The isolation is enforced by the browser itself: web storage is per-origin, and every numbered hostname is a distinct origin. One computer for work, one for games, one to hand a kid, one per project — all in the same browser, none able to see the others.
 
 Move things between computers the GifOS way: snapshot an app (or back up a whole desktop) to a GIF on one, drop the GIF on another. Multiplayer works from any computer — share links carry everything a friend needs regardless of which number you're on.
 
@@ -118,8 +120,12 @@ node test/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
 node test/e2e.js                  # the desktop, sandbox, versioning (Chromium)
 node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
 node test/e2e-failover.js         # host death → client takeover, same session
-node test/e2e-video.js            # 3-way P2P video mesh + adaptive quality
+node test/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
+node test/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
+node test/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
+node test/sign.js                 # provenance: Ed25519 + OpenPGP against real gpg
+node test/mcp-server.js           # the MCP app builder end-to-end
 ```
 
 The e2e suites expect the static server on `:8099` and (for relay/video) `test/relay-local.js` on `:8790`.
@@ -130,7 +136,7 @@ The e2e suites expect the static server on `:8099` and (for relay/video) `test/r
 |-------|-------|----------------|
 | Desktop site | GitHub Pages → `gifos.app` | **Automatic** on every push to `main` ([`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `site/` only) |
 | Relay | Cloudflare Worker → `relay.gifos.app` | **Manual**: `cd relay && npx wrangler deploy` |
-| Subdomain mirror | Cloudflare Worker → `*.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
+| Subdomain mirror | Cloudflare Worker → `0.gifos.app` … `9.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
 | MCP app builder | Cloudflare Worker → `mcp.gifos.app` | **Manual**: `cd mcp && npx wrangler deploy` |
 
 The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
@@ -139,15 +145,18 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 
 ## Project Status
 
-**v0.6.0 — live and tested end-to-end** (80+ automated checks across six suites):
+**Live and tested end-to-end** (170+ automated checks across ten suites):
 
 - ✅ Persistent desktop: folders, grid-snap drag (mouse + touch), Trash, rename, resize, cross-tab sync
 - ✅ GIF filesystem codec: deflate-compressed `GIFOS1.0` extension block inside a real animated GIF; `repack()` swaps data without touching artwork
-- ✅ Hand-designed animated icon artwork per default app (SVG → adaptive-palette GIF frames)
+- ✅ Hand-drawn animated sticker icons per app — transparent-background GIFs (real GIF transparency) that float on any wallpaper
 - ✅ Hardened app sandbox: opaque origin + injected CSP + neutered WebRTC + per-icon DB namespacing
 - ✅ Multiplayer: P2P DataChannels with automatic relay fallback, screen names, lock-until-reopen, snapshot failover (Become Host)
 - ✅ Deployed: GitHub Pages (`gifos.app`), Cloudflare relay (`relay.gifos.app`) with server-side bandwidth guard + mesh peer routing, numbered-subdomain mirror
-- ✅ P2P Video Call: mesh media, adaptive quality ladder, relay-refuses-media by design
+- ✅ P2P Video Call: permanent host-less rooms (a link works forever), mesh media, adaptive quality, quiet joins, blur, attributed group moderation, occupant-held room passwords — relay-refuses-media by design
+- ✅ IRL party games: secret roles, hidden ballots, and simultaneous reveals dealt to each player's own phone; the drama happens in the room
+- ✅ Provenance signatures: sign app GIFs by domain (Ed25519) or email (OpenPGP); verified against real gpg in CI
+- ✅ Scale-hardened relay: WebSocket hibernation (idle sessions cost nothing), zero persistence, per-IP and per-session abuse guards
 - ✅ Computer images: whole-desktop backup GIFs that **boot** in isolated namespaces, recursively
 - ✅ Version pinning: archived builds under `/versions/`, update bar, additive-only data migrations
 

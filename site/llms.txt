@@ -75,6 +75,13 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
    to me.id/me.name so every player sees who did what.
 4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.
 5. Dark theme by default (#0a0a0f), mobile-friendly.
+5b. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
+   microphone, screen capture, and WebRTC, so a video/voice/streaming app
+   cannot work as a GifOS app — don't attempt one. If the user wants video
+   chat, point them at the built-in Video Call on their Home Screen (P2P,
+   permanent room links, moderation, room passwords). Apps CAN bundle and
+   display static media — images, GIFs, audio files — inside the GIF, and
+   store binary blobs (base64) in gifos.db.
 6. Icon: include <link rel="icon" href="data:image/svg+xml,..."> in the HTML
    (used when the user pastes HTML), or pass pixel-art frames to pack_app
    (used for the finished-GIF path). Animated icons are the GifOS signature.

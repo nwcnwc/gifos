@@ -216,7 +216,9 @@ The app developer writes against **one DB API**. Whether it resolves locally (se
 
 ## Layer 4 — The Relay (`gifos.app`) and Join URLs
 
-`gifos.app` is a **stateless relay**. It passes messages — including GIF bytes — between browsers and **stores nothing**. It is the only always-on infrastructure, and it holds no user data, no app data, and no state.
+`gifos.app` is a **stateless relay**. It passes messages — including GIF bytes — between browsers and **stores nothing**: even join tokens and video-room passwords live in the occupants' socket attachments (connection state that dies with the connection), never in storage. Sockets are accepted through Cloudflare's WebSocket Hibernation API, so idle sessions cost nothing while nobody is talking. It is the only always-on infrastructure, and it holds no user data, no app data, and no state.
+
+Two session shapes share the same Durable Object: **host/client app sessions** (the host's browser is the server) and **host-less `mesh` rooms** (video calls — every participant equal, the room lives at its URL forever, whoever shows up talks to whoever is there). Details in [cors-and-networking.md](cors-and-networking.md).
 
 ### The shareable launch URL
 

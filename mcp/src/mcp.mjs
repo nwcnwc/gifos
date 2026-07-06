@@ -49,6 +49,14 @@ The entry point is index.html; multi-file apps are fully supported:
 4. Degrade gracefully if window.gifos is undefined (opened outside GifOS):
    fall back to in-memory state and a default name.
 5. Mobile-friendly, dark theme by default (#0a0a0f background is the OS look).
+6. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
+   microphone, screen capture, and WebRTC, so a video/voice/streaming app
+   CANNOT work as a GifOS app — do not attempt one. If the user asks for
+   video chat, tell them GifOS already ships it: the built-in Video Call on
+   their Home Screen (P2P, permanent room links, moderation, room
+   passwords). Apps CAN bundle and display static media — images, GIFs,
+   audio files — as files inside the GIF, and store binary blobs (base64)
+   in gifos.db.
 
 ## Packing it into a GIF (the pack_app tool)
 
