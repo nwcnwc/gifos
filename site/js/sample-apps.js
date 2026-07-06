@@ -64,7 +64,7 @@
   li b{color:#ff5caa}
 </style>
 <header>📖 Shared Guestbook</header>
-<div class="hint" id="hint">Go multiplayer and share the link — everyone signs with their screen name.</div>
+<div class="hint" id="hint">Press Invite and share the link — everyone signs with their screen name.</div>
 <form id="f">
   <input id="msg" placeholder="Say something…" autocomplete="off">
   <button>Sign</button>
@@ -81,7 +81,7 @@
   });
   let me = { name: 'You' };
   if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' };
-    document.getElementById('hint').textContent = 'Signing as ' + me.name + '. Go multiplayer to sign with friends.'; });
+    document.getElementById('hint').textContent = 'Signing as ' + me.name + '. Press Invite to sign with friends.'; });
   const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   function render(items){
     list.innerHTML = items.map(e => '<li><b>'+esc(e.by||'anon')+'</b>: '+esc(e.msg)+'</li>').reverse().join('');
@@ -273,7 +273,7 @@
 <header>💬 Chat</header>
 <div id="log"></div>
 <div class="quick" id="quick"></div>
-<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
+<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (press Invite to chat with friends)" autocomplete="off"><button>Send</button></form>
 <script>
   const db=gifos.db('messages'), fdb=gifos.db('files'), log=document.getElementById('log');
   // Attachments ride gifos.db. The runtime fragments oversized messages, but
@@ -563,7 +563,7 @@
       gridEl.appendChild(d); }
     statusEl.textContent = g.over ? (g.win?'🎉 Cleared! Everyone wins.':'💥 Boom! Game over — New game to retry.')
       : (g.mines?('💣 left: '+Math.max(0,MINES-Object.keys(g.flags).length)+' of '+MINES+' · long-press to flag')
-                :'Tap any square to start. Long-press (or 🚩 mode) to flag. Play together in multiplayer.');
+                :'Tap any square to start. Long-press (or 🚩 mode) to flag. Press Invite to play together.');
   }
   document.getElementById('mode').onclick=function(){ flagMode=!flagMode; this.textContent='🚩 Flag mode: '+(flagMode?'on':'off'); this.className=flagMode?'on':''; };
   document.getElementById('new').onclick=function(){ g=fresh(); db.put(g); render(); };
@@ -709,7 +709,7 @@
     const jb=document.createElement('button'); jb.textContent=inList?'Waiting… ('+T.players.length+' in)':'Join lobby'; jb.onclick=joinLobby;
     const sb=document.createElement('button'); sb.textContent='Start tournament'; sb.disabled=T.players.length<2; sb.onclick=startTournament;
     d.appendChild(jb); if(T.players.length>=2) d.appendChild(sb); view.appendChild(d);
-    statusEl.textContent='Lobby — '+T.players.length+' player(s). Go multiplayer and share the link to invite.';
+    statusEl.textContent='Lobby — '+T.players.length+' player(s). Press Invite and share the link.';
   }
   function renderBracket(){
     const wrap=document.createElement('div'); wrap.className='bracket';
