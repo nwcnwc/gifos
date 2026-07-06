@@ -112,7 +112,7 @@
     <button id="copy">Copy</button>
   </div>
   <div id="grid"></div>
-  <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video, so if a direct route can't be found there is no call. Quality steps down automatically as more people join.</div>
+  <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video. If two people can't reach each other directly, a mutual friend in the call relays between them, browser to browser; if no path exists at all, the tile says so. Quality steps down automatically as more people join.</div>
 
   <div id="chatpanel">
     <div id="chathead">💬 Call chat <small style="color:#667;font-weight:400">· P2P, gone when the room empties</small><button id="chatclose">✕</button></div>
@@ -230,8 +230,12 @@
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
 
+    let connBcastT = null;
+    const myConns = () => Array.from(peers).filter(([, p]) => p.connected).map(([pid]) => pid);
+    const mySid = () => (localStream ? localStream.id : null);
     function broadcastStatus() {
-      for (const pid of peers.keys()) sendSig(pid, { kind: 'status', s: myStatus });
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid() };
+      for (const pid of peers.keys()) sendSig(pid, payload);
       updateTile('me');
     }
     function mergeMod(incoming) {
@@ -308,7 +312,8 @@
       const mod = modOf(id);
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on;
       const chips = [];
-      if (!isMe && t.noRoute) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
+      if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
+      else if (!isMe && t.noRoute) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
@@ -446,7 +451,7 @@
       if (peers.has(peerId)) return peers.get(peerId);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const t = makeTile(peerId, name, false);
-      const p = { pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, modbar: t.modbar,
+      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, modbar: t.modbar,
         name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
       peers.set(peerId, p);
       if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
@@ -455,13 +460,28 @@
       if (iInitiate(peerId)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
       pc.ontrack = (ev) => {
-        if (ev.streams[0] && p.video.srcObject !== ev.streams[0]) { p.video.srcObject = ev.streams[0]; meterFor(peerId, ev.streams[0]); }
+        const stream = ev.streams[0];
+        if (!stream) return;
+        // Their OWN media arrives under the stream id they announced; anything
+        // else on this connection is media they're RELAYING for someone we
+        // can't reach — hold it until the mapping message claims it.
+        const isOwn = p.ownSid ? stream.id === p.ownSid : !p.everOwn;
+        if (isOwn) {
+          p.everOwn = true; p.stream = stream;
+          if (p.video.srcObject !== stream) { p.video.srcObject = stream; meterFor(peerId, stream); }
+        } else {
+          p.unclaimed = p.unclaimed || [];
+          if (!p.unclaimed.includes(stream)) p.unclaimed.push(stream);
+          claimRelayStreams();
+        }
       };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(peerId, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
         p.connected = pc.connectionState === 'connected';
         updateStatus();
         if (p.connected) adapt();
+        clearTimeout(connBcastT); // my connectivity map changed → tell the room
+        connBcastT = setTimeout(broadcastStatus, 300);
       };
       adapt();
       return p;
@@ -474,6 +494,7 @@
       p.tile.remove();
       peers.delete(peerId);
       meters.delete(peerId);
+      endRelayRolesFor(peerId);
       if (focusId === peerId) focusId = null;
       layout();
       adapt();
@@ -483,7 +504,7 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
         .catch(() => {});
     }
 
@@ -491,6 +512,8 @@
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
       if (msg.st) { statusOf.set(from, msg.st); updateTile(from); }
       if (msg.mod) mergeMod(msg.mod);
+      if (msg.conns) connsOf.set(from, msg.conns);
+      if ('sid' in msg && p) p.ownSid = msg.sid;
     }
 
     function onSignal(from, msg) {
@@ -502,7 +525,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
@@ -518,6 +541,9 @@
         else p.pendingIce.push(msg.candidate);
       } else if (msg.kind === 'status') {
         statusOf.set(from, msg.s || {});
+        if (msg.conns) connsOf.set(from, msg.conns);
+        const sp = peers.get(from);
+        if (sp && 'sid' in msg) sp.ownSid = msg.sid;
         updateTile(from);
       } else if (msg.kind === 'mod') {
         mergeMod(msg.mod);
@@ -619,12 +645,31 @@
           p.lastKick = now + Math.random() * 1500;
           sendOffer(pid, true);
         }
+        // Direct route recovered → drop any friend-relay for this peer.
+        if (p.connected && relayVia.has(pid)) stopRelayFor(pid, true);
+        // Our relayer for this peer vanished → fall back and re-elect.
+        const rv = relayVia.get(pid);
+        if (rv) { const viaP = peers.get(rv.via); if (!viaP || !viaP.connected) stopRelayFor(pid, false); }
+        // No direct route for a while → ask the smallest-id mutual friend to
+        // forward their media to us (a volunteer TURN made of friends).
+        if (!p.connected && !p.absentSince && !relayVia.has(pid)
+            && p.downSince && now - p.downSince > 10000 && now - (p.relayAskAt || 0) > 10000) {
+          const refused = relayRefusal.get(pid) || {};
+          const cands = myConns().filter((r) => r !== pid
+            && (connsOf.get(r) || []).includes(pid)
+            && !(refused[r] && now - refused[r] < 30000)).sort();
+          if (cands.length) {
+            p.relayAskAt = now;
+            const rp = peers.get(cands[0]);
+            if (rp && rp.dc && rp.dc.readyState === 'open') { try { rp.dc.send(JSON.stringify({ k: 'relay-req', target: pid })); } catch (e) {} }
+          }
+        }
         // Be honest about a pair that can't form: present in the room but no
         // media path for a while → say so on the tile instead of silent black.
         if (p.connected) { p.downSince = 0; if (p.noRoute) { p.noRoute = false; updateTile(pid); } }
         else if (!p.absentSince) {
           if (!p.downSince) p.downSince = now;
-          if (!p.noRoute && now - p.downSince > 15000) { p.noRoute = true; updateTile(pid); }
+          if (!p.noRoute && !p.relayed && now - p.downSince > 15000) { p.noRoute = true; updateTile(pid); }
         }
       }
       updateStatus();
@@ -812,6 +857,27 @@
         }
       } else if (m.k === 'fdel') {
         if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); dcAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
+      } else if (m.k === 'relay-req') {
+        startRelayJob(p, String(m.target || ''));
+      } else if (m.k === 'relay-no') {
+        const ref = relayRefusal.get(m.target) || {};
+        ref[p.id] = Date.now();
+        relayRefusal.set(m.target, ref);
+      } else if (m.k === 'relay-stream') {
+        relayVia.set(String(m.target || ''), { via: p.id, streamId: m.streamId, stream: null });
+        claimRelayStreams();
+      } else if (m.k === 'relay-stop') {
+        stopRelayJob(String(m.target || ''), p.id, false);
+      } else if (m.k === 'relay-end') {
+        if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
+      } else if (m.k === 'roffer') {
+        p.pc.setRemoteDescription(m.sdp)
+          .then(() => p.pc.createAnswer())
+          .then((a) => p.pc.setLocalDescription(a))
+          .then(() => dc.send(JSON.stringify({ k: 'ranswer', sdp: p.pc.localDescription })))
+          .catch(() => {});
+      } else if (m.k === 'ranswer') {
+        p.pc.setRemoteDescription(m.sdp).catch(() => {});
       }
     }
     function takeChat(m) {
@@ -909,6 +975,94 @@
       if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = '💬 Chat'; renderChat(); renderFiles(); }
     };
     document.getElementById('chatclose').onclick = () => chatPanel.classList.remove('open');
+
+    // ---- peer relay: a mutual friend forwards media between blocked pairs ----
+    // When B and C can't reach each other but both reach A, B asks A (the
+    // smallest-id mutual friend) to forward C's tracks over the working A→B
+    // connection — a volunteer TURN made of friends. Renegotiation rides the
+    // DataChannel (only the relayer ever re-offers there, so no glare with the
+    // room signaling), a stream-id mapping says whose tile the media belongs
+    // to, and everything tears down when a direct route forms, the relayer
+    // leaves, or the target leaves.
+    const relayVia = new Map();     // target -> { via, streamId, stream|null }  (as receiver)
+    const relayJobs = new Map();    // target + '>' + requester -> { senders }   (as relayer)
+    const relayRefusal = new Map(); // target -> { viaPid: refusedAt }
+    const connsOf = new Map();      // pid -> [connected pids] (gossiped)
+    const MAX_RELAY_JOBS = 4;       // a phone volunteers only so much upload
+
+    function claimRelayStreams() {
+      for (const [target, r] of relayVia) {
+        if (r.stream) continue;
+        const viaP = peers.get(r.via);
+        if (!viaP || !viaP.unclaimed) continue;
+        const idx = viaP.unclaimed.findIndex((st) => st.id === r.streamId);
+        if (idx < 0) continue;
+        r.stream = viaP.unclaimed.splice(idx, 1)[0];
+        const t = peers.get(target);
+        if (t) {
+          t.relayed = r.via;
+          t.noRoute = false; t.downSince = 0;
+          t.video.srcObject = r.stream;
+          meterFor(target, r.stream);
+          updateTile(target);
+        }
+      }
+    }
+    function stopRelayFor(target, notifyVia) {
+      const r = relayVia.get(target);
+      if (!r) return;
+      relayVia.delete(target);
+      const t = peers.get(target);
+      if (t) {
+        t.relayed = null;
+        if (t.video.srcObject === r.stream) t.video.srcObject = t.stream || null;
+        updateTile(target);
+      }
+      const viaP = peers.get(r.via);
+      if (notifyVia && viaP && viaP.dc && viaP.dc.readyState === 'open') {
+        try { viaP.dc.send(JSON.stringify({ k: 'relay-stop', target })); } catch (e) {}
+      }
+    }
+    function renegotiate(p) { // relayer-only re-offer, carried over the DataChannel
+      if (!p.dc || p.dc.readyState !== 'open') return;
+      p.pc.createOffer().then((o) => p.pc.setLocalDescription(o))
+        .then(() => p.dc.send(JSON.stringify({ k: 'roffer', sdp: p.pc.localDescription })))
+        .catch(() => {});
+    }
+    function startRelayJob(reqP, target) {
+      const key = target + '>' + reqP.id;
+      if (relayJobs.has(key)) return;
+      const tp = peers.get(target);
+      const refuse = () => { try { reqP.dc.send(JSON.stringify({ k: 'relay-no', target })); } catch (e) {} };
+      if (!tp || !tp.connected || !tp.stream || !reqP.connected || relayJobs.size >= MAX_RELAY_JOBS) { refuse(); return; }
+      const container = new MediaStream();
+      const senders = [];
+      for (const tr of tp.stream.getTracks()) { try { senders.push(reqP.pc.addTrack(tr, container)); } catch (e) {} }
+      if (!senders.length) { refuse(); return; }
+      relayJobs.set(key, { senders, requester: reqP.id, target });
+      try { reqP.dc.send(JSON.stringify({ k: 'relay-stream', target, streamId: container.id })); } catch (e) {}
+      renegotiate(reqP);
+    }
+    function stopRelayJob(target, requesterPid, notify) {
+      const key = target + '>' + requesterPid;
+      const job = relayJobs.get(key);
+      if (!job) return;
+      relayJobs.delete(key);
+      const rp = peers.get(requesterPid);
+      if (!rp) return;
+      for (const sd of job.senders) { try { rp.pc.removeTrack(sd); } catch (e) {} }
+      renegotiate(rp);
+      if (notify && rp.dc && rp.dc.readyState === 'open') { try { rp.dc.send(JSON.stringify({ k: 'relay-end', target })); } catch (e) {} }
+    }
+    function endRelayRolesFor(pid) { // pid left or its pc died — as relayer AND receiver
+      for (const key of Array.from(relayJobs.keys())) {
+        const job = relayJobs.get(key);
+        if (job.target === pid) stopRelayJob(job.target, job.requester, true);
+        else if (job.requester === pid) relayJobs.delete(key);
+      }
+      if (relayVia.has(pid)) stopRelayFor(pid, true);
+      for (const [target, r] of Array.from(relayVia)) if (r.via === pid) stopRelayFor(target, false);
+    }
 
     // ---- hand raise: float to the top in the order hands went up --------------
     const handBtn = document.getElementById('hand');
