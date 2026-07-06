@@ -230,6 +230,26 @@
         + face(48, 61, blinkAt(f)));
     }),
 
+    // A treasure chest for stolen loot: the lid creaks open, gold coins peek
+    // out, and a sparkle pops at full stretch. Smug little face on the front.
+    chest: (a) => range(FR).map((f) => { const lift = [0, 3, 7, 3][f % 4], glint = lift > 4;
+      return sticker(ground()
+        + "<g transform='translate(48," + (46 - lift) + ") rotate(" + (-lift * 1.1) + ")'>"
+        + "<path d='M-24 8 v-5 q0 -13 24 -13 q24 0 24 13 v5 Z' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M-24 3 h48' stroke='" + INK + "' stroke-width='2' opacity='.3'/>"
+        + "<rect x='-5' y='0' width='10' height='8' rx='2.5' fill='#ffd23c' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "</g>"
+        + "<circle cx='37' cy='" + (49 - lift / 2) + "' r='4' fill='#ffd23c' stroke='" + INK + "' stroke-width='2'/>"
+        + "<circle cx='48' cy='" + (47.5 - lift / 2) + "' r='4.6' fill='#ffe27a' stroke='" + INK + "' stroke-width='2'/>"
+        + "<circle cx='59' cy='" + (49 - lift / 2) + "' r='3.6' fill='#ffd23c' stroke='" + INK + "' stroke-width='2'/>"
+        + "<rect x='24' y='50' width='48' height='28' rx='6' fill='" + dark(a, 70) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M30 50 v28 M66 50 v28' stroke='" + INK + "' stroke-width='2' opacity='.25'/>"
+        + "<rect x='42' y='48' width='12' height='11' rx='3' fill='#ffd23c' stroke='" + INK + "' stroke-width='2.4'/>"
+        + "<circle cx='48' cy='53' r='1.6' fill='" + INK + "'/>"
+        + face(48, 68, blinkAt(f))
+        + (glint ? "<path d='M73 27 l2 4.6 4.6 2 -4.6 2 -2 4.6 -2 -4.6 -4.6 -2 4.6 -2 Z' fill='#fff3b0' stroke='" + INK + "' stroke-width='1.6'/>" : ''));
+    }),
+
     // A camcorder with one big curious eye — it looks around, REC light blinking.
     video: (a) => range(FR).map((f) => { const dy = bob(f), px = [-2, 0, 2, 0][f], on = f % 2 === 0;
       return sticker(ground()

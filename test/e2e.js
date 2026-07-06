@@ -49,6 +49,8 @@ async function openApp(page, ctx, folder, label) {
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('desktop root has folders + Welcome + Video Call + Trash + Stolen Apps', labels.length === 9);
   check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps'].every((f) => labels.includes(f)));
+  check('Stolen Apps wears its treasure-chest GIF (not the bare 📁 glyph)',
+    await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
   check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
   const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
