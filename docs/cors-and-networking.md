@@ -185,6 +185,18 @@ The Video Call system app (`video.html`) is the proof of the guard:
 - Every participant holds one `RTCPeerConnection` per other participant. For
   each pair, exactly one side initiates, chosen by peer-id order — the same
   deterministic rule for joins, rejoins, and reloads, so there is no glare.
+- **Peer relay — a volunteer TURN made of friends.** Every participant
+  gossips its connectivity map; when a pair can't form (both ends behind
+  strict NATs), the requester elects the smallest-id mutual friend, who
+  re-sends the target's tracks over its own working connection
+  (renegotiated over the DataChannel — only the relayer ever re-offers
+  there, so no glare with room signaling). A stream-id mapping message tells
+  the receiver whose tile the forwarded media belongs to. Relays tear down
+  when a direct route forms (ICE restarts never stop trying), when the
+  relayer or target leaves, and a phone volunteers at most 4 forwarded
+  streams. Chat, pinned files, and tombstones take the same trip by
+  gossip re-broadcast (dedupe by id stops loops). Media still never
+  touches infrastructure — the bridge is a friend's browser.
 - **Self-healing**: the relay socket auto-reconnects with backoff (kicked
   instantly on visibility/online); a degraded pair is re-offered with an ICE
   restart by its initiator; a roster-absent peer keeps its tile through a

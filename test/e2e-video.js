@@ -304,9 +304,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // …and after the grace period the tile SAYS why there's no video.
   await hPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cubicle'));
-    return t && /no direct path/.test(t.textContent);
+    return t && /no direct path/.test(t.textContent) && t.classList.contains('noroute') && parseInt(t.style.order || '0', 10) >= 100000;
   }, null, { timeout: 30000 });
-  check('a blocked pair shows "no direct path — firewall blocks P2P" instead of silent black', true);
+  check('with NO possible route or relayer, the tile sinks to the bottom, labeled', true);
 
   // ---------- islands: A reaches B and C, but B↔C can't connect ----------
   // B's ICE to/from C specifically is swallowed (two different firewalls).
@@ -343,12 +343,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bIslePage.goto(islandLink);
   await bIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   await hubPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 2, null, { timeout: 25000 });
-  // the unreachable island sinks to the bottom of B's grid, labeled
+  // PEER RELAY: the Hub notices it reaches both islands and forwards media —
+  // the blocked pair SEE each other, labeled "via Hub", tiles in normal spots.
   await bIslePage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
-    return t && parseInt(t.style.order || '0', 10) >= 100000 && /no direct path/.test(t.textContent) && t.classList.contains('noroute');
-  }, null, { timeout: 35000 });
-  check('an unreachable person sinks to the bottom of the grid, clearly labeled', true);
+    const v = t && t.querySelector('video');
+    return t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute') && v && v.srcObject && v.videoWidth > 0;
+  }, null, { timeout: 45000 });
+  check('a mutual friend relays live media between a blocked pair (video frames flow)', true);
+  await cIslePage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('LeftIsle'));
+    const v = t && t.querySelector('video');
+    return t && /via Hub/.test(t.textContent) && v && v.srcObject && v.videoWidth > 0;
+  }, null, { timeout: 45000 });
+  check('…in both directions, each side labeled "via Hub"', true);
   // chat hops LeftIsle → Hub → RightIsle
   await bIslePage.locator('#chatbtn').click();
   await bIslePage.locator('#chat-in').fill('across the water');
