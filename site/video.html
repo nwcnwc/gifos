@@ -56,6 +56,7 @@
   .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                          background: rgba(10,10,15,.85); color: #e0e0f0; cursor: pointer; font-size: .68rem; }
   .tile .modbar button:hover { border-color: #ff5caa; }
+  .tile.noroute { opacity: .8; border-style: dashed; }
   /* live audio → glowing border (never while muted) */
   .tile.speaking { border-color: #5cff7b; box-shadow: 0 0 0 2px #5cff7b, 0 0 18px rgba(92,255,123,.4); }
   /* per-tile maximize: the focused feed spans the full row, others wrap below */
@@ -315,6 +316,7 @@
       else if (st.blur) chips.push('<span>🌫 blurred</span>');
       if (st.camOff) chips.push('<span>📷 camera off</span>');
       t.chips.innerHTML = chips.join('');
+      t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
       t.tile.classList.toggle('cam-off', !!st.camOff);
       t.video.classList.toggle('blurred', !!(gBlur || st.blur));
       if (!isMe) {
@@ -350,7 +352,10 @@
         t.tile.classList.toggle('focus', focused);
         const mb = t.tile.querySelector('.maxbtn');
         if (mb) { mb.textContent = focused ? '⤡' : '⤢'; mb.title = focused ? 'Back to the grid' : 'Make this the focus feed'; }
-        t.tile.style.order = focused ? -100000 : (rank.has(id) ? -5000 + rank.get(id) : 0);
+        let o = rank.has(id) ? -5000 + rank.get(id) : 0;
+        if (id !== 'me' && t.noRoute) o = 100000; // unreachable → gracefully sink to the bottom
+        if (focused) o = -100000;                 // …unless you chose to focus them anyway
+        t.tile.style.order = o;
       };
       if (meTile) apply('me', meTile);
       for (const [pid, p] of peers) apply(pid, p);
@@ -781,11 +786,17 @@
         (m.metas || []).forEach((meta) => takeMeta(meta, dc));
         renderChat(); renderFiles();
       } else if (m.k === 'chat') {
-        if (takeChat(m.m)) { renderChat(); if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = '💬 Chat (' + unread + ')'; } }
+        if (takeChat(m.m)) {
+          renderChat();
+          if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = '💬 Chat (' + unread + ')'; }
+          dcAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
+        }
       } else if (m.k === 'fmeta') {
-        if (takeMeta(m.f, dc)) renderFiles();
+        if (takeMeta(m.f, dc)) { renderFiles(); dcAll({ k: 'fmeta', f: m.f }); }
       } else if (m.k === 'want') {
-        sendFileOver(dc, m.id);
+        const f = files.get(m.id);
+        if (f && f.bytes) sendFileOver(dc, m.id);
+        else if (f) (f.wanters = f.wanters || []).push(dc); // send once our own copy lands
       } else if (m.k === 'fc') {
         const f = files.get(m.id);
         if (!f || f.bytes || tombs.has(m.id)) return;
@@ -797,10 +808,10 @@
           for (const c of f.parts) if (c) { all.set(c, off); off += c.length; }
           f.bytes = all; f.parts = null;
           renderFiles();
+          for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
         }
       } else if (m.k === 'fdel') {
-        takeTomb(m.id, { by: m.by, at: m.at });
-        renderFiles();
+        if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); dcAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
       }
     }
     function takeChat(m) {
@@ -809,9 +820,10 @@
       return true;
     }
     function takeTomb(id, t) {
-      if (!id || !t || tombs.has(id)) return;
+      if (!id || !t || tombs.has(id)) return false;
       tombs.set(id, t);
       files.delete(id);
+      return true;
     }
     function takeMeta(meta, dc) {
       if (!meta || !meta.id || files.has(meta.id) || tombs.has(meta.id)) return false;
