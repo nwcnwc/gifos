@@ -140,7 +140,7 @@
     }
     const putFolder = async (folder, parent, x, y) => {
       const f = await createFolder(folder.name, parent, x, y);
-      let inside = 0;
+      let inside = 1; // cell 0 belongs to the up-hole
       for (const a of folder.apps) await putApp(a, f.id, gridPosition(inside++));
       for (const sub of folder.sub || []) { const p = gridPosition(inside++); await putFolder(sub, f.id, p.x, p.y); }
       return f;
@@ -193,10 +193,31 @@
         : 'Drop any file here, or use ＋ Add. Double-click an app GIF to run it.';
       surface.appendChild(hint);
     }
+    if (currentFolder) surface.appendChild(buildUpHole());
     els.forEach((el) => surface.appendChild(el));
     dropHint.style.display = visible.length ? '' : 'none'; // the empty hint explains instead
     updateExtent();
     applyBackground();
+  }
+
+  // The upper-left cell inside every folder is a HOLE back up to the parent:
+  // click it to go up a level, or drop icons on it to send them there.
+  function upTarget() {
+    const folder = items.find((i) => i.id === currentFolder);
+    return folder ? (folder.parent || null) : null;
+  }
+  function buildUpHole() {
+    const upTo = upTarget();
+    const parentName = upTo ? (items.find((i) => i.id === upTo) || {}).name || '…' : 'Home Screen';
+    const el = document.createElement('div');
+    el.className = 'icon uphole';
+    el.dataset.id = '__up__';
+    el.style.left = GRID.origin + 'px';
+    el.style.top = GRID.origin + 'px';
+    el.title = 'Up to ' + parentName + ' — or drop things here to move them there';
+    el.innerHTML = '<div class="thumb"><div class="hole">⤴</div></div><div class="label">' + escapeHtml(parentName) + '</div>';
+    el.addEventListener('click', () => { currentFolder = upTo; selectedId = null; render(); });
+    return el;
   }
 
   async function buildIcon(it) {
@@ -340,6 +361,7 @@
     const taken = new Set(items
       .filter((i) => (i.parent || null) === (parent || null) && i.id !== excludeId)
       .map((i) => { const c = cellOf(i.x, i.y, cols); return c.col + ',' + c.row; }));
+    if (parent) taken.add('0,0'); // the up-hole owns the corner cell inside folders
     for (let r = 0; r < 200; r++) {
       let best = null, bestD = Infinity;
       for (let dc = -r; dc <= r; dc++) {
@@ -407,7 +429,12 @@
         return;
       }
       const targetFolder = folderUnder(e, it);
-      if (targetFolder && it.id !== TRASH_ID) {
+      const hole = upHoleUnder(e);
+      if (hole && it.id !== TRASH_ID) {
+        const upTo = upTarget();                          // dropped in the hole → up a level
+        const spot = nearestFreeCell(GRID.origin, GRID.origin, upTo, it.id);
+        it.parent = upTo; it.x = spot.x; it.y = spot.y;
+      } else if (targetFolder && it.id !== TRASH_ID) {
         it.parent = targetFolder.id;                     // dropped into a folder (or Trash)
       } else {
         const snapped = nearestFreeCell(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
@@ -438,8 +465,14 @@
     }
     return null;
   }
+  function upHoleUnder(e) {
+    const n = surface.querySelector('.uphole');
+    return n && hit(n, e) ? n : null;
+  }
   function highlightDropTarget(e, dragItem) {
     clearDropTargets();
+    const holeEl = upHoleUnder(e);
+    if (holeEl) { holeEl.classList.add('drop-target'); return; }
     const f = folderUnder(e, dragItem);
     if (f) { const n = surface.querySelector('.icon[data-id="' + f.id + '"]'); if (n) n.classList.add('drop-target'); }
   }

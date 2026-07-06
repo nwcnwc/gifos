@@ -161,6 +161,37 @@ async function openApp(page, ctx, folder, label) {
   check('Tools folder contains Notes + Calculator + Stopwatch', ['Notes.gif', 'Calculator.gif', 'Stopwatch.gif'].every((a) => toolLabels.includes(a)));
   await page.locator('#crumbs a').click();
   await sleep(200);
+  // ---- the up-hole: the corner cell inside a folder leads back up ----
+  await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
+  await sleep(300);
+  check('a folder shows the up-hole in its corner cell', (await page.locator('.uphole').count()) === 1
+    && /Home Screen/.test(await page.locator('.uphole .label').textContent()));
+  // drag Connect Four into the hole → it climbs out to the Home Screen
+  const cfBox = await page.locator('.icon', { hasText: 'Connect Four.gif' }).boundingBox();
+  const holeBox = await page.locator('.uphole').boundingBox();
+  await page.mouse.move(cfBox.x + cfBox.width / 2, cfBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(holeBox.x + holeBox.width / 2, holeBox.y + 30, { steps: 8 });
+  await page.mouse.up();
+  await sleep(400);
+  const gamesAfterDrop = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('dropping an icon in the hole sends it up a level', !gamesAfterDrop.includes('Connect Four.gif'));
+  // click the hole → back on the Home Screen, where Connect Four now sits
+  await page.locator('.uphole').click();
+  await sleep(300);
+  const rootNow = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('clicking the hole climbs up to the parent',
+    /Home Screen/.test(await page.locator('#crumbs').textContent()) && rootNow.includes('Connect Four.gif'));
+  // tidy: put Connect Four back in Games for the checks that follow
+  await page.evaluate(async () => {
+    const its = await GifOS.store.allItems();
+    const games = its.find((i) => i.kind === 'folder' && i.name === 'Games');
+    const cf = its.find((i) => i.name === 'Connect Four.gif');
+    cf.parent = games.id; await GifOS.store.putItem(cf);
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  await sleep(250);
+
   // Games folder has the four games
   await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
   await sleep(250);
