@@ -95,7 +95,7 @@
   // form). Day-to-day the children live as store rows for speed; Download
   // packs a self-contained BUNDLE — children (state folded in) inside the
   // folder's own GIF, recursively — and dropping a bundle unpacks it back.
-  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60], 'Single Phone': [92, 200, 255] };
+  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60], 'Single Phone': [92, 200, 255], 'Stolen Apps': [255, 200, 80] };
   function accentFor(name) {
     if (FOLDER_ACCENTS[name]) return FOLDER_ACCENTS[name];
     let h = 0; const s = String(name || 'Folder');
@@ -150,11 +150,19 @@
     await load();
   }
 
-  // The Trash exists on every desktop, including old ones from before it shipped.
+  // System items exist on every desktop, including old ones from before they
+  // shipped. 'sys_stolen' is shared with the runtime (run.html), which files
+  // stolen apps into it — and creates it itself if a steal happens first.
   async function ensureSystemItems() {
     if (!items.find((i) => i.id === TRASH_ID)) {
       const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
       await store.putItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
+        x: spot.x, y: spot.y, iconSize: 64 });
+      await load();
+    }
+    if (!items.find((i) => i.id === 'sys_stolen')) {
+      const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
+      await store.putItem({ id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
         x: spot.x, y: spot.y, iconSize: 64 });
       await load();
     }
@@ -247,7 +255,7 @@
         signableFiles.add(it.fileId);
         addSigBadge(thumb, it, fbytes);
       } else {
-        thumb.textContent = '📁'; // system folders (Trash) have no GIF
+        thumb.textContent = '📁'; // system folders (Trash, Stolen Apps) have no GIF
       }
     } else {
       const file = await store.getFile(it.fileId);

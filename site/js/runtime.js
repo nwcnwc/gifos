@@ -228,13 +228,24 @@
   }
 
   // ---- desktop capture: write app + state into THIS browser's desktop ------
-  function saveAppToDesktop(appBytes, manifest, state) {
+  // Stolen apps are filed into the system 'Stolen Apps' folder (same fixed id
+  // the desktop's ensureSystemItems uses — created here too if a steal happens
+  // on a desktop from before the folder shipped).
+  const STOLEN_ID = 'sys_stolen';
+  function ensureStolenFolder() {
+    return store.allItems().then((all) => {
+      if (all.find((i) => i.id === STOLEN_ID)) return STOLEN_ID;
+      return store.putItem({ id: STOLEN_ID, kind: 'folder', name: 'Stolen Apps',
+        parent: null, x: 24, y: 24, iconSize: 64 }).then(() => STOLEN_ID);
+    });
+  }
+  function saveAppToDesktop(appBytes, manifest, state, parent) {
     const fileId = store.uid('file');
     const name = (manifest.name || manifest.appId || 'App') + '.gif';
     return store.putFile({ id: fileId, name, bytes: appBytes, kind: 'gif', isApp: true,
       appId: manifest.appId, accent: manifest.accent, mime: 'image/gif' })
       .then(() => store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
-        parent: null, x: 24, y: 24, iconSize: 64 }))
+        parent: parent || null, x: 24, y: 24, iconSize: 64 }))
       .then(() => (state ? store.setState(fileId, state) : null))
       .then(() => {
         // Let any open desktop tab repaint and show the new icon immediately.
@@ -1031,7 +1042,8 @@
       let hadState = false;
       for (const p in filesRef) { if (p.startsWith('.state/')) hadState = true; else clean[p] = filesRef[p]; }
       const bytes = hadState && gif.repack ? gif.repack(appBytes, clean) : appBytes;
-      return Promise.resolve(bytes).then((b) => saveAppToDesktop(b, manifestRef, null));
+      return Promise.all([Promise.resolve(bytes), ensureStolenFolder()])
+        .then(([b, folderId]) => saveAppToDesktop(b, manifestRef, null, folderId));
     }
 
     return Promise.resolve({
