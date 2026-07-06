@@ -106,16 +106,31 @@
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
   .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff; background: #7b5cff; color: #fff; cursor: pointer; }
+  /* The SYSTEM chip: honest signage that this page runs with heightened
+     permissions (camera/mic/WebRTC) that sandboxed apps never get. */
+  .syschip { font-size: .6rem; font-weight: 700; letter-spacing: .09em; padding: .16rem .4rem;
+             border: 1px solid #7b5cff; color: #a08dff; border-radius: .35rem; cursor: help; flex: 0 0 auto; }
+  /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
+     their privileged actions anyway — this is honest UI, not the enforcement). */
+  body.admroom.notadmin .modbar { display: none !important; }
+  .modbar .banbtn { display: none; }
+  body.amadmin .modbar .banbtn { display: inline-block; }
+  #adm-banned { max-height: 150px; overflow-y: auto; margin: .5rem 0; text-align: left; font-size: .8rem; }
+  #adm-banned .brow { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid #1c1c2b; }
+  #adm-banned .brow button { padding: .15rem .5rem; font-size: .72rem; border-radius: .35rem;
+                             border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="bar">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
+    <span class="syschip" id="syschip" title="Video Call is a SYSTEM app: it runs as trusted, first-party GifOS code with camera, microphone and WebRTC access — capabilities every regular app is sandboxed away from. Tap for details.">SYSTEM</span>
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="mic" class="off">Unmute</button>
     <button id="cam" class="off">Camera on</button>
     <button id="blur" title="Completely blur your video for everyone">Blur</button>
     <button id="pwbtn" title="Lock this room with a password">🔒 Password</button>
+    <button id="admbtn" title="Room admin: only admins can set the password, globally mute/blur, and ban devices">🛡 Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">✋ Hand</button>
     <button id="chatbtn" title="Chat and shared files — peer-to-peer, never on a server">💬 Chat</button>
     <button id="recbtn" title="Record this call ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">⏺ Record</button>
@@ -160,6 +175,27 @@
         <button id="pw-save">Save</button>
         <button id="pw-cancel" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
       </div>
+    </div>
+  </div>
+
+  <div class="name-modal" id="adm-modal" style="display:none">
+    <div class="name-box" style="max-width:420px">
+      <h3>🛡 Room admin</h3>
+      <p id="adm-hint"></p>
+      <div id="adm-setup">
+        <input id="adm-pass" type="password" maxlength="64" placeholder="Admin password" autocomplete="off">
+        <button id="adm-enable">Enable admin mode</button>
+      </div>
+      <div id="adm-panel" style="display:none;text-align:left">
+        <p style="margin-bottom:.4rem">Admin link — anyone who opens it IS an admin, share carefully:</p>
+        <div style="display:flex;gap:.4rem;margin-bottom:.7rem">
+          <input id="adm-link" readonly style="margin-bottom:0;font-family:ui-monospace,monospace;font-size:.72rem">
+          <button id="adm-copy" style="white-space:nowrap">Copy</button>
+        </div>
+        <p style="margin-bottom:.2rem">Banned devices:</p>
+        <div id="adm-banned"></div>
+      </div>
+      <button id="adm-close" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
     </div>
   </div>
 
@@ -276,6 +312,7 @@
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
+      if (hasAdmin && !amAdmin) { setStatus('🛡 This room has an admin — only admins can ' + field + ' for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
       for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
@@ -309,8 +346,17 @@
       if (!isMe) {
         modbar = document.createElement('div');
         modbar.className = 'modbar';
-        modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>';
+        modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>'
+          + '<button class="banbtn" data-adm="ban" title="Ban this device from the room (admins only)">⛔ Ban</button>';
         modbar.addEventListener('click', (e) => {
+          if (e.target.dataset.adm === 'ban') {
+            e.stopPropagation();
+            const dev = devOf[id];
+            if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, ws && ws.readyState);
+            if (!amAdmin || !dev) return;
+            if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName() }));
+            return;
+          }
           const f = e.target.dataset.mod;
           if (!f) return;
           e.stopPropagation();
@@ -533,19 +579,21 @@
         .catch(() => {});
     }
 
-    function learn(from, msg, p) {
+    function learn(from, msg, p, adm) {
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
       if (msg.st) { statusOf.set(from, msg.st); updateTile(from); }
-      if (msg.mod) mergeMod(msg.mod);
+      // In admin rooms, group moderation is honored ONLY from relay-stamped
+      // (verified admin) messages — gossip can't spoof an admin's authority.
+      if (msg.mod && (!hasAdmin || adm)) mergeMod(msg.mod);
       if (msg.conns) connsOf.set(from, msg.conns);
       if ('sid' in msg && p) p.ownSid = msg.sid;
     }
 
-    function onSignal(from, msg) {
+    function onSignal(from, msg, adm) {
       if (!msg || !msg.kind) return;
       if (msg.kind === 'offer') {
         const p = makePeer(from, msg.name);
-        learn(from, msg, p);
+        learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
@@ -555,7 +603,7 @@
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
         if (!p) return;
-        learn(from, msg, p);
+        learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .catch(() => {});
@@ -571,7 +619,7 @@
         if (sp && 'sid' in msg) sp.ownSid = msg.sid;
         updateTile(from);
       } else if (msg.kind === 'mod') {
-        mergeMod(msg.mod);
+        if (!hasAdmin || adm) mergeMod(msg.mod);
       }
     }
 
@@ -587,6 +635,9 @@
         if (!p) {
           if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
           else p = makePeer(pid, names[pid] || null); // their offer is on its way
+          // Newcomers can't trust gossip for moderation in admin rooms — an
+          // admin hands them the table over the relay's stamped path.
+          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
         }
         p.absentSince = 0;
         if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
@@ -605,6 +656,46 @@
 
     let room = null, roomToken = null, backoff = 500, reopenTimer = null;
     let roomPw = '', pwBlocked = false;
+
+    // ---- admin rooms -----------------------------------------------------------
+    // The admin link carries K = SHA-256(room + ':' + admin password). The
+    // relay's occupancy holds only SHA-256(K), so no server ever stores the
+    // password and seeing room state never grants adminship — presenting K
+    // does. The relay stamps signals routed from admin sockets (adm:true);
+    // in admin rooms receivers honor group moderation ONLY from stamped
+    // messages, so nobody can spoof an admin. Devices are identified by a
+    // random locally-persisted token (honest limitation: wiping site data
+    // mints a new device — bans deter, they don't imprison).
+    let admKey = null, hasAdmin = false, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
+    async function sha256hex(s) {
+      const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
+      return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    function deviceId() {
+      let d = null; try { d = localStorage.getItem('gifos_vdev'); } catch (e) {}
+      if (!d) { d = uid('d').slice(0, 16); try { localStorage.setItem('gifos_vdev', d); } catch (e) {} }
+      return d;
+    }
+    const admStoreKey = () => 'gifos_vadm_' + room;
+    const banStoreKey = () => 'gifos_vban_' + room;
+    function loadAdm() {
+      admKey = params.get('adm') || null;
+      if (!admKey) { try { admKey = localStorage.getItem(admStoreKey()); } catch (e) {} }
+      if (admKey) { try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {} }
+    }
+    function applyAdminUi() {
+      document.body.classList.toggle('admroom', hasAdmin);
+      document.body.classList.toggle('notadmin', hasAdmin && !amAdmin);
+      document.body.classList.toggle('amadmin', amAdmin);
+      const ab = document.getElementById('admbtn');
+      ab.style.display = (!hasAdmin || amAdmin) ? '' : 'none';
+      ab.textContent = amAdmin ? '🛡 Admin' : '🛡 Admin…';
+      const pwb = document.getElementById('pwbtn');
+      pwb.disabled = hasAdmin && !amAdmin;
+      pwb.title = (hasAdmin && !amAdmin) ? 'This room\'s password is managed by its admin' : 'Lock this room with a password';
+      renderBanned();
+    }
+
     const pwKey = () => 'gifos_vpw_' + room;
     function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
     function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
@@ -621,11 +712,12 @@
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
       ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + room + '?role=mesh&token=' + roomToken +
-        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw));
+        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
+        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
       ws.onopen = () => { backoff = 500; updateStatus(); };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
       ws.onclose = () => {
-        if (leaving || pwBlocked) return; // pw prompt owns the reconnect now
+        if (leaving || pwBlocked || bannedOut) return; // pw prompt / ban owns the reconnect now
         updateStatus(); // live P2P links stay up; we quietly rejoin the room
         clearTimeout(reopenTimer);
         backoff = Math.min(5000, backoff * 2);
@@ -633,9 +725,41 @@
       };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') { myId = m.peer; updateStatus(); broadcastStatus(); }
-        else if (m.t === 'roster') reconcile(m.peers, m.names);
-        else if (m.t === 'peer') onSignal(m.from, m.msg);
+        if (m.t === 'joined') { myId = m.peer; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
+        else if (m.t === 'roster') {
+          hasAdmin = !!m.hasAdmin; admins = m.admins || []; roomBan = m.ban || [];
+          // MERGE device mappings (don't replace): a peer inside its absence
+          // grace window still has a tile, and its Ban button must keep
+          // working even though the roster no longer lists it.
+          Object.assign(devOf, m.devs || {});
+          amAdmin = amAdmin || admins.includes(myId);
+          if (amAdmin) {
+            if (roomBan.length) { try { localStorage.setItem(banStoreKey(), JSON.stringify(roomBan)); } catch (e) {} }
+            else if (!banSeeded && m.peers.length <= 1) {
+              // Alone in a re-emptied room: re-seed the ban list from this
+              // device's copy — occupancy memory, still nothing on a server.
+              let stored = []; try { stored = JSON.parse(localStorage.getItem(banStoreKey()) || '[]'); } catch (e) {}
+              if (stored.length) ws.send(JSON.stringify({ t: 'banlist', devs: stored }));
+            } else { try { localStorage.setItem(banStoreKey(), JSON.stringify(roomBan)); } catch (e) {} }
+            banSeeded = true;
+          }
+          applyAdminUi();
+          reconcile(m.peers, m.names);
+        }
+        else if (m.t === 'peer') onSignal(m.from, m.msg, m.adm);
+        else if (m.t === 'ban') {
+          // A ban is not just signaling: sever the banned device's live P2P
+          // links too (media otherwise outlives the relay socket by design).
+          for (const pid of Object.keys(devOf)) if (devOf[pid] === m.dev) dropPeer(pid);
+          if (m.dev === deviceId()) {
+            bannedOut = true;
+            for (const pid of Array.from(peers.keys())) dropPeer(pid);
+            try { ws.close(); } catch (e) {}
+            setStatus('⛔ You were banned from this room by ' + (m.by || 'an admin'));
+          } else setStatus('⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
+        }
+        else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
+        else if (m.t === 'adm-on') setStatus('🛡 ' + (m.by || 'Someone') + ' enabled admin mode — moderation is now admins-only');
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
         else if (m.t === 'pw') {
           // someone in the room changed the password — every attached session
@@ -645,6 +769,7 @@
         }
         else if (m.t === 'error') {
           if (/password required/.test(m.error || '')) { pwBlocked = true; clearTimeout(reopenTimer); showPwModal(true); }
+          else if (/banned/.test(m.error || '')) { bannedOut = true; clearTimeout(reopenTimer); setStatus('⛔ This device was banned from the room by its admin.'); }
           else setStatus('Relay: ' + m.error);
         }
       };
@@ -776,9 +901,68 @@
     };
     document.getElementById('pw-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('pw-save').click(); });
 
+    // ---- admin UI --------------------------------------------------------------
+    const admModal = document.getElementById('adm-modal');
+    function adminLink() {
+      if (!admKey) return '';
+      const pretty = /^(?:[0-9]\.)?gifos\.app$/.test(location.hostname);
+      return pretty ? location.origin + '/call/' + room + '/' + admKey
+        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + '&adm=' + admKey;
+    }
+    function renderBanned() {
+      const box = document.getElementById('adm-banned');
+      if (!box) return;
+      box.innerHTML = '';
+      if (!amAdmin) return;
+      if (!roomBan.length) { box.innerHTML = '<span style="color:#667">Nobody is banned.</span>'; return; }
+      for (const b of roomBan) {
+        const row = document.createElement('div'); row.className = 'brow';
+        const nm = document.createElement('span'); nm.style.flex = '1';
+        nm.textContent = (b.n || 'unnamed') + ' · ' + b.d;
+        const btn = document.createElement('button'); btn.textContent = 'Unban';
+        btn.onclick = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName() })); };
+        row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
+      }
+    }
+    function showAdmModal() {
+      const setup = document.getElementById('adm-setup'), panel = document.getElementById('adm-panel');
+      if (amAdmin) {
+        setup.style.display = 'none'; panel.style.display = '';
+        document.getElementById('adm-link').value = adminLink();
+        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Only admins can set the room password, mute or blur for everyone, and ban devices.';
+        renderBanned();
+      } else {
+        setup.style.display = ''; panel.style.display = 'none';
+        document.getElementById('adm-hint').textContent = 'Set an admin password to take moderation control of this room: only admins will be able to set the room password, globally mute/blur, or ban devices. Nothing touches a server — your admin link carries only a salted hash of the password.';
+      }
+      admModal.style.display = 'flex';
+    }
+    document.getElementById('admbtn').onclick = showAdmModal;
+    document.getElementById('adm-close').onclick = () => { admModal.style.display = 'none'; };
+    document.getElementById('adm-copy').onclick = () => {
+      const inp = document.getElementById('adm-link');
+      inp.select(); try { document.execCommand('copy'); } catch (e) {}
+      if (navigator.clipboard) navigator.clipboard.writeText(inp.value).catch(() => {});
+    };
+    document.getElementById('adm-enable').onclick = async () => {
+      const v = document.getElementById('adm-pass').value.trim();
+      if (!v) return;
+      admKey = await sha256hex(room + ':' + v); // the admin key: hashed password, room-salted
+      try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
+      const verifier = await sha256hex(admKey); // the room learns only THIS
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'setadm', v: verifier }));
+      document.getElementById('adm-pass').value = '';
+      admModal.style.display = 'none';
+      setStatus('🛡 Enabling admin mode…');
+    };
+    document.getElementById('syschip').onclick = () => {
+      setStatus('SYSTEM app: this page runs as trusted first-party GifOS code with camera/mic/WebRTC — capabilities regular apps are sandboxed away from. Its source is auditable: github.com/nwcnwc/gifos → site/video.html');
+    };
+
     function joinRoom() {
       room = params.get('v') || shortCode();
       roomToken = params.get('k') || room;
+      loadAdm(); // admin key comes from the URL (or this device's stored copy)
       loadPw();
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
@@ -1388,6 +1572,13 @@
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
+      hasAdmin: () => hasAdmin,
+      amAdmin: () => amAdmin,
+      banList: () => roomBan,
+      bannedOut: () => bannedOut,
+      deviceId,
+      adminLink,
+      modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
     };
   })();
   </script>

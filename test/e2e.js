@@ -53,6 +53,8 @@ async function openApp(page, ctx, folder, label) {
     await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
   check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
+  check('Video Call icon wears the SYSTEM badge (heightened-permissions signage)',
+    await page.locator('.icon', { hasText: 'Video Call.gif' }).locator('.sysbadge').count() === 1);
   const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
   const surfW = await page.evaluate(() => document.getElementById('desktop').clientWidth);
@@ -710,6 +712,14 @@ async function openApp(page, ctx, folder, label) {
   await called.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x/, { timeout: 5000 });
   check('/call/<code> routes into the video page with the code', true);
   await called.close();
+  const admRouted = await context.newPage();
+  await admRouted.route('**/call/**', (route) => route.fulfill({
+    status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
+  }));
+  await admRouted.goto(BASE + '/call/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
+  await admRouted.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x&adm=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
+  check('/call/<code>/<key> routes the ADMIN link with its hashed credential', true);
+  await admRouted.close();
 
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();

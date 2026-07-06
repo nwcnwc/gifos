@@ -136,6 +136,15 @@ body {
 .sig-badge.sig-bad { background: #ff5c5c; }
 .sig-badge.sig-unk { background: #8888aa; }
 
+/* SYSTEM tag on trusted system-app launchers (Video Call): honest signage
+   that this icon opens a first-party page with camera/mic/WebRTC access. */
+.sysbadge {
+  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
+  font-size: .5rem; font-weight: 800; letter-spacing: .09em; line-height: 1;
+  padding: .16rem .32rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  background: #14141f; color: #a08dff; border: 1px solid #7b5cff;
+}
+
 /* context menu */
 .ctx {
   position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border);
