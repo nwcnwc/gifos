@@ -49,7 +49,7 @@
     '',
     'HOW TO DELIVER THE .gif (in order of preference)',
     'A. If you have the GifOS MCP connector (https://mcp.gifos.app/mcp): call pack_app — it returns the finished file. Done.',
-    'B. If you can run code and attach files: (1) draw a small animated icon with PIL — 2 to 6 frames, 64x64, styled like a cute STICKER: a little character with a dark outline on a TRANSPARENT background (GifOS icons float on the wallpaper — no background tile), and make it MOVE (blink, bounce, sweep); use mode "P" with palette index 0 reserved for transparency and save with im.save("icon.gif", save_all=True, append_images=frames[1:], duration=120, loop=0, transparency=0, disposal=2). (2) Splice the app into that GIF with EXACTLY this function — the wbits=-15 raw deflate is required:',
+    'B. If you can run code and attach files: (1) get the animation — MY OWN GIF COMES FIRST: if I provided a GIF (or say I have one), use its bytes as the host file WHOLESALE. Do NOT redraw, re-encode, resize, crop, recolor, or "improve" it in any way — the pack function below splices the app into it without touching a single pixel of my animation. Only if I have no GIF: ask me what kind of cute animation I would like, then draw it with PIL to my description — 2 to 6 frames, 64x64, styled like a cute STICKER: a little character with a dark outline on a TRANSPARENT background (GifOS icons float on the wallpaper — no background tile), and make it MOVE (blink, bounce, sweep); use mode "P" with palette index 0 reserved for transparency and save with im.save("icon.gif", save_all=True, append_images=frames[1:], duration=120, loop=0, transparency=0, disposal=2). (2) Splice the app into the GIF (mine or the drawn one) with EXACTLY this function — the wbits=-15 raw deflate is required:',
     '     import json, zlib, base64',
     '     def pack_gifos(gif_bytes, files):',
     '         a = {"v": 1, "files": {p: base64.b64encode(v.encode() if isinstance(v, str) else v).decode() for p, v in files.items()}}',
@@ -63,12 +63,12 @@
     '         return gif_bytes[:end] + block + b"\\x3b"',
     '     manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App", "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})',
     '     open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(), {"manifest.json": manifest, "index.html": HTML}))',
-    '   Attach the resulting "My App.gif" for me to download. Bonus Easter egg: if I give you a favorite GIF of mine, use ITS bytes instead of your drawn icon — the app hides inside my GIF with its animation untouched.',
+    '   Attach the resulting "My App.gif" for me to download. Remember: when the host GIF is mine, the result still looks and animates EXACTLY like my original everywhere — that is the point.',
     'C. ONLY if you can do neither A nor B: reply with a complete single-file index.html in a ```html code block (the paste box takes one file; multi-file needs a .zip) and tell me to paste it into GifOS → ＋ Add → the app builder.',
     '',
     'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
     '',
-    'First, ask me exactly one question: "What app do you want to build?"',
+    'First, ask me: "What app do you want to build?" — and in the same message ask whether I have a GIF of my own to use for its animation (if yes, use it UNCHANGED; if no, ask what kind of cute animation I would like you to draw).',
     'After I answer, deliver the finished .gif (path A or B) with one line of instructions: open gifos.app, tap ＋ Add (or drag the file in), double-click the new icon.',
   ].join('\n');
 
