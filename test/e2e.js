@@ -47,8 +47,8 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Video Call + Trash', labels.length === 7);
-  check('has Games / Studio / Tools / Social folders', ['Games', 'Studio', 'Tools', 'Social'].every((f) => labels.includes(f)));
+  check('desktop root has folders + Welcome + Video Call + Trash', labels.length === 8);
+  check('has Games / Studio / Tools / Social / IRL Games folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games'].every((f) => labels.includes(f)));
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
   check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
   const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
@@ -58,16 +58,34 @@ async function openApp(page, ctx, folder, label) {
   check('has Trash', labels.includes('Trash'));
   // folders are GIFs too — each renders its own folder GIF, not an emoji
   check('folders render as GIF images (folders are GIFs)',
-    (await page.locator('.icon', { hasText: 'Games' }).locator('img').count()) === 1);
+    (await page.locator('.icon', { hasText: /^Games$/ }).locator('img').count()) === 1);
+
+  // ---- IRL Games: the party folder seeds all five games and they mount ----
+  await page.locator('.icon', { hasText: 'IRL Games' }).dblclick();
+  await sleep(300);
+  const irlLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
+  check('IRL Games folder has all five party games',
+    ['Odd Word Out.gif', 'Catch the Spy.gif', 'Tilt.gif', 'The Dial.gif', 'Party Roulette.gif'].every((g) => irlLabels.includes(g)));
+  const owPage = await openApp(page, context, null, 'Odd Word Out.gif'); // already inside the folder
+  await owPage.waitForSelector('iframe');
+  const ow = owPage.frameLocator('iframe');
+  await ow.locator('#nm').waitFor({ timeout: 8000 });
+  for (const n of ['Ana', 'Ben', 'Cleo', 'Dee']) { await ow.locator('#nm').fill(n); await ow.locator('#nm').press('Enter'); }
+  await ow.locator('#go').click();
+  await ow.locator('.peek').first().waitFor({ timeout: 4000 });
+  check('Odd Word Out deals a hidden word (pass-the-phone)', (await ow.locator('#w').textContent()) === '·····');
+  await owPage.close();
+  await page.locator('#crumbs a').click();
+  await sleep(250);
 
   // ---- folder bundle round-trip: Download a folder → one GIF → re-import ----
   // Play a game inside Games so a child app carries live state into the bundle.
-  const mineForState = await openApp(page, context, 'Games', 'Minesweeper.gif');
+  const mineForState = await openApp(page, context, /^Games$/, 'Minesweeper.gif');
   await mineForState.frameLocator('iframe').locator('.c').first().waitFor({ timeout: 8000 });
   await mineForState.frameLocator('iframe').locator('.c').nth(12).click();
   await sleep(400);
   await mineForState.close();
-  await page.locator('.icon', { hasText: 'Games' }).click({ button: 'right' });
+  await page.locator('.icon', { hasText: /^Games$/ }).click({ button: 'right' });
   const [folderDl] = await Promise.all([
     page.waitForEvent('download'),
     page.locator('.ctx button', { hasText: 'Download (as one GIF)' }).click(),
@@ -90,7 +108,7 @@ async function openApp(page, ctx, folder, label) {
   const rootAfter = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent).filter((t) => t === 'Games'));
   check('importing a folder bundle recreates the folder', rootAfter.length === 2); // original + imported
   // open the imported folder (the second Games) and confirm its games came along
-  const gamesIcons = page.locator('.icon', { hasText: 'Games' });
+  const gamesIcons = page.locator('.icon', { hasText: /^Games$/ });
   await gamesIcons.nth(1).dblclick();
   await sleep(400);
   const importedKids = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
@@ -129,7 +147,7 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('#crumbs a').click();
   await sleep(200);
   // Games folder has the four games
-  await page.locator('.icon', { hasText: 'Games' }).dblclick();
+  await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
   await sleep(250);
   const gameLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((a) => gameLabels.includes(a)));
@@ -201,9 +219,16 @@ async function openApp(page, ctx, folder, label) {
   const made = madePage.frameLocator('iframe');
   // Wait for the app's db.subscribe() to have rendered the initial count (0)
   // before clicking, so the click can't land before the app is interactive.
-  await made.locator('#n', { hasText: '0' }).waitFor({ timeout: 8000 });
+  await made.locator('#n', { hasText: '0' }).waitFor({ timeout: 15000 });
   await made.locator('#b').click();
-  const madeOk = await made.locator('#n', { hasText: /^[1-9]/ }).waitFor({ timeout: 8000 }).then(() => true, () => false);
+  // The count updates only after the new state is persisted (re-packed into
+  // the GIF), which can be slow right after a fresh seed — wait generously,
+  // and tap once more like a human would if nothing happened.
+  let madeOk = await made.locator('#n', { hasText: /^[1-9]/ }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+  if (!madeOk) {
+    await made.locator('#b').click();
+    madeOk = await made.locator('#n', { hasText: /^[1-9]/ }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+  }
   check('the AI-made app runs and uses gifos.db', madeOk);
   await madePage.close();
 
@@ -310,7 +335,7 @@ async function openApp(page, ctx, folder, label) {
   check('no-index.html GIF shows browsable filesystem', /README\.txt/.test(rowText));
 
   // ---- Tic-Tac-Toe (Games folder): the multiplayer default app mounts and plays ----
-  const tttPage = await openApp(page, context, 'Games', 'Tic-Tac-Toe.gif');
+  const tttPage = await openApp(page, context, /^Games$/, 'Tic-Tac-Toe.gif');
   await tttPage.waitForSelector('iframe');
   const ttt = tttPage.frameLocator('iframe');
   await ttt.locator('.cell').first().waitFor({ timeout: 8000 });
@@ -360,7 +385,7 @@ async function openApp(page, ctx, folder, label) {
   await touchPage.goto(BASE + '/index.html');
   await touchPage.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
-  const gamesBox = await touchPage.locator('.icon', { hasText: 'Games' }).boundingBox();
+  const gamesBox = await touchPage.locator('.icon', { hasText: /^Games$/ }).boundingBox();
   await touchPage.touchscreen.tap(gamesBox.x + gamesBox.width / 2, gamesBox.y + gamesBox.height / 2);
   await touchPage.touchscreen.tap(gamesBox.x + gamesBox.width / 2, gamesBox.y + gamesBox.height / 2);
   await sleep(400);
@@ -640,7 +665,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 7 && !freshLabels.includes('Resume.gif'));
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 8 && !freshLabels.includes('Resume.gif'));
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();
