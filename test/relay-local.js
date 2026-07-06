@@ -22,8 +22,9 @@ class Conn {
   }
   drain() {
     while (this.buf.length >= 2) {
-      const b1 = this.buf[1];
-      const opcode = this.buf[0] & 0x0f;
+      const b0 = this.buf[0], b1 = this.buf[1];
+      const fin = (b0 & 0x80) !== 0;
+      const opcode = b0 & 0x0f;
       const masked = (b1 & 0x80) !== 0;
       let len = b1 & 0x7f, off = 2;
       if (len === 126) { if (this.buf.length < 4) return; len = this.buf.readUInt16BE(2); off = 4; }
@@ -36,7 +37,17 @@ class Conn {
       this.buf = this.buf.slice(off + len);
       if (opcode === 0x8) { this.close(); return; }
       if (opcode === 0x9) { this.frame(0xA, payload); continue; } // ping -> pong
-      if (opcode === 0x1 || opcode === 0x0) { if (this.onmessage) this.onmessage(payload.toString('utf8')); }
+      // Browsers fragment big messages at the WS layer (FIN=0 + continuation
+      // frames). Buffer pieces until FIN — real WS stacks (and the Worker) do.
+      if (opcode === 0x1 || opcode === 0x0) {
+        this.parts = this.parts || [];
+        this.parts.push(payload);
+        if (fin) {
+          const whole = this.parts.length === 1 ? this.parts[0] : Buffer.concat(this.parts);
+          this.parts = [];
+          if (this.onmessage) this.onmessage(whole.toString('utf8'));
+        }
+      }
     }
   }
   frame(opcode, data) {
@@ -159,8 +170,9 @@ server.on('upgrade', (req, socket) => {
     if (sess.token && token !== sess.token) { conn.send(JSON.stringify({ t: 'error', error: 'bad token' })); conn.close(); return; }
     sess.clients.set(peer, conn);
     conn.onmessage = (data) => {
-      if (!allow(data)) return;
-      let m; try { m = JSON.parse(data); } catch (e) { return; }
+      if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] msg len=' + Buffer.byteLength(data) + ' allow=' + (meter.tokens | 0));
+      if (!allow(data)) { if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] DROPPED (budget)'); return; }
+      let m; try { m = JSON.parse(data); } catch (e) { if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] UNPARSEABLE'); return; }
       if (m.t === 'peer') { routePeer(peer, m); }
       else if (sess.host) sess.host.send(JSON.stringify({ t: 'from', from: peer, msg: m }));
     };

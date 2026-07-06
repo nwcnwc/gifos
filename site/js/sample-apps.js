@@ -276,11 +276,12 @@
 <form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
 <script>
   const db=gifos.db('messages'), fdb=gifos.db('files'), log=document.getElementById('log');
-  // Attachments ride gifos.db, so every record travels as ONE message between
-  // players (DataChannel, or the relay with its 1MB/message + 48KB/s budget).
-  // Files are therefore base64-chunked (CS chars ≈ 64KB raw each) into the
-  // separate 'files' collection — fetched lazily, never in a getAll fan-out —
-  // and capped at MAX bytes. Images are shrunk to fit automatically.
+  // Attachments ride gifos.db. The runtime fragments oversized messages, but
+  // subscribers re-download a whole collection on every change — so file
+  // bytes are base64-chunked (CS chars ≈ 64KB raw each) into the separate
+  // 'files' collection, fetched lazily by id and never in the hot getAll
+  // fan-out, and capped at MAX bytes (the relay-fallback path is bandwidth-
+  // throttled by design). Images are shrunk to fit automatically.
   const MAX=256*1024, CS=87000, MAXCHUNKS=16;
   let me={id:'local',name:'You'}, last=[];
   if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
