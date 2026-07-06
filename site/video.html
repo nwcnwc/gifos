@@ -187,11 +187,6 @@
         <button id="adm-enable">Enable admin mode</button>
       </div>
       <div id="adm-panel" style="display:none;text-align:left">
-        <p style="margin-bottom:.4rem">Admin link — anyone who opens it IS an admin, share carefully:</p>
-        <div style="display:flex;gap:.4rem;margin-bottom:.7rem">
-          <input id="adm-link" readonly style="margin-bottom:0;font-family:ui-monospace,monospace;font-size:.72rem">
-          <button id="adm-copy" style="white-space:nowrap">Copy</button>
-        </div>
         <p style="margin-bottom:.2rem">Banned devices:</p>
         <div id="adm-banned"></div>
       </div>
@@ -312,7 +307,7 @@
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
-      if (hasAdmin && !amAdmin) { setStatus('🛡 This room has an admin — only admins can ' + field + ' for everyone.'); return; }
+      if (hasAdminRoom() && !amAdmin) { setStatus('🛡 This is an admin-managed room — only admins can ' + field + ' for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
       for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
@@ -584,7 +579,7 @@
       if (msg.st) { statusOf.set(from, msg.st); updateTile(from); }
       // In admin rooms, group moderation is honored ONLY from relay-stamped
       // (verified admin) messages — gossip can't spoof an admin's authority.
-      if (msg.mod && (!hasAdmin || adm)) mergeMod(msg.mod);
+      if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
       if (msg.conns) connsOf.set(from, msg.conns);
       if ('sid' in msg && p) p.ownSid = msg.sid;
     }
@@ -619,7 +614,7 @@
         if (sp && 'sid' in msg) sp.ownSid = msg.sid;
         updateTile(from);
       } else if (msg.kind === 'mod') {
-        if (!hasAdmin || adm) mergeMod(msg.mod);
+        if (!hasAdminRoom() || adm) mergeMod(msg.mod);
       }
     }
 
@@ -658,51 +653,68 @@
     let roomPw = '', pwBlocked = false;
 
     // ---- admin rooms -----------------------------------------------------------
-    // The admin link carries K = SHA-256(room + ':' + admin password). The
-    // relay's occupancy holds only SHA-256(K), so no server ever stores the
-    // password and seeing room state never grants adminship — presenting K
-    // does. The relay stamps signals routed from admin sockets (adm:true);
-    // in admin rooms receivers honor group moderation ONLY from stamped
-    // messages, so nobody can spoof an admin. Devices are identified by a
-    // random locally-persisted token (honest limitation: wiping site data
-    // mints a new device — bans deter, they don't imprison).
-    let admKey = null, hasAdmin = false, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
+    // The admin verifier V is part of the ROOM'S IDENTITY: /call/<room>/<V>
+    // is a DIFFERENT room from /call/<room>, and a plain room can NEVER have
+    // an admin — walking through the extra slash IS the consent to be
+    // administered. V = SHA-256(K) where K = PBKDF2(admin password, salt =
+    // room id): the whole /room/V link is safely public (it's just the
+    // room's name); admin power is KNOWING THE PASSWORD, typed on the
+    // device, never in any URL and never on any server. The relay admits a
+    // socket as admin iff SHA-256(presented K) === V, and stamps its routed
+    // signals (adm:true) — receivers honor group moderation ONLY from
+    // stamped messages, so nobody can spoof an admin. Devices are identified
+    // by a random locally-persisted token (honest limitation: wiping site
+    // data mints a new device — bans deter, they don't imprison).
+    let av = null; // the room's admin verifier — set at join, immutable
+    let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
+    const hasAdminRoom = () => !!av;
     async function sha256hex(s) {
       const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
       return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Deriving K from the password is deliberately EXPENSIVE (PBKDF2): V is
+    // public in every room link, so cheap hashing would invite offline
+    // dictionary attacks on weak admin passwords.
+    async function deriveAdminKey(roomId, password) {
+      const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
+      return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
     function deviceId() {
       let d = null; try { d = localStorage.getItem('gifos_vdev'); } catch (e) {}
       if (!d) { d = uid('d').slice(0, 16); try { localStorage.setItem('gifos_vdev', d); } catch (e) {} }
       return d;
     }
-    const admStoreKey = () => 'gifos_vadm_' + room;
-    const banStoreKey = () => 'gifos_vban_' + room;
+    const roomKey = () => room + (av ? '.' + av : ''); // storage + session identity
+    const admStoreKey = () => 'gifos_vadm_' + roomKey();
+    const banStoreKey = () => 'gifos_vban_' + roomKey();
     function loadAdm() {
-      admKey = params.get('adm') || null;
-      if (!admKey) { try { admKey = localStorage.getItem(admStoreKey()); } catch (e) {} }
-      if (admKey) { try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {} }
+      try { admKey = localStorage.getItem(admStoreKey()); } catch (e) { admKey = null; }
     }
     function applyAdminUi() {
+      const hasAdmin = hasAdminRoom();
       document.body.classList.toggle('admroom', hasAdmin);
       document.body.classList.toggle('notadmin', hasAdmin && !amAdmin);
       document.body.classList.toggle('amadmin', amAdmin);
       const ab = document.getElementById('admbtn');
-      ab.style.display = (!hasAdmin || amAdmin) ? '' : 'none';
-      ab.textContent = amAdmin ? '🛡 Admin' : '🛡 Admin…';
+      ab.textContent = amAdmin ? '🛡 Admin' : (hasAdmin ? '🛡 Admin sign-in' : '🛡 Admin');
+      ab.title = amAdmin ? 'Admin controls: banned devices, room password'
+        : hasAdmin ? 'This is an admin-managed room — enter the admin password to moderate it'
+          : 'This room can never have an admin (by design) — mint an admin-managed room from here';
       const pwb = document.getElementById('pwbtn');
       pwb.disabled = hasAdmin && !amAdmin;
       pwb.title = (hasAdmin && !amAdmin) ? 'This room\'s password is managed by its admin' : 'Lock this room with a password';
       renderBanned();
     }
 
-    const pwKey = () => 'gifos_vpw_' + room;
+    const pwKey = () => 'gifos_vpw_' + roomKey();
     function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
     function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // A per-tab, per-room peer id: a reload reconnects AS the same peer and
     // the relay's stale-close guard swaps the socket instead of duplicating us.
     function myPeerId() {
-      const key = 'gifos_vpeer_' + room;
+      const key = 'gifos_vpeer_' + roomKey();
       let id = null; try { id = sessionStorage.getItem(key); } catch (e) {}
       if (!id) { id = uid('v'); try { sessionStorage.setItem(key, id); } catch (e) {} }
       return id;
@@ -711,9 +723,10 @@
     function openSock() {
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
-      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + room + '?role=mesh&token=' + roomToken +
+      // The session id is the room+verifier COMPOSITE: /room and /room/V are different rooms.
+      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + roomToken +
         '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
-        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
+        '&dev=' + encodeURIComponent(deviceId()) + (av ? '&av=' + av : '') + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
       ws.onopen = () => { backoff = 500; updateStatus(); };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
       ws.onclose = () => {
@@ -727,7 +740,7 @@
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'joined') { myId = m.peer; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
         else if (m.t === 'roster') {
-          hasAdmin = !!m.hasAdmin; admins = m.admins || []; roomBan = m.ban || [];
+          admins = m.admins || []; roomBan = m.ban || [];
           // MERGE device mappings (don't replace): a peer inside its absence
           // grace window still has a tile, and its Ban button must keep
           // working even though the roster no longer lists it.
@@ -759,7 +772,6 @@
           } else setStatus('⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
         }
         else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
-        else if (m.t === 'adm-on') setStatus('🛡 ' + (m.by || 'Someone') + ' enabled admin mode — moderation is now admins-only');
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
         else if (m.t === 'pw') {
           // someone in the room changed the password — every attached session
@@ -903,12 +915,6 @@
 
     // ---- admin UI --------------------------------------------------------------
     const admModal = document.getElementById('adm-modal');
-    function adminLink() {
-      if (!admKey) return '';
-      const pretty = /^(?:[0-9]\.)?gifos\.app$/.test(location.hostname);
-      return pretty ? location.origin + '/call/' + room + '/' + admKey
-        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + '&adm=' + admKey;
-    }
     function renderBanned() {
       const box = document.getElementById('adm-banned');
       if (!box) return;
@@ -926,34 +932,49 @@
     }
     function showAdmModal() {
       const setup = document.getElementById('adm-setup'), panel = document.getElementById('adm-panel');
+      const btn = document.getElementById('adm-enable');
+      document.getElementById('adm-pass').value = '';
       if (amAdmin) {
         setup.style.display = 'none'; panel.style.display = '';
-        document.getElementById('adm-link').value = adminLink();
-        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Only admins can set the room password, mute or blur for everyone, and ban devices.';
+        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Only admins can set the room password, mute or blur for everyone, and ban devices. Anyone who knows the admin password can sign in from this same 🛡 button.';
         renderBanned();
+      } else if (hasAdminRoom()) {
+        setup.style.display = ''; panel.style.display = 'none';
+        btn.textContent = 'Sign in as admin';
+        document.getElementById('adm-hint').textContent = 'This is an admin-managed room — its very address says so, and joining it was consenting to that. If you know the admin password, enter it to moderate; the password never leaves this device (only a derived proof does).';
       } else {
         setup.style.display = ''; panel.style.display = 'none';
-        document.getElementById('adm-hint').textContent = 'Set an admin password to take moderation control of this room: only admins will be able to set the room password, globally mute/blur, or ban devices. Nothing touches a server — your admin link carries only a salted hash of the password.';
+        btn.textContent = 'Mint the admin room';
+        document.getElementById('adm-hint').textContent = 'This room can NEVER have an admin — by design: its address carries no admin verifier, so nobody can seize control of it mid-call. Set an admin password to mint a NEW admin-managed room. Its link has an extra segment (the verifier), and everyone who joins it is consenting to be moderated by whoever knows the password.';
       }
       admModal.style.display = 'flex';
     }
     document.getElementById('admbtn').onclick = showAdmModal;
     document.getElementById('adm-close').onclick = () => { admModal.style.display = 'none'; };
-    document.getElementById('adm-copy').onclick = () => {
-      const inp = document.getElementById('adm-link');
-      inp.select(); try { document.execCommand('copy'); } catch (e) {}
-      if (navigator.clipboard) navigator.clipboard.writeText(inp.value).catch(() => {});
-    };
     document.getElementById('adm-enable').onclick = async () => {
       const v = document.getElementById('adm-pass').value.trim();
       if (!v) return;
-      admKey = await sha256hex(room + ':' + v); // the admin key: hashed password, room-salted
-      try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
-      const verifier = await sha256hex(admKey); // the room learns only THIS
-      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'setadm', v: verifier }));
+      setStatus('🛡 Deriving the admin key… (deliberately slow — it defeats password guessing)');
+      const K = await deriveAdminKey(room, v);   // private: knowing the password
+      const V = await sha256hex(K);              // public: part of the room's address
       document.getElementById('adm-pass').value = '';
-      admModal.style.display = 'none';
-      setStatus('🛡 Enabling admin mode…');
+      if (hasAdminRoom()) {
+        // Sign in: prove knowledge of the password for THIS room.
+        if (V !== av) { setStatus('🛡 Wrong admin password.'); return; }
+        admKey = K;
+        try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
+        admModal.style.display = 'none';
+        setStatus('🛡 Signing in as admin…');
+        try { ws && ws.close(); } catch (e) {} // reconnect presents the key
+        clearTimeout(reopenTimer);
+        openSock();
+      } else {
+        // Mint a NEW admin room: same room id, verifier welded into its address.
+        try { localStorage.setItem('gifos_vadm_' + room + '.' + V, K); } catch (e) {}
+        admModal.style.display = 'none';
+        location.replace(location.pathname + '#v=' + room + '&k=' + roomToken + '&av=' + V);
+        location.reload(); // hash-only change — force the admin room to boot
+      }
     };
     document.getElementById('syschip').onclick = () => {
       setStatus('SYSTEM app: this page runs as trusted first-party GifOS code with camera/mic/WebRTC — capabilities regular apps are sandboxed away from. Its source is auditable: github.com/nwcnwc/gifos → site/video.html');
@@ -962,15 +983,19 @@
     function joinRoom() {
       room = params.get('v') || shortCode();
       roomToken = params.get('k') || room;
-      loadAdm(); // admin key comes from the URL (or this device's stored copy)
+      // The admin verifier is PART OF THE ROOM'S IDENTITY: with it this is an
+      // admin-managed room, without it an anarchic one — two different rooms.
+      av = (/^[a-f0-9]{16,64}$/.exec((params.get('av') || '').toLowerCase()) || [null])[0];
+      loadAdm(); // this device's stored admin key for this exact room, if any
       loadPw();
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
-      const wantHash = '#v=' + room + '&k=' + roomToken + (custom ? '&relay=' + encodeURIComponent(relay) : '');
+      const avPart = av ? '&av=' + av : '';
+      const wantHash = '#v=' + room + '&k=' + roomToken + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
       const pretty = room === roomToken && /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
-      shareUrl.value = pretty ? location.origin + '/call/' + room
-        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+      shareUrl.value = pretty ? location.origin + '/call/' + room + (av ? '/' + av : '')
+        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       openSock();
     }
@@ -1572,12 +1597,12 @@
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
-      hasAdmin: () => hasAdmin,
+      hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,
       banList: () => roomBan,
       bannedOut: () => bannedOut,
       deviceId,
-      adminLink,
+      verifier: () => av,
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
     };
   })();

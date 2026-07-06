@@ -409,37 +409,53 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 20000 });
   check('pinned files reach unreachable peers through the mutual friend too', true);
 
-  // ================= admin rooms: admin-only moderation + device bans =========
-  // Fresh room. Adam enables admin mode; Beth joins plain. Only Adam can
-  // globally moderate; Beth's privileged actions are refused; Adam bans Beth's
-  // DEVICE (socket cut + rejoin rejected), then unbans her; after everyone
-  // leaves, Adam alone re-seeds the ban list from his own device.
+  // ================= admin rooms: identity-based, consent-by-address ==========
+  // /call/<room> is anarchic FOREVER; /call/<room>/<verifier> is a DIFFERENT
+  // room whose address itself declares an authority — joining is consent.
+  // Adam mints the admin room from a plain one; Beth joins its full link.
+  // Only Adam (who knows the password) can globally moderate; Beth's
+  // privileged actions are refused; Adam bans Beth's DEVICE (socket + P2P
+  // cut, rejoin rejected), then unbans her; after everyone leaves, Adam
+  // alone re-seeds the ban list from his own device.
   const admRoom = 'admroom' + Math.floor(Math.random() * 1e6).toString(36);
-  const openRoom = async (ctx, label) => {
+  const openRoom = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('console', (m) => { if (m.type() === 'error') console.log('  [' + label + ']', m.text()); });
-    await pg.goto(BASE + '/video.html#v=' + admRoom + '&k=' + admRoom);
+    await pg.goto(BASE + '/video.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
   };
+  const plainHash = 'v=' + admRoom + '&k=' + admRoom;
   const adamCtx = await newUser('Adam');
   const bethCtx = await newUser('Beth');
-  const adam = await openRoom(adamCtx, 'adam');
+  const adam = await openRoom(adamCtx, 'adam', plainHash);
   check('video page shows the SYSTEM chip (heightened-permissions signage)',
     (await adam.locator('#syschip').textContent()) === 'SYSTEM');
+  check('a plain room has no admin and can never have one',
+    !(await adam.evaluate(() => window.__gifosVideo.hasAdmin())));
+  // Mint the admin room: same room id, verifier welded into the address.
   await adam.locator('#admbtn').click();
   await adam.locator('#adm-pass').fill('sesame-topsecret');
   await adam.locator('#adm-enable').click();
-  await adam.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 8000 });
-  check('creator enabled admin mode from inside the room', true);
-  const admLink = await adam.evaluate(() => window.__gifosVideo.adminLink());
-  check('admin link carries the room-salted hash, never the password',
-    /adm=[a-f0-9]{64}/.test(admLink) && !/sesame/.test(admLink));
+  await adam.waitForURL(/av=[a-f0-9]{64}/, { timeout: 30000 }); // PBKDF2 is deliberately slow
+  await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
+  check('minting an admin room lands its creator in it AS admin', true);
+  const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
+  const admHash = 'v=' + admRoom + '&k=' + admRoom + '&av=' + admV;
+  check('the room link carries only the verifier — never the password',
+    /^[a-f0-9]{64}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
 
-  const beth = await openRoom(bethCtx, 'beth');
+  const beth = await openRoom(bethCtx, 'beth', admHash);
   await beth.waitForFunction(() => window.__gifosVideo.hasAdmin(), null, { timeout: 8000 });
   check('joiners see the room is admin-managed (and are not admins)',
     !(await beth.evaluate(() => window.__gifosVideo.amAdmin())));
+  // A wrong password is rejected LOCALLY (the verifier is the room's address).
+  await beth.locator('#admbtn').click();
+  await beth.locator('#adm-pass').fill('wrong-guess');
+  await beth.locator('#adm-enable').click();
+  await beth.waitForFunction(() => /Wrong admin password/.test(document.getElementById('status').textContent), null, { timeout: 30000 });
+  await beth.locator('#adm-close').click();
+  check('a wrong admin password is rejected', !(await beth.evaluate(() => window.__gifosVideo.amAdmin())));
   check('non-admin loses the password button', await beth.locator('#pwbtn').isDisabled());
   await beth.waitForSelector('.tile:not(.me)', { timeout: 10000 });
   check('non-admin loses the group-moderation bar (CSS gate)',
@@ -468,7 +484,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 8000 });
   check('admin sees the device on the ban list',
     (await adam.evaluate(() => window.__gifosVideo.banList()))[0].d === bethDev);
-  const bethReload = await openRoom(bethCtx, 'beth2');
+  const bethReload = await openRoom(bethCtx, 'beth2', admHash);
   await bethReload.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('banned device stays out across reloads', true);
   await bethReload.close();
@@ -478,7 +494,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.locator('#adm-banned .brow button').click();
   await adam.waitForFunction(() => window.__gifosVideo.banList().length === 0, null, { timeout: 8000 });
   await adam.locator('#adm-close').click();
-  const bethBack = await openRoom(bethCtx, 'beth3');
+  const bethBack = await openRoom(bethCtx, 'beth3', admHash);
   await bethBack.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });
   check('unbanned device joins again (mistakes are undoable)', true);
 
@@ -503,10 +519,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.close();
   await adam.close();
   await sleep(600); // room fully empties — the relay forgets everything
-  const adam2 = await openRoom(adamCtx, 'adam2'); // admin key rides in his localStorage
+  const adam2 = await openRoom(adamCtx, 'adam2', admHash); // his stored admin key signs him back in
   await adam2.waitForFunction(() => window.__gifosVideo.amAdmin() && window.__gifosVideo.banList().length === 1, null, { timeout: 10000 });
   check('admin returning to an emptied room re-seeds the ban list from his device', true);
-  const bethAgain = await openRoom(bethCtx, 'beth4');
+  const bethAgain = await openRoom(bethCtx, 'beth4', admHash);
   await bethAgain.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('ban survives a fully-emptied room via the admin\'s copy', true);
 
