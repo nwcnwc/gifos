@@ -153,6 +153,23 @@ connected to every other), which the Video Call app uses for media and which
 future apps can use for any N-way topology. The relay still only ever sees
 signaling envelopes.
 
+### Built to scale (and to be attacked)
+
+- **WebSocket hibernation**: the Durable Object accepts sockets through the
+  Hibernation API, so an idle session or call room is evicted from memory and
+  accrues **no duration charges** — Cloudflare bills actual messages, not
+  wall-clock call length. Each socket's identity (role, peer id, name, ip)
+  rides in its serialized attachment and survives eviction; the only stored
+  state is the session/room token (bytes), which is what makes call links
+  permanent. One subtlety the hard way: with hibernation the server must
+  **echo `ws.close()`** from `webSocketClose`, or the browser's close
+  handshake never completes and client-side reconnect logic never fires.
+- **Abuse guards**: 64 sockets per session, 8 per IP per session, 120
+  joins/min per IP per session, plus a best-effort per-IP upgrade limiter in
+  the outer Worker. Generous for humans (a NAT'd household of flappy phones
+  never notices), hostile to loops. The bandwidth token-bucket (1 MB burst,
+  ~384 Kbps sustained) still guarantees media can't tunnel through.
+
 ## Video Calls — strictly P2P mesh over permanent rooms
 
 The Video Call system app (`video.html`) is the proof of the guard:
@@ -342,8 +359,8 @@ wrangler deploy
 | Endpoint | Job | Part |
 |----------|-----|------|
 | `gifos.app` (GitHub Pages) | Serve the static desktop + runtime — byte-for-byte what's in the public repo, so anyone can audit it | — |
-| `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | WebRTC signaling, mesh peer routing, and fallback transport when P2P can't be established — bandwidth-guarded, stores nothing | Part 1 |
-| `*.gifos.app` numbered subdomains (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so every numeric subdomain is an isolated computer (per-origin storage) | — |
+| `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | WebRTC signaling, mesh peer routing, and fallback transport when P2P can't be established — bandwidth-guarded, stores nothing but the session/room token | Part 1 |
+| `0.gifos.app` … `9.gifos.app` (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so each digit subdomain is an isolated computer (per-origin storage); ten explicit routes, so other subdomains never invoke (or bill) the Worker | — |
 | `proxy.gifos.app` (Worker, future) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
 
 Deploys: the site auto-publishes from `main` via GitHub Actions; the Workers

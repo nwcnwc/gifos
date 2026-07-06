@@ -71,6 +71,22 @@ server.on('upgrade', (req, socket) => {
   const role = url.searchParams.get('role') || 'client';
   const token = url.searchParams.get('token') || '';
   const peer = url.searchParams.get('peer') || 'c_' + crypto.randomBytes(4).toString('hex');
+  const ip = socket.remoteAddress || 'unknown';
+
+  // Abuse guards — mirror the Worker's caps so tests exercise them.
+  const rejectConn = (error) => { conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
+  const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
+  if (allConns() >= 64) { rejectConn('this session is full'); return; }
+  let mine = 0;
+  if (sess.host && sess.host.ip === ip) mine++;
+  for (const c of sess.clients.values()) if (c.ip === ip) mine++;
+  if (mine >= 8) { rejectConn('too many connections from your network'); return; }
+  sess.joins = sess.joins || new Map();
+  const nowJ = Date.now();
+  const jlog = (sess.joins.get(ip) || []).filter((t) => nowJ - t < 60000);
+  jlog.push(nowJ); sess.joins.set(ip, jlog);
+  if (jlog.length > 120) { rejectConn('joining too fast — slow down'); return; }
+  conn.ip = ip;
 
   // Bandwidth guard — token bucket, mirrors the Worker (media must go P2P).
   const BURST = 1024 * 1024, REFILL = 48 * 1024;

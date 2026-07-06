@@ -4,7 +4,7 @@
 
 > One HTML shell. A desktop of GIFs. Every app is a file you own — and a whole computer is one GIF.
 
-🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · every numbered subdomain (`1.gifos.app`, `2026.gifos.app`, …) is a separate computer
+🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · each digit subdomain (`0.gifos.app` … `9.gifos.app`) is a separate computer
 
 ## What is GifOS?
 
@@ -63,7 +63,7 @@ Double-click a backup GIF and choose:
 
 ## Multiple Computers (numbered subdomains)
 
-A quiet power feature: **every numeric subdomain of gifos.app is a separate computer.**
+A quiet power feature: **each single-digit subdomain of gifos.app is a separate computer** — `0.gifos.app` through `9.gifos.app`, ten spares.
 
 - [gifos.app](https://gifos.app) — your main computer
 - `1.gifos.app`, `7.gifos.app`, `2026.gifos.app` — any number at all, each a **completely isolated desktop** with its own files, apps, state, and storage
@@ -72,7 +72,7 @@ There's no switcher UI and no setup — just type a number in front of the domai
 
 Move things between computers the GifOS way: snapshot an app (or back up a whole desktop) to a GIF on one, drop the GIF on another. Multiplayer works from any computer — share links carry everything a friend needs regardless of which number you're on.
 
-Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on `*.gifos.app` for numeric subdomains (anything non-numeric redirects to the main computer).
+Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on the ten digit subdomains via ten explicit routes — traffic to any other subdomain never invokes (or bills) the Worker.
 
 ## Security Model (short version)
 

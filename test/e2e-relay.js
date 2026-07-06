@@ -112,6 +112,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const clientSees3 = await clientApp.locator('#list').textContent();
   check('relay-only client\'s write reaches the P2P client too', /via relay only/.test(clientSees3));
 
+  // ---------- abuse guards: the 9th socket from one IP is turned away ----------
+  const capResult = await clientRun.evaluate((RELAY) => new Promise((resolve) => {
+    const errors = [];
+    let opened = 0;
+    for (let i = 0; i < 9; i++) {
+      const w = new WebSocket(RELAY + '/s/captest01?role=mesh&token=t&peer=cap' + i);
+      w.onopen = () => { opened++; };
+      w.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.t === 'error') errors.push(m.error); } catch (e) {} };
+    }
+    setTimeout(() => resolve({ opened, errors }), 1800);
+  }), RELAY);
+  check('per-IP connection cap rejects the 9th socket from one address',
+    capResult.errors.some((e) => /too many connections/.test(e)));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

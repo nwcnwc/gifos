@@ -1,9 +1,11 @@
 /*
- * gifos mirror — serves the GifOS site on every NUMERIC subdomain.
+ * gifos mirror — serves the GifOS site on the ten single-digit subdomains.
  *
- * 7.gifos.app, 42.gifos.app, 2026.gifos.app … each numbered hostname is a
- * distinct browser origin, and IndexedDB is per-origin — so every number is
- * automatically a separate, fully isolated GifOS computer in the same browser.
+ * 0.gifos.app … 9.gifos.app: each numbered hostname is a distinct browser
+ * origin, and IndexedDB is per-origin — so every digit is automatically a
+ * separate, fully isolated GifOS computer in the same browser. The Worker's
+ * routes enumerate exactly these ten (see wrangler.toml), so traffic to any
+ * other subdomain never reaches (or bills) this Worker.
  *
  * GitHub Pages can only serve one hostname (gifos.app), so this Worker
  * transparently fetches the same assets from the canonical origin and
