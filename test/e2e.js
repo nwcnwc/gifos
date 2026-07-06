@@ -47,8 +47,8 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Video Call + Trash', labels.length === 8);
-  check('has Games / Studio / Tools / Social / IRL Games folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games'].every((f) => labels.includes(f)));
+  check('desktop root has folders + Welcome + Video Call + Trash + Stolen Apps', labels.length === 9);
+  check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps'].every((f) => labels.includes(f)));
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
   check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
   const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
@@ -747,7 +747,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 8 && !freshLabels.includes('Resume.gif'));
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 9 && !freshLabels.includes('Resume.gif'));
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();

@@ -62,7 +62,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aDesk.goto(BASE + '/index.html');
   await aDesk.waitForSelector('.icon', { timeout: 8000 });
   const aIcons = await aDesk.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('client A stole the app onto its own desktop', aIcons.includes('Guestbook.gif'));
+  check('stolen app is filed into the Stolen Apps folder, not loose at root',
+    aIcons.includes('Stolen Apps') && !aIcons.includes('Guestbook.gif'));
+  await aDesk.locator('.icon', { hasText: 'Stolen Apps' }).dblclick();
+  await aDesk.waitForTimeout(250);
   const [aStolen] = await Promise.all([
     A.ctx.waitForEvent('page'),
     aDesk.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
