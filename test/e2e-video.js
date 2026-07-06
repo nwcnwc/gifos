@@ -277,6 +277,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await hPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   check('…and the password still admits people, exactly as before', true);
 
+  // ---------- honest tiles: a peer no P2P route can reach gets SAID, not silence ----------
+  // Simulate a corporate-firewall peer: their ICE candidates never leave (or
+  // arrive), so no media pair can ever form — exactly a UDP-blocked network.
+  const fwCtx = await newUser('Cubicle');
+  await fwCtx.addInitScript({ content: `
+    const OW = window.WebSocket;
+    window.WebSocket = function (u, p) {
+      const ws = p ? new OW(u, p) : new OW(u);
+      const send0 = ws.send.bind(ws);
+      ws.send = (d) => { if (typeof d === 'string' && d.includes('"kind":"ice"')) return; return send0(d); };
+      let userOnMsg = null;
+      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
+      ws.addEventListener('message', (e) => { if (typeof e.data === 'string' && e.data.includes('"kind":"ice"')) return; if (userOnMsg) userOnMsg(e); });
+      return ws;
+    };
+    window.WebSocket.prototype = OW.prototype;
+  ` });
+  const fwPage = await fwCtx.newPage();
+  await fwPage.goto(link);
+  await fwPage.waitForSelector('#pw-modal', { state: 'visible', timeout: 15000 });
+  await fwPage.locator('#pw-new').fill('sesame');
+  await fwPage.locator('#pw-save').click();
+  // presence still works (signaling flows) — everyone sees the tile…
+  await hPage.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 20000 });
+  // …and after the grace period the tile SAYS why there's no video.
+  await hPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cubicle'));
+    return t && /no direct path/.test(t.textContent);
+  }, null, { timeout: 30000 });
+  check('a blocked pair shows "no direct path — firewall blocks P2P" instead of silent black', true);
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');
   process.exit(failures ? 1 : 0);
