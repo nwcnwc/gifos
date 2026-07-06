@@ -56,6 +56,32 @@
   .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                          background: rgba(10,10,15,.85); color: #e0e0f0; cursor: pointer; font-size: .68rem; }
   .tile .modbar button:hover { border-color: #ff5caa; }
+  /* live audio → glowing border (never while muted) */
+  .tile.speaking { border-color: #5cff7b; box-shadow: 0 0 0 2px #5cff7b, 0 0 18px rgba(92,255,123,.4); }
+  /* per-tile maximize: the focused feed spans the full row, others wrap below */
+  .tile .maxbtn { position: absolute; right: .4rem; bottom: .4rem; z-index: 4; padding: .15rem .5rem;
+                  border-radius: .4rem; border: 1px solid #2a2a3f; background: rgba(10,10,15,.85);
+                  color: #e0e0f0; cursor: pointer; font-size: .75rem; }
+  .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
+  #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
+               background: #101018; border-left: 1px solid #2a2a3f; display: none; flex-direction: column; }
+  #chatpanel.open { display: flex; }
+  #chathead { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid #2a2a3f; font-weight: 700; }
+  #chathead button { margin-left: auto; padding: .2rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
+  #chatlog { flex: 1; overflow-y: auto; padding: .6rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
+  .cmsg { background: #14141f; border: 1px solid #22223a; border-radius: .5rem; padding: .3rem .55rem; max-width: 94%; align-self: flex-start; overflow-wrap: anywhere; }
+  .cmsg.mine { align-self: flex-end; background: #17222e; border-color: #223448; }
+  .cmsg b { color: #7b9cff; font-size: .7rem; display: block; }
+  #cfiles { border-top: 1px solid #2a2a3f; padding: .45rem .7rem; max-height: 34%; overflow-y: auto; }
+  #cfiles h4 { font-size: .72rem; color: #8888aa; margin-bottom: .3rem; }
+  .cfile { display: flex; align-items: center; gap: .45rem; font-size: .78rem; padding: .18rem 0; }
+  .cfile .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cfile small { color: #667; }
+  .cfile button { padding: .1rem .45rem; border-radius: .35rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .72rem; }
+  #chatform { display: flex; gap: .4rem; padding: .5rem .6rem; border-top: 1px solid #2a2a3f; }
+  #chatform input[type=text] { flex: 1; padding: .4rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; font-size: .85rem; }
+  #chatform button { padding: .4rem .7rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
   .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid #1c1c2b; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
@@ -75,6 +101,8 @@
     <button id="cam" class="off">Camera on</button>
     <button id="blur" title="Completely blur your video for everyone">Blur</button>
     <button id="pwbtn" title="Lock this room with a password">🔒 Password</button>
+    <button id="hand" title="Raise your hand — raised hands float to the top">✋ Hand</button>
+    <button id="chatbtn" title="Chat and shared files — peer-to-peer, never on a server">💬 Chat</button>
     <span class="status" id="status">Starting camera…</span>
   </div>
   <div class="share" id="share">
@@ -84,6 +112,18 @@
   </div>
   <div id="grid"></div>
   <div class="p2p-note">Media is strictly peer-to-peer (WebRTC). The relay only introduces browsers — it refuses to carry audio or video, so if a direct route can't be found there is no call. Quality steps down automatically as more people join.</div>
+
+  <div id="chatpanel">
+    <div id="chathead">💬 Call chat <small style="color:#667;font-weight:400">· P2P, gone when the room empties</small><button id="chatclose">✕</button></div>
+    <div id="chatlog"></div>
+    <div id="cfiles"><h4>📎 Files pinned to this call</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
+    <form id="chatform">
+      <button type="button" id="cattach" title="Pin a file to the call">📎</button>
+      <input type="file" id="cfile-in" multiple style="display:none">
+      <input type="text" id="chat-in" placeholder="Message everyone…" autocomplete="off" maxlength="2000">
+      <button type="submit">Send</button>
+    </form>
+  </div>
 
   <div class="name-modal" id="pw-modal" style="display:none">
     <div class="name-box">
@@ -185,7 +225,7 @@
     // can mute or blur anyone FOR THE WHOLE GROUP — enforced on every
     // receiver's device (so a bad actor's own client can't refuse) and always
     // attributed to who did it. Latest change wins (timestamped).
-    const myStatus = { muted: true, camOff: true, blur: false }; // join quiet by default
+    const myStatus = { muted: true, camOff: true, blur: false, hand: null }; // join quiet by default
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
 
@@ -233,6 +273,10 @@
       const chips = document.createElement('div');
       chips.className = 'chips';
       tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips);
+      const maxbtn = document.createElement('button');
+      maxbtn.className = 'maxbtn'; maxbtn.textContent = '⤢'; maxbtn.title = 'Make this the focus feed';
+      maxbtn.addEventListener('click', (e) => { e.stopPropagation(); focusId = focusId === id ? null : id; layout(); });
+      tile.appendChild(maxbtn);
       let modbar = null;
       if (!isMe) {
         modbar = document.createElement('div');
@@ -263,6 +307,7 @@
       const mod = modOf(id);
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on;
       const chips = [];
+      if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
@@ -286,8 +331,68 @@
           b.classList.add('off'); b.textContent = 'Unmute';
         }
       }
+      layout();
     }
     const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    // ---- feed ordering: focus feed on top, then raised hands in raise order --
+    let focusId = null;
+    function layout() {
+      const hands = [];
+      const collect = (id, st) => { if (st && st.hand) hands.push([id, st.hand]); };
+      collect('me', myStatus);
+      for (const pid of peers.keys()) collect(pid, statusOf.get(pid));
+      hands.sort((a, b) => a[1] - b[1]);
+      const rank = new Map(hands.map((h, i) => [h[0], i]));
+      const apply = (id, t) => {
+        const focused = focusId === id;
+        t.tile.classList.toggle('focus', focused);
+        const mb = t.tile.querySelector('.maxbtn');
+        if (mb) { mb.textContent = focused ? '⤡' : '⤢'; mb.title = focused ? 'Back to the grid' : 'Make this the focus feed'; }
+        t.tile.style.order = focused ? -100000 : (rank.has(id) ? -5000 + rank.get(id) : 0);
+      };
+      if (meTile) apply('me', meTile);
+      for (const [pid, p] of peers) apply(pid, p);
+    }
+
+    // ---- who's talking: per-stream audio meters → glowing tile border --------
+    let ac = null;
+    const meters = new Map(); // id -> { an, src, data }
+    function ensureAc() {
+      if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+      if (ac.state === 'suspended') ac.resume().catch(() => {});
+      return ac;
+    }
+    document.addEventListener('pointerdown', () => ensureAc());
+    function meterFor(id, stream) {
+      if (!stream || !ensureAc()) return;
+      const track = stream.getAudioTracks()[0];
+      if (!track) return;
+      const old = meters.get(id);
+      if (old) { try { old.src.disconnect(); } catch (e) {} }
+      try {
+        const src = ac.createMediaStreamSource(new MediaStream([track]));
+        const an = ac.createAnalyser(); an.fftSize = 256;
+        src.connect(an);
+        meters.set(id, { an, src, data: new Uint8Array(an.fftSize) });
+      } catch (e) {}
+    }
+    setInterval(() => {
+      for (const [id, m] of meters) {
+        const t = id === 'me' ? meTile : peers.get(id);
+        if (!t) { meters.delete(id); continue; }
+        const st = (id === 'me' ? myStatus : statusOf.get(id)) || {};
+        const gm = modOf(id).mute && modOf(id).mute.on;
+        let speaking = false;
+        if (!st.muted && !gm) {
+          m.an.getByteTimeDomainData(m.data);
+          let dev = 0;
+          for (let i = 0; i < m.data.length; i++) { const d = m.data[i] - 128; dev += d * d; }
+          speaking = Math.sqrt(dev / m.data.length) > 5;
+        }
+        t.tile.classList.toggle('speaking', speaking);
+      }
+    }, 180);
     function tileNote(t, msg) {
       t.video.style.display = 'none';
       let n = t.tile.querySelector('.note');
@@ -340,7 +445,12 @@
       peers.set(peerId, p);
       if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
       else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
-      pc.ontrack = (ev) => { if (ev.streams[0] && p.video.srcObject !== ev.streams[0]) p.video.srcObject = ev.streams[0]; };
+      // chat + pinned files travel on a DataChannel — browser to browser only
+      if (iInitiate(peerId)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
+      pc.ondatachannel = (ev) => wireDc(p, ev.channel);
+      pc.ontrack = (ev) => {
+        if (ev.streams[0] && p.video.srcObject !== ev.streams[0]) { p.video.srcObject = ev.streams[0]; meterFor(peerId, ev.streams[0]); }
+      };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(peerId, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
         p.connected = pc.connectionState === 'connected';
@@ -357,6 +467,9 @@
       try { p.pc.close(); } catch (e) {}
       p.tile.remove();
       peers.delete(peerId);
+      meters.delete(peerId);
+      if (focusId === peerId) focusId = null;
+      layout();
       adapt();
     }
 
@@ -519,6 +632,7 @@
           }
           localStream = s;
           if (meTile) meTile.video.srcObject = s;
+          meterFor('me', s);
           adapt();
         }).catch(() => {});
     }
@@ -608,12 +722,183 @@
         // instant to switch on) but disabled until you choose to be seen/heard.
         if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
         meTile = makeTile('me', myName() + ' (you)', true);
-        if (localStream) meTile.video.srcObject = localStream;
+        if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
         else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
         updateTile('me');
         joinRoom();
         updateStatus();
       });
+
+    // ---- chat + pinned files: pure P2P over DataChannels ----------------------
+    // No server ever sees a byte of this. State lives only in the open tabs of
+    // the room's occupants. When someone joins (past the password gate — that
+    // was the authorization), every pair exchanges what it knows and the sets
+    // UNION-MERGE: chat by message id, files by file id, deletions win via
+    // tombstones. When the room empties, the history is simply gone — by design.
+    const chat = new Map();  // id -> { id, by, byId, at, text }
+    const files = new Map(); // id -> { id, name, size, mime, by, at, bytes|null, parts, got }
+    const tombs = new Map(); // fileId -> { by, at }
+    const MAX_FILE = 25 * 1024 * 1024;
+    let unread = 0;
+
+    const chatPanel = document.getElementById('chatpanel');
+    const chatBtn = document.getElementById('chatbtn');
+    const fmtSize = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? (n / 1024 | 0) + ' KB' : n + ' B';
+    const b64ofPart = (part) => { let s = ''; for (let i = 0; i < part.length; i += 8192) s += String.fromCharCode.apply(null, part.subarray(i, i + 8192)); return btoa(s); };
+    const partOfB64 = (b) => { const s = atob(b); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+
+    function dcAll(msg) {
+      const s = JSON.stringify(msg);
+      for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') { try { p.dc.send(s); } catch (e) {} }
+    }
+    function fileMetas() {
+      return Array.from(files.values()).map((f) => ({ id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at }));
+    }
+    function tombObj() { const o = {}; for (const [k, v] of tombs) o[k] = v; return o; }
+
+    function wireDc(p, dc) {
+      p.dc = dc;
+      dc.onopen = () => {
+        try { dc.send(JSON.stringify({ k: 'hi', chats: Array.from(chat.values()).slice(-500), metas: fileMetas(), tombs: tombObj() })); } catch (e) {}
+      };
+      dc.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        onDc(p, dc, m);
+      };
+    }
+    function onDc(p, dc, m) {
+      if (m.k === 'hi') {
+        (m.chats || []).forEach(takeChat);
+        for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
+        (m.metas || []).forEach((meta) => takeMeta(meta, dc));
+        renderChat(); renderFiles();
+      } else if (m.k === 'chat') {
+        if (takeChat(m.m)) { renderChat(); if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = '💬 Chat (' + unread + ')'; } }
+      } else if (m.k === 'fmeta') {
+        if (takeMeta(m.f, dc)) renderFiles();
+      } else if (m.k === 'want') {
+        sendFileOver(dc, m.id);
+      } else if (m.k === 'fc') {
+        const f = files.get(m.id);
+        if (!f || f.bytes || tombs.has(m.id)) return;
+        f.parts = f.parts || []; f.got = f.got || 0;
+        if (!f.parts[m.seq]) { f.parts[m.seq] = partOfB64(m.b); f.got++; }
+        if (f.got >= m.total) {
+          let len = 0; for (const c of f.parts) len += c ? c.length : 0;
+          const all = new Uint8Array(len); let off = 0;
+          for (const c of f.parts) if (c) { all.set(c, off); off += c.length; }
+          f.bytes = all; f.parts = null;
+          renderFiles();
+        }
+      } else if (m.k === 'fdel') {
+        takeTomb(m.id, { by: m.by, at: m.at });
+        renderFiles();
+      }
+    }
+    function takeChat(m) {
+      if (!m || !m.id || chat.has(m.id)) return false;
+      chat.set(m.id, { id: m.id, by: String(m.by || '?').slice(0, 40), byId: m.byId, at: m.at || 0, text: String(m.text || '').slice(0, 2000) });
+      return true;
+    }
+    function takeTomb(id, t) {
+      if (!id || !t || tombs.has(id)) return;
+      tombs.set(id, t);
+      files.delete(id);
+    }
+    function takeMeta(meta, dc) {
+      if (!meta || !meta.id || files.has(meta.id) || tombs.has(meta.id)) return false;
+      if (meta.size > MAX_FILE) return false;
+      files.set(meta.id, { id: meta.id, name: String(meta.name || 'file').slice(0, 120), size: meta.size | 0, mime: meta.mime, by: meta.by, at: meta.at, bytes: null });
+      try { dc.send(JSON.stringify({ k: 'want', id: meta.id })); } catch (e) {}
+      return true;
+    }
+    function sendFileOver(dc, id) {
+      const f = files.get(id);
+      if (!f || !f.bytes) return;
+      const CH = 32768, total = Math.max(1, Math.ceil(f.bytes.length / CH));
+      let seq = 0;
+      (function pump() {
+        while (seq < total) {
+          if (dc.readyState !== 'open') return;
+          if (dc.bufferedAmount > (1 << 20)) { setTimeout(pump, 60); return; } // backpressure
+          const part = f.bytes.subarray(seq * CH, (seq + 1) * CH);
+          try { dc.send(JSON.stringify({ k: 'fc', id, seq, total, b: b64ofPart(part) })); } catch (e) { return; }
+          seq++;
+        }
+      })();
+    }
+
+    function renderChat() {
+      const log = document.getElementById('chatlog');
+      const ms = Array.from(chat.values()).sort((a, b) => a.at - b.at);
+      log.innerHTML = ms.map((m) => '<div class="cmsg' + (m.byId === myId ? ' mine' : '') + '"><b>' + esc(m.by) + '</b>' + esc(m.text) + '</div>').join('');
+      log.scrollTop = log.scrollHeight;
+    }
+    function renderFiles() {
+      const el = document.getElementById('cfilelist');
+      const fs = Array.from(files.values()).sort((a, b) => a.at - b.at);
+      el.innerHTML = fs.length ? fs.map((f) =>
+        '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
+        + (f.bytes ? '<button data-dl="' + esc(f.id) + '">⬇</button>' : '<small>receiving…</small>')
+        + '<button data-del="' + esc(f.id) + '" title="Unpin for everyone">🗑</button></div>').join('')
+        : '<small style="color:#667">No files yet — attach one below.</small>';
+    }
+    document.getElementById('cfilelist').addEventListener('click', (e) => {
+      const dl = e.target.dataset.dl, del = e.target.dataset.del;
+      if (dl) {
+        const f = files.get(dl); if (!f || !f.bytes) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([f.bytes], { type: f.mime || 'application/octet-stream' }));
+        a.download = f.name; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } else if (del) {
+        const t = { by: myName(), at: Date.now() };
+        takeTomb(del, t);
+        dcAll({ k: 'fdel', id: del, by: t.by, at: t.at });
+        renderFiles();
+      }
+    });
+    document.getElementById('chatform').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inp = document.getElementById('chat-in');
+      const text = inp.value.trim();
+      if (!text) return;
+      const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text };
+      chat.set(m.id, m);
+      dcAll({ k: 'chat', m });
+      inp.value = '';
+      renderChat();
+    });
+    document.getElementById('cattach').onclick = () => document.getElementById('cfile-in').click();
+    document.getElementById('cfile-in').addEventListener('change', (e) => {
+      for (const file of e.target.files) {
+        if (file.size > MAX_FILE) { setStatus(file.name + ' is over the 25 MB pin limit.'); continue; }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const f = { id: uid('f'), name: file.name, size: file.size, mime: file.type, by: myName(), at: Date.now(), bytes: new Uint8Array(reader.result) };
+          files.set(f.id, f);
+          dcAll({ k: 'fmeta', f: { id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at } });
+          renderFiles();
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      e.target.value = '';
+    });
+    chatBtn.onclick = () => {
+      chatPanel.classList.toggle('open');
+      if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = '💬 Chat'; renderChat(); renderFiles(); }
+    };
+    document.getElementById('chatclose').onclick = () => chatPanel.classList.remove('open');
+
+    // ---- hand raise: float to the top in the order hands went up --------------
+    const handBtn = document.getElementById('hand');
+    handBtn.onclick = () => {
+      myStatus.hand = myStatus.hand ? null : Date.now();
+      handBtn.classList.toggle('off', !!myStatus.hand);
+      handBtn.textContent = myStatus.hand ? '✋ Lower' : '✋ Hand';
+      broadcastStatus();
+      layout();
+    };
 
     // ---- controls ---------------------------------------------------------------
     const micBtn = document.getElementById('mic');
@@ -670,6 +955,8 @@
       room: () => room,
       roomPw: () => roomPw,
       micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
+      chatTexts: () => Array.from(chat.values()).sort((a, b) => a.at - b.at).map((m) => m.text),
+      pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
     };
   })();
   </script>

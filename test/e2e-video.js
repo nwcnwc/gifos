@@ -134,6 +134,46 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 10000 });
   check('anyone can lift a group-mute (and it clears everywhere)', true);
 
+  // ---------- hand raise: raised hands float to the top, in raise order ----------
+  await cPage.locator('#hand').click();
+  await sleep(400);
+  await bPage.locator('#hand').click();
+  await aPage.waitForFunction(() => {
+    const o = {};
+    document.querySelectorAll('.tile').forEach((t) => { o[t.querySelector('.name').textContent] = parseInt(t.style.order || '0', 10); });
+    return o['Cai'] < o['Bob'] && o['Bob'] < o['Ada (you)'];
+  }, null, { timeout: 10000 });
+  check('raised hands float to the top of everyone\'s grid, in raise order', true);
+  check('the hand shows as a chip on the tile', /hand raised/.test(await aPage.locator('.tile', { hasText: 'Cai' }).textContent()));
+  await cPage.locator('#hand').click(); await bPage.locator('#hand').click(); // hands down
+
+  // ---------- maximize: any feed becomes YOUR focus feed ----------
+  const bobTile = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
+  await bobTile.locator('.maxbtn').click();
+  check('maximize makes that feed the focus feed at the top', await bobTile.evaluate((t) => t.classList.contains('focus') && parseInt(t.style.order, 10) < -50000));
+  await bobTile.locator('.maxbtn').click();
+  check('maximize toggles back to the grid', await bobTile.evaluate((t) => !t.classList.contains('focus')));
+
+  // ---------- speaking: live audio lights the tile border ----------
+  await bPage.locator('#mic').click(); // unmute — the fake device emits a tone
+  const spoke = await bPage.waitForFunction(() => document.querySelector('.tile.me').classList.contains('speaking'), null, { timeout: 15000 }).then(() => true, () => false);
+  check('audio coming through lights a border around the feed', spoke);
+  await bPage.locator('#mic').click(); // back to muted
+
+  // ---------- chat + pinned files: P2P DataChannels, no server ----------
+  await aPage.locator('#chatbtn').click();
+  await aPage.locator('#chat-in').fill('hello room');
+  await aPage.locator('#chatform button[type=submit]').click();
+  await bPage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('hello room'), null, { timeout: 15000 });
+  check('chat reaches everyone over DataChannels', true);
+  check('unread messages badge the chat button', /\(1\)/.test(await bPage.locator('#chatbtn').textContent()));
+  await aPage.setInputFiles('#cfile-in', { name: 'pinned.txt', mimeType: 'text/plain', buffer: Buffer.from('bytes pinned to the call') });
+  await bPage.waitForFunction(() => {
+    const fs = window.__gifosVideo.pinnedFiles();
+    return fs.length === 1 && fs[0].name === 'pinned.txt' && fs[0].have;
+  }, null, { timeout: 15000 });
+  check('a pinned file replicates to every participant, bytes and all', true);
+
   // ---------- a participant leaves → tiles + quality recover ----------
   await cPage.close(); await cCtx.close();
   await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
@@ -150,6 +190,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   await bPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
   check('room survives its creator — a new joiner still connects (no host)', true);
+
+  // The late joiner MERGES the room's chat + files from whoever is still
+  // there (Ada wrote them and left; Bob carried them; Dee gets them).
+  await dPage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('hello room')
+    && window.__gifosVideo.pinnedFiles().some((f) => f.name === 'pinned.txt' && f.have), null, { timeout: 20000 });
+  check('a late joiner merges the chat history + pinned files P2P (original author long gone)', true);
+  // …and an unpin propagates as a tombstone
+  await dPage.locator('#chatbtn').click();
+  await dPage.locator('.cfile button[data-del]').click();
+  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0, null, { timeout: 15000 });
+  check('unpinning a file removes it for everyone (tombstone wins the merge)', true);
 
   // ---------- everyone leaves; the same URL still works later ----------
   await bPage.close(); await bCtx.close();
