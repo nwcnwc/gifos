@@ -96,6 +96,22 @@ body {
 }
 .icon:hover .thumb img { transform: translateY(-3px) scale(1.07); }
 .icon:active .thumb img { transform: translateY(0) scale(.96); }
+
+/* the up-hole: the corner cell inside a folder is a hole back to the parent —
+   click to climb out, or drop an icon in to send it up a level */
+.icon.uphole { cursor: pointer; }
+.uphole .hole {
+  width: calc(var(--isize, 64px) * .84); height: calc(var(--isize, 64px) * .84);
+  border: 2.5px dashed var(--muted); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--isize, 64px) * .42); color: var(--muted);
+  background: radial-gradient(circle at 50% 42%, rgba(0, 0, 0, .5), rgba(0, 0, 0, .12));
+  transition: transform .15s ease, border-color .15s, color .15s;
+}
+.uphole:hover .hole, .uphole.drop-target .hole {
+  border-color: var(--accent); color: var(--accent); transform: scale(1.08);
+}
+.uphole .label { color: var(--muted); }
 .icon .label {
   font-size: .78rem; max-width: calc(var(--cell, 104px) - 12px); word-break: break-word; line-height: 1.15;
   max-height: 2.4em; overflow: hidden;
