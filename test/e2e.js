@@ -343,6 +343,31 @@ async function openApp(page, ctx, folder, label) {
   const afterReload = await app2.locator('#list li').count();
   check('notes persist across tab reload', afterReload === 2);
 
+  // ---- Chat app (Social): file attachments, chunked through gifos.db ----
+  const chatPage = await openApp(page, context, 'Social', 'Chat.gif');
+  await chatPage.waitForSelector('iframe', { timeout: 8000 });
+  const chat = chatPage.frameLocator('iframe');
+  await chat.locator('#t').waitFor({ timeout: 8000 });
+  await chat.locator('#t').fill('hello attachments');
+  await chat.locator('#t').press('Enter');
+  await chat.locator('.m', { hasText: 'hello attachments' }).waitFor({ timeout: 5000 });
+  check('chat sends a text message', true);
+  await chat.locator('#fi').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1x1 });
+  await chat.locator('.m img').waitFor({ timeout: 8000 });
+  check('image attachment renders inline in chat', true);
+  await chat.locator('#fi').setInputFiles({ name: 'readme.txt', mimeType: 'text/plain', buffer: Buffer.from('gifos attachment test') });
+  await chat.locator('a.file', { hasText: 'readme.txt' }).waitFor({ timeout: 8000 });
+  const attHref = await chat.locator('a.file').getAttribute('href');
+  check('file attachment becomes a data: download link (bytes intact)',
+    /^data:text\/plain;base64,/.test(attHref) && Buffer.from(attHref.split(',')[1], 'base64').toString() === 'gifos attachment test');
+  await chatPage.reload();
+  await chatPage.waitForSelector('iframe');
+  const chatAgain = chatPage.frameLocator('iframe');
+  await chatAgain.locator('.m img').waitFor({ timeout: 8000 });
+  await chatAgain.locator('a.file', { hasText: 'readme.txt' }).waitFor({ timeout: 8000 });
+  check('attachments persist across reload (chunks live in app state)', true);
+  await chatPage.close();
+
   // ---- Welcome is a real onboarding app with a persistent checklist ----
   const welcomePage = await openApp(page, context, null, 'Welcome.gif');
   await welcomePage.waitForSelector('iframe');

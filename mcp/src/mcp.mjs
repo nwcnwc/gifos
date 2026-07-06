@@ -63,7 +63,10 @@ The entry point is index.html; multi-file apps are fully supported:
    their Home Screen (P2P, permanent room links, moderation, room
    passwords). Apps CAN bundle and display static media — images, GIFs,
    audio files — as files inside the GIF, and store binary blobs (base64)
-   in gifos.db.
+   in gifos.db — but keep any single db record under ~100KB and chunk
+   bigger blobs across records fetched with db.get(): each record travels
+   as ONE message between players, and oversized records silently fail to
+   sync.
 
 ## Packing it into a GIF (the pack_app tool)
 

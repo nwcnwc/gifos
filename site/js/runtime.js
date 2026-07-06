@@ -325,7 +325,11 @@
 
   function makeIframe() {
     const iframe = document.createElement('iframe');
-    iframe.setAttribute('sandbox', 'allow-scripts allow-forms'); // isolated: null origin
+    // allow-downloads lets an app hand the user a file they clicked for (chat
+    // attachments, exports). The browser still requires a user gesture, and a
+    // download opens no network or data path — bytes can only come from
+    // inside the GIF, and saving is the user's own click.
+    iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-downloads'); // isolated: null origin
     iframe.style.cssText = 'width:100%;height:100%;border:0;background:#fff';
     return iframe;
   }

@@ -260,28 +260,65 @@
   .m.mine{align-self:flex-end;background:#173a30;border-color:#2a5a48}
   .m b{color:#5cdcb4;font-size:12px;display:block;margin-bottom:2px}
   .m small{color:#667;font-size:10px;margin-left:6px;font-weight:400}
+  .m img{display:block;max-width:100%;border-radius:8px;margin-top:4px}
+  .m a.file{display:inline-flex;gap:6px;align-items:center;color:#5cdcb4;margin-top:4px;text-decoration:none;border:1px solid #2a5a48;border-radius:8px;padding:6px 10px}
+  .m .fsz{color:#889;font-size:11px;font-weight:400}
   form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
   input{flex:1;padding:10px 12px;border:1px solid #2a2a3f;border-radius:8px;background:#1c1c2b;color:#e0e0f0;font:inherit}
   button{padding:10px 16px;border:0;border-radius:8px;background:#5cdcb4;color:#04231b;font-weight:700;cursor:pointer}
+  #att{background:#1c1c2b;padding:10px 12px}
   .quick{display:flex;gap:4px;padding:0 18px 8px}
   .quick button{background:#1c1c2b;font-size:18px;padding:6px 10px}
 </style>
 <header>💬 Chat</header>
 <div id="log"></div>
 <div class="quick" id="quick"></div>
-<form id="f"><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
+<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (go multiplayer to chat with friends)" autocomplete="off"><button>Send</button></form>
 <script>
-  const db=gifos.db('messages'), log=document.getElementById('log');
-  let me={id:'local',name:'You'};
+  const db=gifos.db('messages'), fdb=gifos.db('files'), log=document.getElementById('log');
+  // Attachments ride gifos.db, so every record travels as ONE message between
+  // players (DataChannel, or the relay with its 1MB/message + 48KB/s budget).
+  // Files are therefore base64-chunked (CS chars ≈ 64KB raw each) into the
+  // separate 'files' collection — fetched lazily, never in a getAll fan-out —
+  // and capped at MAX bytes. Images are shrunk to fit automatically.
+  const MAX=256*1024, CS=87000, MAXCHUNKS=16;
+  let me={id:'local',name:'You'}, last=[];
   if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
-  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function hhmm(t){ if(!t) return ''; const d=new Date(t); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
-  function render(items){
-    items=items.slice().sort(function(a,b){return (a.t||0)-(b.t||0);});
-    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small></b>'+esc(m.text)+'</div>'; }).join('');
-    log.scrollTop=log.scrollHeight;
+  function fmt(n){ n=+n||0; return n>=1e6?(n/1e6).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':n+' B'; }
+  function b64(bytes){ let s=''; for(let i=0;i<bytes.length;i+=8192) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192)); return btoa(s); }
+  const atts={}; // att id -> data URL | 'loading' | 'gone'
+  function fetchAtt(m){
+    atts[m.att]='loading';
+    (async function(){
+      try{
+        const n=m.n|0; if(n<1||n>MAXCHUNKS) throw 0;
+        const parts=[];
+        for(let i=0;i<n;i++){ const c=await fdb.get(m.att+':'+i); if(!c||typeof c.data!=='string') throw 0; parts.push(c.data); }
+        // Records arrive from other players: whitelist-sanitize everything
+        // that gets interpolated into markup (mime + base64 payload).
+        const mime=String(m.mime||'application/octet-stream').replace(/[^a-zA-Z0-9/.+-]/g,'');
+        atts[m.att]='data:'+mime+';base64,'+parts.join('').replace(/[^A-Za-z0-9+/=]/g,'');
+      }catch(e){ atts[m.att]='gone'; }
+      paint();
+    })();
   }
-  db.subscribe(render);
+  function body(m){
+    if(m.kind!=='file') return esc(m.text);
+    const a=atts[m.att];
+    if(!a||a==='loading') return '<span class="fsz">⏳ '+esc(m.name)+' ('+fmt(m.size)+')…</span>';
+    if(a==='gone') return '<span class="fsz">📎 '+esc(m.name)+' — attachment unavailable</span>';
+    if(String(m.mime).indexOf('image/')===0) return '<img src="'+a+'" alt="'+esc(m.name)+'">';
+    return '<a class="file" download="'+esc(m.name)+'" href="'+a+'">📄 '+esc(m.name)+' <span class="fsz">'+fmt(m.size)+'</span></a>';
+  }
+  function paint(){
+    const items=last.slice().sort(function(a,b){return (a.t||0)-(b.t||0);});
+    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small></b>'+body(m)+'</div>'; }).join('');
+    log.scrollTop=log.scrollHeight;
+    items.forEach(function(m){ if(m.kind==='file'&&m.att&&!atts[m.att]) fetchAtt(m); });
+  }
+  db.subscribe(function(items){ last=items; paint(); });
   ['👍','❤️','😂','🎉','😮','🔥'].forEach(function(e){
     const b=document.createElement('button'); b.type='button'; b.textContent=e;
     b.onclick=function(){ db.put({ by:me.name, uid:me.id, text:e, t:Date.now() }); };
@@ -291,6 +328,46 @@
     const t=document.getElementById('t'); if(!t.value.trim()) return;
     await db.put({ by:me.name, uid:me.id, text:t.value.trim(), t:Date.now() }); t.value='';
   };
+  // ---- attachments ----
+  const fi=document.getElementById('fi'), attBtn=document.getElementById('att');
+  attBtn.onclick=function(){ fi.click(); };
+  fi.onchange=function(){ if(fi.files&&fi.files[0]) sendFile(fi.files[0]); };
+  function shrink(file){ return new Promise(function(res,rej){
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=function(){
+      URL.revokeObjectURL(url);
+      const attempt=function(scale,q){
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        c.toBlob(function(b){
+          if(b&&b.size<=MAX) return res(b);
+          if(q>0.55) return attempt(scale,q-0.15);
+          if(scale>0.12) return attempt(scale*0.6,0.8);
+          rej(new Error('too big'));
+        },'image/jpeg',q);
+      };
+      attempt(Math.min(1,1280/Math.max(img.width,img.height)),0.85);
+    };
+    img.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('unreadable')); };
+    img.src=url;
+  }); }
+  async function sendFile(f){
+    attBtn.disabled=true; attBtn.textContent='⏳';
+    try{
+      let blob=f, mime=f.type||'application/octet-stream', name=f.name||'file';
+      if(mime.indexOf('image/')===0 && f.size>MAX){
+        try{ blob=await shrink(f); mime='image/jpeg'; const dot=name.lastIndexOf('.'); name=(dot>0?name.slice(0,dot):name)+'.jpg'; }
+        catch(e){ alert('That image could not be shrunk to fit — attachments are capped at '+fmt(MAX)+'.'); return; }
+      }
+      if(blob.size>MAX){ alert('Attachments here are capped at '+fmt(MAX)+' (images are shrunk automatically). For big files, share them in a Video Call room instead — transfers there go direct, peer to peer.'); return; }
+      const B=b64(new Uint8Array(await blob.arrayBuffer()));
+      const n=Math.max(1,Math.ceil(B.length/CS));
+      const att='a'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);
+      for(let i=0;i<n;i++) await fdb.put({ id:att+':'+i, data:B.slice(i*CS,(i+1)*CS) });
+      await db.put({ by:me.name, uid:me.id, kind:'file', att:att, n:n, name:name, mime:mime, size:blob.size, t:Date.now() });
+    } finally { attBtn.disabled=false; attBtn.textContent='📎'; fi.value=''; }
+  }
 </script>`;
 
   const PAINT_HTML = `<!doctype html><meta charset="utf-8">
