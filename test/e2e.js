@@ -739,10 +739,10 @@ async function openApp(page, ctx, folder, label) {
   const backupPath = await download.path();
 
   await sys.locator('#sys-menu-btn').click();
-  await sys.locator('.ctx button', { hasText: 'Reset Home Screen…' }).click();
+  await sys.locator('.ctx button', { hasText: 'Erase This Computer…' }).click();
   await Promise.all([
     sys.waitForNavigation({ waitUntil: 'load' }),
-    sys.locator('.modal-actions button', { hasText: 'Reset without backup' }).click(),
+    sys.locator('.modal-actions button', { hasText: 'Erase without backup' }).click(),
   ]);
   await sys.waitForSelector('.icon');
   await sleep(600);
