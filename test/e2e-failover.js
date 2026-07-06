@@ -90,7 +90,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const aList2 = await A.app.locator('#list').textContent();
   check('client B\'s write lands in the NEW host (session survived)', /after failover/.test(aList2));
 
-  // ---------- lock/unlock: original host reopens its icon → SAME share link ----------
+  // ---------- the original host reopens while the NEW host is live:
+  // its epoch is stale, so it must NOT clobber the newer state — the relay
+  // bounces it (host-stale) and it rejoins its own session as a guest ----------
   const hostDesk2 = await hostCtx.newPage();
   await hostDesk2.goto(BASE + '/index.html');
   await hostDesk2.waitForSelector('.icon');
@@ -103,8 +105,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await hostRun2.waitForSelector('iframe');
   await hostRun2.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
   await hostRun2.locator('#host').click();
-  await hostRun2.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl2 = await hostRun2.locator('#share-url').inputValue();
+  await hostRun2.waitForURL(/[#&?](j|s)=/, { timeout: 10000 });
+  await hostRun2.waitForSelector('iframe', { timeout: 10000 });
+  const back = hostRun2.frameLocator('iframe');
+  await back.locator('#list li').first().waitFor({ timeout: 10000 });
+  await sleep(1500);
+  check('original host reopening after a takeover becomes a guest (no clobber)',
+    /after failover/.test(await back.locator('#list').textContent()));
+
+  // ---------- lock-until-reopen still holds once the host slot is EMPTY:
+  // the taker-over leaves too; reopening the icon resumes the SAME link ----------
+  await A.page.close();
+  await hostRun2.close();
+  await sleep(500);
+  const [hostRun3] = await Promise.all([
+    hostCtx.waitForEvent('page'),
+    hostDesk2.locator('.icon', { hasText: 'Guestbook.gif' }).dblclick(),
+  ]);
+  await hostRun3.waitForSelector('iframe');
+  await hostRun3.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
+  await hostRun3.locator('#host').click();
+  await hostRun3.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl2 = await hostRun3.locator('#share-url').inputValue();
   check('reopening the icon resumes the SAME share link (lock-until-reopen)', shareUrl2 === shareUrl);
 
   await browser.close();

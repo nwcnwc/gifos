@@ -86,8 +86,10 @@ export class Session {
       peers.push(a.peer);
       if (a.name) names[a.peer] = a.name;
     }
-    const s = JSON.stringify({ t: 'roster', peers, names });
     const h = this.hostSock();
+    const msg = { t: 'roster', peers, names };
+    if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
+    const s = JSON.stringify(msg);
     if (h) this.send(h, s);
     for (const ws of this.members()) this.send(ws, s);
   }
@@ -130,12 +132,27 @@ export class Session {
     if (log.length > MAX_JOINS_PER_IP_MIN) return reject('joining too fast — slow down', 1013);
 
     if (role === 'host') {
-      // a new host replaces any previous host socket (Take Over / reconnect);
-      // the join token rides in the host's own attachment — nothing stored
+      // The host slot is guarded by an EPOCH so self-healing takeover can't
+      // split-brain: every takeover claims epoch+1, and a returning host with
+      // a stale epoch is bounced (it rejoins as a guest instead of clobbering
+      // the newer state). Same-epoch claims from a DIFFERENT machine are
+      // rejected too (first claim wins the race); the same machine (hostid)
+      // reconnecting just replaces its own dead socket. The epoch lives only
+      // in the host socket's attachment — an empty session accepts any claim,
+      // exactly like mesh tokens/passwords. Nothing is stored.
+      const epoch = Math.max(0, parseInt(url.searchParams.get('epoch') || '0', 10) || 0);
+      const hostid = (url.searchParams.get('hostid') || '').slice(0, 64);
+      const prev = this.hostSock();
+      if (prev) {
+        const cur = this.att(prev);
+        const curEpoch = cur.epoch || 0;
+        if (epoch < curEpoch) return reject('host-stale', 4008);
+        if (epoch === curEpoch && hostid && cur.hostid && hostid !== cur.hostid) return reject('host-taken', 4009);
+      }
       for (const ws of this.state.getWebSockets('role:host')) { try { ws.close(4001, 'replaced by a new host'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:host', 'peer:host']);
-      server.serializeAttachment({ role: 'host', peer: 'host', ip, tok: token });
-      this.send(server, { t: 'host-ready' });
+      server.serializeAttachment({ role: 'host', peer: 'host', ip, tok: token, epoch, hostid });
+      this.send(server, { t: 'host-ready', epoch });
       for (const ws of this.members()) this.send(server, { t: 'peer-join', peer: this.att(ws).peer });
       this.roster();
     } else if (role === 'mesh') {

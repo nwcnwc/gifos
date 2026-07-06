@@ -341,7 +341,14 @@
   //   soft (light green) — blip, down < SOFT ms; no cause for concern
   //   warn (yellow)      — down but recoverable; we keep retrying
   //   lost (red)         — down past LOST ms; genuinely gone
-  const CONN = { SOFT: 4000, LOST: 60000, PEER_DROP: 120000, TAKEOVER_HINT: 5000 };
+  // AUTO_TAKEOVER: how long a host must be gone before mirrored clients heal
+  // the session themselves. CAND_LEAD: how far ahead of that they gossip
+  // candidacies (mirror freshness) to rank who goes first. RANK_STEP: stagger
+  // between ranked candidates so backups only claim if the leader stalls.
+  // root.GIFOS_CONN lets tests shrink these without waiting out real clocks.
+  const CONN = Object.assign(
+    { SOFT: 4000, LOST: 60000, PEER_DROP: 120000, TAKEOVER_HINT: 5000, AUTO_TAKEOVER: 25000, CAND_LEAD: 6000, RANK_STEP: 4000 },
+    root.GIFOS_CONN || {});
   function gradeOf(downSince) {
     if (!downSince) return 'up';
     const d = Date.now() - downSince;
@@ -497,7 +504,11 @@
   // ---- host-side wiring (shared by original host and failover host) --------
   // Returns { sendToAll, stats } so the caller can push db-change events over
   // whichever transport each peer ended up on (channel if open, else relay).
-  function attachHost(ws, db, appBytes, onStats) {
+  // opts.selfPeer: during a client takeover our old client seat may linger for
+  // a moment — ignore its peer-join echo. opts.onDisplaced: a higher-epoch host
+  // claimed the session (we were away and it healed without us); stop serving.
+  function attachHost(ws, db, appBytes, onStats, opts) {
+    opts = opts || {};
     holdSessionLock(); // friends now depend on THIS tab staying runnable
     // peer -> { pc, channel, away } — `away` is a timestamp while the peer's
     // relay socket is down. Phones drop sockets constantly; an away peer keeps
@@ -580,7 +591,16 @@
 
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.t === 'error' && /host-(stale|taken)/.test(m.error || '')) {
+        // The session healed itself while this tab was away and a newer host
+        // now holds the slot — stop competing for it (reconnects would loop).
+        clearInterval(sweeper);
+        try { ws.close(); } catch (e) { /* already closing */ }
+        if (opts.onDisplaced) opts.onDisplaced();
+        return;
+      }
       if (m.t === 'peer-join') {
+        if (opts.selfPeer && m.peer === opts.selfPeer) return; // our own old seat
         const known = peers.get(m.peer);
         if (known && known.pc) { try { known.pc.close(); } catch (e) { /* stale */ } }
         peers.set(m.peer, { pc: null, channel: null, away: null });
@@ -622,12 +642,18 @@
     return { sendToAll, stats, stop: () => clearInterval(sweeper) };
   }
 
-  function openHostSocket(relay, sid, token) {
+  function openHostSocket(relay, sid, token, epoch, hostid) {
     return new Promise((resolve, reject) => {
-      const sock = steadySocket(() => relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token);
+      const sock = steadySocket(() => relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token +
+        '&epoch=' + (epoch || 0) + (hostid ? '&hostid=' + encodeURIComponent(hostid) : ''));
       const timer = setTimeout(() => { sock.close(); reject(new Error('relay connection failed')); }, 8000);
-      // First open resolves; attachHost then takes over onopen for reconnects.
-      sock.onopen = () => { clearTimeout(timer); sock.onopen = null; resolve(sock); };
+      // Resolve only on the relay's host-ready — a rejected claim (host-stale /
+      // host-taken) must fail the promise, not hand back a dead socket.
+      sock.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.t === 'host-ready') { clearTimeout(timer); sock.onmessage = null; resolve(sock); }
+        else if (m.t === 'error') { clearTimeout(timer); sock.close(); reject(new Error(m.error || 'host claim rejected')); }
+      };
     });
   }
 
@@ -671,24 +697,41 @@
         const relay = relayUrl();
         if (!relay) return Promise.reject(new Error('No relay configured (set window.GIFOS_RELAY).'));
         // Reuse the icon's stored session so reopening the app resumes the SAME
-        // share link — closing the tab "locks" clients until the icon reopens.
+        // share link — closing the tab "locks" clients until the icon reopens
+        // (unless self-healing promoted someone meanwhile; see host-stale below).
         return store.getState(fileId + '::session').then((sess) => {
           const code = shortCode();
           const sid = (sess && sess.sid) || code;
           const token = (sess && sess.token) || code;
-          return openHostSocket(relay, sid, token).then((ws) => {
+          const epoch = (sess && sess.epoch) || 0;
+          const joinUrl = buildJoinUrl('app', sid, token, relay);
+          // If the session healed itself while we were dead, our epoch is stale
+          // and the relay bounces us — the newest state lives with the promoted
+          // host, so rejoin our own session as a guest instead of clobbering it.
+          const displaced = () => {
+            setStatus('Your session kept going without you — rejoining as a guest…');
+            // replace() alone won't reload when only the #hash differs —
+            // run.html#id=… → run.html#j=… needs an explicit reload to reboot
+            // this page in client mode.
+            location.replace(joinUrl);
+            location.reload();
+          };
+          return openHostSocket(relay, sid, token, epoch, identity().id).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
-            });
+            }, { onDisplaced: displaced });
             announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
             setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-            return store.setState(fileId + '::session', { sid, token, relay }).then(() => ({
-              shareUrl: buildJoinUrl('app', sid, token, relay),
+            return store.setState(fileId + '::session', { sid, token, relay, epoch }).then(() => ({
+              shareUrl: joinUrl,
             }));
+          }).catch((err) => {
+            if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
+            throw err;
           });
         });
       }
@@ -758,6 +801,27 @@
     // is gone past LOST and can't be waited out. A live DataChannel counts as
     // up even while the relay socket heals.
     let takeoverHinted = false, lostDeclared = false;
+
+    // ---- self-healing election ----------------------------------------------
+    // If the host stays gone past AUTO_TAKEOVER, mirrored clients rescue the
+    // session themselves: shortly before the deadline everyone gossips a
+    // candidacy (their mirror timestamp), the freshest copy claims the host
+    // slot first, and lower-ranked backups stagger in behind only if the
+    // leader stalls. The relay's epoch-guarded host slot is the real mutex —
+    // a lost race is just a rejected claim, and the winner's host-back cancels
+    // everyone else. mirrorLast is bucketed to 10s so clock skew between
+    // devices can't scramble the ranking.
+    let hostEpoch = 0;        // latest epoch seen in a roster; takeover claims +1
+    let rosterPeers = [];     // seat ids, for candidacy gossip
+    const cands = new Map();  // peer id -> mirror timestamp
+    let candSent = false, autoClaiming = false;
+    const candRank = () => {
+      const order = Array.from(cands.entries())
+        .map(([p, at]) => [Math.round((+at || 0) / 10000), p])
+        .sort((a, b) => (b[0] - a[0]) || (a[1] < b[1] ? -1 : 1));
+      const i = order.findIndex((e) => e[1] === myPeer);
+      return i < 0 ? 99 : i;
+    };
     const connGrade = () => {
       if (tookOver) return 'up';
       if (channel && channel.readyState === 'open') return 'up';
@@ -786,6 +850,22 @@
         setStatus(lastDump ? 'The host is gone. Take Over to keep the session going from your copy.'
           : 'The host is gone, and nothing was shared with you yet.');
       }
+      // Self-healing: candidacy gossip, then the freshest copy claims the slot.
+      if (hostGone && hostGoneAt && lastDump && !autoClaiming && myPeer) {
+        const down = Date.now() - hostGoneAt;
+        if (!candSent && down > CONN.AUTO_TAKEOVER - CONN.CAND_LEAD) {
+          candSent = true;
+          cands.set(myPeer, mirrorLast);
+          for (const p of rosterPeers) if (p !== myPeer) ws.send(JSON.stringify({ t: 'peer', to: p, msg: { t: 'cand', at: mirrorLast } }));
+        }
+        if (candSent && down > CONN.AUTO_TAKEOVER + candRank() * CONN.RANK_STEP) {
+          autoClaiming = true;
+          setStatus('The host is gone — healing the session from the freshest copy…');
+          becomeHost({ auto: true }).then((r) => {
+            if (hooks.onAutoTakeover) hooks.onAutoTakeover(r);
+          }).catch(() => { autoClaiming = false; /* lost the race — the winner's host-back is on its way */ });
+        }
+      }
       announceClient();
     }, 1000);
 
@@ -797,6 +877,7 @@
         lostDeclared = false;
         remoteDb._replay(); // anything asked while they were away goes again
       }
+      candSent = false; autoClaiming = false; cands.clear(); // election is off
       if (hooks.onHostBack) hooks.onHostBack();
       if (filesRef) runningStatus();
       announceClient();
@@ -864,6 +945,8 @@
         } else setStatus('Cannot join: ' + m.error);
       }
       else if (m.t === 'sig') onSignal(m);
+      else if (m.t === 'roster') { rosterPeers = m.peers || []; if (m.epoch != null) hostEpoch = m.epoch; }
+      else if (m.t === 'peer' && m.msg && m.msg.t === 'cand') { cands.set(m.from, +m.msg.at || 0); }
       else if (m.t === 'host-gone') {
         // No alarm yet: the host's phone probably just blinked. The escalator
         // raises the Take Over hint after a few seconds and red only at LOST.
@@ -894,37 +977,49 @@
 
     // Take over the SAME session from the mirrored state: remaining clients
     // stay connected to the relay and keep working against the new host.
-    function becomeHost() {
+    function becomeHost(opts) {
+      opts = opts || {};
       if (!lastDump || !appBytes) return Promise.reject(new Error('No mirrored state to take over from.'));
+      const claimEpoch = hostEpoch + 1;
       // Durable capture first: the app + state land on THIS desktop, so the
-      // takeover survives a reload of this tab too.
-      return saveAppToDesktop(appBytes, manifestRef, lastDump).then((fileId) => {
-        try { ws.onclose = null; ws.close(); } catch (e) { /* already closed */ }
-        if (pc) { try { pc.close(); } catch (e) { /* dead host */ } pc = null; channel = null; }
-        tookOver = true;
-        root.__gifosTransport = 'host';
-        let hostApi = null;
-        const emit = (collection) => {
-          if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
-          if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
-        };
-        const db = makeLocalDb(fileId, emit);
-        return openHostSocket(params.relay, params.s, params.k).then((ws2) => {
+      // takeover survives a reload of this tab too. Then CLAIM the host slot
+      // BEFORE tearing down our client seat — losing the race (host-taken)
+      // must leave us a working guest, not an orphan.
+      return saveAppToDesktop(appBytes, manifestRef, lastDump).then((fileId) =>
+        openHostSocket(params.relay, params.s, params.k, claimEpoch, myPeer).then((ws2) => {
+          try { ws.onclose = null; ws.close(); } catch (e) { /* already closed */ }
+          if (pc) { try { pc.close(); } catch (e) { /* dead host */ } pc = null; channel = null; }
+          tookOver = true;
+          root.__gifosTransport = 'host';
+          let hostApi = null;
+          const emit = (collection) => {
+            if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
+            if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
+          };
+          const db = makeLocalDb(fileId, emit);
           hostApi = attachHost(ws2, db, appBytes, (s) => {
             root.__gifosHostStats = s;
             announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
             setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' P2P direct' : ''));
+          }, {
+            selfPeer: myPeer,
+            onDisplaced: () => {
+              setStatus('A newer host holds the session — rejoining as a guest…');
+              location.replace(buildJoinUrl('app', params.s, params.k, params.relay));
+              location.reload(); // hash-only change — force the client-mode reboot
+            },
           });
           // Remount the app against the local DB and wake the other clients.
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;
           mountApp(fresh, filesRef, manifestRef, db, appBytes);
           ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-          setStatus('Live (you took over) · the session continues');
-          return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay })
+          setStatus(opts.auto ? 'The host vanished — you took over automatically · the session continues'
+            : 'Live (you took over) · the session continues');
+          return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay, epoch: claimEpoch })
             .then(() => ({ shareUrl: buildJoinUrl('app', params.s, params.k, params.relay), save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
-        });
-      });
+        })
+      );
     }
 
     function saveToDesktop() {
