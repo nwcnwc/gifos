@@ -1036,7 +1036,7 @@
     { label: 'Empty Trash', fn: emptyTrash },
     'sep',
     { label: 'Settings…', fn: showSettings },
-    { label: 'Reset Home Screen…', cls: 'danger', fn: resetFlow },
+    { label: 'Erase This Computer…', cls: 'danger', fn: resetFlow },
   ]));
 
   // ---------- version: update nudge + pinning ----------
@@ -1336,15 +1336,15 @@
 
   // Dev-only escape hatch — dies before 1.0. Backup is one click away on purpose.
   function resetFlow() {
-    showConfirm('Reset this Home Screen?',
-      'This erases <b>every file, folder, and app state</b> stored in this browser. There is no undo and no server copy.',
+    showConfirm('Erase this entire computer?',
+      'This is not just the Home Screen layout — it wipes the <b>whole computer</b> stored in this browser: every app, file, folder, wallpaper, and all app state. There is no undo and no server copy.',
       [
-        { label: 'Back up first, then reset', fn: async () => {
+        { label: 'Back up first, then erase', fn: async () => {
           await backupDesktop();
-          showConfirm('Backup downloaded', 'Your backup GIF is downloading. Reset now?',
-            [{ label: 'Reset Home Screen', danger: true, fn: async () => { await store.clearAll(); location.reload(); } }]);
+          showConfirm('Backup downloaded', 'Your computer image is downloading — it can boot or restore this exact computer later. Erase now?',
+            [{ label: 'Erase This Computer', danger: true, fn: async () => { await store.clearAll(); location.reload(); } }]);
         } },
-        { label: 'Reset without backup', danger: true, fn: async () => { await store.clearAll(); location.reload(); } },
+        { label: 'Erase without backup', danger: true, fn: async () => { await store.clearAll(); location.reload(); } },
       ]);
   }
 
