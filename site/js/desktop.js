@@ -103,11 +103,11 @@
     const pool = [[255, 200, 80], [123, 92, 255], [92, 220, 180], [255, 92, 170], [92, 160, 255], [92, 255, 123]];
     return pool[h % pool.length];
   }
-  async function makeFolderGif(name, accent) {
+  async function makeFolderGif(name, accent, artId) {
     accent = accent || accentFor(name);
     const files = { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name }) };
     let preview = null;
-    if (GifOS.icons) { try { preview = await GifOS.icons.renderApp('folder', accent); } catch (e) { /* plain tile */ } }
+    if (GifOS.icons) { try { preview = await GifOS.icons.renderApp(artId || 'folder', accent); } catch (e) { /* plain tile */ } }
     return gif.encode(files, { accent, preview });
   }
   async function createFolder(name, parent, x, y) {
@@ -160,11 +160,25 @@
         x: spot.x, y: spot.y, iconSize: 64 });
       await load();
     }
-    if (!items.find((i) => i.id === 'sys_stolen')) {
+    let stolen = items.find((i) => i.id === 'sys_stolen');
+    if (!stolen) {
       const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
-      await store.putItem({ id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 });
+      stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
+        x: spot.x, y: spot.y, iconSize: 64 };
+      await store.putItem(stolen);
       await load();
+    }
+    // The loot deserves a treasure chest. Also retrofits folders created bare
+    // (by the runtime mid-steal, or by earlier versions of this code).
+    if (!stolen.fileId) {
+      try {
+        const fileId = store.uid('file');
+        const bytes = await makeFolderGif('Stolen Apps', FOLDER_ACCENTS['Stolen Apps'], 'chest');
+        await store.putFile({ id: fileId, name: 'Stolen Apps.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+        stolen.fileId = fileId;
+        await store.putItem(stolen);
+        await load();
+      } catch (e) { /* falls back to the 📁 glyph */ }
     }
   }
 
