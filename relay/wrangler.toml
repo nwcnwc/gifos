@@ -2,14 +2,15 @@ name = "gifos-relay"
 main = "src/relay.js"
 compatibility_date = "2026-01-01"
 
-# One Durable Object class = one live session hub. Nothing is persisted to
-# storage; the DO only holds in-memory sockets while peers are connected.
+# One Durable Object class = one live session hub. Sockets are accepted via
+# the WebSocket HIBERNATION API, so idle sessions are evicted from memory and
+# accrue no duration charges. The only stored state is the session/room token
+# (a few bytes), which is what makes call-room URLs work forever.
 [[durable_objects.bindings]]
 name = "SESSION"
 class_name = "Session"
 
-# SQLite-backed DO class: required on the Workers Free plan (we never write
-# to storage, but the class must still be declared this way).
+# SQLite-backed DO class: required on the Workers Free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Session"]
@@ -20,10 +21,11 @@ new_sqlite_classes = ["Session"]
 # 2. The explicit zone ROUTE is what actually wins the traffic. Cloudflare's
 #    precedence rule is: ROUTES BEAT CUSTOM DOMAINS when both match a request
 #    — specificity only breaks ties between routes. The gifos-mirror Worker
-#    holds a `*.gifos.app/*` wildcard route (numbered subdomains), and without
-#    our own route it intercepts relay.gifos.app and 301s it to the desktop,
-#    killing every WebSocket handshake. Route-vs-route, the non-wildcard
-#    `relay.gifos.app/*` is more specific and wins.
+#    used to hold a `*.gifos.app/*` wildcard route (now narrowed to the ten
+#    digit subdomains), and without our own route it intercepted
+#    relay.gifos.app and 301'd it to the desktop, killing every WebSocket
+#    handshake. Keep this route even though the wildcard is gone — it makes
+#    the relay immune to any future wildcard coming back.
 [[routes]]
 pattern = "relay.gifos.app"
 custom_domain = true

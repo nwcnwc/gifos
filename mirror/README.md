@@ -1,14 +1,15 @@
 # gifos-mirror
 
-Serves the GifOS site on **every numeric subdomain** — `7.gifos.app`,
-`42.gifos.app`, `2026.gifos.app`, any number at all. Each numbered hostname is
+Serves the GifOS site on **the ten single-digit subdomains** — `0.gifos.app`
+through `9.gifos.app` (ten explicit routes; other subdomains never invoke or
+bill this Worker). Each digit hostname is
 a distinct browser origin with its own IndexedDB, so **every number is a
 separate, fully isolated GifOS computer** in the same browser. No accounts, no
 server state — origin isolation does all the work.
 
 GitHub Pages only serves one hostname (`gifos.app`), so this stateless Worker
 fetches the same assets from the canonical origin and re-serves them under the
-numbered hostname. Non-numeric subdomains 301-redirect to `gifos.app`.
+digit hostname. Anything else that somehow reaches the Worker 301-redirects to `gifos.app`.
 
 ## Deploy (two steps)
 

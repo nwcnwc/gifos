@@ -2,10 +2,41 @@ name = "gifos-mirror"
 main = "src/mirror.js"
 compatibility_date = "2026-01-01"
 
-# Wildcard route: catches every subdomain of gifos.app that Cloudflare proxies.
-# The relay is safe — relay.gifos.app's own custom-domain route is more
-# specific than this wildcard, and Cloudflare always picks the most specific.
-# Requires one proxied (orange-cloud) DNS record for "*" — see README.
+# Ten explicit routes — 0.gifos.app through 9.gifos.app — instead of the old
+# "*.gifos.app/*" wildcard. Route patterns can't express "digits only", but
+# enumerating the ten single-digit computers gets the same effect with a
+# bonus: requests to any OTHER subdomain never invoke this Worker at all
+# (no free-tier request burned by bots probing random hostnames — they fall
+# through to the zone's DNS target and die there).
+# Still requires a proxied (orange-cloud) DNS record covering these names —
+# the existing "*" record works; see README.
 [[routes]]
-pattern = "*.gifos.app/*"
+pattern = "0.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "1.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "2.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "3.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "4.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "5.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "6.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "7.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "8.gifos.app/*"
+zone_name = "gifos.app"
+[[routes]]
+pattern = "9.gifos.app/*"
 zone_name = "gifos.app"
