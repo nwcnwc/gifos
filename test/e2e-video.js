@@ -82,29 +82,55 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('late joiner sees all 3 tiles (me + 2 peers)', tilesOnC === 3);
 
   // ---------- quiet joins, status overlays, blur, group moderation ----------
-  // Everyone joins muted with camera off, and the overlays say so everywhere.
+  // Everyone joins muted, camera off, AND Max blur.
   check('you join muted with camera off (quiet by default)',
     await bPage.evaluate(() => document.getElementById('mic').textContent === 'Unmute'
       && document.getElementById('cam').textContent === 'Camera on'
       && document.querySelector('.tile.me').classList.contains('cam-off')));
+  check('you join at Max blur (hidden by default)',
+    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 2 && document.getElementById('blur').textContent === 'Max blur'));
   await aPage.locator('.tile:not(.me)', { hasText: 'Bob' }).locator('.chips span', { hasText: 'camera off' }).waitFor({ timeout: 10000 });
   check('everyone sees Bob\'s muted/camera-off status on his tile', true);
 
-  // Bob turns his camera on → the chip clears on Ada's screen.
+  // Bob turns his camera on → still Max-blurred on Ada's screen (join default).
   await bPage.locator('#cam').click();
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
-    return t && !t.classList.contains('cam-off');
+    return t && !t.classList.contains('cam-off') && t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
-  check('turning the camera on updates everyone\'s overlay live', true);
+  check('camera on, but everyone still sees Bob at Max blur (blur2)', true);
+  // SENDER-SIDE: Bob's browser broadcasts the blur canvas, not the raw camera —
+  // so no clear pixels ever leave his device (a DOM edit can't unblur him).
+  check('Bob broadcasts blurred pixels at the source (not the raw camera)',
+    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
 
-  // Bob blurs himself → his video is blurred on Ada's screen, with a chip.
+  // Bob cycles blur down: Max → Blur (plain). Ada sees blur1 now.
   await bPage.locator('#blur').click();
+  check('one tap steps Max blur down to plain Blur',
+    (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 1);
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
-    return t && t.querySelector('video').classList.contains('blurred') && /blurred/.test(t.textContent);
+    return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 10000 });
-  check('self-blur completely blurs your video on every other screen', true);
+  check('plain blur shows as blur1 on every other screen', true);
+  // Turning blur fully off asks first — accept the confirm, then Ada sees clear.
+  bPage.once('dialog', (d) => d.accept());
+  await bPage.locator('#blur').click();
+  check('a second tap (confirmed) turns blur off',
+    (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 0);
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
+  }, null, { timeout: 10000 });
+  check('with blur off, Bob is clear on every screen — and broadcasts raw',
+    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'raw');
+  // Cancelling the confirm keeps blur on (re-blur to max first, then cancel-off).
+  await bPage.locator('#blur').click(); // off → max
+  await bPage.locator('#blur').click(); // max → plain
+  bPage.once('dialog', (d) => d.dismiss());
+  await bPage.locator('#blur').click(); // plain → (confirm) cancel
+  check('cancelling the "turn blur off" confirm keeps you blurred',
+    (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 1);
 
   // Ada mutes Cai FOR EVERYONE — enforced on each receiver, attributed to Ada.
   const caiTileOnAda = aPage.locator('.tile:not(.me)', { hasText: 'Cai' });
@@ -490,8 +516,45 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
   check('relay refuses a non-admin setpw (admins only)', true);
 
-  // admin globally mutes Beth — stamped path, enforced on Beth's own device
+  // ADMIN ROOMS AUTO-BLUR GUESTS: an admin room defaults roomBlur to plain, so
+  // even before any admin acts, every guest is at least softly blurred — a
+  // guest showing obscenity is never fully clear. Beth (guest) turns off her
+  // own blur; she stays plain-blurred (blur1) on the admin's screen anyway.
   await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 10000 });
+  await beth.locator('#cam').click(); // camera on so there is video to blur
+  // step Beth's self-blur down to 0 (max → plain → [confirm] off)
+  await beth.locator('#blur').click();
+  beth.once('dialog', (d) => d.accept());
+  await beth.locator('#blur').click();
+  check('guest turned her own blur off', (await beth.evaluate(() => window.__gifosVideo.myBlur())) === 0);
+  await adam.waitForFunction(() => {
+    const t = document.querySelector('.tile:not(.me)');
+    return t && t.querySelector('video').classList.contains('blur1');
+  }, null, { timeout: 10000 });
+  check('admin room auto-blurs guests at plain even after they self-unblur', true);
+  check('vote-off is HIDDEN in admin rooms (admins ban instead)',
+    (await adam.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) === 'none');
+  // Admin turns off their OWN self-blur — guest-blur must not touch admins.
+  await adam.locator('#blur').click();
+  adam.once('dialog', (d) => d.accept());
+  await adam.locator('#blur').click();
+  check('the admin themselves is NOT blurred by guest-blur',
+    (await adam.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.blurClassOf('me') === 0)));
+  // Admin escalates "blur all guests" to max → Beth becomes blur2 on every screen.
+  await adam.locator('#blurall').click(); // plain(1) → max(2)
+  await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 2, null, { timeout: 5000 });
+  await adam.waitForFunction(() => {
+    const t = document.querySelector('.tile:not(.me)');
+    return t && t.querySelector('video').classList.contains('blur2');
+  }, null, { timeout: 8000 });
+  check('admin "blur all guests: max" blurs every guest at max', true);
+  // Admin turns guest-blur fully off → Beth (self-blur already off) goes clear.
+  await adam.locator('#blurall').click(); // max(2) → off(0)
+  await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 0, null, { timeout: 5000 });
+  await beth.waitForFunction(() => window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 8000 });
+  check('admin can lift guest-blur entirely', true);
+
+  // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();
   await bethTile.click();
   await bethTile.locator('[data-mod="mute"]').click();
@@ -547,6 +610,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bethAgain = await openRoom(bethCtx, 'beth4', admHash);
   await bethAgain.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('ban survives a fully-emptied room via the admin\'s copy', true);
+  await adam2.close(); await bethAgain.close();
+
+  // ================= vote off the island (non-admin rooms) ====================
+  // No admin exists to ban a bad actor, so the ROOM does: a red ✕ on each tile,
+  // and at half the occupants the relay kicks + bans that device. Three people;
+  // two of them vote off the third (threshold ceil(3/2)=2).
+  const voteRoom = 'vote' + Math.floor(Math.random() * 1e6).toString(36);
+  const vHash = 'v=' + voteRoom + '&k=' + voteRoom;
+  const patCtx = await newUser('Pat'), quinnCtx = await newUser('Quinn'), vicCtx = await newUser('Vic');
+  const pat = await openRoom(patCtx, 'pat', vHash);
+  const quinn = await openRoom(quinnCtx, 'quinn', vHash);
+  const vic = await openRoom(vicCtx, 'vic', vHash);
+  await pat.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
+  check('vote-off buttons show in a non-admin room',
+    (await pat.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) !== 'none');
+  // Pat votes Vic off — one vote, not enough (needs 2); progress shows.
+  const vicTileOnPat = pat.locator('.tile:not(.me)', { hasText: 'Vic' });
+  await vicTileOnPat.locator('.votebtn').click();
+  await pat.waitForFunction(() => window.__gifosVideo.voteNeed() >= 2, null, { timeout: 6000 });
+  check('one vote is not enough to remove someone', !(await vic.evaluate(() => window.__gifosVideo.bannedOut())));
+  // Quinn also votes Vic off → threshold reached → Vic is kicked + banned.
+  const vicTileOnQuinn = quinn.locator('.tile:not(.me)', { hasText: 'Vic' });
+  await vicTileOnQuinn.locator('.votebtn').click();
+  await vic.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
+  check('half the room voting off a bad actor kicks and bans them', true);
+  const vicRejoin = await openRoom(vicCtx, 'vic2', vHash);
+  await vicRejoin.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
+  check('a vote-kicked device cannot rejoin the room', true);
+  await vicRejoin.close(); await vic.close(); await pat.close(); await quinn.close();
 
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');

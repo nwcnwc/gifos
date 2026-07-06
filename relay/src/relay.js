@@ -253,24 +253,20 @@ export class Session {
         }
         this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
       } else if ((m.t === 'ban' || m.t === 'unban') && a.adm && typeof m.dev === 'string') {
-        const dev = m.dev.slice(0, 16);
-        if (!dev) return;
-        const entry = { d: dev, n: String(m.name || '').slice(0, 24) };
-        for (const ws2 of this.members()) {
-          const a2 = this.att(ws2);
-          let ban = (a2.ban || []).filter((b) => b.d !== dev);
-          if (m.t === 'ban') { ban.push(entry); if (ban.length > 16) ban.shift(); } // attachments cap at 2KB — keep the list tiny
-          a2.ban = ban;
-          try { ws2.serializeAttachment(a2); } catch (e) {}
-        }
-        this.broadcast({ t: m.t, dev, name: entry.n, by: (m.by || '').slice(0, 40) });
-        if (m.t === 'ban') {
-          for (const ws2 of this.members()) {
-            const a2 = this.att(ws2);
-            if (a2.dev === dev && !a2.adm) { try { ws2.close(4004, 'banned by admin'); } catch (e) {} }
-          }
-        }
-        this.roster();
+        if (m.t === 'ban') this.banDevice(m.dev, m.name, m.by);
+        else this.unbanDevice(m.dev, m.name, m.by);
+      } else if (m.t === 'votekick' && !this.meshAdmV() && typeof m.target === 'string') {
+        // Vote-off-the-island: no admin exists to ban bad actors, so the ROOM
+        // does it. Each voter's picks ride in their attachment; the relay
+        // tallies distinct voters and, at half the occupants (min 2), bans and
+        // kicks the device — same ban machinery, consensus-driven. Occupancy
+        // memory only: an emptied room forgets the votes and the ban.
+        const tgt = m.target.slice(0, 64);
+        const votes = new Set(a.votes || []);
+        if (m.on === false) votes.delete(tgt); else votes.add(tgt);
+        a.votes = Array.from(votes).slice(0, 64);
+        try { ws.serializeAttachment(a); } catch (e) {}
+        this.tallyVotes();
       } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
         // An admin re-arriving to a (possibly re-emptied) room re-seeds the
         // ban list from their own device — occupancy memory, no storage.
@@ -304,6 +300,56 @@ export class Session {
     return null;
   }
 
+  // Ban a device: written into every occupant's attachment (occupancy memory),
+  // announced, and any matching non-admin socket is cut. Shared by admin bans
+  // and consensus vote-kicks.
+  banDevice(dev, name, by) {
+    dev = String(dev || '').slice(0, 16);
+    if (!dev) return;
+    const entry = { d: dev, n: String(name || '').slice(0, 24) };
+    for (const ws2 of this.members()) {
+      const a2 = this.att(ws2);
+      const ban = (a2.ban || []).filter((b) => b.d !== dev);
+      ban.push(entry); if (ban.length > 16) ban.shift(); // attachments cap at 2KB — keep it tiny
+      a2.ban = ban;
+      try { ws2.serializeAttachment(a2); } catch (e) {}
+    }
+    this.broadcast({ t: 'ban', dev, name: entry.n, by: String(by || '').slice(0, 40) });
+    for (const ws2 of this.members()) {
+      const a2 = this.att(ws2);
+      if (a2.dev === dev && !a2.adm) { try { ws2.close(4004, 'banned'); } catch (e) {} }
+    }
+    this.roster();
+  }
+  unbanDevice(dev, name, by) {
+    dev = String(dev || '').slice(0, 16);
+    if (!dev) return;
+    for (const ws2 of this.members()) {
+      const a2 = this.att(ws2); a2.ban = (a2.ban || []).filter((b) => b.d !== dev);
+      try { ws2.serializeAttachment(a2); } catch (e) {}
+    }
+    this.broadcast({ t: 'unban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
+    this.roster();
+  }
+
+  // Count distinct voters per target across occupants, broadcast progress, and
+  // ban anyone at/over threshold (half the room, minimum 2). Called on each
+  // vote AND when occupancy changes (a departure can push a target over).
+  tallyVotes() {
+    if (this.meshAdmV()) return; // admin rooms don't vote-kick
+    const occ = this.members();
+    const tally = {};
+    for (const s of occ) for (const t of (this.att(s).votes || [])) tally[t] = (tally[t] || 0) + 1;
+    const need = Math.max(2, Math.ceil(occ.length / 2));
+    this.broadcast({ t: 'votes', tally, need });
+    for (const tgt in tally) {
+      if (tally[tgt] >= need) {
+        const victim = occ.find((s) => this.att(s).peer === tgt);
+        if (victim) this.banDevice(this.att(victim).dev, this.att(victim).name || '', 'the room (vote)');
+      }
+    }
+  }
+
   // With the Hibernation API the server must ECHO the close to complete the
   // handshake — otherwise the browser's socket hangs in CLOSING forever and
   // its onclose (and every reconnect built on it) never fires.
@@ -327,7 +373,7 @@ export class Session {
     // A reconnecting peer reuses its id; if a NEWER socket already replaced
     // this one, this stale close must not announce a departure.
     if (this.members().some((s) => s !== ws && this.att(s).peer === a.peer)) return;
-    if (a.role === 'mesh') this.broadcast({ t: 'peer-leave', peer: a.peer });
+    if (a.role === 'mesh') { this.broadcast({ t: 'peer-leave', peer: a.peer }); this.tallyVotes(); }
     else { const h = this.hostSock(); if (h) this.send(h, { t: 'peer-leave', peer: a.peer }); }
     this.roster();
   }

@@ -125,6 +125,27 @@ server.on('upgrade', (req, socket) => {
     if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
+  const banDevice = (dev, name, by) => {
+    dev = String(dev || '').slice(0, 16); if (!dev) return;
+    sess.ban = (sess.ban || []).filter((b) => b.d !== dev);
+    sess.ban.push({ d: dev, n: String(name || '').slice(0, 24) }); if (sess.ban.length > 16) sess.ban.shift();
+    const s = JSON.stringify({ t: 'ban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
+    for (const c of sess.clients.values()) c.send(s);
+    for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(); } catch (e) {} }
+    roster();
+  };
+  const tallyVotes = () => {
+    if (sess.av) return; // admin rooms don't vote-kick
+    const occ = Array.from(sess.clients.values());
+    const tally = {};
+    for (const c of occ) if (c.votes) for (const t of c.votes) tally[t] = (tally[t] || 0) + 1;
+    const need = Math.max(2, Math.ceil(occ.length / 2));
+    const s = JSON.stringify({ t: 'votes', tally, need });
+    for (const c of occ) c.send(s);
+    for (const tgt in tally) {
+      if (tally[tgt] >= need) { const v = sess.clients.get(tgt); if (v) banDevice(v.dev, sess.names.get(tgt) || '', 'the room (vote)'); }
+    }
+  };
   const routePeer = (from, m, adm) => {
     const wrapped = JSON.stringify(adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
@@ -202,6 +223,11 @@ server.on('upgrade', (req, socket) => {
           .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, 24) }))
           .filter((e) => e.d);
         roster();
+      } else if (m.t === 'votekick' && !sess.av && typeof m.target === 'string') {
+        const tgt = m.target.slice(0, 64);
+        conn.votes = conn.votes || new Set();
+        if (m.on === false) conn.votes.delete(tgt); else conn.votes.add(tgt);
+        tallyVotes();
       }
     };
     conn.onclose = () => {
@@ -209,6 +235,7 @@ server.on('upgrade', (req, socket) => {
       sess.clients.delete(peer); sess.names.delete(peer);
       const s = JSON.stringify({ t: 'peer-leave', peer });
       for (const c of sess.clients.values()) c.send(s);
+      tallyVotes();
       roster();
     };
     conn.send(JSON.stringify({ t: 'joined', peer, admin: isAdmin }));
