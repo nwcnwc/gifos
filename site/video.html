@@ -184,6 +184,7 @@
       <h3>🛡 Room admin</h3>
       <p id="adm-hint"></p>
       <div id="adm-setup">
+        <input id="adm-room" maxlength="64" placeholder="Room name (letters and numbers)" autocomplete="off" style="display:none">
         <input id="adm-pass" type="password" maxlength="64" placeholder="Admin password" autocomplete="off">
         <button id="adm-enable">Enable admin mode</button>
       </div>
@@ -942,12 +943,15 @@
         renderBanned();
       } else if (hasAdminRoom()) {
         setup.style.display = ''; panel.style.display = 'none';
+        document.getElementById('adm-room').style.display = 'none';
         btn.textContent = 'Sign in as admin';
         document.getElementById('adm-hint').textContent = 'This room has an admin. If you know the admin password, enter it here to get the admin controls. Your password stays on this device.';
       } else {
         setup.style.display = ''; panel.style.display = 'none';
+        const rin = document.getElementById('adm-room');
+        rin.style.display = ''; rin.value = room; // default: the room you're in
         btn.textContent = 'Create admin room';
-        document.getElementById('adm-hint').textContent = 'This room has no admin — and it never can, so nobody can take over your call. Want a room you control? Set an admin password: that starts a NEW room and you get a NEW link to share. In that room, only people who know the admin password can lock it, mute or blur someone for everyone, or ban a troublemaker. (Changing the admin password later works the same way — new room, new link.)';
+        document.getElementById('adm-hint').textContent = 'This room has no admin — and it never can, so nobody can take over your call. Want a room you control? Pick a room name and an admin password: those two together ARE your room. Share the link that appears. Anyone who knows the same name and password can run it (and re-open it from scratch anytime) — so make the password a good one. Only admins can lock the room, mute or blur someone for everyone, or ban a troublemaker.';
       }
       admModal.style.display = 'flex';
     }
@@ -956,12 +960,12 @@
     document.getElementById('adm-enable').onclick = async () => {
       const v = document.getElementById('adm-pass').value.trim();
       if (!v) return;
-      setStatus('🛡 Checking the password… (takes a few seconds)');
-      const K = await deriveAdminKey(room, v);   // private: knowing the password
-      const V = await sha256hex(K);              // public: part of the room's address
-      document.getElementById('adm-pass').value = '';
       if (hasAdminRoom()) {
-        // Sign in: prove knowledge of the password for THIS room.
+        // Sign in: prove knowledge of THIS room's password (salt = this room).
+        setStatus('🛡 Checking the password… (takes a few seconds)');
+        const K = await deriveAdminKey(room, v);
+        const V = await sha256hex(K);
+        document.getElementById('adm-pass').value = '';
         if (V !== av) { setStatus('🛡 Wrong admin password.'); return; }
         admKey = K;
         try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
@@ -971,11 +975,20 @@
         clearTimeout(reopenTimer);
         openSock();
       } else {
-        // Mint a NEW admin room: same room id, verifier welded into its address.
-        try { localStorage.setItem('gifos_vadm_' + room + '.' + V, K); } catch (e) {}
+        // Mint a NEW admin room. The salt IS the chosen room name, so (name,
+        // password) alone reconstruct the room anywhere, forever — no random
+        // id to save. Same name + same password = same room; pick a strong
+        // password or your "room" is anyone who guesses it.
+        const chosen = (document.getElementById('adm-room').value || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 64);
+        if (!chosen) { setStatus('🛡 Pick a room name (letters and numbers).'); return; }
+        setStatus('🛡 Creating the room… (takes a few seconds)');
+        const K = await deriveAdminKey(chosen, v);
+        const V = await sha256hex(K);
+        document.getElementById('adm-pass').value = '';
+        try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
         admModal.style.display = 'none';
-        location.replace(location.pathname + '#v=' + room + '&k=' + roomToken + '&av=' + V);
-        location.reload(); // hash-only change — force the admin room to boot
+        location.replace(location.pathname + '#v=' + chosen + '&k=' + chosen + '&av=' + V);
+        location.reload(); // load the new room fresh
       }
     };
     document.getElementById('syschip').onclick = () => {

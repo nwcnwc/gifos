@@ -441,17 +441,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await adam.locator('#syschip').textContent()) === 'SYSTEM');
   check('a plain room has no admin and can never have one',
     !(await adam.evaluate(() => window.__gifosVideo.hasAdmin())));
-  // Mint the admin room: same room id, verifier welded into the address.
+  // Mint the admin room: creator CHOOSES its name (the salt), so (name,
+  // password) alone define the room — verifier welded into the address.
+  const chosenRoom = 'club' + Math.floor(Math.random() * 1e6).toString(36);
   await adam.locator('#admbtn').click();
+  await adam.locator('#adm-room').fill(chosenRoom);
   await adam.locator('#adm-pass').fill('sesame-topsecret');
   await adam.locator('#adm-enable').click();
-  await adam.waitForURL(/av=[a-f0-9]{64}/, { timeout: 30000 }); // PBKDF2 is deliberately slow
+  await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{64}'), { timeout: 30000 });
   await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
-  check('minting an admin room lands its creator in it AS admin', true);
+  check('minting an admin room with a CHOSEN name lands its creator in it AS admin',
+    (await adam.evaluate(() => window.__gifosVideo.room())) === chosenRoom);
   const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
-  const admHash = 'v=' + admRoom + '&k=' + admRoom + '&av=' + admV;
+  const admHash = 'v=' + chosenRoom + '&k=' + chosenRoom + '&av=' + admV;
   check('the room link carries only the verifier — never the password',
     /^[a-f0-9]{64}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
+  // The whole point: (name, password) reconstruct the SAME room from scratch.
+  const rederived = await adam.evaluate(async ({ r, p }) => {
+    const enc = new TextEncoder();
+    const km = await crypto.subtle.importKey('raw', enc.encode(p), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('gifos-admin:' + r), iterations: 310000 }, km, 256);
+    const K = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    const vb = await crypto.subtle.digest('SHA-256', enc.encode(K));
+    return Array.from(new Uint8Array(vb)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }, { r: chosenRoom, p: 'sesame-topsecret' });
+  check('the same name + password re-derive the same room, from nothing', rederived === admV);
 
   const beth = await openRoom(bethCtx, 'beth', admHash);
   await beth.waitForFunction(() => window.__gifosVideo.hasAdmin(), null, { timeout: 8000 });
