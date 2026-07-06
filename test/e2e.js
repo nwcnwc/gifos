@@ -358,6 +358,14 @@ async function openApp(page, ctx, folder, label) {
   await ttt.locator('.cell').first().click();
   await sleep(300);
   check('placing a mark works (X appears)', (await ttt.locator('.cell').first().textContent()) === 'X');
+  // the GifOS wordmark in an app tab opens the computer in a new tab
+  const [homeTab] = await Promise.all([
+    context.waitForEvent('page'),
+    tttPage.locator('.bar .title').click(),
+  ]);
+  await homeTab.waitForSelector('.icon', { timeout: 10000 });
+  check('the GifOS logo in an app tab opens the Home Screen in a new tab', /index\.html|\/$/.test(homeTab.url()));
+  await homeTab.close();
   await tttPage.close();
 
   // ---- multiplayer sync: open Guestbook in two tabs, sign in one, see it in the other ----
