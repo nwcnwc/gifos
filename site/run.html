@@ -13,7 +13,7 @@
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
          background: #14141f; border-bottom: 1px solid #2a2a3f; }
-  .bar .title { font-weight: 800; background: linear-gradient(135deg, #7b5cff, #ff5caa);
+  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, #7b5cff, #ff5caa);
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
@@ -57,7 +57,7 @@
 </head>
 <body>
   <div class="bar">
-    <span class="title">GifOS</span>
+    <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
     <button id="save-desktop" title="Keep a full copy of this app + its current state on your Home Screen" style="display:none">Save to Home Screen</button>
