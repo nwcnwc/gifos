@@ -421,6 +421,58 @@
   ];
   const hasP2P = () => typeof root.RTCPeerConnection === 'function';
 
+  // ---- transport fragmentation ---------------------------------------------
+  // Every transport has a per-MESSAGE ceiling (browsers cap a DataChannel
+  // message around 256KB; the relay hard-drops anything over its burst), so
+  // any session message bigger than FRAG_PART is split into {t:'frag'}
+  // envelopes and reassembled on the other side. This lifts the per-record
+  // ceiling for apps — a big gifos.db record just works — without touching
+  // the relay's BANDWIDTH budget, which still applies to total bytes: bulk
+  // data flows freely on the P2P path and stays throttled on the relay, by
+  // design. Fragments carry their index, so mixed arrival order across a
+  // healing transport is fine; incomplete messages are swept after 30s.
+  const FRAG_PART = 100 * 1024; // chars per piece — envelope stays well under DC limits
+  const FRAG_MAX_PARTS = 96;    // ~9.6MB reassembled max; refuse absurd claims
+  let fragSeq = 0;
+  // emit(pieceObj, pieceStr) is called once for small messages (the original)
+  // or once per fragment — the caller picks which form its transport wants.
+  const sendChunked = (msg, emit) => {
+    const str = JSON.stringify(msg);
+    if (str.length <= FRAG_PART) return emit(msg, str);
+    const fid = 'f' + (++fragSeq) + '.' + Math.floor(Math.random() * 1e9).toString(36);
+    const n = Math.ceil(str.length / FRAG_PART);
+    if (root.__fragDebug) console.error('[frag out] ' + fid + ' n=' + n + ' len=' + str.length);
+    for (let i = 0; i < n; i++) {
+      const piece = { t: 'frag', fid, i, n, p: str.slice(i * FRAG_PART, (i + 1) * FRAG_PART) };
+      emit(piece, JSON.stringify(piece));
+    }
+  };
+  // Stateful filter: feed every parsed inbound message with its sender key;
+  // frag pieces buffer and return null until the last one completes the
+  // original message. Non-frag messages pass straight through.
+  const makeDefrag = () => {
+    const bufs = new Map(); // sender|fid -> { parts, got, n, at }
+    return (m, sender) => {
+      if (!m || m.t !== 'frag') return m;
+      const n = m.n | 0, i = m.i | 0;
+      if (typeof m.p !== 'string' || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
+      const key = sender + '|' + m.fid;
+      let b = bufs.get(key);
+      if (!b) {
+        for (const [k, v] of bufs) if (Date.now() - v.at > 30000) bufs.delete(k); // sweep stale partials
+        if (bufs.size >= 8) return null; // bounded memory even from a hostile sender
+        b = { parts: new Array(n), got: 0, n, at: Date.now() };
+        bufs.set(key, b);
+      }
+      if (b.n !== n || b.parts[i] !== undefined) { bufs.delete(key); return null; } // inconsistent sender
+      b.parts[i] = m.p; b.got++;
+      if (root.__fragDebug) console.error('[defrag] ' + key + ' ' + b.got + '/' + b.n);
+      if (b.got < b.n) return null;
+      bufs.delete(key);
+      try { return JSON.parse(b.parts.join('')); } catch (e) { if (root.__fragDebug) console.error('[defrag] PARSE FAIL ' + key); return null; }
+    };
+  };
+
   // ---- host-side wiring (shared by original host and failover host) --------
   // Returns { sendToAll, stats } so the caller can push db-change events over
   // whichever transport each peer ended up on (channel if open, else relay).
@@ -430,11 +482,12 @@
     // its seat (and its pending state) until PEER_DROP, and a rejoin under the
     // same peer id slots straight back in with a fresh P2P offer.
     const peers = new Map();
+    const defrag = makeDefrag();
 
-    const relayTo = (peer, msg) => ws.send(JSON.stringify({ t: 'to', to: peer, msg }));
+    const relayTo = (peer, msg) => sendChunked(msg, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })));
     const sendTo = (peer, msg) => {
       const p = peers.get(peer);
-      if (p && p.channel && p.channel.readyState === 'open') p.channel.send(JSON.stringify(msg));
+      if (p && p.channel && p.channel.readyState === 'open') sendChunked(msg, (piece, str) => p.channel.send(str));
       else relayTo(peer, msg);
     };
     const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
@@ -467,7 +520,13 @@
 
     const handleRpc = (peer, req) => {
       db.op(req.op, req.collection, req.key, req.value)
-        .then((result) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result }))
+        .then((result) => {
+          // A put's result is the stored record — the client already HAS those
+          // bytes (it just sent them). Echo only the assigned id; anything else
+          // wastes the relay budget (a 300KB put would reply with 300KB).
+          const slim = (req.op === 'put' && result && typeof result === 'object') ? { id: result.id } : result;
+          sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: slim });
+        })
         .catch((err) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) }));
     };
 
@@ -481,6 +540,7 @@
       channel.onclose = () => { if (entry.channel === channel) { entry.channel = null; notify(); } };
       channel.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        m = defrag(m, peer); if (!m) return;
         if (m.t === 'rpc') handleRpc(peer, m);
       };
       pc.onicecandidate = (e) => { if (e.candidate) relayTo(peer, { t: 'sig', ice: e.candidate }); };
@@ -516,12 +576,14 @@
         }
         notify();
       } else if (m.t === 'from' && m.msg) {
-        if (m.msg.t === 'rpc') handleRpc(m.from, m.msg);
-        else if (m.msg.t === 'sig') {
+        const inner = defrag(m.msg, m.from);
+        if (!inner) return;
+        if (inner.t === 'rpc') handleRpc(m.from, inner);
+        else if (inner.t === 'sig') {
           const p = peers.get(m.from);
           if (p && p.pc) {
-            if (m.msg.sdp) p.pc.setRemoteDescription(m.msg.sdp).catch(() => {});
-            else if (m.msg.ice) p.pc.addIceCandidate(m.msg.ice).catch(() => {});
+            if (inner.sdp) p.pc.setRemoteDescription(inner.sdp).catch(() => {});
+            else if (inner.ice) p.pc.addIceCandidate(inner.ice).catch(() => {});
           }
         }
       }
@@ -640,16 +702,28 @@
     let appBytes = null, lastDump = null, hostGone = false, hostGoneAt = null, tookOver = false;
     let pc = null, channel = null; // P2P DataChannel to the host (when it opens)
 
+    // The failover mirror re-downloads FULL app state. On every db-change that
+    // is O(state) traffic per client — with big records it can drain the whole
+    // relay budget in one burst (dropping unrelated replies with it). Rate-
+    // limit it: first change syncs immediately, bursts collapse into one
+    // trailing dump. A takeover copy a few seconds stale is still a rescue.
+    let mirrorTimer = null, mirrorLast = 0;
+    const MIRROR_MIN_MS = 5000;
     const mirror = () => {
       if (!remoteDb || hostGone) return;
+      const due = mirrorLast + MIRROR_MIN_MS - Date.now();
+      if (due > 0) { if (!mirrorTimer) mirrorTimer = setTimeout(() => { mirrorTimer = null; mirror(); }, due); return; }
+      mirrorLast = Date.now();
       remoteDb.getFullState().then((s) => { lastDump = s; }).catch(() => {});
     };
 
     // Transport ladder: DataChannel when open, relay WebSocket otherwise.
-    // The app never knows which one carried its request.
+    // The app never knows which one carried its request. Oversized payloads
+    // fragment transparently (see sendChunked); the host defrags per peer.
+    const defrag = makeDefrag();
     const transportSend = (payload) => {
-      if (channel && channel.readyState === 'open') channel.send(JSON.stringify(payload));
-      else ws.send(JSON.stringify(payload));
+      if (channel && channel.readyState === 'open') sendChunked(payload, (piece, str) => channel.send(str));
+      else sendChunked(payload, (piece, str) => ws.send(str));
     };
     const runningStatus = () => setStatus(channel && channel.readyState === 'open'
       ? 'Running as client · P2P direct'
@@ -730,7 +804,7 @@
           const ch = e.channel;
           ch.onopen = () => { channel = ch; root.__gifosTransport = 'p2p'; if (!hostGone && !tookOver) runningStatus(); };
           ch.onclose = () => { if (channel === ch) { channel = null; root.__gifosTransport = 'relay'; if (!hostGone && !tookOver) runningStatus(); } };
-          ch.onmessage = (ev2) => { let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } dispatch(mm); };
+          ch.onmessage = (ev2) => { let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } mm = defrag(mm, 'host'); if (mm) dispatch(mm); };
         };
         pc.setRemoteDescription(msg.sdp)
           .then(() => pc.createAnswer())
@@ -755,6 +829,7 @@
     ws.onstate = () => announceClient();
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      m = defrag(m, 'host'); if (!m) return; // fragmented app delivery / replies reassemble here
       if (m.t === 'joined') { myPeer = m.peer; if (!filesRef) setStatus('Connected · waiting for app…'); }
       else if (m.t === 'error') {
         if (/token/i.test(m.error || '')) { ws.close(); setStatus('Cannot join: ' + m.error); }
