@@ -346,12 +346,43 @@ function edgeLimited(ip) {
   return log.length > 300;
 }
 
+// Which sites may use this relay. A browser sets Origin itself and page JS
+// CANNOT forge or override it, so this reliably shuts out random websites
+// freeloading on the relay as a free message bus. It is NOT a defense against
+// non-browser clients (curl can send any Origin) — the per-IP + bandwidth
+// caps handle those. Configure via the ALLOWED_ORIGINS env var (comma-list of
+// exact origins and/or "*.host" suffix patterns); the built-in default covers
+// gifos.app and its subdomains. A request with NO Origin header (native apps,
+// same-origin navigations, curl) is allowed through — Origin gates browsers,
+// which is the whole point.
+const DEFAULT_ORIGINS = 'https://gifos.app,*.gifos.app';
+export function originAllowed(origin, env) {
+  if (!origin) return true; // no Origin = not a cross-site browser request
+  let host, hostname;
+  try { const u = new URL(origin); host = u.host; hostname = u.hostname; } catch (e) { return false; }
+  // Localhost is always the developer's OWN machine: a remote site's page
+  // carries ITS origin, never localhost, so this can't be exploited to
+  // freeload — it just keeps local dev and the test suite working.
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') return true;
+  const rules = String((env && env.ALLOWED_ORIGINS) || DEFAULT_ORIGINS)
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  for (const rule of rules) {
+    if (rule === '*') return true;
+    if (rule.startsWith('*.')) { const suf = rule.slice(1); if (host === rule.slice(2) || host.endsWith(suf)) return true; }
+    else { let rh; try { rh = new URL(rule).host; } catch (e) { rh = rule; } if (host === rh) return true; }
+  }
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts.length === 0) return new Response('gifos relay ok', { status: 200 });
     if (parts[0] === 's' && parts[1]) {
+      if (!originAllowed(request.headers.get('Origin'), env)) {
+        return new Response('forbidden origin', { status: 403 });
+      }
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       if (edgeLimited(ip)) return new Response('rate limited', { status: 429 });
       const id = env.SESSION.idFromName(parts[1]);

@@ -172,6 +172,17 @@ signaling envelopes.
   the outer Worker. Generous for humans (a NAT'd household of flappy phones
   never notices), hostile to loops. The bandwidth token-bucket (1 MB burst,
   ~384 Kbps sustained) still guarantees media can't tunnel through.
+- **Origin allowlist**: the Worker rejects WebSocket upgrades whose `Origin`
+  is not `gifos.app` (or a subdomain, or localhost, or absent) with a `403`.
+  Browsers set `Origin` themselves and page JS cannot forge it, so this
+  reliably stops a random website from using the relay as a free message bus.
+  It is *not* a boundary against non-browser clients (curl can send any
+  `Origin`) — those are what the per-IP and bandwidth caps are for; the two
+  layers compose. Configurable via the `ALLOWED_ORIGINS` env var
+  (comma-separated exact origins and/or `*.host` suffix patterns; `*` opens
+  it up); the built-in default covers gifos.app and its subdomains, and
+  localhost is always allowed so dev and CI work. Unit-tested in
+  `test/relay-origin.js`.
 
 ## Video Calls — strictly P2P mesh over permanent rooms
 
