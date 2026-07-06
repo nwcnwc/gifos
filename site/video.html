@@ -36,8 +36,19 @@
   .tile { position: relative; background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
           overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
-  /* "completely blurs" — heavy blur + overscale so no readable edge survives */
-  .tile video.blurred { filter: blur(26px) saturate(.75); transform: scale(1.15); }
+  /* Two blur strengths. blur2 (Max) destroys every readable edge; blur1
+     (plain) keeps a soft silhouette but hides detail. When a user blurs
+     THEMSELVES their browser also broadcasts blurred pixels (canvas), so a
+     receiver editing the DOM can't recover a clear image — the CSS here is
+     the visible half of a two-sided guarantee. */
+  .tile video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
+  .tile video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
+  #blurall.on { border-color: #ffb86c; color: #ffcf9c; }
+  .votebtn { position: absolute; top: .3rem; left: .3rem; z-index: 4; padding: .12rem .4rem;
+    border-radius: .35rem; border: 1px solid #6a2a2a; background: rgba(40,10,10,.7); color: #ff8f8f;
+    font-size: .72rem; cursor: pointer; display: none; }
+  body.canvote .tile:not(.me) .votebtn { display: inline-block; }
+  .votebtn.voted { background: #7a1f1f; color: #fff; border-color: #ff5c5c; }
   .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72);
                 padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; z-index: 2; }
   .tile .note { color: #8888aa; font-size: .8rem; padding: 1rem; text-align: center; }
@@ -128,7 +139,8 @@
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="mic" class="off">Unmute</button>
     <button id="cam" class="off">Camera on</button>
-    <button id="blur" title="Completely blur your video for everyone">Blur</button>
+    <button id="blur" title="Blur your own video — tap to cycle Max blur, Blur, off">Max blur</button>
+    <button id="blurall" title="Blur every guest's video (admins only) — protects the room from bad actors" style="display:none">Blur guests</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
@@ -144,7 +156,7 @@
     <button id="copy">Copy</button>
   </div>
   <div id="grid"></div>
-  <div class="p2p-note">Your video and audio travel straight between callers — GifOS has no server watching, recording, or even able to see them. If two people can't connect directly, a friend on the call quietly passes their video along. Quality adjusts by itself as people join.</div>
+  <div class="p2p-note">🔒 Private call — your video and audio go straight to the other people, never through a server.</div>
 
   <div id="chatpanel">
     <div id="chathead"><span id="paneltitle">Call chat</span> <small style="color:#667;font-weight:400">· private to this call, gone when everyone leaves</small>
@@ -280,9 +292,22 @@
     // can mute or blur anyone FOR THE WHOLE GROUP — enforced on every
     // receiver's device (so a bad actor's own client can't refuse) and always
     // attributed to who did it. Latest change wins (timestamped).
-    const myStatus = { muted: true, camOff: true, blur: false, hand: null, rec: false, cc: false }; // join quiet by default
+    // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
+    // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
+    const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
+    // Admin "blur all guests": a room-wide level applied to every NON-admin,
+    // enforced on every receiver. In an admin room it DEFAULTS to 1 (plain),
+    // so guests are always at least softly blurred until an admin decides
+    // otherwise — the ungovernable-but-admin rooms can't show clear obscenity.
+    let roomBlur = { lvl: 1, by: '', at: 0 };
+    const isAdminPeer = (pid) => (pid === myId ? amAdmin : admins.includes(pid));
+    // Vote-off-the-island (non-admin rooms): the relay tallies votes across
+    // occupants; at half it bans+kicks the device. Progress shows per tile.
+    const myVotes = new Set(); // peers I've voted to remove
+    let voteTally = {}, voteNeed = 0;
 
     let connBcastT = null;
     const myConns = () => Array.from(peers).filter(([, p]) => p.connected).map(([pid]) => pid);
@@ -317,6 +342,27 @@
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
     function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); }
+    // Adopt an admin's "blur all guests" level — only from a relay-stamped
+    // admin message, only in an admin room, latest wins.
+    function applyRoomBlur(rb, adm) {
+      if (!rb || !hasAdminRoom() || !adm) return;
+      if ((rb.at || 0) > roomBlur.at) {
+        roomBlur = { lvl: blurLevel(rb.lvl), by: rb.by || '', at: rb.at || 0 };
+        updateBlurAllBtn(); refreshAllTiles();
+      }
+    }
+    // The blur a tile ends up showing = the strongest of: what they set on
+    // themselves, a targeted group-blur on them, and (admin rooms) the
+    // room-wide guest blur — admins exempt from the last.
+    function blurLevelFor(id) {
+      const isMe = id === 'me';
+      const pid = isMe ? myId : id;
+      const st = (isMe ? myStatus : statusOf.get(id)) || {};
+      const self = blurLevel(st.blur);
+      const modB = (modOf(id).blur && modOf(id).blur.on) ? 2 : 0;
+      const roomB = (hasAdminRoom() && roomBlur.lvl && !isAdminPeer(pid)) ? roomBlur.lvl : 0;
+      return Math.max(self, modB, roomB);
+    }
 
     // ---- tiles ---------------------------------------------------------------
     function makeTile(id, name, isMe) {
@@ -339,8 +385,14 @@
       maxbtn.className = 'maxbtn'; maxbtn.textContent = '⤢'; maxbtn.title = 'Make this the focus feed';
       maxbtn.addEventListener('click', (e) => { e.stopPropagation(); focusId = focusId === id ? null : id; layout(); });
       tile.appendChild(maxbtn);
-      let modbar = null;
+      let modbar = null, voteBtn = null;
       if (!isMe) {
+        // Vote-off-the-island button (non-admin rooms only; shown via body.canvote)
+        voteBtn = document.createElement('button');
+        voteBtn.className = 'votebtn'; voteBtn.textContent = '✕ Vote off';
+        voteBtn.title = 'Vote to remove this person — at half the room they are kicked out';
+        voteBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleVote(id); });
+        tile.appendChild(voteBtn);
         modbar = document.createElement('div');
         modbar.className = 'modbar';
         modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>'
@@ -364,7 +416,7 @@
         tile.addEventListener('click', () => tile.classList.toggle('menu')); // tap = menu on phones
       }
       grid.appendChild(tile);
-      return { tile, video, label, avatar, chips, cap, modbar };
+      return { tile, video, label, avatar, chips, cap, modbar, voteBtn };
     }
 
     // Repaint one tile's overlay: mute/blur/camera chips (attributed when the
@@ -385,13 +437,20 @@
       if (st.cc) chips.push('<span>📝 transcribing</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
+      const roomB = (hasAdminRoom() && roomBlur.lvl && !isAdminPeer(isMe ? myId : id)) ? roomBlur.lvl : 0;
+      const bl = blurLevelFor(id);
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
-      else if (st.blur) chips.push('<span>🌫 blurred</span>');
+      else if (roomB && roomB >= blurLevel(st.blur)) chips.push('<span class="warn">🌫 guest blur' + (roomBlur.by ? ' by ' + esc(roomBlur.by) : '') + '</span>');
+      else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (st.camOff) chips.push('<span>📷 camera off</span>');
+      // vote-off progress (non-admin rooms): show how close a tile is to removal
+      if (!isMe && voteNeed && voteTally[id]) chips.push('<span class="warn">🗳 ' + voteTally[id] + '/' + voteNeed + ' to remove</span>');
       t.chips.innerHTML = chips.join('');
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
       t.tile.classList.toggle('cam-off', !!st.camOff);
-      t.video.classList.toggle('blurred', !!(gBlur || st.blur));
+      t.video.classList.remove('blur1', 'blur2');
+      if (bl) t.video.classList.add('blur' + bl);
+      if (t.voteBtn) t.voteBtn.classList.toggle('voted', myVotes.has(id));
       if (!isMe) {
         t.video.muted = !!gMute;               // group mute is enforced on MY device
         if (t.modbar) {
@@ -479,6 +538,65 @@
       n.textContent = msg;
     }
 
+    // ---- sender-side blur: broadcast blurred pixels, not just CSS ------------
+    // When YOU blur yourself, your browser draws the camera through a blur
+    // canvas and sends THAT track. A receiver who deletes the CSS blur from
+    // their DOM still only has blurred pixels — there is no clear image to
+    // recover. (Group/guest blur stays receiver-side: an uncooperative bad
+    // actor can't be made to blur at source, but every receiver blurs them.)
+    let blurPipe = null; // { level, src(video), canvas, ctx, track, timer }
+    function stopBlurPipe() {
+      if (!blurPipe) return;
+      clearTimeout(blurPipe.timer);
+      try { blurPipe.src.srcObject = null; } catch (e) {}
+      try { blurPipe.track.stop(); } catch (e) {}
+      blurPipe = null;
+    }
+    function startBlurPipe(level) {
+      const cam = localStream && localStream.getVideoTracks()[0];
+      if (!cam) return null;
+      if (blurPipe && blurPipe.level === level && blurPipe.camId === cam.id) return blurPipe.track;
+      stopBlurPipe();
+      const src = document.createElement('video');
+      src.muted = true; src.playsInline = true; src.autoplay = true;
+      src.srcObject = new MediaStream([cam]);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const px = level === 2 ? 26 : 11;
+      const pipe = { level, camId: cam.id, src, canvas, ctx, track: null, timer: 0 };
+      const draw = () => {
+        if (blurPipe !== pipe) return;
+        const w = src.videoWidth || 640, h = src.videoHeight || 480;
+        if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
+        ctx.filter = 'blur(' + px + 'px)';
+        try { ctx.drawImage(src, 0, 0, w, h); } catch (e) {}
+        pipe.timer = setTimeout(draw, 66); // ~15fps; setTimeout keeps running when hidden
+      };
+      src.play().catch(() => {});
+      const stream = canvas.captureStream(15);
+      pipe.track = stream.getVideoTracks()[0];
+      blurPipe = pipe;
+      draw();
+      return pipe.track;
+    }
+    // The video track to actually SEND: blurred canvas when self-blur is on and
+    // the camera is live; the raw camera track otherwise.
+    function sentVideoTrack() {
+      const cam = localStream && localStream.getVideoTracks()[0];
+      if (!cam) return null;
+      if (blurLevel(myStatus.blur) > 0 && !myStatus.camOff) return startBlurPipe(blurLevel(myStatus.blur)) || cam;
+      stopBlurPipe();
+      return cam;
+    }
+    function refreshOutbound() {
+      const vt = sentVideoTrack();
+      if (!vt) return;
+      for (const p of peers.values()) for (const s of p.pc.getSenders()) {
+        if (s.track && s.track.kind === 'video' && s.track !== vt) s.replaceTrack(vt).catch(() => {});
+      }
+      adapt(); // re-apply bitrate/resolution to the (possibly new) sender track
+    }
+
     // ---- adaptive quality ----------------------------------------------------
     function participantCount() { return 1 + peers.size; }
     function adapt() {
@@ -520,11 +638,15 @@
       if (peers.has(peerId)) return peers.get(peerId);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const t = makeTile(peerId, name, false);
-      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar,
+      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar, voteBtn: t.voteBtn,
         name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
       peers.set(peerId, p);
-      if (localStream) for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
-      else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
+      if (localStream) {
+        for (const track of localStream.getAudioTracks()) pc.addTrack(track, localStream);
+        // Send the blur-canvas track when self-blur is on — never the raw camera.
+        const vt = sentVideoTrack();
+        if (vt) pc.addTrack(vt, localStream);
+      } else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
       // chat + pinned files travel on a DataChannel — browser to browser only
       if (iInitiate(peerId)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
@@ -573,7 +695,7 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, roomBlur, conns: myConns(), sid: mySid() }))
         .catch(() => {});
     }
 
@@ -583,6 +705,7 @@
       // In admin rooms, group moderation is honored ONLY from relay-stamped
       // (verified admin) messages — gossip can't spoof an admin's authority.
       if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
+      applyRoomBlur(msg.roomBlur, adm);
       if (msg.conns) connsOf.set(from, msg.conns);
       if ('sid' in msg && p) p.ownSid = msg.sid;
     }
@@ -596,7 +719,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, roomBlur, conns: myConns(), sid: mySid() }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
@@ -618,6 +741,7 @@
         updateTile(from);
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
+        applyRoomBlur(msg.roomBlur, adm);
       }
     }
 
@@ -635,7 +759,7 @@
           else p = makePeer(pid, names[pid] || null); // their offer is on its way
           // Newcomers can't trust gossip for moderation in admin rooms — an
           // admin hands them the table over the relay's stamped path.
-          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
+          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable, roomBlur });
         }
         p.absentSince = 0;
         if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
@@ -708,6 +832,9 @@
       const pwb = document.getElementById('pwbtn');
       pwb.disabled = hasAdmin && !amAdmin;
       pwb.title = (hasAdmin && !amAdmin) ? 'This room\'s password is managed by its admin' : 'Lock this room with a password';
+      // Vote-off only exists where there is no admin to ban bad actors.
+      document.body.classList.toggle('canvote', !hasAdmin);
+      if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
       renderBanned();
     }
 
@@ -775,6 +902,7 @@
           } else setStatus('⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
         }
         else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
+        else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
         else if (m.t === 'pw') {
           // someone in the room changed the password — every attached session
@@ -853,7 +981,6 @@
           if (nv) nv.enabled = !myStatus.camOff;
           if (na) na.enabled = !myStatus.muted;
           for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
-            if (sender.track && sender.track.kind === 'video' && nv) sender.replaceTrack(nv).catch(() => {});
             if (sender.track && sender.track.kind === 'audio' && na) sender.replaceTrack(na).catch(() => {});
           }
           // Mutate the SAME MediaStream rather than swapping it: its id is
@@ -864,7 +991,8 @@
           if (na) localStream.addTrack(na);
           if (meTile) meTile.video.srcObject = localStream;
           meterFor('me', localStream);
-          adapt();
+          stopBlurPipe();   // the old blur canvas read the dead camera track
+          refreshOutbound(); // rebuild the (blurred or raw) video sender + adapt
         }).catch(() => {});
     }
 
@@ -1495,7 +1623,7 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         list.forEach((t, i) => {
           const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
-          const gBlur = modOf(t.id).blur && modOf(t.id).blur.on;
+          const bl = blurLevelFor(t.id);
           const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
           const mix = recSrcs.get(t.id);
           if (mix) mix.gain.gain.value = gMute ? 0 : 1;  // hear what the room hears
@@ -1504,7 +1632,7 @@
           if (!t.st.camOff && v && v.videoWidth) {
             const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
             const dw = v.videoWidth * s, dh = v.videoHeight * s;
-            ctx.filter = (gBlur || t.st.blur) ? 'blur(22px)' : 'none';
+            ctx.filter = bl ? 'blur(' + (bl === 2 ? 22 : 10) + 'px)' : 'none';
             ctx.drawImage(v, x + (cw - dw) / 2, y + (ch - dh) / 2, dw, dh);
             ctx.filter = 'none';
           } else {
@@ -1590,14 +1718,58 @@
       myStatus.camOff = !track.enabled;
       camBtn.classList.toggle('off', !track.enabled);
       camBtn.textContent = track.enabled ? 'Camera off' : 'Camera on';
+      refreshOutbound(); // camera on while blurring → start the blur canvas
       broadcastStatus();
     };
+    const BLUR_LABEL = ['Blur off', 'Blur', 'Max blur'];
+    function paintBlurBtn() {
+      const lvl = blurLevel(myStatus.blur);
+      blurBtn.textContent = BLUR_LABEL[lvl];
+      blurBtn.classList.toggle('off', lvl === 0);
+    }
+    // 3-state personal blur: Max → Blur → off (confirm) → Max. Only turning it
+    // fully off asks — everything else is a safe tap.
     blurBtn.onclick = () => {
-      myStatus.blur = !myStatus.blur;
-      blurBtn.classList.toggle('off', myStatus.blur);
-      blurBtn.textContent = myStatus.blur ? 'Unblur' : 'Blur';
+      const lvl = blurLevel(myStatus.blur);
+      let next;
+      if (lvl === 2) next = 1;
+      else if (lvl === 1) {
+        if (!confirm('Turn blur off? Your video will be fully visible to everyone on the call.')) return;
+        next = 0;
+      } else next = 2;
+      myStatus.blur = next;
+      paintBlurBtn();
+      refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
+      refreshAllTiles();
       broadcastStatus();
     };
+    // Admin "blur all guests" — 3-state, applies to every non-admin. Starts at
+    // plain (an admin room already defaults guests to plain), cycles plain →
+    // max → off → plain. Admin-only; changes ride the relay's stamped path.
+    const blurAllBtn = document.getElementById('blurall');
+    function updateBlurAllBtn() {
+      blurAllBtn.style.display = amAdmin ? '' : 'none';
+      if (!amAdmin) return;
+      const lvl = roomBlur.lvl | 0;
+      blurAllBtn.textContent = lvl === 0 ? 'Blur guests: off' : lvl === 2 ? 'Blur guests: max' : 'Blur guests: on';
+      blurAllBtn.classList.toggle('on', lvl > 0);
+    }
+    blurAllBtn.onclick = () => {
+      if (!amAdmin) return;
+      const lvl = roomBlur.lvl | 0;
+      const next = lvl === 1 ? 2 : lvl === 2 ? 0 : 1;
+      roomBlur = { lvl: next, by: myName(), at: Date.now() };
+      updateBlurAllBtn(); refreshAllTiles();
+      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable, roomBlur });
+    };
+    function toggleVote(id) {
+      if (hasAdminRoom()) return; // admin rooms use the admin's ban, not votes
+      const on = !myVotes.has(id);
+      if (on) myVotes.add(id); else myVotes.delete(id);
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'votekick', target: id, on }));
+      const t = peers.get(id); if (t && t.voteBtn) t.voteBtn.classList.toggle('voted', on);
+    }
+    paintBlurBtn();
     document.getElementById('invite').onclick = () => {
       share.classList.add('show'); // link stays visible/copyable behind the sheet
       if (navigator.share && shareUrl.value) {
@@ -1631,6 +1803,15 @@
       deviceId,
       verifier: () => av,
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
+      myBlur: () => blurLevel(myStatus.blur),
+      // effective blur SHOWN on a tile (receiver-side): 0/1/2
+      blurClassOf: (id) => { const t = id === 'me' ? meTile : peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
+      // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
+      outboundKind: () => (blurPipe && blurLevel(myStatus.blur) > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
+      roomBlur: () => roomBlur.lvl,
+      voteNeed: () => voteNeed,
+      votesAgainst: (id) => voteTally[id] || 0,
+      myVoteCount: () => myVotes.size,
     };
   })();
   </script>
