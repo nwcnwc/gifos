@@ -107,7 +107,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
 
   // Bob picks Min on the slider → plain blur. Ada sees blur1 now.
-  await bPage.locator('#blur-min').click();
+  await bPage.evaluate(() => document.getElementById('blur-min').click());
   check('picking Min on the slider steps blur down to plain',
     (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 1);
   await aPage.waitForFunction(() => {
@@ -119,7 +119,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // grayed out; tapping it explains why and leaves blur unchanged.
   check('with NO room password, the None blur option is disabled',
     await bPage.evaluate(() => !window.__gifosVideo.blurNoneEnabled()));
-  await bPage.locator('#blur-none').click(); // disabled → explains, no change
+  await bPage.evaluate(() => document.getElementById('blur-none').click()); // disabled → explains, no change
   check('tapping the grayed None explains why and leaves blur at Min',
     await bPage.evaluate(() => window.__gifosVideo.myBlur() === 1
       && /Password must be set for unblurred video/.test(document.getElementById('status').textContent)));
@@ -135,7 +135,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with a password set, the None option is enabled', true);
   // Now choosing None is Bob's AGREEMENT — and he is told it won't clear until
   // everyone does. One agreement isn't enough.
-  await bPage.locator('#blur-none').click();
+  await bPage.evaluate(() => document.getElementById('blur-none').click());
   check('choosing None is your agreement, and you are told it waits for everyone',
     await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.okClear()
       && /stays blurred until EVERYONE/.test(document.getElementById('status').textContent)));
@@ -147,8 +147,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('…and Bob still BROADCASTS blurred pixels (the floor is sender-enforced)',
     (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
   // Ada and Cai agree too — each picks None — and the room clears.
-  await aPage.locator('#blur-none').click();
-  await cPage.locator('#blur-none').click();
+  await aPage.evaluate(() => document.getElementById('blur-none').click());
+  await cPage.evaluate(() => document.getElementById('blur-none').click());
   await bPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 10000 });
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
@@ -157,6 +157,72 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with a password AND everyone agreeing, the whole room goes clear', true);
   await bPage.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 10000 });
   check('…and Bob broadcasts raw now', true);
+
+  // ========== THE ALL-OR-NONE INVARIANT, CHECKED EVERYWHERE ==========
+  // Plain rooms are binary: after unanimity, EVERY page must see EVERY tile
+  // clear AND broadcast raw. (The live bug: phones disagreed about consensus —
+  // one showed all-blurred, another a mix of clear and blurry senders.)
+  const allClearEverywhere = async () => {
+    for (const [nm, pg] of [['Ada', aPage], ['Bob', bPage], ['Cai', cPage]]) {
+      const ok = await pg.evaluate(() => window.__gifosVideo.consensus() === true
+        && window.__gifosVideo.outboundKind() === 'raw'
+        && Array.from(document.querySelectorAll('.tile video')).every((v) => !v.classList.contains('blur1') && !v.classList.contains('blur2')));
+      if (!ok) return nm;
+    }
+    return null;
+  };
+  check('ALL-OR-NONE: every page agrees, every tile clear, every sender raw', (await allClearEverywhere()) === null);
+
+  // ========== A LOST STATUS MESSAGE HEALS (heartbeat) ==========
+  // Simulate the exact live failure: one phone misses another's status
+  // broadcast. Its view of consensus collapses (room re-blurs locally) — and
+  // the periodic heartbeat must repair it WITHOUT anyone touching anything.
+  const bobPidOnAda = await aPage.evaluate(() => window.__gifosVideo.peerIds().find((id) => true));
+  check('a lost status splits the room (the pre-heartbeat disease, simulated)',
+    (await aPage.evaluate((pid) => { window.__gifosVideo._corruptStatus(pid); return window.__gifosVideo.consensus(); }, bobPidOnAda)) === false);
+  await aPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 12000 });
+  check('…and the status heartbeat heals the split within seconds, hands-free', (await allClearEverywhere()) === null);
+
+  // ========== STREAM IDENTITY: every tile provably shows its OWN person ======
+  // (The live bug: a tile showed a DIFFERENT participant's camera.) A tile's
+  // stream id must equal the sid its peer announced — on every page, every tile.
+  const identityOk = async (pg) => pg.evaluate(() => window.__gifosVideo.peerIds().every((id) => {
+    const shown = window.__gifosVideo.tileSid(id);
+    return !shown || shown === window.__gifosVideo.announcedSid(id);
+  }));
+  check('STREAM IDENTITY: every tile on every page shows the announced stream — no guessing',
+    (await identityOk(aPage)) && (await identityOk(bPage)) && (await identityOk(cPage)));
+  // Even when a peer's announcement is LOST, the tile must never fall back to
+  // guessing — and the heartbeat re-announces the sid, restoring the claim.
+  await aPage.evaluate((pid) => window.__gifosVideo._corruptSid(pid), bobPidOnAda);
+  await aPage.waitForFunction((pid) => window.__gifosVideo.announcedSid(pid)
+    && window.__gifosVideo.tileSid(pid) === window.__gifosVideo.announcedSid(pid), bobPidOnAda, { timeout: 12000 });
+  check('a lost sid announcement re-proves itself via the heartbeat (no misattribution window)', true);
+
+  // ========== AWAY ≠ FIREWALL ==========
+  // A phone that backgrounds tells the room it stepped away; its tile says so
+  // and must NEVER earn the 'firewall' label. (The live bug: switching apps
+  // showed 'a firewall here blocks peer-to-peer video'.)
+  await cPage.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+    Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    return t && /stepped away/.test(t.textContent) && !/firewall/.test(t.textContent);
+  }, null, { timeout: 10000 });
+  check('a backgrounded phone shows "stepped away" — never the firewall warning', true);
+  await cPage.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    return t && !/stepped away/.test(t.textContent);
+  }, null, { timeout: 10000 });
+  check('coming back clears the away label everywhere', true);
 
   // RE-CONSENT: a global blur LOCKS your slider and pins your switch off None;
   // lifting it does NOT auto-expose you — you must proactively choose None again.
@@ -171,7 +237,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.waitForFunction(() => !window.__gifosVideo.blurLocked() && window.__gifosVideo.blurNoneEnabled()
     && window.__gifosVideo.blurClassOf('me') === 1, null, { timeout: 10000 });
   check('lifting a global blur does NOT auto-clear you — still blurred, must re-consent', true);
-  await bPage.locator('#blur-none').click(); // Bob re-consents
+  await bPage.evaluate(() => document.getElementById('blur-none').click()); // Bob re-consents
   await bPage.waitForFunction(() => window.__gifosVideo.myBlur() === 0, null, { timeout: 5000 });
   check('re-consenting (choosing None again) clears you', true);
 
@@ -531,6 +597,75 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 20000 });
   check('pinned files reach unreachable peers through the mutual friend too', true);
 
+  // ========== MID-CALL LINK DEATH → RELAY TAKEOVER, IDENTITY INTACT ==========
+  // The live glitch: a direct link died mid-call, a friend-relay took over, and
+  // the tile ended up showing the HUB's face under the dead peer's name. Here:
+  // three phones fully meshed; Sam↔Tia's transport is killed AND their ICE is
+  // blocked from then on (a network change that never heals). The hub must take
+  // over — and Sam's tile for Tia must show TIA's forwarded stream, provably.
+  const dynBlock = `
+    window.__iceBlock = [];
+    const OW = window.WebSocket;
+    window.WebSocket = function (u, p) {
+      const ws = p ? new OW(u, p) : new OW(u);
+      const send0 = ws.send.bind(ws);
+      const blocked = (d) => typeof d === 'string' && d.includes('"kind":"ice"') && window.__iceBlock.some((b) => d.includes(b));
+      ws.send = (d) => { if (blocked(d)) return; return send0(d); };
+      let userOnMsg = null;
+      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
+      ws.addEventListener('message', (e) => { if (blocked(e.data)) return; if (userOnMsg) userOnMsg(e); });
+      return ws;
+    };
+    window.WebSocket.prototype = OW.prototype;
+  `;
+  const rexCtx = await newUser('Rex');
+  const rexPage = await rexCtx.newPage();
+  rexPage.on('console', (m) => { if (m.type() === 'error') console.log('  [rex]', m.text()); });
+  await rexPage.goto(BASE + '/video.html');
+  await rexPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
+  const meshLink = await rexPage.locator('#share-url').inputValue();
+  const samCtx = await newUser('Sam'); await samCtx.addInitScript({ content: dynBlock });
+  const tiaCtx = await newUser('Tia'); await tiaCtx.addInitScript({ content: dynBlock });
+  const samPage = await samCtx.newPage();
+  samPage.on('console', (m) => { if (m.type() === 'error') console.log('  [sam]', m.text()); });
+  await samPage.goto(meshLink);
+  const tiaPage = await tiaCtx.newPage();
+  tiaPage.on('console', (m) => { if (m.type() === 'error') console.log('  [tia]', m.text()); });
+  await tiaPage.goto(meshLink);
+  for (const pg of [rexPage, samPage, tiaPage]) {
+    await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 2, null, { timeout: 30000 });
+  }
+  check('three phones fully meshed (before the mid-call failure)', true);
+  const samPid = await samPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
+  const tiaPid = await tiaPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
+  // the network breaks between Sam and Tia, permanently, mid-call
+  await samPage.evaluate((pid) => { window.__iceBlock.push(pid); window.__gifosVideo._failPeer(pid); }, tiaPid);
+  await tiaPage.evaluate((pid) => { window.__iceBlock.push(pid); window.__gifosVideo._failPeer(pid); }, samPid);
+  await samPage.waitForFunction((pid) => {
+    const via = window.__gifosVideo.relayedVia(pid);
+    const shown = window.__gifosVideo.tileSid(pid);
+    const mapped = window.__gifosVideo.relayMapSid(pid);
+    return via && shown && mapped && shown === mapped;
+  }, tiaPid, { timeout: 60000 });
+  check('a friend-relay takes over the dead link, hands-free', true);
+  // wait for the forwarded stream to actually paint, then prove identity
+  await samPage.waitForFunction((pid) => {
+    const t = Array.from(document.querySelectorAll('.tile')).find((x) => x.dataset.peer === pid);
+    const v = t && t.querySelector('video');
+    return !!(v && v.videoWidth > 0);
+  }, tiaPid, { timeout: 30000 });
+  const idProof = await samPage.evaluate((pid) => {
+    const via = window.__gifosVideo.relayedVia(pid);
+    return {
+      shownIsMapped: window.__gifosVideo.tileSid(pid) === window.__gifosVideo.relayMapSid(pid),
+      notHubsOwn: window.__gifosVideo.tileSid(pid) !== window.__gifosVideo.announcedSid(via),
+    };
+  }, tiaPid);
+  check('the takeover tile PROVABLY shows the dead peer\'s forwarded stream — never the hub\'s camera',
+    idProof.shownIsMapped && idProof.notHubsOwn);
+  await rexPage.close(); await samPage.close(); await tiaPage.close();
+  await rexCtx.close(); await samCtx.close(); await tiaCtx.close();
+
   // ================= admin rooms: identity-based, consent-by-address ==========
   // /call/<room> is anarchic FOREVER; /call/<room>/<verifier> is a DIFFERENT
   // room whose address itself declares an authority — joining is consent.
@@ -621,7 +756,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // grayed and the slider is locked at/above the floor — she can't go clear.
   await beth.waitForFunction(() => window.__gifosVideo.blurLocked() && !window.__gifosVideo.blurNoneEnabled(), null, { timeout: 10000 });
   check('guest-blur grays out None and locks the slider for a guest', true);
-  await beth.locator('#blur-none').click(); // grayed → explains, no change
+  await beth.evaluate(() => document.getElementById('blur-none').click()); // grayed → explains, no change
   check('a guest tapping the grayed None is told a global blur holds her',
     /blurred for everyone right now/i.test(await beth.locator('#status').textContent()));
   await adam.waitForFunction(() => {
@@ -638,7 +773,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // The admin is NOT floored by guest-blur and has a password set, so the admin
   // can pick None and go clear.
   await adam.waitForFunction(() => window.__gifosVideo.blurNoneEnabled(), null, { timeout: 5000 });
-  await adam.locator('#blur-none').click();
+  await adam.evaluate(() => document.getElementById('blur-none').click());
   check('the admin themselves is NOT blurred by guest-blur (can pick None)',
     (await adam.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.blurClassOf('me') === 0)));
   // Admin escalates "blur all guests" to max → Beth becomes blur2 on every screen.
@@ -654,9 +789,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // actively picks None.
   await adam.locator('#blurall').click(); // max(2) → off(0)
   await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 0, null, { timeout: 5000 });
-  await beth.waitForFunction(() => window.__gifosVideo.blurNoneEnabled() && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 8000 });
+  // beth's roomBlur reaches 0 via the mod message OR the admin's heartbeat
+  await beth.waitForFunction(() => window.__gifosVideo.blurNoneEnabled() && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 15000 });
   check('lifting guest-blur does not auto-clear the guest — None becomes available, she chooses it', true);
-  await beth.locator('#blur-none').click();
+  await beth.evaluate(() => document.getElementById('blur-none').click());
   await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
   check('the guest re-consents (None) and the sender pipe returns to raw', true);
 

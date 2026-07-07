@@ -380,10 +380,34 @@
     const myConns = () => Array.from(peers).filter(([, p]) => p.connected).map(([pid]) => pid);
     const mySid = () => (localStream ? localStream.id : null);
     function broadcastStatus() {
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid() };
+      myStatus.at = Date.now(); // timestamped: out-of-order gossip can't roll me back
+      // The heartbeat also re-gossips room moderation (group mute/blur) and the
+      // admin guest-blur level. Both are timestamped and idempotent, so a lost
+      // 'mod' message heals on the next tick instead of leaving one phone
+      // blurred-forever while the rest went clear.
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, roomBlur };
       for (const pid of peers.keys()) sendSig(pid, payload);
       updateTile('me');
     }
+    // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
+    // is idempotent and tiny, and it is what keeps every phone's view of the
+    // room converged — a single lost message now costs seconds, not the call.
+    setInterval(() => { if (peers.size && ws && ws.readyState === 1) broadcastStatus(); }, 4000);
+    // Tell the room when this phone steps away (screen off / another app) —
+    // the browser fires visibilitychange before it freezes us, so the last
+    // thing we say is an honest "away", and the first thing back is "here".
+    document.addEventListener('visibilitychange', () => {
+      myStatus.away = !!document.hidden;
+      broadcastStatus();
+      if (!document.hidden) reactRoomState();
+    });
+    // A peer whose gossip has gone silent is effectively away even if their
+    // browser never got to say so (hard freeze) — used for tile labeling only.
+    const peerAway = (pid) => {
+      const st = statusOf.get(pid) || {};
+      const p = peers.get(pid);
+      return !!st.away || !!(p && p.lastHeard && Date.now() - p.lastHeard > 13000);
+    };
     function mergeMod(incoming) {
       let changed = false;
       for (const target in incoming || {}) {
@@ -550,8 +574,9 @@
       const mod = modOf(id);
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on;
       const chips = [];
+      if (!isMe && peerAway(id)) chips.push('<span>⏾ stepped away — screen off or in another app; waiting for them</span>');
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
-      else if (!isMe && t.noRoute) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
+      else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this call</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
@@ -667,10 +692,38 @@
     // their DOM still only has blurred pixels — there is no clear image to
     // recover. (Group/guest blur stays receiver-side: an uncooperative bad
     // actor can't be made to blur at source, but every receiver blurs them.)
-    let blurPipe = null; // { level, src(video), canvas, ctx, track, timer, rvfc }
+    // ========================= BACKGROUND KEEPALIVE ==========================
+    // There is no single "keep working when unfocused" API — what keeps a call
+    // alive in the background is the combination browsers exempt from
+    // throttling: an ACTIVE WebRTC connection (we have one), a screen WAKE
+    // LOCK so the phone doesn't sleep mid-call, and WORKER-driven timers for
+    // our canvas pipelines — a hidden tab clamps main-thread timers to ≥1s
+    // (which froze the blurred broadcast and recordings), but a Web Worker's
+    // metronome keeps ticking.
+    let wakeLock = null;
+    async function keepAwake() {
+      try { if (navigator.wakeLock && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+    keepAwake();
+    let metro = null;
+    const metroSubs = new Set(); // callbacks ticked ~15x/s, background included
+    function metroSub(fn) {
+      if (!metro) {
+        try {
+          const src = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1)},66)'], { type: 'text/javascript' }));
+          metro = new Worker(src);
+          metro.onmessage = () => { for (const f of Array.from(metroSubs)) { try { f(); } catch (e) {} } };
+        } catch (e) { metro = null; }
+      }
+      metroSubs.add(fn);
+      return () => metroSubs.delete(fn);
+    }
+
+    let blurPipe = null; // { level, src(video), canvas, ctx, track, unsub, rvfc }
     function stopBlurPipe() {
       if (!blurPipe) return;
-      clearTimeout(blurPipe.timer);
+      if (blurPipe.unsub) blurPipe.unsub();
       if (blurPipe.rvfc && blurPipe.src.cancelVideoFrameCallback) { try { blurPipe.src.cancelVideoFrameCallback(blurPipe.rvfc); } catch (e) {} }
       try { blurPipe.src.srcObject = null; } catch (e) {}
       try { blurPipe.src.remove(); } catch (e) {}
@@ -704,7 +757,7 @@
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, timer: 0, rvfc: 0 };
+      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0 };
       const paint = () => {
         const w = src.videoWidth || 640, h = src.videoHeight || 480;
         if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
@@ -712,17 +765,17 @@
         try { ctx.drawImage(src, 0, 0, w, h); } catch (e) {}
       };
       // Draw on every DECODED camera frame when the browser supports it (the
-      // correct, smooth path on iOS/Safari) — and ALSO on a timer, because
-      // requestVideoFrameCallback pauses when the tab is backgrounded whereas
-      // setTimeout keeps the outbound canvas refreshing.
+      // correct, smooth path on iOS/Safari) — and ALSO on the worker metronome,
+      // which keeps ticking when the tab is hidden and main-thread timers are
+      // clamped (a backgrounded phone used to broadcast a near-frozen blur).
       const onFrame = () => { if (blurPipe !== pipe) return; paint(); if (src.requestVideoFrameCallback) pipe.rvfc = src.requestVideoFrameCallback(onFrame); };
-      const tick = () => { if (blurPipe !== pipe) return; paint(); pipe.timer = setTimeout(tick, 66); };
       src.play().catch(() => {});
       const stream = canvas.captureStream(15);
       pipe.track = stream.getVideoTracks()[0];
       blurPipe = pipe;
       if (src.requestVideoFrameCallback) pipe.rvfc = src.requestVideoFrameCallback(onFrame);
-      tick();
+      pipe.unsub = metroSub(() => { if (blurPipe === pipe) paint(); });
+      paint();
       return pipe.track;
     }
     // The video track to actually SEND: the strongest blur that applies to me
@@ -802,39 +855,56 @@
     // same rule no matter who joined, rejoined, or reloaded first. No glare.
     const iInitiate = (peerId) => myId && myId > peerId;
 
-    function makePeer(peerId, name) {
-      if (peers.has(peerId)) return peers.get(peerId);
+    // ============================ STREAM IDENTITY ============================
+    // THE INVARIANT: a tile only ever shows a stream whose identity is PROVEN —
+    // either its id equals the sid that peer announced for their own media
+    // (gossiped in offers/answers/status heartbeats), or it was explicitly
+    // mapped by a relayer's {relay-stream, target, streamId} message. There is
+    // NO guessing and NO "first stream wins": an unproven stream waits in
+    // p.incoming (the tile shows the avatar) until gossip proves who it is.
+    // This is what makes "your tile is showing someone else's face" impossible.
+    function claimOwnStream(p) {
+      if (!p) return;
+      // a stale claim lets go: their sid changed (reload) → old stream is void
+      if (p.stream && p.ownSid && p.stream.id !== p.ownSid) {
+        if (p.video.srcObject === p.stream) p.video.srcObject = null;
+        p.stream = null;
+      }
+      if (!p.ownSid) { updateTile(p.id); return; } // wait for gossip to prove identity
+      const own = (p.incoming || []).find((s) => s.id === p.ownSid);
+      if (own && p.stream !== own) {
+        p.stream = own;
+        if (!p.relayed) { p.video.srcObject = own; meterFor(p.id, own); }
+      }
+      updateTile(p.id);
+    }
+    // The RTCPeerConnection is REBUILDABLE: if a pc lands in 'closed' (some
+    // mobile browsers kill pcs on hard network changes / long freezes), the
+    // sweeper wires a fresh one into the SAME peer record — the tile, name and
+    // claimed streams survive; only the transport is replaced.
+    function newPcFor(p) {
+      try { p.pc && p.pc.close(); } catch (e) {}
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      const t = makeTile(peerId, name, false);
-      const p = { id: peerId, pc, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar, voteBtn: t.voteBtn,
-        name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0 };
-      peers.set(peerId, p);
+      p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
       if (localStream) {
         for (const track of localStream.getAudioTracks()) pc.addTrack(track, localStream);
-        // Send the blur-canvas track when self-blur is on — never the raw camera.
+        // Send the blur-canvas track when any blur applies — never the raw camera.
         const vt = sentVideoTrack();
         if (vt) pc.addTrack(vt, localStream);
       } else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
       // chat + pinned files travel on a DataChannel — browser to browser only
-      if (iInitiate(peerId)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
+      if (iInitiate(p.id)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
       pc.ontrack = (ev) => {
         const stream = ev.streams[0];
         if (!stream) return;
-        // Their OWN media arrives under the stream id they announced; anything
-        // else on this connection is media they're RELAYING for someone we
-        // can't reach — hold it until the mapping message claims it.
-        const isOwn = p.ownSid ? stream.id === p.ownSid : !p.everOwn;
-        if (isOwn) {
-          p.everOwn = true; p.stream = stream;
-          if (p.video.srcObject !== stream) { p.video.srcObject = stream; meterFor(peerId, stream); }
-        } else {
-          p.unclaimed = p.unclaimed || [];
-          if (!p.unclaimed.includes(stream)) p.unclaimed.push(stream);
-          claimRelayStreams();
-        }
+        p.incoming = p.incoming || [];
+        if (!p.incoming.includes(stream)) p.incoming.push(stream);
+        if (p.incoming.length > 8) p.incoming.shift(); // dead renegotiation leftovers
+        claimOwnStream(p);     // proven-own media → their tile
+        claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
       };
-      pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(peerId, { kind: 'ice', candidate: ev.candidate }); };
+      pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
         p.connected = pc.connectionState === 'connected';
         updateStatus();
@@ -842,6 +912,15 @@
         clearTimeout(connBcastT); // my connectivity map changed → tell the room
         connBcastT = setTimeout(broadcastStatus, 300);
       };
+      return pc;
+    }
+    function makePeer(peerId, name) {
+      if (peers.has(peerId)) return peers.get(peerId);
+      const t = makeTile(peerId, name, false);
+      const p = { id: peerId, pc: null, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar, voteBtn: t.voteBtn,
+        name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0, lastHeard: Date.now(), incoming: [] };
+      peers.set(peerId, p);
+      newPcFor(p);
       adapt();
       return p;
     }
@@ -853,6 +932,8 @@
       p.tile.remove();
       peers.delete(peerId);
       meters.delete(peerId);
+      statusOf.delete(peerId); // a stale status must not haunt the room's consensus
+      connsOf.delete(peerId);
       endRelayRolesFor(peerId);
       if (focusId === peerId) focusId = null;
       layout();
@@ -868,15 +949,32 @@
         .catch(() => {});
     }
 
+    // ============================ STATUS GOSSIP ==============================
+    // Statuses are TIMESTAMPED and REPEATED. Every status carries `at`; a
+    // receiver only accepts newer-than-what-it-has (out-of-order gossip can't
+    // roll a peer's state back). And every few seconds each participant
+    // re-broadcasts its full status + stream sid: one lost message used to
+    // split the room's view of reality forever (half the phones believing
+    // consensus, half not — mixed clear/blurred tiles); now any divergence
+    // heals within a heartbeat.
+    function takeStatus(from, st) {
+      if (!st) return false;
+      const cur = statusOf.get(from);
+      if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
+      statusOf.set(from, st);
+      return true;
+    }
     function learn(from, msg, p, adm) {
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
-      if (msg.st) { statusOf.set(from, msg.st); reactRoomState(); }
+      if (p) p.lastHeard = Date.now();
+      if (msg.st) { takeStatus(from, msg.st); reactRoomState(); }
       // In admin rooms, group moderation is honored ONLY from relay-stamped
       // (verified admin) messages — gossip can't spoof an admin's authority.
       if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
       applyRoomBlur(msg.roomBlur, adm);
       if (msg.conns) connsOf.set(from, msg.conns);
-      if ('sid' in msg && p) p.ownSid = msg.sid;
+      if ('sid' in msg && p && p.ownSid !== msg.sid) { p.ownSid = msg.sid; claimOwnStream(p); }
+      else if ('sid' in msg && p) claimOwnStream(p);
     }
 
     function onSignal(from, msg, adm) {
@@ -903,10 +1001,16 @@
         if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
         else p.pendingIce.push(msg.candidate);
       } else if (msg.kind === 'status') {
-        statusOf.set(from, msg.s || {});
+        takeStatus(from, msg.s || {});
         if (msg.conns) connsOf.set(from, msg.conns);
+        // heartbeat re-gossip: moderation + guest-blur re-converge every tick
+        if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
+        applyRoomBlur(msg.roomBlur, adm);
         const sp = peers.get(from);
-        if (sp && 'sid' in msg) sp.ownSid = msg.sid;
+        if (sp) {
+          sp.lastHeard = Date.now();
+          if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
+        }
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
@@ -1120,6 +1224,13 @@
       for (const [pid, p] of Array.from(peers)) {
         const st = p.pc.connectionState;
         if (p.absentSince && !p.connected && now - p.absentSince > ABSENT_GRACE) { dropPeer(pid); continue; }
+        // A pc that lands in 'closed' can't be ICE-restarted — rebuild the
+        // transport into the same peer record (tile + identity survive).
+        if (!p.absentSince && st === 'closed') {
+          newPcFor(p);
+          if (iInitiate(pid)) { p.lastKick = now + Math.random() * 1500; sendOffer(pid); }
+          continue;
+        }
         if (!p.absentSince && iInitiate(pid) && (st === 'failed' || st === 'disconnected') && now - p.lastKick > 6000) {
           p.lastKick = now + Math.random() * 1500;
           sendOffer(pid, true);
@@ -1145,11 +1256,14 @@
         }
         // Be honest about a pair that can't form: present in the room but no
         // media path for a while → say so on the tile instead of silent black.
+        // A peer who merely STEPPED AWAY (phone locked, other app) is not a
+        // firewall problem — their tile says away, never 'firewall'.
         if (p.connected) { p.downSince = 0; if (p.noRoute) { p.noRoute = false; updateTile(pid); } }
         else if (!p.absentSince) {
           if (!p.downSince) p.downSince = now;
-          if (!p.noRoute && !p.relayed && now - p.downSince > 15000) { p.noRoute = true; updateTile(pid); }
+          if (!p.noRoute && !p.relayed && !peerAway(pid) && now - p.downSince > 15000) { p.noRoute = true; updateTile(pid); }
         }
+        if (p.noRoute && peerAway(pid)) { p.noRoute = false; updateTile(pid); }
       }
       updateStatus();
     }, 2000);
@@ -1635,10 +1749,11 @@
       for (const [target, r] of relayVia) {
         if (r.stream) continue;
         const viaP = peers.get(r.via);
-        if (!viaP || !viaP.unclaimed) continue;
-        const idx = viaP.unclaimed.findIndex((st) => st.id === r.streamId);
-        if (idx < 0) continue;
-        r.stream = viaP.unclaimed.splice(idx, 1)[0];
+        if (!viaP || !viaP.incoming) continue;
+        // exact-id mapping only — and never the relayer's own announced feed
+        const found = viaP.incoming.find((st) => st.id === r.streamId && st.id !== viaP.ownSid);
+        if (!found) continue;
+        r.stream = found;
         const t = peers.get(target);
         if (t) {
           t.relayed = r.via;
@@ -1900,7 +2015,9 @@
         });
       };
       draw();
-      recDraw = setInterval(draw, 66); // ~15 fps
+      // worker metronome (~15 fps): recording keeps compositing when the tab
+      // is hidden — main-thread intervals clamp to ≥1s in the background
+      recDraw = metroSub(draw);
       const stream = canvas.captureStream(15);
       for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
       const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
@@ -1908,7 +2025,8 @@
       recRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1200000, audioBitsPerSecond: 64000 });
       recRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
       recRec.onstop = () => {
-        clearInterval(recDraw); clearInterval(recTimer);
+        if (typeof recDraw === 'function') recDraw(); // unsubscribe the metronome
+        clearInterval(recTimer);
         for (const m of recSrcs.values()) { try { m.src.disconnect(); } catch (e) {} }
         recSrcs.clear(); recDest = null;
         const blob = new Blob(recChunks, { type: 'video/webm' });
@@ -2141,6 +2259,18 @@
       consensus: () => clearConsensus(),
       adminsHere: () => admins.slice(),
       ips: () => Object.assign({}, ipsOf),
+      // ---- stream-identity + gossip-health hooks (glitch hunting) ----
+      peerIds: () => Array.from(peers.keys()),
+      mySid: () => mySid(),
+      announcedSid: (id) => { const p = peers.get(id); return p ? p.ownSid || null : null; },
+      tileSid: (id) => { const p = peers.get(id); const s = p && p.video.srcObject; return s ? s.id : null; },
+      relayedVia: (id) => { const p = peers.get(id); return (p && p.relayed) || null; },
+      relayMapSid: (id) => { const r = relayVia.get(id); return r ? r.streamId : null; },
+      awayOf: (id) => peerAway(id),
+      // fault injection: simulate lost gossip / a dead transport
+      _corruptStatus: (id) => statusOf.delete(id),
+      _corruptSid: (id) => { const p = peers.get(id); if (p) { p.ownSid = null; } },
+      _failPeer: (id) => { const p = peers.get(id); if (p) { try { p.pc.close(); } catch (e) {} } },
     };
   })();
   </script>
