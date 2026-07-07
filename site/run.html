@@ -206,13 +206,17 @@
             Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
             paintChip();
           });
-          function close() { bg.remove(); }
+          // Closing the panel counts as acknowledging THIS set of requested
+          // sites, so we won't auto-open again until the app changes what it asks.
+          function close() { Promise.resolve(policy.acknowledge()).catch(function () {}); bg.remove(); }
           bg.querySelector('.done').onclick = close;
           bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
         }
         paintChip();
         permsBtn.onclick = openModal;
-        openModal(); // explicit acknowledgement at launch
+        // Prompt once — on first run, or again only if the app changed the sites
+        // it asks for. Otherwise the chip is always there to review or edit.
+        if (!policy.acknowledged()) openModal();
       };
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).
