@@ -81,7 +81,22 @@
   let selectedId = null;
 
   // ---------- data ----------
-  function load() { return store.allItems().then((all) => { items = all; }); }
+  // Reload the item list, but keep the SAME object for any id that survives, so
+  // live event closures (a drag in flight, a wired icon) go on seeing the same
+  // object they captured — reassigning a fresh array would orphan them, and the
+  // icon reconciler would then compare a node against a different object than
+  // the handler mutated. New ids get their record; departed ids drop out.
+  function load() {
+    return store.allItems().then((all) => {
+      const byId = new Map(items.map((i) => [i.id, i]));
+      items = all.map((rec) => {
+        const cur = byId.get(rec.id);
+        if (!cur) return rec;
+        for (const k of Object.keys(cur)) if (!(k in rec)) delete cur[k];
+        return Object.assign(cur, rec);
+      });
+    });
+  }
   // Namespace suffix for links to sibling pages (run.html, boot.html): the
   // default desktop emits clean URLs; a booted computer image threads its
   // own database name through so apps and nested boots stay inside it.
@@ -192,22 +207,79 @@
     return url;
   }
 
+  // A repaint used to re-read every icon's bytes from IndexedDB and rebuild
+  // every DOM node — O(icons) DB round-trips on every selection, drag or folder
+  // hop. Two caches make a repaint cost only what actually changed:
+  //   fileCache — the file record per fileId, so bytes are read once, not per paint
+  //   iconCache — the built <div.icon> per item, reused while its look is unchanged
+  const fileCache = new Map(); // fileId -> file record (null when missing)
+  const iconCache = new Map(); // itemId -> { el, key, fileId }
+  function getFileCached(fileId) {
+    if (!fileId) return Promise.resolve(null);
+    if (fileCache.has(fileId)) return Promise.resolve(fileCache.get(fileId));
+    return store.getFile(fileId).then((f) => { const v = f || null; fileCache.set(fileId, v); return v; });
+  }
+  // A file's bytes changed (or it was deleted): drop its cached record, blob URL
+  // and any icon node built from it, so the next render rebuilds from fresh bytes.
+  function forgetFile(fileId) {
+    if (!fileId) return;
+    fileCache.delete(fileId);
+    if (blobUrls.has(fileId)) { URL.revokeObjectURL(blobUrls.get(fileId)); blobUrls.delete(fileId); }
+    for (const [id, e] of iconCache) if (e.fileId === fileId) iconCache.delete(id);
+  }
+  // Another tab (or an app page) may have rewritten any file: forget everything
+  // visual and repaint from scratch. Only runs on cross-tab / refocus events.
+  function dropRenderCaches() {
+    fileCache.clear();
+    iconCache.clear();
+    for (const url of blobUrls.values()) URL.revokeObjectURL(url);
+    blobUrls.clear();
+  }
+  // Everything that changes how an icon LOOKS or WHERE it sits. Bytes aren't in
+  // the key — forgetFile() evicts the node directly when bytes change — so a
+  // repaint after a mere selection/drag reuses the untouched nodes.
+  function iconKey(it, file) {
+    const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
+    const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
+    // Joined with a control char (U+0001) that can't appear in names/ids, so
+    // distinct field combinations can never collide into the same key.
+    return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict].join('');
+  }
+
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
 
   // Renders can be triggered concurrently (create, import, cross-tab sync).
-  // Build all icons off-DOM (each awaits getFile), then swap them in atomically;
-  // a superseded render bails before touching the DOM, so no duplicate icons.
+  // Read every visible icon's bytes in ONE cached batch, reuse the DOM nodes
+  // whose look is unchanged, then swap the set in atomically; a superseded
+  // render bails before touching the DOM, so no duplicate icons.
   let renderSeq = 0;
   async function render() {
     const seq = ++renderSeq;
     const visible = items.filter((it) => (it.parent || null) === currentFolder);
-    const els = [];
-    for (const it of visible) {
-      const el = await buildIcon(it);
-      if (seq !== renderSeq) return; // a newer render started — abandon this one
-      els.push(el);
-    }
-    if (seq !== renderSeq) return;
+    // One batched, cached read instead of a serial getFile() per icon per paint.
+    const files = await Promise.all(visible.map((it) => getFileCached(it.fileId)));
+    if (seq !== renderSeq) return; // a newer render started — abandon this one
+    // Reconcile: reuse the cached node when its key matches, rebuild only what
+    // changed, and keep selection in sync on the survivors.
+    const keep = new Set();
+    const els = visible.map((it, i) => {
+      const key = iconKey(it, files[i]);
+      let entry = iconCache.get(it.id);
+      if (!entry || entry.key !== key) {
+        entry = { el: buildIcon(it, files[i]), key, fileId: it.fileId };
+        iconCache.set(it.id, entry);
+      } else {
+        // Reuse the node, but re-assert its authoritative position/selection —
+        // a drag may have moved its inline style out from under the cache.
+        entry.el.style.left = (it.x || 16) + 'px';
+        entry.el.style.top = (it.y || 16) + 'px';
+        entry.el.classList.toggle('selected', it.id === selectedId);
+      }
+      keep.add(it.id);
+      return entry.el;
+    });
+    for (const id of Array.from(iconCache.keys())) if (!keep.has(id)) iconCache.delete(id);
     surface.querySelectorAll('.icon, .hint').forEach((n) => n.remove());
     updateCrumbs();
     if (!visible.length) {
@@ -245,7 +317,19 @@
     return el;
   }
 
-  async function buildIcon(it) {
+  // A thumbnail <img>. loading="lazy"/decoding="async" let the browser skip the
+  // pixel decode for icons scrolled out of the endless surface until they near
+  // the viewport — virtualization of the costly part without unmounting nodes.
+  function thumbImg(fileId, bytes, alt) {
+    const img = document.createElement('img');
+    img.src = blobUrlFor(fileId, bytes);
+    img.alt = alt;
+    img.draggable = false; // pointer-drag the icon, not the image
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    return img;
+  }
+  function buildIcon(it, file) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -260,28 +344,18 @@
       thumb.textContent = items.some((i) => i.parent === TRASH_ID) ? '🗑️' : '🗑';
     } else if (it.kind === 'folder') {
       // folders are GIFs too — the icon IS the folder's own animated GIF
-      const ffile = it.fileId ? await store.getFile(it.fileId) : null;
-      if (ffile) {
-        const fbytes = ffile.bytes instanceof Uint8Array ? ffile.bytes : new Uint8Array(ffile.bytes);
-        const fimg = document.createElement('img');
-        fimg.src = blobUrlFor(it.fileId, fbytes);
-        fimg.alt = it.name;
-        fimg.draggable = false;
-        thumb.appendChild(fimg);
+      if (file) {
+        const fbytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+        thumb.appendChild(thumbImg(it.fileId, fbytes, it.name));
         signableFiles.add(it.fileId);
         addSigBadge(thumb, it, fbytes);
       } else {
         thumb.textContent = '📁'; // system folders (Trash, Stolen Apps) have no GIF
       }
     } else {
-      const file = await store.getFile(it.fileId);
       if (file && file.kind === 'gif') {
         const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-        const img = document.createElement('img');
-        img.src = blobUrlFor(it.fileId, bytes);
-        img.alt = it.name;
-        img.draggable = false; // pointer-drag the icon, not the image
-        thumb.appendChild(img);
+        thumb.appendChild(thumbImg(it.fileId, bytes, it.name));
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
         if (file.appId === 'video') {
@@ -1384,6 +1458,17 @@
   // deselect on empty click/tap
   surface.addEventListener('pointerdown', (e) => { if (e.target === surface) { selectedId = null; surface.querySelectorAll('.icon.selected').forEach((n) => n.classList.remove('selected')); } });
 
+  // Any write to a file's bytes (create, rename, sign, wallpaper) or its removal
+  // must drop that file's cached record/blob/node, so the next paint rebuilds it
+  // from fresh bytes instead of the stale cache. Wrapped once, here, so every
+  // call site is covered.
+  (function invalidateOnFileWrites() {
+    const put = store.putFile.bind(store);
+    store.putFile = (rec) => { if (rec && rec.id) forgetFile(rec.id); return put(rec); };
+    const del = store.deleteFile.bind(store);
+    store.deleteFile = (id) => { forgetFile(id); return del(id); };
+  })();
+
   // ---------- cross-tab live sync ----------
   // Two tabs on the same origin ARE the same desktop (one IndexedDB); keep the
   // views matched. Every local mutation announces on a BroadcastChannel and
@@ -1397,11 +1482,12 @@
     let pending = null;
     sync.onmessage = () => { // messages never echo to the posting tab
       if (pending) clearTimeout(pending);
-      pending = setTimeout(() => { pending = null; load().then(render); }, 200);
+      // Another tab could have rewritten any file's bytes — repaint from scratch.
+      pending = setTimeout(() => { pending = null; dropRenderCaches(); load().then(render); }, 200);
     };
   }
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) load().then(render);
+    if (!document.hidden) { dropRenderCaches(); load().then(render); }
   });
 
   // ---------- boot ----------
