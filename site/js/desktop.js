@@ -1207,6 +1207,13 @@
     } catch (e) { /* offline or no version.json — stay silent */ }
   }
 
+  // One-line, non-technical summary of the last paint for Settings → Advanced.
+  function perfLine(s) {
+    if (!s) return 'No repaint measured yet.';
+    return s.icons + ' icons in view · ' + s.reused + ' reused, ' + s.rebuilt + ' rebuilt · '
+      + 'cache holds ' + s.fileCache + ' files, ' + s.blobUrls + ' images.';
+  }
+
   async function showSettings() {
     closeContext();
     const pinned = pinnedVersion();
@@ -1265,6 +1272,10 @@
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
       '<button class="widebtn" id="set-relay-test">Test connection</button>' +
       '<p class="add-help" id="set-relay-status"></p>' +
+      '<h4>Performance</h4>' +
+      '<p class="add-help">How the last repaint of your Home Screen went. Reused icons are reused as-is (fast); rebuilt ones changed. Mostly useful for spotting a slow, oversized desktop.</p>' +
+      '<p class="add-help mono" id="set-perf">' + perfLine(renderStats) + '</p>' +
+      '<button class="widebtn" id="set-perf-refresh">Repaint &amp; measure</button>' +
       '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
@@ -1295,6 +1306,8 @@
         ws.onerror = () => { clearTimeout(timer); finish('Could not connect. If this is the default relay, its Worker may not be deployed on this domain (see relay/ in the repo).'); };
       } catch (e) { finish('Error: ' + (e.message || e)); }
     };
+    const perfBtn = box.querySelector('#set-perf-refresh');
+    if (perfBtn) perfBtn.onclick = async () => { await render(); box.querySelector('#set-perf').textContent = perfLine(renderStats); };
     const persistBtn = box.querySelector('#set-persist');
     if (persistBtn) persistBtn.onclick = async () => {
       const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
