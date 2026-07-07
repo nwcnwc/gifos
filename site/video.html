@@ -1878,13 +1878,14 @@
       const lvl = blurLevel(myStatus.blur);
       let next;
       if (lvl === 2) next = 1;
-      else if (lvl === 1) {
-        if (!roomPw) {
-          setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
-            ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
-            : 'Anyone here can set one with the Password button.'));
-          return;
-        }
+      else if (lvl === 1 && !roomPw) {
+        // No password → no clear video exists here. Say why, and wrap the
+        // cycle back to Max blur so the button never dead-ends.
+        setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
+          ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
+          : 'Anyone here can set one with the Password button.'));
+        next = 2;
+      } else if (lvl === 1) {
         const many = !hasAdminRoom() && participantCount() > 1;
         const msg = many
           ? 'Turn blur off? Everyone here has to do the same before video goes clear — this counts as your agreement. Once the whole room agrees, your video is fully visible.'

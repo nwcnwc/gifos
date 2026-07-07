@@ -114,10 +114,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 10000 });
   check('plain blur shows as blur1 on every other screen', true);
   // A PASSWORD IS THE KEY TO CLEAR VIDEO. With none set, turning blur off is
-  // refused outright — an open room can never show clear video.
-  await bPage.locator('#blur').click(); // plain → (no password) refused
-  check('with NO room password, turning blur off is refused',
-    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 1
+  // refused — you're told why, and the cycle wraps back to Max blur so the
+  // button never dead-ends at plain.
+  await bPage.locator('#blur').click(); // plain → (no password) refused, wraps to Max
+  check('with NO room password, turning blur off explains itself and wraps back to Max blur',
+    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 2
       && /Password must be set for unblurred video/.test(document.getElementById('status').textContent)));
   // Bob sets a room password (plain room: anyone inside may) — now clear is on
   // the table, but a plain room still needs EVERYONE'S agreement.
@@ -128,8 +129,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await cPage.waitForFunction(() => window.__gifosVideo.roomPw() === 'clubhouse', null, { timeout: 8000 });
   check('a room password propagates to everyone (now clear video is possible)', true);
   // Now turning blur off is Bob's AGREEMENT — but one agreement isn't enough.
+  await bPage.locator('#blur').click(); // Max → plain
   bPage.once('dialog', (d) => d.accept());
-  await bPage.locator('#blur').click();
+  await bPage.locator('#blur').click(); // plain → (confirm) off
   check('with a password set, turning your blur off is your agreement to a clear room',
     await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.okClear()));
   await sleep(800); // let the agreement gossip settle
@@ -657,7 +659,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 10000 });
   const tile2 = adam.locator('.tile:not(.me)').first();
   await adam.evaluate(() => { window.__banDebug = 1; });
-  await tile2.click();
+  await tile2.evaluate((t) => t.classList.add('menu')); // open the moderation menu deterministically (no tap race)
   await tile2.locator('.banbtn').click();
   try {
     await adam.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 8000 });
