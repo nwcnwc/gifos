@@ -518,8 +518,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const adamCtx = await newUser('Adam');
   const bethCtx = await newUser('Beth');
   const adam = await openRoom(adamCtx, 'adam', plainHash);
-  check('video page shows the SYSTEM chip (heightened-permissions signage)',
-    (await adam.locator('#syschip').textContent()) === 'SYSTEM');
+  check('the running call page carries no SYSTEM badge (the desktop icon signals it)',
+    (await adam.locator('#syschip').count()) === 0);
   check('a plain room has no admin and can never have one',
     !(await adam.evaluate(() => window.__gifosVideo.hasAdmin())));
   // Mint the admin room: creator CHOOSES its name (the salt), so (name,

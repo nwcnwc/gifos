@@ -137,10 +137,6 @@
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
   .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff; background: #7b5cff; color: #fff; cursor: pointer; }
-  /* The SYSTEM chip: honest signage that this page runs with heightened
-     permissions (camera/mic/WebRTC) that sandboxed apps never get. */
-  .syschip { font-size: .6rem; font-weight: 700; letter-spacing: .09em; padding: .16rem .4rem;
-             border: 1px solid #7b5cff; color: #a08dff; border-radius: .35rem; cursor: help; flex: 0 0 auto; }
   /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
      their privileged actions anyway — this is honest UI, not the enforcement). */
   body.admroom.notadmin .modbar { display: none !important; }
@@ -155,7 +151,6 @@
 <body>
   <div class="bar">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
-    <span class="syschip" id="syschip" title="Video Call is a built-in part of GifOS itself — that is why it may use your camera and microphone. Apps you add can never touch either. Tap for more.">SYSTEM</span>
     <button id="mic" class="iconbtn off" aria-label="Microphone" title="Your mic">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/>
@@ -1320,10 +1315,6 @@
     statusEl.style.cursor = 'pointer';
     statusEl.title = 'Who is on this call — names and network addresses';
     statusEl.onclick = showWhoModal;
-
-    document.getElementById('syschip').onclick = () => {
-      setStatus('Video Call is built into GifOS itself, so it can use your camera and mic. Apps you add are sealed off and can never touch them. Curious? The code is public: github.com/nwcnwc/gifos');
-    };
 
     function joinRoom() {
       room = params.get('v') || shortCode();
