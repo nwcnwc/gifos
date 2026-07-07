@@ -650,7 +650,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ban Beth's device: socket cut, rejoin refused
   const bethDev = await beth.evaluate(() => window.__gifosVideo.deviceId());
-  await bethTile.locator('.banbtn').click();
+  await bethTile.locator('.banbtn').evaluate((b) => b.click()); // fire directly — no menu visibility race
   await beth.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('banned device is cut and its rejoin is refused', true);
   await adam.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 8000 });
@@ -674,8 +674,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 10000 });
   const tile2 = adam.locator('.tile:not(.me)').first();
   await adam.evaluate(() => { window.__banDebug = 1; });
-  await tile2.evaluate((t) => t.classList.add('menu')); // open the moderation menu deterministically (no tap race)
-  await tile2.locator('.banbtn').click();
+  await tile2.locator('.banbtn').evaluate((b) => b.click()); // fire directly — no hover/menu visibility race
   try {
     await adam.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 8000 });
   } catch (e) {
