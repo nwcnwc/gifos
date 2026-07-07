@@ -117,12 +117,11 @@ server.on('upgrade', (req, socket) => {
     if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
     if (sess.mesh) {
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
-      msg.ban = sess.ban || [];
       msg.ips = {}; for (const [p, c] of sess.clients) if (c.ip) msg.ips[p] = c.ip;
-      if (sess.adult && sess.adult.on) msg.adult = { q: sess.adult.q || '' };
       if (sess.av) {
         msg.hasAdmin = true;
         msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
+        msg.ban = sess.ban || [];
       }
     }
     const s = JSON.stringify(msg);
@@ -142,16 +141,31 @@ server.on('upgrade', (req, socket) => {
     for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(); } catch (e) {} }
     roster();
   };
+  const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
+    .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
   const tallyVotes = () => {
     if (sess.av) return; // admin rooms don't vote-kick
     const occ = Array.from(sess.clients.values());
+    const pop = new Set(), votersFor = {};
+    for (const c of occ) {
+      if (c.dev) pop.add(c.dev);
+      for (const d of (c.votes || [])) {
+        if (!d || d === c.dev) continue;
+        (votersFor[d] = votersFor[d] || new Set()).add(c.dev || 'x');
+      }
+    }
     const tally = {};
-    for (const c of occ) if (c.votes) for (const t of c.votes) tally[t] = (tally[t] || 0) + 1;
-    const need = Math.max(2, Math.ceil(occ.length / 2));
+    for (const d in votersFor) tally[d] = votersFor[d].size;
+    const need = Math.max(2, Math.floor((pop.size || occ.length) / 2) + 1);
     const s = JSON.stringify({ t: 'votes', tally, need });
     for (const c of occ) c.send(s);
-    for (const tgt in tally) {
-      if (tally[tgt] >= need) { const v = sess.clients.get(tgt); if (v) banDevice(v.dev, sess.names.get(tgt) || '', 'the room (vote)'); }
+    for (const d in tally) {
+      if (tally[d] >= need) {
+        const b = JSON.stringify({ t: 'ban', dev: d, name: '', by: 'the room (vote)' });
+        for (const c of sess.clients.values()) c.send(b);
+        for (const c of Array.from(sess.clients.values())) if (c.dev === d) { try { c.close(); } catch (e) {} }
+        roster();
+      }
     }
   };
   const routePeer = (from, m, adm) => {
@@ -199,20 +213,23 @@ server.on('upgrade', (req, socket) => {
       sess.av = av || null;
       sess.ban = [];
       sess.mesh = true;
-      sess.adult = (av && url.searchParams.get('aw') === '1')
-        ? { on: true, q: (url.searchParams.get('aq') || '').slice(0, 140), ah: (url.searchParams.get('ah') || '').slice(0, 64) }
-        : null;
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
     const isAdmin = !!(sess.av && admOffer === sess.av);
-    // Adults-only gate (admin rooms; admins exempt from their own gate).
-    if (sess.adult && sess.adult.on && !isAdmin) {
-      if (url.searchParams.get('ack') !== '1') { conn.send(JSON.stringify({ t: 'error', error: 'adults-only', q: sess.adult.q || '' })); conn.close(); return; }
-      if (sess.adult.ah && (url.searchParams.get('aa') || '').slice(0, 64) !== sess.adult.ah) { conn.send(JSON.stringify({ t: 'error', error: 'adults-only-answer', q: sess.adult.q || '' })); conn.close(); return; }
-    }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
     if (!isAdmin && dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
+    // Standing-votes gate (plain rooms): a majority of the devices already
+    // here (min 2, counting the arriver) with this device on their personal
+    // vote-off list keeps the door shut.
+    if (!sess.av && dev) {
+      const voters = new Set(), pop = new Set([dev]);
+      for (const c of sess.clients.values()) {
+        if (c.dev) pop.add(c.dev);
+        if ((c.votes || []).includes(dev)) voters.add(c.dev || 'x');
+      }
+      if (voters.size >= Math.max(2, Math.floor(pop.size / 2) + 1)) { rejectConn('voted-off'); return; }
+    }
     conn.isAdmin = isAdmin; conn.dev = dev;
     const name = (url.searchParams.get('name') || '').slice(0, 40);
     if (name) sess.names.set(peer, name);
@@ -235,28 +252,11 @@ server.on('upgrade', (req, socket) => {
         for (const c of sess.clients.values()) c.send(s);
         if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(); } catch (e) {} }
         roster();
-      } else if (m.t === 'banlist' && Array.isArray(m.devs) && (conn.isAdmin || !sess.av)) {
-        // Admin rooms: admin re-seeds (replaces). Plain rooms: anyone's
-        // remembered bans MERGE in (grow-only) and apply immediately.
-        const incoming = cleanBanList(m.devs);
-        if (conn.isAdmin) sess.ban = incoming;
-        else {
-          const seen = new Set((sess.ban || []).map((b) => b.d));
-          sess.ban = (sess.ban || []).concat(incoming.filter((e) => !seen.has(e.d))).slice(0, BAN_CAP);
-        }
-        for (const b of sess.ban.slice()) {
-          if (Array.from(sess.clients.values()).some((c) => c.dev === b.d && !c.isAdmin)) banDevice(b.d, b.n, 'an earlier ban');
-        }
+      } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
+        sess.ban = cleanBanList(m.devs);
         roster();
-      } else if (m.t === 'setadult' && conn.isAdmin) {
-        sess.adult = m.on ? { on: true, q: String(m.q || '').slice(0, 140), ah: String(m.ah || '').slice(0, 64) } : null;
-        const s = JSON.stringify({ t: 'adult', on: !!m.on, q: sess.adult ? sess.adult.q : '', by: (m.by || '').slice(0, 40) });
-        for (const c of sess.clients.values()) c.send(s);
-        roster();
-      } else if (m.t === 'votekick' && !sess.av && typeof m.target === 'string') {
-        const tgt = m.target.slice(0, 64);
-        conn.votes = conn.votes || new Set();
-        if (m.on === false) conn.votes.delete(tgt); else conn.votes.add(tgt);
+      } else if (m.t === 'votekick' && !sess.av && Array.isArray(m.devs)) {
+        conn.votes = cleanDevList(m.devs);
         tallyVotes();
       }
     };
