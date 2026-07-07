@@ -355,6 +355,12 @@
     img.draggable = false; // pointer-drag the icon, not the image
     img.loading = 'lazy';
     img.decoding = 'async';
+    // Small pixel-art GIFs (64px stickers, 8-bit packs) stay crisp with
+    // nearest-neighbor; high-res art (Aurora at 192px) must downscale smoothly
+    // or it goes jaggy on 1x/2x screens. Decide per image, not globally.
+    img.addEventListener('load', () => {
+      img.style.imageRendering = img.naturalWidth > 96 ? 'auto' : 'pixelated';
+    }, { once: true });
     return img;
   }
   function buildIcon(it, file) {
