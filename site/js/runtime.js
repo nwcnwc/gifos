@@ -137,7 +137,9 @@
     'img-src data: blob:',
     'media-src data: blob:',
     'font-src data:',
-    'worker-src blob:',
+    // No worker-src: workers are blocked (default-src 'none' covers them). They
+    // gained nothing for apps — connect-src 'none' already denies a worker any
+    // network — and blocking them shrinks the sandbox's attack/CPU surface.
     "connect-src 'none'",
     "form-action 'none'",
     "frame-src 'none'",
@@ -192,15 +194,40 @@
   const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // ---- external-API bridge (manifest-gated) --------------------------------
+  // The ONLY network path out of a sandboxed app: the app's own fetch/XHR/WS
+  // are killed by connect-src 'none', so everything funnels through here, gated
+  // by the app's manifest allowlist. Hardening (fail closed):
+  //  - only https:// (and http:// for localhost dev) — never file:, blob:, etc.
+  //  - never the GifOS origin or its own subdomains: an app must not be able to
+  //    turn the trusted first-party into a proxy for the relay/mcp/site itself.
+  //  - no credentials are ever attached, and the response body is size-capped.
+  const FETCH_MAX_BYTES = 8 * 1024 * 1024; // 8 MB response ceiling
+  function firstPartyHost(host) {
+    // gifos.app and *.gifos.app (relay/mcp/mirrors) are always off-limits.
+    if (host === 'gifos.app' || host.endsWith('.gifos.app')) return true;
+    // Also the actual serving origin — but NOT local dev, which has no
+    // first-party infra to protect and is where the test suite reaches itself.
+    const self = (root.location && root.location.hostname) || '';
+    const selfLocal = self === 'localhost' || self === '127.0.0.1' || self === '[::1]';
+    return host === self && !selfLocal;
+  }
   function isAllowed(manifest, host) {
     const allowed = (manifest.capabilities && manifest.capabilities.network) || [];
     return allowed.some((p) => p === '*' || host === p || host.endsWith('.' + p));
   }
   function bridgeFetch(manifest, d) {
-    let host; try { host = new URL(d.url).hostname; } catch (e) { return Promise.reject(new Error('bad url')); }
-    if (!isAllowed(manifest, host)) return Promise.reject(new Error('Network denied: ' + host + ' not in app permissions'));
-    return fetch(d.url, { method: d.method, headers: d.headers, body: d.body || undefined })
-      .then((resp) => resp.text().then((body) => ({ status: resp.status, headers: Object.fromEntries(resp.headers.entries()), body })));
+    let u; try { u = new URL(d.url); } catch (e) { return Promise.reject(new Error('bad url')); }
+    const localhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]';
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && localhost)) {
+      return Promise.reject(new Error('Network denied: only https:// URLs are allowed'));
+    }
+    if (firstPartyHost(u.hostname)) return Promise.reject(new Error('Network denied: apps cannot call the GifOS origin'));
+    if (!isAllowed(manifest, u.hostname)) return Promise.reject(new Error('Network denied: ' + u.hostname + ' not in app permissions'));
+    return fetch(d.url, { method: d.method, headers: d.headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
+      .then((resp) => resp.arrayBuffer().then((buf) => {
+        if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
+        return { status: resp.status, headers: Object.fromEntries(resp.headers.entries()), body: gif.bytesToText(new Uint8Array(buf)) };
+      }));
   }
 
   // ---- snapshot: re-pack app + current state into a self-contained GIF -----
@@ -262,6 +289,29 @@
   function isEmptyState(s) { return !s || !s.collections || Object.keys(s.collections).length === 0; }
 
   // Local: authoritative store persisted with the icon; cross-tab via BroadcastChannel.
+  // A record sanitized against prototype pollution: a malicious/careless value
+  // carrying "__proto__"/"constructor"/"prototype" keys can't reach Object's
+  // prototype, because we rebuild it on a NULL-prototype object and drop those.
+  function safeRecord(value) {
+    const out = Object.create(null);
+    if (value && typeof value === 'object') {
+      for (const k of Object.keys(value)) {
+        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        out[k] = value[k];
+      }
+    }
+    return out;
+  }
+  // Serialize each app's read-modify-write behind a same-origin Web Lock keyed
+  // by the app, so two tabs of the SAME app writing concurrently take turns
+  // instead of clobbering each other's whole-state blob. Falls back to a direct
+  // call where Web Locks aren't available.
+  function withDbLock(fileId, fn) {
+    if (root.navigator && root.navigator.locks && root.navigator.locks.request) {
+      return root.navigator.locks.request('gifos-db:' + fileId, fn);
+    }
+    return Promise.resolve().then(fn);
+  }
   function makeLocalDb(fileId, onChange) {
     let state = emptyState();
     const chan = ('BroadcastChannel' in root) ? new BroadcastChannel(store.appChannel(fileId)) : null;
@@ -275,16 +325,18 @@
       import(s) { state = s; return persist(); },
       getFullState: () => load().then(deep),
       op(op, collection, key, value) {
-        return load().then(() => {
+        // read-modify-write under the per-app lock (reload INSIDE the lock so we
+        // build on the latest committed state, not a stale in-memory copy).
+        return withDbLock(fileId, () => load().then(() => {
           if (op === 'dump') return deep();
           const c = coll(collection); let result = null, changed = false;
-          if (op === 'put') { const it = Object.assign({}, value); if (it.id == null) it.id = collection + '_' + (c.seq++); c.items[it.id] = it; result = it; changed = true; }
+          if (op === 'put') { const it = safeRecord(value); if (it.id == null) it.id = collection + '_' + (c.seq++); c.items[it.id] = it; result = it; changed = true; }
           else if (op === 'get') result = c.items[key] || null;
           else if (op === 'getAll') result = Object.keys(c.items).map((k) => c.items[k]);
           else if (op === 'delete') { delete c.items[key]; result = true; changed = true; }
           if (!changed) return result;
           return persist().then(() => { if (chan) chan.postMessage({ collection }); onChange(collection); return result; });
-        });
+        }));
       },
     };
   }
