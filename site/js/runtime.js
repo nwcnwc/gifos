@@ -247,17 +247,27 @@
   function makeNetPolicy(fileId, manifest) {
     const declared = networkHosts(manifest);
     const denied = Object.create(null);
+    let ack = ''; // the declared-host set the user has already acknowledged
     const key = fileId ? fileId + '::netperms' : null; // client-run apps: session-only
+    // A fingerprint of what the app is ASKING for. It only changes when the app
+    // itself changes (a new/removed host in its manifest), so we can prompt once
+    // and stay quiet until the request actually changes.
+    const fingerprint = () => declared.slice().sort().join('');
+    const persist = () => (key ? store.setState(key, { denied: Object.keys(denied), ack }) : Promise.resolve());
     return {
       declared: () => declared.slice(),
       hasNetwork: () => declared.length > 0,
       unsafe: () => declared.indexOf('*') >= 0 && !denied['*'],
       list: () => declared.map((h) => ({ host: h, allowed: !denied[h] })),
       allow: (host) => declared.some((p) => !denied[p] && (p === '*' || host === p || host.endsWith('.' + p))),
-      set: (host, allowed) => { if (allowed) delete denied[host]; else denied[host] = 1;
-        return key ? store.setState(key, { denied: Object.keys(denied) }) : Promise.resolve(); },
+      set: (host, allowed) => { if (allowed) delete denied[host]; else denied[host] = 1; return persist(); },
+      // Has the user seen THIS exact set of requested hosts before? False on first
+      // run and again whenever the app changes what it asks for.
+      acknowledged: () => ack === fingerprint(),
+      acknowledge: () => { ack = fingerprint(); return persist(); },
       load: () => (key ? store.getState(key).then((r) => {
         if (r && Array.isArray(r.denied)) for (const h of r.denied) denied[h] = 1;
+        if (r && typeof r.ack === 'string') ack = r.ack;
       }).catch(() => {}) : Promise.resolve()),
     };
   }
