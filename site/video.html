@@ -425,15 +425,21 @@
     // only when every person here has turned their own blur fully off —
     // nobody can demand others go clear while staying hidden themselves.
     // (Admin rooms are governed by their admin instead; see blurLevelFor.)
+    // AGREEMENT to a clear room = your own blur set to None. We read the blur
+    // level directly (not a separate okc flag): setting blur to 0 IS the
+    // agreement, so the two can never disagree — and a peer on an older build
+    // that doesn't send okc still counts the moment their blur reads None,
+    // instead of silently wedging the whole room's consensus forever.
+    const agreedClear = (st) => !!st && blurLevel(st.blur) === 0;
     function clearConsensus() {
       if (hasAdminRoom()) return true;
-      if (!myStatus.okc) return false;
-      for (const pid of peers.keys()) { const st = statusOf.get(pid); if (!st || !st.okc) return false; }
+      if (!agreedClear(myStatus)) return false;
+      for (const pid of peers.keys()) { if (!agreedClear(statusOf.get(pid))) return false; }
       return true;
     }
     function consensusCount() {
-      let n = myStatus.okc ? 1 : 0;
-      for (const pid of peers.keys()) { const st = statusOf.get(pid); if (st && st.okc) n++; }
+      let n = agreedClear(myStatus) ? 1 : 0;
+      for (const pid of peers.keys()) { if (agreedClear(statusOf.get(pid))) n++; }
       return n;
     }
     // The blur a tile ends up showing = the strongest of: what they set on
