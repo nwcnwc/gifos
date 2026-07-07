@@ -115,20 +115,28 @@ server.on('upgrade', (req, socket) => {
     const names = {}; for (const [p, n] of sess.names) names[p] = n;
     const msg = { t: 'roster', peers: Array.from(sess.clients.keys()), names };
     if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
-    if (sess.av) {
-      msg.hasAdmin = true;
-      msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
+    if (sess.mesh) {
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
       msg.ban = sess.ban || [];
+      msg.ips = {}; for (const [p, c] of sess.clients) if (c.ip) msg.ips[p] = c.ip;
+      if (sess.adult && sess.adult.on) msg.adult = { q: sess.adult.q || '' };
+      if (sess.av) {
+        msg.hasAdmin = true;
+        msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
+      }
     }
     const s = JSON.stringify(msg);
     if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
+  const BAN_CAP = 20, BAN_NAME = 12;
+  const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
+    .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, BAN_NAME) }))
+    .filter((e) => e.d);
   const banDevice = (dev, name, by) => {
     dev = String(dev || '').slice(0, 16); if (!dev) return;
     sess.ban = (sess.ban || []).filter((b) => b.d !== dev);
-    sess.ban.push({ d: dev, n: String(name || '').slice(0, 24) }); if (sess.ban.length > 16) sess.ban.shift();
+    sess.ban.push({ d: dev, n: String(name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift();
     const s = JSON.stringify({ t: 'ban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
     for (const c of sess.clients.values()) c.send(s);
     for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(); } catch (e) {} }
@@ -190,10 +198,19 @@ server.on('upgrade', (req, socket) => {
       sess.pw = (url.searchParams.get('pw') || '') || null;
       sess.av = av || null;
       sess.ban = [];
+      sess.mesh = true;
+      sess.adult = (av && url.searchParams.get('aw') === '1')
+        ? { on: true, q: (url.searchParams.get('aq') || '').slice(0, 140), ah: (url.searchParams.get('ah') || '').slice(0, 64) }
+        : null;
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
     const isAdmin = !!(sess.av && admOffer === sess.av);
+    // Adults-only gate (admin rooms; admins exempt from their own gate).
+    if (sess.adult && sess.adult.on && !isAdmin) {
+      if (url.searchParams.get('ack') !== '1') { conn.send(JSON.stringify({ t: 'error', error: 'adults-only', q: sess.adult.q || '' })); conn.close(); return; }
+      if (sess.adult.ah && (url.searchParams.get('aa') || '').slice(0, 64) !== sess.adult.ah) { conn.send(JSON.stringify({ t: 'error', error: 'adults-only-answer', q: sess.adult.q || '' })); conn.close(); return; }
+    }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
     if (!isAdmin && dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
     conn.isAdmin = isAdmin; conn.dev = dev;
@@ -213,15 +230,28 @@ server.on('upgrade', (req, socket) => {
         const d = m.dev.slice(0, 16);
         if (!d) return;
         sess.ban = (sess.ban || []).filter((b) => b.d !== d);
-        if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, 24) }); if (sess.ban.length > 16) sess.ban.shift(); }
-        const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, 24), by: (m.by || '').slice(0, 40) });
+        if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
+        const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, BAN_NAME), by: (m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
         if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(); } catch (e) {} }
         roster();
-      } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
-        sess.ban = m.devs.slice(0, 16)
-          .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, 24) }))
-          .filter((e) => e.d);
+      } else if (m.t === 'banlist' && Array.isArray(m.devs) && (conn.isAdmin || !sess.av)) {
+        // Admin rooms: admin re-seeds (replaces). Plain rooms: anyone's
+        // remembered bans MERGE in (grow-only) and apply immediately.
+        const incoming = cleanBanList(m.devs);
+        if (conn.isAdmin) sess.ban = incoming;
+        else {
+          const seen = new Set((sess.ban || []).map((b) => b.d));
+          sess.ban = (sess.ban || []).concat(incoming.filter((e) => !seen.has(e.d))).slice(0, BAN_CAP);
+        }
+        for (const b of sess.ban.slice()) {
+          if (Array.from(sess.clients.values()).some((c) => c.dev === b.d && !c.isAdmin)) banDevice(b.d, b.n, 'an earlier ban');
+        }
+        roster();
+      } else if (m.t === 'setadult' && conn.isAdmin) {
+        sess.adult = m.on ? { on: true, q: String(m.q || '').slice(0, 140), ah: String(m.ah || '').slice(0, 64) } : null;
+        const s = JSON.stringify({ t: 'adult', on: !!m.on, q: sess.adult ? sess.adult.q : '', by: (m.by || '').slice(0, 40) });
+        for (const c of sess.clients.values()) c.send(s);
         roster();
       } else if (m.t === 'votekick' && !sess.av && typeof m.target === 'string') {
         const tgt = m.target.slice(0, 64);

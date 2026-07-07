@@ -203,8 +203,40 @@
       <div id="adm-panel" style="display:none;text-align:left">
         <p style="margin-bottom:.2rem">Banned devices:</p>
         <div id="adm-banned"></div>
+        <p style="margin:.8rem 0 .2rem">Adults only:</p>
+        <label style="display:flex;gap:.4rem;align-items:center;font-size:.85rem;color:#aab">
+          <input type="checkbox" id="adult-on"> Warn joiners this room is for adults (18+)
+        </label>
+        <input id="adult-set-q" maxlength="140" placeholder="Optional question joiners must answer" autocomplete="off" style="margin-top:.4rem">
+        <input id="adult-set-a" maxlength="64" placeholder="The answer" autocomplete="off" style="margin-top:.3rem">
+        <button id="adult-save" style="margin-top:.4rem">Save adults-only setting</button>
       </div>
       <button id="adm-close" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+    </div>
+  </div>
+
+  <div class="name-modal" id="adult-modal" style="display:none">
+    <div class="name-box">
+      <h3>Adults only</h3>
+      <p id="adult-hint">The person who runs this room set it to adults only. Continue only if you are 18 or older.</p>
+      <p id="adult-q" style="display:none;color:#cdf"></p>
+      <input id="adult-a" style="display:none" maxlength="64" placeholder="Your answer" autocomplete="off">
+      <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.6rem">
+        <button id="adult-go">I'm 18 or older — continue</button>
+        <button id="adult-leave" style="background:#1c1c2b;border:1px solid #2a2a3f">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="name-modal" id="who-modal" style="display:none">
+    <div class="name-box" style="max-width:480px;text-align:left">
+      <h3>Who is on this call</h3>
+      <p style="color:#889;font-size:.85rem">Calls connect people directly, so everyone here can see everyone's network address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
+      <div id="who-list"></div>
+      <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.8rem">
+        <button id="who-dl">Download this list</button>
+        <button id="who-close" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+      </div>
     </div>
   </div>
 
@@ -257,7 +289,11 @@
     const statusEl = document.getElementById('status');
     const share = document.getElementById('share');
     const shareUrl = document.getElementById('share-url');
-    const setStatus = (m) => { statusEl.textContent = m; };
+    // Explicit messages ("Wrong admin password.", "You were banned…") HOLD the
+    // pill briefly so the ambient counter (updateStatus) can't eat them the
+    // moment any gossip arrives.
+    let statusHoldUntil = 0;
+    const setStatus = (m) => { statusEl.textContent = m; statusHoldUntil = Date.now() + 4000; };
     const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 
     let ws = null, myId = null, localStream = null, meTile = null, leaving = false;
@@ -293,8 +329,10 @@
     // receiver's device (so a bad actor's own client can't refuse) and always
     // attributed to who did it. Latest change wins (timestamped).
     // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
-    // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false };
+    // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean. okc is your
+    // AGREEMENT to a clear room (see clearConsensus): set by turning your own
+    // blur fully off, withdrawn by turning it back on.
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, okc: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
@@ -352,9 +390,28 @@
         refreshOutbound(); // room blur applies to MY broadcast too, at the source
       }
     }
+    // UNBLURRED VIDEO ONLY WHERE MODERATION IS POSSIBLE. Plain rooms have no
+    // admin, so clear video needs UNANIMOUS agreement: the room goes clear
+    // only when every person here has turned their own blur fully off —
+    // nobody can demand others go clear while staying hidden themselves.
+    // (Admin rooms are governed by their admin instead; see blurLevelFor.)
+    function clearConsensus() {
+      if (hasAdminRoom()) return true;
+      if (!myStatus.okc) return false;
+      for (const pid of peers.keys()) { const st = statusOf.get(pid); if (!st || !st.okc) return false; }
+      return true;
+    }
+    function consensusCount() {
+      let n = myStatus.okc ? 1 : 0;
+      for (const pid of peers.keys()) { const st = statusOf.get(pid); if (st && st.okc) n++; }
+      return n;
+    }
     // The blur a tile ends up showing = the strongest of: what they set on
-    // themselves, a targeted group-blur on them, and (admin rooms) the
-    // room-wide guest blur — admins exempt from the last.
+    // themselves, a targeted group-blur on them, (admin rooms) the room-wide
+    // guest blur — admins exempt — and the FLOOR: plain rooms stay at least
+    // softly blurred until everyone agrees to clear; admin rooms fall back to
+    // the same floor whenever NO admin is connected (nobody to moderate =
+    // nobody goes clear).
     function blurLevelFor(id) {
       const isMe = id === 'me';
       const pid = isMe ? myId : id;
@@ -362,7 +419,26 @@
       const self = blurLevel(st.blur);
       const modB = (modOf(id).blur && modOf(id).blur.on) ? 2 : 0;
       const roomB = (hasAdminRoom() && roomBlur.lvl && !isAdminPeer(pid)) ? roomBlur.lvl : 0;
-      return Math.max(self, modB, roomB);
+      let floorB = 0;
+      if (!hasAdminRoom()) { if (!clearConsensus()) floorB = 1; }
+      else if (admins.length === 0 && !isAdminPeer(pid)) floorB = 1;
+      return Math.max(self, modB, roomB, floorB);
+    }
+    // The blur floor depends on who is here and what they agreed to — one
+    // knob re-derives every tile AND the outbound pixels whenever statuses,
+    // occupancy, or admin presence change.
+    let lastCons = null;
+    function reactRoomState() {
+      refreshAllTiles();
+      refreshOutbound();
+      const c = clearConsensus();
+      if (c !== lastCons) {
+        if (lastCons !== null && !hasAdminRoom() && participantCount() > 1) {
+          setStatus(c ? 'Everyone agreed — this room is clear video now.'
+            : 'Back to blurred — clear video needs everyone here to agree.');
+        }
+        lastCons = c;
+      }
     }
 
     // ---- tiles ---------------------------------------------------------------
@@ -442,6 +518,7 @@
       const bl = blurLevelFor(id);
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
       else if (roomB && roomB >= blurLevel(st.blur)) chips.push('<span class="warn">🌫 guest blur' + (roomBlur.by ? ' by ' + esc(roomBlur.by) : '') + '</span>');
+      else if (bl && !blurLevel(st.blur)) chips.push('<span>🌫 ' + (hasAdminRoom() ? 'blurred while no admin is here' : 'blurred until everyone agrees to clear') + '</span>');
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (st.camOff) chips.push('<span>📷 camera off</span>');
       // vote-off progress (non-admin rooms): show how close a tile is to removal
@@ -622,12 +699,19 @@
     }
     function updateStatus() {
       refreshTrBtn();
+      if (bannedOut) return;                      // the ban notice is permanent
+      if (Date.now() < statusHoldUntil) return;   // an explicit message is showing
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
       const q = rung(n);
       const link = ws && ws.readyState === 1 ? '' : ' · reconnecting to the room…';
-      setStatus((n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' on the call · ' + q.label) + link);
+      let extra = '';
+      if (n > 1) {
+        if (!hasAdminRoom() && !clearConsensus()) extra = ' · blurred until everyone agrees (' + consensusCount() + '/' + n + ')';
+        else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
+      }
+      statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
+        : n + ' on the call · ' + q.label) + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -693,6 +777,7 @@
       if (focusId === peerId) focusId = null;
       layout();
       adapt();
+      reactRoomState(); // a departure can complete the room's agreement to go clear
     }
 
     function sendOffer(peerId, iceRestart) {
@@ -705,7 +790,7 @@
 
     function learn(from, msg, p, adm) {
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
-      if (msg.st) { statusOf.set(from, msg.st); updateTile(from); }
+      if (msg.st) { statusOf.set(from, msg.st); reactRoomState(); }
       // In admin rooms, group moderation is honored ONLY from relay-stamped
       // (verified admin) messages — gossip can't spoof an admin's authority.
       if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
@@ -742,7 +827,7 @@
         if (msg.conns) connsOf.set(from, msg.conns);
         const sp = peers.get(from);
         if (sp && 'sid' in msg) sp.ownSid = msg.sid;
-        updateTile(from);
+        reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
         applyRoomBlur(msg.roomBlur, adm);
@@ -798,6 +883,11 @@
     // data mints a new device — bans deter, they don't imprison).
     let av = null; // the room's admin verifier — set at join, immutable
     let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
+    let ipsOf = {};                          // peer -> network address (from the relay roster)
+    let roomAdult = { on: false, q: '' };    // the room's adults-only gate (admin rooms)
+    let adultBlocked = false;                // the gate owns the reconnect while its modal is up
+    let adultAck = false, adultAns = '';     // this session passed the gate (ack + answer hash)
+    let lastBanSend = '';                    // don't re-send an identical ban merge every roster
     const hasAdminRoom = () => !!av;
     async function sha256hex(s) {
       const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
@@ -820,6 +910,21 @@
     const roomKey = () => room + (av ? '.' + av : ''); // storage + session identity
     const admStoreKey = () => 'gifos_vadm_' + roomKey();
     const banStoreKey = () => 'gifos_vban_' + roomKey();
+    const adultStoreKey = () => 'gifos_vadult_' + roomKey();
+    // EVERY participant carries the room's ban list away in their own storage
+    // and merges it back on return (plain rooms; grow-only). The relay holds
+    // nothing — bans live on through the people who witnessed them.
+    function loadBans() { try { return JSON.parse(localStorage.getItem(banStoreKey()) || '[]') || []; } catch (e) { return []; } }
+    function saveBans(list) { try { localStorage.setItem(banStoreKey(), JSON.stringify(list.slice(0, 100))); } catch (e) {} }
+    function mergeBans(a, b) {
+      const out = a.slice(); const seen = new Set(a.map((x) => x && x.d));
+      for (const e of b || []) if (e && e.d && !seen.has(e.d)) { seen.add(e.d); out.push(e); }
+      return out;
+    }
+    // Whoever has passed the adults-only gate can re-seed it at an empty room
+    // (their answer hash IS the room's) — occupancy memory, like the password.
+    function loadAdult() { try { return JSON.parse(localStorage.getItem(adultStoreKey()) || 'null'); } catch (e) { return null; } }
+    function saveAdult(cfg) { try { cfg ? localStorage.setItem(adultStoreKey(), JSON.stringify(cfg)) : localStorage.removeItem(adultStoreKey()); } catch (e) {} }
     function loadAdm() {
       try { admKey = localStorage.getItem(admStoreKey()); } catch (e) { admKey = null; }
     }
@@ -859,13 +964,18 @@
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
       // The session id is the room+verifier COMPOSITE: /room and /room/V are different rooms.
+      // Adults-only gate: a stored pass re-seeds the gate at an empty room AND
+      // proves this device already answered; a fresh answer rides as ack+aa.
+      const ad = av ? loadAdult() : null;
+      const adultQs = ad ? ('&aw=1&aq=' + encodeURIComponent(ad.q || '') + '&ah=' + (ad.ah || '') + '&ack=1' + (ad.ah ? '&aa=' + ad.ah : ''))
+        : (adultAck ? '&ack=1' + (adultAns ? '&aa=' + adultAns : '') : '');
       ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + roomToken +
         '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
-        '&dev=' + encodeURIComponent(deviceId()) + (av ? '&av=' + av : '') + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
+        '&dev=' + encodeURIComponent(deviceId()) + (av ? '&av=' + av : '') + (admKey ? '&adm=' + encodeURIComponent(admKey) : '') + adultQs);
       ws.onopen = () => { backoff = 500; updateStatus(); };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
       ws.onclose = () => {
-        if (leaving || pwBlocked || bannedOut) return; // pw prompt / ban owns the reconnect now
+        if (leaving || pwBlocked || bannedOut || adultBlocked) return; // pw/adult prompt / ban owns the reconnect now
         updateStatus(); // live P2P links stay up; we quietly rejoin the room
         clearTimeout(reopenTimer);
         backoff = Math.min(5000, backoff * 2);
@@ -873,26 +983,49 @@
       };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') { myId = m.peer; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
+        if (m.t === 'joined') {
+          myId = m.peer; amAdmin = amAdmin || !!m.admin;
+          // We are inside — if we got here through the adults-only gate,
+          // remember the pass so reloads and re-seeding an empty room work.
+          if (adultAck && av) { saveAdult({ q: roomAdult.q || '', ah: adultAns || '' }); adultAck = false; }
+          updateStatus(); broadcastStatus(); applyAdminUi();
+        }
         else if (m.t === 'roster') {
           admins = m.admins || []; roomBan = m.ban || [];
+          ipsOf = m.ips || ipsOf;
+          roomAdult = m.adult ? { on: true, q: m.adult.q || '' } : { on: false, q: '' };
           // MERGE device mappings (don't replace): a peer inside its absence
           // grace window still has a tile, and its Ban button must keep
           // working even though the roster no longer lists it.
           Object.assign(devOf, m.devs || {});
           amAdmin = amAdmin || admins.includes(myId);
-          if (amAdmin) {
-            if (roomBan.length) { try { localStorage.setItem(banStoreKey(), JSON.stringify(roomBan)); } catch (e) {} }
+          if (hasAdminRoom() && amAdmin) {
+            if (roomBan.length) saveBans(roomBan);
             else if (!banSeeded && m.peers.length <= 1) {
               // Alone in a re-emptied room: re-seed the ban list from this
               // device's copy — occupancy memory, still nothing on a server.
-              let stored = []; try { stored = JSON.parse(localStorage.getItem(banStoreKey()) || '[]'); } catch (e) {}
+              const stored = loadBans();
               if (stored.length) ws.send(JSON.stringify({ t: 'banlist', devs: stored }));
-            } else { try { localStorage.setItem(banStoreKey(), JSON.stringify(roomBan)); } catch (e) {} }
+            } else saveBans(roomBan);
             banSeeded = true;
+          } else if (!hasAdminRoom()) {
+            // PLAIN rooms: everyone remembers the bans, and everyone's memory
+            // merges back in — the list only ever grows. A bad actor who
+            // slips into a room that forgot them is booted the moment anyone
+            // who remembers walks in.
+            const merged = mergeBans(loadBans(), roomBan);
+            saveBans(merged);
+            const here = new Set((roomBan || []).map((b) => b.d));
+            const missing = merged.filter((b) => !here.has(b.d));
+            const sig = merged.map((b) => b.d).sort().join(',');
+            if (missing.length && sig !== lastBanSend) {
+              lastBanSend = sig;
+              ws.send(JSON.stringify({ t: 'banlist', devs: merged.slice(0, 20) }));
+            }
           }
           applyAdminUi();
           reconcile(m.peers, m.names);
+          reactRoomState();
         }
         else if (m.t === 'peer') onSignal(m.from, m.msg, m.adm);
         else if (m.t === 'ban') {
@@ -907,6 +1040,15 @@
           } else setStatus('⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
         }
         else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
+        else if (m.t === 'adult') {
+          roomAdult = { on: !!m.on, q: m.q || '' };
+          // The gate changed under us: stored passes for the OLD gate would
+          // re-seed stale state at an empty room — everyone but the admin who
+          // holds the new config drops theirs and re-answers next visit.
+          if (!amAdmin || !m.on) saveAdult(null);
+          setStatus(m.on ? 'This room is adults-only now' + (m.by ? ' — set by ' + m.by : '')
+            : 'The adults-only setting was turned off' + (m.by ? ' by ' + m.by : ''));
+        }
         else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
         else if (m.t === 'pw') {
@@ -917,6 +1059,11 @@
         }
         else if (m.t === 'error') {
           if (/password required/.test(m.error || '')) { pwBlocked = true; clearTimeout(reopenTimer); showPwModal(true); }
+          else if (/adults-only/.test(m.error || '')) {
+            adultBlocked = true; clearTimeout(reopenTimer);
+            roomAdult = { on: true, q: m.q || '' };
+            showAdultModal(m.q || '', /answer/.test(m.error || ''));
+          }
           else if (/banned/.test(m.error || '')) { bannedOut = true; clearTimeout(reopenTimer); setStatus('⛔ This device was banned from the room by its admin.'); }
           else setStatus('Relay: ' + m.error);
         }
@@ -1072,7 +1219,10 @@
       document.getElementById('adm-pass').value = '';
       if (amAdmin) {
         setup.style.display = 'none'; panel.style.display = '';
-        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Admins can lock the room with a password, mute or blur someone for everyone, and ban devices. Anyone who knows the admin password can tap 🛡 and sign in too.';
+        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Admins can lock the room with a password, mute or blur someone for everyone, ban devices, and mark the room adults-only. Anyone who knows the admin password can tap 🛡 and sign in too.';
+        document.getElementById('adult-on').checked = !!roomAdult.on;
+        document.getElementById('adult-set-q').value = roomAdult.q || '';
+        document.getElementById('adult-set-a').value = '';
         renderBanned();
       } else if (hasAdminRoom()) {
         setup.style.display = ''; panel.style.display = 'none';
@@ -1124,6 +1274,82 @@
         location.reload(); // load the new room fresh
       }
     };
+    // ---- adults-only gate (joiner side) ---------------------------------------
+    const adultModal = document.getElementById('adult-modal');
+    const normAnswer = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    function showAdultModal(q, wrong) {
+      const qEl = document.getElementById('adult-q'), aEl = document.getElementById('adult-a');
+      qEl.style.display = q ? '' : 'none'; qEl.textContent = q || '';
+      aEl.style.display = q ? '' : 'none'; aEl.value = '';
+      document.getElementById('adult-hint').textContent = wrong
+        ? 'That answer was not right — try again. Continue only if you are 18 or older.'
+        : 'The person who runs this room set it to adults only. Continue only if you are 18 or older.';
+      adultModal.style.display = 'flex';
+      if (q) aEl.focus();
+    }
+    document.getElementById('adult-go').onclick = async () => {
+      const q = roomAdult.q || '';
+      adultAns = q ? await sha256hex(normAnswer(document.getElementById('adult-a').value)) : '';
+      adultAck = true;
+      adultBlocked = false;
+      adultModal.style.display = 'none';
+      setStatus('Checking…');
+      clearTimeout(reopenTimer);
+      openSock(); // a wrong answer bounces us right back to this prompt
+    };
+    document.getElementById('adult-leave').onclick = () => { location.href = '/'; };
+    document.getElementById('adult-a').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('adult-go').click(); });
+    // Admin side: switch the gate on/off (question only counts with an answer).
+    document.getElementById('adult-save').onclick = async () => {
+      if (!amAdmin || !ws || ws.readyState !== 1) return;
+      const on = document.getElementById('adult-on').checked;
+      const q = document.getElementById('adult-set-q').value.trim().slice(0, 140);
+      const a = document.getElementById('adult-set-a').value;
+      const effQ = on && q && a ? q : '';
+      const ah = effQ ? await sha256hex(normAnswer(a)) : '';
+      ws.send(JSON.stringify({ t: 'setadult', on, q: effQ, ah, by: myName() }));
+      saveAdult(on ? { q: effQ, ah } : null);
+      admModal.style.display = 'none';
+      setStatus(on ? 'This room is adults-only now.' : 'The adults-only setting is off.');
+    };
+
+    // ---- who is on this call (names + addresses) -------------------------------
+    // P2P calls are direct connections: everyone can already learn everyone's
+    // network address, so GifOS makes it VISIBLE — nobody here is anonymous,
+    // and a downloadable record deters the worst behavior.
+    const whoModal = document.getElementById('who-modal');
+    function whoRows() {
+      const rows = [{ pid: myId || '', name: myName() + ' (you)' }];
+      for (const [pid, p] of peers) rows.push({ pid, name: p.name || '…' });
+      return rows.map((r) => ({ name: r.name, ip: ipsOf[r.pid] || 'address unknown', dev: devOf[r.pid] || '', pid: r.pid }));
+    }
+    function showWhoModal() {
+      const list = document.getElementById('who-list');
+      list.innerHTML = '';
+      for (const r of whoRows()) {
+        const row = document.createElement('div'); row.className = 'brow';
+        const nm = document.createElement('span'); nm.style.flex = '1'; nm.textContent = r.name;
+        const ip = document.createElement('span'); ip.style.color = '#889'; ip.textContent = r.ip;
+        row.appendChild(nm); row.appendChild(ip); list.appendChild(row);
+      }
+      whoModal.style.display = 'flex';
+    }
+    document.getElementById('who-close').onclick = () => { whoModal.style.display = 'none'; };
+    document.getElementById('who-dl').onclick = () => {
+      const stamp = new Date().toISOString();
+      const lines = ['GifOS video call — who is here', 'Room: ' + room, 'Saved: ' + stamp, ''];
+      for (const r of whoRows()) lines.push(r.name + '\t' + r.ip + (r.dev ? '\tdevice ' + r.dev : '') + (r.pid ? '\tpeer ' + r.pid : ''));
+      const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'gifos-call-' + room + '-' + stamp.replace(/[:.]/g, '-') + '.txt';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+    statusEl.style.cursor = 'pointer';
+    statusEl.title = 'Who is on this call — names and network addresses';
+    statusEl.onclick = showWhoModal;
+
     document.getElementById('syschip').onclick = () => {
       setStatus('Video Call is built into GifOS itself, so it can use your camera and mic. Apps you add are sealed off and can never touch them. Curious? The code is public: github.com/nwcnwc/gifos');
     };
@@ -1733,20 +1959,30 @@
       blurBtn.classList.toggle('off', lvl === 0);
     }
     // 3-state personal blur: Max → Blur → off (confirm) → Max. Only turning it
-    // fully off asks — everything else is a safe tap.
+    // fully off asks — everything else is a safe tap. In a plain room, turning
+    // your blur off is also your AGREEMENT: the room only goes clear when
+    // every person here has done the same.
     blurBtn.onclick = () => {
       const lvl = blurLevel(myStatus.blur);
       let next;
       if (lvl === 2) next = 1;
       else if (lvl === 1) {
-        if (!confirm('Turn blur off? Your video will be fully visible to everyone on the call.')) return;
+        const many = !hasAdminRoom() && participantCount() > 1;
+        const msg = many
+          ? 'Turn blur off? Everyone here has to do the same before video goes clear — this counts as your agreement. Once the whole room agrees, your video is fully visible.'
+          : 'Turn blur off? Your video will be fully visible to everyone on the call.';
+        if (!confirm(msg)) return;
         next = 0;
       } else next = 2;
       myStatus.blur = next;
+      myStatus.okc = next === 0; // blur fully off = your agreement to a clear room
       paintBlurBtn();
       refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
-      refreshAllTiles();
       broadcastStatus();
+      reactRoomState();
+      if (!hasAdminRoom() && myStatus.okc && !clearConsensus()) {
+        setStatus(consensusCount() + ' of ' + participantCount() + ' agreed to clear video — it stays blurred until everyone does.');
+      }
     };
     // Admin "blur all guests" — 3-state, applies to every non-admin. Starts at
     // plain (an admin room already defaults guests to plain), cycles plain →
@@ -1817,6 +2053,12 @@
       voteNeed: () => voteNeed,
       votesAgainst: (id) => voteTally[id] || 0,
       myVoteCount: () => myVotes.size,
+      okClear: () => !!myStatus.okc,
+      consensus: () => clearConsensus(),
+      adminsHere: () => admins.slice(),
+      ips: () => Object.assign({}, ipsOf),
+      adult: () => Object.assign({}, roomAdult),
+      storedBans: () => loadBans(),
     };
   })();
   </script>

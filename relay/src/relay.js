@@ -57,6 +57,15 @@ const MAX_SOCKETS_PER_SESSION = 64; // a "room" is a living room, not a stadium
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 
+// Ban lists ride in socket attachments (2KB serialized cap), so the LIVE list
+// is bounded; participants keep the unbounded copy in their own storage and
+// re-merge it, so the working set here only needs to cover what matters now.
+const BAN_CAP = 20;
+const BAN_NAME = 12;
+const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
+  .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, BAN_NAME) }))
+  .filter((e) => e.d);
+
 function makeMeter() { return { tokens: BURST_BYTES, last: Date.now(), warned: false }; }
 // Returns true if this message must be DROPPED (would overrun the budget).
 function overBudget(meter, len) {
@@ -85,20 +94,31 @@ export class Session {
   send(ws, obj) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (e) {} }
 
   roster() {
-    const peers = [], names = {}, admins = [], devs = {};
-    let admV = null, ban = null;
+    const peers = [], names = {}, admins = [], devs = {}, ips = {};
+    let admV = null, ban = null, adult = null, mesh = false;
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
       if (a.name) names[a.peer] = a.name;
+      if (a.role === 'mesh') mesh = true;
       if (a.adm) admins.push(a.peer);
       if (a.dev) devs[a.peer] = a.dev;
-      if (a.av && !admV) { admV = a.av; ban = a.ban || []; }
+      if (a.ip) ips[a.peer] = a.ip;
+      if (!admV && a.av) admV = a.av;
+      if (ban === null && a.ban) ban = a.ban;
+      if (!adult && (a.aw || a.aq)) adult = { q: a.aq || '' };
     }
     const h = this.hostSock();
     const msg = { t: 'roster', peers, names };
     if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
-    if (admV) { msg.hasAdmin = true; msg.admins = admins; msg.devs = devs; msg.ban = ban; }
+    if (mesh) {
+      // Rooms are not anonymous BY DESIGN: everyone on a call can see
+      // everyone's network address (they exchange it for P2P anyway) — the
+      // client shows it under the status pill as an accountability record.
+      msg.devs = devs; msg.ban = ban || []; msg.ips = ips;
+      if (adult) msg.adult = adult;
+      if (admV) { msg.hasAdmin = true; msg.admins = admins; }
+    }
     const s = JSON.stringify(msg);
     if (h) this.send(h, s);
     for (const ws of this.members()) this.send(ws, s);
@@ -122,10 +142,12 @@ export class Session {
 
     const pair = new WebSocketPair();
     const client = pair[0], server = pair[1];
-    // Reject without hibernating: accept plainly, explain, close.
-    const reject = (error, code) => {
+    // Reject without hibernating: accept plainly, explain, close. `extra`
+    // lets a rejection carry data the client needs to retry (e.g. the
+    // adults-only challenge question).
+    const reject = (error, code, extra) => {
       server.accept();
-      try { server.send(JSON.stringify({ t: 'error', error })); server.close(code, error.slice(0, 120)); } catch (e) {}
+      try { server.send(JSON.stringify(Object.assign({ t: 'error', error }, extra || {}))); server.close(code, error.slice(0, 120)); } catch (e) {}
       return new Response(null, { status: 101, webSocket: client });
     };
 
@@ -196,11 +218,23 @@ export class Session {
       const admK = (url.searchParams.get('adm') || '').slice(0, 128);
       const isAdmin = !!(av && admK && (await sha256hex(admK)) === av);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+      // ADULTS-ONLY GATE (admin rooms only): the room can carry an 18+
+      // warning and an optional challenge question. Occupancy memory, like
+      // the password: current occupants' attachments hold {aw, aq, ah};
+      // whoever has passed the gate (their answer hash IS the room's) can
+      // re-seed it at an empty room. Admins are exempt from their own gate.
+      const aw = first ? !!first.aw : !!(av && url.searchParams.get('aw') === '1');
+      const aq = (first ? (first.aq || '') : (av ? (url.searchParams.get('aq') || '') : '')).slice(0, 140);
+      const ah = (first ? (first.ah || '') : (av ? (url.searchParams.get('ah') || '') : '')).slice(0, 64);
+      if ((aw || aq) && !isAdmin) {
+        if (url.searchParams.get('ack') !== '1') return reject('adults-only', 4005, { q: aq });
+        if (ah && (url.searchParams.get('aa') || '').slice(0, 64) !== ah) return reject('adults-only-answer', 4006, { q: aq });
+      }
       const ban = first ? (first.ban || []) : [];
       if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
       for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
+      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban, aw: aw ? 1 : 0, aq, ah });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
       this.roster();
     } else {
@@ -267,16 +301,45 @@ export class Session {
         a.votes = Array.from(votes).slice(0, 64);
         try { ws.serializeAttachment(a); } catch (e) {}
         this.tallyVotes();
-      } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
-        // An admin re-arriving to a (possibly re-emptied) room re-seeds the
-        // ban list from their own device — occupancy memory, no storage.
-        const ban = m.devs.slice(0, 16)
-          .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, 24) }))
-          .filter((e) => e.d);
+      } else if (m.t === 'banlist' && Array.isArray(m.devs) && (a.adm || !this.meshAdmV())) {
+        // Admin rooms: an admin re-arriving to a (possibly re-emptied) room
+        // re-seeds the ban list from their own device. PLAIN rooms: ANYONE'S
+        // remembered bans MERGE in, and the merged list only ever grows —
+        // every participant carries the room's bans away with them, so a
+        // vote-ban outlives the emptied room through the people who saw it.
+        // A banned device that sneaks back while nobody remembers gets cut
+        // the moment one witness returns.
+        const incoming = cleanBanList(m.devs);
+        let ban;
+        if (a.adm) ban = incoming;
+        else {
+          const cur = a.ban || [];
+          const seen = new Set(cur.map((b) => b.d));
+          ban = cur.concat(incoming.filter((e) => !seen.has(e.d))).slice(0, BAN_CAP);
+        }
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
+        // merged bans apply NOW: cut any present device on the list
+        for (const b of ban) {
+          if (this.members().some((s) => { const a2 = this.att(s); return a2.dev === b.d && !a2.adm; })) {
+            this.banDevice(b.d, b.n, 'an earlier ban');
+          }
+        }
+        this.roster();
+      } else if (m.t === 'setadult' && a.adm) {
+        // Admin switches the adults-only gate (with optional challenge
+        // question) on or off — written into every occupant's attachment,
+        // exactly like the room password.
+        const on = !!m.on;
+        const q = on ? String(m.q || '').slice(0, 140) : '';
+        const ah = on ? String(m.ah || '').slice(0, 64) : '';
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2); a2.aw = on ? 1 : 0; a2.aq = q; a2.ah = ah;
+          try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
+        this.broadcast({ t: 'adult', on, q, by: String(m.by || '').slice(0, 40) });
         this.roster();
       }
     } else if (a.role === 'client') {
@@ -306,11 +369,11 @@ export class Session {
   banDevice(dev, name, by) {
     dev = String(dev || '').slice(0, 16);
     if (!dev) return;
-    const entry = { d: dev, n: String(name || '').slice(0, 24) };
+    const entry = { d: dev, n: String(name || '').slice(0, BAN_NAME) };
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2);
       const ban = (a2.ban || []).filter((b) => b.d !== dev);
-      ban.push(entry); if (ban.length > 16) ban.shift(); // attachments cap at 2KB — keep it tiny
+      ban.push(entry); if (ban.length > BAN_CAP) ban.shift(); // attachments cap at 2KB — keep it tiny
       a2.ban = ban;
       try { ws2.serializeAttachment(a2); } catch (e) {}
     }
