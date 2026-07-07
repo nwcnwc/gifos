@@ -572,7 +572,10 @@
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
       t.tile.classList.toggle('cam-off', !!st.camOff);
       t.video.classList.remove('blur1', 'blur2');
-      if (bl) t.video.classList.add('blur' + bl);
+      // The ME tile already SHOWS the pre-blurred outbound pixels (WYSIWYG), so
+      // a CSS blur on top would double it; receiver-side CSS blur is for the
+      // remote tiles only.
+      if (bl && !isMe) t.video.classList.add('blur' + bl);
       if (t.voteBtn) t.voteBtn.classList.toggle('voted', !!(dv && myVoteoffs.has(dv)));
       if (!isMe) {
         t.video.muted = !!gMute;               // group mute is enforced on MY device
@@ -736,6 +739,17 @@
     }
     function refreshOutbound() {
       const vt = sentVideoTrack();
+      // Your self-view shows EXACTLY the track you broadcast (raw or blurred).
+      // One WYSIWYG source means the preview never becomes a second <video>
+      // element fighting the camera track — the mobile-browser failure that
+      // froze/blanked either the preview or the outbound when they diverged.
+      if (meTile && vt) {
+        const cur = meTile.video.srcObject;
+        if (!cur || cur.getVideoTracks()[0] !== vt) {
+          meTile.video.srcObject = new MediaStream([vt]);
+          const pr = meTile.video.play(); if (pr && pr.catch) pr.catch(() => {});
+        }
+      }
       if (!vt) return;
       for (const p of peers.values()) for (const s of p.pc.getSenders()) {
         if (s.track && s.track.kind === 'video' && s.track !== vt) s.replaceTrack(vt).catch(() => {});
@@ -1824,7 +1838,8 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         list.forEach((t, i) => {
           const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
-          const bl = blurLevelFor(t.id);
+          // The ME feed is already the pre-blurred outbound; don't re-blur it.
+          const bl = t.id === 'me' ? 0 : blurLevelFor(t.id);
           const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
           const mix = recSrcs.get(t.id);
           if (mix) mix.gain.gain.value = gMute ? 0 : 1;  // hear what the room hears
@@ -2080,8 +2095,10 @@
       micMuted: () => myStatus.muted,
       micLocked: () => micBtn.classList.contains('locked'),
       camOff: () => myStatus.camOff,
-      // effective blur SHOWN on a tile (receiver-side): 0/1/2
-      blurClassOf: (id) => { const t = id === 'me' ? meTile : peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
+      // effective blur SHOWN on a tile: the ME tile is WYSIWYG (its source is
+      // the pre-blurred outbound, no CSS class), so report its effective level;
+      // remote tiles carry the receiver-side CSS blur class.
+      blurClassOf: (id) => { if (id === 'me') return blurLevelFor('me'); const t = peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
       // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
       outboundKind: () => (blurPipe && blurLevelFor('me') > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
       roomBlur: () => roomBlur.lvl,
