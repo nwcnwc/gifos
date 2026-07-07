@@ -187,6 +187,24 @@
         + "</g>");
     }),
 
+    // A golden fortune cookie with a paper slip peeking from its fold.
+    fortune: (a) => range(FR).map((f) => { const dy = bob(f), lift = [0, -1.5, -3, -1.5][f];
+      return sticker(ground()
+        + "<g transform='translate(0," + dy + ")'>"
+        // the fortune slip poking out of the fold
+        + "<rect x='43.5' y='" + (26 + lift) + "' width='9' height='18' rx='1.6' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2'/>"
+        + "<line x1='45.5' y1='" + (31 + lift) + "' x2='50.5' y2='" + (31 + lift) + "' stroke='#caa96b' stroke-width='1.3'/>"
+        + "<line x1='45.5' y1='" + (34 + lift) + "' x2='50.5' y2='" + (34 + lift) + "' stroke='#caa96b' stroke-width='1.3'/>"
+        // two folded cookie lobes
+        + "<ellipse cx='37' cy='60' rx='15' ry='16' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<ellipse cx='59' cy='60' rx='15' ry='16' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        // center pinch over the seam, with a fold crease
+        + "<ellipse cx='48' cy='45' rx='8' ry='6' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<path d='M48 45 q2.5 12 0 24' stroke='" + dark(a, 45) + "' stroke-width='2.4' fill='none' stroke-linecap='round'/>"
+        + face(48, 62, blinkAt(f), INK, 10)
+        + "</g>");
+    }),
+
     // An open book with a beating heart on the page; a pen hops as it signs.
     guestbook: (a) => range(FR).map((f) => { const pdy = Math.abs(Math.sin((f / FR) * 6.28)) * 4;
       const hs = f % 2 ? 1.18 : 1;

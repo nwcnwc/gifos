@@ -907,6 +907,63 @@ opens the built-in video page when opened in GifOS.</p>
     'gifos.app — Apps are GIFs. Data is GIFs. Everything is just files.',
   ].join('\n');
 
+  // The one default app that reaches the internet: it pulls a line of advice
+  // from adviceslip.com through gifos.fetch(), so opening it shows the network
+  // acknowledgement in action. It also degrades gracefully if the site is
+  // unreachable OR the user has switched its internet off from the tab.
+  const FORTUNE_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;min-height:100vh}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffce6b}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;max-width:460px;margin:0 auto;box-sizing:border-box}
+  .cookie{font-size:52px;line-height:1;filter:drop-shadow(0 6px 14px rgba(255,190,80,.25))}
+  .slip{background:#fffdf2;color:#3a3320;border-radius:14px;padding:20px 22px;min-height:56px;width:100%;box-sizing:border-box;
+        display:flex;align-items:center;justify-content:center;text-align:center;font-size:18px;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .slip.err{background:#2a1710;color:#ffcbab;border:1px solid #ff8a3d}
+  .row{display:flex;gap:10px}
+  button{padding:11px 18px;border-radius:10px;border:1px solid #2a2a3f;background:#1c1c2b;color:#e0e0f0;cursor:pointer;font-size:15px}
+  button.go{background:#ffce6b;color:#3a2c05;border-color:#ffce6b;font-weight:700}
+  button:disabled{opacity:.5;cursor:default}
+  button:not(:disabled):hover{filter:brightness(1.08)}
+  .kept{width:100%}
+  .kept h4{color:#8888aa;font-size:.8rem;font-weight:600;margin:0 0 6px}
+  .kept .k{background:#14141f;border:1px solid #22222f;border-radius:8px;padding:8px 10px;font-size:13px;color:#c8c8dc;margin-bottom:6px}
+  .foot{color:#6a6a86;font-size:.72rem;text-align:center;line-height:1.5}
+</style>
+<header>🥠 Fortune</header>
+<main>
+  <div class="cookie">🥠</div>
+  <div class="slip" id="slip">Crack open a cookie for a little wisdom…</div>
+  <div class="row">
+    <button class="go" id="crack">Crack a cookie</button>
+    <button id="keep" disabled>Keep it</button>
+  </div>
+  <div class="kept" id="keptWrap" style="display:none"><h4>Kept fortunes</h4><div id="kept"></div></div>
+  <p class="foot">Fortunes come from adviceslip.com over the internet — tap the 🌐 button up top to see or change that.</p>
+</main>
+<script>
+  var slip=document.getElementById('slip'),crack=document.getElementById('crack'),keepBtn=document.getElementById('keep');
+  var keptWrap=document.getElementById('keptWrap'),keptEl=document.getElementById('kept'),current=null;
+  var db=(window.gifos&&gifos.db)?gifos.db('fortunes'):null;
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+  function showKept(items){items=(items||[]).slice().reverse();keptWrap.style.display=items.length?'':'none';
+    keptEl.innerHTML=items.map(function(x){return '<div class="k">“'+esc(x.text)+'”</div>';}).join('');}
+  if(db)db.subscribe(showKept);
+  function fail(msg){current=null;slip.className='slip err';slip.textContent=msg;keepBtn.disabled=true;crack.disabled=false;}
+  function crackOne(){
+    slip.className='slip';slip.textContent='Cracking…';keepBtn.disabled=true;crack.disabled=true;
+    if(!window.gifos||!gifos.fetch){fail('Open this from GifOS to reach the internet.');return;}
+    gifos.fetch('https://api.adviceslip.com/advice?t='+Date.now())
+      .then(function(r){if(!r.ok)throw new Error('bad');return r.json();})
+      .then(function(d){current=(d&&d.slip&&d.slip.advice)||'…';slip.textContent='“'+current+'”';
+        keepBtn.disabled=false;crack.disabled=false;})
+      .catch(function(){fail('Couldn’t reach the fortune teller. You may be offline — or you’ve switched this app’s internet off with the 🌐 button up top.');});
+  }
+  crack.onclick=crackOne;
+  keepBtn.onclick=function(){if(current&&db){db.put({text:current,t:Date.now()});keepBtn.disabled=true;}};
+  crackOne();
+</script>`;
+
   function manifest(appId, name, accent, extra) {
     return JSON.stringify(Object.assign({
       gifos: '1.0', appId, name, version: '0.2.0', entry: 'index.html', accent,
@@ -916,9 +973,9 @@ opens the built-in video page when opened in GifOS.</p>
 
   function build() {
     const gif = GifOS.gif;
-    const app = (name, appId, accent, html) => ({
+    const app = (name, appId, accent, html, extra) => ({
       name: name + '.gif', appId, accent,
-      files: { 'manifest.json': manifest(appId, name, accent), 'index.html': html },
+      files: { 'manifest.json': manifest(appId, name, accent, extra), 'index.html': html },
     });
     // Each app gets its own hand-designed animated artwork (gifos-icons.js),
     // rasterized into the GIF. Fall back to the plain animated tile if the
@@ -942,6 +999,9 @@ opens the built-in video page when opened in GifOS.</p>
         app('Notes', 'notes', [123, 92, 255], NOTES_HTML),
         app('Calculator', 'calc', [92, 200, 255], CALCULATOR_HTML),
         app('Stopwatch', 'timer', [255, 120, 120], TIMER_HTML),
+        // The one app that reaches out: it declares exactly the site it needs,
+        // so opening it demonstrates the network acknowledgement on a real app.
+        app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
       ] },
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
