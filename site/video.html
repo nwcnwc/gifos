@@ -35,15 +35,13 @@
   .blurctl { display: inline-flex; align-items: center; gap: .4rem; }
   .blurlbl { color: #8888aa; font-size: .75rem; }
   .segwrap { display: inline-flex; border: 1px solid #2a2a3f; border-radius: .4rem; overflow: hidden; }
-  .segwrap.locked { opacity: .6; }
   .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid #2a2a3f; border-radius: 0;
                   background: #1c1c2b; color: #b8b8cc; font-size: .74rem; cursor: pointer; }
   .segwrap .seg:last-child { border-right: none; }
   /* Only real pointers get a hover tint — on touch, :hover STICKS to the last
      tapped segment and reads as a phantom second selection. */
-  @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover:not(.dis) { background: #26263a; } }
+  @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover { background: #26263a; } }
   .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
-  .segwrap .seg.dis { opacity: .38; cursor: not-allowed; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
   .share.show { display: flex; }
@@ -65,7 +63,7 @@
      the visible half of a two-sided guarantee. */
   .tile video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
   .tile video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
-  #blurall.on { border-color: #ffb86c; color: #ffcf9c; }
+  #blurall.on { border-color: #ffb86c; color: #ffd23c; background: #2a1f10; }
   .votebtn { position: absolute; top: .3rem; left: .3rem; z-index: 4; padding: .12rem .4rem;
     border-radius: .35rem; border: 1px solid #6a2a2a; background: rgba(40,10,10,.7); color: #ff8f8f;
     font-size: .72rem; cursor: pointer; display: none; }
@@ -172,7 +170,7 @@
       </span>
     </span>
     <button id="invite" title="Friends join you live with one link">Invite</button>
-    <button id="blurall" title="Blur every guest's video (admins only) — protects the room from bad actors" style="display:none">Blur guests</button>
+    <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
@@ -341,10 +339,8 @@
     // receiver's device (so a bad actor's own client can't refuse) and always
     // attributed to who did it. Latest change wins (timestamped).
     // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
-    // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean. okc is your
-    // AGREEMENT to a clear room (see clearConsensus): set by turning your own
-    // blur fully off, withdrawn by turning it back on.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, okc: false };
+    // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
@@ -352,8 +348,6 @@
     // enforced on every receiver. In an admin room it DEFAULTS to 1 (plain),
     // so guests are always at least softly blurred until an admin decides
     // otherwise — the ungovernable-but-admin rooms can't show clear obscenity.
-    let roomBlur = { lvl: 1, by: '', at: 0 };
-    const isAdminPeer = (pid) => (pid === myId ? amAdmin : admins.includes(pid));
     // Vote-off-the-island (non-admin rooms): every user carries ONE personal,
     // GLOBAL vote-off list (device ids) across all calls, in their own
     // browser. The here-relevant slice syncs to the relay, which boots any
@@ -385,7 +379,7 @@
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, roomBlur };
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable };
       for (const pid of peers.keys()) sendSig(pid, payload);
       updateTile('me');
     }
@@ -399,7 +393,20 @@
     document.addEventListener('visibilitychange', () => {
       myStatus.away = !!document.hidden;
       broadcastStatus();
-      if (!document.hidden) reactRoomState();
+      if (document.hidden) return;
+      reactRoomState();
+      // Android freezes <video> elements consuming canvas-capture streams
+      // while the tab is hidden — the TRACK stays live (others keep seeing
+      // you) but the local display never resumes. Re-kick every tile's
+      // element on return so the local view catches back up.
+      const kickVideo = (v) => {
+        if (!v || !v.srcObject) return;
+        const s = v.srcObject;
+        try { v.srcObject = null; v.srcObject = s; } catch (e) {}
+        const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+      };
+      if (meTile) kickVideo(meTile.video);
+      for (const p of peers.values()) kickVideo(p.video);
     });
     // A peer whose gossip has gone silent is effectively away even if their
     // browser never got to say so (hard freeze) — used for tile labeling only.
@@ -421,7 +428,7 @@
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { if (enforceReconsent()) broadcastStatus(); refreshAllTiles(); refreshOutbound(); paintControls(); } // a group-block on ME pins + re-blurs my own switch
+      if (changed) { refreshAllTiles(); refreshOutbound(); paintControls(); } // a moderator block re-derives every tile + my broadcast
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -432,79 +439,55 @@
       refreshAllTiles();
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
-    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); }
-    // Adopt an admin's "blur all guests" level — only from a relay-stamped
-    // admin message, only in an admin room, latest wins.
-    function applyRoomBlur(rb, adm) {
-      if (!rb || !hasAdminRoom() || !adm) return;
-      if ((rb.at || 0) > roomBlur.at) {
-        roomBlur = { lvl: blurLevel(rb.lvl), by: rb.by || '', at: rb.at || 0 };
-        updateBlurAllBtn();
-        if (enforceReconsent()) broadcastStatus(); // guest-blur ON pins my switch
-        refreshAllTiles();
-        refreshOutbound(); // room blur applies to MY broadcast too, at the source
-        paintControls();   // my blur slider (None gray/enabled) tracks the room's guest-blur
-      }
-    }
-    // UNBLURRED VIDEO ONLY WHERE MODERATION IS POSSIBLE. Plain rooms have no
-    // admin, so clear video needs UNANIMOUS agreement: the room goes clear
-    // only when every person here has turned their own blur fully off —
-    // nobody can demand others go clear while staying hidden themselves.
-    // (Admin rooms are governed by their admin instead; see blurLevelFor.)
-    // AGREEMENT to a clear room = your own blur set to None. We read the blur
-    // level directly (not a separate okc flag): setting blur to 0 IS the
-    // agreement, so the two can never disagree — and a peer on an older build
-    // that doesn't send okc still counts the moment their blur reads None,
-    // instead of silently wedging the whole room's consensus forever.
-    const agreedClear = (st) => !!st && blurLevel(st.blur) === 0;
-    function clearConsensus() {
-      if (hasAdminRoom()) return true;
-      if (!agreedClear(myStatus)) return false;
-      for (const pid of peers.keys()) { if (!agreedClear(statusOf.get(pid))) return false; }
+    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn(); }
+    // ============================ THE BLUR RULE ==============================
+    // ONE rule, computed identically on every device from shared state, drives
+    // BOTH the pixels a sender broadcasts and the CSS every receiver applies —
+    // so a given tile looks the same on every phone, always.
+    //
+    //   consent(tile)  = tile owner's camera is ON and their blur is None
+    //   clear(tile)    = room password is set
+    //                    AND no moderator block on the tile
+    //                    AND ( admin present ? consent(tile) : EVERYONE consents )
+    //   otherwise      → show max( Min blur, tile owner's own selection )
+    //
+    // Nothing else. No room-wide guest blur, no floors, no pinning.
+    const consents = (st) => !!st && !st.camOff && blurLevel(st.blur) === 0;
+    const adminPresent = () => hasAdminRoom() && admins.length > 0;
+    function allConsent() {
+      if (!consents(myStatus)) return false;
+      for (const pid of peers.keys()) { if (!consents(statusOf.get(pid))) return false; }
       return true;
     }
-    function consensusCount() {
-      let n = agreedClear(myStatus) ? 1 : 0;
-      for (const pid of peers.keys()) { if (agreedClear(statusOf.get(pid))) n++; }
+    function consentCount() {
+      let n = consents(myStatus) ? 1 : 0;
+      for (const pid of peers.keys()) { if (consents(statusOf.get(pid))) n++; }
       return n;
     }
-    // The blur a tile ends up showing = the strongest of: what they set on
-    // themselves, a targeted group-blur on them, (admin rooms) the room-wide
-    // guest blur — admins exempt — and the FLOOR. The floor rule: A PASSWORD
-    // IS THE KEY TO CLEAR VIDEO. No password on the room → everyone stays at
-    // least softly blurred, no exceptions — an open room a stranger (or a
-    // child) can wander into can never show clear video. On top of that,
-    // plain rooms need everyone's agreement, and admin rooms need an admin
-    // actually connected (nobody to moderate = nobody goes clear).
     function blurLevelFor(id) {
       const isMe = id === 'me';
-      const pid = isMe ? myId : id;
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
-      const self = blurLevel(st.blur);
-      const modB = (modOf(id).blur && modOf(id).blur.on) ? 2 : 0;
-      const roomB = (hasAdminRoom() && roomBlur.lvl && !isAdminPeer(pid)) ? roomBlur.lvl : 0;
-      let floorB = 0;
-      if (!roomPw) floorB = 1; // no password, no clear video — for anyone
-      if (!hasAdminRoom()) { if (!clearConsensus()) floorB = 1; }
-      else if (admins.length === 0 && !isAdminPeer(pid)) floorB = 1;
-      return Math.max(self, modB, roomB, floorB);
+      const blocked = !!(modOf(id).blur && modOf(id).blur.on);
+      const clear = !!roomPw && !blocked && (adminPresent() ? consents(st) : allConsent());
+      if (clear) return 0;
+      return Math.max(1, blurLevel(st.blur));
     }
-    // The blur floor depends on who is here and what they agreed to — one
-    // knob re-derives every tile AND the outbound pixels whenever statuses,
-    // occupancy, or admin presence change.
+    // One knob re-derives every tile AND the outbound pixels whenever statuses,
+    // occupancy, admin presence, or the password change.
     let lastCons = null;
     function reactRoomState() {
-      if (enforceReconsent()) broadcastStatus(); // a global block pinned my own switch safe
       refreshAllTiles();
       refreshOutbound();
       paintControls();
-      const c = clearConsensus();
-      if (c !== lastCons) {
-        if (lastCons !== null && !hasAdminRoom() && participantCount() > 1) {
-          setStatus(c ? 'Everyone agreed — this room is clear video now.'
-            : 'Back to blurred — clear video needs everyone here to agree.');
+      if (!adminPresent()) {
+        const c = allConsent();
+        if (c !== lastCons) {
+          if (lastCons !== null && participantCount() > 1 && roomPw) {
+            setStatus(c ? 'Everyone is ready — this room is clear video now.'
+              : 'Back to blurred — clear video needs everyone here ready (camera on, blur None).');
+          }
+          lastCons = c;
         }
-        lastCons = c;
       }
     }
 
@@ -582,12 +565,10 @@
       if (st.cc) chips.push('<span>📝 transcribing</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
-      const roomB = (hasAdminRoom() && roomBlur.lvl && !isAdminPeer(isMe ? myId : id)) ? roomBlur.lvl : 0;
       const bl = blurLevelFor(id);
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
-      else if (roomB && roomB >= blurLevel(st.blur)) chips.push('<span class="warn">🌫 guest blur' + (roomBlur.by ? ' by ' + esc(roomBlur.by) : '') + '</span>');
-      else if (bl && !blurLevel(st.blur)) chips.push('<span>🌫 ' + (!roomPw ? 'blurred — a room password is the key to clear video'
-        : hasAdminRoom() ? 'blurred while no admin is here' : 'blurred until everyone agrees to clear') + '</span>');
+      else if (bl && consents(st)) chips.push('<span>🌫 ' + (!roomPw ? 'blurred — a room password is the key to clear video'
+        : 'blurred until everyone is ready (camera on, blur None)') + '</span>');
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (st.camOff) chips.push('<span>📷 camera off</span>');
       // vote-off progress (non-admin rooms): show how close a tile is to removal
@@ -840,7 +821,7 @@
       let extra = '';
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
-        else if (!hasAdminRoom() && !clearConsensus()) extra = ' · blurred until everyone agrees (' + consensusCount() + '/' + n + ')';
+        else if (!adminPresent() && !allConsent()) extra = ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
@@ -945,7 +926,7 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, roomBlur, conns: myConns(), sid: mySid() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
         .catch(() => {});
     }
 
@@ -971,7 +952,6 @@
       // In admin rooms, group moderation is honored ONLY from relay-stamped
       // (verified admin) messages — gossip can't spoof an admin's authority.
       if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
-      applyRoomBlur(msg.roomBlur, adm);
       if (msg.conns) connsOf.set(from, msg.conns);
       if ('sid' in msg && p && p.ownSid !== msg.sid) { p.ownSid = msg.sid; claimOwnStream(p); }
       else if ('sid' in msg && p) claimOwnStream(p);
@@ -986,7 +966,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, roomBlur, conns: myConns(), sid: mySid() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
@@ -1005,7 +985,6 @@
         if (msg.conns) connsOf.set(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
         if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
-        applyRoomBlur(msg.roomBlur, adm);
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
@@ -1014,7 +993,6 @@
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
-        applyRoomBlur(msg.roomBlur, adm);
       }
     }
 
@@ -1032,7 +1010,7 @@
           else p = makePeer(pid, names[pid] || null); // their offer is on its way
           // Newcomers can't trust gossip for moderation in admin rooms — an
           // admin hands them the table over the relay's stamped path.
-          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable, roomBlur });
+          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
         }
         p.absentSince = 0;
         if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
@@ -1112,9 +1090,9 @@
       pwb.title = (hasAdmin && !amAdmin) ? 'This room\'s password is managed by its admin' : 'Lock this room with a password';
       // Vote-off only exists where there is no admin to ban bad actors.
       document.body.classList.toggle('canvote', !hasAdmin);
-      if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
       renderBanned();
-      refreshOutbound(); // admin status changes whether the room's guest blur applies to MY broadcast
+      if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
+      refreshOutbound(); // admin presence changes what clears
     }
 
     const pwKey = () => 'gifos_vpw_' + roomKey();
@@ -2062,29 +2040,7 @@
     const blurSeg = document.getElementById('blurseg');
     const blurSegs = Array.from(blurSeg.querySelectorAll('.seg'));
 
-    // A GLOBAL block (someone muted/blurred you for everyone) LOCKS your own
-    // switch and holds it safe. Even after the block is lifted your switch
-    // stays put — you must proactively re-consent to be seen/heard.
     function amGloballyMuted() { const m = modOf('me').mute; return !!(m && m.on); }
-    // A DELIBERATE block on me: someone blurred me for everyone, or an admin's
-    // "blur all guests" covers me. These are the ones that require re-consent
-    // after they lift.
-    function myModBlurFloor() {
-      let f = 0;
-      if (modOf('me').blur && modOf('me').blur.on) f = 2;
-      if (hasAdminRoom() && !amAdmin && roomBlur.lvl) f = Math.max(f, roomBlur.lvl);
-      return f;
-    }
-    // Everything currently keeping me blurred against my will (the above PLUS
-    // the transient "no admin connected" floor). Used to gate the slider — NOT
-    // the password floor, which only gates reaching None (handled separately).
-    function myBlurFloor() {
-      let f = myModBlurFloor();
-      if (hasAdminRoom() && !amAdmin && admins.length === 0) f = Math.max(f, 1);
-      return f;
-    }
-    const amGloballyBlurred = () => myBlurFloor() > 0;
-    function blurNoneAllowed() { return !!roomPw && myBlurFloor() === 0; }
 
     function paintControls() {
       // mic
@@ -2097,25 +2053,10 @@
       // camera
       camBtn.classList.toggle('off', myStatus.camOff);
       camBtn.title = myStatus.camOff ? 'Camera off — tap to turn on' : 'Camera on — tap to turn off';
-      // blur slider — you can always blur MORE, never below the floor others
-      // impose on you, and None only when clear video is actually allowed.
-      const floor = myBlurFloor(), lvl = Math.max(blurLevel(myStatus.blur), floor), noneOk = blurNoneAllowed();
-      blurSeg.classList.toggle('locked', floor > 0);
-      for (const seg of blurSegs) {
-        const v = +seg.dataset.blur;
-        seg.classList.toggle('sel', v === lvl);
-        // '.dis' (not native disabled) so a tap on a grayed option still fires
-        // and explains why it can't be chosen.
-        seg.classList.toggle('dis', v < floor || (v === 0 && !noneOk));
-      }
-    }
-    // Being globally blocked snaps your PERSONAL switch to a safe position and
-    // pins it there, so when the block lifts you are not auto-exposed.
-    function enforceReconsent() {
-      // Only a DELIBERATE block pins you — a momentary "no admin here" lull
-      // should not force everyone to re-consent when an admin reconnects.
-      if (myModBlurFloor() > 0 && blurLevel(myStatus.blur) === 0) { myStatus.blur = 1; myStatus.okc = false; return true; }
-      return false;
+      // blur slider: purely YOUR selection — the room rule (blurLevelFor)
+      // decides what actually shows; the slider never locks or grays.
+      const lvl = blurLevel(myStatus.blur);
+      for (const seg of blurSegs) seg.classList.toggle('sel', +seg.dataset.blur === lvl);
     }
 
     micBtn.onclick = () => {
@@ -2140,57 +2081,67 @@
       paintControls();
       refreshOutbound(); // camera on while blurring → start the blur canvas
       broadcastStatus();
+      reactRoomState();  // camera on/off changes your consent
     };
-    // The blur slider: pick Max / Min / None directly. None is disabled unless
-    // clear video is possible; clicking a disabled segment explains why. In a
-    // plain room, choosing None is your AGREEMENT — the room only clears once
-    // everyone has done the same.
-    function explainBlur(v) {
-      if (amGloballyBlurred()) { setStatus('You are blurred for everyone right now — you can’t lower your own blur until that is lifted.'); return; }
-      if (v === 0 && !roomPw) {
-        setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
-          ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
-          : 'Anyone here can set one with the Password button.'));
-      }
-    }
+    // The blur slider: pick Max / Min / None directly. It records YOUR choice;
+    // whether a tile actually goes clear is the room rule's call — when your
+    // None can't show yet, the status line says exactly why.
     function setPersonalBlur(v) {
-      if (v === 0 && !blurNoneAllowed()) { explainBlur(0); return; }
       myStatus.blur = v;
-      myStatus.okc = (v === 0); // None = your agreement to a clear room
       paintControls();
       refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
       broadcastStatus();
       reactRoomState();
-      if (v === 0 && !hasAdminRoom() && !clearConsensus()) {
-        setStatus('You set Blur to None — but the room stays blurred until EVERYONE does (' + consensusCount() + ' of ' + participantCount() + ' so far).');
-      } else if (v === 0) {
+      if (v !== 0) return;
+      const blocked = !!(modOf('me').blur && modOf('me').blur.on);
+      if (!roomPw) {
+        setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
+          ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
+          : 'Anyone here can set one with the Password button.'));
+      } else if (blocked) {
+        setStatus('A moderator has blurred you for everyone — your video stays blurred until it is lifted.');
+      } else if (myStatus.camOff) {
+        setStatus('Blur set to None — turn your camera on to be ready for clear video.');
+      } else if (!adminPresent() && !allConsent()) {
+        setStatus('You are ready for clear video — it shows when everyone here is (camera on, blur None: ' + consentCount() + ' of ' + participantCount() + ').');
+      } else {
         setStatus('Blur off.');
       }
     }
     for (const seg of blurSegs) {
-      seg.onclick = () => {
-        if (seg.classList.contains('dis')) { explainBlur(+seg.dataset.blur); return; }
-        setPersonalBlur(+seg.dataset.blur);
-      };
+      seg.onclick = () => setPersonalBlur(+seg.dataset.blur);
     }
-    // Admin "blur all guests" — 3-state, applies to every non-admin. Starts at
-    // plain (an admin room already defaults guests to plain), cycles plain →
-    // max → off → plain. Admin-only; changes ride the relay's stamped path.
+    // "Blur guests" (admin) — a SHORTCUT for the per-tile moderator block:
+    // toggling it blocks (or unblocks) every non-admin at once, using exactly
+    // the same modTable.blur the Blur-for-everyone tile button uses. One-shot,
+    // not a standing rule: new joiners aren't auto-blocked (they arrive blurred
+    // by default until they consent anyway).
     const blurAllBtn = document.getElementById('blurall');
+    function guestPeers() { return Array.from(peers.keys()).filter((pid) => !admins.includes(pid)); }
+    function allGuestsBlocked() {
+      const g = guestPeers();
+      return g.length > 0 && g.every((pid) => modOf(pid).blur && modOf(pid).blur.on);
+    }
     function updateBlurAllBtn() {
       blurAllBtn.style.display = amAdmin ? '' : 'none';
       if (!amAdmin) return;
-      const lvl = roomBlur.lvl | 0;
-      blurAllBtn.textContent = lvl === 0 ? 'Blur guests: off' : lvl === 2 ? 'Blur guests: max' : 'Blur guests: on';
-      blurAllBtn.classList.toggle('on', lvl > 0);
+      const on = allGuestsBlocked();
+      blurAllBtn.classList.toggle('on', on);
+      blurAllBtn.textContent = on ? 'Unblur guests' : 'Blur guests';
     }
     blurAllBtn.onclick = () => {
       if (!amAdmin) return;
-      const lvl = roomBlur.lvl | 0;
-      const next = lvl === 1 ? 2 : lvl === 2 ? 0 : 1;
-      roomBlur = { lvl: next, by: myName(), at: Date.now() };
-      updateBlurAllBtn(); refreshAllTiles();
-      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable, roomBlur });
+      const on = !allGuestsBlocked(); // flip: block all, or unblock all
+      const now = Date.now();
+      let changed = false;
+      for (const pid of guestPeers()) {
+        const mine = modTable[pid] = modTable[pid] || {};
+        mine.blur = { on, by: myName(), byId: myId, at: now };
+        changed = true;
+      }
+      if (changed) for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      refreshAllTiles(); updateBlurAllBtn();
+      setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
     function toggleVote(id) {
       if (hasAdminRoom()) return; // admin rooms use the admin's ban, not votes
@@ -2250,12 +2201,12 @@
       blurClassOf: (id) => { if (id === 'me') return blurLevelFor('me'); const t = peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
       // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
       outboundKind: () => (blurPipe && blurLevelFor('me') > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
-      roomBlur: () => roomBlur.lvl,
       voteNeed: () => voteNeed,
       votesAgainst: (id) => voteTally[devOf[id]] || 0,
       myVoteCount: () => myVoteoffs.size,
-      okClear: () => !!myStatus.okc,
-      consensus: () => clearConsensus(),
+      consensus: () => allConsent(),
+      consentCount: () => consentCount(),
+      adminPresent: () => adminPresent(),
       adminsHere: () => admins.slice(),
       ips: () => Object.assign({}, ipsOf),
       // ---- stream-identity + gossip-health hooks (glitch hunting) ----
