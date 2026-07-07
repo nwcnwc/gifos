@@ -131,9 +131,28 @@
 
   // ---- the pack registry -----------------------------------------------------
   const packs = {};
+  const loading = {};
+  // Packs load LAZILY by convention (js/gifos-pack-<name>.js): only the active
+  // computer's pack ever downloads. The default packs stay as eager script tags
+  // for an instant first paint; a missing/broken pack file resolves undefined
+  // and the caller falls back to the flagship.
+  function ensure(name) {
+    if (packs[name]) return Promise.resolve(packs[name]);
+    if (!root.document) return Promise.resolve(undefined);
+    if (!loading[name]) {
+      loading[name] = new Promise((res) => {
+        const s = root.document.createElement('script');
+        s.src = 'js/gifos-pack-' + encodeURIComponent(name) + '.js';
+        s.onload = () => res(); s.onerror = () => res();
+        root.document.head.appendChild(s);
+      });
+    }
+    return loading[name].then(() => packs[name]);
+  }
   GifOS.iconPacks = {
     register(name, pack) { packs[name] = pack; },
     get(name) { return packs[name]; },
+    ensure,
     // The computer's theme names its pack; missing/unknown packs fall back to
     // the flagship so a half-deployed theme still boots with working icons.
     active() {
@@ -148,15 +167,19 @@
   const SUBJECTS = {};
   const subjectFor = (appId) => SUBJECTS[appId] || appId;
 
-  // Render an app's icon as an animated GIF through the ACTIVE pack. Unknown
-  // subjects get the pack's own lettered fallback, so every app has art.
+  // Render an app's icon as an animated GIF through the ACTIVE pack (lazy-
+  // loading it on first use). Unknown subjects get the pack's own lettered
+  // fallback, so every app has art.
   function renderApp(appId, accent) {
     accent = accent || [123, 92, 255];
-    const pack = GifOS.iconPacks.active();
-    const subject = subjectFor(appId);
-    const frames = pack.draw(subject, accent)
-      || pack.fallback((appId || '?')[0].toUpperCase(), accent);
-    return rasterize(frames, pack.size || S, pack.delayCs || DELAY, { dither: pack.dither || 0 });
+    const want = (GifOS.theme && GifOS.theme.pack) || 'aurora';
+    return ensure(want).then((loaded) => {
+      const pack = loaded || packs.aurora || packs.sticker;
+      const subject = subjectFor(appId);
+      const frames = pack.draw(subject, accent)
+        || pack.fallback((appId || '?')[0].toUpperCase(), accent);
+      return rasterize(frames, pack.size || S, pack.delayCs || DELAY, { dither: pack.dither || 0 });
+    });
   }
 
   GifOS.icons = { renderApp, renderFrames, rasterize,
