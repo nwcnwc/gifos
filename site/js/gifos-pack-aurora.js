@@ -15,7 +15,9 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (!GifOS.iconPacks) return;
 
-  const FR = 6, SIZE = 128, DELAY = 12;
+  // 192px raster = pixel-perfect on 3x phone screens (icons display at 64 CSS
+  // px). The art is drawn in a 128 viewBox and scales up losslessly (SVG).
+  const FR = 6, SIZE = 192, DELAY = 12;
   const range = (n) => Array.from({ length: n }, (_, i) => i);
   const clamp = (n) => Math.max(0, Math.min(255, Math.round(n)));
 
