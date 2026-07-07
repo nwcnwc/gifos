@@ -1289,10 +1289,9 @@
           for (const old of localStream.getTracks()) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
           if (nv) localStream.addTrack(nv);
           if (na) localStream.addTrack(na);
-          if (meTile) meTile.video.srcObject = localStream;
           meterFor('me', localStream);
           stopBlurPipe();   // the old blur canvas read the dead camera track
-          refreshOutbound(); // rebuild the (blurred or raw) video sender + adapt
+          refreshOutbound(); // rebuild the (blurred or raw) sender AND the WYSIWYG self-view
         }).catch(() => {});
     }
 
