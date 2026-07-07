@@ -20,7 +20,7 @@
   .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
-  .bar button:hover { border-color: #7b5cff; }
+  @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: #7b5cff; } }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
   /* Mic / camera as traffic-light icons: green (live) or red with a slash (off). */
   .iconbtn { display: inline-flex; align-items: center; justify-content: center; padding: .3rem .5rem;
@@ -39,7 +39,9 @@
   .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid #2a2a3f; border-radius: 0;
                   background: #1c1c2b; color: #b8b8cc; font-size: .74rem; cursor: pointer; }
   .segwrap .seg:last-child { border-right: none; }
-  .segwrap .seg:hover:not(:disabled) { background: #26263a; }
+  /* Only real pointers get a hover tint — on touch, :hover STICKS to the last
+     tapped segment and reads as a phantom second selection. */
+  @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover:not(.dis) { background: #26263a; } }
   .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
   .segwrap .seg.dis { opacity: .38; cursor: not-allowed; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
