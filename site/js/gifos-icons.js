@@ -1,21 +1,35 @@
 /*
- * gifos-icons.js — Custom, hand-designed animated artwork for each app,
- * rasterized (canvas) into GIF frames with an adaptive palette so the real
- * colors survive. This is NOT a procedural icon generator — each app has its
- * own drawn SVG. The result is packed into the app's GIF and displayed as-is.
+ * gifos-icons.js — animated app icons, rasterized (canvas) into GIF frames
+ * with an adaptive palette, plus the ICON PACK system that lets each themed
+ * computer (0–9.gifos.app) speak a completely different art language.
  *
- * Style: cute outlined "sticker" characters — thick ink outlines, kawaii
- * faces, a little grass mound to stand on, a cream die-cut rim, and a fully
- * TRANSPARENT background (the GIF's palette index 0 is transparent), so the
- * icons float on any wallpaper like stickers.
+ * A PACK is a self-contained art module registered with GifOS.iconPacks:
  *
- * Browser-only (needs canvas). Attaches to `GifOS.icons`.
+ *   GifOS.iconPacks.register('name', {
+ *     size: 96, frames: 6, delayCs: 12,          // its own raster + tempo
+ *     draw(subject, accent)  -> [Frame] | null,  // the whole style lives here
+ *     fallback(letter, accent) -> [Frame],       // unknown apps still get art
+ *   });
+ *
+ * A Frame is any of: an SVG string (procedural vector), a data:/blob: image
+ * URL (baked renders, e.g. AI art), or a painter function (ctx, size, f)
+ * (direct canvas — true pixel art). The rasterizer normalizes all three and
+ * the adaptive-palette GIF encode is shared. Packs draw SUBJECTS (semantic
+ * names like 'notes', 'video', 'folder'), so future apps and Easter eggs work
+ * in every pack, and each pack ships its own lettered fallback.
+ *
+ * The active pack comes from the computer's theme (gifos-themes.js). This
+ * file also ships the original hand-drawn 'sticker' pack: cute outlined
+ * kawaii characters on a grass mound with a cream die-cut rim, on a fully
+ * TRANSPARENT background (palette index 0), floating like stickers.
+ *
+ * Browser-only (needs canvas). Attaches to `GifOS.icons` + `GifOS.iconPacks`.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
-  const S = 64;            // icon size (matches the desktop's default icon px)
-  const FR = 4;            // animation frames — small, to keep App GIFs light
-  const DELAY = 13;        // centiseconds per frame
+  const S = 64;            // sticker pack raster size (desktop default icon px)
+  const FR = 4;            // sticker pack frames — small, to keep App GIFs light
+  const DELAY = 13;        // sticker pack centiseconds per frame
 
   const range = (n) => Array.from({ length: n }, (_, i) => i);
   const clamp = (n) => Math.max(0, Math.min(255, n | 0));
@@ -419,16 +433,7 @@
     }),
   };
 
-  // ---- render SVG frames → animated GIF preview (adaptive palette) ----------
-  function loadSvg(svg) {
-    return new Promise((res, rej) => {
-      const img = new Image();
-      img.onload = () => res(img);
-      img.onerror = () => rej(new Error('svg load failed'));
-      img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
-    });
-  }
-
+  // ---- rasterize frames → animated GIF (adaptive palette) -------------------
   // Palette index 0 is reserved as the TRANSPARENT color; visible colors live
   // in 1..255. Transparent pixels never influence the adaptive palette.
   function buildPalette(rgbFrames) {
@@ -460,32 +465,86 @@
     return { palette, map };
   }
 
-  function renderFrames(svgFrames) {
-    const canvas = document.createElement('canvas');
-    canvas.width = S; canvas.height = S;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    return Promise.all(svgFrames.map(loadSvg)).then((imgs) => {
-      const rgbFrames = imgs.map((img) => { ctx.clearRect(0, 0, S, S); ctx.drawImage(img, 0, 0, S, S); return ctx.getImageData(0, 0, S, S).data; });
-      const { palette, map } = buildPalette(rgbFrames);
-      const frames = rgbFrames.map((data) => { const idx = new Uint8Array(S * S); for (let p = 0; p < S * S; p++) idx[p] = map(data[p * 4], data[p * 4 + 1], data[p * 4 + 2], data[p * 4 + 3]); return idx; });
-      return { width: S, height: S, palette, numColors: 256, minCodeSize: 8, frames, delayCs: DELAY, transparentIndex: 0 };
+  // Normalize ONE frame of any supported kind onto the canvas.
+  //   string starting with '<'      → SVG document
+  //   string starting with 'data:'/'blob:' → pre-baked image (AI renders)
+  //   function                      → painter: fn(ctx, size, frameIndex)
+  function paintFrame(ctx, size, frame, f) {
+    ctx.clearRect(0, 0, size, size);
+    if (typeof frame === 'function') { frame(ctx, size, f); return Promise.resolve(); }
+    const src = (typeof frame === 'string' && frame[0] === '<')
+      ? 'data:image/svg+xml,' + encodeURIComponent(frame) : frame;
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, 0, 0, size, size); res(); };
+      img.onerror = () => rej(new Error('frame load failed'));
+      img.src = src;
     });
   }
 
-  // Render an app's custom icon as an animated GIF preview. Falls back to a
-  // lettered blob buddy for unknown apps.
-  function renderApp(appId, accent) {
-    accent = accent || [123, 92, 255];
-    const art = ART[appId];
-    if (art) return renderFrames(art(accent));
-    const letter = (appId || '?')[0].toUpperCase();
-    const svgs = range(FR).map((f) => sticker(ground()
-      + "<g transform='translate(0," + bob(f) + ")'>"
-      + "<rect x='28' y='36' width='40' height='40' rx='13' fill='" + rgb(accent) + "' stroke='" + INK + "' stroke-width='3'/>"
-      + "<text x='48' y='66' font-family='system-ui,sans-serif' font-size='26' font-weight='800' fill='" + PAPER + "' text-anchor='middle'>" + letter + "</text>"
-      + "</g>"));
-    return renderFrames(svgs);
+  // Rasterize a list of frames (any kind) → animated GIF descriptor.
+  function rasterize(frames, size, delayCs) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const rgbFrames = [];
+    let chain = Promise.resolve();
+    frames.forEach((frame, f) => {
+      chain = chain.then(() => paintFrame(ctx, size, frame, f))
+        .then(() => { rgbFrames.push(ctx.getImageData(0, 0, size, size).data); });
+    });
+    return chain.then(() => {
+      const { palette, map } = buildPalette(rgbFrames);
+      const idxFrames = rgbFrames.map((data) => { const idx = new Uint8Array(size * size); for (let p = 0; p < size * size; p++) idx[p] = map(data[p * 4], data[p * 4 + 1], data[p * 4 + 2], data[p * 4 + 3]); return idx; });
+      return { width: size, height: size, palette, numColors: 256, minCodeSize: 8, frames: idxFrames, delayCs, transparentIndex: 0 };
+    });
   }
 
-  GifOS.icons = { renderApp, renderFrames, has: (id) => !!ART[id] };
+  // Back-compat: SVG frames at the sticker pack's size/tempo.
+  function renderFrames(svgFrames) { return rasterize(svgFrames, S, DELAY); }
+
+  // ---- the pack registry -----------------------------------------------------
+  const packs = {};
+  GifOS.iconPacks = {
+    register(name, pack) { packs[name] = pack; },
+    get(name) { return packs[name]; },
+    // The computer's theme names its pack; missing/unknown packs fall back to
+    // the flagship so a half-deployed theme still boots with working icons.
+    active() {
+      const want = (GifOS.theme && GifOS.theme.pack) || 'aurora';
+      return packs[want] || packs.aurora || packs.sticker;
+    },
+  };
+
+  // Subject vocabulary: packs draw SUBJECTS, not appIds. Today the two are the
+  // same names; this map is the seam where future aliases land so old appIds
+  // keep resolving if a subject is ever renamed.
+  const SUBJECTS = {};
+  const subjectFor = (appId) => SUBJECTS[appId] || appId;
+
+  // ---- the original hand-drawn sticker pack ---------------------------------
+  GifOS.iconPacks.register('sticker', {
+    size: S, frames: FR, delayCs: DELAY,
+    draw(subject, accent) { const art = ART[subject]; return art ? art(accent) : null; },
+    fallback(letter, accent) {
+      return range(FR).map((f) => sticker(ground()
+        + "<g transform='translate(0," + bob(f) + ")'>"
+        + "<rect x='28' y='36' width='40' height='40' rx='13' fill='" + rgb(accent) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<text x='48' y='66' font-family='system-ui,sans-serif' font-size='26' font-weight='800' fill='" + PAPER + "' text-anchor='middle'>" + letter + "</text>"
+        + "</g>"));
+    },
+  });
+
+  // Render an app's icon as an animated GIF through the ACTIVE pack. Unknown
+  // subjects get the pack's own lettered fallback, so every app has art.
+  function renderApp(appId, accent) {
+    accent = accent || [123, 92, 255];
+    const pack = GifOS.iconPacks.active();
+    const subject = subjectFor(appId);
+    const frames = pack.draw(subject, accent)
+      || pack.fallback((appId || '?')[0].toUpperCase(), accent);
+    return rasterize(frames, pack.size || S, pack.delayCs || DELAY);
+  }
+
+  GifOS.icons = { renderApp, renderFrames, rasterize, has: (id) => !!ART[id] };
 })(typeof window !== 'undefined' ? window : globalThis);
