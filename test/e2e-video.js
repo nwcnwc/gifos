@@ -532,6 +532,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 10000 });
   check('admin room auto-blurs guests at plain even after they self-unblur', true);
+  // …and not just on viewers' screens: Beth's own browser BROADCASTS blurred
+  // pixels — the room guest-blur is baked in at the source, DOM-edit-proof.
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 10000 });
+  check('room guest-blur is enforced at the SENDER (guest broadcasts blurry pixels)', true);
   check('vote-off is HIDDEN in admin rooms (admins ban instead)',
     (await adam.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) === 'none');
   // Admin turns off their OWN self-blur — guest-blur must not touch admins.
@@ -553,6 +557,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 0, null, { timeout: 5000 });
   await beth.waitForFunction(() => window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 8000 });
   check('admin can lift guest-blur entirely', true);
+  // With room blur lifted and her self-blur off, Beth broadcasts raw again —
+  // the sender pipe tracks the room state in BOTH directions.
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
+  check('lifting guest-blur releases the sender-side pipe (broadcast returns to raw)', true);
 
   // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();

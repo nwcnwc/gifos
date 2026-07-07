@@ -330,7 +330,7 @@
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) refreshAllTiles();
+      if (changed) { refreshAllTiles(); refreshOutbound(); } // a group-blur on ME re-blurs my own broadcast
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -349,6 +349,7 @@
       if ((rb.at || 0) > roomBlur.at) {
         roomBlur = { lvl: blurLevel(rb.lvl), by: rb.by || '', at: rb.at || 0 };
         updateBlurAllBtn(); refreshAllTiles();
+        refreshOutbound(); // room blur applies to MY broadcast too, at the source
       }
     }
     // The blur a tile ends up showing = the strongest of: what they set on
@@ -579,12 +580,15 @@
       draw();
       return pipe.track;
     }
-    // The video track to actually SEND: blurred canvas when self-blur is on and
-    // the camera is live; the raw camera track otherwise.
+    // The video track to actually SEND: the strongest blur that applies to me
+    // — my own setting, a group-blur targeted at me, or the room's guest blur
+    // — is baked into the broadcast pixels at the source. "Blurred" is never
+    // viewer-side cosmetics alone: what leaves this browser is already blurry.
     function sentVideoTrack() {
       const cam = localStream && localStream.getVideoTracks()[0];
       if (!cam) return null;
-      if (blurLevel(myStatus.blur) > 0 && !myStatus.camOff) return startBlurPipe(blurLevel(myStatus.blur)) || cam;
+      const lvl = blurLevelFor('me');
+      if (lvl > 0 && !myStatus.camOff) return startBlurPipe(lvl) || cam;
       stopBlurPipe();
       return cam;
     }
@@ -836,6 +840,7 @@
       document.body.classList.toggle('canvote', !hasAdmin);
       if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
       renderBanned();
+      refreshOutbound(); // admin status changes whether the room's guest blur applies to MY broadcast
     }
 
     const pwKey = () => 'gifos_vpw_' + roomKey();
@@ -1807,7 +1812,7 @@
       // effective blur SHOWN on a tile (receiver-side): 0/1/2
       blurClassOf: (id) => { const t = id === 'me' ? meTile : peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
       // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
-      outboundKind: () => (blurPipe && blurLevel(myStatus.blur) > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
+      outboundKind: () => (blurPipe && blurLevelFor('me') > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
       roomBlur: () => roomBlur.lvl,
       voteNeed: () => voteNeed,
       votesAgainst: (id) => voteTally[id] || 0,
