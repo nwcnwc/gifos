@@ -94,7 +94,7 @@ Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cl
 ## Security Model (short version)
 
 - Apps run in a **sandboxed iframe with an opaque origin** — no cookies, no localStorage, no reach into the desktop's storage. Each icon's data is keyed by its fileId; apps cannot name another icon's data.
-- An injected **CSP** (`default-src 'none'`, `connect-src 'none'`) blocks every direct network primitive; `RTCPeerConnection` is neutered in the app shim. The **only** way out is `gifos.fetch()`, which enforces the manifest's host allowlist.
+- An injected **CSP** (`default-src 'none'`, `connect-src 'none'`) blocks every direct network primitive — `fetch`/`XHR`/`WebSocket`/`EventSource`, and workers too (no `worker-src`); `RTCPeerConnection` is neutered in the app shim. The **only** way out is `gifos.fetch()`, which enforces the manifest's host allowlist, requires `https://`, refuses the GifOS origin itself, and never attaches credentials.
 - Live camera/mic apps (Video Call) therefore can't be sandboxed apps — they're **system apps**: the icon is a GIF whose manifest names a whitelisted first-party page. Manifests cannot route to arbitrary URLs.
 - The relay is a dumb pipe with a **token-bucket bandwidth guard** (1 MB burst for app delivery, ~384 Kbps sustained) — enforced server-side, so nobody can tunnel media through it.
 

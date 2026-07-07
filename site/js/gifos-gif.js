@@ -143,9 +143,27 @@
     const stream = new Blob([bytes]).stream().pipeThrough(new root.CompressionStream('deflate-raw'));
     return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
   }
+  // Inflate with a hard OUTPUT ceiling so a tiny malicious payload can't expand
+  // into a memory-bomb: read the decompressed stream chunk-by-chunk and abort
+  // the moment it would exceed the cap (64 MB is far above any real app).
+  const INFLATE_MAX_BYTES = 64 * 1024 * 1024;
   function inflate(bytes) {
     const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
-    return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
+    const reader = stream.getReader();
+    const chunks = []; let total = 0;
+    return (function pump() {
+      return reader.read().then(({ done, value }) => {
+        if (done) {
+          const out = new Uint8Array(total); let o = 0;
+          for (const c of chunks) { out.set(c, o); o += c.length; }
+          return out;
+        }
+        total += value.length;
+        if (total > INFLATE_MAX_BYTES) { try { reader.cancel(); } catch (e) {} throw new Error('decompressed payload too large'); }
+        chunks.push(value);
+        return pump();
+      });
+    })();
   }
 
   // ---- payload builder (shared by encode and repack) -----------------------
