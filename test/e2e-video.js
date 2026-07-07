@@ -113,17 +113,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 10000 });
   check('plain blur shows as blur1 on every other screen', true);
-  // Turning blur fully off asks first — accept the confirm, then Ada sees clear.
+  // Turning blur fully off asks first — and in a PLAIN room it is only your
+  // AGREEMENT: clear video needs every person here to turn their own blur off.
   bPage.once('dialog', (d) => d.accept());
   await bPage.locator('#blur').click();
-  check('a second tap (confirmed) turns blur off',
-    (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 0);
+  check('a second tap (confirmed) turns your blur off — which is your agreement to a clear room',
+    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.okClear()));
+  await sleep(800); // let the agreement gossip settle
+  check('one agreement is not enough — Bob still shows blurred on every screen', await aPage.evaluate(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && t.querySelector('video').classList.contains('blur1');
+  }));
+  check('…and Bob still BROADCASTS blurred pixels (the floor is sender-enforced)',
+    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
+  // Ada and Cai agree too — each turns their own blur off — and the room clears.
+  await aPage.locator('#blur').click();
+  aPage.once('dialog', (d) => d.accept());
+  await aPage.locator('#blur').click();
+  await cPage.locator('#blur').click();
+  cPage.once('dialog', (d) => d.accept());
+  await cPage.locator('#blur').click();
+  await bPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 10000 });
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
     return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
-  check('with blur off, Bob is clear on every screen — and broadcasts raw',
-    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'raw');
+  check('when EVERYONE here agrees, the whole room goes clear', true);
+  await bPage.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 10000 });
+  check('…and Bob broadcasts raw now', true);
   // Cancelling the confirm keeps blur on (re-blur to max first, then cancel-off).
   await bPage.locator('#blur').click(); // off → max
   await bPage.locator('#blur').click(); // max → plain
@@ -455,6 +472,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const openRoom = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('console', (m) => { if (m.type() === 'error') console.log('  [' + label + ']', m.text()); });
+    pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
     await pg.goto(BASE + '/video.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
@@ -501,7 +519,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.locator('#admbtn').click();
   await beth.locator('#adm-pass').fill('wrong-guess');
   await beth.locator('#adm-enable').click();
-  await beth.waitForFunction(() => /Wrong admin password/.test(document.getElementById('status').textContent), null, { timeout: 30000 });
+  try {
+    await beth.waitForFunction(() => /Wrong admin password/.test(document.getElementById('status').textContent), null, { timeout: 30000 });
+  } catch (e) {
+    console.log('  [debug] beth status:', await beth.evaluate(() => document.getElementById('status').textContent));
+    console.log('  [debug] beth state:', await beth.evaluate(() => JSON.stringify({
+      amAdmin: window.__gifosVideo.amAdmin(), hasAdmin: window.__gifosVideo.hasAdmin(),
+      parts: window.__gifosVideo.participants(), modal: document.getElementById('adm-modal').style.display,
+    })));
+    throw e;
+  }
   await beth.locator('#adm-close').click();
   check('a wrong admin password is rejected', !(await beth.evaluate(() => window.__gifosVideo.amAdmin())));
   check('non-admin loses the password button', await beth.locator('#pwbtn').isDisabled());
@@ -562,6 +589,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
   check('lifting guest-blur releases the sender-side pipe (broadcast returns to raw)', true);
 
+  // WHERE NO MODERATION IS POSSIBLE, NO CLEAR VIDEO: the admin walks away →
+  // nobody is left who could moderate → everyone auto-blurs (sender-side too)
+  // until an admin is connected again.
+  const adamUrl = adam.url();
+  await adam.goto('about:blank');
+  await beth.waitForFunction(() => window.__gifosVideo.adminsHere().length === 0
+    && window.__gifosVideo.blurClassOf('me') === 1
+    && window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 15000 });
+  check('an admin room with NO admin connected auto-blurs everyone (nobody to moderate = nobody clear)', true);
+  await adam.goto(adamUrl); // his stored key signs him straight back in
+  await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
+  await beth.waitForFunction(() => window.__gifosVideo.adminsHere().length > 0
+    && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 15000 });
+  check('the admin returning lifts the automatic blur', true);
+
   // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();
   await bethTile.click();
@@ -620,6 +662,39 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('ban survives a fully-emptied room via the admin\'s copy', true);
   await adam2.close(); await bethAgain.close();
 
+  // ================= adults-only gate (admin rooms) ============================
+  // The admin can mark the room adults-only, with an optional challenge
+  // question enforced BY THE RELAY (like the room password) — a joiner who
+  // can't answer never connects. No adult language exists anywhere else.
+  await sleep(600);
+  const adamA = await openRoom(adamCtx, 'adamA', admHash);
+  await adamA.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
+  await adamA.locator('#admbtn').click();
+  await adamA.locator('#adult-on').check();
+  await adamA.locator('#adult-set-q').fill('What is two plus two, in digits?');
+  await adamA.locator('#adult-set-a').fill('4');
+  await adamA.locator('#adult-save').click();
+  await adamA.waitForFunction(() => window.__gifosVideo.adult().on, null, { timeout: 8000 });
+  check('the admin can switch the room to adults-only with a challenge question', true);
+  const ginaCtx = await newUser('Gina');
+  const gina = await openRoom(ginaCtx, 'gina', admHash);
+  await gina.waitForSelector('#adult-modal', { state: 'visible', timeout: 12000 });
+  check('a new joiner is stopped by the adults-only warning — with the question',
+    /two plus two/.test(await gina.locator('#adult-q').textContent()));
+  await gina.locator('#adult-a').fill('5');
+  await gina.locator('#adult-go').click();
+  await gina.waitForFunction(() => /was not right/.test(document.getElementById('adult-hint').textContent)
+    && document.getElementById('adult-modal').style.display !== 'none', null, { timeout: 10000 });
+  check('a wrong answer does not get you in', true);
+  await gina.locator('#adult-a').fill(' 4 '); // sloppy spacing still counts
+  await gina.locator('#adult-go').click();
+  await adamA.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 15000 });
+  check('the right answer admits you', true);
+  const gina2 = await openRoom(ginaCtx, 'gina2', admHash); // the device remembers its pass
+  await gina2.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 15000 });
+  check('the pass is remembered — a reload walks straight back in', true);
+  await gina2.close(); await gina.close(); await adamA.close();
+
   // ================= vote off the island (non-admin rooms) ====================
   // No admin exists to ban a bad actor, so the ROOM does: a red ✕ on each tile,
   // and at half the occupants the relay kicks + bans that device. Three people;
@@ -647,6 +722,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await vicRejoin.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('a vote-kicked device cannot rejoin the room', true);
   await vicRejoin.close(); await vic.close(); await pat.close(); await quinn.close();
+
+  // ================= eternal ban lists (plain rooms) ===========================
+  // The relay forgets an emptied room — but every participant carried the ban
+  // list away in their own storage, and it MERGES back in on return. A banned
+  // device that sneaks into the forgotten room is booted the moment one
+  // witness walks back in. Ban lists in plain rooms only ever grow.
+  await sleep(600); // the emptied room forgets everything
+  const vicSneak = await openRoom(vicCtx, 'vic3', vHash);
+  await vicSneak.waitForFunction(() => window.__gifosVideo.participants() >= 1
+    && !window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
+  await sleep(400);
+  check('an emptied plain room forgets its bans — the banned device slips back in',
+    !(await vicSneak.evaluate(() => window.__gifosVideo.bannedOut())));
+  const patBack = await openRoom(patCtx, 'pat2', vHash); // Pat remembers yesterday
+  await vicSneak.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
+  check('one returning witness re-arms every ban they saw — the bad actor is booted on the spot', true);
+  const vicAgain = await openRoom(vicCtx, 'vic4', vHash);
+  await vicAgain.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
+  check('the re-armed ban keeps the device out', true);
+  await vicAgain.close(); await vicSneak.close();
+
+  // ================= nobody is anonymous (IP transparency) ====================
+  // P2P means everyone can already learn everyone's address — GifOS shows it:
+  // the status pill opens the room's who-is-here list, downloadable as a
+  // record you can hand to the authorities if someone truly crosses the line.
+  await patBack.locator('#status').click();
+  await patBack.waitForSelector('#who-modal', { state: 'visible', timeout: 6000 });
+  const whoText = await patBack.locator('#who-list').textContent();
+  check('the status pill opens "who is on this call" — names with network addresses',
+    /Pat \(you\)/.test(whoText) && /127\.0\.0\.1|address unknown/.test(whoText));
+  check('every row carries a real address (the local relay reports 127.0.0.1)', /127\.0\.0\.1/.test(whoText));
+  const [dl] = await Promise.all([
+    patBack.waitForEvent('download', { timeout: 8000 }),
+    patBack.locator('#who-dl').click(),
+  ]);
+  check('the list downloads as a file you can hand to the authorities',
+    /^gifos-call-.*\.txt$/.test(dl.suggestedFilename()));
+  await patBack.close();
 
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nALL PASS');
