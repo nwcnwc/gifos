@@ -235,6 +235,25 @@
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
     blobUrls.clear();
   }
+  // Cache hygiene for very large computers: the byte cache and object URLs would
+  // otherwise grow with every file ever shown. After each paint, trim the oldest
+  // entries that aren't currently on screen (a re-read is cheap, and nothing
+  // mounted references a revoked URL — off-folder icons aren't in the DOM).
+  const CACHE_CAP = 300;
+  function pruneFileCaches(keepFileIds) {
+    if (fileCache.size > CACHE_CAP) {
+      for (const id of fileCache.keys()) {
+        if (fileCache.size <= CACHE_CAP) break;
+        if (!keepFileIds.has(id)) fileCache.delete(id);
+      }
+    }
+    if (blobUrls.size > CACHE_CAP) {
+      for (const [id, url] of blobUrls) {
+        if (blobUrls.size <= CACHE_CAP) break;
+        if (!keepFileIds.has(id)) { URL.revokeObjectURL(url); blobUrls.delete(id); }
+      }
+    }
+  }
   // Everything that changes how an icon LOOKS or WHERE it sits. Bytes aren't in
   // the key — forgetFile() evicts the node directly when bytes change — so a
   // repaint after a mere selection/drag reuses the untouched nodes.
@@ -254,6 +273,7 @@
   // whose look is unchanged, then swap the set in atomically; a superseded
   // render bails before touching the DOM, so no duplicate icons.
   let renderSeq = 0;
+  let renderStats = null;
   async function render() {
     const seq = ++renderSeq;
     const visible = items.filter((it) => (it.parent || null) === currentFolder);
@@ -263,6 +283,7 @@
     // Reconcile: reuse the cached node when its key matches, rebuild only what
     // changed, and keep selection in sync on the survivors.
     const keep = new Set();
+    let reused = 0;
     const els = visible.map((it, i) => {
       const key = iconKey(it, files[i]);
       let entry = iconCache.get(it.id);
@@ -275,6 +296,7 @@
         entry.el.style.left = (it.x || 16) + 'px';
         entry.el.style.top = (it.y || 16) + 'px';
         entry.el.classList.toggle('selected', it.id === selectedId);
+        reused++;
       }
       keep.add(it.id);
       return entry.el;
@@ -295,6 +317,12 @@
     dropHint.style.display = visible.length ? '' : 'none'; // the empty hint explains instead
     updateExtent();
     applyBackground();
+    pruneFileCaches(new Set(visible.map((it) => it.fileId)));
+    // Lightweight observability: how big the last paint was, how many icons it
+    // reused vs. rebuilt, and current cache sizes. Read from the console via
+    // GifOS.desktop.stats to validate the reconciler on a real desktop.
+    renderStats = { icons: visible.length, rebuilt: els.length - reused, reused,
+      fileCache: fileCache.size, iconCache: iconCache.size, blobUrls: blobUrls.size };
   }
 
   // The upper-left cell inside every folder is a HOLE back up to the parent:
@@ -1494,5 +1522,5 @@
   requestPersistence();
   load().then(seedIfEmpty).then(ensureSystemItems).then(render).then(checkForUpdate);
 
-  GifOS.desktop = { render, load };
+  GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

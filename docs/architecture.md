@@ -33,10 +33,19 @@ The desktop is the only "installed" component: a single HTML file that behaves l
 
 ```
 IndexedDB database 'gifos' (this browser only)
-├── items      ← desktop icons + folders (layout, positions, sizes)
-├── files      ← the raw bytes of every dropped file (keyed by id)
-└── appstate   ← saved state per app icon (keyed by fileId)
+├── items       ← desktop icons + folders (layout, positions, sizes)
+├── files       ← the raw bytes of every dropped file (keyed by id)
+├── appstate    ← per-icon skeleton (collection list + seq counters) and
+│                 non-collection blobs (prefs, session tokens); keyed by fileId
+└── apprecords  ← one row per app record, keyed by [fileId, collection, id]
 ```
+
+App state is stored **per record**, not as one JSON blob per app: a `put`
+writes a single row via the composite key, and the whole `{ collections }`
+object is only assembled when something actually needs it (snapshot export,
+whole-computer backup, a multiplayer state dump). Record writes are single
+IndexedDB transactions — the seq counter is read-and-bumped inside the same
+transaction — so two tabs of the same app can't clobber each other.
 
 The store is a **namespace factory**: the default desktop binds to the `gifos` database, and every **booted computer image** gets its own `gifos_vm_<fileId>` database with the identical schema — a whole computer per namespace (see "Computer Images"). Because storage is local and unsynced, GifOS never needs an identity system. The "account" is the browser profile (a screen name in `localStorage` is used to attribute multiplayer moves).
 
@@ -341,6 +350,13 @@ Each app runs in a **sandboxed iframe** (`allow-scripts allow-forms`, no
 - **The postMessage bridge is bound per-iframe.** The runtime checks `e.source`
   is that app's window, and its DB closure is hard-wired to that icon's fileId —
   an app cannot name another icon's fileId to read a neighbor.
+
+> **Why there is no `capabilities.db` allowlist.** `gifos.db(name)` only names a
+> *collection within the calling app's own fileId partition* — the bridge message
+> carries no fileId, so there is no way for an app to address another app's data.
+> Isolation is structural (one store per icon), not policy-based, so a per-app
+> capability gate would only restrict an app from its *own* collections and buy no
+> security. This is deliberate; don't add DB gating expecting a cross-app benefit.
 
 ### Network: the bridge is the only way out
 
