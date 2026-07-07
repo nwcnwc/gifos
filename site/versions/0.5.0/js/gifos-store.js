@@ -19,7 +19,11 @@
   function open() {
     if (dbp) return dbp;
     dbp = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      // Open WITHOUT pinning a version: this frozen build shares the origin
+      // database with the latest build. Demanding an exact (older) version
+      // would VersionError once the live build bumps the schema, so we open
+      // version-agnostically and ignore any stores we don't know about.
+      const req = indexedDB.open(DB_NAME);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
