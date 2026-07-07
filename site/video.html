@@ -631,6 +631,8 @@
       if (blurPipe.rvfc && blurPipe.src.cancelVideoFrameCallback) { try { blurPipe.src.cancelVideoFrameCallback(blurPipe.rvfc); } catch (e) {} }
       try { blurPipe.src.srcObject = null; } catch (e) {}
       try { blurPipe.src.remove(); } catch (e) {}
+      // Stop the pipe's PRIVATE clone only — never the shared camera track.
+      if (blurPipe.cloned && blurPipe.srcTrack) { try { blurPipe.srcTrack.stop(); } catch (e) {} }
       try { blurPipe.track.stop(); } catch (e) {}
       blurPipe = null;
     }
@@ -639,6 +641,13 @@
       if (!cam) return null;
       if (blurPipe && blurPipe.level === level && blurPipe.camId === cam.id) return blurPipe.track;
       stopBlurPipe();
+      // Feed the pipe its OWN clone of the camera track. Safari (iOS especially)
+      // will not render the same MediaStreamTrack in two <video> elements at
+      // once — the self-preview already holds the original, so sharing it makes
+      // one of the two go black. A clone is an independent sink of the same
+      // camera.
+      let srcTrack = cam, cloned = false;
+      try { srcTrack = cam.clone(); cloned = true; } catch (e) { srcTrack = cam; }
       const src = document.createElement('video');
       src.muted = true; src.defaultMuted = true; src.autoplay = true;
       src.setAttribute('muted', ''); src.setAttribute('playsinline', ''); src.setAttribute('autoplay', '');
@@ -647,12 +656,12 @@
       // freezes, so the captured canvas broadcasts a still image to everyone.
       // Keep the source in the DOM but effectively invisible.
       src.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
-      src.srcObject = new MediaStream([cam]);
+      src.srcObject = new MediaStream([srcTrack]);
       document.body.appendChild(src);
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, canvas, ctx, track: null, timer: 0, rvfc: 0 };
+      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, timer: 0, rvfc: 0 };
       const paint = () => {
         const w = src.videoWidth || 640, h = src.videoHeight || 480;
         if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
