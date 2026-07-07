@@ -22,6 +22,26 @@
                 background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
   .bar button:hover { border-color: #7b5cff; }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
+  /* Mic / camera as traffic-light icons: green (live) or red with a slash (off). */
+  .iconbtn { display: inline-flex; align-items: center; justify-content: center; padding: .3rem .5rem;
+             color: #6cf39a; border-color: #2e7d46; }
+  .iconbtn.off { color: #ff8f8f; border-color: #ff5c5c; }
+  .iconbtn .slash { display: none; }
+  .iconbtn.off .slash { display: inline; }
+  .iconbtn.locked { opacity: .5; cursor: not-allowed; }
+  .iconbtn.locked:hover { border-color: #ff5c5c; }
+  /* Blur as a 3-segment slider: Max — Min — None. None grays out when clear
+     video isn't allowed (no password, a global blur on you, no admin present). */
+  .blurctl { display: inline-flex; align-items: center; gap: .4rem; }
+  .blurlbl { color: #8888aa; font-size: .75rem; }
+  .segwrap { display: inline-flex; border: 1px solid #2a2a3f; border-radius: .4rem; overflow: hidden; }
+  .segwrap.locked { opacity: .6; }
+  .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid #2a2a3f; border-radius: 0;
+                  background: #1c1c2b; color: #b8b8cc; font-size: .74rem; cursor: pointer; }
+  .segwrap .seg:last-child { border-right: none; }
+  .segwrap .seg:hover:not(:disabled) { background: #26263a; }
+  .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
+  .segwrap .seg.dis { opacity: .38; cursor: not-allowed; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
   .share.show { display: flex; }
@@ -136,10 +156,25 @@
   <div class="bar">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <span class="syschip" id="syschip" title="Video Call is a built-in part of GifOS itself — that is why it may use your camera and microphone. Apps you add can never touch either. Tap for more.">SYSTEM</span>
+    <button id="mic" class="iconbtn off" aria-label="Microphone" title="Your mic">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/>
+        <line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg>
+    </button>
+    <button id="cam" class="iconbtn off" aria-label="Camera" title="Your camera">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10.5 22 7v10l-7-3.5"/>
+        <line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg>
+    </button>
     <button id="invite" title="Friends join you live with one link">Invite</button>
-    <button id="mic" class="off">Unmute</button>
-    <button id="cam" class="off">Camera on</button>
-    <button id="blur" title="Blur your own video — tap to cycle Max blur, Blur, off">Max blur</button>
+    <span class="blurctl" title="How much your own video is blurred to everyone else">
+      <span class="blurlbl">Blur</span>
+      <span id="blurseg" class="segwrap" role="group" aria-label="Blur level">
+        <button class="seg" id="blur-max" data-blur="2">Max</button>
+        <button class="seg" id="blur-min" data-blur="1">Min</button>
+        <button class="seg" id="blur-none" data-blur="0">None</button>
+      </span>
+    </span>
     <button id="blurall" title="Blur every guest's video (admins only) — protects the room from bad actors" style="display:none">Blur guests</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
@@ -365,7 +400,7 @@
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { refreshAllTiles(); refreshOutbound(); } // a group-blur on ME re-blurs my own broadcast
+      if (changed) { if (enforceReconsent()) broadcastStatus(); refreshAllTiles(); refreshOutbound(); paintControls(); } // a group-block on ME pins + re-blurs my own switch
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -383,8 +418,11 @@
       if (!rb || !hasAdminRoom() || !adm) return;
       if ((rb.at || 0) > roomBlur.at) {
         roomBlur = { lvl: blurLevel(rb.lvl), by: rb.by || '', at: rb.at || 0 };
-        updateBlurAllBtn(); refreshAllTiles();
+        updateBlurAllBtn();
+        if (enforceReconsent()) broadcastStatus(); // guest-blur ON pins my switch
+        refreshAllTiles();
         refreshOutbound(); // room blur applies to MY broadcast too, at the source
+        paintControls();   // my blur slider (None gray/enabled) tracks the room's guest-blur
       }
     }
     // UNBLURRED VIDEO ONLY WHERE MODERATION IS POSSIBLE. Plain rooms have no
@@ -429,8 +467,10 @@
     // occupancy, or admin presence change.
     let lastCons = null;
     function reactRoomState() {
+      if (enforceReconsent()) broadcastStatus(); // a global block pinned my own switch safe
       refreshAllTiles();
       refreshOutbound();
+      paintControls();
       const c = clearConsensus();
       if (c !== lastCons) {
         if (lastCons !== null && !hasAdminRoom() && participantCount() > 1) {
@@ -540,11 +580,8 @@
       } else if (gMute && localStream) {
         // the group muted ME: cut the source too, not just everyone's speakers
         const a = localStream.getAudioTracks()[0];
-        if (a && a.enabled) {
-          a.enabled = false; myStatus.muted = true;
-          const b = document.getElementById('mic');
-          b.classList.add('off'); b.textContent = 'Unmute';
-        }
+        if (a && a.enabled) { a.enabled = false; myStatus.muted = true; }
+        paintControls();
       }
       layout();
     }
@@ -1856,23 +1893,79 @@
       else startRec();
     };
 
-    // ---- controls ---------------------------------------------------------------
+    // ---- controls: mic + camera (traffic-light icons), blur (3-way slider) -----
     const micBtn = document.getElementById('mic');
     const camBtn = document.getElementById('cam');
-    const blurBtn = document.getElementById('blur');
+    const blurSeg = document.getElementById('blurseg');
+    const blurSegs = Array.from(blurSeg.querySelectorAll('.seg'));
+
+    // A GLOBAL block (someone muted/blurred you for everyone) LOCKS your own
+    // switch and holds it safe. Even after the block is lifted your switch
+    // stays put — you must proactively re-consent to be seen/heard.
+    function amGloballyMuted() { const m = modOf('me').mute; return !!(m && m.on); }
+    // A DELIBERATE block on me: someone blurred me for everyone, or an admin's
+    // "blur all guests" covers me. These are the ones that require re-consent
+    // after they lift.
+    function myModBlurFloor() {
+      let f = 0;
+      if (modOf('me').blur && modOf('me').blur.on) f = 2;
+      if (hasAdminRoom() && !amAdmin && roomBlur.lvl) f = Math.max(f, roomBlur.lvl);
+      return f;
+    }
+    // Everything currently keeping me blurred against my will (the above PLUS
+    // the transient "no admin connected" floor). Used to gate the slider — NOT
+    // the password floor, which only gates reaching None (handled separately).
+    function myBlurFloor() {
+      let f = myModBlurFloor();
+      if (hasAdminRoom() && !amAdmin && admins.length === 0) f = Math.max(f, 1);
+      return f;
+    }
+    const amGloballyBlurred = () => myBlurFloor() > 0;
+    function blurNoneAllowed() { return !!roomPw && myBlurFloor() === 0; }
+
+    function paintControls() {
+      // mic
+      const muted = myStatus.muted, micLocked = amGloballyMuted();
+      micBtn.classList.toggle('off', muted);
+      micBtn.classList.toggle('locked', micLocked);
+      micBtn.title = micLocked
+        ? 'Muted for everyone' + (modOf('me').mute.by ? ' by ' + modOf('me').mute.by : '') + ' — someone else has to lift it'
+        : (muted ? 'You are muted — tap to speak' : 'Your mic is on — tap to mute');
+      // camera
+      camBtn.classList.toggle('off', myStatus.camOff);
+      camBtn.title = myStatus.camOff ? 'Camera off — tap to turn on' : 'Camera on — tap to turn off';
+      // blur slider — you can always blur MORE, never below the floor others
+      // impose on you, and None only when clear video is actually allowed.
+      const floor = myBlurFloor(), lvl = Math.max(blurLevel(myStatus.blur), floor), noneOk = blurNoneAllowed();
+      blurSeg.classList.toggle('locked', floor > 0);
+      for (const seg of blurSegs) {
+        const v = +seg.dataset.blur;
+        seg.classList.toggle('sel', v === lvl);
+        // '.dis' (not native disabled) so a tap on a grayed option still fires
+        // and explains why it can't be chosen.
+        seg.classList.toggle('dis', v < floor || (v === 0 && !noneOk));
+      }
+    }
+    // Being globally blocked snaps your PERSONAL switch to a safe position and
+    // pins it there, so when the block lifts you are not auto-exposed.
+    function enforceReconsent() {
+      // Only a DELIBERATE block pins you — a momentary "no admin here" lull
+      // should not force everyone to re-consent when an admin reconnects.
+      if (myModBlurFloor() > 0 && blurLevel(myStatus.blur) === 0) { myStatus.blur = 1; myStatus.okc = false; return true; }
+      return false;
+    }
+
     micBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getAudioTracks()[0]; if (!track) return;
-      const gm = modOf('me').mute;
-      if (!track.enabled && gm && gm.on) {
-        // group-muted: the target can't reopen their own mic — someone else must lift it
-        setStatus('You were muted for everyone by ' + gm.by + ' — another participant has to lift it.');
+      if (!track.enabled && amGloballyMuted()) {
+        const by = modOf('me').mute.by;
+        setStatus('You were muted for everyone' + (by ? ' by ' + by : '') + ' — another participant has to lift it.');
         return;
       }
       track.enabled = !track.enabled;
       myStatus.muted = !track.enabled;
-      micBtn.classList.toggle('off', !track.enabled);
-      micBtn.textContent = track.enabled ? 'Mute' : 'Unmute';
+      paintControls();
       syncSpeech(); // CC pauses while muted, resumes on unmute
       broadcastStatus();
     };
@@ -1881,51 +1974,42 @@
       const track = localStream.getVideoTracks()[0]; if (!track) return;
       track.enabled = !track.enabled;
       myStatus.camOff = !track.enabled;
-      camBtn.classList.toggle('off', !track.enabled);
-      camBtn.textContent = track.enabled ? 'Camera off' : 'Camera on';
+      paintControls();
       refreshOutbound(); // camera on while blurring → start the blur canvas
       broadcastStatus();
     };
-    const BLUR_LABEL = ['Blur off', 'Blur', 'Max blur'];
-    function paintBlurBtn() {
-      const lvl = blurLevel(myStatus.blur);
-      blurBtn.textContent = BLUR_LABEL[lvl];
-      blurBtn.classList.toggle('off', lvl === 0);
-    }
-    // 3-state personal blur: Max → Blur → off (confirm) → Max. Only turning it
-    // fully off asks — everything else is a safe tap. A room PASSWORD is the
-    // key to clear video, everywhere; and in a plain room, turning your blur
-    // off is also your AGREEMENT: the room only goes clear when every person
-    // here has done the same.
-    blurBtn.onclick = () => {
-      const lvl = blurLevel(myStatus.blur);
-      let next;
-      if (lvl === 2) next = 1;
-      else if (lvl === 1 && !roomPw) {
-        // No password → no clear video exists here. Say why, and wrap the
-        // cycle back to Max blur so the button never dead-ends.
+    // The blur slider: pick Max / Min / None directly. None is disabled unless
+    // clear video is possible; clicking a disabled segment explains why. In a
+    // plain room, choosing None is your AGREEMENT — the room only clears once
+    // everyone has done the same.
+    function explainBlur(v) {
+      if (amGloballyBlurred()) { setStatus('You are blurred for everyone right now — you can’t lower your own blur until that is lifted.'); return; }
+      if (v === 0 && !roomPw) {
         setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
           ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
           : 'Anyone here can set one with the Password button.'));
-        next = 2;
-      } else if (lvl === 1) {
-        const many = !hasAdminRoom() && participantCount() > 1;
-        const msg = many
-          ? 'Turn blur off? Everyone here has to do the same before video goes clear — this counts as your agreement. Once the whole room agrees, your video is fully visible.'
-          : 'Turn blur off? Your video will be fully visible to everyone on the call.';
-        if (!confirm(msg)) return;
-        next = 0;
-      } else next = 2;
-      myStatus.blur = next;
-      myStatus.okc = next === 0; // blur fully off = your agreement to a clear room
-      paintBlurBtn();
+      }
+    }
+    function setPersonalBlur(v) {
+      if (v === 0 && !blurNoneAllowed()) { explainBlur(0); return; }
+      myStatus.blur = v;
+      myStatus.okc = (v === 0); // None = your agreement to a clear room
+      paintControls();
       refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
       broadcastStatus();
       reactRoomState();
-      if (!hasAdminRoom() && myStatus.okc && !clearConsensus()) {
-        setStatus(consensusCount() + ' of ' + participantCount() + ' agreed to clear video — it stays blurred until everyone does.');
+      if (v === 0 && !hasAdminRoom() && !clearConsensus()) {
+        setStatus('You set Blur to None — but the room stays blurred until EVERYONE does (' + consensusCount() + ' of ' + participantCount() + ' so far).');
+      } else if (v === 0) {
+        setStatus('Blur off.');
       }
-    };
+    }
+    for (const seg of blurSegs) {
+      seg.onclick = () => {
+        if (seg.classList.contains('dis')) { explainBlur(+seg.dataset.blur); return; }
+        setPersonalBlur(+seg.dataset.blur);
+      };
+    }
     // Admin "blur all guests" — 3-state, applies to every non-admin. Starts at
     // plain (an admin room already defaults guests to plain), cycles plain →
     // max → off → plain. Admin-only; changes ride the relay's stamped path.
@@ -1956,7 +2040,7 @@
       const t = peers.get(id); if (t && t.voteBtn) t.voteBtn.classList.toggle('voted', on);
       setStatus(on ? 'Vote recorded — it follows this person into every room you share.' : 'Vote withdrawn.');
     }
-    paintBlurBtn();
+    paintControls();
     document.getElementById('invite').onclick = () => {
       share.classList.add('show'); // link stays visible/copyable behind the sheet
       if (navigator.share && shareUrl.value) {
@@ -1991,6 +2075,12 @@
       verifier: () => av,
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
       myBlur: () => blurLevel(myStatus.blur),
+      setBlur: (v) => setPersonalBlur(v),        // drive the slider from tests
+      blurNoneEnabled: () => !document.getElementById('blur-none').classList.contains('dis'),
+      blurLocked: () => blurSeg.classList.contains('locked'),
+      micMuted: () => myStatus.muted,
+      micLocked: () => micBtn.classList.contains('locked'),
+      camOff: () => myStatus.camOff,
       // effective blur SHOWN on a tile (receiver-side): 0/1/2
       blurClassOf: (id) => { const t = id === 'me' ? meTile : peers.get(id); if (!t) return null; return t.video.classList.contains('blur2') ? 2 : t.video.classList.contains('blur1') ? 1 : 0; },
       // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
