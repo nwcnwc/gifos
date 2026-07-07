@@ -71,7 +71,7 @@
     '',
     'MODDING IS ENCOURAGED: if I hand you an EXISTING GifOS app .gif and ask for changes, do not rebuild from scratch — extract its files, apply my changes, and splice them back into the SAME GIF so its animation and my saved data survive. To extract (Python): find b"\\x21\\xff\\x0bGIFOS1.0GOS" in the bytes; after those 14 header bytes read length-prefixed sub-blocks until a zero byte; the joined payload (skipping its first flag byte) is raw-deflate JSON {"files": {path: base64}}. Cut that whole block out of the GIF, modify the files, keep every ".state/…" entry unchanged (my data), then run pack_gifos on the remaining bytes. Cut out any "GIFOSSIG" block the same way — a mod is a new work I can re-sign.',
     '',
-    'First, ask me: "What app do you want to build?" — and in the same message ask whether I have a GIF of my own to use for its animation (if yes, use it UNCHANGED; if no, ask what kind of cute animation I would like you to draw).',
+    'First, ask me: "What app do you want to build? Or is there an existing GifOS app you want me to MOD — if so, just upload its .gif." — and in the same message ask whether I have a GIF of my own to use for its animation (if yes, use it UNCHANGED; if no, ask what kind of cute animation I would like you to draw; if I am modding, the app\'s own GIF already IS the animation — keep it).',
     'After I answer, deliver the finished .gif (path A or B) with one line of instructions: open gifos.app, tap ＋ Add (or drag the file in), double-click the new icon.',
   ].join('\n');
 
