@@ -1087,8 +1087,12 @@
         else if (m.t === 'pw') {
           // someone in the room changed the password — every attached session
           // adopts it so reconnects and reloads keep working seamlessly
+          const cleared = !m.pw && roomPw;
           storePw(m.pw);
-          setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated') : '🔓 Password removed' + (m.by ? ' by ' + m.by : '') + ' — the room is blurred again');
+          const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
+          renderFiles();
+          setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
+            : '🔓 Password removed' + (m.by ? ' by ' + m.by : '') + ' — the room is blurred again' + (purged ? ' and shared files were cleared' : ''));
           reactRoomState(); // the password is the key to clear video
         }
         else if (m.t === 'error') {
@@ -1219,8 +1223,16 @@
         clearTimeout(reopenTimer);
         openSock(); // wrong password → the relay bounces us right back here
       } else {
+        // Clearing the password opens the room — warn that it also deletes any
+        // shared files, then purge them for everyone.
+        if (!v && roomPw && files.size > 0) {
+          const n = files.size;
+          if (!confirm('Clearing the password opens this room to anyone — and DELETES the ' + n + ' file' + (n > 1 ? 's' : '') + ' shared here, for everyone. Continue?')) return;
+          purgeAllFiles(true);
+        }
         storePw(v);
         if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'setpw', pw: v, by: myName() }));
+        renderFiles(); // reflect the new password state (files allowed / the lock note)
         pwModal.style.display = 'none';
       }
     };
@@ -1500,6 +1512,19 @@
       files.delete(id);
       return true;
     }
+    // Clearing the room password removes every shared file (the room becomes
+    // open, so its files must not linger). `announce` tombstones them for the
+    // other participants too; receivers of a pw-cleared just purge locally.
+    function purgeAllFiles(announce) {
+      const ids = Array.from(files.keys());
+      for (const id of ids) {
+        const t = { by: myName(), at: Date.now() };
+        takeTomb(id, t);
+        if (announce) dcAll({ k: 'fdel', id, by: t.by, at: t.at });
+      }
+      renderFiles();
+      return ids.length;
+    }
     function takeMeta(meta, dc) {
       if (!meta || !meta.id || files.has(meta.id) || tombs.has(meta.id)) return false;
       if (meta.size > MAX_FILE) return false;
@@ -1531,6 +1556,9 @@
     }
     function renderFiles() {
       const el = document.getElementById('cfilelist');
+      // Files are only allowed in a PASSWORD-PROTECTED call: an open room anyone
+      // can wander into shouldn't leak shared files. No password → no files.
+      if (!roomPw) { el.innerHTML = '<small style="color:#889">🔒 Set a room password (the Password button) to share files here. Files are off in open rooms.</small>'; return; }
       const fs = Array.from(files.values()).sort((a, b) => a.at - b.at);
       el.innerHTML = fs.length ? fs.map((f) =>
         '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
@@ -1564,8 +1592,12 @@
       inp.value = '';
       renderChat();
     });
-    document.getElementById('cattach').onclick = () => document.getElementById('cfile-in').click();
+    document.getElementById('cattach').onclick = () => {
+      if (!roomPw) { setStatus('Set a room password before sharing files — files are only allowed in password-protected calls.'); return; }
+      document.getElementById('cfile-in').click();
+    };
     document.getElementById('cfile-in').addEventListener('change', (e) => {
+      if (!roomPw) { setStatus('Files need a room password first.'); e.target.value = ''; return; }
       for (const file of e.target.files) {
         if (file.size > MAX_FILE) { setStatus(file.name + ' is over the 25 MB pin limit.'); continue; }
         const reader = new FileReader();
