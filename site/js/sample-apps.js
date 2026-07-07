@@ -1016,6 +1016,14 @@ opens the built-in video page when opened in GifOS.</p>
         sub: [{ name: 'Single Phone',
           apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html)) }] },
     ];
+    // Easter eggs: a themed computer (gifos-themes.js) can seed extra apps
+    // that exist only on that digit — filed into a named folder, or loose.
+    for (const egg of ((GifOS.theme && GifOS.theme.eggs) || [])) {
+      const entry = app(egg.name, egg.appId, egg.accent, egg.html, egg.manifest);
+      const g = groups.find((x) => x.name === egg.folder);
+      if (g) g.apps.push(entry);
+    }
+
     // Loose icons live at the desktop root: Welcome (a real onboarding app —
     // the README travels inside its GIF too) and Video Call (the killer app,
     // pinned top-right by the seeder, not buried in a folder).
