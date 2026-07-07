@@ -115,38 +115,38 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 10000 });
   check('plain blur shows as blur1 on every other screen', true);
-  // A PASSWORD IS THE KEY TO CLEAR VIDEO. With none set, the None segment is
-  // grayed out; tapping it explains why and leaves blur unchanged.
-  check('with NO room password, the None blur option is disabled',
-    await bPage.evaluate(() => !window.__gifosVideo.blurNoneEnabled()));
-  await bPage.evaluate(() => document.getElementById('blur-none').click()); // disabled → explains, no change
-  check('tapping the grayed None explains why and leaves blur at Min',
-    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 1
+  // Everyone needs their CAMERA ON to be "ready" for clear video (consent =
+  // camera on + blur None). Bob's is already on; turn Ada's and Cai's on.
+  await aPage.locator('#cam').click();
+  await cPage.locator('#cam').click();
+  // A PASSWORD IS THE KEY TO CLEAR VIDEO. The slider always lets you PICK None,
+  // but with no password the room rule keeps you blurred and says why.
+  await bPage.evaluate(() => document.getElementById('blur-none').click());
+  check('you can select None, but with no password the status explains the block',
+    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0
       && /Password must be set for unblurred video/.test(document.getElementById('status').textContent)));
-  // Bob sets a room password (plain room: anyone inside may) — now None becomes
-  // available, but a plain room still needs EVERYONE'S agreement to go clear.
+  await sleep(400);
+  check('and with no password the tile stays blurred everywhere', await aPage.evaluate(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && t.querySelector('video').classList.contains('blur1');
+  }));
+  check('…and Bob still BROADCASTS blurred pixels (rule is sender-enforced)',
+    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
+  // Bob sets a room password (plain room: anyone inside may). Bob already chose
+  // None, so once a password exists a plain room still needs EVERYONE ready.
   await bPage.locator('#pwbtn').click();
   await bPage.locator('#pw-new').fill('clubhouse');
   await bPage.locator('#pw-save').click();
   await aPage.waitForFunction(() => window.__gifosVideo.roomPw() === 'clubhouse', null, { timeout: 8000 });
   await cPage.waitForFunction(() => window.__gifosVideo.roomPw() === 'clubhouse', null, { timeout: 8000 });
-  check('a room password propagates to everyone (now None is selectable)', true);
-  await bPage.waitForFunction(() => window.__gifosVideo.blurNoneEnabled(), null, { timeout: 5000 });
-  check('with a password set, the None option is enabled', true);
-  // Now choosing None is Bob's AGREEMENT — and he is told it won't clear until
-  // everyone does. One agreement isn't enough.
-  await bPage.evaluate(() => document.getElementById('blur-none').click());
-  check('choosing None is your agreement, and you are told it waits for everyone',
-    await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.okClear()
-      && /stays blurred until EVERYONE/.test(document.getElementById('status').textContent)));
-  await sleep(800); // let the agreement gossip settle
-  check('one agreement is not enough — Bob still shows blurred on every screen', await aPage.evaluate(() => {
+  check('a room password propagates to everyone', true);
+  await sleep(800); // let gossip settle
+  check('one person ready is not enough — Bob still shows blurred on every screen', await aPage.evaluate(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
     return t && t.querySelector('video').classList.contains('blur1');
   }));
-  check('…and Bob still BROADCASTS blurred pixels (the floor is sender-enforced)',
-    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
-  // Ada and Cai agree too — each picks None — and the room clears.
+  check('…and Bob still BROADCASTS blurred pixels', (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
+  // Ada and Cai pick None too — now EVERYONE is ready (camera on, blur None).
   await aPage.evaluate(() => document.getElementById('blur-none').click());
   await cPage.evaluate(() => document.getElementById('blur-none').click());
   await bPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 10000 });
@@ -154,7 +154,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
     return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
-  check('with a password AND everyone agreeing, the whole room goes clear', true);
+  check('with a password AND everyone ready, the whole room goes clear', true);
   await bPage.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 10000 });
   check('…and Bob broadcasts raw now', true);
 
@@ -224,25 +224,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 10000 });
   check('coming back clears the away label everywhere', true);
 
-  // RE-CONSENT: a global blur LOCKS your slider and pins your switch off None;
-  // lifting it does NOT auto-expose you — you must proactively choose None again.
+  // MODERATOR BLOCK: a per-tile blur overrides the owner's None on EVERY
+  // screen, and lifting it returns the tile to clear immediately (the owner
+  // still consents) — no re-consent dance.
   const bobTileOnAda = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
   await bobTileOnAda.hover();
   await bobTileOnAda.locator('button[data-mod="blur"]').click(); // Ada blurs Bob for everyone
-  await bPage.waitForFunction(() => window.__gifosVideo.blurLocked() && window.__gifosVideo.myBlur() >= 1
-    && !window.__gifosVideo.blurNoneEnabled(), null, { timeout: 10000 });
-  check('a global blur locks your slider and pins your switch off None', true);
+  await cPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const v = t && t.querySelector('video');
+    return v && (v.classList.contains('blur1') || v.classList.contains('blur2'));
+  }, null, { timeout: 10000 });
+  check('a moderator block blurs the tile on everyone else\'s screen', true);
+  check('…and Bob broadcasts blurred pixels while blocked (sender-enforced)',
+    (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
   await bobTileOnAda.hover();
   await bobTileOnAda.locator('button[data-mod="blur"]').click(); // Ada lifts it
-  await bPage.waitForFunction(() => !window.__gifosVideo.blurLocked() && window.__gifosVideo.blurNoneEnabled()
-    && window.__gifosVideo.blurClassOf('me') === 1, null, { timeout: 10000 });
-  check('lifting a global blur does NOT auto-clear you — still blurred, must re-consent', true);
-  await bPage.evaluate(() => document.getElementById('blur-none').click()); // Bob re-consents
-  await bPage.waitForFunction(() => window.__gifosVideo.myBlur() === 0, null, { timeout: 5000 });
-  check('re-consenting (choosing None again) clears you', true);
+  await cPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
+  }, null, { timeout: 10000 });
+  check('lifting the block returns the consenting tile to clear immediately', true);
 
-  // Removing the password instantly re-blurs the room — Ada and Cai were
-  // clear (blur 0); with no password there is no clear video for anyone.
+  // Removing the password instantly re-blurs the room — everyone was
+  // clear (blur None); with no password there is no clear video for anyone.
   await bPage.locator('#pwbtn').click();
   await bPage.locator('#pw-new').fill('');
   await bPage.locator('#pw-save').click();
@@ -740,10 +745,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
   check('relay refuses a non-admin setpw (admins only)', true);
 
-  // ADMIN ROOMS AUTO-BLUR GUESTS: an admin room defaults roomBlur to plain, so
-  // even before any admin acts, every guest is at least softly blurred — a
-  // guest showing obscenity is never fully clear. Beth (guest) turns off her
-  // own blur; she stays plain-blurred (blur1) on the admin's screen anyway.
+  // ADMIN ROOMS: with an admin PRESENT, each tile is clear iff its OWN owner
+  // consents (camera on + None) — no unanimity, no room-wide guest blur.
   await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 10000 });
   // Clear video needs a password even in an admin room — the admin sets it.
   await adam.locator('#pwbtn').click();
@@ -751,65 +754,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.locator('#pw-save').click();
   await beth.waitForFunction(() => window.__gifosVideo.roomPw() === 'vip', null, { timeout: 8000 });
   check('an admin sets the room password (the key to clear video)', true);
-  await beth.locator('#cam').click(); // camera on so there is video to blur
-  // The room's guest-blur (defaults to plain) floors Beth: her None option is
-  // grayed and the slider is locked at/above the floor — she can't go clear.
-  await beth.waitForFunction(() => window.__gifosVideo.blurLocked() && !window.__gifosVideo.blurNoneEnabled(), null, { timeout: 10000 });
-  check('guest-blur grays out None and locks the slider for a guest', true);
-  await beth.evaluate(() => document.getElementById('blur-none').click()); // grayed → explains, no change
-  check('a guest tapping the grayed None is told a global blur holds her',
-    /blurred for everyone right now/i.test(await beth.locator('#status').textContent()));
+  await beth.locator('#cam').click(); // camera on
+  await beth.evaluate(() => document.getElementById('blur-none').click()); // Beth consents
+  // Admin present + Beth consents + password → Beth clears on adam's screen,
+  // even though adam himself hasn't consented (no unanimity needed).
   await adam.waitForFunction(() => {
     const t = document.querySelector('.tile:not(.me)');
-    return t && (t.querySelector('video').classList.contains('blur1') || t.querySelector('video').classList.contains('blur2'));
-  }, null, { timeout: 10000 });
-  check('admin room keeps guests blurred (the guest-blur floor)', true);
-  // …and not just on viewers' screens: Beth's own browser BROADCASTS blurred
-  // pixels — the room guest-blur is baked in at the source, DOM-edit-proof.
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 10000 });
-  check('room guest-blur is enforced at the SENDER (guest broadcasts blurry pixels)', true);
+    return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
+  }, null, { timeout: 12000 });
+  check('with an admin present, a consenting guest goes clear on her own — no unanimity', true);
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
+  check('…and she broadcasts raw', true);
   check('vote-off is HIDDEN in admin rooms (admins ban instead)',
     (await adam.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) === 'none');
-  // The admin is NOT floored by guest-blur and has a password set, so the admin
-  // can pick None and go clear.
-  await adam.waitForFunction(() => window.__gifosVideo.blurNoneEnabled(), null, { timeout: 5000 });
-  await adam.evaluate(() => document.getElementById('blur-none').click());
-  check('the admin themselves is NOT blurred by guest-blur (can pick None)',
-    (await adam.evaluate(() => window.__gifosVideo.myBlur() === 0 && window.__gifosVideo.blurClassOf('me') === 0)));
-  // Admin escalates "blur all guests" to max → Beth becomes blur2 on every screen.
-  await adam.locator('#blurall').click(); // plain(1) → max(2)
-  await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 2, null, { timeout: 5000 });
-  await adam.waitForFunction(() => {
-    const t = document.querySelector('.tile:not(.me)');
-    return t && t.querySelector('video').classList.contains('blur2');
-  }, null, { timeout: 8000 });
-  check('admin "blur all guests: max" blurs every guest at max', true);
-  // Admin turns guest-blur fully off → Beth's floor drops and None becomes
-  // available, but she is not auto-cleared: she stays at her own blur until she
-  // actively picks None.
-  await adam.locator('#blurall').click(); // max(2) → off(0)
-  await adam.waitForFunction(() => window.__gifosVideo.roomBlur() === 0, null, { timeout: 5000 });
-  // beth's roomBlur reaches 0 via the mod message OR the admin's heartbeat
-  await beth.waitForFunction(() => window.__gifosVideo.blurNoneEnabled() && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 15000 });
-  check('lifting guest-blur does not auto-clear the guest — None becomes available, she chooses it', true);
-  await beth.evaluate(() => document.getElementById('blur-none').click());
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
-  check('the guest re-consents (None) and the sender pipe returns to raw', true);
+  // The admin BLOCKS Beth per-tile → she blurs on every screen and broadcasts
+  // blurred, regardless of her own None.
+  const bethTileOnAdam = adam.locator('.tile:not(.me)').first();
+  await bethTileOnAdam.hover();
+  await bethTileOnAdam.locator('button[data-mod="blur"]').click();
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 10000 });
+  check('an admin block overrides the guest\'s None — she broadcasts blurred', true);
+  await beth.waitForFunction(() => window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 8000 });
+  check('…and shows blurred on her own screen too', true);
+  // Admin lifts the block → Beth (still consenting) returns to clear at once.
+  await bethTileOnAdam.hover();
+  await bethTileOnAdam.locator('button[data-mod="blur"]').click();
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 10000 });
+  check('lifting the admin block returns the consenting guest to clear immediately', true);
 
-  // WHERE NO MODERATION IS POSSIBLE, NO CLEAR VIDEO: the admin walks away →
-  // nobody is left who could moderate → everyone auto-blurs (sender-side too)
-  // until an admin is connected again.
-  const adamUrl = adam.url();
-  await adam.goto('about:blank');
-  await beth.waitForFunction(() => window.__gifosVideo.adminsHere().length === 0
-    && window.__gifosVideo.blurClassOf('me') === 1
-    && window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 15000 });
-  check('an admin room with NO admin connected auto-blurs everyone (nobody to moderate = nobody clear)', true);
-  await adam.goto(adamUrl); // his stored key signs him straight back in
-  await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
-  await beth.waitForFunction(() => window.__gifosVideo.adminsHere().length > 0
-    && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 15000 });
-  check('the admin returning lifts the automatic blur', true);
+  // "BLUR GUESTS" SHORTCUT: one click blocks every guest (same modTable.blur as
+  // blocking each by hand); the button flips to Unblur; clicking again clears.
+  await adam.locator('#blurall').click();
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred' && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 10000 });
+  check('admin "Blur guests" blocks every guest at once (guest broadcasts blurred)', true);
+  await adam.waitForFunction(() => /Unblur guests/.test(document.getElementById('blurall').textContent), null, { timeout: 5000 });
+  check('the Blur-guests button flips to "Unblur guests"', true);
+  await adam.locator('#blurall').click();
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 10000 });
+  check('clicking again unblurs every guest — the consenting guest returns to clear', true);
 
   // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();
