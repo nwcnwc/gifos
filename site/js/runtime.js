@@ -302,41 +302,29 @@
     }
     return out;
   }
-  // Serialize each app's read-modify-write behind a same-origin Web Lock keyed
-  // by the app, so two tabs of the SAME app writing concurrently take turns
-  // instead of clobbering each other's whole-state blob. Falls back to a direct
-  // call where Web Locks aren't available.
-  function withDbLock(fileId, fn) {
-    if (root.navigator && root.navigator.locks && root.navigator.locks.request) {
-      return root.navigator.locks.request('gifos-db:' + fileId, fn);
-    }
-    return Promise.resolve().then(fn);
-  }
   function makeLocalDb(fileId, onChange) {
-    let state = emptyState();
     const chan = ('BroadcastChannel' in root) ? new BroadcastChannel(store.appChannel(fileId)) : null;
-    if (chan) chan.onmessage = (e) => { load().then(() => onChange(e.data.collection)); };
-    const load = () => store.getState(fileId).then((s) => { if (s) state = s; return state; });
-    const persist = () => store.setState(fileId, state);
-    const coll = (n) => (state.collections[n] = state.collections[n] || { items: {}, seq: 1 });
-    const deep = () => JSON.parse(JSON.stringify(state));
+    // Another tab of the SAME app committed a change — the record already landed
+    // in IndexedDB, so we only need to tell our own app to re-read.
+    if (chan) chan.onmessage = (e) => onChange(e.data.collection);
+    const notify = (collection) => { if (chan) chan.postMessage({ collection }); onChange(collection); };
+    // A per-record app's full state, assembled on demand from its rows.
+    const full = () => store.getState(fileId).then((s) => (s && s.collections ? s : emptyState()));
     return {
-      load,
-      import(s) { state = s; return persist(); },
-      getFullState: () => load().then(deep),
+      load: full,
+      import: (s) => store.setState(fileId, s),
+      getFullState: full,
       op(op, collection, key, value) {
-        // read-modify-write under the per-app lock (reload INSIDE the lock so we
-        // build on the latest committed state, not a stale in-memory copy).
-        return withDbLock(fileId, () => load().then(() => {
-          if (op === 'dump') return deep();
-          const c = coll(collection); let result = null, changed = false;
-          if (op === 'put') { const it = safeRecord(value); if (it.id == null) it.id = collection + '_' + (c.seq++); c.items[it.id] = it; result = it; changed = true; }
-          else if (op === 'get') result = c.items[key] || null;
-          else if (op === 'getAll') result = Object.keys(c.items).map((k) => c.items[k]);
-          else if (op === 'delete') { delete c.items[key]; result = true; changed = true; }
-          if (!changed) return result;
-          return persist().then(() => { if (chan) chan.postMessage({ collection }); onChange(collection); return result; });
-        }));
+        // Each op is a single atomic IndexedDB transaction — no whole-state blob
+        // to reload, no lock: a put writes one record, get/getAll reads one
+        // collection's rows straight from disk, and the store serializes the
+        // seq bump so concurrent tabs can't reuse an id.
+        if (op === 'dump') return full();
+        if (op === 'get') return store.appGet(fileId, collection, key);
+        if (op === 'getAll') return store.appGetAll(fileId, collection);
+        if (op === 'put') return store.appAdd(fileId, collection, safeRecord(value)).then((rec) => { notify(collection); return rec; });
+        if (op === 'delete') return store.appDelete(fileId, collection, key).then(() => { notify(collection); return true; });
+        return Promise.resolve(null);
       },
     };
   }
