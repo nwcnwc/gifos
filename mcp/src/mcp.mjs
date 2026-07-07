@@ -27,6 +27,10 @@ image that carries a tiny filesystem (the app) inside it. Users drop the GIF
 on their GifOS Home Screen and double-click to run it. App state persists
 inside the icon, and any app can go multiplayer with one invite link.
 
+When you ask the user what app they want, ALSO offer the other door: they
+can hand you an EXISTING GifOS app .gif to MOD instead of building new —
+see "Modding other people's apps" below.
+
 ## The app itself
 
 The entry point is index.html; multi-file apps are fully supported:
