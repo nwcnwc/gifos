@@ -34,7 +34,7 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 1. Double-click → a **new browser tab** opens.
 2. The GIF's embedded filesystem is unpacked; `index.html` is mounted in a **sandboxed iframe** (opaque origin, strict CSP — see security below).
-3. The app talks to GifOS only through `window.gifos`: `db()` (state that persists with the icon), `me()` (player identity), `fetch()` (manifest-gated), `save()` (snapshot).
+3. The app talks to GifOS only through `window.gifos`: `db()` (state that persists with the icon), `me()` (player identity), `fetch()` (manifest-gated), `save()` (snapshot), `storage()` (origin-wide usage/quota, so an app can warn before it fills the disk).
 4. No `index.html`? The tab shows a **browsable filesystem** instead — like an open folder on a web server.
 
 **Snapshots preserve the artwork.** Saving an app (in-app Snapshot or the icon's Download) *repacks* the GIF: only the embedded filesystem block is swapped, every pixel and animation byte stays identical. Your custom icon art survives every save.
@@ -135,6 +135,7 @@ The desktop seeds itself with the default apps on first run. Open **two tabs** o
 node test/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
 node test/e2e.js                  # the desktop, sandbox, versioning (Chromium)
 node test/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
+node test/e2e-store.js            # per-record store: orphan safety + delete/replace invariants
 node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
 node test/e2e-failover.js         # host death → client takeover, same session
 node test/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords

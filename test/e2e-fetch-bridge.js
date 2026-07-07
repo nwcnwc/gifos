@@ -96,6 +96,11 @@ async function fetchInApp(browser, opts) {
   const r4 = await fetchInApp(browser, { firstParty: ['localhost'], network: ['localhost'], url: L + '/plain' });
   check('GIFOS_FIRST_PARTY blocks a direct call to a configured sibling host', /^DENIED:/.test(r4) && !/PLAIN-OK/.test(r4));
 
+  // 5. Manifest hosts are normalized: an UPPER-CASE declaration still matches the
+  //    lower-case hostname the URL parser produces.
+  const r5 = await fetchInApp(browser, { network: ['LOCALHOST'], url: L + '/plain' });
+  check('manifest hosts are normalized (UPPER-CASE matches)', r5 === 'GOT:PLAIN-OK');
+
   await browser.close();
   api.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

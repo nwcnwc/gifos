@@ -118,7 +118,11 @@
         save: function(){ return rpc({type:'save'}); },
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
-        setName: function(n){ return rpc({type:'setName', name:n}); }
+        setName: function(n){ return rpc({type:'setName', name:n}); },
+        // Origin-wide storage usage/quota in bytes, so an app can warn a user
+        // before they fill the computer up. Shared across all apps on this
+        // origin (they live in one IndexedDB), not per-app.
+        storage: function(){ return rpc({type:'storage'}); }
       };
     })();`;
   }
@@ -216,13 +220,24 @@
     const selfLocal = self === 'localhost' || self === '127.0.0.1' || self === '[::1]';
     return host === self && !selfLocal;
   }
+  // Normalize a manifest host so "EXAMPLE.COM", "example.com." and "Example.Com"
+  // can't smuggle in as three distinct permissions. Lower-cased, trailing dots
+  // stripped, and anything that isn't a plain ASCII hostname (unicode, punycode
+  // confusables, ports, paths, embedded wildcards) is rejected — the URL parser
+  // hands us ASCII/lower-case hostnames, so only a clean host can ever match.
+  // '*' is the one special token that survives as-is.
+  function normHost(h) {
+    const s = String(h == null ? '' : h).trim().toLowerCase().replace(/\.+$/, '');
+    if (s === '*') return '*';
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(s) ? s : '';
+  }
   // The hosts an app's manifest ASKS to reach. A self-contained GIF declares
   // none (empty or absent) and can never touch the network; anything here is a
   // capability the user gets to see and veto.
   function networkHosts(manifest) {
     const raw = (manifest && manifest.capabilities && manifest.capabilities.network) || [];
     const seen = {}, out = [];
-    for (const h of raw) { const s = String(h == null ? '' : h).trim(); if (s && !seen[s]) { seen[s] = 1; out.push(s); } }
+    for (const h of raw) { const s = normHost(h); if (s && !seen[s]) { seen[s] = 1; out.push(s); } }
     return out;
   }
   // A per-app network policy: the declared hosts, plus the user's per-host
@@ -410,6 +425,12 @@
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
+      else if (d.type === 'storage') {
+        const est = root.navigator && root.navigator.storage && root.navigator.storage.estimate;
+        (est ? root.navigator.storage.estimate() : Promise.resolve({}))
+          .then((e) => reply({ ok: true, result: { usage: e.usage || 0, quota: e.quota || 0 } }))
+          .catch(() => reply({ ok: true, result: { usage: 0, quota: 0 } }));
+      }
     };
     root.addEventListener('message', handler);
     // Hand the chrome (run.html) this app's network policy so it can show the
