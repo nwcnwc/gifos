@@ -34,6 +34,28 @@
   .sig.ok  { border-color: #34c759; color: #7fe3a0; }
   .sig.bad { border-color: #ff5c5c; color: #ff9c9c; }
   .sig.unk { border-color: #8888aa; color: #b0b0c8; }
+  /* Network-permission chip: calm blue for a named allowlist, loud red-orange
+     when the app can reach ANY site. Click to review/revoke what it can reach. */
+  .perms { display: inline-flex; align-items: center; gap: .3rem; }
+  .perms.ok     { border-color: #4a9eff; color: #9ecbff; }
+  .perms.unsafe { border-color: #ff8a3d; color: #ffbf99; box-shadow: 0 0 12px rgba(255,138,61,.3); }
+  .perm-modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .perm-box { background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
+    padding: 1.4rem 1.5rem; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .perm-box h3 { margin-bottom: .5rem; font-size: 1.1rem; }
+  .perm-box .lead { color: #b0b0c8; font-size: .88rem; line-height: 1.5; margin-bottom: 1rem; }
+  .perm-box .warn { background: #2a1710; border: 1px solid #ff8a3d; color: #ffcbab;
+    border-radius: .5rem; padding: .6rem .75rem; font-size: .82rem; line-height: 1.5; margin-bottom: 1rem; }
+  .perm-row { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .2rem;
+    border-top: 1px solid #22222f; }
+  .perm-row input { margin-top: .2rem; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #4a9eff; }
+  .perm-row .host { font-weight: 600; word-break: break-all; }
+  .perm-row.any .host { color: #ffbf99; }
+  .perm-row .desc { color: #8888aa; font-size: .8rem; }
+  .perm-box .foot { color: #6a6a86; font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
+  .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff;
+    background: #7b5cff; color: #fff; cursor: pointer; font: inherit; }
   /* Compact connection pill: a dot + one calm word (client), or per-status
      counts (host). The verbose sentence lives in a click-to-open popover so
      long status text can never wrap across the screen. */
@@ -69,6 +91,7 @@
   <div class="bar">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
+    <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
     <button id="save-desktop" title="Steal this app — a fresh copy lands on your Home Screen (app only, no data; Download Snapshot keeps the data too)" style="display:none">Steal App</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
@@ -131,6 +154,65 @@
           else { sigBtn.style.display = 'none'; }
         });
         sigBtn.onclick = function () { alert(sigBtn.title); };
+      };
+
+      // ---- network permissions: acknowledge what the app can reach ----
+      // The runtime hands us this app's network policy (the hosts its manifest
+      // asks to reach, plus the user's saved allow/deny choices). A self-
+      // contained GIF declares none, so this never fires for it. When it does,
+      // we surface a tab chip and pop a plain-language acknowledgement at launch
+      // with a checkbox per host — unticking one revokes it (which may break the
+      // app, and that's fine). '*' means "any website", which we flag as unsafe.
+      const permsBtn = document.getElementById('perms');
+      function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+      window.__gifosPermissions = function (policy) {
+        if (!policy || !policy.hasNetwork()) { permsBtn.style.display = 'none'; return; }
+        function paintChip() {
+          const unsafe = policy.unsafe();
+          permsBtn.style.display = '';
+          permsBtn.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
+          permsBtn.textContent = unsafe ? '⚠ Unsafe' : '🌐 Internet';
+          permsBtn.title = unsafe
+            ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
+            : 'This app can reach the internet. Tap to see or change what it can reach.';
+        }
+        function openModal() {
+          const bg = document.createElement('div'); bg.className = 'perm-modal';
+          const rows = policy.list().map(function (e) {
+            const any = e.host === '*';
+            const desc = any
+              ? 'This app could send anything it sees to anyone, anywhere.'
+              : 'The app can send and receive things from this one website.';
+            return '<label class="perm-row' + (any ? ' any' : '') + '">' +
+              '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
+              '<span><span class="host">' + (any ? 'Any website' : escapeText(e.host)) + '</span>' +
+              '<br><span class="desc">' + desc + '</span></span></label>';
+          }).join('');
+          const unsafeNote = policy.unsafe()
+            ? '<div class="warn"><b>Careful — this app is marked unsafe.</b> It wants to reach <b>any</b> website, ' +
+              'so it could quietly send what it sees to a stranger. Only leave this on for an app you really trust. ' +
+              'Uncheck the box below to shut it off.</div>'
+            : '';
+          bg.innerHTML = '<div class="perm-box"><h3>What can this app reach?</h3>' +
+            '<p class="lead">This app wants to reach the websites listed below. ' +
+            'Everything else it does stays on your device. Uncheck anything you don’t want it to reach.</p>' +
+            unsafeNote + rows +
+            '<p class="foot">GifOS itself is always off-limits to apps, even unsafe ones. ' +
+            'We’ll remember what you choose here.</p>' +
+            '<button class="done">Done</button></div>';
+          document.body.appendChild(bg);
+          bg.addEventListener('change', function (ev) {
+            const cb = ev.target; if (!cb || cb.type !== 'checkbox') return;
+            Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
+            paintChip();
+          });
+          function close() { bg.remove(); }
+          bg.querySelector('.done').onclick = close;
+          bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
+        }
+        paintChip();
+        permsBtn.onclick = openModal;
+        openModal(); // explicit acknowledgement at launch
       };
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).

@@ -649,6 +649,42 @@ async function openApp(page, ctx, folder, label) {
   check('permission-gated bridge fetch still works under CSP', verdict.bridge === 200);
   await hostilePage.close();
 
+  // ---- network-permission acknowledgement: allow *, label unsafe, let the ----
+  // ---- user revoke it (and remember the revocation) --------------------------
+  await deskPage.evaluate(async (base) => {
+    const appHtml = '<!doctype html><div id="out">idle</div><script>' +
+      'setTimeout(function(){ gifos.fetch("' + base + '/index.html").then(function(r){' +
+      'document.getElementById("out").textContent="OK:"+r.status;}).catch(function(e){' +
+      'document.getElementById("out").textContent="ERR";}); }, 500);' +
+      '</scr' + 'ipt>';
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'wild-test', name: 'Wild', entry: 'index.html', capabilities: { network: ['*'] } }),
+      'index.html': appHtml,
+    });
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: 'Wild.gif', bytes, kind: 'gif', isApp: true, appId: 'wild-test', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: 'Wild.gif', parent: null, x: 620, y: 200, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  }, BASE);
+  const [wildPage] = await Promise.all([
+    context.waitForEvent('page'),
+    deskPage.locator('.icon', { hasText: 'Wild.gif' }).dblclick(),
+  ]);
+  await wildPage.waitForSelector('iframe');
+  await wildPage.waitForTimeout(200);
+  check('wildcard-network app wears the ⚠ Unsafe tab label', (await wildPage.locator('#perms').textContent()) === '⚠ Unsafe');
+  check('opening the app pops the network acknowledgement', (await wildPage.locator('.perm-modal').count()) === 1);
+  await wildPage.waitForTimeout(700);
+  check('an allowed app reaches the internet through the bridge', (await wildPage.frameLocator('iframe').locator('#out').textContent()) === 'OK:200');
+  await wildPage.locator('.perm-row input[data-host="*"]').uncheck();
+  check('unticking Any website drops the unsafe label', (await wildPage.locator('#perms').textContent()) === '🌐 Internet');
+  await wildPage.locator('.perm-box .done').click();
+  await wildPage.reload();
+  await wildPage.waitForSelector('iframe');
+  await wildPage.waitForTimeout(900);
+  check('the revocation persists — the app can no longer reach out', (await wildPage.frameLocator('iframe').locator('#out').textContent()) === 'ERR');
+  await wildPage.close();
+
   // ---- plain (non-app) GIF opens in its own tab instead of an error ----
   await deskPage.evaluate(async () => {
     // a real but non-GifOS gif (1x1) — bytes don't matter, just that it's a file, not an app
