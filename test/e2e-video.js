@@ -248,12 +248,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('hello room'), null, { timeout: 15000 });
   check('chat reaches everyone over DataChannels', true);
   check('unread messages badge the chat button', /\(1\)/.test(await bPage.locator('#chatbtn').textContent()));
+  // FILES NEED A ROOM PASSWORD. With none set, the panel shows a lock note and
+  // an attach is refused (an open room must not leak shared files).
+  check('with no room password, the file panel shows the locked note',
+    /Set a room password/.test(await aPage.locator('#cfilelist').textContent()));
+  await aPage.setInputFiles('#cfile-in', { name: 'nope.txt', mimeType: 'text/plain', buffer: Buffer.from('should not pin') });
+  await sleep(400);
+  check('a file cannot be pinned without a room password',
+    (await aPage.evaluate(() => window.__gifosVideo.pinnedFiles().length)) === 0);
+  // Ada sets a password → files are now allowed.
+  await aPage.locator('#pwbtn').click();
+  await aPage.locator('#pw-new').fill('vault');
+  await aPage.locator('#pw-save').click();
+  await bPage.waitForFunction(() => window.__gifosVideo.roomPw() === 'vault', null, { timeout: 8000 });
   await aPage.setInputFiles('#cfile-in', { name: 'pinned.txt', mimeType: 'text/plain', buffer: Buffer.from('bytes pinned to the call') });
   await bPage.waitForFunction(() => {
     const fs = window.__gifosVideo.pinnedFiles();
     return fs.length === 1 && fs[0].name === 'pinned.txt' && fs[0].have;
   }, null, { timeout: 15000 });
-  check('a pinned file replicates to every participant, bytes and all', true);
+  check('with a password set, a pinned file replicates to every participant, bytes and all', true);
 
   // ---------- recording: on-device, loudly attributed ----------
   await aPage.locator('#recbtn').click();
@@ -313,6 +326,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const dPage = await dCtx.newPage();
   dPage.on('console', (m) => { if (m.type() === 'error') console.log('  [dee]', m.text()); });
   await dPage.goto(link);
+  // the room now carries a password → the late joiner is prompted for it
+  await dPage.locator('#pw-modal').waitFor({ state: 'visible', timeout: 15000 });
+  await dPage.locator('#pw-new').fill('vault');
+  await dPage.locator('#pw-save').click();
   await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   await bPage.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
   check('room survives its creator — a new joiner still connects (no host)', true);
@@ -327,6 +344,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await dPage.locator('.cfile button[data-del]').click();
   await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0, null, { timeout: 15000 });
   check('unpinning a file removes it for everyone (tombstone wins the merge)', true);
+
+  // Clearing the room password DELETES shared files — with a warning first.
+  await dPage.setInputFiles('#cfile-in', { name: 'secret.txt', mimeType: 'text/plain', buffer: Buffer.from('for members only') });
+  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().some((f) => f.name === 'secret.txt' && f.have), null, { timeout: 15000 });
+  let clearWarned = false;
+  bPage.once('dialog', (d) => { clearWarned = /delete/i.test(d.message()) && /1 file/.test(d.message()); d.accept(); });
+  await bPage.locator('#pwbtn').click();
+  await bPage.locator('#pw-new').fill('');
+  await bPage.locator('#pw-save').click();
+  check('clearing the password warns it will delete the shared files first', clearWarned);
+  await dPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0 && !window.__gifosVideo.roomPw(), null, { timeout: 15000 });
+  check('clearing the password deletes the shared files for everyone', true);
 
   // ---------- everyone leaves; the same URL still works later ----------
   await bPage.close(); await bCtx.close();
@@ -489,7 +518,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bIslePage.locator('#chatform button[type=submit]').click();
   await cIslePage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('across the water'), null, { timeout: 15000 });
   check('chat between unreachable peers hops through a mutual friend', true);
-  // …and a pinned file makes the same journey, bytes included
+  // …and a pinned file makes the same journey, bytes included (files need a
+  // password — LeftIsle sets one; it reaches all islands over the relay).
+  await bIslePage.locator('#pwbtn').click();
+  await bIslePage.locator('#pw-new').fill('bottle');
+  await bIslePage.locator('#pw-save').click();
+  await cIslePage.waitForFunction(() => window.__gifosVideo.roomPw() === 'bottle', null, { timeout: 15000 });
   await bIslePage.setInputFiles('#cfile-in', { name: 'message-in-a-bottle.txt', mimeType: 'text/plain', buffer: Buffer.from('gossip-carried bytes') });
   await cIslePage.waitForFunction(() => {
     const fs = window.__gifosVideo.pinnedFiles();
