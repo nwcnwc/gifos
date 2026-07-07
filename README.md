@@ -134,6 +134,7 @@ The desktop seeds itself with the default apps on first run. Open **two tabs** o
 ```bash
 node test/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
 node test/e2e.js                  # the desktop, sandbox, versioning (Chromium)
+node test/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
 node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
 node test/e2e-failover.js         # host death → client takeover, same session
 node test/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
