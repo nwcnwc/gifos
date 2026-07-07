@@ -57,14 +57,17 @@ const MAX_SOCKETS_PER_SESSION = 64; // a "room" is a living room, not a stadium
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 
-// Ban lists ride in socket attachments (2KB serialized cap), so the LIVE list
-// is bounded; participants keep the unbounded copy in their own storage and
-// re-merge it, so the working set here only needs to cover what matters now.
+// Admin-room ban lists ride in socket attachments (2KB serialized cap) —
+// keep entries tiny. Plain rooms have NO ban list at all: exclusion there is
+// only ever a live MAJORITY of personal vote-offs (see tallyVotes).
 const BAN_CAP = 20;
 const BAN_NAME = 12;
 const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
   .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, BAN_NAME) }))
   .filter((e) => e.d);
+// A voter's relay-held vote set: device ids, bounded by room size.
+const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
+  .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
 
 function makeMeter() { return { tokens: BURST_BYTES, last: Date.now(), warned: false }; }
 // Returns true if this message must be DROPPED (would overrun the budget).
@@ -95,7 +98,7 @@ export class Session {
 
   roster() {
     const peers = [], names = {}, admins = [], devs = {}, ips = {};
-    let admV = null, ban = null, adult = null, mesh = false;
+    let admV = null, ban = null, mesh = false;
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
@@ -106,7 +109,6 @@ export class Session {
       if (a.ip) ips[a.peer] = a.ip;
       if (!admV && a.av) admV = a.av;
       if (ban === null && a.ban) ban = a.ban;
-      if (!adult && (a.aw || a.aq)) adult = { q: a.aq || '' };
     }
     const h = this.hostSock();
     const msg = { t: 'roster', peers, names };
@@ -115,9 +117,8 @@ export class Session {
       // Rooms are not anonymous BY DESIGN: everyone on a call can see
       // everyone's network address (they exchange it for P2P anyway) — the
       // client shows it under the status pill as an accountability record.
-      msg.devs = devs; msg.ban = ban || []; msg.ips = ips;
-      if (adult) msg.adult = adult;
-      if (admV) { msg.hasAdmin = true; msg.admins = admins; }
+      msg.devs = devs; msg.ips = ips;
+      if (admV) { msg.hasAdmin = true; msg.admins = admins; msg.ban = ban || []; }
     }
     const s = JSON.stringify(msg);
     if (h) this.send(h, s);
@@ -142,12 +143,10 @@ export class Session {
 
     const pair = new WebSocketPair();
     const client = pair[0], server = pair[1];
-    // Reject without hibernating: accept plainly, explain, close. `extra`
-    // lets a rejection carry data the client needs to retry (e.g. the
-    // adults-only challenge question).
-    const reject = (error, code, extra) => {
+    // Reject without hibernating: accept plainly, explain, close.
+    const reject = (error, code) => {
       server.accept();
-      try { server.send(JSON.stringify(Object.assign({ t: 'error', error }, extra || {}))); server.close(code, error.slice(0, 120)); } catch (e) {}
+      try { server.send(JSON.stringify({ t: 'error', error })); server.close(code, error.slice(0, 120)); } catch (e) {}
       return new Response(null, { status: 101, webSocket: client });
     };
 
@@ -218,23 +217,24 @@ export class Session {
       const admK = (url.searchParams.get('adm') || '').slice(0, 128);
       const isAdmin = !!(av && admK && (await sha256hex(admK)) === av);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
-      // ADULTS-ONLY GATE (admin rooms only): the room can carry an 18+
-      // warning and an optional challenge question. Occupancy memory, like
-      // the password: current occupants' attachments hold {aw, aq, ah};
-      // whoever has passed the gate (their answer hash IS the room's) can
-      // re-seed it at an empty room. Admins are exempt from their own gate.
-      const aw = first ? !!first.aw : !!(av && url.searchParams.get('aw') === '1');
-      const aq = (first ? (first.aq || '') : (av ? (url.searchParams.get('aq') || '') : '')).slice(0, 140);
-      const ah = (first ? (first.ah || '') : (av ? (url.searchParams.get('ah') || '') : '')).slice(0, 64);
-      if ((aw || aq) && !isAdmin) {
-        if (url.searchParams.get('ack') !== '1') return reject('adults-only', 4005, { q: aq });
-        if (ah && (url.searchParams.get('aa') || '').slice(0, 64) !== ah) return reject('adults-only-answer', 4006, { q: aq });
-      }
       const ban = first ? (first.ban || []) : [];
       if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
+      // STANDING VOTES GATE (plain rooms): every participant carries a
+      // personal, global vote-off list; if a MAJORITY of the devices already
+      // here (min 2, counting the arriver) have this device on theirs, the
+      // door stays shut. One grudge alone never gatekeeps a public room.
+      if (!av && dev) {
+        const voters = new Set(), pop = new Set([dev]);
+        for (const ws of occupants) {
+          const a2 = this.att(ws);
+          if (a2.dev) pop.add(a2.dev);
+          if ((a2.votes || []).includes(dev)) voters.add(a2.dev || a2.peer);
+        }
+        if (voters.size >= Math.max(2, Math.floor(pop.size / 2) + 1)) return reject('voted-off', 4007);
+      }
       for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban, aw: aw ? 1 : 0, aq, ah });
+      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
       this.roster();
     } else {
@@ -289,57 +289,24 @@ export class Session {
       } else if ((m.t === 'ban' || m.t === 'unban') && a.adm && typeof m.dev === 'string') {
         if (m.t === 'ban') this.banDevice(m.dev, m.name, m.by);
         else this.unbanDevice(m.dev, m.name, m.by);
-      } else if (m.t === 'votekick' && !this.meshAdmV() && typeof m.target === 'string') {
+      } else if (m.t === 'votekick' && !this.meshAdmV() && Array.isArray(m.devs)) {
         // Vote-off-the-island: no admin exists to ban bad actors, so the ROOM
-        // does it. Each voter's picks ride in their attachment; the relay
-        // tallies distinct voters and, at half the occupants (min 2), bans and
-        // kicks the device — same ban machinery, consensus-driven. Occupancy
-        // memory only: an emptied room forgets the votes and the ban.
-        const tgt = m.target.slice(0, 64);
-        const votes = new Set(a.votes || []);
-        if (m.on === false) votes.delete(tgt); else votes.add(tgt);
-        a.votes = Array.from(votes).slice(0, 64);
+        // does it. Each participant carries a PERSONAL, GLOBAL vote-off list
+        // in their own browser and syncs the here-relevant slice (device ids)
+        // into their attachment. The relay only ever tallies a live majority
+        // — there is NO ban list in plain rooms, so no injected "insta-ban"
+        // can do more than cast its author's one vote.
+        a.votes = cleanDevList(m.devs);
         try { ws.serializeAttachment(a); } catch (e) {}
         this.tallyVotes();
-      } else if (m.t === 'banlist' && Array.isArray(m.devs) && (a.adm || !this.meshAdmV())) {
-        // Admin rooms: an admin re-arriving to a (possibly re-emptied) room
-        // re-seeds the ban list from their own device. PLAIN rooms: ANYONE'S
-        // remembered bans MERGE in, and the merged list only ever grows —
-        // every participant carries the room's bans away with them, so a
-        // vote-ban outlives the emptied room through the people who saw it.
-        // A banned device that sneaks back while nobody remembers gets cut
-        // the moment one witness returns.
-        const incoming = cleanBanList(m.devs);
-        let ban;
-        if (a.adm) ban = incoming;
-        else {
-          const cur = a.ban || [];
-          const seen = new Set(cur.map((b) => b.d));
-          ban = cur.concat(incoming.filter((e) => !seen.has(e.d))).slice(0, BAN_CAP);
-        }
+      } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
+        // An admin re-arriving to a (possibly re-emptied) admin room re-seeds
+        // the ban list from their own device — occupancy memory, no storage.
+        const ban = cleanBanList(m.devs);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
-        // merged bans apply NOW: cut any present device on the list
-        for (const b of ban) {
-          if (this.members().some((s) => { const a2 = this.att(s); return a2.dev === b.d && !a2.adm; })) {
-            this.banDevice(b.d, b.n, 'an earlier ban');
-          }
-        }
-        this.roster();
-      } else if (m.t === 'setadult' && a.adm) {
-        // Admin switches the adults-only gate (with optional challenge
-        // question) on or off — written into every occupant's attachment,
-        // exactly like the room password.
-        const on = !!m.on;
-        const q = on ? String(m.q || '').slice(0, 140) : '';
-        const ah = on ? String(m.ah || '').slice(0, 64) : '';
-        for (const ws2 of this.members()) {
-          const a2 = this.att(ws2); a2.aw = on ? 1 : 0; a2.aq = q; a2.ah = ah;
-          try { ws2.serializeAttachment(a2); } catch (e) {}
-        }
-        this.broadcast({ t: 'adult', on, q, by: String(m.by || '').slice(0, 40) });
         this.roster();
       }
     } else if (a.role === 'client') {
@@ -395,20 +362,37 @@ export class Session {
     this.roster();
   }
 
-  // Count distinct voters per target across occupants, broadcast progress, and
-  // ban anyone at/over threshold (half the room, minimum 2). Called on each
-  // vote AND when occupancy changes (a departure can push a target over).
+  // Tally standing votes per DEVICE across occupants, broadcast progress, and
+  // boot any device a MAJORITY of the room's devices (min 2) has voted off.
+  // Counted by device on BOTH sides — ten tabs are still one voter and one
+  // occupant, so nobody manufactures a majority. No list is written anywhere:
+  // the votes themselves (each voter's own, carried in their own browser and
+  // re-synced wherever they go) ARE the exclusion. Called on each vote sync
+  // AND when occupancy changes (a departure can push a target over).
   tallyVotes() {
     if (this.meshAdmV()) return; // admin rooms don't vote-kick
     const occ = this.members();
+    const pop = new Set(), votersFor = {};
+    for (const s of occ) {
+      const a = this.att(s);
+      if (a.dev) pop.add(a.dev);
+      for (const d of (a.votes || [])) {
+        if (!d || d === a.dev) continue; // no self-votes
+        (votersFor[d] = votersFor[d] || new Set()).add(a.dev || a.peer);
+      }
+    }
     const tally = {};
-    for (const s of occ) for (const t of (this.att(s).votes || [])) tally[t] = (tally[t] || 0) + 1;
-    const need = Math.max(2, Math.ceil(occ.length / 2));
+    for (const d in votersFor) tally[d] = votersFor[d].size;
+    const need = Math.max(2, Math.floor((pop.size || occ.length) / 2) + 1);
     this.broadcast({ t: 'votes', tally, need });
-    for (const tgt in tally) {
-      if (tally[tgt] >= need) {
-        const victim = occ.find((s) => this.att(s).peer === tgt);
-        if (victim) this.banDevice(this.att(victim).dev, this.att(victim).name || '', 'the room (vote)');
+    for (const d in tally) {
+      if (tally[d] >= need) {
+        this.broadcast({ t: 'ban', dev: d, name: '', by: 'the room (vote)' });
+        for (const s of this.members()) {
+          const a2 = this.att(s);
+          if (a2.dev === d) { try { s.close(4007, 'voted-off'); } catch (e) {} }
+        }
+        this.roster();
       }
     }
   }
