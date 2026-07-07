@@ -101,7 +101,7 @@ Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cl
 
 - **Provenance signatures** — anyone can sign an app GIF with their **domain** (Ed25519; public key at `https://domain/gifos.key`) or **email** (OpenPGP via keyservers — **Ed25519 or RSA ≥2048** keys both work, so your existing gpg key is fine). GifOS shows **✓ Signed by yourdomain.com**, **Unsigned**, or **⚠ Tampered** (contents changed after signing). Signing proves authorship, not safety, and a signature can always be stripped. The signed hash excludes app *state*, so saving data never voids it. Sign at [gifos.app/sign.html](https://gifos.app/sign.html).
 
-Details: [docs/architecture.md](docs/architecture.md) · [docs/cors-and-networking.md](docs/cors-and-networking.md)
+Details: [docs/architecture.md](docs/architecture.md) · [docs/cors-and-networking.md](docs/cors-and-networking.md) · [docs/threat-model.md](docs/threat-model.md)
 
 ## Why GIFs?
 
@@ -185,6 +185,7 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 
 - [docs/architecture.md](docs/architecture.md) — the desktop, the GIF filesystem format, execution model, sandbox security, computer images, versioning.
 - [docs/cors-and-networking.md](docs/cors-and-networking.md) — browser-as-server, the transport ladder, the relay bandwidth guard, mesh signaling, video, and the external-API bridge.
+- [docs/threat-model.md](docs/threat-model.md) — what GifOS defends against and what it deliberately doesn't: trust boundaries, adversaries, mitigations, and non-goals.
 - [mirror/README.md](mirror/README.md) — how numbered subdomains are served.
 
 ## License

@@ -335,6 +335,10 @@ inside another computer.
 
 ## Security Considerations
 
+> For the full picture — trust boundaries, adversaries, per-boundary mitigations,
+> and explicit non-goals — see the [threat model](./threat-model.md). This
+> section summarizes the mechanisms.
+
 ### App isolation & namespacing
 
 Each app runs in a **sandboxed iframe** (`allow-scripts allow-forms`, no
