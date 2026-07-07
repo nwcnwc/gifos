@@ -624,11 +624,13 @@
     // their DOM still only has blurred pixels — there is no clear image to
     // recover. (Group/guest blur stays receiver-side: an uncooperative bad
     // actor can't be made to blur at source, but every receiver blurs them.)
-    let blurPipe = null; // { level, src(video), canvas, ctx, track, timer }
+    let blurPipe = null; // { level, src(video), canvas, ctx, track, timer, rvfc }
     function stopBlurPipe() {
       if (!blurPipe) return;
       clearTimeout(blurPipe.timer);
+      if (blurPipe.rvfc && blurPipe.src.cancelVideoFrameCallback) { try { blurPipe.src.cancelVideoFrameCallback(blurPipe.rvfc); } catch (e) {} }
       try { blurPipe.src.srcObject = null; } catch (e) {}
+      try { blurPipe.src.remove(); } catch (e) {}
       try { blurPipe.track.stop(); } catch (e) {}
       blurPipe = null;
     }
@@ -638,25 +640,37 @@
       if (blurPipe && blurPipe.level === level && blurPipe.camId === cam.id) return blurPipe.track;
       stopBlurPipe();
       const src = document.createElement('video');
-      src.muted = true; src.playsInline = true; src.autoplay = true;
+      src.muted = true; src.defaultMuted = true; src.autoplay = true;
+      src.setAttribute('muted', ''); src.setAttribute('playsinline', ''); src.setAttribute('autoplay', '');
+      // iOS Safari will NOT decode/advance a <video> that is outside the render
+      // tree (a detached element, or display:none) — it paints one frame and
+      // freezes, so the captured canvas broadcasts a still image to everyone.
+      // Keep the source in the DOM but effectively invisible.
+      src.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
       src.srcObject = new MediaStream([cam]);
+      document.body.appendChild(src);
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, canvas, ctx, track: null, timer: 0 };
-      const draw = () => {
-        if (blurPipe !== pipe) return;
+      const pipe = { level, camId: cam.id, src, canvas, ctx, track: null, timer: 0, rvfc: 0 };
+      const paint = () => {
         const w = src.videoWidth || 640, h = src.videoHeight || 480;
         if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
         ctx.filter = 'blur(' + px + 'px)';
         try { ctx.drawImage(src, 0, 0, w, h); } catch (e) {}
-        pipe.timer = setTimeout(draw, 66); // ~15fps; setTimeout keeps running when hidden
       };
+      // Draw on every DECODED camera frame when the browser supports it (the
+      // correct, smooth path on iOS/Safari) — and ALSO on a timer, because
+      // requestVideoFrameCallback pauses when the tab is backgrounded whereas
+      // setTimeout keeps the outbound canvas refreshing.
+      const onFrame = () => { if (blurPipe !== pipe) return; paint(); if (src.requestVideoFrameCallback) pipe.rvfc = src.requestVideoFrameCallback(onFrame); };
+      const tick = () => { if (blurPipe !== pipe) return; paint(); pipe.timer = setTimeout(tick, 66); };
       src.play().catch(() => {});
       const stream = canvas.captureStream(15);
       pipe.track = stream.getVideoTracks()[0];
       blurPipe = pipe;
-      draw();
+      if (src.requestVideoFrameCallback) pipe.rvfc = src.requestVideoFrameCallback(onFrame);
+      tick();
       return pipe.track;
     }
     // The video track to actually SEND: the strongest blur that applies to me
