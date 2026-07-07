@@ -211,18 +211,44 @@
     const selfLocal = self === 'localhost' || self === '127.0.0.1' || self === '[::1]';
     return host === self && !selfLocal;
   }
-  function isAllowed(manifest, host) {
-    const allowed = (manifest.capabilities && manifest.capabilities.network) || [];
-    return allowed.some((p) => p === '*' || host === p || host.endsWith('.' + p));
+  // The hosts an app's manifest ASKS to reach. A self-contained GIF declares
+  // none (empty or absent) and can never touch the network; anything here is a
+  // capability the user gets to see and veto.
+  function networkHosts(manifest) {
+    const raw = (manifest && manifest.capabilities && manifest.capabilities.network) || [];
+    const seen = {}, out = [];
+    for (const h of raw) { const s = String(h == null ? '' : h).trim(); if (s && !seen[s]) { seen[s] = 1; out.push(s); } }
+    return out;
   }
-  function bridgeFetch(manifest, d) {
+  // A per-app network policy: the declared hosts, plus the user's per-host
+  // allow/deny choices (persisted with the icon under '<fileId>::netperms', so a
+  // veto sticks across launches). The runtime gates every bridged fetch on this,
+  // and run.html renders it (the launch acknowledgement + the tab control).
+  function makeNetPolicy(fileId, manifest) {
+    const declared = networkHosts(manifest);
+    const denied = Object.create(null);
+    const key = fileId ? fileId + '::netperms' : null; // client-run apps: session-only
+    return {
+      declared: () => declared.slice(),
+      hasNetwork: () => declared.length > 0,
+      unsafe: () => declared.indexOf('*') >= 0 && !denied['*'],
+      list: () => declared.map((h) => ({ host: h, allowed: !denied[h] })),
+      allow: (host) => declared.some((p) => !denied[p] && (p === '*' || host === p || host.endsWith('.' + p))),
+      set: (host, allowed) => { if (allowed) delete denied[host]; else denied[host] = 1;
+        return key ? store.setState(key, { denied: Object.keys(denied) }) : Promise.resolve(); },
+      load: () => (key ? store.getState(key).then((r) => {
+        if (r && Array.isArray(r.denied)) for (const h of r.denied) denied[h] = 1;
+      }).catch(() => {}) : Promise.resolve()),
+    };
+  }
+  function bridgeFetch(policy, d) {
     let u; try { u = new URL(d.url); } catch (e) { return Promise.reject(new Error('bad url')); }
     const localhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]';
     if (u.protocol !== 'https:' && !(u.protocol === 'http:' && localhost)) {
       return Promise.reject(new Error('Network denied: only https:// URLs are allowed'));
     }
     if (firstPartyHost(u.hostname)) return Promise.reject(new Error('Network denied: apps cannot call the GifOS origin'));
-    if (!isAllowed(manifest, u.hostname)) return Promise.reject(new Error('Network denied: ' + u.hostname + ' not in app permissions'));
+    if (!policy.allow(u.hostname)) return Promise.reject(new Error('Network denied: ' + u.hostname + ' not in app permissions'));
     return fetch(d.url, { method: d.method, headers: d.headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
       .then((resp) => resp.arrayBuffer().then((buf) => {
         if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
@@ -357,19 +383,23 @@
   }
 
   // ---- mount an app into an iframe with the given DB backend ----------------
-  function mountApp(iframe, files, manifest, db, originalBytes) {
+  function mountApp(iframe, files, manifest, db, originalBytes, policy) {
+    policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
       const reply = (p) => iframe.contentWindow.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*');
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
-      else if (d.type === 'fetch') bridgeFetch(manifest, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      else if (d.type === 'fetch') bridgeFetch(policy, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
     };
     root.addEventListener('message', handler);
+    // Hand the chrome (run.html) this app's network policy so it can show the
+    // launch acknowledgement and the tab control. Fires for every mount path.
+    if (root.__gifosPermissions) { try { root.__gifosPermissions(policy); } catch (e) { /* no chrome */ } }
     iframe.srcdoc = buildAppHtml(files);
     return () => root.removeEventListener('message', handler);
   }
@@ -743,6 +773,7 @@
         if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
       };
       const db = makeLocalDb(fileId, emit);
+      const netPolicy = makeNetPolicy(fileId, manifest);
 
       function becomeHost() {
         const relay = relayUrl();
@@ -795,8 +826,8 @@
             if (embedded && embedded.collections) return db.import(embedded);
           } catch (e) { /* corrupt embedded state — start fresh */ }
         }
-      }).then(() => {
-        mountApp(iframe, files, manifest, db, appBytes);
+      }).then(() => netPolicy.load()).then(() => {
+        mountApp(iframe, files, manifest, db, appBytes, netPolicy);
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
@@ -1014,7 +1045,8 @@
           document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
           remoteDb = makeRemoteDb(transportSend);
           iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
-          mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes);
+          // Client-run: the veto is session-only (no local icon to persist under).
+          mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
           if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
           root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
           runningStatus();
@@ -1061,9 +1093,11 @@
             },
           });
           // Remount the app against the local DB and wake the other clients.
+          // We now own a desktop icon, so the veto persists under its fileId.
+          const takeoverPolicy = makeNetPolicy(fileId, manifestRef);
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;
-          mountApp(fresh, filesRef, manifestRef, db, appBytes);
+          takeoverPolicy.load().then(() => mountApp(fresh, filesRef, manifestRef, db, appBytes, takeoverPolicy));
           ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
           setStatus(opts.auto ? 'The host vanished — you took over automatically · the session continues'
             : 'Live (you took over) · the session continues');
