@@ -205,6 +205,11 @@
   function firstPartyHost(host) {
     // gifos.app and *.gifos.app (relay/mcp/mirrors) are always off-limits.
     if (host === 'gifos.app' || host.endsWith('.gifos.app')) return true;
+    // Custom deployments can protect their own sibling services by setting
+    // window.GIFOS_FIRST_PARTY = ['example.com', ...] — each entry blocks that
+    // host and its subdomains (mirrors the relay's configurable ALLOWED_ORIGINS).
+    const extra = (root.GIFOS_FIRST_PARTY && root.GIFOS_FIRST_PARTY.length) ? root.GIFOS_FIRST_PARTY : [];
+    for (const s of extra) { if (s && (host === s || host.endsWith('.' + s))) return true; }
     // Also the actual serving origin — but NOT local dev, which has no
     // first-party infra to protect and is where the test suite reaches itself.
     const self = (root.location && root.location.hostname) || '';
@@ -250,10 +255,20 @@
     if (firstPartyHost(u.hostname)) return Promise.reject(new Error('Network denied: apps cannot call the GifOS origin'));
     if (!policy.allow(u.hostname)) return Promise.reject(new Error('Network denied: ' + u.hostname + ' not in app permissions'));
     return fetch(d.url, { method: d.method, headers: d.headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
-      .then((resp) => resp.arrayBuffer().then((buf) => {
-        if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
-        return { status: resp.status, headers: Object.fromEntries(resp.headers.entries()), body: gif.bytesToText(new Uint8Array(buf)) };
-      }));
+      .then((resp) => {
+        // A redirect can walk an allowed (or '*') host to a first-party or
+        // otherwise-forbidden one, and follow makes the FINAL response readable.
+        // Re-check the URL we actually landed on and refuse to hand back its body.
+        let fu; try { fu = new URL(resp.url); } catch (e) { fu = null; }
+        const finalHost = fu ? fu.hostname : u.hostname;
+        if (firstPartyHost(finalHost) || !policy.allow(finalHost)) {
+          throw new Error('Network denied: redirected to a disallowed host (' + finalHost + ')');
+        }
+        return resp.arrayBuffer().then((buf) => {
+          if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
+          return { status: resp.status, headers: Object.fromEntries(resp.headers.entries()), body: gif.bytesToText(new Uint8Array(buf)) };
+        });
+      });
   }
 
   // ---- snapshot: re-pack app + current state into a self-contained GIF -----
@@ -626,19 +641,38 @@
         if (Date.now() - p.away > CONN.PEER_DROP) {
           if (p.pc) { try { p.pc.close(); } catch (e) { /* long dead */ } }
           peers.delete(peer);
+          putSeen.delete(peer); // the replay window is long gone once we drop them
           changed = true;
         }
       }
       if (changed || anyAway || ws.downSince) notify(); // keep grades ticking soft→warn
     }, 2000);
 
+    // Idempotency for replayed writes: a client re-sends its pending RPCs after a
+    // reconnect (see makeRemoteDb._replay). If a `put` reached us but its reply
+    // was lost, a naive re-apply would create a SECOND record (the put auto-
+    // assigns an id). We remember each peer's recent put op-ids → the reply we
+    // gave, and on a repeat we resend that reply without touching the DB. Op-ids
+    // are monotonic per client connection and the peer id survives reconnects, so
+    // (peer, id) is stable; a small bounded map covers the replay window.
+    const putSeen = new Map(); // peer -> Map(opId -> reply)
+    const rememberPut = (peer, id, reply) => {
+      let m = putSeen.get(peer); if (!m) { m = new Map(); putSeen.set(peer, m); }
+      m.set(id, reply);
+      while (m.size > 128) m.delete(m.keys().next().value);
+    };
     const handleRpc = (peer, req) => {
+      if (req.op === 'put') {
+        const seen = putSeen.get(peer);
+        if (seen && seen.has(req.id)) { sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: seen.get(req.id) }); return; }
+      }
       db.op(req.op, req.collection, req.key, req.value)
         .then((result) => {
           // A put's result is the stored record — the client already HAS those
           // bytes (it just sent them). Echo only the assigned id; anything else
           // wastes the relay budget (a 300KB put would reply with 300KB).
           const slim = (req.op === 'put' && result && typeof result === 'object') ? { id: result.id } : result;
+          if (req.op === 'put') rememberPut(peer, req.id, slim);
           sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: slim });
         })
         .catch((err) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) }));
