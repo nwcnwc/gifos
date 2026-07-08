@@ -79,7 +79,7 @@
       ['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel'].forEach(function(k){
         try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch(e){ try { window[k] = undefined; } catch(e2){} }
       });
-      var pending = {}, subs = {};
+      var pending = {}, subs = {}, backCbs = [];
       function rpc(msg){ return new Promise(function(res, rej){
         var id = 'r'+Math.random().toString(36).slice(2);
         pending[id] = { res: res, rej: rej };
@@ -100,6 +100,7 @@
           if(d.collection==='*'){ Object.keys(subs).forEach(refresh); }
           else refresh(d.collection);
         }
+        if(d.type==='back'){ backCbs.forEach(function(cb){ try { cb(); } catch(e){} }); }
       });
       window.gifos = {
         db: function(collection){ return {
@@ -119,6 +120,10 @@
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
         setName: function(n){ return rpc({type:'setName', name:n}); },
+        // The container traps the browser Back button so an app is never blown
+        // away by a reflex press. By default the press is swallowed; register a
+        // callback to make Back meaningful (close a modal, back out a screen).
+        onBack: function(cb){ if (typeof cb === 'function') backCbs.push(cb); },
         // Origin-wide storage usage/quota in bytes, so an app can warn a user
         // before they fill the computer up. Shared across all apps on this
         // origin (they live in one IndexedDB), not per-app.
@@ -423,8 +428,26 @@
   }
 
   // ---- mount an app into an iframe with the given DB backend ----------------
+  // The Back button belongs to the app. The container traps browser Back so a
+  // reflex press never unloads a running app: the press is delivered to the
+  // app as a 'back' event (see gifos.onBack in the shim) and swallowed
+  // otherwise. Installed once per tab; remounts (takeover) just retarget it.
+  function armBackTrap(getIframe) {
+    if (root.__gifosBackTrap) { root.__gifosBackTrap.target = getIframe; return; }
+    if (!(root.history && root.history.pushState && root.addEventListener)) return;
+    root.__gifosBackTrap = { target: getIframe };
+    root.history.replaceState({ gifos: 'base' }, '');
+    root.history.pushState({ gifos: 'trap' }, '');
+    root.addEventListener('popstate', () => {
+      const ifr = root.__gifosBackTrap.target();
+      if (ifr && ifr.contentWindow) ifr.contentWindow.postMessage({ ns: 'gifos', type: 'back' }, '*');
+      root.history.pushState({ gifos: 'trap' }, '');
+    });
+  }
+
   function mountApp(iframe, files, manifest, db, originalBytes, policy) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
+    armBackTrap(() => iframe);
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;

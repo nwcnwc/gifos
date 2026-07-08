@@ -93,6 +93,7 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
 3. Identity: const me = await gifos.me(); -> { id, name }. Attribute records
    to me.id/me.name so every player sees who did what.
 4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.
+4b. BACK BUTTON: the GifOS shell traps the phone's Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.
 5. Dark theme by default (#0a0a0f), mobile-friendly.
 5b. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
    microphone, screen capture, and WebRTC, so a video/voice/streaming app
