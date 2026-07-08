@@ -232,6 +232,28 @@ The app developer writes against **one DB API**. Whether it resolves locally (se
 
 Two session shapes share the same Durable Object: **host/client app sessions** (the host's browser is the server) and **host-less `mesh` rooms** (meetings — every participant equal, the room lives at its URL forever, whoever shows up talks to whoever is there). Details in [cors-and-networking.md](cors-and-networking.md).
 
+### Apps inside meetings
+
+A meeting (`meet.html`) and an app tab (`run.html`) are two entrances to the
+same place: a room that can hold **live media and a shared app at once**. They
+compose the two session shapes above rather than merging them:
+
+- **Run app** in a meeting boots the chosen app through the normal app runtime,
+  hosts it (`forever`, resilient), and advertises its join info — `{ s, k, relay,
+  name }` — inside the host's own **status heartbeat**. Every participant's
+  meeting reconciles against that gossip and mounts the app as a runtime
+  **client**, so all faces share one live app session (its own sid, separate
+  from the media mesh). Late joiners pick it up on the next heartbeat; when the
+  sharer stops or leaves, the pane tears down everywhere.
+- **Meeting** in an app tab hands the same app off to `meet.html#app=<fileId>`
+  — same browser, same saved state — which auto-hosts it and lights the media
+  up. Both doors land on the identical layout: the app on the stage, participant
+  tiles as a filmstrip, meeting controls in the bar.
+
+The media mesh and the app's data channels are independent peer connections
+over the one relay room; the app never touches the camera (that stays with the
+trusted meeting page), so the sandbox guarantees are unchanged.
+
 ### The shareable launch URL
 
 When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries everything the relay needs to bootstrap a client:
