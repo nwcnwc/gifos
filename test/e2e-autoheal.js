@@ -12,6 +12,14 @@ const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Drive the invite-lifetime modal: click Invite, pick a lifetime, confirm.
+// value is one of close|1h|24h|forever, or __keep to resume the existing link.
+async function invite(page, value) {
+  await page.locator('#host').click();
+  await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
+  await page.locator('#invite-modal input[value="' + value + '"]').check();
+  await page.locator('#inv-go').click();
+}
 
 // Shrink the healing clock so the test doesn't wait out real-world timers.
 const FAST = 'window.GIFOS_CONN={AUTO_TAKEOVER:8000,CAND_LEAD:4000,RANK_STEP:2500,TAKEOVER_HINT:2000};';
@@ -38,7 +46,7 @@ const FAST = 'window.GIFOS_CONN={AUTO_TAKEOVER:8000,CAND_LEAD:4000,RANK_STEP:250
   await hostApp.locator('#msg').fill('original entry');
   await hostApp.locator('form button').click();
   await sleep(200);
-  await hostRun.locator('#host').click();
+  await invite(hostRun, 'forever');
   await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
   const shareUrl = await hostRun.locator('#share-url').inputValue();
 
@@ -98,7 +106,7 @@ const FAST = 'window.GIFOS_CONN={AUTO_TAKEOVER:8000,CAND_LEAD:4000,RANK_STEP:250
   ]);
   await hostRun2.waitForSelector('iframe');
   await hostRun2.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
-  await hostRun2.locator('#host').click(); // tries to resume hosting with its stale epoch
+  await invite(hostRun2, '__keep'); // resume the SAME link with a stale epoch
   await hostRun2.waitForURL(/[#&?](j|s)=/, { timeout: 10000 }); // bounced into guest mode
   check('stale returning host is redirected into guest mode', true);
   await hostRun2.waitForSelector('iframe', { timeout: 10000 });

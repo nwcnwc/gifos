@@ -277,16 +277,20 @@ A **snapshot** is a full export of the running app — filesystem plus current s
 
 ### Server lifecycle on close
 
-When the server closes the tab, they choose:
+What happens when the server closes the tab depends on the **link lifetime**
+chosen at Invite time (see *Multiplayer & data* under Security):
 
-| Choice | Effect |
-|--------|--------|
-| **Lock** | Clients are suspended until the server reopens the app icon. |
-| **Continue** | Clients keep playing — **but only while the server's browser stays online**, since the server browser still owns the DB. |
+| Lifetime | On close |
+|----------|----------|
+| **close** (default) | The link dies. No guest mirrored the state, so nobody can resume it; reopening the icon mints a brand-new link. |
+| **1h / 24h** | Guests are suspended; reopening the icon within the window resumes the **same** link. At expiry the host broadcasts `ended` and the link stops admitting anyone. |
+| **forever** | The permanent room: guests mirror the state, so if the server stays gone a still-connected guest can self-heal the session (below). Reopening resumes the same link. |
 
-### Failover from a snapshot
+### Failover from a snapshot (forever links only)
 
-If the server's browser **dies** (crash, closed, offline), the session is not necessarily lost:
+Only a **forever** link mirrors state to guests, so only it can survive the
+server's browser **dying** (crash, closed, offline). Bounded links have exactly
+one host by design. For a forever link:
 
 ```
 server browser gone
@@ -391,6 +395,19 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   hardcoded whitelist — a GIF cannot name an arbitrary page.
 - **Join tokens** scope a client to a single server session; the relay
   validates every join against the host's token.
+- **An invite link is a capability, not a viewer pass.** A joiner's browser
+  mirrors the full app dataset to stay in sync, so anyone with the link can
+  Download Snapshot a complete copy — and there is no un-sharing what already
+  synced. The host therefore sets a **lifetime** at Invite time:
+  - `close` (default) — a fresh session id every open, **no state mirroring to
+    guests** (so no takeover is possible), dead when the tab closes or a new
+    link is minted.
+  - `1h` / `24h` — resumes the same id while unexpired; a host-side timer
+    broadcasts `ended` and drops the socket at expiry.
+  - `forever` — the shared, permanent room; the **only** mode that mirrors
+    state to guests, enabling self-healing takeover (see Failover).
+  **New link** rotates the session id, broadcasting `ended (revoked)` to guests
+  on the old link. One live link per app.
 - Snapshots are plain GIFs — treat a shared snapshot as sharing the data it
   contains.
 - The relay is a dumb pipe: it routes by session but never inspects, stores, or

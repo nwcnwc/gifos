@@ -11,6 +11,14 @@ const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Drive the invite-lifetime modal: click Invite, pick a lifetime, confirm.
+// value is one of close|1h|24h|forever, or __keep to resume the existing link.
+async function invite(page, value) {
+  await page.locator('#host').click();
+  await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
+  await page.locator('#invite-modal input[value="' + value + '"]').check();
+  await page.locator('#inv-go').click();
+}
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
@@ -34,7 +42,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await hostApp.locator('#msg').fill('original entry');
   await hostApp.locator('form button').click();
   await sleep(200);
-  await hostRun.locator('#host').click();
+  await invite(hostRun, 'forever');
   await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
   const shareUrl = await hostRun.locator('#share-url').inputValue();
 
@@ -119,7 +127,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ]);
   await hostRun2.waitForSelector('iframe');
   await hostRun2.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
-  await hostRun2.locator('#host').click();
+  await invite(hostRun2, '__keep');
   await hostRun2.waitForURL(/[#&?](j|s)=/, { timeout: 10000 });
   await hostRun2.waitForSelector('iframe', { timeout: 10000 });
   const back = hostRun2.frameLocator('iframe');
@@ -139,7 +147,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ]);
   await hostRun3.waitForSelector('iframe');
   await hostRun3.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
-  await hostRun3.locator('#host').click();
+  await invite(hostRun3, '__keep');
   await hostRun3.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
   const shareUrl2 = await hostRun3.locator('#share-url').inputValue();
   check('reopening the icon resumes the SAME share link (lock-until-reopen)', shareUrl2 === shareUrl);

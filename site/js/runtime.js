@@ -1012,7 +1012,7 @@
         // The app GIF only goes to genuinely new peers — a rejoining phone
         // already has it (and the client dedups regardless), and skipping the
         // resend keeps reconnect storms inside the relay's bandwidth budget.
-        if (!known) relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes) });
+        if (!known) relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal });
         offerP2P(m.peer);
         notify();
       } else if (m.t === 'peer-leave') {
@@ -1099,17 +1099,69 @@
       const db = makeLocalDb(fileId, emit);
       const netPolicy = makeNetPolicy(fileId, manifest);
 
-      function becomeHost() {
+      // ---- invite-link lifetime -------------------------------------------
+      // The link is a capability: whoever holds it can join live AND pull a
+      // full copy of this app's data (their browser mirrors the state to sync,
+      // so there is no way to un-share it once seen). The host therefore owns
+      // how long the link stays usable:
+      //   close   — ephemeral. A fresh id every open, no self-healing, dead the
+      //             instant this tab closes or a new link is made. (default)
+      //   1h/24h  — resumes the SAME id while unexpired, then the host ends it.
+      //   forever — the shared, permanent room: it self-heals to a still-
+      //             connected guest if the host vanishes.
+      // Only 'forever' mirrors state to guests for takeover — a bounded link
+      // has exactly one host (you), so closing it really ends it.
+      let liveHost = null; // { ws, timer, stop } for the session this tab serves
+      function lifetimeToSpec(lt, now) {
+        if (lt === '1h') return { keep: 'persist', exp: now + 3600e3 };
+        if (lt === '24h') return { keep: 'persist', exp: now + 86400e3 };
+        if (lt === 'forever') return { keep: 'persist', exp: 0 };
+        return { keep: 'close', exp: 0 }; // default: dies on close / on new link
+      }
+      function sessionInfo() {
+        return store.getState(fileId + '::session').then((s) => {
+          const now = Date.now();
+          return { active: !!(s && s.keep === 'persist' && (!s.exp || now < s.exp)),
+            exp: (s && s.exp) || 0, keep: (s && s.keep) || null };
+        });
+      }
+      function retire(h) {
+        if (!h) return;
+        if (h.timer) clearTimeout(h.timer);
+        try { if (h.stop) h.stop(); } catch (e) { /* already stopped */ }
+        try { h.ws.close(); } catch (e) { /* already closing */ }
+      }
+      function endSession(reason) {
+        const gone = liveHost; liveHost = null;
+        if (!gone) return Promise.resolve();
+        try { gone.ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'ended', reason } })); } catch (e) { /* socket gone */ }
+        // Let the 'ended' frame flush before dropping the socket.
+        setTimeout(() => retire(gone), 200);
+        announceConn({ mode: 'local' });
+        setStatus(reason === 'expired' ? 'Invite link expired — open Invite to make a new one.' : 'Sharing ended.');
+        return store.setState(fileId + '::session', null);
+      }
+
+      function becomeHost(opts) {
+        opts = opts || {};
         const relay = relayUrl();
         if (!relay) return Promise.reject(new Error('No relay configured (set window.GIFOS_RELAY).'));
-        // Reuse the icon's stored session so reopening the app resumes the SAME
-        // share link — closing the tab "locks" clients until the icon reopens
-        // (unless self-healing promoted someone meanwhile; see host-stale below).
         return store.getState(fileId + '::session').then((sess) => {
-          const code = shortCode();
-          const sid = (sess && sess.sid) || code;
-          const token = (sess && sess.token) || code;
-          const epoch = (sess && sess.epoch) || 0;
+          const now = Date.now();
+          const valid = sess && sess.keep === 'persist' && (!sess.exp || now < sess.exp);
+          let sid, token, epoch, keep, exp;
+          if (opts.lifetime) {
+            // An explicit choice mints a FRESH link, which revokes any old one:
+            // one live link per app, so past guests can no longer rejoin.
+            const spec = lifetimeToSpec(opts.lifetime, now);
+            sid = token = shortCode(); epoch = 0; keep = spec.keep; exp = spec.exp;
+          } else if (valid) {
+            sid = sess.sid; token = sess.token; epoch = sess.epoch || 0; keep = sess.keep; exp = sess.exp || 0;
+          } else {
+            // No stored link to resume and no choice given → ephemeral default.
+            sid = token = shortCode(); epoch = 0; keep = 'close'; exp = 0;
+          }
+          const heal = keep === 'persist' && !exp; // only 'forever' self-heals
           const joinUrl = buildJoinUrl('app', sid, token, relay);
           // If the session healed itself while we were dead, our epoch is stale
           // and the relay bounces us — the newest state lives with the promoted
@@ -1122,18 +1174,27 @@
             location.replace(joinUrl);
             location.reload();
           };
+          // Rotating to a new link: tell guests on the old link they've been
+          // cut off (so they don't sit "waiting for host"), then retire it.
+          const prior = liveHost; liveHost = null;
+          if (prior) {
+            try { prior.ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'ended', reason: 'revoked' } })); } catch (e) { /* socket gone */ }
+            setTimeout(() => retire(prior), 200);
+          }
           return openHostSocket(relay, sid, token, epoch, identity().id).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
-            }, { onDisplaced: displaced });
+            }, { onDisplaced: displaced, heal });
+            const timer = exp ? setTimeout(() => endSession('expired'), Math.max(0, exp - now)) : null;
+            liveHost = { ws, timer, stop: hostApi.stop };
             announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
             setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-            return store.setState(fileId + '::session', { sid, token, relay, epoch }).then(() => ({
-              shareUrl: joinUrl,
+            return store.setState(fileId + '::session', { sid, token, relay, epoch, keep, exp }).then(() => ({
+              shareUrl: joinUrl, keep, exp,
             }));
           }).catch((err) => {
             if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
@@ -1155,7 +1216,7 @@
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
-        return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost };
+        return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost, sessionInfo, endSession };
       });
     }
   }
@@ -1173,6 +1234,11 @@
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
     let appBytes = null, lastDump = null, hostGone = false, hostGoneAt = null, tookOver = false;
     let pc = null, channel = null; // P2P DataChannel to the host (when it opens)
+    // The host tells us whether this session self-heals (only 'forever' links
+    // do). If it doesn't, we never mirror its state — so there's nothing to
+    // promote, and the session genuinely ends when the host leaves. `ended` is
+    // a terminal stop: the host expired or closed a bounded link.
+    let sessionHeal = false, ended = false;
 
     // The failover mirror re-downloads FULL app state. On every db-change that
     // is O(state) traffic per client — with big records it can drain the whole
@@ -1182,7 +1248,7 @@
     let mirrorTimer = null, mirrorLast = 0;
     const MIRROR_MIN_MS = 5000;
     const mirror = () => {
-      if (!remoteDb || hostGone) return;
+      if (!remoteDb || hostGone || !sessionHeal) return;
       const due = mirrorLast + MIRROR_MIN_MS - Date.now();
       if (due > 0) { if (!mirrorTimer) mirrorTimer = setTimeout(() => { mirrorTimer = null; mirror(); }, due); return; }
       mirrorLast = Date.now();
@@ -1240,7 +1306,7 @@
       announceConn({ mode: 'client', grade: connGrade(), via: (channel && channel.readyState === 'open') ? 'p2p' : 'relay', hostAway: hostGone });
     };
     const escalator = setInterval(() => {
-      if (tookOver) { clearInterval(escalator); return; }
+      if (tookOver || ended) { clearInterval(escalator); return; }
       const g = connGrade();
       // The Take Over hint appears once the host has been away a few seconds…
       if (hostGone && !takeoverHinted && hostGoneAt && Date.now() - hostGoneAt > CONN.TAKEOVER_HINT) {
@@ -1291,6 +1357,20 @@
 
     // Shared dispatch for host->client session messages, from either transport.
     const dispatch = (m) => {
+      if (m.t === 'ended') {
+        // The host closed or expired a bounded link. It won't come back and
+        // there's nothing to take over — stop waiting and say so plainly.
+        if (ended) return;
+        ended = true; hostGone = true; lastDump = null;
+        clearInterval(escalator);
+        if (remoteDb) remoteDb._setHostDown(true);
+        setStatus(m.reason === 'expired' ? 'This invite link has expired. Ask the host for a new one.'
+          : m.reason === 'revoked' ? 'This invite link was replaced. Ask the host for the new one.'
+          : 'The host stopped sharing this session.');
+        announceConn({ mode: 'client', grade: 'lost', via: 'relay', hostAway: true });
+        try { ws.close(); } catch (e) { /* already closing */ }
+        return;
+      }
       if (m.t === 'host-back') { hostIsBack(); return; }
       if (m.t === 'rpc-reply') {
         hostIsBack();
@@ -1330,7 +1410,7 @@
     // Socket healed: re-sync the view and replay unanswered requests. The host
     // sees our rejoin (same peer id) and re-offers P2P on its own.
     ws.onopen = () => {
-      if (tookOver || !remoteDb) return;
+      if (tookOver || ended || !remoteDb) return;
       remoteDb._replay();
       if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: '*' }, '*');
       mirror();
@@ -1360,6 +1440,7 @@
         announceClient();
       } else if (m.t === 'app') {
         hostIsBack();
+        sessionHeal = !!m.heal; // does this link self-heal? governs mirroring
         if (filesRef || tookOver) { runningStatus(); return; } // rejoin redelivery — already mounted
         appBytes = gif.b64decode(m.gif);
         gif.decode(appBytes).then((archive) => {
@@ -1410,6 +1491,7 @@
             setStatus('Live (you took over) · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
           }, {
             selfPeer: myPeer,
+            heal: true, // takeover only reaches here for self-healing 'forever' links
             onDisplaced: () => {
               setStatus('A newer host holds the session — rejoining as a guest…');
               location.replace(buildJoinUrl('app', params.s, params.k, params.relay));
