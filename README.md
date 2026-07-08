@@ -93,6 +93,25 @@ Move things between computers the GifOS way: snapshot an app (or back up a whole
 
 Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on the ten digit subdomains via ten explicit routes — traffic to any other subdomain never invokes (or bills) the Worker.
 
+## Every Computer Has a Soul (and you can build one)
+
+Each computer wears its own **theme** — a complete visual identity, resolved once from the hostname:
+
+| | | | |
+|---|---|---|---|
+| [gifos.app](https://gifos.app) — **Aurora** (glossy glass) | `0` — **Terminal Zero** (phosphor CRT) | `1` — **Letterpress** (ink on warm paper) | `2` — **Sticker Meadow** (hand-drawn kawaii) |
+| `3` — **Toybox** (glossy pastel) | `4` — **Stadium** (varsity gold) | `5` — **Countdown** (space chrome) | `6` — **Watercolor** (loose ink + wash) |
+| `7` — **Lucky Sevens** (neon glitch) | `8` — **8-Bit** (PICO-8 pixels) | `9` — **Zen Garden** (sumi-e) | |
+
+A theme is more than a colour swap. Each one ships its own **icon pack** — hand-drawn, animated artwork for every app, rasterized into real GIFs — plus **chrome** (the desktop palette) and, because the default apps are rebuilt from source on every computer's first boot, **the theme carries all the way into the apps themselves**: open Notes on Watercolor and it's ink-on-cream; open it on Terminal Zero and it's green phosphor. The art is baked into each app GIF at seed time, so a stolen app keeps its birthplace's look wherever it travels.
+
+**Want your own computer? Send a theme.** All ten digits are taken, but the design is built to grow past them, and we'd love new ones. Open a pull request that adds:
+
+- a **theme entry** in [`site/js/gifos-themes.js`](site/js/gifos-themes.js) (a name, a palette, and the pack it draws with — the file's header documents every field), and
+- an **icon pack** in `site/js/gifos-pack-<name>.js` — `GifOS.iconPacks.register(name, { size, frames, draw(subject, accent), fallback(letter, accent) })` draws each app's animated art (the existing packs, e.g. [`gifos-pack-watercolor.js`](site/js/gifos-pack-watercolor.js), are the reference).
+
+**If it's beautiful — genuinely its own world, with original GIF animations — it gets its own subdomain.** Propose the subdomain you'd like in the PR (a name, not just the next number), and if we ship it, it's yours: your art, your palette, your corner of GifOS. New subdomains are one line each in [`mirror/`](mirror), so the only real bar is the craft.
+
 ## Security Model (short version)
 
 - Apps run in a **sandboxed iframe with an opaque origin** — no cookies, no localStorage, no reach into the desktop's storage. Each icon's data is keyed by its fileId; apps cannot name another icon's data.
