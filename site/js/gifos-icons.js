@@ -66,7 +66,12 @@
   //   function                      → painter: fn(ctx, size, frameIndex)
   function paintFrame(ctx, size, frame, f) {
     ctx.clearRect(0, 0, size, size);
-    if (typeof frame === 'function') { frame(ctx, size, f); return Promise.resolve(); }
+    // Painter may be sync or return a Promise (e.g. load a baked PNG first).
+    // Must await — otherwise rasterize captures a blank cleared canvas.
+    if (typeof frame === 'function') {
+      const ret = frame(ctx, size, f);
+      return (ret && typeof ret.then === 'function') ? ret : Promise.resolve();
+    }
     const src = (typeof frame === 'string' && frame[0] === '<')
       ? 'data:image/svg+xml,' + encodeURIComponent(frame) : frame;
     return new Promise((res, rej) => {
