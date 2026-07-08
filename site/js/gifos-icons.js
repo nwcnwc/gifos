@@ -131,24 +131,12 @@
 
   // ---- the pack registry -----------------------------------------------------
   const packs = {};
-  const loading = {};
-  // Packs load LAZILY by convention (js/gifos-pack-<name>.js): only the active
-  // computer's pack ever downloads. The default packs stay as eager script tags
-  // for an instant first paint; a missing/broken pack file resolves undefined
-  // and the caller falls back to the flagship.
-  function ensure(name) {
-    if (packs[name]) return Promise.resolve(packs[name]);
-    if (!root.document) return Promise.resolve(undefined);
-    if (!loading[name]) {
-      loading[name] = new Promise((res) => {
-        const s = root.document.createElement('script');
-        s.src = 'js/gifos-pack-' + encodeURIComponent(name) + '.js';
-        s.onload = () => res(); s.onerror = () => res();
-        root.document.head.appendChild(s);
-      });
-    }
-    return loading[name].then(() => packs[name]);
-  }
+  // The active computer's pack (and the base fallback) are loaded up front by
+  // the theme cascade — see gifos-themes.js, which document.writes the resolved
+  // themes/<dir>/icons.js before first paint. So ensure() just resolves what the
+  // cascade already registered; a missing pack yields undefined and the caller
+  // falls back to the flagship.
+  function ensure(name) { return Promise.resolve(packs[name]); }
   GifOS.iconPacks = {
     register(name, pack) { packs[name] = pack; },
     get(name) { return packs[name]; },
