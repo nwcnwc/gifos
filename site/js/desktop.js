@@ -626,7 +626,17 @@
   }
 
   // ---------- open / run ----------
+  // A touch double-tap can reach us TWICE: our own two-tap detector in
+  // pointerup fires, and then the browser also synthesizes a dblclick — Android
+  // Chrome dispatches it even though pointerdown was preventDefault'd (iOS
+  // suppresses it, which is why the manual detector exists at all). Collapse the
+  // pair so one gesture opens one tab; a deliberate re-open a moment later still
+  // works because the window is short.
+  let lastOpen = { id: null, t: 0 };
   async function openItem(it) {
+    const now = Date.now();
+    if (lastOpen.id === it.id && now - lastOpen.t < 700) return;
+    lastOpen = { id: it.id, t: now };
     if (it.kind === 'folder') { currentFolder = it.id; selectedId = null; return render(); }
     const file = await store.getFile(it.fileId);
     if (!file) return;
