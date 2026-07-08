@@ -227,3 +227,15 @@ details.adv h4 { margin-top: .8rem; }
   position: fixed; bottom: 2.4rem; left: 50%; transform: translateX(-50%);
   color: var(--muted); font-size: .8rem; pointer-events: none; z-index: 3;
 }
+
+/* Settings → AI models */
+.ai-row { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem .6rem; margin-bottom: .55rem; }
+.ai-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.ai-head b { flex: 1; font-size: .9rem; }
+.ai-test { padding: .28rem .8rem; border-radius: .4rem; border: 1px solid var(--accent); background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; font-size: .78rem; }
+.ai-status { font-size: .78rem; color: var(--muted); min-width: 3rem; }
+.ai-status.ok { color: color-mix(in srgb, #34c759 60%, var(--text)); }
+.ai-status.bad { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+.ai-2 { display: flex; gap: .4rem; }
+.modal.wide .ai-row input { margin-bottom: .4rem; }
+.modal.wide .ai-row .ai-2 input { margin-bottom: 0; }

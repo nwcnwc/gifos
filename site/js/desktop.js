@@ -1231,6 +1231,88 @@
       + 'cache holds ' + s.fileCache + ' files, ' + s.blobUrls + ' images.';
   }
 
+  // ---- AI models: the computer holds endpoints + keys, apps ask for results -
+  // Config lives in localStorage (per-origin, NOT in a shareable backup GIF), so
+  // an app that requests the "ai" capability calls through the runtime and never
+  // sees a key. Each role is an OpenAI-shaped base URL + key + model name.
+  const AI_TYPES = [
+    { key: 'smartest', label: 'Smartest text', ph: 'gpt-4o', op: 'chat' },
+    { key: 'cheapest', label: 'Cheapest text', ph: 'gpt-4o-mini', op: 'chat' },
+    { key: 'tts', label: 'Text → speech', ph: 'tts-1', op: 'tts' },
+    { key: 'stt', label: 'Speech → text', ph: 'whisper-1', op: 'stt' },
+    { key: 'image', label: 'Text → image', ph: 'gpt-image-1', op: 'image' },
+    { key: 'image_to_video', label: 'Image → video', ph: 'provider model', op: 'video' },
+    { key: 'video', label: 'Text → video', ph: 'provider model', op: 'video' },
+  ];
+  const AI_LS = 'gifos_ai_config';
+  const aiCfgAll = () => { try { return JSON.parse(root.localStorage.getItem(AI_LS) || '{}') || {}; } catch (e) { return {}; } };
+  function aiSectionHtml() {
+    const cfg = aiCfgAll();
+    const rows = AI_TYPES.map((t) => {
+      const c = cfg[t.key] || {};
+      return '<div class="ai-row" data-ai="' + t.key + '">' +
+        '<div class="ai-head"><b>' + t.label + '</b><button class="ai-test" data-ai="' + t.key + '">Test</button>' +
+        '<span class="ai-status" data-ai="' + t.key + '"></span></div>' +
+        '<input class="ai-f" data-ai="' + t.key + '" data-f="url" placeholder="Base URL — e.g. https://api.openai.com/v1" value="' + escapeHtml(c.url || '') + '">' +
+        '<div class="ai-2"><input class="ai-f" data-ai="' + t.key + '" data-f="key" type="password" placeholder="API key" value="' + escapeHtml(c.key || '') + '">' +
+        '<input class="ai-f" data-ai="' + t.key + '" data-f="model" placeholder="Model — ' + escapeHtml(t.ph) + '" value="' + escapeHtml(c.model || '') + '"></div>' +
+        '</div>';
+    }).join('');
+    return '<details class="adv"><summary>🧠 AI models</summary>' +
+      '<p class="add-help">Wire up your own OpenAI-compatible endpoints. Any app that asks for the <b>ai</b> ability can use these — it sends prompts and gets results, and <b>never sees your keys</b> (they stay in this browser and aren’t included in a shared computer backup). The endpoint must allow browser (CORS) requests — Test tells you.</p>' +
+      rows + '</details>';
+  }
+  function aiTinyWav() {
+    const sr = 8000, n = 800, len = 44 + n * 2, b = new ArrayBuffer(len), v = new DataView(b);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    return new Blob([b], { type: 'audio/wav' });
+  }
+  function testAiEndpoint(t, c) {
+    if (!c.url) return Promise.resolve({ ok: false, msg: 'Set a base URL first.' });
+    const base = c.url.replace(/\/+$/, '');
+    const PATH = { chat: '/chat/completions', tts: '/audio/speech', stt: '/audio/transcriptions', image: '/images/generations', video: '/video/generations' };
+    const path = PATH[t.op] || '';
+    const url = (path && base.slice(-path.length) === path) ? base : base + path;
+    const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
+    let req;
+    if (t.op === 'chat') req = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ model: c.model || t.ph, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }) };
+    else if (t.op === 'tts') req = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ model: c.model || t.ph, input: 'ok', voice: c.voice || 'alloy' }) };
+    else if (t.op === 'stt') { const fd = new FormData(); fd.append('file', aiTinyWav(), 'clip.wav'); fd.append('model', c.model || t.ph); req = { method: 'POST', headers: auth, body: fd }; }
+    else if (t.op === 'image') req = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ model: c.model || t.ph, prompt: 'a small grey dot', n: 1, size: '256x256' }) };
+    else req = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ model: c.model || t.ph, prompt: 'a grey dot' }) };
+    return fetch(url, req).then((r) => {
+      if (r.ok) return { ok: true, msg: '✓ works' };
+      if (r.status === 401 || r.status === 403) return { ok: false, msg: '✗ key rejected (' + r.status + ')' };
+      if (r.status === 404) return { ok: false, msg: '✗ not found — check the URL (404)' };
+      return { ok: false, msg: '⚠ reached, but returned ' + r.status };
+    }).catch(() => ({ ok: false, msg: '✗ can’t reach (network or CORS blocked)' }));
+  }
+  function wireAiSection(box) {
+    const readRow = (key) => {
+      const o = {};
+      box.querySelectorAll('.ai-f[data-ai="' + key + '"]').forEach((i) => { const val = i.value.trim(); if (val) o[i.getAttribute('data-f')] = val; });
+      return o;
+    };
+    const saveAi = () => {
+      const cfg = {};
+      AI_TYPES.forEach((t) => { const o = readRow(t.key); if (o.url) cfg[t.key] = o; });
+      try { root.localStorage.setItem(AI_LS, JSON.stringify(cfg)); } catch (e) {}
+    };
+    box._saveAi = saveAi;
+    box.querySelectorAll('.ai-test').forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.getAttribute('data-ai');
+        const t = AI_TYPES.find((x) => x.key === key);
+        const st = box.querySelector('.ai-status[data-ai="' + key + '"]');
+        st.textContent = '…'; st.className = 'ai-status';
+        testAiEndpoint(t, readRow(key)).then((r) => { st.textContent = r.msg; st.className = 'ai-status ' + (r.ok ? 'ok' : 'bad'); });
+      };
+    });
+  }
+
   async function showSettings() {
     closeContext();
     const pinned = pinnedVersion();
@@ -1276,6 +1358,8 @@
         '<button id="set-bg-reset" class="ghost">Reset</button>' +
       '</div>' +
       '<div class="add-sep"></div>' +
+      aiSectionHtml() +
+      '<div class="add-sep"></div>' +
       '<details class="adv"><summary>Advanced settings</summary>' +
       '<h4>Storage</h4>' +
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
@@ -1296,6 +1380,7 @@
       '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
+    wireAiSection(box);
 
     box.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
     const rel = box.querySelector('#set-reload'); if (rel) rel.onclick = (e) => { e.preventDefault(); location.reload(); };
@@ -1335,6 +1420,7 @@
       const v = box.querySelector('#set-relay').value.trim();
       try { if (v) localStorage.setItem('gifos_relay', v); else localStorage.removeItem('gifos_relay'); } catch (e) {}
       store.setName(box.querySelector('#set-name').value);
+      if (box._saveAi) box._saveAi();
       bg.remove();
     };
     box.querySelector('#set-close').onclick = () => bg.remove();

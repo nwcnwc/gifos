@@ -223,10 +223,12 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('#sys-menu-btn').click();
   await page.locator('.ctx button', { hasText: 'Settings…' }).click();
   await page.locator('.modal.wide').waitFor({ timeout: 4000 });
-  const advText = await page.locator('details.adv').textContent();
+  const adv = page.locator('details.adv', { hasText: 'Advanced settings' });
+  const advText = await adv.textContent();
   check('Settings has an Advanced section with storage info', /Advanced settings/.test(advText) && /Using/.test(advText) && /(B|KB|MB|GB)/.test(advText));
   check('Settings basic section has a background picker', (await page.locator('#set-bg-color').count()) === 1);
-  const advOpen = await page.locator('details.adv').evaluate((el) => el.open);
+  check('Settings has an AI models section', (await page.locator('.ai-row').count()) === 7);
+  const advOpen = await adv.evaluate((el) => el.open);
   check('Advanced section starts collapsed (mom-proof)', advOpen === false);
   await page.locator('#set-bg-color').fill('#224466');
   await sleep(400);
@@ -236,7 +238,7 @@ async function openApp(page, ctx, folder, label) {
   await sleep(300);
   check('background reset returns to the default', (await page.evaluate(() => document.getElementById('desktop').style.background)) === '');
   // Relay reachability probe (points at the local test relay)
-  await page.locator('details.adv summary').click();
+  await adv.locator('summary').click();
   await page.locator('#set-relay').fill('ws://127.0.0.1:8790');
   await page.locator('#set-relay-test').click();
   await page.waitForFunction(() => /reachable|Could not|No answer|Error/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });

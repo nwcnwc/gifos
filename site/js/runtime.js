@@ -128,6 +128,38 @@
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
         setName: function(n){ return rpc({type:'setName', name:n}); },
+        // Brokered device capture. The app never touches the camera/mic: it asks
+        // the GifOS computer for a CLIP, which records it behind a visible
+        // indicator and hands back { bytes:ArrayBuffer, mime, durationMs }.
+        // Needs the matching manifest capability (microphone / camera).
+        recordAudio: function(opts){ return rpc(Object.assign({type:'capture',media:'audio'}, opts||{})); },
+        recordVideo: function(opts){ return rpc(Object.assign({type:'capture',media:'video'}, opts||{})); },
+        takePhoto:   function(opts){ return rpc(Object.assign({type:'capture',media:'photo'}, opts||{})); },
+        // Device motion. Granted via the iframe allow-policy when the manifest
+        // declares "motion"; this helper does the iOS permission dance and hands
+        // you {alpha,beta,gamma} (orientation) or acceleration on each tick.
+        motion: function(cb, which){ return (function(){
+          if (typeof cb !== 'function') return function(){};
+          var evt = which === 'accel' ? 'devicemotion' : 'deviceorientation';
+          function attach(){ window.addEventListener(evt, cb); }
+          var DO = window.DeviceOrientationEvent, DM = window.DeviceMotionEvent;
+          var needsAsk = which === 'accel' ? (DM && DM.requestPermission) : (DO && DO.requestPermission);
+          if (needsAsk) { try { needsAsk.call(which==='accel'?DM:DO).then(function(s){ if(s==='granted') attach(); }).catch(function(){}); } catch(e){ attach(); } }
+          else attach();
+          return function(){ window.removeEventListener(evt, cb); };
+        })(); },
+        // AI, provided by the GifOS computer (the user configures endpoints +
+        // keys in Settings; the app NEVER sees a key). OpenAI-shaped. Needs the
+        // "ai" capability. model is a role: 'smartest'|'cheapest' for text, etc.
+        ai: {
+          models: function(){ return rpc({type:'ai',op:'models'}); },
+          chat:   function(o){ return rpc(Object.assign({type:'ai',op:'chat'}, o||{})); },
+          tts:    function(o){ return rpc(Object.assign({type:'ai',op:'tts'}, o||{})); },
+          stt:    function(o){ return rpc(Object.assign({type:'ai',op:'stt'}, o||{})); },
+          image:  function(o){ return rpc(Object.assign({type:'ai',op:'image'}, o||{})); },
+          imageToVideo: function(o){ return rpc(Object.assign({type:'ai',op:'image_to_video'}, o||{})); },
+          video:  function(o){ return rpc(Object.assign({type:'ai',op:'video'}, o||{})); }
+        },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -468,6 +500,182 @@
     });
   }
 
+  // ---- brokered device capture: the trusted layer holds the camera/mic ------
+  // A sandboxed app has an opaque origin and can't be granted camera/mic, and a
+  // live MediaStream can't cross into it anyway. So the app OUTSOURCES the grab:
+  // it asks the runtime for a CLIP, the runtime (real gifos.app origin) records
+  // one behind a visible, unfakeable indicator it owns, then hands back only the
+  // bytes. The app never touches the device — stronger than a raw grant, and it
+  // literally cannot record without the user watching an overlay it can't fake.
+  const capEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const CAP_FOR = { audio: 'microphone', video: 'camera', photo: 'camera' };
+  const hasCap = (manifest, cap) => !!(manifest && manifest.capabilities && manifest.capabilities[cap]);
+  function captureOverlay(label, kind, onStop) {
+    const doc = root.document;
+    const bg = doc.createElement('div');
+    bg.setAttribute('data-gifos-capture', '1');
+    bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);font:15px system-ui;color:#fff';
+    const box = doc.createElement('div');
+    box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:20px 22px;max-width:320px;text-align:center';
+    const icon = kind === 'photo' ? '📸' : (kind === 'video' ? '🎥' : '🎙');
+    box.innerHTML = '<div style="font-size:34px;line-height:1">' + icon + '</div>'
+      + '<div style="font-weight:800;margin:8px 0 4px">GifOS is capturing ' + (kind === 'photo' ? 'a photo' : kind) + '</div>'
+      + '<div style="color:#c8c8dc;font-size:13px;margin-bottom:12px">for <b>' + capEsc(label) + '</b> — it receives only this clip, never your live ' + (kind === 'audio' ? 'mic' : 'camera') + '.</div>'
+      + '<div id="gc-t" style="font-variant-numeric:tabular-nums;font-weight:700;margin-bottom:12px">0:00</div>'
+      + '<button id="gc-stop" style="padding:9px 20px;border:0;border-radius:9px;background:#ff5c5c;color:#fff;font:inherit;font-weight:700;cursor:pointer">' + (kind === 'photo' ? 'Cancel' : 'Stop &amp; use') + '</button>';
+    bg.appendChild(box); doc.body.appendChild(bg);
+    const t0 = Date.now(), tEl = box.querySelector('#gc-t');
+    const iv = kind === 'photo' ? null : setInterval(() => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      tEl.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }, 250);
+    box.querySelector('#gc-stop').onclick = onStop;
+    return { close: () => { if (iv) clearInterval(iv); try { bg.remove(); } catch (e) {} } };
+  }
+  function pickCaptureMime(kind) {
+    const MR = root.MediaRecorder;
+    if (!MR || !MR.isTypeSupported) return '';
+    const cands = kind === 'video'
+      ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    for (const m of cands) { try { if (MR.isTypeSupported(m)) return m; } catch (e) {} }
+    return '';
+  }
+  function brokerCapture(manifest, d) {
+    const kind = d.media === 'video' ? 'video' : d.media === 'photo' ? 'photo' : 'audio';
+    const cap = CAP_FOR[kind];
+    if (!hasCap(manifest, cap)) return Promise.reject(new Error('This app did not declare the "' + cap + '" capability.'));
+    const nav = root.navigator;
+    if (!(nav && nav.mediaDevices && nav.mediaDevices.getUserMedia)) return Promise.reject(new Error('No ' + cap + ' available here.'));
+    const wantVideo = kind !== 'audio';
+    const wantAudio = kind === 'audio' || (kind === 'video' && d.audio !== false);
+    const maxMs = Math.min(Math.max(1, d.maxSeconds || 15), 120) * 1000;
+    const label = manifest.name || manifest.appId || 'an app';
+    return nav.mediaDevices.getUserMedia({ audio: wantAudio, video: wantVideo ? { facingMode: d.facing || 'user' } : false })
+      .then((stream) => new Promise((resolve, reject) => {
+        let done = false, ov = null, autoT = null, rec = null, vidEl = null;
+        const cleanup = () => {
+          if (autoT) clearTimeout(autoT);
+          try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+          if (ov) ov.close();
+          if (vidEl) { try { vidEl.remove(); } catch (e) {} }
+        };
+        if (kind === 'photo') {
+          vidEl = root.document.createElement('video');
+          vidEl.autoplay = true; vidEl.playsInline = true; vidEl.muted = true;
+          vidEl.style.cssText = 'position:fixed;left:-9999px;width:2px;height:2px';
+          vidEl.srcObject = stream; root.document.body.appendChild(vidEl);
+          const snap = () => {
+            if (done) return; done = true;
+            const w = vidEl.videoWidth || 640, h = vidEl.videoHeight || 480;
+            const c = root.document.createElement('canvas'); c.width = w; c.height = h;
+            try { c.getContext('2d').drawImage(vidEl, 0, 0, w, h); } catch (e) {}
+            c.toBlob((blob) => {
+              cleanup();
+              if (!blob) return reject(new Error('Could not capture a frame.'));
+              blob.arrayBuffer().then((buf) => resolve({ bytes: buf, mime: 'image/jpeg', width: w, height: h }));
+            }, 'image/jpeg', 0.9);
+          };
+          ov = captureOverlay(label, 'photo', () => { if (!done) { done = true; cleanup(); reject(new Error('Capture cancelled.')); } });
+          vidEl.onloadeddata = () => setTimeout(snap, 250);
+          autoT = setTimeout(snap, 4000);
+          return;
+        }
+        const mime = pickCaptureMime(kind);
+        try { rec = new root.MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+        catch (e) { try { rec = new root.MediaRecorder(stream); } catch (e2) { cleanup(); return reject(new Error('Recording is not supported here.')); } }
+        const chunks = [], startMs = Date.now();
+        rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+        rec.onstop = () => {
+          const durationMs = Date.now() - startMs;
+          cleanup();
+          const blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || (kind === 'video' ? 'video/webm' : 'audio/webm') });
+          blob.arrayBuffer().then((buf) => resolve({ bytes: buf, mime: blob.type, durationMs }));
+        };
+        const stop = () => { if (done) return; done = true; try { rec.stop(); } catch (e) { cleanup(); reject(new Error('Recording failed.')); } };
+        ov = captureOverlay(label, kind, stop);
+        autoT = setTimeout(stop, maxMs);
+        try { rec.start(); } catch (e) { cleanup(); reject(new Error('Recording failed to start.')); }
+      }))
+      .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the ' + cap + ' was denied.' : (err && err.message) || String(err)); });
+  }
+
+  // ---- brokered AI: the GifOS computer holds the endpoints + keys -----------
+  // Apps ask the computer for intelligence; the RUNTIME (gifos.app origin) calls
+  // the user's configured OpenAI-shaped endpoint with the key attached and hands
+  // back only the result. The key lives in localStorage (per-origin, and NOT in
+  // a shareable computer backup) and is NEVER given to an app. `model` is a
+  // ROLE — 'smartest'/'cheapest' for text — mapped to a configured endpoint, so
+  // an app is portable across whatever provider the user wired up.
+  const AI_KEY = 'gifos_ai_config';
+  const AI_PATH = { chat: '/chat/completions', tts: '/audio/speech', stt: '/audio/transcriptions', image: '/images/generations', video: '/video/generations', image_to_video: '/video/generations' };
+  function aiConfig() { try { return JSON.parse(root.localStorage.getItem(AI_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function aiEndpoint(c, op) {
+    const base = (c.url || '').replace(/\/+$/, ''); const path = AI_PATH[op] || '';
+    if (!base) return '';
+    return (path && base.slice(-path.length) === path) ? base : base + path;
+  }
+  function b64ToBuf(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+  function bufToB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
+  function brokerAI(manifest, d) {
+    if (!hasCap(manifest, 'ai')) return Promise.reject(new Error('This app did not declare the "ai" capability.'));
+    const cfg = aiConfig();
+    if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && cfg[k].url) });
+    const role = d.op === 'chat' ? (d.model === 'smartest' ? 'smartest' : 'cheapest') : d.op;
+    const c = cfg[role];
+    if (!c || !c.url) return Promise.reject(new Error('No "' + role + '" model is set up. Configure it in GifOS Settings → AI.'));
+    const url = aiEndpoint(c, d.op);
+    const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
+    const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
+
+    if (d.op === 'chat') {
+      const body = { model: c.model || d.modelName || 'gpt-4o-mini', messages: d.messages || [{ role: 'user', content: String(d.prompt || '') }], stream: false };
+      if (d.temperature != null) body.temperature = d.temperature;
+      if (d.maxTokens != null) body.max_tokens = d.maxTokens;
+      return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
+        .then((r) => r.ok ? r.json() : asError(r))
+        .then((j) => ({ text: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', raw: j }));
+    }
+    if (d.op === 'tts') {
+      const body = { model: c.model || 'tts-1', input: String(d.text || ''), voice: d.voice || c.voice || 'alloy' };
+      if (d.format) body.response_format = d.format;
+      return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
+        .then((r) => r.ok ? r.arrayBuffer().then((buf) => ({ bytes: buf, mime: r.headers.get('content-type') || 'audio/mpeg' })) : asError(r));
+    }
+    if (d.op === 'stt') {
+      const fd = new root.FormData();
+      const blob = new Blob([d.bytes || d.audio || new ArrayBuffer(0)], { type: d.mime || 'audio/webm' });
+      fd.append('file', blob, 'clip.' + ((d.mime || 'audio/webm').split('/')[1] || 'webm').split(';')[0]);
+      fd.append('model', c.model || 'whisper-1');
+      if (d.language) fd.append('language', d.language);
+      return root.fetch(url, { method: 'POST', headers: auth, body: fd })
+        .then((r) => r.ok ? r.json() : asError(r)).then((j) => ({ text: j.text || '', raw: j }));
+    }
+    if (d.op === 'image') {
+      const body = { model: c.model || 'gpt-image-1', prompt: String(d.prompt || ''), n: 1, response_format: 'b64_json' };
+      if (d.size) body.size = d.size;
+      return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
+        .then((r) => r.ok ? r.json() : asError(r))
+        .then((j) => {
+          const d0 = (j.data && j.data[0]) || {};
+          if (d0.b64_json) return { bytes: b64ToBuf(d0.b64_json), mime: 'image/png', raw: j };
+          if (d0.url) return { url: d0.url, raw: j };
+          return { raw: j };
+        });
+    }
+    // video / image_to_video: provider-shaped, no settled standard — pass the
+    // request through and hand back whatever the endpoint returns (json w/ a
+    // url or job id, or raw bytes) for the app to poll/render.
+    const body = { model: c.model, prompt: d.prompt };
+    if (d.image) body.image = d.image; if (d.size) body.size = d.size; if (d.seconds) body.seconds = d.seconds;
+    return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
+      .then((r) => {
+        if (!r.ok) return asError(r);
+        const ct = r.headers.get('content-type') || '';
+        return /json/.test(ct) ? r.json().then((raw) => ({ raw })) : r.arrayBuffer().then((buf) => ({ bytes: buf, mime: ct || 'video/mp4' }));
+      });
+  }
+
   function mountApp(iframe, files, manifest, db, originalBytes, policy) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     armBackTrap(() => iframe);
@@ -478,6 +686,8 @@
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'fetch') bridgeFetch(policy, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
@@ -491,7 +701,11 @@
     root.addEventListener('message', handler);
     // Hand the chrome (run.html) this app's network policy so it can show the
     // launch acknowledgement and the tab control. Fires for every mount path.
-    if (root.__gifosPermissions) { try { root.__gifosPermissions(policy); } catch (e) { /* no chrome */ } }
+    if (root.__gifosPermissions) { try { root.__gifosPermissions(policy, manifest); } catch (e) { /* no chrome */ } }
+    // Motion sensors are delegated to the sandbox via the iframe allow-policy
+    // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
+    // those are captured by the trusted parent and handed back as clips.
+    if (hasCap(manifest, 'motion')) { try { iframe.setAttribute('allow', 'gyroscope; accelerometer; magnetometer'); } catch (e) {} }
     iframe.srcdoc = buildAppHtml(files);
     return () => root.removeEventListener('message', handler);
   }
