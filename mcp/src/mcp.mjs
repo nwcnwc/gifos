@@ -80,6 +80,19 @@ The entry point is index.html; multi-file apps are fully supported:
        shaped); the app never sees a key and is portable across providers.
        ALWAYS feature-detect: if ai.models() lists nothing (or a call rejects),
        tell the user to set a model up in Settings → AI — never fake a result.
+     • gifos.api(name, { method, path, query, headers, body, as }) → { status,
+       ok, contentType, json|text|bytes }. Needs capabilities.api to LIST the
+       name (e.g. capabilities.api:['deepgram']). For any KEYED third-party API
+       that isn't OpenAI-shaped — Deepgram, a trading API, a weather service. The
+       USER names it in Settings → Third-party APIs (base URL + auth scheme +
+       key); the runtime attaches the credential and PINS it to that API's host,
+       so the app never sees the key and can't redirect it. path is relative to
+       the configured base URL (absolute/off-host paths are refused). body: a
+       plain object is sent as JSON; pass {b64} or an ArrayBuffer for binary.
+       Feature-detect and tell the user to add the API in Settings if a call
+       rejects — never fake a result. NOTE: this is a direct browser fetch, so
+       the API must send CORS headers; server-only APIs (Deepgram REST included)
+       need a CORS-forwarding relay to work from the browser.
    Every one of these pops a plain-language acknowledgement at launch and (for
    capture) a browser prompt + an on-screen recorder the app can't hide. Live
    realtime video/voice is still not something an app does itself — GifOS ships
@@ -252,6 +265,7 @@ const TOOLS = [
         camera: { type: 'boolean', description: 'Set true if the app uses gifos.recordVideo / gifos.takePhoto (brokered camera capture).' },
         motion: { type: 'boolean', description: 'Set true if the app uses gifos.motion (device tilt/orientation).' },
         ai: { type: 'boolean', description: 'Set true if the app uses gifos.ai.* (the user\'s configured AI models; the app never sees keys).' },
+        api: { type: 'array', items: { type: 'string' }, description: 'Names of keyed third-party APIs the app calls via gifos.api(name, …), e.g. ["deepgram"]. The user configures each in Settings → Third-party APIs; the app never sees the key. Only for CORS-enabled endpoints (a browser fetch must succeed).' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
         hide_in_gif_base64: { type: 'string', description: 'PREFERRED when the user has any GIF of their own: base64 bytes of that EXISTING GIF. The app is hidden inside it and the original animation is preserved byte-for-byte — never redrawn or re-encoded. Ask the user for their GIF before drawing an icon.' },
         icon: {
@@ -337,6 +351,7 @@ async function callTool(name, args) {
 
     const caps = { db: true, multiplayer: true, network: Array.isArray(args.network) ? args.network.map(String) : [] };
     for (const c of ['microphone', 'camera', 'motion', 'ai']) if (args[c]) caps[c] = true;
+    if (Array.isArray(args.api) && args.api.length) caps.api = args.api.map(String);
     const files = {
       'manifest.json': JSON.stringify({
         gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',

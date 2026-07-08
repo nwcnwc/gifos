@@ -1312,6 +1312,107 @@
     });
   }
 
+  // ---- Third-party APIs: generalises the AI broker to ANY keyed API ---------
+  // Deepgram, a trading API, whatever. The computer holds { url, authType,
+  // authName, key } per named API in localStorage (per-origin, kept OUT of a
+  // shared backup GIF). An app that declares that name under capabilities.api
+  // calls gifos.api(name, …); the runtime attaches the key and only ever sends
+  // it to that API's own host. The app never sees the key.
+  const API_LS = 'gifos_api_config';
+  const AUTH_TYPES = [
+    { v: 'bearer', label: 'Bearer  (Authorization: Bearer …)' },
+    { v: 'token', label: 'Token  (Authorization: Token …) — Deepgram' },
+    { v: 'header', label: 'Custom header  (e.g. x-api-key)' },
+    { v: 'query', label: 'Query parameter  (?apikey=…)' },
+  ];
+  const apiCfgAll = () => { try { return JSON.parse(root.localStorage.getItem(API_LS) || '{}') || {}; } catch (e) { return {}; } };
+  function apiRowHtml(idx, name, c) {
+    c = c || {};
+    const at = c.authType || 'bearer';
+    const opts = AUTH_TYPES.map((t) => '<option value="' + t.v + '"' + (t.v === at ? ' selected' : '') + '>' + escapeHtml(t.label) + '</option>').join('');
+    const needName = (at === 'header' || at === 'query');
+    return '<div class="ai-row api-row" data-row="' + idx + '">' +
+      '<div class="ai-head"><input class="api-f api-name" data-row="' + idx + '" data-f="name" placeholder="short name — e.g. deepgram" value="' + escapeHtml(name || '') + '">' +
+      '<button class="ai-test api-test" data-row="' + idx + '">Test</button>' +
+      '<button class="api-del" data-row="' + idx + '" title="Remove this API">✕</button>' +
+      '<span class="ai-status api-status" data-row="' + idx + '"></span></div>' +
+      '<input class="api-f" data-row="' + idx + '" data-f="url" placeholder="Base URL — e.g. https://api.deepgram.com" value="' + escapeHtml(c.url || '') + '">' +
+      '<div class="ai-2"><select class="api-f api-auth" data-row="' + idx + '" data-f="authType">' + opts + '</select>' +
+      '<input class="api-f api-authname" data-row="' + idx + '" data-f="authName" placeholder="header / param name"' + (needName ? '' : ' style="display:none"') + ' value="' + escapeHtml(c.authName || '') + '"></div>' +
+      '<input class="api-f" data-row="' + idx + '" data-f="key" type="password" placeholder="API key" value="' + escapeHtml(c.key || '') + '">' +
+      '</div>';
+  }
+  function apiSectionHtml() {
+    const cfg = apiCfgAll();
+    const rows = Object.keys(cfg).map((n, i) => apiRowHtml(i, n, cfg[n])).join('');
+    return '<details class="adv"><summary>Third-party APIs</summary>' +
+      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key. An app that asks for that name under its <b>api</b> ability can call it; the runtime attaches your key and <b>only ever sends it to that API’s own host</b> — the app never sees it, and it stays out of a shared computer backup. The endpoint must allow browser (CORS) requests — Test tells you.</p>' +
+      '<div class="api-rows">' + rows + '</div>' +
+      '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
+      '</details>';
+  }
+  function testApiEndpoint(c) {
+    if (!c.url) return Promise.resolve({ ok: false, msg: 'Set a base URL first.' });
+    let u;
+    try { u = new URL(c.url.replace(/\/+$/, '')); } catch (e) { return Promise.resolve({ ok: false, msg: '✗ bad URL' }); }
+    const headers = {};
+    const at = c.authType || 'bearer', an = c.authName || '', key = c.key || '';
+    if (key) {
+      if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
+      else if (at === 'token') headers.Authorization = 'Token ' + key;
+      else if (at === 'header' && an) headers[an] = key;
+      else if (at === 'query' && an) u.searchParams.set(an, key);
+    }
+    // A bare GET at the base URL won't match a real endpoint — 400/404/405 all
+    // prove the host answered. Only 401/403 means the key itself was rejected.
+    return fetch(u.toString(), { method: 'GET', headers }).then((r) => {
+      if (r.status === 401 || r.status === 403) return { ok: false, msg: '✗ key rejected (' + r.status + ')' };
+      if (r.ok || r.status === 400 || r.status === 404 || r.status === 405) return { ok: true, msg: '✓ reachable (' + r.status + ')' };
+      return { ok: true, msg: '⚠ reached, returned ' + r.status };
+    }).catch(() => ({ ok: false, msg: '✗ can’t reach (network or CORS blocked)' }));
+  }
+  function wireApiSection(box) {
+    const rowsWrap = box.querySelector('.api-rows');
+    let counter = box.querySelectorAll('.api-row').length;
+    const readRow = (row) => {
+      const o = {};
+      row.querySelectorAll('.api-f').forEach((i) => { const val = (i.value || '').trim(); if (val) o[i.getAttribute('data-f')] = val; });
+      return o;
+    };
+    const saveApi = () => {
+      const cfg = {};
+      box.querySelectorAll('.api-row').forEach((row) => {
+        const o = readRow(row);
+        const name = o.name; delete o.name;
+        if (name && o.url) cfg[name] = o;
+      });
+      try { root.localStorage.setItem(API_LS, JSON.stringify(cfg)); } catch (e) {}
+    };
+    box._saveApi = saveApi;
+    const wireRow = (row) => {
+      const auth = row.querySelector('.api-auth');
+      const nameInput = row.querySelector('.api-authname');
+      if (auth) auth.onchange = () => { nameInput.style.display = (auth.value === 'header' || auth.value === 'query') ? '' : 'none'; };
+      const del = row.querySelector('.api-del');
+      if (del) del.onclick = () => row.remove();
+      const test = row.querySelector('.api-test');
+      if (test) test.onclick = () => {
+        const st = row.querySelector('.api-status');
+        st.textContent = '…'; st.className = 'ai-status api-status';
+        testApiEndpoint(readRow(row)).then((r) => { st.textContent = r.msg; st.className = 'ai-status api-status ' + (r.ok ? 'ok' : 'bad'); });
+      };
+    };
+    box.querySelectorAll('.api-row').forEach(wireRow);
+    const add = box.querySelector('#api-add');
+    if (add) add.onclick = () => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = apiRowHtml(counter++, '', {});
+      const row = tmp.firstChild;
+      rowsWrap.appendChild(row);
+      wireRow(row);
+    };
+  }
+
   async function showSettings() {
     closeContext();
     const pinned = pinnedVersion();
@@ -1359,6 +1460,8 @@
       '<div class="add-sep"></div>' +
       aiSectionHtml() +
       '<div class="add-sep"></div>' +
+      apiSectionHtml() +
+      '<div class="add-sep"></div>' +
       '<details class="adv"><summary>Advanced settings</summary>' +
       '<h4>Storage</h4>' +
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
@@ -1380,6 +1483,7 @@
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
     wireAiSection(box);
+    wireApiSection(box);
 
     box.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
     const rel = box.querySelector('#set-reload'); if (rel) rel.onclick = (e) => { e.preventDefault(); location.reload(); };
@@ -1420,6 +1524,7 @@
       try { if (v) localStorage.setItem('gifos_relay', v); else localStorage.removeItem('gifos_relay'); } catch (e) {}
       store.setName(box.querySelector('#set-name').value);
       if (box._saveAi) box._saveAi();
+      if (box._saveApi) box._saveApi();
       bg.remove();
     };
     box.querySelector('#set-close').onclick = () => bg.remove();
