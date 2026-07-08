@@ -9,31 +9,31 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
-  body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
+  body { display: flex; flex-direction: column; background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0);
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
   /* Labels never stack into word-towers: buttons keep to one line and the bar
      scrolls sideways on narrow phones instead of pushing the layout around. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
-         background: #14141f; border-bottom: 1px solid #2a2a3f;
+         background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f);
          overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .bar::-webkit-scrollbar { display: none; }
   .bar > * { flex: 0 0 auto; }
-  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, #7b5cff, #ff5caa);
+  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
-  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem;
+  .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
+  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem;
                 white-space: nowrap; }
   @media (max-width: 600px) {
     .bar { gap: .35rem; padding: .45rem .55rem; }
     .bar button { padding: .3rem .55rem; font-size: .72rem; }
   }
-  .bar button:hover { border-color: #7b5cff; }
-  .bar button.urgent { border-color: #ff5caa; box-shadow: 0 0 14px rgba(255,92,170,.35); }
+  .bar button:hover { border-color: var(--accent, #7b5cff); }
+  .bar button.urgent { border-color: var(--accent2, #ff5caa); box-shadow: 0 0 14px rgba(255,92,170,.35); }
   .sig { display: inline-flex; align-items: center; gap: .3rem; }
   .sig.ok  { border-color: #34c759; color: #7fe3a0; }
   .sig.bad { border-color: #ff5c5c; color: #ff9c9c; }
-  .sig.unk { border-color: #8888aa; color: #b0b0c8; }
+  .sig.unk { border-color: var(--muted, #8888aa); color: #b0b0c8; }
   /* Network-permission chip: calm blue for a named allowlist, loud red-orange
      when the app can reach ANY site. Click to review/revoke what it can reach. */
   .perms { display: inline-flex; align-items: center; gap: .3rem; }
@@ -41,7 +41,7 @@
   .perms.unsafe { border-color: #ff8a3d; color: #ffbf99; box-shadow: 0 0 12px rgba(255,138,61,.3); }
   .perm-modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; padding: 1rem; }
-  .perm-box { background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
+  .perm-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
     padding: 1.4rem 1.5rem; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; }
   .perm-box h3 { margin-bottom: .5rem; font-size: 1.1rem; }
   .perm-box .lead { color: #b0b0c8; font-size: .88rem; line-height: 1.5; margin-bottom: 1rem; }
@@ -52,40 +52,41 @@
   .perm-row input { margin-top: .2rem; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #4a9eff; }
   .perm-row .host { font-weight: 600; word-break: break-all; }
   .perm-row.any .host { color: #ffbf99; }
-  .perm-row .desc { color: #8888aa; font-size: .8rem; }
+  .perm-row .desc { color: var(--muted, #8888aa); font-size: .8rem; }
   .perm-box .foot { color: #6a6a86; font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
-  .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff;
-    background: #7b5cff; color: #fff; cursor: pointer; font: inherit; }
+  .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
+    background: var(--accent, #7b5cff); color: #fff; cursor: pointer; font: inherit; }
   /* Compact connection pill: a dot + one calm word (client), or per-status
      counts (host). The verbose sentence lives in a click-to-open popover so
      long status text can never wrap across the screen. */
   .conn { display: flex; align-items: center; gap: .4rem; margin-left: auto; padding: .3rem .75rem;
-          border-radius: 1rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0;
+          border-radius: 1rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0);
           cursor: pointer; font-size: .78rem; white-space: nowrap; }
   .cdot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
   .cseg { display: inline-flex; align-items: center; gap: .3rem; padding: .05rem .5rem;
           border: 1px solid; border-radius: 1rem; font-size: .75rem; }
   .conn-pop { display: none; position: absolute; right: .9rem; top: 3rem; z-index: 30;
-              max-width: min(420px, 90vw); background: #14141f; border: 1px solid #2a2a3f;
-              border-radius: .6rem; padding: .6rem .8rem; font-size: .8rem; color: #8888aa;
+              max-width: min(420px, 90vw); background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
+              border-radius: .6rem; padding: .6rem .8rem; font-size: .8rem; color: var(--muted, #8888aa);
               box-shadow: 0 12px 40px rgba(0,0,0,.5); line-height: 1.4; }
   .conn-pop.show { display: block; }
   #mount { flex: 1; min-height: 0; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
-           background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
+           background: var(--surface, #12121c); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .8rem; }
   .share.show { display: flex; }
-  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                 background: #0a0a0f; color: #7b5cff; font-family: ui-monospace, monospace; font-size: .78rem; }
-  .share .hint { color: #8888aa; }
+  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                 background: var(--bg, #0a0a0f); color: var(--accent, #7b5cff); font-family: ui-monospace, monospace; font-size: .78rem; }
+  .share .hint { color: var(--muted, #8888aa); }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
-  .name-box { background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
+  .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
   .name-box h3 { margin-bottom: .5rem; }
-  .name-box p { color: #8888aa; font-size: .85rem; margin-bottom: 1rem; }
+  .name-box p { color: var(--muted, #8888aa); font-size: .85rem; margin-bottom: 1rem; }
   .name-box input { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
-    border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
-  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff; background: #7b5cff; color: #fff; cursor: pointer; }
+    border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: #fff; cursor: pointer; }
 </style>
+<script src="js/gifos-themes.js"></script>
 </head>
 <body>
   <div class="bar">
