@@ -142,44 +142,31 @@
   // an accent livery stripe, hooded lens, viewfinder, handle, blinking tally
   // light and a LIVE plate. The whole rig pans gently like it's tracking play.
   ART.video = (a, f) => {
+    // Meeting: a broadcast console framing a 2x2 grid of participant monitors
+    // on team felt; the red tally lamp marks whoever is on air.
     const acc = team(a);
-    const g1 = grad(), g2 = grad(), g3 = grad(), g4 = grad(), sh = grad();
-    const pan = [-2.5, -1, 1, 2.5, 1, -1][f];
-    const rec = f % 2 === 0;
-    const defs = feltGrad(g1, NAVY)
-      + feltGrad(g2, acc)
-      + rg(g3, [[0, '#9db8d8'], [0.4, '#3a5a8c'], [0.75, '#16233f'], [1, '#0b1424']], 0.36, 0.34)
-      + metalGrad(g4)
-      + sheenGrad(sh);
+    const g1 = grad(), g2 = grad(), sh = grad(), scr = grad(), g4 = grad();
+    const pan = [-2.5, -1, 1, 2.5, 1, -1][f], rec = f % 2 === 0;
+    const defs = feltGrad(g1, NAVY) + feltGrad(g2, acc)
+      + rg(scr, [[0, '#3a5a8c'], [0.6, '#16233f'], [1, '#0b1424']], 0.4, 0.32)
+      + metalGrad(g4) + sheenGrad(sh);
+    const tile = (x, y, on) => "<path d='" + rr(x, y, 30, 24, 6) + "' fill='url(#" + g2 + ")'/>"
+      + "<path d='" + rr(x, y, 30, 12, 6) + "' fill='url(#" + sh + ")'/>"
+      + "<circle cx='" + (x + 15) + "' cy='" + (y + 10) + "' r='5' fill='#eaf3ff' opacity='.95'/>"
+      + "<path d='M" + (x + 6) + ' ' + (y + 23) + " a9 6 0 0 1 18 0 z' fill='#eaf3ff' opacity='.95'/>"
+      + (on ? "<path d='" + rr(x - 1.6, y - 1.6, 33.2, 27.2, 7.6) + "' fill='none' stroke='#ff5a5a' stroke-width='3'/>" : '');
+    const gx = 31, gy = 40, tw = 30, th = 24, gp = 6, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th + gp], [gx + tw + gp, gy + th + gp]];
     const art = "<g transform='rotate(" + pan + " 64 66)'>"
-      // handle
-      + "<path d='" + rr(52, 30, 38, 8, 4) + "' fill='url(#" + g4 + ")'/>"
-      + "<rect x='58' y='36' width='6' height='10' fill='url(#" + g4 + ")'/><rect x='80' y='36' width='6' height='10' fill='url(#" + g4 + ")'/>"
-      // viewfinder
-      + "<path d='" + rr(88, 40, 18, 13, 3) + "' fill='" + shade(NAVY, -22) + "'/>"
-      + "<rect x='91' y='43' width='12' height='7' rx='1.5' fill='#7fd4ff' opacity='.9'/>"
-      + "<rect x='91' y='43' width='12' height='3' rx='1.5' fill='#d8f2ff' opacity='.7'/>"
-      // body
-      + "<path d='" + rr(42, 44, 56, 44, 8) + "' fill='url(#" + g1 + ")'/>"
-      + "<path d='M42 64 h56 v9 h-56 z' fill='url(#" + g2 + ")'/>"
-      + "<path d='M42 64 h56 v2 h-56 z' fill='#fff' opacity='.25'/>"
-      // vents + knob
-      + "<path d='M76 78 h14 M76 82 h14' stroke='" + shade(NAVY, -34) + "' stroke-width='2' stroke-linecap='round'/>"
-      + "<circle cx='90' cy='55' r='4' fill='url(#" + g4 + ")'/><circle cx='89' cy='54' r='1.2' fill='#fff' opacity='.8'/>"
-      // lens hood + barrel + glass
-      + "<path d='M42 50 L26 44 V88 L42 82 Z' fill='" + shade(NAVY, -30) + "'/>"
-      + "<path d='M42 50 L26 44 V54 L42 58 Z' fill='" + shade(NAVY, -8) + "'/>"
-      + "<ellipse cx='26' cy='66' rx='6' ry='22' fill='" + shade(NAVY, -44) + "'/>"
-      + "<ellipse cx='26' cy='66' rx='4.6' ry='18.5' fill='url(#" + g3 + ")'/>"
-      + "<ellipse cx='24.6' cy='58' rx='1.7' ry='5' fill='#dff0ff' opacity='.85'/>"
-      // tally + LIVE plate
-      + "<circle cx='50' cy='38' r='3.6' fill='" + (rec ? '#ff5a5a' : '#5c2020') + "'/>"
-      + (rec ? "<circle cx='50' cy='38' r='3.6' fill='#ff5a5a' opacity='.6' filter='url(#sglow)'/>" : '')
-      + "<path d='" + rr(50, 50, 26, 10, 2.5) + "' fill='#101a2e'/>"
-      + "<text x='63' y='58' font-family='system-ui,sans-serif' font-size='7.5' font-weight='800' letter-spacing='1' fill='" + (rec ? GOLD : '#8a7a3a') + "' text-anchor='middle'>LIVE</text>"
-      + "<path d='" + rr(42, 44, 56, 12, 8) + "' fill='url(#" + sh + ")'/>"
+      + "<path d='" + rr(52, 22, 24, 8, 4) + "' fill='url(#" + g4 + ")'/>"
+      + "<path d='" + rr(20, 28, 88, 74, 10) + "' fill='url(#" + g1 + ")'/>"
+      + "<path d='" + rr(26, 34, 76, 60, 7) + "' fill='url(#" + scr + ")'/>"
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('')
+      + "<circle cx='104' cy='34' r='3.6' fill='" + (rec ? '#ff5a5a' : '#5c2020') + "'/>"
+      + (rec ? "<circle cx='104' cy='34' r='3.6' fill='#ff5a5a' opacity='.6' filter='url(#sglow)'/>" : '')
+      + "<path d='" + rr(20, 28, 88, 22, 10) + "' fill='url(#" + sh + ")'/>"
       + '</g>';
-    return { defs, art, shadowRx: 42 };
+    return { defs, art, shadowRx: 46 };
   };
 
   // Folder — the kit-bag folder: team-felt panels, stitched edges, and a

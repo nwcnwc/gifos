@@ -137,37 +137,31 @@
   // Meeting (hero) — THE HERO. A fat glossy camera: pastel body, huge candy lens,
   // blinking REC gem, viewfinder bump, TWO pearls orbiting like moons.
   ART.video = (a, f) => {
+    // Meeting: a glossy candy device holding a 2x2 grid of marshmallow
+    // participant tiles; a blush ring blooms on whoever is speaking, with the
+    // pastel orbit bead circling.
     const base = pastel(a);
-    const g1 = grad(), g2 = grad(), g3 = grad(), sh = grad();
-    const o1 = orbit(f, 64, 66, 50, 15, 5, BLUSH, 0);
-    const o2 = orbit(f, 64, 66, 50, 15, 3.6, MINT, Math.PI * 0.85);
-    const defs = bodyGrad(g1, base) + marshGrad(g2)
-      + rg(g3, [[0, '#8d7ab8'], [0.5, '#635192'], [0.8, '#463672'], [1, '#352857']], 0.38, 0.3)
-      + sheenGrad(sh) + o1.def + o2.def;
-    const rec = f % 2 === 0;
-    const art = (o1.behind ? o1.art : '') + (o2.behind ? o2.art : '')
+    const g1 = grad(), g2 = grad(), sh = grad(), scr = grad();
+    const o1 = orbit(f, 64, 66, 52, 15, 5, BLUSH, 0);
+    const defs = bodyGrad(g1, base) + bodyGrad(g2, shade(base, -16))
+      + rg(scr, [[0, '#8d7ab8'], [0.6, '#635192'], [1, '#3a2c63']], 0.4, 0.3)
+      + sheenGrad(sh) + o1.def;
+    const tile = (x, y, on) => "<path d='" + rr(x, y, 30, 24, 7) + "' fill='url(#" + g2 + ")'/>"
+      + "<path d='" + rr(x, y, 30, 12, 7) + "' fill='url(#" + sh + ")'/>"
+      + "<circle cx='" + (x + 15) + "' cy='" + (y + 10) + "' r='5' fill='#fff' opacity='.95'/>"
+      + "<path d='M" + (x + 6) + ' ' + (y + 23) + " a9 6 0 0 1 18 0 z' fill='#fff' opacity='.95'/>"
+      + (on ? "<path d='" + rr(x - 1.6, y - 1.6, 33.2, 27.2, 8.6) + "' fill='none' stroke='" + BLUSH + "' stroke-width='3'/>" : '');
+    const gx = 31, gy = 40, tw = 30, th = 24, gp = 6, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th + gp], [gx + tw + gp, gy + th + gp]];
+    const art = (o1.behind ? o1.art : '')
       + "<g transform='" + squash(f, 92) + "'>"
-      // viewfinder bump + body
-      + "<path d='" + rr(34, 30, 32, 18, 9) + "' fill='url(#" + g2 + ")'/>"
-      + "<path d='" + rr(18, 42, 92, 50, 24) + "' fill='url(#" + g1 + ")'/>"
-      // lens: white ring, deep candy glass, iris, big catch-light
-      + "<circle cx='52' cy='67' r='24' fill='" + shade(base, -58) + "'/>"
-      + "<circle cx='52' cy='66' r='22.5' fill='url(#" + g2 + ")'/>"
-      + "<circle cx='52' cy='66.5' r='17.5' fill='url(#" + g3 + ")'/>"
-      + "<circle cx='52' cy='66.5' r='8' fill='#352857'/>"
-      + "<ellipse cx='45.5' cy='58.5' rx='6' ry='4.4' fill='#fff' opacity='.9' filter='url(#tsoft)'/>"
-      + "<circle cx='59' cy='73' r='2.2' fill='" + BLUE + "' opacity='.9'/>"
-      // REC gem + little control pearls
-      + "<circle cx='95' cy='58' r='6' fill='" + (rec ? '#ff6d96' : '#f0b7cc') + "'/>"
-      + "<circle cx='93.2' cy='56' r='1.9' fill='#fff' opacity='.9'/>"
-      + (rec ? "<circle cx='95' cy='58' r='6' fill='#ff6d96' opacity='.55' filter='url(#tglow)'/>" : '')
-      + "<circle cx='88' cy='78' r='4' fill='" + BUTTER + "'/><circle cx='86.8' cy='76.8' r='1.3' fill='#fff' opacity='.9'/>"
-      + "<circle cx='99' cy='78' r='4' fill='" + MINT + "'/><circle cx='97.8' cy='76.8' r='1.3' fill='#fff' opacity='.9'/>"
-      // sheen + speculars
-      + "<path d='" + rr(18, 42, 92, 25, 24) + "' fill='url(#" + sh + ")'/>"
-      + spec(84, 49, 10, 3.5, 0.7)
+      + "<path d='" + rr(20, 28, 88, 74, 20) + "' fill='url(#" + g1 + ")'/>"
+      + "<path d='" + rr(26, 34, 76, 60, 13) + "' fill='url(#" + scr + ")'/>"
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('')
+      + "<path d='" + rr(20, 28, 88, 24, 20) + "' fill='url(#" + sh + ")'/>"
+      + spec(84, 37, 10, 3.5, 0.7)
       + '</g>'
-      + (o1.behind ? '' : o1.art) + (o2.behind ? '' : o2.art);
+      + (o1.behind ? '' : o1.art);
     return { defs, art, shadowRx: 44 };
   };
 
