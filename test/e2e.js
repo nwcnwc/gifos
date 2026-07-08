@@ -918,6 +918,11 @@ async function openApp(page, ctx, folder, label) {
   ]);
   await backApp.waitForSelector('iframe');
   await sleep(600);
+  // A real gesture inside the app arms the Back trap (Android Chrome ignores a
+  // trap pushed without user activation; the shim pings the container on its
+  // first touch). Without this the press would just unload the tab.
+  await backApp.frameLocator('iframe').locator('#out').click().catch(() => {});
+  await sleep(200);
   await backApp.goBack().catch(() => {});
   await backApp.frameLocator('iframe').locator('#out').filter({ hasText: 'BACK' }).waitFor({ timeout: 5000 });
   check('an app receives Back through gifos.onBack', true);

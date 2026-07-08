@@ -1544,9 +1544,21 @@
   // Back means on a phone. (The browser's long-press/back-menu still exits.)
   if (root.history && root.history.pushState) {
     root.history.replaceState({ gifos: 'base' }, '');
-    root.history.pushState({ gifos: 'trap' }, '');
+    // Chrome on Android SKIPS a history entry pushed without a user gesture
+    // (the "history-manipulation" intervention against back-trapping pages), so
+    // arming the trap at load does nothing on a phone — Back sails straight
+    // past it. Arm it from the first real interaction instead, when the push
+    // carries user activation and the entry sticks. Desktop browsers don't
+    // apply the intervention, so this is strictly safer everywhere.
+    const arm = () => {
+      if (root.history.state && root.history.state.gifos === 'trap') return;
+      root.history.pushState({ gifos: 'trap' }, '');
+    };
+    ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((ev) =>
+      root.addEventListener(ev, arm, { capture: true, passive: true }));
     root.addEventListener('popstate', () => {
       if (currentFolder) { currentFolder = upTarget(); selectedId = null; render(); }
+      // The Back press itself is a user gesture, so re-pushing here sticks.
       root.history.pushState({ gifos: 'trap' }, '');
     });
   }

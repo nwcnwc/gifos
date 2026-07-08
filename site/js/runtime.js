@@ -102,6 +102,14 @@
         }
         if(d.type==='back'){ backCbs.forEach(function(cb){ try { cb(); } catch(e){} }); }
       });
+      // Android Chrome only lets the container's Back trap "stick" once the page
+      // has real user activation, and the user touches the APP, not the frame
+      // around it — those gestures never reach the parent. Ping the container on
+      // our first interaction so it can arm the trap under fresh activation
+      // (a same-origin gesture propagates activation to our parent too).
+      ['pointerdown','touchstart','keydown'].forEach(function(ev){
+        window.addEventListener(ev, function(){ try { parent.postMessage({ ns:'gifos', type:'uiactive' }, '*'); } catch(e){} }, { capture:true, passive:true, once:true });
+      });
       window.gifos = {
         db: function(collection){ return {
           put:    function(item){ return rpc({type:'db',op:'put',collection:collection,value:item}); },
@@ -437,10 +445,25 @@
     if (!(root.history && root.history.pushState && root.addEventListener)) return;
     root.__gifosBackTrap = { target: getIframe };
     root.history.replaceState({ gifos: 'base' }, '');
-    root.history.pushState({ gifos: 'trap' }, '');
+    // Arm from a real gesture, not at load: Android Chrome SKIPS a history entry
+    // pushed without user activation (its anti-back-trapping intervention), so a
+    // load-time push is silently ignored on a phone. Gestures land either on the
+    // container chrome (caught here) or inside the app iframe (the shim pings us
+    // as 'uiactive'); both paths carry activation, so the trap entry sticks.
+    const arm = () => {
+      if (root.history.state && root.history.state.gifos === 'trap') return;
+      root.history.pushState({ gifos: 'trap' }, '');
+    };
+    ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((ev) =>
+      root.addEventListener(ev, arm, { capture: true, passive: true }));
+    root.addEventListener('message', (e) => {
+      const ifr = root.__gifosBackTrap.target();
+      if (ifr && e.source === ifr.contentWindow && e.data && e.data.ns === 'gifos' && e.data.type === 'uiactive') arm();
+    });
     root.addEventListener('popstate', () => {
       const ifr = root.__gifosBackTrap.target();
       if (ifr && ifr.contentWindow) ifr.contentWindow.postMessage({ ns: 'gifos', type: 'back' }, '*');
+      // The Back press carries activation, so this re-push sticks.
       root.history.pushState({ gifos: 'trap' }, '');
     });
   }
