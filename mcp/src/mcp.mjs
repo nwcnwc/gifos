@@ -59,6 +59,7 @@ The entry point is index.html; multi-file apps are fully supported:
    on records so moves, messages, and scores are attributed per player.
 4. Degrade gracefully if window.gifos is undefined (opened outside GifOS):
    fall back to in-memory state and a default name.
+4b. BACK BUTTON: the GifOS shell traps the phone's Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.
 5. Mobile-friendly, dark theme by default (#0a0a0f background is the OS look).
 6. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
    microphone, screen capture, and WebRTC, so a video/voice/streaming app

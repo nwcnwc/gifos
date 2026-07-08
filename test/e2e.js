@@ -880,6 +880,51 @@ async function openApp(page, ctx, folder, label) {
   check('update bar shows when a newer version is available', /9\.9\.9/.test(upMsg));
   await upCtx.close();
 
+  // ---- the Back button is part of the OS ----
+  // Inside a folder, Back climbs one level; at the Home Screen root it's
+  // swallowed (the desktop never navigates away). Apps get Back delivered via
+  // gifos.onBack, and the run tab never unloads.
+  const backPage = await context.newPage();
+  await backPage.goto(BASE + '/index.html');
+  await backPage.waitForSelector('.icon');
+  await sleep(300);
+  await backPage.locator('.icon', { hasText: /^Games$/ }).dblclick();
+  await sleep(300);
+  await backPage.goBack().catch(() => {});
+  await sleep(400);
+  const crumbsAfterBack = await backPage.locator('#crumbs').textContent();
+  check('Back inside a folder climbs to the Home Screen', /Home Screen/.test(crumbsAfterBack) && !/Games/.test(crumbsAfterBack));
+  check('...without leaving the desktop', backPage.url().includes('/index.html'));
+  await backPage.goBack().catch(() => {});
+  await sleep(400);
+  check('Back at the root is swallowed (still on the desktop)', backPage.url().includes('/index.html') && (await backPage.locator('.icon').count()) > 3);
+
+  await backPage.evaluate(async () => {
+    const html = '<!doctype html><div id="out">idle</div><script>' +
+      'gifos.onBack(function(){ document.getElementById("out").textContent = "BACK"; });' +
+      '</scr' + 'ipt>';
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'backtest', name: 'BackTest', entry: 'index.html', capabilities: { db: true } }),
+      'index.html': html,
+    });
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'BackTest.gif', bytes, kind: 'gif', isApp: true, appId: 'backtest', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'BackTest.gif', parent: null, x: 620, y: 320, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  });
+  const [backApp] = await Promise.all([
+    context.waitForEvent('page'),
+    backPage.locator('.icon', { hasText: 'BackTest.gif' }).dblclick(),
+  ]);
+  await backApp.waitForSelector('iframe');
+  await sleep(600);
+  await backApp.goBack().catch(() => {});
+  await backApp.frameLocator('iframe').locator('#out').filter({ hasText: 'BACK' }).waitFor({ timeout: 5000 });
+  check('an app receives Back through gifos.onBack', true);
+  check('...and the app tab never unloads', backApp.url().includes('/run.html'));
+  await backApp.close();
+  await backPage.close();
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

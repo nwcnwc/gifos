@@ -46,6 +46,7 @@
     '   HONESTY RULE for any in-app copy about saving: there is NO cloud and NO automatic cross-device sync. Data lives on THIS device only, inside the app\'s GIF in this browser. It reaches other devices exactly two ways: live sync while people are connected through an invite link, or by sharing/downloading the GIF file itself (state travels inside the file). Never claim the app "syncs across your devices" or "backs up to the cloud" — say something true instead, like "Saved on this device inside the app\'s GIF".',
     '3. Identity: const me = await gifos.me(); → { id, name }. Stamp me.id/me.name on records so every player sees who did what.',
     '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state. Mobile-friendly, dark theme (#0a0a0f) by default.',
+    '4b. BACK BUTTON: the GifOS shell traps the phone\'s Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.',
     '5. LIVE MEDIA IS OFF-LIMITS, by design: the sandbox blocks camera, microphone, screen capture, and WebRTC, so a video/voice/streaming app cannot work as a GifOS app — do not attempt one; if I ask for video chat, tell me GifOS already ships it (the Video Call icon on my Home Screen). Apps CAN bundle and display static media (images, GIFs, audio files) inside the GIF and store binary blobs (base64) in gifos.db — but keep hot collections lean: put big blobs (over ~100KB) in their OWN collection, fetched with db.get(), because subscribers re-download a whole collection on every change, and relay-fallback bandwidth is strictly throttled — bloated hot collections make an app slow for everyone.',
     '',
     'HOW TO DELIVER THE .gif (in order of preference)',
@@ -1536,6 +1537,19 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) { dropRenderCaches(); load().then(render); }
   });
+
+  // ---------- the Back button is part of the OS ----------
+  // A computer doesn't close because you pressed Back. At the Home Screen root
+  // the press is swallowed; inside a folder it climbs one level — exactly what
+  // Back means on a phone. (The browser's long-press/back-menu still exits.)
+  if (root.history && root.history.pushState) {
+    root.history.replaceState({ gifos: 'base' }, '');
+    root.history.pushState({ gifos: 'trap' }, '');
+    root.addEventListener('popstate', () => {
+      if (currentFolder) { currentFolder = upTarget(); selectedId = null; render(); }
+      root.history.pushState({ gifos: 'trap' }, '');
+    });
+  }
 
   // ---------- boot ----------
   requestPersistence();
