@@ -16,7 +16,7 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (!GifOS.iconPacks) return;
 
-  const FR = 6, SIZE = 160, DELAY = 14;
+  const FR = 6, SIZE = 160, DELAY = 24;
   const range = (n) => Array.from({ length: n }, (_, i) => i);
 
   // ---- palette --------------------------------------------------------------

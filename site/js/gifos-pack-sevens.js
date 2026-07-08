@@ -15,7 +15,7 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (!GifOS.iconPacks) return;
 
-  const FR = 7, SIZE = 160, DELAY = 10;
+  const FR = 7, SIZE = 160, DELAY = 13;
   const range = (n) => Array.from({ length: n }, (_, i) => i);
 
   // ---- the sign palette -----------------------------------------------------

@@ -68,10 +68,11 @@
       text: '#e0e0f5', muted: '#8888b0', accent: '#b09aff', accent2: '#ff8a5c', glow: 'rgba(176,154,255,.35)',
     } },
 
-    // 6 — goth / alt / spooky kids. hex = a curse.
-    6: { name: 'The Hex', pack: 'hex', ui: {
-      bg: '#0d0714', bgglow: '#241035', surface: '#180d24', border: '#3a2050',
-      text: '#e8dcf5', muted: '#9a85b5', accent: '#8bff5c', accent2: '#ff8c3a', glow: 'rgba(139,255,92,.3)',
+    // 6 — artists & dreamers. Loose ink over wet watercolor. Light.
+    6: { name: 'Watercolor', pack: 'watercolor', ui: {
+      bg: '#f6f3ec', bgglow: '#fffdf6', surface: '#fcfaf4', border: '#ddd6c6',
+      text: '#2b2733', muted: '#8a8478', accent: '#3d4e9e', accent2: '#e8833a', glow: 'rgba(61,78,158,.18)',
+      bar: 'rgba(252,250,244,.82)', label: '#2b2733', labelshadow: 'rgba(255,255,255,.85)',
     } },
 
     // 7 — gamers & night owls. 7-7-7, neon glitch.
