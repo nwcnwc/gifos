@@ -101,6 +101,7 @@
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
+    <button id="tomeet" title="Turn this into a meeting — add shared audio, video and recording around this app" style="display:none">Meeting</button>
     <button id="save-desktop" title="Steal this app — a fresh copy lands on your Home Screen (app only, no data; Download Snapshot keeps the data too)" style="display:none">Steal App</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
     <button id="save" title="Download this app — with everything in it — as one GIF file">Download Snapshot</button>
@@ -339,6 +340,13 @@
         const fileId = params.get('id');
         if (!fileId) { status.textContent = 'No app id in URL.'; return; }
         GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; });
+        // Second entry point into a meeting: hand THIS app to the meeting page
+        // (same browser, same saved state) with shared audio/video/recording.
+        var toMeet = document.getElementById('tomeet');
+        toMeet.style.display = '';
+        toMeet.addEventListener('click', function () {
+          location.href = 'meet.html#app=' + encodeURIComponent(fileId);
+        });
       }
 
       // An invite link is a capability (join live AND copy this app's whole

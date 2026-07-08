@@ -53,6 +53,24 @@
   #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto;
           grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
           grid-auto-rows: max-content; align-content: safe center; }
+  /* App-in-meeting: the shared app fills the stage; participant tiles shrink to
+     a scrolling filmstrip along the bottom so everyone stays visible. */
+  #apppane { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  body.has-app #apppane { display: flex; }
+  body.has-app #grid { flex: 0 0 auto; height: 132px; grid-auto-flow: column;
+    grid-template-columns: none; grid-auto-columns: 180px; grid-template-rows: 1fr;
+    overflow-x: auto; overflow-y: hidden; border-top: 1px solid var(--border, #2a2a3f); }
+  #appbar { display: flex; align-items: center; gap: .6rem; padding: .4rem .8rem;
+    background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
+  #appbar #appname { font-weight: 700; }
+  #appbar #appwho { color: var(--muted, #8888aa); font-size: .78rem; }
+  #appbar #appstop { margin-left: auto; }
+  #appmount { flex: 1; min-height: 0; background: var(--bg, #0a0a0f); }
+  #appmount iframe { width: 100%; height: 100%; border: 0; }
+  #app-list button { display: block; width: 100%; text-align: left; margin-bottom: .35rem; padding: .5rem .7rem;
+    border-radius: .5rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b);
+    color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
+  #app-list button:hover { border-color: var(--accent, #7b5cff); }
   .tile { position: relative; background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
           overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
@@ -184,6 +202,7 @@
       </span>
     </span>
     <button id="invite" title="Friends join you live with one link">Invite</button>
+    <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
     <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
     <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Video off</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
@@ -201,8 +220,25 @@
     <input id="share-url" readonly>
     <button id="copy">Copy</button>
   </div>
+  <div id="apppane">
+    <div id="appbar">
+      <span id="appname">App</span>
+      <span id="appwho"></span>
+      <button id="appstop" title="Stop sharing this app with the meeting">Stop app</button>
+    </div>
+    <div id="appmount"></div>
+  </div>
   <div id="grid"></div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
+
+  <div class="name-modal" id="app-modal" style="display:none">
+    <div class="name-box" style="max-width:420px;text-align:left">
+      <h3>Run an app in this meeting</h3>
+      <p>Pick one of your apps. It runs live for <b>everyone here</b> — same state, same moves — with the meeting's audio, video and recording around it. Anyone can interact.</p>
+      <div id="app-list" style="max-height:50vh;overflow-y:auto;margin:.4rem 0 1rem"></div>
+      <button id="app-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Cancel</button>
+    </div>
+  </div>
 
   <div id="chatpanel">
     <div id="chathead"><span id="paneltitle">Meeting chat</span> <small style="color:#667;font-weight:400">· private to this meeting, gone when everyone leaves</small>
@@ -274,8 +310,11 @@
     </div>
   </div>
 
+  <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/relay-config.js"></script>
+  <script src="js/runtime.js"></script>
   <script>
   /*
    * GifOS Meeting — a SYSTEM app (first-party page, not a sandboxed GIF app).
@@ -410,7 +449,7 @@
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
-    setInterval(() => { if (peers.size && ws && ws.readyState === 1) broadcastStatus(); }, 4000);
+    setInterval(() => { if (peers.size && ws && ws.readyState === 1) broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, 4000);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
     // thing we say is an honest "away", and the first thing back is "here".
@@ -1004,6 +1043,7 @@
       meters.delete(peerId);
       statusOf.delete(peerId); // a stale status must not haunt the room's consensus
       connsOf.delete(peerId);
+      if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
       if (focusId === peerId) focusId = null;
       layout();
@@ -1080,6 +1120,7 @@
           if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
+        if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
       }
@@ -2294,10 +2335,113 @@
     document.getElementById('closed-reload').onclick = () => location.reload();
     window.addEventListener('beforeunload', () => { leaving = true; try { ws && ws.close(); } catch (e) {} });
 
+    // ================= App-in-meeting =================
+    // Any app can run INSIDE the meeting: one participant hosts it through the
+    // app runtime and everyone else mounts it live (shared multiplayer state),
+    // with the meeting's audio/video/recording wrapped around it. The app's
+    // join info rides the SAME status heartbeat that keeps the room converged,
+    // so late joiners pick it up automatically. This is the second entry point
+    // to the exact same place as an app tab's "Meeting" toggle.
+    const appMountEl = document.getElementById('appmount');
+    let appMode = null;   // 'host' | 'client' | null
+    let appKey = null;    // sid of the app session currently mounted here
+    myStatus.app = null;  // { s, k, relay, name } when THIS phone is sharing an app
+
+    function showAppPane(name, who) {
+      document.body.classList.add('has-app');
+      document.getElementById('appname').textContent = name || 'App';
+      document.getElementById('appwho').textContent = who || '';
+    }
+    function clearAppView() {
+      appMountEl.innerHTML = '';
+      document.body.classList.remove('has-app');
+      appMode = null; appKey = null;
+    }
+    async function runApp(fileId, name) {
+      if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
+      try {
+        const rec = await GifOS.store.getFile(fileId);
+        name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
+        appMode = 'host'; appKey = null;
+        showAppPane(name, '· you are hosting it for the meeting');
+        const ctl = await GifOS.runtime.boot(appMountEl, fileId, null);
+        if (ctl && ctl.becomeHost) await ctl.becomeHost({ lifetime: 'forever', resilient: true });
+        const sess = await GifOS.store.getState(fileId + '::session');
+        if (!sess || !sess.sid) throw new Error('app session did not start');
+        appKey = sess.sid;
+        myStatus.app = { s: sess.sid, k: sess.token, relay: sess.relay, name: name };
+        broadcastStatus();
+      } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
+    }
+    function mountClientApp(app) {
+      appMode = 'client'; appKey = app.s;
+      showAppPane(app.name, '· shared with the meeting');
+      try { GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {}); }
+      catch (e) { clearAppView(); }
+    }
+    function stopApp() {
+      const wasHost = appMode === 'host';
+      myStatus.app = null;
+      clearAppView();
+      if (wasHost) broadcastStatus(); // tell the room the shared app is gone
+    }
+    function findSharedApp() {
+      if (myStatus.app) return myStatus.app;
+      for (const st of statusOf.values()) if (st && st.app && st.app.s) return st.app;
+      return null;
+    }
+    // Converge THIS phone's app view onto whatever the room is sharing. Runs on
+    // every status tick and on peer departure, so it self-heals like the mesh.
+    function reconcileApp() {
+      const want = findSharedApp();
+      if (want && want.s !== appKey) {
+        if (myStatus.app && myStatus.app.s === want.s) return; // I'm the host; already mounted
+        clearAppView();
+        mountClientApp(want);
+      } else if (!want && appKey && appMode === 'client') {
+        clearAppView(); // the sharer stopped or left
+      }
+    }
+    document.getElementById('appbtn').onclick = () => {
+      if (myStatus.app) { stopApp(); return; } // toggle my own share off
+      openAppPicker();
+    };
+    document.getElementById('appstop').onclick = stopApp;
+    document.getElementById('app-cancel').onclick = () => { document.getElementById('app-modal').style.display = 'none'; };
+    async function openAppPicker() {
+      const modal = document.getElementById('app-modal');
+      const list = document.getElementById('app-list');
+      list.innerHTML = '<small style="color:#667">Loading your apps…</small>';
+      modal.style.display = 'flex';
+      let files = [];
+      try { files = await GifOS.store.allFiles(); } catch (e) {}
+      const apps = (files || []).filter((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
+      if (!apps.length) { list.innerHTML = '<small style="color:#667">No apps on this computer yet. Make one with ＋ Add on your Home Screen, then run it in a meeting.</small>'; return; }
+      list.innerHTML = '';
+      for (const f of apps) {
+        const b = document.createElement('button');
+        b.textContent = (f.name || f.appId || 'App').replace(/\.gif$/i, '');
+        b.onclick = () => { modal.style.display = 'none'; runApp(f.id, b.textContent); };
+        list.appendChild(b);
+      }
+    }
+    // Second entry point: an app tab's "Meeting" toggle opens meet.html#app=<fileId>.
+    // Auto-host that app once we're set up (its state lives in this same browser).
+    (function () {
+      const wantApp = params.get('app');
+      if (wantApp) setTimeout(() => runApp(wantApp), 900);
+    })();
+
     // Test hook: lets the e2e suite observe mesh + quality state.
     window.__gifosVideo = {
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
+      // app-in-meeting
+      appActive: () => !!appKey,
+      appName: () => document.getElementById('appname').textContent,
+      appIsHost: () => appMode === 'host',
+      runAppForTest: (fileId, name) => runApp(fileId, name),
+      stopAppForTest: () => stopApp(),
       quality: () => rung(participantCount()).label,
       room: () => room,
       roomPw: () => roomPw,
