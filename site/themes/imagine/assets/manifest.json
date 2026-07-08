@@ -1,13 +1,33 @@
 {
   "pack": "imagine",
   "computer": "imagine.gifos.app",
-  "map": {
-    "welcome": "13.jpg → welcome.png (crystal of creation)",
-    "video": "14.jpg → video.png (meeting camera)",
-    "notes": "15.jpg → notes.png (holographic journal)",
-    "paint": "16.jpg → paint.png (iridescent palette)",
-    "folder": "17.jpg → folder.png (holographic folder)",
-    "chess": "18.jpg → chess.png (marble knight)"
+  "subjects": {
+    "welcome": "crystal of creation",
+    "video": "meeting camera (also meet)",
+    "notes": "holographic journal",
+    "folder": "iridescent folder",
+    "chess": "marble knight",
+    "paint": "iridescent palette",
+    "calc": "candy calculator",
+    "timer": "stopwatch",
+    "tictactoe": "XO board",
+    "connect4": "connect four board",
+    "minesweeper": "glossy bomb",
+    "fortune": "fortune cookie",
+    "guestbook": "book with heart",
+    "chat": "speech bubbles",
+    "chest": "treasure chest",
+    "imposter": "capsule characters",
+    "spy": "fedora + magnifier",
+    "tilt": "tilting phone",
+    "dial": "rainbow gauge",
+    "roulette": "party cards",
+    "fakefacts": "long-nose candy face",
+    "oneclue": "lightbulb",
+    "samebrain": "two heads + spark",
+    "wolves": "wolf + moon",
+    "speechcoach": "microphone",
+    "askai": "AI brain orb"
   },
-  "note": "Grok Imagine generated sources. Explicit subject→file map. Re-run flood transparency if regenerating."
+  "note": "All art via Grok Imagine. Content-verified subject→file map (no parallel scramble)."
 }

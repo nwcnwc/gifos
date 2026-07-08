@@ -661,15 +661,36 @@
     return { defs, art, shadowRx: 36 };
   }
 
-  // ---- Grok Imagine heroes (baked PNGs) ------------------------------------
+  // ---- Grok Imagine heroes (baked PNGs) — full seed vocabulary -------------
   // Absolute paths so they resolve from any page on the computer origin.
+  // meet → video via gifos-icons.js SUBJECTS alias.
   const BAKED = {
     welcome: '/themes/imagine/assets/welcome.png',
-    video: '/themes/imagine/assets/video.png',   // also used for meet (alias)
+    video: '/themes/imagine/assets/video.png',
     notes: '/themes/imagine/assets/notes.png',
     folder: '/themes/imagine/assets/folder.png',
     chess: '/themes/imagine/assets/chess.png',
     paint: '/themes/imagine/assets/paint.png',
+    calc: '/themes/imagine/assets/calc.png',
+    timer: '/themes/imagine/assets/timer.png',
+    tictactoe: '/themes/imagine/assets/tictactoe.png',
+    connect4: '/themes/imagine/assets/connect4.png',
+    minesweeper: '/themes/imagine/assets/minesweeper.png',
+    fortune: '/themes/imagine/assets/fortune.png',
+    guestbook: '/themes/imagine/assets/guestbook.png',
+    chat: '/themes/imagine/assets/chat.png',
+    chest: '/themes/imagine/assets/chest.png',
+    imposter: '/themes/imagine/assets/imposter.png',
+    spy: '/themes/imagine/assets/spy.png',
+    tilt: '/themes/imagine/assets/tilt.png',
+    dial: '/themes/imagine/assets/dial.png',
+    roulette: '/themes/imagine/assets/roulette.png',
+    fakefacts: '/themes/imagine/assets/fakefacts.png',
+    oneclue: '/themes/imagine/assets/oneclue.png',
+    samebrain: '/themes/imagine/assets/samebrain.png',
+    wolves: '/themes/imagine/assets/wolves.png',
+    speechcoach: '/themes/imagine/assets/speechcoach.png',
+    askai: '/themes/imagine/assets/askai.png',
   };
   const bakedCache = {};
   function loadBaked(url) {
