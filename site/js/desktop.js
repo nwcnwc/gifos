@@ -132,7 +132,7 @@
     const fileId = store.uid('file');
     const bytes = await makeFolderGif(name);
     await store.putFile({ id: fileId, name: name + '.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
-    const it = { id: store.uid('item'), kind: 'folder', name, parent: parent || null, x, y, iconSize: 64, fileId };
+    const it = { id: store.uid('item'), kind: 'folder', name, parent: parent || null, x, y, iconSize: GifOS.themeIconSize(), fileId };
     await store.putItem(it);
     return it;
   }
@@ -145,7 +145,7 @@
       await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
         isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif' });
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
-        parent, x: pos.x, y: pos.y, iconSize: 64 });
+        parent, x: pos.x, y: pos.y, iconSize: GifOS.themeIconSize() });
     };
     // Layout: Welcome top-left; Video Call (the killer app) alone in the
     // top-right corner; the app folders run down the right-hand side under it.
@@ -175,14 +175,14 @@
     if (!items.find((i) => i.id === TRASH_ID)) {
       const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
       await store.putItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 });
+        x: spot.x, y: spot.y, iconSize: GifOS.themeIconSize() });
       await load();
     }
     let stolen = items.find((i) => i.id === 'sys_stolen');
     if (!stolen) {
       const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 };
+        x: spot.x, y: spot.y, iconSize: GifOS.themeIconSize() };
       await store.putItem(stolen);
       await load();
     }
@@ -732,7 +732,7 @@
       mime: isGif ? 'image/gif' : 'application/octet-stream' });
     const spot = nearestFreeCell(x, y, currentFolder, null);
     await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+      parent: currentFolder, x: spot.x, y: spot.y, iconSize: GifOS.themeIconSize() });
     await load(); // next import's free-cell search must see this one
   }
 
@@ -936,7 +936,7 @@
     await store.putFile({ id: fileId, name: name + '.gif', bytes: shellBytes, kind: 'gif', isApp: false, mime: 'image/gif' });
     const spot = nearestFreeCell(x, y, parent || null, null);
     const folderId = store.uid('item');
-    await store.putItem({ id: folderId, kind: 'folder', name, parent: parent || null, x: spot.x, y: spot.y, iconSize: 64, fileId });
+    await store.putItem({ id: folderId, kind: 'folder', name, parent: parent || null, x: spot.x, y: spot.y, iconSize: GifOS.themeIconSize(), fileId });
     let fj = null;
     try { fj = JSON.parse(bytesToText(archive.files['folder.json'])); } catch (e) { /* empty folder bundle */ }
     for (const entry of (fj && fj.items) || []) {
@@ -1380,7 +1380,7 @@
     await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: hasIndex, appId: slug, mime: 'image/gif' });
     const spot = nearestFreeCell(60, 60, currentFolder, null);
     await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+      parent: currentFolder, x: spot.x, y: spot.y, iconSize: GifOS.themeIconSize() });
     await load(); render();
     return fileId;
   }
