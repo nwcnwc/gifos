@@ -864,6 +864,9 @@ opens the built-in video page when opened in GifOS.</p>
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
   <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
 
+  <div class="card"><h2><span class="emoji"></span>Or just steal one</h2>
+  <p>See an app you like in a friend's session or a call? Press <b>Steal App</b> and a fresh copy drops into your <b>Stolen Apps</b> chest — its data included. It's not rude here, it's the whole point: every app is a file, so taking one just copies the GIF. Then remix it with your AI and make it yours.</p></div>
+
   <div class="card"><h2><span class="emoji">💿</span>Your whole computer is one file</h2>
   <p>GifOS menu (top-left) → <b>Back up Home Screen</b> gives you a single GIF holding everything. Keep it safe, or double-click it anywhere to boot your computer — even inside another one.</p></div>
 
@@ -894,6 +897,8 @@ opens the built-in video page when opened in GifOS.</p>
     '    and you are right back where you were.',
     '  * Snapshot any app to a single .gif file. Send it to anyone —',
     '    they drop it on their desktop and get your app WITH your data.',
+    '  * See an app you like in a friend session or call? Steal App copies',
+    '    it into your Stolen Apps chest — taking one just copies the GIF.',
     '  * Any app can go multiplayer: your browser becomes the server and',
     '    friends join from a share link. Traffic goes peer-to-peer when the',
     '    network allows, and falls back to a relay when it does not.',
