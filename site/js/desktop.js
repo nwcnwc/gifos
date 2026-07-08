@@ -113,16 +113,15 @@
   // form). Day-to-day the children live as store rows for speed; Download
   // packs a self-contained BUNDLE — children (state folded in) inside the
   // folder's own GIF, recursively — and dropping a bundle unpacks it back.
-  const FOLDER_ACCENTS = { Games: [92, 255, 123], Studio: [255, 92, 170], Tools: [123, 92, 255], Social: [92, 220, 180], 'IRL Games': [255, 170, 60], 'Single Phone': [92, 200, 255], 'Stolen Apps': [255, 200, 80] };
+  // Folders are all the one classic manila tan — no per-folder colours. The
+  // treasure chest ('Stolen Apps') keeps its own gold, since it isn't a folder.
+  const MANILA = [227, 197, 122];
+  const FOLDER_ACCENTS = { 'Stolen Apps': [255, 200, 80] };
   function accentFor(name) {
-    if (FOLDER_ACCENTS[name]) return FOLDER_ACCENTS[name];
-    let h = 0; const s = String(name || 'Folder');
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-    const pool = [[255, 200, 80], [123, 92, 255], [92, 220, 180], [255, 92, 170], [92, 160, 255], [92, 255, 123]];
-    return pool[h % pool.length];
+    return FOLDER_ACCENTS[name] || MANILA;
   }
   async function makeFolderGif(name, accent, artId) {
-    accent = accent || accentFor(name);
+    accent = accent || MANILA;
     const files = { 'manifest.json': JSON.stringify({ gifos: '1.0', type: 'folder', name }) };
     let preview = null;
     if (GifOS.icons) { try { preview = await GifOS.icons.renderApp(artId || 'folder', accent); } catch (e) { /* plain tile */ } }
