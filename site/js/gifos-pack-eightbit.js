@@ -15,7 +15,7 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (!GifOS.iconPacks) return;
 
-  const SIZE = 128, FR = 4, DELAY = 14, GRID = 32;
+  const SIZE = 128, FR = 4, DELAY = 20, GRID = 32;
 
   // ---- PICO-8 palette ------------------------------------------------------
   const HEX = {

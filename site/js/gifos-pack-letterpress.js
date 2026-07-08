@@ -15,7 +15,7 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (!GifOS.iconPacks) return;
 
-  const FR = 6, SIZE = 160, DELAY = 13;
+  const FR = 6, SIZE = 160, DELAY = 22;
   const range = (n) => Array.from({ length: n }, (_, i) => i);
   const clamp = (n) => Math.max(0, Math.min(255, Math.round(n)));
 

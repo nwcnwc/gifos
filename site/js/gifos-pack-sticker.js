@@ -14,7 +14,7 @@
 
   const S = 64;            // raster size (desktop default icon px)
   const FR = 4;            // frames — small, to keep App GIFs light
-  const DELAY = 13;        // centiseconds per frame
+  const DELAY = 17;        // centiseconds per frame — a friendly amble
 
   const range = (n) => Array.from({ length: n }, (_, i) => i);
   const clamp = (n) => Math.max(0, Math.min(255, n | 0));
