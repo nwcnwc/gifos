@@ -2,14 +2,20 @@ name = "gifos-mirror"
 main = "src/mirror.js"
 compatibility_date = "2026-01-01"
 
-# Ten explicit routes — 0.gifos.app through 9.gifos.app — instead of the old
-# "*.gifos.app/*" wildcard. Route patterns can't express "digits only", but
-# enumerating the ten single-digit computers gets the same effect with a
-# bonus: requests to any OTHER subdomain never invoke this Worker at all
-# (no free-tier request burned by bots probing random hostnames — they fall
-# through to the zone's DNS target and die there).
-# Still requires a proxied (orange-cloud) DNS record covering these names —
-# the existing "*" record works; see README.
+# EXPLICIT ALLOW-LIST of theme subdomains — one route each, never a
+# "*.gifos.app/*" wildcard. The enumeration IS the security boundary: requests
+# to any un-listed subdomain never invoke this Worker (no free-tier request
+# burned by bots probing random hostnames — they fall through to the zone's DNS
+# target and die there), so nobody can spin up infinite computers.
+#
+# TO ADD A COMPUTER: add its themes/<label>/ folder to the site, then add a
+# route block below (named labels are fine, e.g. "neon.gifos.app/*") and run
+# `npx wrangler deploy`. Requires a proxied (orange-cloud) DNS record covering
+# the name — the existing "*" record works; see README.
+# New named computers go here too, e.g.:
+#   [[routes]]
+#   pattern = "neon.gifos.app/*"
+#   zone_name = "gifos.app"
 [[routes]]
 pattern = "0.gifos.app/*"
 zone_name = "gifos.app"

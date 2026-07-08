@@ -1,15 +1,27 @@
 # gifos-mirror
 
-Serves the GifOS site on **the ten single-digit subdomains** — `0.gifos.app`
-through `9.gifos.app` (ten explicit routes; other subdomains never invoke or
-bill this Worker). Each digit hostname is
-a distinct browser origin with its own IndexedDB, so **every number is a
-separate, fully isolated GifOS computer** in the same browser. No accounts, no
-server state — origin isolation does all the work.
+Serves the GifOS site on **the theme subdomains** — `0.gifos.app` through
+`9.gifos.app` today, plus any named computers added later. The routes in
+`wrangler.toml` are an **explicit allow-list** (never a `*.gifos.app` wildcard),
+so an un-listed subdomain never invokes or bills this Worker and nobody can
+spin up infinite computers. Each hostname is a distinct browser origin with its
+own IndexedDB, so **every one is a separate, fully isolated GifOS computer** in
+the same browser. No accounts, no server state — origin isolation does all the work.
 
 GitHub Pages only serves one hostname (`gifos.app`), so this stateless Worker
 fetches the same assets from the canonical origin and re-serves them under the
-digit hostname. Anything else that somehow reaches the Worker 301-redirects to `gifos.app`.
+subdomain; the site picks the theme from the subdomain label. Anything that
+somehow reaches the Worker without a matching route 301-redirects to `gifos.app`.
+
+## Adding a computer
+
+1. Add its theme folder to the site: `site/themes/<label>/` (see
+   `site/js/gifos-themes.js`). Push — GitHub Pages redeploys.
+2. Add a route block for it in `wrangler.toml` (named labels like
+   `neon.gifos.app/*` are fine), then `wrangler deploy` (below).
+
+The wildcard DNS record already covers every name, so there's no per-computer
+DNS step.
 
 ## Deploy (two steps)
 
