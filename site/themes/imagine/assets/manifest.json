@@ -1,0 +1,13 @@
+{
+  "pack": "imagine",
+  "computer": "imagine.gifos.app",
+  "map": {
+    "welcome": "13.jpg → welcome.png (crystal of creation)",
+    "video": "14.jpg → video.png (meeting camera)",
+    "notes": "15.jpg → notes.png (holographic journal)",
+    "paint": "16.jpg → paint.png (iridescent palette)",
+    "folder": "17.jpg → folder.png (holographic folder)",
+    "chess": "18.jpg → chess.png (marble knight)"
+  },
+  "note": "Grok Imagine generated sources. Explicit subject→file map. Re-run flood transparency if regenerating."
+}
