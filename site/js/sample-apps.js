@@ -971,6 +971,115 @@ opens the built-in video page when opened in GifOS.</p>
   crackOne();
 </script>`;
 
+  // Speech Coach — showcases brokered capture + on-device DSP. Records a clip
+  // via gifos.recordAudio (GifOS shows its own indicator), then analyses pace,
+  // pauses and volume entirely locally with the Web Audio API. No network.
+  const SPEECHCOACH_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;min-height:100vh}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff}
+  main{flex:1;padding:18px;max-width:520px;margin:0 auto;width:100%;box-sizing:border-box}
+  .lead{color:#8888aa;font-size:.9rem;line-height:1.5;margin-bottom:16px}
+  button{padding:12px 20px;border:0;border-radius:10px;background:#7b5cff;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.5}
+  .card{background:#14141f;border:1px solid #2a2a3f;border-radius:12px;padding:14px 16px;margin-top:16px}
+  .card h3{margin:0 0 8px;font-size:1rem}
+  .metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a2a3f;font-size:.9rem}
+  .metric:last-child{border-bottom:0}
+  .metric b{color:#7b5cff}
+  .tip{color:#ffce6b;font-size:.88rem;margin-top:10px;line-height:1.45}
+  audio{width:100%;margin-top:12px}
+</style>
+<header>🎙 Speech Coach</header>
+<main>
+  <p class="lead">Record up to 12 seconds of yourself talking. It’s analysed right on your device — nothing leaves it — for pace, pauses and volume.</p>
+  <button id="rec">● Record &amp; analyse</button>
+  <div id="out"></div>
+</main>
+<script>
+const recBtn=document.getElementById('rec'), out=document.getElementById('out');
+recBtn.onclick=async()=>{
+  if(!window.gifos||!gifos.recordAudio){ out.innerHTML='<div class="card">Open this inside GifOS to use the microphone.</div>'; return; }
+  recBtn.disabled=true; out.innerHTML='<div class="card">Recording… speak now.</div>';
+  try{
+    const clip=await gifos.recordAudio({maxSeconds:12});
+    out.innerHTML='<div class="card">Analysing…</div>';
+    const AC=window.AudioContext||window.webkitAudioContext; const ctx=new AC();
+    const buf=await ctx.decodeAudioData(clip.bytes.slice(0));
+    const data=buf.getChannelData(0), sr=buf.sampleRate, dur=buf.duration;
+    const fs=Math.max(1,Math.floor(sr*0.03)), frames=[];
+    for(let i=0;i+fs<data.length;i+=fs){ let s=0; for(let j=0;j<fs;j++){const v=data[i+j]; s+=v*v;} frames.push(Math.sqrt(s/fs)); }
+    const peak=Math.max.apply(null,frames)||1e-6, thr=peak*0.12;
+    const voiced=frames.map(f=>f>thr), voicedFrac=voiced.filter(Boolean).length/(voiced.length||1);
+    let pauses=0,run=0; const perPause=Math.ceil(0.4/0.03);
+    for(const v of voiced){ if(!v){ run++; if(run===perPause) pauses++; } else run=0; }
+    const vf=frames.filter((f,i)=>voiced[i]), mean=vf.reduce((a,b)=>a+b,0)/(vf.length||1);
+    const sd=Math.sqrt(vf.reduce((a,b)=>a+(b-mean)*(b-mean),0)/(vf.length||1)), cv=mean?sd/mean:0;
+    let bursts=0,prev=false; for(const v of voiced){ if(v&&!prev)bursts++; prev=v; }
+    const bps=bursts/(dur||1), pace=bps<2.2?'measured':bps>4.2?'quick':'steady';
+    const tips=[];
+    if(voicedFrac<0.45) tips.push('Lots of silence — fill it with confident delivery, or trim the dead air.');
+    if(pauses>=3) tips.push('Several long pauses — a few land, too many lose the room.');
+    if(cv>0.7) tips.push('Volume swings a lot — even it out so every word lands.');
+    if(pace==='quick') tips.push('You’re quick — slow down on key points to let them sink in.');
+    if(pace==='measured'&&voicedFrac>0.6) tips.push('Lovely measured pace — great for clarity.');
+    if(!tips.length) tips.push('Well balanced — clear pace, steady volume, natural pauses. 👏');
+    const url=URL.createObjectURL(new Blob([clip.bytes],{type:clip.mime}));
+    out.innerHTML='<div class="card"><h3>Your delivery</h3>'+
+      '<div class="metric"><span>Length</span><b>'+dur.toFixed(1)+'s</b></div>'+
+      '<div class="metric"><span>Talking vs silence</span><b>'+Math.round(voicedFrac*100)+'% talking</b></div>'+
+      '<div class="metric"><span>Long pauses</span><b>'+pauses+'</b></div>'+
+      '<div class="metric"><span>Pace</span><b>'+pace+'</b></div>'+
+      '<div class="metric"><span>Volume</span><b>'+(cv<0.4?'steady':cv<0.7?'ok':'uneven')+'</b></div>'+
+      '<div class="tip">'+tips.join(' ')+'</div><audio controls src="'+url+'"></audio></div>';
+    ctx.close();
+  }catch(e){ out.innerHTML='<div class="card">Couldn’t record: '+((e&&e.message)||e)+'</div>'; }
+  recBtn.disabled=false;
+};
+</script>`;
+
+  // Ask AI — showcases gifos.ai. Uses the models the user wired in Settings; the
+  // app never sees a key, and it feature-detects so it degrades honestly.
+  const ASKAI_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  *{box-sizing:border-box} html,body{height:100%}
+  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff}
+  #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+  .m{max-width:85%;padding:9px 13px;border-radius:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  .m.you{align-self:flex-end;background:#14141f;border:1px solid #7b5cff}
+  .m.ai{align-self:flex-start;background:#14141f;border:1px solid #2a2a3f}
+  .note{color:#8888aa;font-size:.88rem;padding:16px 18px;line-height:1.5}
+  .pick{display:flex;gap:6px;padding:0 18px 8px}
+  .pick button{padding:6px 12px;border-radius:999px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font-size:.8rem;cursor:pointer}
+  .pick button.on{background:#7b5cff;color:#fff;border-color:#7b5cff}
+  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
+  input{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit}
+  form button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
+</style>
+<header>🧠 Ask AI</header>
+<div id="log"></div>
+<div class="pick"><button data-m="cheapest" class="on">Cheapest</button><button data-m="smartest">Smartest</button></div>
+<form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button>Send</button></form>
+<script>
+const log=document.getElementById('log'); let model='cheapest', msgs=[];
+function add(role,txt){ const d=document.createElement('div'); d.className='m '+(role==='user'?'you':'ai'); d.textContent=txt; log.appendChild(d); log.scrollTop=log.scrollHeight; return d; }
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{ model=b.dataset.m; document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x===b)); });
+(async()=>{
+  if(!window.gifos||!gifos.ai){ log.innerHTML='<div class="note">Open this inside GifOS to use AI.</div>'; return; }
+  const m=await gifos.ai.models().catch(()=>({available:[]}));
+  if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
+    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → 🧠 AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text” or “Smartest text”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
+})();
+document.getElementById('f').onsubmit=async e=>{
+  e.preventDefault(); const t=document.getElementById('t'); const q=t.value.trim(); if(!q)return; t.value='';
+  add('user',q); msgs.push({role:'user',content:q}); const holder=add('ai','…');
+  try{ const r=await gifos.ai.chat({model:model,messages:msgs}); holder.textContent=r.text||'(no answer)'; msgs.push({role:'assistant',content:r.text||''}); }
+  catch(err){ holder.textContent='⚠ '+((err&&err.message)||err); }
+  log.scrollTop=log.scrollHeight;
+};
+</script>`;
+
   function manifest(appId, name, accent, extra) {
     return JSON.stringify(Object.assign({
       gifos: '1.0', appId, name, version: '0.2.0', entry: 'index.html', accent,
@@ -1072,6 +1181,10 @@ opens the built-in video page when opened in GifOS.</p>
         // The one app that reaches out: it declares exactly the site it needs,
         // so opening it demonstrates the network acknowledgement on a real app.
         app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
+        // Showcases the brokered capabilities: a mic clip analysed on-device,
+        // and the computer's own AI models. Both declare what they use.
+        app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
+        app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: true, network: [] } }),
       ] },
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
