@@ -239,3 +239,13 @@ details.adv h4 { margin-top: .8rem; }
 .ai-2 { display: flex; gap: .4rem; }
 .modal.wide .ai-row input { margin-bottom: .4rem; }
 .modal.wide .ai-row .ai-2 input { margin-bottom: 0; }
+
+/* Settings → Third-party APIs (reuses .ai-row chrome) */
+.modal.wide .api-name { flex: 1; min-width: 0; margin-bottom: 0; padding: .3rem .5rem; font-size: .88rem; font-weight: 600; }
+.api-del { padding: .28rem .55rem; border-radius: .4rem; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: .78rem; }
+.api-del:hover { color: var(--text); border-color: var(--muted); }
+.modal.wide .api-row select { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+.modal.wide .api-row .ai-2 { align-items: stretch; }
+.modal.wide .api-row .ai-2 select { flex: 1; }
+.modal.wide .api-row .ai-2 .api-authname { flex: 1; }

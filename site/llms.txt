@@ -108,6 +108,26 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
    with db.get(), because subscribers re-download a whole collection on
    every change, and relay-fallback bandwidth is strictly throttled —
    bloated hot collections make an app slow for everyone.
+5c. BROKERED CAPABILITIES (opt-in, declared in the manifest): the app can't
+   hold the live device or a secret key, so it asks the GifOS computer to do
+   the privileged act and gets back a RESULT. Declare the capability, then:
+   - microphone/camera/motion: gifos.recordAudio({maxSeconds}) /
+     gifos.recordVideo() / gifos.takePhoto() -> { bytes, mime }; gifos.motion(cb).
+     GifOS captures behind its own visible indicator; the app never holds the
+     live device.
+   - ai: gifos.ai.chat/tts/stt/image/video and gifos.ai.models(). The user wires
+     OpenAI-shaped endpoints + keys in Settings -> AI; the app never sees a key.
+   - api: gifos.api(name, { method, path, query, headers, body, as }) for ANY
+     keyed third-party API that isn't OpenAI-shaped (Deepgram, a trading API…).
+     Declare the names you use: "capabilities": { "api": ["deepgram"] }. The
+     user configures each in Settings -> Third-party APIs (base URL + auth +
+     key); the runtime attaches the credential, PINS it to that API's own host
+     (an off-host path is refused), and the app never sees the key. path is
+     relative to the configured base URL. CAVEAT: this is a direct browser fetch,
+     so the endpoint MUST send CORS headers — server-only APIs (Deepgram's REST
+     among them) can't be reached browser-direct without a CORS-forwarding relay.
+   ALWAYS feature-detect and, if a capability isn't set up, tell the user to
+   configure it in Settings — never fake a result.
 6. Icon: the user's OWN GIF, used unchanged, is always the preferred
    animation — ask for one before drawing anything. Otherwise: include
    <link rel="icon" href="data:image/svg+xml,..."> in the HTML (used when

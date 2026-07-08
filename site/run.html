@@ -176,20 +176,25 @@
       // app, and that's fine). '*' means "any website", which we flag as unsafe.
       const permsBtn = document.getElementById('perms');
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: 'Record audio clips', camera: 'Capture photos & video', motion: 'Read device motion', ai: 'Use your AI models' };
+      const CAP_LABELS = { microphone: 'Record audio clips', camera: 'Capture photos & video', motion: 'Read device motion', ai: 'Use your AI models', api: 'Use your third-party APIs' };
       const CAP_DESC = {
         microphone: 'Records short clips when you approve — GifOS shows a recording indicator and hands the app only the clip, never your live mic.',
         camera: 'Captures a photo or short video when you approve, behind a GifOS indicator — never your live camera feed.',
         motion: 'Reads your device tilt / orientation (for tilt games and the like). No camera, no location.',
-        ai: 'Uses the AI models you set up in Settings. The app sends prompts and gets results — it never sees your API keys.'
+        ai: 'Uses the AI models you set up in Settings. The app sends prompts and gets results — it never sees your API keys.',
+        api: 'Uses third-party APIs you set up in Settings. GifOS attaches the key and only ever contacts that API’s own host — the app never sees the key.'
       };
+      const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
       window.__gifosPermissions = function (policy, manifest) {
-        const caps = Object.keys(CAP_LABELS).filter(function (k) { return manifest && manifest.capabilities && manifest.capabilities[k]; });
+        const caps = Object.keys(CAP_LABELS).filter(function (k) {
+          return k === 'api' ? apiNames(manifest).length : (manifest && manifest.capabilities && manifest.capabilities[k]);
+        });
         const hasNet = !!(policy && policy.hasNetwork());
         if (!hasNet && !caps.length) { permsBtn.style.display = 'none'; return; }
         const capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
-        function capAcked() { try { return localStorage.getItem(capSig) === caps.join(','); } catch (e) { return false; } }
-        function ackCaps() { try { localStorage.setItem(capSig, caps.join(',')); } catch (e) {} }
+        const sig = caps.join(',') + '|' + apiNames(manifest).join(',');
+        function capAcked() { try { return localStorage.getItem(capSig) === sig; } catch (e) { return false; } }
+        function ackCaps() { try { localStorage.setItem(capSig, sig); } catch (e) {} }
         function paintChip() {
           const unsafe = hasNet && policy.unsafe();
           permsBtn.style.display = '';
@@ -203,6 +208,12 @@
         function capBlock() {
           if (!caps.length) return '';
           return '<h4 style="margin:.6rem 0 .35rem;font-size:.92rem">On your device</h4>' + caps.map(function (k) {
+            if (k === 'api') {
+              return apiNames(manifest).map(function (n) {
+                return '<div class="perm-row"><span><span class="host">Use your ' + n + ' API</span>' +
+                  '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
+              }).join('');
+            }
             return '<div class="perm-row"><span><span class="host">' + CAP_LABELS[k] + '</span>' +
               '<br><span class="desc">' + CAP_DESC[k] + '</span></span></div>';
           }).join('');

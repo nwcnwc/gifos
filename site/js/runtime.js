@@ -161,6 +161,13 @@
           imageToVideo: function(o){ return rpc(Object.assign({type:'ai',op:'image_to_video'}, o||{})); },
           video:  function(o){ return rpc(Object.assign({type:'ai',op:'video'}, o||{})); }
         },
+        // Any keyed third-party API (beyond OpenAI-shaped ones) the user has set
+        // up in Settings → Third-party APIs. The GifOS computer attaches the
+        // credential and pins the call to that API's OWN host — the app never
+        // sees the key and can't redirect it. Needs the manifest to declare the
+        // API's name under capabilities.api. req: { path, method, query, headers,
+        // body, as:'json'|'text'|'bytes' }. Returns { status, ok, json|text|bytes }.
+        api: function(name, req){ return rpc(Object.assign({type:'api', name:name}, req||{})); },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -676,6 +683,62 @@
       });
   }
 
+  // ---- brokered third-party APIs (Deepgram, Schwab, …) ----------------------
+  // Generalises the AI broker to ANY keyed API. The user names an API in
+  // Settings → Third-party APIs with its base URL + auth scheme + key (stored
+  // in localStorage, per-origin, kept OUT of a shareable backup GIF). An app
+  // declares the names it uses under capabilities.api, then calls
+  // gifos.api(name, req). The runtime attaches the credential and REFUSES to
+  // send it anywhere but that API's own origin, so a key can never be leaked to
+  // an app or redirected to another host.
+  const API_KEY = 'gifos_api_config';
+  function apiConfig() { try { return JSON.parse(root.localStorage.getItem(API_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function apiAllowed(manifest, name) {
+    const list = (manifest && manifest.capabilities && manifest.capabilities.api) || [];
+    return Array.isArray(list) && list.indexOf(name) !== -1;
+  }
+  function brokerApi(manifest, d) {
+    const name = d.name;
+    if (!name || !apiAllowed(manifest, name)) return Promise.reject(new Error('This app did not declare the "' + name + '" third-party API in its manifest.'));
+    const c = apiConfig()[name];
+    if (!c || !c.url) return Promise.reject(new Error('The "' + name + '" API is not set up. Add it in GifOS Settings → Third-party APIs.'));
+    let baseOrigin;
+    const base = String(c.url).replace(/\/+$/, '');
+    try { baseOrigin = new URL(base).origin; } catch (e) { return Promise.reject(new Error('Bad base URL for "' + name + '".')); }
+    let path = String(d.path || '');
+    if (/:\/\//.test(path) || path.slice(0, 2) === '//' || /\s/.test(path)) return Promise.reject(new Error('api path must be a relative path on the configured host.'));
+    if (path && path[0] !== '/' && path[0] !== '?') path = '/' + path;
+    let u;
+    try { u = new URL(base + path); } catch (e) { return Promise.reject(new Error('Bad request path.')); }
+    if (d.query && typeof d.query === 'object') for (const k in d.query) u.searchParams.append(k, d.query[k]);
+    // The credential leaves this origin ONLY for the API's own host. Nothing the
+    // app supplies can move it elsewhere.
+    if (u.origin !== baseOrigin) return Promise.reject(new Error('api request must stay on the configured host (' + baseOrigin + ').'));
+    const headers = {};
+    for (const k in (d.headers || {})) headers[k] = d.headers[k]; // app headers first; auth overwrites below
+    const at = c.authType || 'bearer', an = c.authName || '', key = c.key || '';
+    if (key) {
+      if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
+      else if (at === 'token') headers.Authorization = 'Token ' + key;      // Deepgram-style
+      else if (at === 'header' && an) headers[an] = key;                    // e.g. x-api-key
+      else if (at === 'query' && an) u.searchParams.set(an, key);
+    }
+    let body = d.body;
+    if (body && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) { /* binary, pass through */ }
+    else if (body && typeof body === 'object' && typeof body.b64 === 'string') body = b64ToBuf(body.b64);
+    else if (body && typeof body === 'object') { body = JSON.stringify(body); if (!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json'; }
+    const method = String(d.method || 'GET').toUpperCase();
+    const init = { method, headers };
+    if (method !== 'GET' && method !== 'HEAD' && body != null) init.body = body;
+    return root.fetch(u.toString(), init).then((r) => {
+      const ct = r.headers.get('content-type') || '';
+      const as = d.as || (/json/.test(ct) ? 'json' : 'text');
+      const meta = { status: r.status, ok: r.ok, contentType: ct };
+      if (as === 'bytes') return r.arrayBuffer().then((buf) => Object.assign(meta, { bytes: buf, mime: ct }));
+      return r.text().then((t) => { if (as === 'json') { try { return Object.assign(meta, { json: JSON.parse(t) }); } catch (e) { /* not json */ } } return Object.assign(meta, { text: t }); });
+    });
+  }
+
   function mountApp(iframe, files, manifest, db, originalBytes, policy) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     armBackTrap(() => iframe);
@@ -688,6 +751,7 @@
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
