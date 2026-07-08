@@ -59,6 +59,10 @@
   .perm-box .foot { color: var(--muted, #6a6a86); font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
   .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
     background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
+  .perm-btns { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1.1rem; }
+  .perm-box .ghost { padding: .5rem 1.1rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+    background: transparent; color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
+  .perm-row .host { cursor: pointer; }
   /* Compact connection pill: a dot + one calm word (client), or per-status
      counts (host). The verbose sentence lives in a click-to-open popover so
      long status text can never wrap across the screen. */
@@ -107,6 +111,8 @@
     <span class="hint">Send this link to friends — opening it brings them right in:</span>
     <input id="share-url" readonly>
     <button id="copy">Copy</button>
+    <button id="newlink" title="Kill this link and make a new one">New link</button>
+    <span class="hint" id="share-exp"></span>
   </div>
   <div id="mount"></div>
 
@@ -335,18 +341,76 @@
         GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; });
       }
 
-      hostBtn.addEventListener('click', function () {
-        if (inviteUrl) { shareLink(inviteUrl); return; } // already live — share again
-        if (!controller || !controller.becomeHost) return;
+      // How long an invite link lives — the link is a capability (join live AND
+      // copy this app's whole dataset), so the host picks its lifetime up front.
+      function lifeLabel(keep, exp) {
+        if (keep === 'close') return 'Ends when you close this app.';
+        if (!exp) return 'Never expires.';
+        var mins = Math.max(1, Math.round((exp - Date.now()) / 60000));
+        return 'Expires in ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + '.';
+      }
+      function expNote(info) {
+        if (!info.exp) return 'No expiry set.';
+        var mins = Math.max(1, Math.round((info.exp - Date.now()) / 60000));
+        return 'Expires in ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + '.';
+      }
+      // Modal: warn what a link grants, then choose how long it stays usable.
+      function chooseInvite(forceNew) {
+        var probe = (!forceNew && controller && controller.sessionInfo) ? controller.sessionInfo() : Promise.resolve({ active: false });
+        return probe.then(function (info) {
+          return new Promise(function (resolve) {
+            var bg = document.createElement('div');
+            bg.className = 'perm-modal'; bg.id = 'invite-modal';
+            bg.innerHTML =
+              '<div class="perm-box">' +
+              '<h3>Share this app</h3>' +
+              '<div class="warn">Your invite link works <b>only while you have this app open</b>. Anyone who has it can join live <b>and download a full copy of everything in this app</b> — and you can’t un-share what they’ve already seen. Only invite people you trust with this data.</div>' +
+              '<p class="lead">How long should the link keep working?</p>' +
+              (info.active ? '<label class="perm-row"><input type="radio" name="lt" value="__keep" checked><span><span class="host">Keep my current link</span><span class="desc">' + expNote(info) + '</span></span></label>' : '') +
+              '<label class="perm-row"><input type="radio" name="lt" value="close"' + (info.active ? '' : ' checked') + '><span><span class="host">Until I close the app</span><span class="desc">Dies when this tab closes or you make a new link — no one can keep it running.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="1h"><span><span class="host">1 hour</span><span class="desc">Stops working an hour from now.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="24h"><span><span class="host">24 hours</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="forever"><span><span class="host">Forever</span><span class="desc">A permanent room. If you drop off, a connected friend can keep it going (and keep serving your data).</span></span></label>' +
+              '<div class="perm-btns"><button id="inv-cancel" class="ghost">Cancel</button><button id="inv-go" class="done">Create link</button></div>' +
+              '</div>';
+            document.body.appendChild(bg);
+            function close(v) { bg.remove(); resolve(v); }
+            bg.querySelector('#inv-cancel').onclick = function () { close(null); };
+            bg.addEventListener('click', function (e) { if (e.target === bg) close(null); });
+            bg.querySelector('#inv-go').onclick = function () {
+              var sel = bg.querySelector('input[name=lt]:checked');
+              var v = sel ? sel.value : 'close';
+              close(v === '__keep' ? { resume: true } : { lifetime: v });
+            };
+          });
+        });
+      }
+      function goLive(choice) {
         hostBtn.disabled = true; hostBtn.textContent = 'Connecting…';
-        ensureName().then(function () { return controller.becomeHost(); }).then(function (r) {
+        return ensureName().then(function () {
+          return controller.becomeHost(choice.resume ? {} : { lifetime: choice.lifetime });
+        }).then(function (r) {
           inviteUrl = r.shareUrl;
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
+          document.getElementById('share-exp').textContent = lifeLabel(r.keep, r.exp);
           shareLink(inviteUrl);
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
           status.textContent = 'Could not create the invite: ' + err.message;
           connPop.classList.add('show'); // errors deserve to be seen
+        });
+      }
+      hostBtn.addEventListener('click', function () {
+        if (inviteUrl) { shareLink(inviteUrl); return; } // already live — share again
+        if (!controller || !controller.becomeHost) return;
+        chooseInvite().then(function (choice) { if (choice) goLive(choice); });
+      });
+      document.getElementById('newlink').addEventListener('click', function () {
+        if (!controller || !controller.becomeHost) return;
+        chooseInvite(true).then(function (choice) {
+          if (!choice) return;
+          inviteUrl = null; // rotating always mints a fresh link, killing the old
+          goLive(choice);
         });
       });
       becomeBtn.addEventListener('click', function () {
