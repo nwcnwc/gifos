@@ -327,19 +327,19 @@
   // Video call — the HERO: cyan camera sign, magenta lens, blinking REC bulb,
   // marquee corner ticks, slice glitch that heals.
   ART.video = (a, f) => {
-    const body = rr(28, 46, 54, 38, 9);
-    const wedge = 'M84 56 l18 -9 v36 l-18 -9 z';
-    const lens = 'M52 65 m-11 0 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0';
+    // Meeting in neon: a screen framing a 2x2 grid of glowing participant
+    // tubes; the magenta "speaking" glow chases from tile to tile.
+    const screen = rr(24, 44, 56, 46, 9);
+    const tile = (x, y, glow) => tube(rr(x, y, 20, 15, 4), CYN, 2.2, glow)
+      + tube('M' + (x + 10) + ' ' + (y + 6) + ' m-3 0 a3 3 0 1 0 6 0 a3 3 0 1 0 -6 0', MAG, 1.8, glow)
+      + tube('M' + (x + 4.5) + ' ' + (y + 13) + ' a5.5 4 0 0 1 11 0', MAG, 1.6, glow * 0.8);
+    const gx = 30, gy = 50, tw = 20, thh = 15, gp = 4, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + thh + gp], [gx + tw + gp, gy + thh + gp]];
     let defs = '';
-    let core = tube(body, CYN, 2.6, BREATH[f])
-      + tube(wedge, CYN, 2.4, BUZZ2[f])
-      + tube(lens, MAG, 2.6, 1)
-      + tube('M52 65 m-4.5 0 a4.5 4.5 0 1 0 9 0 a4.5 4.5 0 1 0 -9 0', MAG, 1.6, 0.8)
-      + dot(72, 56, 2.6, MAG, f % 2 ? 1 : 0.25)
-      + tube('M36 40 h10', MAG, 2, chase(0, 3, f, 0.3))
-      + tube('M50 40 h10', MAG, 2, chase(1, 3, f, 0.3))
-      + tube('M64 40 h10', MAG, 2, chase(2, 3, f, 0.3));
-    let art = core + ticks(98, 88, MAG, f, 3) + ghost(body, 1.8, f, [2, 5], 2.5);
+    let core = tube(screen, CYN, 2.6, BREATH[f])
+      + cells.map((c, i) => tile(c[0], c[1], i === act ? 1 : 0.28)).join('')
+      + dot(72, 40, 2.4, MAG, f % 2 ? 1 : 0.25);
+    let art = core + ticks(98, 88, MAG, f, 3) + ghost(screen, 1.8, f, [2, 5], 2.5);
     if (f === 2) { const s = slice(core, 58, 7, 4); defs += s.defs; art += s.art; }
     return { defs, art };
   };
