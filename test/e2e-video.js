@@ -703,14 +703,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.locator('#adm-room').fill(chosenRoom);
   await adam.locator('#adm-pass').fill('sesame-topsecret');
   await adam.locator('#adm-enable').click();
-  await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{64}'), { timeout: 30000 });
+  await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   check('minting an admin room with a CHOSEN name lands its creator in it AS admin',
     (await adam.evaluate(() => window.__gifosVideo.room())) === chosenRoom);
   const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
   const admHash = 'v=' + chosenRoom + '&k=' + chosenRoom + '&av=' + admV;
   check('the room link carries only the verifier — never the password',
-    /^[a-f0-9]{64}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
+    /^[a-f0-9]{24}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
   // The whole point: (name, password) reconstruct the SAME room from scratch.
   const rederived = await adam.evaluate(async ({ r, p }) => {
     const enc = new TextEncoder();
@@ -718,7 +718,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('gifos-admin:' + r), iterations: 310000 }, km, 256);
     const K = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     const vb = await crypto.subtle.digest('SHA-256', enc.encode(K));
-    return Array.from(new Uint8Array(vb)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(new Uint8Array(vb)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24); // 24-hex truncated verifier
   }, { r: chosenRoom, p: 'sesame-topsecret' });
   check('the same name + password re-derive the same room, from nothing', rederived === admV);
 
@@ -793,6 +793,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 10000 });
   check('clicking again unblurs every guest — the consenting guest returns to clear', true);
 
+  // "VIDEO OFF" — the harder hammer: admin kills every guest's camera room-wide.
+  await adam.locator('#camall').click();
+  await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'cam') && window.__gifosVideo.camOff(), null, { timeout: 10000 });
+  check('admin "Video off" kills every guest camera room-wide (guest stops transmitting)', true);
+  await adam.waitForFunction(() => /Video on/.test(document.getElementById('camall').textContent), null, { timeout: 5000 });
+  await beth.locator('#cam').click(); // guest tries to turn video back on
+  await beth.waitForFunction(() => /admin turned your video off/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
+  check('a guest cannot re-enable video while an admin holds it off', true);
+  await adam.locator('#camall').click(); // release
+  await beth.waitForFunction(() => !window.__gifosVideo.modOn('me', 'cam'), null, { timeout: 8000 });
+  check('admin releases video-off; guests may turn their camera back on', true);
+
   // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();
   await bethTile.click();
@@ -849,6 +861,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bethAgain.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('ban survives a fully-emptied room via the admin\'s copy', true);
   await adam2.close(); await bethAgain.close();
+
+  // ================= admin-absence auto-close (host must be present) ==========
+  // A bio-link room lives only while its host is present: host gone → 10s grace,
+  // then a visible 5-minute countdown, then the room evacuates. Host back cancels.
+  const hostCtx = await newUser('Host');
+  const fanCtx = await newUser('Fan');
+  const hostRoom = 'live' + Math.floor(Math.random() * 1e6).toString(36);
+  const host = await openRoom(hostCtx, 'host', plainHash);
+  await host.locator('#admbtn').click();
+  await host.locator('#adm-room').fill(hostRoom);
+  await host.locator('#adm-pass').fill('greenroom-topsecret');
+  await host.locator('#adm-enable').click();
+  await host.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
+  const hostV = await host.evaluate(() => window.__gifosVideo.verifier());
+  const hostHash = 'v=' + hostRoom + '&k=' + hostRoom + '&av=' + hostV;
+  const fan = await openRoom(fanCtx, 'fan', hostHash);
+  await fan.waitForFunction(() => window.__gifosVideo.adminsHere().length > 0, null, { timeout: 12000 });
+  check('with the host present, a guest sees no closing countdown',
+    !(await fan.evaluate(() => window.__gifosVideo.countdownShown())));
+  await host.close(); // host leaves
+  await fan.waitForFunction(() => window.__gifosVideo.countdownShown(), null, { timeout: 25000 });
+  check('host leaves → after the 10s grace the guest sees a closing countdown', true);
+  const hostBack = await openRoom(hostCtx, 'hostback', hostHash); // stored key signs him back in
+  await hostBack.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
+  await fan.waitForFunction(() => !window.__gifosVideo.countdownShown(), null, { timeout: 15000 });
+  check('host returns → the countdown vanishes and the room lives on', true);
+  await hostBack.close(); await fan.close();
 
   // ================= vote off the island (personal, GLOBAL vote-offs) =========
   // No admin exists to remove a bad actor — and there is NO ban list to forge

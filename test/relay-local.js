@@ -216,7 +216,7 @@ server.on('upgrade', (req, socket) => {
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
-    const isAdmin = !!(sess.av && admOffer === sess.av);
+    const isAdmin = !!(sess.av && admOffer && admOffer.slice(0, sess.av.length) === sess.av); // V is 24-hex now; prefix-compare also fits legacy 64
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
     if (!isAdmin && dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
     // Standing-votes gate (plain rooms): a majority of the devices already

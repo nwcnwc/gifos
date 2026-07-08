@@ -64,6 +64,16 @@
   .tile video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
   .tile video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
   #blurall.on { border-color: #ffb86c; color: #ffd23c; background: #2a1f10; }
+  #camall.on { border-color: #ff5c5c; color: #ff9c9c; background: #2a1010; }
+  /* Admin-absence countdown: an admin room only lives while its host is here. */
+  .admcount { flex: 0 0 100%; order: 99; text-align: center; padding: .4rem .9rem; font-size: .85rem;
+              font-weight: 700; color: #fff; background: linear-gradient(90deg, #a3302a, #cf4a2f); border-radius: .5rem; }
+  .closed-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
+                padding: 1.8rem 1.6rem; max-width: 360px; text-align: center; }
+  .closed-box h3 { margin-bottom: .6rem; }
+  .closed-box p { color: var(--muted, #8888aa); font-size: .9rem; line-height: 1.5; margin-bottom: 1.2rem; }
+  .closed-box button { padding: .55rem 1.6rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
+                       background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
   .votebtn { position: absolute; top: .3rem; left: .3rem; z-index: 4; padding: .12rem .4rem;
     border-radius: .35rem; border: 1px solid #6a2a2a; background: rgba(40,10,10,.7); color: #ff8f8f;
     font-size: .72rem; cursor: pointer; display: none; }
@@ -175,6 +185,7 @@
     </span>
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
+    <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Video off</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
@@ -183,6 +194,7 @@
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the call's transcript">CC</button>
     <button id="trbtn" title="The call's live transcript" style="display:none">Transcript</button>
     <span class="status" id="status">Starting camera…</span>
+    <div class="admcount" id="admcount" style="display:none"></div>
   </div>
   <div class="share" id="share">
     <span class="hint">Send this link to friends — opening it brings them right in:</span>
@@ -251,6 +263,14 @@
         <button id="who-dl">Download this list</button>
         <button id="who-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
       </div>
+    </div>
+  </div>
+
+  <div class="name-modal" id="closed-modal" style="display:none">
+    <div class="closed-box">
+      <h3>🛡 Room closed</h3>
+      <p id="closed-msg">This room’s host wasn’t here, so it closed. Reopen the same link when the host is back.</p>
+      <button id="closed-reload">Rejoin</button>
     </div>
   </div>
 
@@ -423,7 +443,7 @@
       let changed = false;
       for (const target in incoming || {}) {
         const mine = modTable[target] = modTable[target] || {};
-        for (const field of ['mute', 'blur']) {
+        for (const field of ['mute', 'blur', 'cam']) {
           const inc = incoming[target][field];
           if (!inc) continue;
           // The TARGET cannot lift a restriction the group put on them —
@@ -432,7 +452,7 @@
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { refreshAllTiles(); refreshOutbound(); paintControls(); } // a moderator block re-derives every tile + my broadcast
+      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -443,7 +463,24 @@
       refreshAllTiles();
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
-    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn(); }
+    // An admin can turn a guest's VIDEO off room-wide (stronger than blur): the
+    // directive is a per-target mod.cam entry, relay-stamped like every other
+    // admin action. Enforced on BOTH sides — an honest guest whose cam an admin
+    // killed stops transmitting (below), and every receiver hides the tile —
+    // so a DOM-hacked guest who keeps sending is still invisible to everyone
+    // honest; only two colluding hackers could see each other, which no P2P
+    // rule can prevent.
+    const forcedCamOff = (id) => { const m = modOf(id).cam; return !!(m && m.on); };
+    function enforceForcedCam() {
+      if (!localStream) return;
+      const track = localStream.getVideoTracks()[0]; if (!track) return;
+      if (forcedCamOff('me') && track.enabled) {
+        track.enabled = false;              // admin turned my video off for the room
+        myStatus.camOff = true;             // reflect it honestly to everyone
+        try { broadcastStatus(); } catch (e) {}
+      }
+    }
+    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn(); if (typeof updateCamAllBtn === 'function') updateCamAllBtn(); }
     // ============================ THE BLUR RULE ==============================
     // ONE rule, computed identically on every device from shared state, drives
     // BOTH the pixels a sender broadcasts and the CSS every receiver applies —
@@ -493,6 +530,53 @@
           lastCons = c;
         }
       }
+    }
+
+    // ---- admin-absence auto-close --------------------------------------------
+    // An admin room only lives while its host is present. When the last admin
+    // leaves or drops offline, a 10-second grace absorbs a flaky connection;
+    // if they're still gone after that, a visible 5-minute countdown runs and
+    // then evacuates everyone. The admin returning at any point cancels it.
+    // It's client-timed (the relay stores nothing), so a reload buys another
+    // window — deliberately a janitor, not a lock: an admin-less room is
+    // already blurred and unmoderated, so squatting one gains little.
+    const ADMIN_GRACE_MS = 10000, ADMIN_CLOSE_MS = 5 * 60 * 1000;
+    let admGraceT = null, admCloseT = null, admTickT = null, admDeadline = 0;
+    const fmtLeft = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+    function clearAdminClose() {
+      clearTimeout(admGraceT); clearTimeout(admCloseT); clearInterval(admTickT);
+      admGraceT = admCloseT = admTickT = null; admDeadline = 0;
+      const el = document.getElementById('admcount'); if (el) el.style.display = 'none';
+    }
+    function tickAdminClose() {
+      const el = document.getElementById('admcount'); if (!el) return;
+      const left = admDeadline - Date.now();
+      el.textContent = '🛡 No host present — this room closes in ' + fmtLeft(left);
+      el.style.display = '';
+      if (left <= 0) closeRoomNoHost();
+    }
+    function startAdminCountdown() {
+      admGraceT = null;
+      admDeadline = Date.now() + ADMIN_CLOSE_MS;
+      admCloseT = setTimeout(closeRoomNoHost, ADMIN_CLOSE_MS);
+      admTickT = setInterval(tickAdminClose, 1000);
+      tickAdminClose();
+    }
+    function closeRoomNoHost() {
+      clearAdminClose();
+      leaving = true;                          // stop the auto-reconnect loop
+      try { ws && ws.close(); } catch (e) {}
+      for (const pid of Array.from(peers.keys())) dropPeer(pid);
+      try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+      const cm = document.getElementById('closed-modal'); if (cm) cm.style.display = 'flex';
+    }
+    // Drive purely off the relay's admin roster (the one authority a client
+    // can trust). amAdmin ⇒ I'm in `admins` ⇒ present ⇒ never counts against me.
+    function adminWatch() {
+      if (!hasAdminRoom()) { clearAdminClose(); return; }
+      if (admins.length > 0) { clearAdminClose(); return; }
+      if (admGraceT || admCloseT) return;      // already in grace or counting
+      admGraceT = setTimeout(startAdminCountdown, ADMIN_GRACE_MS); // silent 10s grace
     }
 
     // ---- tiles ---------------------------------------------------------------
@@ -559,7 +643,7 @@
       if (!t) return;
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
       const mod = modOf(id);
-      const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on;
+      const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on, gCam = mod.cam && mod.cam.on;
       const chips = [];
       if (!isMe && peerAway(id)) chips.push('<span>⏾ stepped away — screen off or in another app; waiting for them</span>');
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
@@ -574,13 +658,14 @@
       else if (bl && consents(st)) chips.push('<span>🌫 ' + (!roomPw ? 'blurred — a room password is the key to clear video'
         : 'blurred until everyone is ready (camera on, blur None)') + '</span>');
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
-      if (st.camOff) chips.push('<span>📷 camera off</span>');
+      if (gCam) chips.push('<span class="warn">📷 video off for everyone by ' + esc(mod.cam.by) + '</span>');
+      else if (st.camOff) chips.push('<span>📷 camera off</span>');
       // vote-off progress (non-admin rooms): show how close a tile is to removal
       const dv = devOf[id];
       if (!isMe && voteNeed && dv && voteTally[dv]) chips.push('<span class="warn">🗳 ' + voteTally[dv] + '/' + voteNeed + ' to remove</span>');
       t.chips.innerHTML = chips.join('');
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
-      t.tile.classList.toggle('cam-off', !!st.camOff);
+      t.tile.classList.toggle('cam-off', !!st.camOff || !!gCam); // admin video-off hides the tile on every receiver
       t.video.classList.remove('blur1', 'blur2');
       // The ME tile already SHOWS the pre-blurred outbound pixels (WYSIWYG), so
       // a CSS blur on top would double it; receiver-side CSS blur is for the
@@ -1038,12 +1123,16 @@
     // The admin verifier V is part of the ROOM'S IDENTITY: /call/<room>/<V>
     // is a DIFFERENT room from /call/<room>, and a plain room can NEVER have
     // an admin — walking through the extra slash IS the consent to be
-    // administered. V = SHA-256(K) where K = PBKDF2(admin password, salt =
-    // room id): the whole /room/V link is safely public (it's just the
-    // room's name); admin power is KNOWING THE PASSWORD, typed on the
-    // device, never in any URL and never on any server. The relay admits a
-    // socket as admin iff SHA-256(presented K) === V, and stamps its routed
-    // signals (adm:true) — receivers honor group moderation ONLY from
+    // administered. V = the first 24 hex of SHA-256(K), K = PBKDF2(admin
+    // password, salt = room id). 24 hex = 96 bits: V is PUBLIC (it rides in
+    // every link), so its only job is preimage resistance — faking admin, or
+    // colliding two rooms, means finding a K' whose hash starts with V, ~2^96
+    // work, hopelessly infeasible for a chat room; the extra length of a full
+    // hash bought nothing but a longer URL. Admin power is KNOWING THE
+    // PASSWORD, typed on the device, never in any URL and never on any server.
+    // The relay admits a socket as admin iff SHA-256(presented K) starts with
+    // V, and stamps its routed signals (adm:true) — receivers honor group
+    // moderation ONLY from
     // stamped messages, so nobody can spoof an admin. Devices are identified
     // by a random locally-persisted token (honest limitation: wiping site
     // data mints a new device — bans deter, they don't imprison).
@@ -1096,6 +1185,7 @@
       document.body.classList.toggle('canvote', !hasAdmin);
       renderBanned();
       if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
+      if (typeof updateCamAllBtn === 'function') updateCamAllBtn();
       refreshOutbound(); // admin presence changes what clears
     }
 
@@ -1153,6 +1243,7 @@
           applyAdminUi();
           reconcile(m.peers, m.names);
           reactRoomState();
+          adminWatch(); // start/cancel the host-absence countdown on every roster change
         }
         else if (m.t === 'peer') onSignal(m.from, m.msg, m.adm);
         else if (m.t === 'ban') {
@@ -1381,7 +1472,7 @@
         // Sign in: prove knowledge of THIS room's password (salt = this room).
         setStatus('🛡 Checking the password… (takes a few seconds)');
         const K = await deriveAdminKey(room, v);
-        const V = await sha256hex(K);
+        const V = (await sha256hex(K)).slice(0, av.length); // compare on the room's own length (24, or a legacy 64)
         document.getElementById('adm-pass').value = '';
         if (V !== av) { setStatus('🛡 Wrong admin password.'); return; }
         admKey = K;
@@ -1400,7 +1491,7 @@
         if (!chosen) { setStatus('🛡 Pick a room name (letters and numbers).'); return; }
         setStatus('🛡 Creating the room… (takes a few seconds)');
         const K = await deriveAdminKey(chosen, v);
-        const V = await sha256hex(K);
+        const V = (await sha256hex(K)).slice(0, 24); // 96-bit public verifier — short link, still preimage-safe
         document.getElementById('adm-pass').value = '';
         try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
         admModal.style.display = 'none';
@@ -2080,6 +2171,10 @@
     camBtn.onclick = () => {
       if (!localStream) return;
       const track = localStream.getVideoTracks()[0]; if (!track) return;
+      if (forcedCamOff('me') && !track.enabled) {
+        setStatus('📷 An admin turned your video off for the room — only they can turn it back on.');
+        return;
+      }
       track.enabled = !track.enabled;
       myStatus.camOff = !track.enabled;
       paintControls();
@@ -2147,6 +2242,32 @@
       refreshAllTiles(); updateBlurAllBtn();
       setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
+    // "Video off" (admin) — the harder hammer: kills every guest's camera
+    // room-wide, not just blurs it. Same per-tile mod mechanism (mod.cam).
+    const camAllBtn = document.getElementById('camall');
+    function allGuestsCamOff() {
+      const g = guestPeers();
+      return g.length > 0 && g.every((pid) => modOf(pid).cam && modOf(pid).cam.on);
+    }
+    function updateCamAllBtn() {
+      camAllBtn.style.display = amAdmin ? '' : 'none';
+      if (!amAdmin) return;
+      const on = allGuestsCamOff();
+      camAllBtn.classList.toggle('on', on);
+      camAllBtn.textContent = on ? 'Video on' : 'Video off';
+    }
+    camAllBtn.onclick = () => {
+      if (!amAdmin) return;
+      const on = !allGuestsCamOff(); // flip: video off for all, or allow all
+      const now = Date.now();
+      for (const pid of guestPeers()) {
+        const mine = modTable[pid] = modTable[pid] || {};
+        mine.cam = { on, by: myName(), byId: myId, at: now };
+      }
+      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      refreshAllTiles(); updateCamAllBtn();
+      setStatus(on ? 'Turned every guest\'s video off.' : 'Guests may turn their video back on.');
+    };
     function toggleVote(id) {
       if (hasAdminRoom()) return; // admin rooms use the admin's ban, not votes
       const dev = devOf[id];
@@ -2170,6 +2291,7 @@
       shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
       if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
     };
+    document.getElementById('closed-reload').onclick = () => location.reload();
     window.addEventListener('beforeunload', () => { leaving = true; try { ws && ws.close(); } catch (e) {} });
 
     // Test hook: lets the e2e suite observe mesh + quality state.
@@ -2192,6 +2314,9 @@
       deviceId,
       verifier: () => av,
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
+      adminsHere: () => admins.slice(),
+      countdownShown: () => { const el = document.getElementById('admcount'); return !!el && el.style.display !== 'none'; },
+      closedShown: () => { const el = document.getElementById('closed-modal'); return !!el && el.style.display !== 'none'; },
       myBlur: () => blurLevel(myStatus.blur),
       setBlur: (v) => setPersonalBlur(v),        // drive the slider from tests
       blurNoneEnabled: () => !document.getElementById('blur-none').classList.contains('dis'),
