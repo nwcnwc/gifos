@@ -478,60 +478,24 @@
   // Meeting (hero) — the hero: a chunky camcorder, glass lens, blinking REC lamp,
   // spinning tape reel window.
   ART.video = (m) => {
-    const finder = [
-      'KKKKKK....',
-      'KLWLLKKK..',
-      'KLLLLKKK..',
-      'KKKKKK....',
+    // Meeting: a chunky monitor holding a 2x2 grid of pixel friends; the
+    // accent-lit "speaking" face hops one tile per frame.
+    const bezel = ['K'.repeat(24)]
+      .concat(Array(19).fill('K' + 'D'.repeat(22) + 'K'))
+      .concat(['K'.repeat(24)]);
+    const face = (c) => [
+      c.repeat(9),
+      c.repeat(3) + 'WWW' + c.repeat(3),
+      c.repeat(2) + 'WWWWW' + c.repeat(2),
+      c.repeat(2) + 'WKWKW' + c.repeat(2),
+      c.repeat(2) + 'WWWWW' + c.repeat(2),
+      c.repeat(3) + 'WWW' + c.repeat(3),
+      c + 'WWWWWWW' + c,
+      c.repeat(9),
     ];
-    const body = [
-      'KKKKKKKKKKKKKKKKKKKKK',
-      'KhhhhhhhhhhhhhhhhhhhK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KAAAAAAAAAAAAAAAAAAAK',
-      'KaAAAAAAAAAAAAAAAAAaK',
-      'KaaaaaaaaaaaaaaaaaaaK',
-      'KKKKKKKKKKKKKKKKKKKKK',
-    ];
-    const lens = [
-      '.KKKK',
-      'KWWCK',
-      'KWCCK',
-      'KCCCK',
-      'KCCKK',
-      'KCCCK',
-      'KKCCK',
-      '.KKKK',
-    ];
-    const reelA = [
-      '.KKK.',
-      'KLKLK',
-      'KKAKK',
-      'KLKLK',
-      '.KKK.',
-    ];
-    const reelB = [
-      '.KKK.',
-      'KKLKK',
-      'KLALK',
-      'KKLKK',
-      '.KKK.',
-    ];
-    const rec = ['RR', 'RR'];
-    const dim = ['PP', 'PP'];
-    const bx = 5, by = 10;
-    const base = [[body, bx, by], [finder, 17, 6], [lens, 1, by + 2]];
-    return anim(m, base, [
-      [[reelA, bx + 4, by + 3], [rec, bx + 16, by + 2]],
-      [[reelB, bx + 4, by + 3], [dim, bx + 16, by + 2]],
-      [[reelA, bx + 4, by + 3], [rec, bx + 16, by + 2]],
-      [[reelB, bx + 4, by + 3], [dim, bx + 16, by + 2]],
-    ]);
+    const pos = [[5, 8], [16, 8], [5, 17], [16, 17]];
+    const base = [[bezel, 4, 6]].concat(pos.map((p) => [face('A'), p[0], p[1]]));
+    return anim(m, base, pos.map((p) => [[face('h'), p[0], p[1]]]));
   };
 
   // Imposter — three little crew beans; the accent one is taller, shiftier,
