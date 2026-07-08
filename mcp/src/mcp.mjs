@@ -61,18 +61,35 @@ The entry point is index.html; multi-file apps are fully supported:
    fall back to in-memory state and a default name.
 4b. BACK BUTTON: the GifOS shell traps the phone's Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.
 5. Mobile-friendly, dark theme by default (#0a0a0f background is the OS look).
-6. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
-   microphone, screen capture, and WebRTC, so a video/voice/streaming app
-   CANNOT work as a GifOS app — do not attempt one. If the user asks for
-   video chat, tell them GifOS already ships it: the built-in Video Call on
-   their Home Screen (P2P, permanent room links, moderation, room
-   passwords). Apps CAN bundle and display static media — images, GIFs,
-   audio files — as files inside the GIF, and store binary blobs (base64)
-   in gifos.db — but keep hot collections lean: put big blobs (over
-   ~100KB) in their OWN collection, fetched with db.get(), because
-   subscribers re-download a whole collection on every change, and
-   relay-fallback bandwidth is strictly throttled — bloated hot
-   collections make an app slow for everyone.
+6. DEVICE + AI, on request — the app OUTSOURCES the privileged act to the GifOS
+   computer and gets back a RESULT (it never holds the live camera/mic or an API
+   key). Declare the capability in the manifest (see pack_app), then:
+     • gifos.recordAudio({maxSeconds}) — needs capabilities.microphone
+       gifos.recordVideo({maxSeconds}) / gifos.takePhoto() — needs .camera
+       → { bytes:ArrayBuffer, mime, durationMs? }. GifOS records the CLIP behind
+       its own visible indicator and hands back only the bytes. Decode with a
+       blob: URL (allowed) or the Web Audio API. Great for "record a take, get
+       feedback", a voice note, a profile photo.
+     • gifos.motion(cb) — needs capabilities.motion. cb gets deviceorientation
+       ({alpha,beta,gamma}); pass 'accel' for devicemotion. Tilt games, levels.
+       No camera, no location.
+     • gifos.ai.chat({ model:'smartest'|'cheapest', messages | prompt }) → {text}.
+       Also gifos.ai.tts / stt({bytes,mime}) / image({prompt}) / imageToVideo /
+       video, and gifos.ai.models() → { available:[roles] }. Needs
+       capabilities.ai. The USER wires endpoints+keys in Settings → AI (OpenAI-
+       shaped); the app never sees a key and is portable across providers.
+       ALWAYS feature-detect: if ai.models() lists nothing (or a call rejects),
+       tell the user to set a model up in Settings → AI — never fake a result.
+   Every one of these pops a plain-language acknowledgement at launch and (for
+   capture) a browser prompt + an on-screen recorder the app can't hide. Live
+   realtime video/voice CALLS are still not an app — GifOS ships Video Call for
+   that (P2P, permanent room links, moderation). These APIs are CLIP- and
+   request-shaped, not live streams.
+   Apps can also bundle/display static media (images, GIFs, audio) as files in
+   the GIF and store base64 blobs in gifos.db — keep hot collections lean: put
+   blobs over ~100KB in their OWN collection (fetched with db.get()), since
+   subscribers re-download a whole collection on every change and relay-fallback
+   bandwidth is throttled.
 
 ## Packing it into a GIF (the pack_app tool)
 
@@ -228,6 +245,11 @@ const TOOLS = [
         html: { type: 'string', description: 'The complete self-contained index.html' },
         appId: { type: 'string', description: 'Optional slug id; derived from name if omitted' },
         accent: { type: 'string', description: 'Optional #rrggbb accent color (used for the procedural icon fallback)' },
+        network: { type: 'array', items: { type: 'string' }, description: 'Hostnames the app may reach with gifos.fetch (e.g. ["api.example.com"]). "*" means any site and marks the app Unsafe. Omit for a self-contained app.' },
+        microphone: { type: 'boolean', description: 'Set true if the app uses gifos.recordAudio (brokered mic clip capture).' },
+        camera: { type: 'boolean', description: 'Set true if the app uses gifos.recordVideo / gifos.takePhoto (brokered camera capture).' },
+        motion: { type: 'boolean', description: 'Set true if the app uses gifos.motion (device tilt/orientation).' },
+        ai: { type: 'boolean', description: 'Set true if the app uses gifos.ai.* (the user\'s configured AI models; the app never sees keys).' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
         hide_in_gif_base64: { type: 'string', description: 'PREFERRED when the user has any GIF of their own: base64 bytes of that EXISTING GIF. The app is hidden inside it and the original animation is preserved byte-for-byte — never redrawn or re-encoded. Ask the user for their GIF before drawing an icon.' },
         icon: {
@@ -311,10 +333,12 @@ async function callTool(name, args) {
     const slug = slugOf(args.appId || appName);
     const accent = hexToRgb(args.accent) || [123, 92, 255];
 
+    const caps = { db: true, multiplayer: true, network: Array.isArray(args.network) ? args.network.map(String) : [] };
+    for (const c of ['microphone', 'camera', 'motion', 'ai']) if (args[c]) caps[c] = true;
     const files = {
       'manifest.json': JSON.stringify({
         gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',
-        accent, capabilities: { db: true, multiplayer: true, network: [] },
+        accent, capabilities: caps,
       }),
       'index.html': html,
     };
