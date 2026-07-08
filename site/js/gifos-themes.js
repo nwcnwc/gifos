@@ -26,7 +26,7 @@
   // accents where white would wash out; defaults to #fff when unset.
   const THEMES = {
     // gifos.app — the flagship. Calm light desktop, system-blue accent.
-    home: { name: 'Desktop', pack: 'aurora', iconSize: 72, ui: {
+    home: { name: 'Desktop', pack: 'aurora', iconSize: 88, ui: {
       bg: '#e8ecf1', bgglow: '#f4f6f9', surface: '#ffffff', border: '#c8cdd6',
       text: '#1d1d1f', muted: '#6e6e73', accent: '#0071e3', accent2: '#5856d6',
       glow: 'rgba(0,113,227,.18)',
