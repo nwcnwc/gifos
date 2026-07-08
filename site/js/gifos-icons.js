@@ -66,7 +66,10 @@
   //   function                      → painter: fn(ctx, size, frameIndex)
   function paintFrame(ctx, size, frame, f) {
     ctx.clearRect(0, 0, size, size);
-    if (typeof frame === 'function') { frame(ctx, size, f); return Promise.resolve(); }
+    if (typeof frame === 'function') {
+      const r = frame(ctx, size, f);
+      return (r && typeof r.then === 'function') ? r : Promise.resolve();
+    }
     const src = (typeof frame === 'string' && frame[0] === '<')
       ? 'data:image/svg+xml,' + encodeURIComponent(frame) : frame;
     return new Promise((res, rej) => {
