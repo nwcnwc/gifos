@@ -971,11 +971,62 @@ opens the built-in video page when opened in GifOS.</p>
     }, extra || {}));
   }
 
+  // ---- theme the seeded apps ------------------------------------------------
+  // Seeding runs on the specific computer, so its theme (gifos-themes.js) is
+  // known. The recurring "chrome" hexes below map to CSS variables (their old
+  // value kept as the fallback, so Aurora is byte-for-byte unchanged), and the
+  // computer's palette is injected as a :root block. Because that block is
+  // baked into the GIF, a stolen app keeps its birthplace's colours wherever it
+  // travels — the same rule the icon art already follows.
+  //
+  // Two intensities: FULL repaints a chrome app end to end; ACCENT only swaps
+  // the highlight colours, so a game keeps the exact board/piece palette it was
+  // drawn for (a near-white themed surface would erase a chess board) while
+  // still wearing the computer's accent. Rewrites touch ONLY <style> blocks —
+  // never <script>, where a canvas fillStyle can't take a var().
+  const FULL_MAP = [
+    ['#0a0a0f', 'var(--bg,#0a0a0f)'], ['#faf9ff', 'var(--bg,#faf9ff)'],
+    ['#14141f', 'var(--surface,#14141f)'], ['#1c1c2b', 'var(--surface,#1c1c2b)'],
+    ['#2a2a3f', 'var(--border,#2a2a3f)'], ['#e0e0f0', 'var(--text,#e0e0f0)'],
+    ['#8888aa', 'var(--muted,#8888aa)'],
+    ['#7b5cff', 'var(--accent,#7b5cff)'], ['#ff5caa', 'var(--accent2,#ff5caa)'],
+    ['color:#fff', 'color:var(--onaccent,#fff)'], ['background:#fff', 'background:var(--surface,#fff)'],
+  ];
+  const ACCENT_MAP = [
+    ['#7b5cff', 'var(--accent,#7b5cff)'], ['#ff5caa', 'var(--accent2,#ff5caa)'],
+    ['color:#fff', 'color:var(--onaccent,#fff)'],
+  ];
+  function themeVars(ui) {
+    const v = (k, d) => ui[k] || d;
+    return '<style>:root{' +
+      '--bg:' + v('bg', '#0a0a0f') + ';--surface:' + v('surface', '#14141f') +
+      ';--border:' + v('border', '#2a2a3f') + ';--text:' + v('text', '#e0e0f0') +
+      ';--muted:' + v('muted', '#8888aa') + ';--accent:' + v('accent', '#7b5cff') +
+      ';--accent2:' + v('accent2', '#ff5caa') + ';--onaccent:' + v('onaccent', '#fff') + '}</style>';
+  }
+  function themeHtml(html, mode) {
+    const ui = GifOS.theme && GifOS.theme.ui;
+    if (!ui) return html; // Aurora / home: ship the hand-tuned originals untouched
+    const map = mode === 'accent' ? ACCENT_MAP : FULL_MAP;
+    const out = html.replace(/<style>[\s\S]*?<\/style>/g, (block) => {
+      let b = block; for (const p of map) b = b.split(p[0]).join(p[1]); return b;
+    });
+    return out.includes('<meta charset="utf-8">')
+      ? out.replace('<meta charset="utf-8">', '<meta charset="utf-8">' + themeVars(ui))
+      : themeVars(ui) + out;
+  }
+
   function build() {
     const gif = GifOS.gif;
+    // Board games and the IRL games keep their arena (accent-only); everything
+    // else is a chrome app that takes the full palette.
+    const ACCENT_ONLY = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1 };
     const app = (name, appId, accent, html, extra) => ({
       name: name + '.gif', appId, accent,
-      files: { 'manifest.json': manifest(appId, name, accent, extra), 'index.html': html },
+      files: {
+        'manifest.json': manifest(appId, name, accent, extra),
+        'index.html': themeHtml(html, ACCENT_ONLY[appId] ? 'accent' : 'full'),
+      },
     });
     // Each app gets its own hand-designed animated artwork (gifos-icons.js),
     // rasterized into the GIF. Fall back to the plain animated tile if the
@@ -1029,11 +1080,11 @@ opens the built-in video page when opened in GifOS.</p>
     // pinned top-right by the seeder, not buried in a folder).
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
-      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': WELCOME_HTML, 'README.txt': WELCOME_README },
+      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
     }, {
       name: 'Video Call.gif', appId: 'video', accent: [92, 160, 255],
       files: { 'manifest.json': manifest('video', 'Video Call', [92, 160, 255], { system: 'video' }),
-               'index.html': VIDEO_FALLBACK_HTML },
+               'index.html': themeHtml(VIDEO_FALLBACK_HTML, 'full') },
     }];
 
     const encGroup = (g) => Promise.all([
