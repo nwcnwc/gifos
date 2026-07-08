@@ -1,0 +1,12 @@
+{
+  "pack": "desktop-pilot",
+  "map": {
+    "welcome": "1.jpg",
+    "chess": "2.jpg",
+    "video": "3.jpg",
+    "folder": "4.jpg",
+    "paint": "5.jpg",
+    "notes": "6.jpg"
+  },
+  "note": "AI batch order ≠ filename order. Always run scripts/process-pack-icons.py with this map."
+}
