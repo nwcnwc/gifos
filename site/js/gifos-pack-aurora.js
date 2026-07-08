@@ -748,21 +748,36 @@
 
   function drawBaked(ctx, size, img, subject, f) {
     ctx.clearRect(0, 0, size, size);
-    const scale = 0.97;
+
+    const scale = 0.96;
     const w = size * scale;
-    const x = (size - w) / 2;
-    const y = (size - w) / 2;
-    const shY = y + w * 0.93;
-    const shRx = w * 0.36;
-    const shRy = Math.max(3, w * 0.065);
+    const cx = size / 2;
+    const cy = size / 2;
+
+    // Contact shadow (fixed under the spinning object for 3D grounding)
+    const shY = cy + w * 0.42;
+    const shRx = w * 0.37;
+    const shRy = Math.max(3, w * 0.07);
     ctx.save();
-    ctx.fillStyle = 'rgba(10,14,24,0.26)';
-    ctx.filter = 'blur(' + Math.max(2, w * 0.018) + 'px)';
+    ctx.fillStyle = 'rgba(10,14,24,0.28)';
+    ctx.filter = 'blur(' + Math.max(2.5, w * 0.02) + 'px)';
     ctx.beginPath();
-    ctx.ellipse(size / 2, shY, shRx, shRy, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, shY, shRx, shRy, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    ctx.drawImage(img, x, y, w, w);
+
+    // Slow gentle spin/rock for 3D objects (subtle, loops smoothly)
+    const angle = Math.sin((f / FR) * Math.PI * 2) * 0.16; // ~9 degrees max rock/spin
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -w / 2, -w / 2, w, w);
+    ctx.restore();
+
+    // Subject-specific overlays (kept in screen space for clarity on spinning art)
+    const x = (size - w) / 2;
+    const y = (size - w) / 2;
     bakedOverlay(subject, f, ctx, x, y, w);
   }
 
