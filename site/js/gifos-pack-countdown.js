@@ -127,51 +127,32 @@
   // Meeting (hero) — HERO: a little chrome satellite. Camera-eye lens, violet solar
   // wings with a sweeping sun glint, dish, blinking beacon, orbiting spark.
   ART.video = (a, f) => {
+    // Meeting: a mission-control console framing a 2x2 grid of crew monitors,
+    // an ember status bead orbiting; the ember ring marks who's speaking.
     const base = bright(a);
-    const cg = grad(), ph = grad(), gl = grad(), pg = grad(), sh = grad();
-    const rot = [-6, -3, 0, 3, 6, 3][f];
-    const th = (f / FR) * Math.PI * 2;
-    const ox = 64 + Math.cos(th) * 47, oy = 64 + Math.sin(th) * 12;
-    const behind = Math.sin(th) < 0;
+    const cg = grad(), sh = grad(), tg = grad();
+    const rot = [-4, -2, 0, 2, 4, 2][f];
+    const th = (f / FR) * Math.PI * 2, ox = 64 + Math.cos(th) * 48, oy = 64 + Math.sin(th) * 12, behind = Math.sin(th) < 0;
     const spark = "<circle cx='" + ox.toFixed(1) + "' cy='" + oy.toFixed(1) + "' r='3' fill='" + EMBER + "'/>"
-      + "<circle cx='" + ox.toFixed(1) + "' cy='" + oy.toFixed(1) + "' r='3' fill='" + EMBER + "' opacity='.6' filter='url(#fglow)'/>"
+      + "<circle cx='" + ox.toFixed(1) + "' cy='" + oy.toFixed(1) + "' r='3' fill='" + EMBER + "' opacity='.55' filter='url(#fglow)'/>"
       + "<circle cx='" + (ox - 1).toFixed(1) + "' cy='" + (oy - 1).toFixed(1) + "' r='1' fill='#fff'/>";
-    const glint = 16 + f * 3.4; // sun glint sweeping across the solar cells
-    const defs = chrome(cg, a) + chrome(ph, a, false) + glassG(gl) + sheen(sh)
-      + lg(pg, [[0, '#6b7ce0'], [0.5, '#3d4cb0'], [1, '#252e7c']]);
-    const panel = (x) =>
-      "<rect x='" + x + "' y='51' width='27' height='24' rx='2.5' fill='" + INK + "'/>"
-      + "<rect x='" + (x + 1) + "' y='52' width='25' height='22' rx='2' fill='url(#" + pg + ")'/>"
-      + "<path d='M" + (x + 1) + ' 59.3 h25 M' + (x + 1) + ' 66.6 h25 M' + (x + 9.3) + ' 52 v22 M' + (x + 17.6) + " 52 v22' stroke='#8fa0ff' stroke-width='1' opacity='.55'/>"
-      + "<rect x='" + (x + glint * 0.6 - 5) + "' y='52' width='5' height='22' fill='#fff' opacity='.3' transform='skewX(-12)' transform-origin='" + (x + 13) + " 63'/>"
-      + "<rect x='" + (x + 1) + "' y='52' width='25' height='6' rx='2' fill='#fff' opacity='.14'/>";
+    const defs = chrome(cg, a) + sheen(sh) + lg(tg, [[0, '#6b7ce0'], [0.5, '#3d4cb0'], [1, '#252e7c']]);
+    const tile = (x, y, on) => "<rect x='" + x + "' y='" + y + "' width='30' height='24' rx='5' fill='url(#" + tg + ")'/>"
+      + "<circle cx='" + (x + 15) + "' cy='" + (y + 10) + "' r='5' fill='#dfe6ff' opacity='.95'/>"
+      + "<path d='M" + (x + 6) + ' ' + (y + 23) + " a9 6 0 0 1 18 0 z' fill='#dfe6ff' opacity='.95'/>"
+      + (on ? "<rect x='" + (x - 1.6) + "' y='" + (y - 1.6) + "' width='33.2' height='27.2' rx='6.6' fill='none' stroke='" + EMBER + "' stroke-width='3'/>" : '');
+    const gx = 31, gy = 40, tw = 30, th2 = 24, gp = 6, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th2 + gp], [gx + tw + gp, gy + th2 + gp]];
     const art = (behind ? spark : '')
       + "<g transform='rotate(" + rot + " 64 62)'>"
-      // wing strut
-      + "<rect x='26' y='60' width='76' height='4.6' rx='2.3' fill='url(#" + ph + ")'/>"
-      + panel(12) + panel(89)
-      // dish + beacon
-      + "<path d='M76 38 q10 -8 16 -4 q-2 8 -13 9 z' fill='url(#" + cg + ")'/>"
-      + "<circle cx='90' cy='35' r='2.2' fill='" + (f % 2 ? EMBER : '#7a3618') + "'/>"
-      + (f % 2 ? "<circle cx='90' cy='35' r='3.4' fill='" + EMBER + "' opacity='.55' filter='url(#fglow)'/>" : '')
-      + "<rect x='62' y='34' width='4' height='12' rx='2' fill='url(#" + cg + ")'/>"
-      + "<circle cx='64' cy='33' r='2.4' fill='" + (f % 2 ? '#7a3618' : EMBER) + "'/>"
-      // hull
-      + "<path d='" + rr(45, 44, 38, 37, 8) + "' fill='url(#" + cg + ")'/>"
-      + "<path d='" + rr(45, 44, 38, 8, 4) + "' fill='" + base + "' opacity='.8'/>"
-      + "<path d='" + rr(45, 44, 38, 37, 8) + "' fill='none' stroke='" + INK + "' stroke-width='1.2' opacity='.35'/>"
-      // camera eye
-      + "<circle cx='64' cy='64' r='14.5' fill='" + INK + "'/>"
-      + "<circle cx='64' cy='64' r='13' fill='url(#" + cg + ")'/>"
-      + "<circle cx='64' cy='64' r='10' fill='url(#" + gl + ")'/>"
-      + "<circle cx='64' cy='64' r='4.6' fill='#0a0e26'/>"
-      + "<circle cx='64' cy='64' r='4.6' fill='url(#" + gl + ")' opacity='.5'/>"
-      + "<ellipse cx='60' cy='59.5' rx='3.4' ry='2.4' fill='#fff' opacity='.85'/>"
-      + "<circle cx='68.5' cy='68.5' r='1.3' fill='" + VIOLET + "' opacity='.9'/>"
-      + "<path d='" + rr(45, 44, 38, 16, 8) + "' fill='url(#" + sh + ")'/>"
+      + "<path d='" + rr(20, 28, 88, 74, 10) + "' fill='url(#" + cg + ")'/>"
+      + "<rect x='26' y='34' width='76' height='60' rx='4' fill='" + INK + "'/>"
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('')
+      + "<circle cx='104' cy='33' r='2.4' fill='" + (f % 2 ? EMBER : '#7a3618') + "'/>"
+      + "<path d='" + rr(20, 28, 88, 20, 10) + "' fill='url(#" + sh + ")'/>"
       + '</g>'
       + (behind ? '' : spark);
-    return { defs, art, stars: [[20, 20, 0.9, 1], [104, 100, 0.7, 4], [28, 96, 0.6, 2]] };
+    return { defs, art, shadowRx: 46 };
   };
 
   // Timer — the namesake T-minus countdown clock. Chrome bezel, deep display,
