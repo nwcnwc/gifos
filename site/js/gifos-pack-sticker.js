@@ -267,18 +267,17 @@
         + (glint ? "<path d='M73 27 l2 4.6 4.6 2 -4.6 2 -2 4.6 -2 -4.6 -4.6 -2 4.6 -2 Z' fill='#fff3b0' stroke='" + INK + "' stroke-width='1.6'/>" : ''));
     }),
 
-    // A camcorder with one big curious eye — it looks around, REC light blinking.
-    video: (a) => range(FR).map((f) => { const dy = bob(f), px = [-2, 0, 2, 0][f], on = f % 2 === 0;
+    // A cute tablet of four smiley friends — the speaking one bounces.
+    video: (a) => range(FR).map((f) => { const dy = bob(f), act = f % 4;
+      const face = (cx, cy, on) => "<rect x='" + (cx - 11) + "' y='" + (cy - 9 - (on ? 1 : 0)) + "' width='22' height='18' rx='6' fill='" + (on ? rgb(a) : PAPER) + "' stroke='" + INK + "' stroke-width='2.6'/>"
+        + "<circle cx='" + (cx - 4) + "' cy='" + (cy - 2) + "' r='1.5' fill='" + INK + "'/><circle cx='" + (cx + 4) + "' cy='" + (cy - 2) + "' r='1.5' fill='" + INK + "'/>"
+        + "<path d='M" + (cx - 3) + ' ' + (cy + 3) + " q3 2.6 6 0' stroke='" + INK + "' stroke-width='1.8' fill='none' stroke-linecap='round'/>";
+      const cells = [[38, 52], [62, 52], [38, 74], [62, 74]];
       return sticker(ground()
         + "<g transform='translate(0," + dy + ")'>"
-        + "<path d='M58 51 L72 43 V71 L58 63 Z' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3' stroke-linejoin='round'/>"
-        + "<rect x='22' y='48' width='36' height='28' rx='8' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
-        + "<rect x='28' y='42' width='18' height='7' rx='3.5' fill='" + dark(a, 60) + "' stroke='" + INK + "' stroke-width='2.4'/>"
-        + "<circle cx='38' cy='59' r='8.5' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='3'/>"
-        + "<circle cx='" + (38 + px) + "' cy='59' r='3.6' fill='" + INK + "'/>"
-        + "<circle cx='" + (39.4 + px) + "' cy='57.6' r='1.1' fill='" + PAPER + "'/>"
-        + "<path d='M35 70 q3 2.6 6 0' stroke='" + INK + "' stroke-width='2.2' fill='none' stroke-linecap='round'/>"
-        + "<circle cx='52' cy='54' r='3' fill='" + (on ? '#ff5252' : '#7a3a3a') + "' stroke='" + INK + "' stroke-width='2'/>"
+        + "<rect x='20' y='38' width='60' height='50' rx='11' fill='" + rgb(a) + "' stroke='" + INK + "' stroke-width='3'/>"
+        + "<rect x='25' y='43' width='50' height='40' rx='7' fill='" + PAPER + "' stroke='" + INK + "' stroke-width='2.4'/>"
+        + cells.map((c, i) => face(c[0], c[1], i === act)).join('')
         + "</g>");
     }),
 

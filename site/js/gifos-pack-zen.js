@@ -194,35 +194,21 @@
 
   // Video — a brush movie camera: two spinning reels, lens cone, hanko REC.
   ART.video = (a, f) => {
-    const rec = [1, 0.55, 0.2, 0.55, 1, 0.8][f];
-    const rot = f * 30;
-    const reel = (cx, cy, r) => {
-      let holes = '';
-      for (let i = 0; i < 3; i++) {
-        const t = (rot + i * 120) * Math.PI / 180;
-        holes += ci(cx + Math.cos(t) * r * 0.52, cy + Math.sin(t) * r * 0.52, r * 0.2, INK);
-      }
-      return ring(cx, cy, r, r, -0.9, 5.1, [1.2, 3.2, 0.9])
-        + pool(ci(cx, cy, r - 2, tint(WATER, a, 0.3)), 0.28)
-        + holes + ci(cx, cy, 2, INK);
-    };
+    // Meeting: a washed screen holding a 2x2 grid of brushed sitters; the
+    // hanko-red seal pulses on whoever is speaking.
+    const rec = [1, 0.55, 0.2, 0.55, 1, 0.8][f], act = f % 4;
+    const tile = (x, y, on) => pool("<rect x='" + x + "' y='" + y + "' width='24' height='19' rx='4' fill='" + tint(WATER, a, on ? 0.5 : 0.28) + "'/>", 0.32)
+      + ci(x + 12, y + 7, 3.4, INK2)
+      + "<path d='M" + (x + 5) + ' ' + (y + 17) + " q7 -6 14 0' stroke='" + INK2 + "' stroke-width='1.6' fill='none' stroke-linecap='round'/>"
+      + (on ? pool(ci(x + 20, y + 4, 2.4, SEAL), rec) : '');
+    const gx = 32, gy = 54, tw = 24, th = 19, gp = 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th + gp], [gx + tw + gp, gy + th + gp]];
     const art =
-      // body
-      pool("<rect x='30' y='56' width='54' height='36' rx='6' fill='" + tint(WATER, a) + "'/>", 0.3 + 0.06 * BREATHE[f])
-      + brush([27, 56, 44, 54, 66, 56.5, 87, 55], [1.2, 3.6, 1.2])
-      + brush([84, 55, 85, 66, 83.5, 80, 84.5, 93], [0.8, 2.8, 0.8])
-      + brush([86, 92, 68, 94, 46, 91.5, 28, 93], [1.2, 3.6, 1.2])
-      + brush([30, 92, 29.5, 80, 30.5, 68, 29.5, 55], [0.8, 2.8, 0.8])
-      // reels
-      + reel(43, 42, 13) + reel(69, 44, 10)
-      // lens cone pointing right
-      + pool("<path d='M85 66 L104 58 L104 88 L85 82 Z' fill='" + tint(WATER, a, 0.35) + "'/>", 0.3)
-      + brush([84, 66, 91, 63, 98, 60.5, 105, 58], [2.6, 1.8, 1])
-      + brush([84, 82, 91, 84.5, 98, 86.5, 105, 88], [2.6, 1.8, 1])
-      + brush([104, 57, 104.5, 66, 103.5, 78, 104, 89], [0.8, 2.2, 0.8])
-      // hanko-red REC light, pulsing
-      + pool(ci(41, 74, 5, SEAL), rec)
-      + "<path d='M56 72 h18 M56 78 h13' stroke='" + INK2 + "' stroke-width='1.8' stroke-linecap='round'/>";
+      pool("<rect x='28' y='48' width='60' height='50' rx='6' fill='" + tint(WATER, a) + "'/>", 0.3 + 0.06 * BREATHE[f])
+      + "<rect x='28' y='48' width='60' height='50' rx='6' fill='none' stroke='" + INK + "' stroke-width='2' opacity='.7'/>"
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('')
+      + pool(ci(96, 54, 4, SEAL), rec)
+      + brush([90, 62, 97, 60, 103, 58, 106, 57], [1.6, 1.2, 0.8]);
     return { art };
   };
 

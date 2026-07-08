@@ -116,14 +116,20 @@
   // Video — the reference's own camera: sketchy rounded body, big lens circle,
   // triangle viewfinder, blooms bleeding through, rec dot pulsing.
   ART.video = (a, f) => {
-    const blooms = bloom(84, 96, 46, INDIGO, f, 0) + bloom(70, 78, 30, TEAL, f, 0.6)
-      + bloom(102, 112, 28, ORANGE, f, 1.2) + bloom(150, 96, 18, wash(a), f, 0.4)
-      + splat(40, 138, INDIGO, f, 1);
-    const ink =
-      inky('M44 58 h78 q8 0 8 8 v58 q0 8 -8 8 h-78 q-8 0 -8 -8 v-58 q0 -8 8 -8 z M42 62 h80 M46 130 h76')
-      + inky('M84 95 m-27 0 a27 27 0 1 1 54 0 a27 27 0 1 1 -54 0 M84 95 m-22 0 a22 22 0 1 0 44 0 a22 22 0 1 0 -44 0', 2.2)
-      + inky('M132 84 l26 -14 v52 l-26 -14 z', 2.4)
-      + "<circle cx='150' cy='60' r='" + (f % 2 ? 4.5 : 3.4) + "' fill='" + ORANGE + "' opacity='.8'/>";
+    // Meeting: an inked screen over wet blooms, holding a 2x2 grid of brushed
+    // portraits; an orange bloom marks whoever is speaking.
+    const blooms = bloom(84, 84, 46, INDIGO, f, 0) + bloom(66, 122, 30, TEAL, f, 0.6)
+      + bloom(120, 116, 28, ORANGE, f, 1.2) + bloom(150, 92, 18, wash(a), f, 0.4)
+      + splat(40, 140, INDIGO, f, 1);
+    const head = (cx, cy) => inky('M' + cx + ' ' + cy + ' m-6 0 a6 6 0 1 1 12 0 a6 6 0 1 1 -12 0', 2)
+      + inky('M' + (cx - 9) + ' ' + (cy + 15) + ' q9 -9 18 0', 2);
+    const tile = (x, y, on) => inky('M' + x + ' ' + y + ' h34 v26 h-34 z', 2.2)
+      + head(x + 17, y + 9)
+      + (on ? "<circle cx='" + (x + 29) + "' cy='" + (y + 5) + "' r='3.5' fill='" + ORANGE + "' opacity='.85'/>" : '');
+    const gx = 48, gy = 64, tw = 34, th = 26, gp = 6, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th + gp], [gx + tw + gp, gy + th + gp]];
+    const ink = inky('M42 56 h100 q6 0 6 6 v66 q0 6 -6 6 h-100 q-6 0 -6 -6 v-66 q0 -6 6 -6 z')
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('');
     return compose(blooms, ink, f);
   };
 
