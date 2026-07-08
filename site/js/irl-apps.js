@@ -132,7 +132,7 @@
   .peek .w{font-size:32px;font-weight:900;min-height:44px}
   .order li{font-weight:700;padding:3px 0}
 </style>
-<header>🕵️ Odd Word Out</header>
+<header>Odd Word Out</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -194,14 +194,14 @@ function rDeal(){
   document.getElementById('ok').onclick=function(){ if(!shown){ IRL.beep(220,120); return; } L.dealt++; if(L.dealt>=L.names.length) L.phase='talk'; render(); };
 }
 function rTalk(){
-  M.innerHTML='<div class="card"><h2>🗣 Clue time — phone down!</h2>'
+  M.innerHTML='<div class="card"><h2>Clue time — phone down!</h2>'
     +'<div class="muted">In this order, everyone says <b>one word or short phrase</b> about their secret word. Specific enough to prove you know it, vague enough to hide it from the imposter. Then argue!</div>'
     +'<ol class="order">'+L.order.map(function(i){return '<li>'+IRL.esc(L.names[i])+'</li>';}).join('')+'</ol></div>'
     +'<button class="btn" id="vote">We\\'re ready to vote</button>';
   document.getElementById('vote').onclick=function(){ L.phase='vote'; render(); };
 }
 function rVote(){
-  M.innerHTML='<div class="card center"><h2>👉 On three, point at your suspect!</h2>'
+  M.innerHTML='<div class="card center"><h2>On three, point at your suspect!</h2>'
     +'<div class="muted">Count it out loud. Whoever gets the most fingers is accused — tap them:</div></div>'
     +L.names.map(function(n,i){return '<button class="btn alt" data-i="'+i+'">'+IRL.esc(n)+'</button>';}).join('');
   M.onclick=function(e){ const i=e.target.dataset.i; if(i===undefined) return; M.onclick=null;
@@ -252,9 +252,9 @@ function rNet(){
   const votes=IRL.extra.filter(function(x){ return String(x.id).indexOf('v'+g.round+'_')===0; });
   if(g.phase==='talk'||g.phase==='vote'){
     let html='<div class="peek"><div class="muted" style="color:#bbb">Hold to peek — your secret word</div><div class="w" id="w">·····</div></div>'
-      +'<div class="card"><h2>🗣 Clue order</h2><ol class="order">'+g.order.map(function(n){return '<li>'+IRL.esc(n)+'</li>';}).join('')+'</ol>'
+      +'<div class="card"><h2>Clue order</h2><ol class="order">'+g.order.map(function(n){return '<li>'+IRL.esc(n)+'</li>';}).join('')+'</ol>'
       +'<div class="muted">One clue each, out loud. Discuss. Then vote below — votes stay hidden until everyone\\'s in.</div></div>'
-      +'<div class="card"><h2>🗳 Your vote ('+votes.length+'/'+g.ids.length+' in)</h2>'
+      +'<div class="card"><h2>Your vote ('+votes.length+'/'+g.ids.length+' in)</h2>'
       +g.names.map(function(n,i){return '<button class="btn alt small" data-v="'+i+'">'+IRL.esc(n)+'</button>';}).join('')+'</div>'
       +scoreTable(g.scores||{});
     M.innerHTML=html;
@@ -346,7 +346,7 @@ IRL.init().then(render); render();
   .pl{border:2px solid #2b2440;border-radius:10px;padding:6px 8px;font-size:13px;font-weight:700;background:#fff}
   .pl.sel{background:#4d7cd6;color:#fff}
 </style>
-<header>🔎 Catch the Spy</header>
+<header>Catch the Spy</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -396,7 +396,7 @@ function rDeal(){
   document.getElementById('ok').onclick=function(){ if(!shown){IRL.beep(220,120);return;} L.dealt++; if(L.dealt>=L.names.length){ L.phase='play'; L.t0=Date.now(); } render(); };
 }
 function rPlay(){
-  M.innerHTML='<div class="card center"><h2>❓ Interrogate each other</h2>'
+  M.innerHTML='<div class="card center"><h2>Interrogate each other</h2>'
     +'<div class="muted"><b>'+IRL.esc(L.first)+'</b> asks first. Answer, then YOU ask someone else. Phones down — except to peek at the place list.</div>'
     +'<div class="timer" id="tm">--:--</div></div>'
     +'<button class="btn alt" id="list">📜 Peek at all possible places</button>'
@@ -434,7 +434,7 @@ function rAccuse(){
     L.phase='result'; render(); };
 }
 function rSpyGuess(){
-  M.innerHTML='<div class="card"><h2>🕶 Spy — where is everyone?</h2><div class="muted">Tap your guess:</div>'
+  M.innerHTML='<div class="card"><h2>Spy — where is everyone?</h2><div class="muted">Tap your guess:</div>'
     +'<div class="places">'+PLACES.map(function(p,i){return '<div class="pl" data-i="'+i+'">'+IRL.esc(p[0])+'</div>';}).join('')+'</div></div>';
   M.onclick=function(e){ const i=e.target.dataset.i; if(i===undefined) return; M.onclick=null;
     const sc=Object.assign({},L.scores);
@@ -475,7 +475,7 @@ IRL.init(); render();
   #stage.hit{background:#3ba55d}#stage.pass{background:#d4703d}
   .res{display:flex;justify-content:space-between;border-bottom:2px solid #eee;padding:6px 2px;font-weight:700}
 </style>
-<header>🙃 Tilt</header>
+<header>Tilt</header>
 <main id="m"></main>
 <div id="stage">
   <div id="stTimer">60</div>
@@ -534,7 +534,7 @@ function endRun(){
   clearInterval(timer); IRL.beep(200,600); stage.classList.remove('on');
   const n=results.filter(function(r){return r.ok;}).length;
   scores.push({deck:deckName,n:n});
-  M.innerHTML='<div class="card center"><h2>'+n+' correct! 🎉</h2></div>'
+  M.innerHTML='<div class="card center"><h2>'+n+' correct! </h2></div>'
     +'<div class="card">'+results.map(function(r){return '<div class="res"><span>'+IRL.esc(r.w)+'</span><b>'+(r.ok?'✓':'✗')+'</b></div>';}).join('')+'</div>'
     +'<button class="btn" id="again">Next player, same deck</button><button class="btn alt" id="menu">Change deck</button>';
   document.getElementById('again').onclick=rReady;
@@ -573,7 +573,7 @@ IRL.init(); rMenu();
   #dialbox{touch-action:none}
   .ends{display:flex;justify-content:space-between;font-weight:800;margin-top:4px}
 </style>
-<header>📻 The Dial</header>
+<header>The Dial</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -614,7 +614,7 @@ function bindDial(onmove){
   el.addEventListener('pointerup',function(){ dragging=false; });
 }
 function rMenu(){
-  M.innerHTML='<div class="card"><h2>How in-sync is this room? 🧠</h2>'
+  M.innerHTML='<div class="card"><h2>How in-sync is this room? </h2>'
     +'<div class="muted">Each round one psychic secretly sees a target on a spectrum and gives ONE clue that sits right there. The room argues and turns the dial. 7 rounds, score the group. 3+ players.</div></div>'
     +'<div class="card"><h2>Who\\'s playing?</h2><div class="chips" id="chips"></div>'
     +'<input type="text" id="nm" placeholder="Add a name, press Enter"></div>'
@@ -642,7 +642,7 @@ function rPeek(){
   document.getElementById('go').onclick=function(){ L.phase='guess'; render(); };
 }
 function rGuess(){
-  M.innerHTML='<div class="card center"><h2>🎯 Where does the clue land?</h2>'
+  M.innerHTML='<div class="card center"><h2>Where does the clue land?</h2>'
     +'<div class="muted">Argue it out, drag the needle, then lock it in.</div></div>'
     +'<div class="card"><div id="dial">'+dialSvg(false)+'</div>'
     +'<div class="ends"><span>◀ '+IRL.esc(L.spec[0])+'</span><span>'+IRL.esc(L.spec[1])+' ▶</span></div></div>'
@@ -665,7 +665,7 @@ function rReveal(){
 }
 function rVerdict(){
   const t=L.total;
-  const v=t>=21?'🧠✨ SAME BRAIN. Genuinely spooky.':t>=14?'📡 In sync! You people hang out too much.':t>=7?'🌫 Some static on the line…':'📴 Do you even know each other?';
+  const v=t>=21?'✨ SAME BRAIN. Genuinely spooky.':t>=14?'📡 In sync! You people hang out too much.':t>=7?'🌫 Some static on the line…':'📴 Do you even know each other?';
   M.innerHTML='<div class="card center"><h2>'+t+' / 28 points</h2><div class="bigword" style="font-size:24px">'+v+'</div></div>'
     +'<button class="btn" id="again">Play again</button>';
   document.getElementById('again').onclick=function(){ L={phase:'menu',round:0,total:0,psychic:0}; render(); };
@@ -720,7 +720,7 @@ IRL.init(); render();
   .prompt{font-size:24px;font-weight:800;line-height:1.35;text-align:center;padding:30px 8px;min-height:150px;display:flex;align-items:center;justify-content:center}
   .count{text-align:center;color:#7a7391;font-size:13px}
 </style>
-<header>🎲 Party Roulette</header>
+<header>Party Roulette</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -800,7 +800,7 @@ IRL.init(); rSetup();
   .opt .who{display:block;font-size:12.5px;font-weight:600;margin-top:4px;opacity:.85}
   .waitbar{font-weight:800;text-align:center;margin:6px 0}
 </style>
-<header>🤥 Fake Facts</header>
+<header>Fake Facts</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -864,12 +864,12 @@ function render(){
     let html='<div class="card"><h2>Round '+(g.round+1)+'</h2><div class="bigword" style="font-size:22px">'+promptFor(g)+'</div></div>';
     const iWrote=fakes.some(function(f){return f.id==='f'+g.round+'_'+meId;});
     if(meId===subj){
-      html+= truthDoc?'<div class="card center"><h2>✅ Truth locked in</h2><div class="muted">Now look innocent while they write lies about you.</div></div>'
+      html+= truthDoc?'<div class="card center"><h2>Truth locked in</h2><div class="muted">Now look innocent while they write lies about you.</div></div>'
         :'<div class="card"><h2>You\\'re the subject! Type the TRUE answer</h2><input type="text" id="inp" maxlength="60"><button class="btn" id="sub">Lock in the truth</button></div>';
     } else if(!iWrote){
       html+='<div class="card"><h2>Type a convincing FAKE answer</h2><input type="text" id="inp" maxlength="60"><button class="btn" id="sub">Submit my lie</button></div>';
     } else {
-      html+='<div class="card center"><h2>😇 Lie submitted</h2><div class="muted">Keep a straight face.</div></div>';
+      html+='<div class="card center"><h2>Lie submitted</h2><div class="muted">Keep a straight face.</div></div>';
     }
     html+='<div class="waitbar">'+have+'/'+need+' lies in'+(g.mode==='about'?(truthDoc?' · truth in':' · waiting for the truth'):'')+'</div>';
     if(allIn) html+='<button class="btn" id="toVote">Everyone\\'s in → show the ballot</button>';
@@ -891,7 +891,7 @@ function render(){
     const voters=g.mode==='about'?writersOf(g):g.ids;
     const canVote=voters.indexOf(meId)>=0;
     const mine=votes.find(function(v){return v.id==='v'+g.round+'_'+meId;});
-    let html='<div class="card"><h2>🗣 Read these aloud… which is TRUE?</h2><div class="muted">'+promptFor(g)+'</div></div>';
+    let html='<div class="card"><h2>Read these aloud… which is TRUE?</h2><div class="muted">'+promptFor(g)+'</div></div>';
     html+=opts.map(function(o,i){
       const isMine=o.authors.indexOf(meId)>=0;
       const sel=mine&&mine.k===o.k;
@@ -913,7 +913,7 @@ function render(){
   } else if(g.phase==='reveal'){
     const opts=options(g)||[];
     const votes=IRL.docs('v',g.round);
-    let html='<div class="card"><h2>The truth comes out 🎉</h2></div>';
+    let html='<div class="card"><h2>The truth comes out </h2></div>';
     opts.forEach(function(o){
       const fooled=votes.filter(function(v){return v.k===o.k;}).map(function(v){return nameOf(g,v.id.split('_')[1]);});
       if(o.k==='t') html+='<div class="opt truth">'+IRL.esc(o.text)+'<span class="who">✅ THE TRUTH — found by: '+(fooled.join(', ')||'nobody!')+'</span></div>';
@@ -928,7 +928,7 @@ function render(){
     };
   } else if(g.phase==='end'){
     const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
-    M.innerHTML='<div class="card center"><h2>🏆 '+IRL.esc(nameOf(g,ks[0]))+' is the smoothest liar</h2></div>'+scoreTable(g)
+    M.innerHTML='<div class="card center"><h2>'+IRL.esc(nameOf(g,ks[0]))+' is the smoothest liar</h2></div>'+scoreTable(g)
       +'<button class="btn" id="again">Back to the lobby</button>';
     document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
   }
@@ -962,7 +962,7 @@ IRL.init().then(render); render();
   .clue.dead{opacity:.4;text-decoration:line-through;background:#eee}
   .waitbar{font-weight:800;text-align:center;margin:6px 0}
 </style>
-<header>💡 One Clue</header>
+<header>One Clue</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -999,7 +999,7 @@ function render(){
     const iWrote=cs.some(function(c){return c.id==='c'+g.round+'_'+meId;});
     let html='<div class="card center"><h2>'+IRL.esc(nameOf(g,gsr))+' is guessing</h2>'+progress+'</div>';
     if(isGuesser){
-      html+='<div class="card center"><h2>🙈 Eyes on your friends, not their phones</h2><div class="muted">They\\'re writing clues for you… '+cs.length+'/'+need+' in.</div></div>';
+      html+='<div class="card center"><h2>Eyes on your friends, not their phones</h2><div class="muted">They\\'re writing clues for you… '+cs.length+'/'+need+' in.</div></div>';
     } else {
       html+='<div class="card"><h2>The word is</h2><div class="bigword">'+IRL.esc(word)+'</div>'
         +(iWrote?'<div class="muted center">Clue locked in ('+cs.length+'/'+need+'). If someone wrote the same one, both vanish!</div>'
@@ -1076,7 +1076,7 @@ IRL.init().then(render); render();
   .cow{background:#ffd7e6;border:3px solid #2b2440;border-radius:14px;padding:10px 14px;font-weight:800;margin:8px 0;text-align:center}
   .waitbar{font-weight:800;text-align:center;margin:6px 0}
 </style>
-<header>🐮 Same Brain</header>
+<header>Same Brain</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -1108,7 +1108,7 @@ function outcome(g){
   return { groups:groups, winners:winners, cow:cow };
 }
 function scoreTable(g){ const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
-  return '<div class="card"><h2>🐄 Herd points (first to 8 wins — unless you hold the Pink Cow)</h2><table class="scores">'
+  return '<div class="card"><h2>Herd points (first to 8 wins — unless you hold the Pink Cow)</h2><table class="scores">'
     +ks.map(function(k){return '<tr><td>'+IRL.esc(nameOf(g,k))+(g.cow===k?' 🩷🐮':'')+'</td><td><b>'+(sc[k]||0)+'</b></td></tr>';}).join('')+'</table></div>'; }
 
 function render(){
@@ -1155,7 +1155,7 @@ function render(){
       else IRL.save(Object.assign({},g,{phase:'answer',round:g.round+1,scores:sc,cow:cow}));
     };
   } else if(g.phase==='won'){
-    M.innerHTML='<div class="card center"><h2>🏆 '+IRL.esc(nameOf(g,g.champ))+' thinks like everyone!</h2><div class="muted">Which is a compliment. Probably.</div></div>'
+    M.innerHTML='<div class="card center"><h2>'+IRL.esc(nameOf(g,g.champ))+' thinks like everyone!</h2><div class="muted">Which is a compliment. Probably.</div></div>'
       +scoreTable(g)+'<button class="btn" id="again">Play again</button>';
     document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
   }
@@ -1184,7 +1184,7 @@ IRL.init().then(render); render();
   table{width:100%;border-collapse:collapse}
   td{padding:5px 8px;border-bottom:1px solid #3a3157}
 </style>
-<header>🌙 One Night Wolves</header>
+<header>One Night Wolves</header>
 <main id="m"></main>
 <script>
 ${PARTY_LIB}
@@ -1259,10 +1259,10 @@ function render(){
   const i=myIdx(g), role=i>=0?g.deal[i]:null, n=g.ids.length;
   if(g.phase==='night'){
     const done=acts(g).length, mine=i>=0?actOf(g,i):true;
-    let html='<div class="card center"><h2>🌙 Night falls — total silence</h2><div class="muted">Do your night action below. Nobody talks until dawn.</div></div>'
+    let html='<div class="card center"><h2>Night falls — total silence</h2><div class="muted">Do your night action below. Nobody talks until dawn.</div></div>'
       +'<div class="role"><div class="muted" style="color:#888">Hold to peek — your secret role</div><div class="r" id="r">·····</div></div>';
     if(i<0){ html+='<div class="card center"><div class="muted">You\\'re watching this one.</div></div>'; }
-    else if(mine){ html+='<div class="card center"><h2>😴 Action done</h2><div class="muted">'+IRL.esc(myNightInfo(g))+'</div></div>'; }
+    else if(mine){ html+='<div class="card center"><h2>Action done</h2><div class="muted">'+IRL.esc(myNightInfo(g))+'</div></div>'; }
     else if(role==='Werewolf'){
       const others=g.deal.slice(0,n).filter(function(r,j){return j!==i&&r==='Werewolf';}).length;
       html+='<div class="card"><h2>'+(others?'You know your pack. Sleep.':'Lone wolf — peek at one center card?')+'</h2>';
@@ -1309,10 +1309,10 @@ function render(){
   } else if(g.phase==='day'){
     const votes=IRL.docs('v',g.round);
     const mine=votes.find(function(v){return v.id==='v'+g.round+'_'+IRL.me.id;});
-    let html='<div class="card center"><h2>☀️ Talk. Accuse. Lie.</h2><div class="timer" id="tm">5:00</div>'
+    let html='<div class="card center"><h2>Talk. Accuse. Lie.</h2><div class="timer" id="tm">5:00</div>'
       +'<div class="muted">Remember: your card may have been swapped. You might not BE what you were dealt.</div></div>'
       +'<div class="role"><div class="muted" style="color:#888">Hold to peek — your night recap</div><div class="r" id="r">·····</div></div>'
-      +'<div class="card"><h2>🗳 Your vote ('+votes.length+'/'+n+' in — hidden until all are in)</h2>'
+      +'<div class="card"><h2>Your vote ('+votes.length+'/'+n+' in — hidden until all are in)</h2>'
       +g.names.map(function(nm,j){ return '<button class="pick'+(mine&&mine.t===j?' sel':'')+'" data-v="'+j+'">'+IRL.esc(nm)+'</button>'; }).join('')
       +'<button class="pick'+(mine&&mine.t==='x'?' sel':'')+'" data-v="x">🕊 No one dies</button></div>';
     if(votes.length>=n) html+='<button class="btn" id="rev">Reveal the vote!</button>';

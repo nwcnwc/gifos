@@ -238,7 +238,7 @@
     return '<!doctype html><meta charset="utf-8"><style>body{font:14px system-ui;background:#0a0a0f;color:#e0e0f0;padding:2rem}' +
       'h2{color:#7b5cff}table{border-collapse:collapse;width:100%}td{padding:.4rem .8rem;border-bottom:1px solid #2a2a3f}' +
       'a{color:#7b5cff;text-decoration:none}a:hover{text-decoration:underline}</style>' +
-      '<h2>📁 GIF filesystem — no index.html</h2><p>This GIF has no entry point, so it is browsable like an open folder.</p><table>' + rows + '</table>';
+      '<h2>GIF filesystem — no index.html</h2><p>This GIF has no entry point, so it is browsable like an open folder.</p><table>' + rows + '</table>';
   }
   const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -517,8 +517,7 @@
     bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);font:15px system-ui;color:#fff';
     const box = doc.createElement('div');
     box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:20px 22px;max-width:320px;text-align:center';
-    const icon = kind === 'photo' ? '📸' : (kind === 'video' ? '🎥' : '🎙');
-    box.innerHTML = '<div style="font-size:34px;line-height:1">' + icon + '</div>'
+    box.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#ff5c5c;margin:2px auto 12px"></div>'
       + '<div style="font-weight:800;margin:8px 0 4px">GifOS is capturing ' + (kind === 'photo' ? 'a photo' : kind) + '</div>'
       + '<div style="color:#c8c8dc;font-size:13px;margin-bottom:12px">for <b>' + capEsc(label) + '</b> — it receives only this clip, never your live ' + (kind === 'audio' ? 'mic' : 'camera') + '.</div>'
       + '<div id="gc-t" style="font-variant-numeric:tabular-nums;font-weight:700;margin-bottom:12px">0:00</div>'

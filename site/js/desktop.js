@@ -1258,7 +1258,7 @@
         '<input class="ai-f" data-ai="' + t.key + '" data-f="model" placeholder="Model — ' + escapeHtml(t.ph) + '" value="' + escapeHtml(c.model || '') + '"></div>' +
         '</div>';
     }).join('');
-    return '<details class="adv"><summary>🧠 AI models</summary>' +
+    return '<details class="adv"><summary>AI models</summary>' +
       '<p class="add-help">Wire up your own OpenAI-compatible endpoints. Any app that asks for the <b>ai</b> ability can use these — it sends prompts and gets results, and <b>never sees your keys</b> (they stay in this browser and aren’t included in a shared computer backup). The endpoint must allow browser (CORS) requests — Test tells you.</p>' +
       rows + '</details>';
   }
@@ -1529,7 +1529,7 @@
         '<button id="ad-folder">📁 New Folder</button>' +
       '</div>' +
       '<div class="add-sep"></div>' +
-      '<h4>✨ Ask an AI to build you an app</h4>' +
+      '<h4>Ask an AI to build you an app</h4>' +
       '<p class="add-help">Copy this prompt into any AI (Claude, ChatGPT, Gemini…). It asks what you want, then hands you back a <b>finished .gif file</b> — add it with ＋ Add file(s) above, or just drop it on your Home Screen.</p>' +
       '<textarea id="ad-prompt" class="mono" readonly rows="5">' + escapeHtml(AI_PROMPT) + '</textarea>' +
       '<button id="ad-copy" class="widebtn">📋 Copy prompt</button>' +
