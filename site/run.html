@@ -341,20 +341,22 @@
         GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; });
       }
 
-      // How long an invite link lives — the link is a capability (join live AND
-      // copy this app's whole dataset), so the host picks its lifetime up front.
-      function lifeLabel(keep, exp) {
-        if (keep === 'close') return 'Ends when you close this app.';
-        if (!exp) return 'Never expires.';
-        var mins = Math.max(1, Math.round((exp - Date.now()) / 60000));
-        return 'Expires in ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + '.';
+      // An invite link is a capability (join live AND copy this app's whole
+      // dataset). Two independent dials: how long it admits new people, and
+      // whether a friend may keep it going if the host drops.
+      function lifeLabel(keep, exp, heal) {
+        var life = keep === 'close' ? 'Admits people only while this app is open.'
+          : !exp ? 'Admits people forever.'
+          : (function () { var m = Math.max(1, Math.round((exp - Date.now()) / 60000)); return 'Stops admitting new people in ~' + (m >= 60 ? Math.round(m / 60) + 'h' : m + 'm') + ' (those here stay).'; })();
+        return life + (heal ? ' A friend can keep it going if you drop.' : ' Ends if you drop off.');
       }
       function expNote(info) {
-        if (!info.exp) return 'No expiry set.';
+        if (info.keep === 'close') return 'Open now; ends on close.';
+        if (!info.exp) return 'Admits people forever.';
         var mins = Math.max(1, Math.round((info.exp - Date.now()) / 60000));
-        return 'Expires in ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + '.';
+        return 'Admits new people ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + ' more.';
       }
-      // Modal: warn what a link grants, then choose how long it stays usable.
+      // Modal: warn what a link grants, then choose its lifetime + resilience.
       function chooseInvite(forceNew) {
         var probe = (!forceNew && controller && controller.sessionInfo) ? controller.sessionInfo() : Promise.resolve({ active: false });
         return probe.then(function (info) {
@@ -365,22 +367,40 @@
               '<div class="perm-box">' +
               '<h3>Share this app</h3>' +
               '<div class="warn">Your invite link works <b>only while you have this app open</b>. Anyone who has it can join live <b>and download a full copy of everything in this app</b> — and you can’t un-share what they’ve already seen. Only invite people you trust with this data.</div>' +
-              '<p class="lead">How long should the link keep working?</p>' +
+              '<p class="lead">How long should the link let <i>new</i> people join?</p>' +
               (info.active ? '<label class="perm-row"><input type="radio" name="lt" value="__keep" checked><span><span class="host">Keep my current link</span><span class="desc">' + expNote(info) + '</span></span></label>' : '') +
-              '<label class="perm-row"><input type="radio" name="lt" value="close"' + (info.active ? '' : ' checked') + '><span><span class="host">Until I close the app</span><span class="desc">Dies when this tab closes or you make a new link — no one can keep it running.</span></span></label>' +
-              '<label class="perm-row"><input type="radio" name="lt" value="1h"><span><span class="host">1 hour</span><span class="desc">Stops working an hour from now.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="close"' + (info.active ? '' : ' checked') + '><span><span class="host">While the app is open</span><span class="desc">A fresh link each time; closing the app retires it for good.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="1h"><span><span class="host">1 hour</span><span class="desc">Then no new joiners — people already in keep going.</span></span></label>' +
               '<label class="perm-row"><input type="radio" name="lt" value="24h"><span><span class="host">24 hours</span></span></label>' +
-              '<label class="perm-row"><input type="radio" name="lt" value="forever"><span><span class="host">Forever</span><span class="desc">A permanent room. If you drop off, a connected friend can keep it going (and keep serving your data).</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="forever"><span><span class="host">Forever</span></span></label>' +
+              '<p class="lead" id="res-q">If you drop off (close the tab, lose battery)…</p>' +
+              '<label class="perm-row" id="res-end"><input type="radio" name="res" value="end" checked><span><span class="host">End the session</span><span class="desc">No one can take over — it stops for everyone. Safest for private data.</span></span></label>' +
+              '<label class="perm-row" id="res-keep"><input type="radio" name="res" value="keep"><span><span class="host">Let a friend keep it going</span><span class="desc">A still-connected friend continues hosting from their copy (they keep serving your data). Best for games.</span></span></label>' +
               '<div class="perm-btns"><button id="inv-cancel" class="ghost">Cancel</button><button id="inv-go" class="done">Create link</button></div>' +
               '</div>';
             document.body.appendChild(bg);
+            // "While the app is open" can't also be kept alive by someone else —
+            // grey the resilience dial and force "End" whenever it's selected.
+            function syncRes() {
+              var lt = (bg.querySelector('input[name=lt]:checked') || {}).value;
+              var lock = (lt === 'close' || lt === '__keep');
+              bg.querySelector('#res-q').style.opacity = lock ? '.4' : '';
+              ['res-end', 'res-keep'].forEach(function (id) {
+                var row = bg.querySelector('#' + id); row.style.opacity = lock ? '.4' : '';
+                row.querySelector('input').disabled = lock;
+              });
+              if (lock) bg.querySelector('#res-end input').checked = true;
+            }
+            Array.prototype.forEach.call(bg.querySelectorAll('input[name=lt]'), function (el) { el.addEventListener('change', syncRes); });
+            syncRes();
             function close(v) { bg.remove(); resolve(v); }
             bg.querySelector('#inv-cancel').onclick = function () { close(null); };
             bg.addEventListener('click', function (e) { if (e.target === bg) close(null); });
             bg.querySelector('#inv-go').onclick = function () {
               var sel = bg.querySelector('input[name=lt]:checked');
               var v = sel ? sel.value : 'close';
-              close(v === '__keep' ? { resume: true } : { lifetime: v });
+              var resilient = (bg.querySelector('input[name=res]:checked') || {}).value === 'keep';
+              close(v === '__keep' ? { resume: true } : { lifetime: v, resilient: resilient });
             };
           });
         });
@@ -388,11 +408,11 @@
       function goLive(choice) {
         hostBtn.disabled = true; hostBtn.textContent = 'Connecting…';
         return ensureName().then(function () {
-          return controller.becomeHost(choice.resume ? {} : { lifetime: choice.lifetime });
+          return controller.becomeHost(choice.resume ? {} : { lifetime: choice.lifetime, resilient: choice.resilient });
         }).then(function (r) {
           inviteUrl = r.shareUrl;
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
-          document.getElementById('share-exp').textContent = lifeLabel(r.keep, r.exp);
+          document.getElementById('share-exp').textContent = lifeLabel(r.keep, r.exp, r.heal);
           shareLink(inviteUrl);
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';

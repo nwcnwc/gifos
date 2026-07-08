@@ -9,10 +9,11 @@ const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function invite(page, value) {
+async function invite(page, lifetime, resilient) {
   await page.locator('#host').click();
   await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
-  await page.locator('#invite-modal input[value="' + value + '"]').check();
+  await page.locator('#invite-modal input[name=lt][value="' + lifetime + '"]').check();
+  if (resilient) await page.locator('#invite-modal input[name=res][value="keep"]').check();
   await page.locator('#inv-go').click();
 }
 
@@ -42,7 +43,7 @@ async function invite(page, value) {
   await host.locator('#start').waitFor({ timeout: 10000 });
   check('wolves lobby gates start below 4 players', await host.locator('#start').isDisabled());
 
-  await invite(hostRun, 'forever');
+  await invite(hostRun, 'forever', true);
   await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value; }, null, { timeout: 8000 });
   const shareUrl = await hostRun.locator('#share-url').inputValue();
 
@@ -119,7 +120,7 @@ async function invite(page, value) {
   await sbRun.waitForSelector('iframe');
   const sbHost = sbRun.frameLocator('iframe');
   await sbHost.locator('#start').waitFor({ timeout: 10000 });
-  await invite(sbRun, 'forever');
+  await invite(sbRun, 'forever', true);
   await sbRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value; }, null, { timeout: 8000 });
   const sbUrl = await sbRun.locator('#share-url').inputValue();
   const sbPhones = [{ app: sbHost, page: sbRun }];

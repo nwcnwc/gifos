@@ -18,8 +18,9 @@ async function openModal(page) {
   await page.locator('#host').click();
   await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
 }
-async function pick(page, value, prev) {
-  await page.locator('#invite-modal input[value="' + value + '"]').check();
+async function pick(page, value, prev, resilient) {
+  await page.locator('#invite-modal input[name=lt][value="' + value + '"]').check();
+  if (resilient) await page.locator('#invite-modal input[name=res][value="keep"]').check();
   await page.locator('#inv-go').click();
   await page.waitForFunction((old) => {
     const el = document.getElementById('share-url');
@@ -67,8 +68,8 @@ async function openGuestbook(ctx) {
   // Pick the ephemeral default. A fresh short code, share panel shows lifetime.
   const ephUrl = await pick(hostRun, 'close');
   check('ephemeral link is a valid short-code URL', /#j=[a-z2-9]{10}&relay=/.test(ephUrl));
-  check('share panel states the link dies on close',
-    /close/i.test(await hostRun.locator('#share-exp').textContent()));
+  check('share panel states the link is open-only and ends if you drop',
+    /while this app is open/i.test(await hostRun.locator('#share-exp').textContent()));
 
   // ============ 2) ephemeral link → no mirror → no Take Over ============
   const adaCtx = await browser.newContext();
@@ -87,6 +88,35 @@ async function openGuestbook(ctx) {
   check('ephemeral guest is NOT offered Take Over (no mirror, session ends)', !takeoverShown);
 
   await adaCtx.close();
+
+  // ============ 2b) lifetime and resilience are INDEPENDENT ============
+  // A bounded (1h) link marked resilient DOES mirror state, so a guest can keep
+  // it going if the host drops — expiry only shuts the door to new joiners.
+  const rhCtx = await browser.newContext();
+  await rhCtx.addInitScript(setup('RHost'));
+  const rhost = await openGuestbook(rhCtx);
+  await openModal(rhost);
+  // The resilience dial is locked off for "while the app is open" (a link that
+  // dies on close can't be kept alive by someone else) and free for timed ones.
+  await rhost.locator('#invite-modal input[name=lt][value="close"]').check();
+  const lockedOnClose = await rhost.locator('#invite-modal input[name=res][value="keep"]').isDisabled();
+  await rhost.locator('#invite-modal input[name=lt][value="1h"]').check();
+  const freeOnTimed = !(await rhost.locator('#invite-modal input[name=res][value="keep"]').isDisabled());
+  check('resilience is locked for "while open" but free for a timed link (decoupled)', lockedOnClose && freeOnTimed);
+  const rUrl = await pick(rhost, '1h', null, true);
+
+  const evaCtx = await browser.newContext();
+  await evaCtx.addInitScript(setup('Eva'));
+  const eva = await evaCtx.newPage();
+  await eva.goto(rUrl);
+  await eva.waitForSelector('iframe', { timeout: 10000 });
+  await eva.frameLocator('iframe').locator('#list', { timeout: 10000 }).first().waitFor();
+  await rhost.close();
+  await sleep(8000);
+  const evaCanTakeOver = await eva.locator('#become-host').isVisible();
+  check('a resilient 1h link SURVIVES host drop (guest offered Take Over)', evaCanTakeOver);
+  await rhCtx.close();
+  await evaCtx.close();
 
   // ============ 3) "New link" revokes the old one ============
   const host2Ctx = await browser.newContext();
