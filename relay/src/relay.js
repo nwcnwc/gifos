@@ -215,7 +215,10 @@ export class Session {
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const av = (url.searchParams.get('av') || '').slice(0, 64);
       const admK = (url.searchParams.get('adm') || '').slice(0, 128);
-      const isAdmin = !!(av && admK && (await sha256hex(admK)) === av);
+      // Admin iff SHA-256(presented K) STARTS WITH the room's verifier. V is
+      // 24 hex now (96-bit, preimage-safe for a public token); legacy 64-hex
+      // rooms compare on their full length. Prefix-compare handles both.
+      const isAdmin = !!(av && admK && (await sha256hex(admK)).slice(0, av.length) === av);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
       const ban = first ? (first.ban || []) : [];
       if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
