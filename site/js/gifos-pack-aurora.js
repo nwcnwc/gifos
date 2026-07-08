@@ -95,7 +95,7 @@
   // ---- subjects -------------------------------------------------------------
   const ART = {};
 
-  // Video Call — a glossy two-tone camera: cream top, accent body, deep glass
+  // Meeting (hero) — a glossy two-tone camera: cream top, accent body, deep glass
   // lens with a bright catch-light, REC dot, and an orbiting iridescent moon.
   ART.video = (a, f) => {
     const base = toHex(candy(a));

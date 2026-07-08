@@ -59,8 +59,8 @@ const PROSE = 2.5; // soft "muted" secondary prose: catch dark-on-dark, allow th
     await page.addInitScript((th) => { window.GIFOS_THEME = th === 'home' ? '' : th; }, t);
     await page.addInitScript(CONTRAST_FN);
 
-    // --- video.html: tile status overlays + accent modal button ---
-    await page.goto(BASE + '/video.html', { waitUntil: 'domcontentloaded' });
+    // --- meet.html: tile status overlays + accent modal button ---
+    await page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded' });
     const vid = await page.evaluate(() => {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';

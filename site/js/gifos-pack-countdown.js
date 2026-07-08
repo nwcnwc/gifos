@@ -124,7 +124,7 @@
   // ---- subjects --------------------------------------------------------------
   const ART = {};
 
-  // Video Call — HERO: a little chrome satellite. Camera-eye lens, violet solar
+  // Meeting (hero) — HERO: a little chrome satellite. Camera-eye lens, violet solar
   // wings with a sweeping sun glint, dish, blinking beacon, orbiting spark.
   ART.video = (a, f) => {
     const base = bright(a);

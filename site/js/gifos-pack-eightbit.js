@@ -475,7 +475,7 @@
     ];
   };
 
-  // Video Call — the hero: a chunky camcorder, glass lens, blinking REC lamp,
+  // Meeting (hero) — the hero: a chunky camcorder, glass lens, blinking REC lamp,
   // spinning tape reel window.
   ART.video = (m) => {
     const finder = [

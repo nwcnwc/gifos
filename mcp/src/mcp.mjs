@@ -82,9 +82,11 @@ The entry point is index.html; multi-file apps are fully supported:
        tell the user to set a model up in Settings → AI — never fake a result.
    Every one of these pops a plain-language acknowledgement at launch and (for
    capture) a browser prompt + an on-screen recorder the app can't hide. Live
-   realtime video/voice CALLS are still not an app — GifOS ships Video Call for
-   that (P2P, permanent room links, moderation). These APIs are CLIP- and
-   request-shaped, not live streams.
+   realtime video/voice is still not something an app does itself — GifOS ships
+   Meetings for that (P2P, permanent room links, moderation), and ANY app can be
+   RUN INSIDE a Meeting so all participants share it live with audio/video/
+   recording around it, without the app ever touching the camera. These app APIs
+   are CLIP- and request-shaped, not live streams.
    Apps can also bundle/display static media (images, GIFs, audio) as files in
    the GIF and store base64 blobs in gifos.db — keep hot collections lean: put
    blobs over ~100KB in their OWN collection (fetched with db.get()), since

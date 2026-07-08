@@ -164,7 +164,9 @@
   // Subject vocabulary: packs draw SUBJECTS, not appIds. Today the two are the
   // same names; this map is the seam where future aliases land so old appIds
   // keep resolving if a subject is ever renamed.
-  const SUBJECTS = {};
+  // The Meeting hero app carries appId 'meet'; every pack still registers its
+  // hero art under the legacy subject 'video', so alias the two.
+  const SUBJECTS = { meet: 'video' };
   const subjectFor = (appId) => SUBJECTS[appId] || appId;
 
   // Render an app's icon as an animated GIF through the ACTIVE pack (lazy-

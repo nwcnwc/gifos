@@ -134,7 +134,7 @@
   // ---- subjects --------------------------------------------------------------
   const ART = {};
 
-  // Video Call — THE HERO. A fat glossy camera: pastel body, huge candy lens,
+  // Meeting (hero) — THE HERO. A fat glossy camera: pastel body, huge candy lens,
   // blinking REC gem, viewfinder bump, TWO pearls orbiting like moons.
   ART.video = (a, f) => {
     const base = pastel(a);

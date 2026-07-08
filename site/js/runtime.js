@@ -56,10 +56,11 @@
   // gifos.app/join/<code> on production (404.html routes it into run.html);
   // hash form everywhere else (local dev, custom relays, legacy split ids).
   function buildJoinUrl(page, sid, token, relay) {
+    const meet = page === 'video' || page === 'meet'; // 'video' kept as a legacy alias
     const pretty = sid === token && /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
-    if (pretty) return location.origin + (page === 'video' ? '/call/' : '/join/') + sid;
-    const base = location.origin + (page === 'video' ? '/video.html' : '/run.html');
-    const pair = page === 'video' ? 'v=' + sid + '&k=' + token : (sid === token ? 'j=' + sid : 's=' + sid + '&k=' + token);
+    if (pretty) return location.origin + (meet ? '/meet/' : '/join/') + sid;
+    const base = location.origin + (meet ? '/meet.html' : '/run.html');
+    const pair = meet ? 'v=' + sid + '&k=' + token : (sid === token ? 'j=' + sid : 's=' + sid + '&k=' + token);
     return base + '#' + pair + '&relay=' + encodeURIComponent(relay);
   }
   GifOS.links = { shortCode, buildJoinUrl };
@@ -1082,7 +1083,7 @@
       // System apps run as trusted first-party pages, not in the sandbox —
       // live media (camera/mic + WebRTC) is impossible from an opaque origin.
       // Whitelist only; a manifest can't route to arbitrary URLs.
-      const SYSTEM_PAGES = { video: 'video.html' };
+      const SYSTEM_PAGES = { meet: 'meet.html', video: 'meet.html' }; // 'video' = pre-rename seeds
       if (manifest.system && SYSTEM_PAGES[manifest.system]) {
         location.replace(SYSTEM_PAGES[manifest.system]);
         return noop;

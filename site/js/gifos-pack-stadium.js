@@ -138,7 +138,7 @@
   // ---- subjects -------------------------------------------------------------
   const ART = {};
 
-  // Video Call — the sideline broadcast camera (hero app). Boxy navy body with
+  // Meeting (hero) — the sideline broadcast camera (hero app). Boxy navy body with
   // an accent livery stripe, hooded lens, viewfinder, handle, blinking tally
   // light and a LIVE plate. The whole rig pans gently like it's tracking play.
   ART.video = (a, f) => {

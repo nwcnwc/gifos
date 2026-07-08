@@ -285,7 +285,7 @@
     return { defs: '', art };
   };
 
-  // Video Call — the hero: a hand-cranked cine camera, reels turning.
+  // Meeting (hero) — the hero: a hand-cranked cine camera, reels turning.
   ART.video = (a, f) => {
     const th = f * 60;
     const reel = (cx, cy, r, dir) => plate(circ(cx, cy, r), PAPER, 3)
