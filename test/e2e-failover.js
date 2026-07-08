@@ -13,10 +13,11 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Drive the invite-lifetime modal: click Invite, pick a lifetime, confirm.
 // value is one of close|1h|24h|forever, or __keep to resume the existing link.
-async function invite(page, value) {
+async function invite(page, lifetime, resilient) {
   await page.locator('#host').click();
   await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
-  await page.locator('#invite-modal input[value="' + value + '"]').check();
+  await page.locator('#invite-modal input[name=lt][value="' + lifetime + '"]').check();
+  if (resilient) await page.locator('#invite-modal input[name=res][value="keep"]').check();
   await page.locator('#inv-go').click();
 }
 
@@ -42,7 +43,7 @@ async function invite(page, value) {
   await hostApp.locator('#msg').fill('original entry');
   await hostApp.locator('form button').click();
   await sleep(200);
-  await invite(hostRun, 'forever');
+  await invite(hostRun, 'forever', true);
   await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
   const shareUrl = await hostRun.locator('#share-url').inputValue();
 

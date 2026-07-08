@@ -277,20 +277,23 @@ A **snapshot** is a full export of the running app — filesystem plus current s
 
 ### Server lifecycle on close
 
-What happens when the server closes the tab depends on the **link lifetime**
-chosen at Invite time (see *Multiplayer & data* under Security):
+What happens when the server drops (close/crash/battery) is set by the
+**resilience** dial chosen at Invite time (see *Multiplayer & data* under
+Security), not the lifetime:
 
-| Lifetime | On close |
-|----------|----------|
-| **close** (default) | The link dies. No guest mirrored the state, so nobody can resume it; reopening the icon mints a brand-new link. |
-| **1h / 24h** | Guests are suspended; reopening the icon within the window resumes the **same** link. At expiry the host broadcasts `ended` and the link stops admitting anyone. |
-| **forever** | The permanent room: guests mirror the state, so if the server stays gone a still-connected guest can self-heal the session (below). Reopening resumes the same link. |
+| Resilience | On host drop |
+|------------|--------------|
+| **off** (default) | No guest mirrored the state, so nobody can resume it — the session ends for everyone. Reopening the icon within a still-valid window resumes the same link (or, for `close`, mints a fresh one). |
+| **on** | Guests mirror the state; if the server stays gone a still-connected guest self-heals the session (below). Works for any lifetime, so a resilient `1h` link survives a dead battery yet still stops admitting strangers at the deadline. |
 
-### Failover from a snapshot (forever links only)
+Lifetime is independent: expiry only stops *new* joins; it never kicks the
+people already connected.
 
-Only a **forever** link mirrors state to guests, so only it can survive the
-server's browser **dying** (crash, closed, offline). Bounded links have exactly
-one host by design. For a forever link:
+### Failover from a snapshot (resilient links only)
+
+Only a link with **resilience on** mirrors state to guests, so only it can
+survive the server's browser **dying** (crash, closed, offline). A
+resilience-off link has exactly one host by design. For a resilient link:
 
 ```
 server browser gone
@@ -398,16 +401,24 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
 - **An invite link is a capability, not a viewer pass.** A joiner's browser
   mirrors the full app dataset to stay in sync, so anyone with the link can
   Download Snapshot a complete copy — and there is no un-sharing what already
-  synced. The host therefore sets a **lifetime** at Invite time:
-  - `close` (default) — a fresh session id every open, **no state mirroring to
-    guests** (so no takeover is possible), dead when the tab closes or a new
-    link is minted.
-  - `1h` / `24h` — resumes the same id while unexpired; a host-side timer
-    broadcasts `ended` and drops the socket at expiry.
-  - `forever` — the shared, permanent room; the **only** mode that mirrors
-    state to guests, enabling self-healing takeover (see Failover).
-  **New link** rotates the session id, broadcasting `ended (revoked)` to guests
-  on the old link. One live link per app.
+  synced. Invite exposes **two independent dials**:
+  - **Lifetime** — how long the link admits *new* joiners. `close` (default) is
+    a fresh id each open, retired for good on close/rotate; `1h`/`24h` set an
+    admission deadline; `forever` never expires. Expiry only shuts the door:
+    `attachHost` refuses an *unknown* peer past `exp` (sends it `ended
+    (expired)`) while every already-connected peer stays. It never ends a live
+    session.
+  - **Resilience** (`heal`) — whether a still-connected guest may take over if
+    the host drops. Off by default (the session ends with you — safest for
+    private data); on mirrors state to guests to enable self-healing (see
+    Failover). `close` forces it off (a link that dies on close can't be kept
+    alive by another). This is orthogonal to lifetime, so a **1h game can be
+    resilient** — a dead battery doesn't end it, and it still stops admitting
+    strangers after an hour.
+  The host advertises `heal` and `exp` in the per-peer `app` message; guests
+  gate mirroring on `heal` and a promoted healer keeps enforcing `exp`. **New
+  link** rotates the session id, broadcasting `ended (revoked)` to guests on the
+  old link. One live link per app.
 - Snapshots are plain GIFs — treat a shared snapshot as sharing the data it
   contains.
 - The relay is a dumb pipe: it routes by session but never inspects, stores, or
