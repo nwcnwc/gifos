@@ -1,6 +1,6 @@
 // Video-call e2e: three "machines" (separate contexts, fake cameras) meet in a
 // P2P mesh. The relay carries ONLY signaling; media flows browser-to-browser.
-// Verifies: system-app routing (icon → video.html), mesh connect, adaptive
+// Verifies: system-app routing (icon → meet.html), mesh connect, adaptive
 // quality stepping down as participants join, and peer-leave cleanup.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
@@ -36,18 +36,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await desk.waitForSelector('.icon');
   const [aPage] = await Promise.all([
     aCtx.waitForEvent('page'),
-    desk.locator('.icon', { hasText: 'Video Call.gif' }).dblclick(),   // root icon, top-right
+    desk.locator('.icon', { hasText: 'Meeting.gif' }).dblclick(),   // root icon, top-right
   ]);
   aPage.on('console', (m) => { if (m.type() === 'error') console.log('  [ada]', m.text()); });
-  await aPage.waitForURL(/video\.html/, { timeout: 8000 });
-  check('Video Call icon routes to the trusted system page', /video\.html/.test(aPage.url()));
+  await aPage.waitForURL(/meet\.html/, { timeout: 8000 });
+  check('Meeting icon routes to the trusted system page', /meet\.html/.test(aPage.url()));
 
   await aPage.waitForFunction(() => {
     const el = document.getElementById('share-url');
     return el && el.value && /#v=.*&k=.*&relay=/.test(el.value);
   }, null, { timeout: 10000 });
   const link = await aPage.locator('#share-url').inputValue();
-  check('creator produced a call invite link', /#v=.*&k=.*&relay=/.test(link));
+  check('creator produced a meeting invite link', /#v=.*&k=.*&relay=/.test(link));
   const q1 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('alone → top quality rung (720p)', q1 === '720p');
 
@@ -342,7 +342,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---------- recording: on-device, loudly attributed ----------
   await aPage.locator('#recbtn').click();
   await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
-    .some((t) => t.textContent.includes('Ada') && /recording this call/.test(t.textContent)), null, { timeout: 10000 });
+    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 10000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
   const [recDl] = await Promise.all([
@@ -353,7 +353,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('stopping saves a real .webm on the recorder\'s device only',
     /\.webm$/.test(recDl.suggestedFilename()) && fs.statSync(recPath).size > 20000);
   await bPage.waitForFunction(() => !Array.from(document.querySelectorAll('.tile'))
-    .some((t) => /recording this call/.test(t.textContent)), null, { timeout: 10000 });
+    .some((t) => /recording this meeting/.test(t.textContent)), null, { timeout: 10000 });
   check('the recording chip clears everywhere on stop', true);
 
   // ---------- transcription: per-speaker lines merge P2P ----------
@@ -541,7 +541,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hubCtx = await newUser('Hub');
   const hubPage = await hubCtx.newPage();
   hubPage.on('console', (m) => { if (m.type() === 'error') console.log('  [hub]', m.text()); });
-  await hubPage.goto(BASE + '/video.html');
+  await hubPage.goto(BASE + '/meet.html');
   await hubPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const islandLink = await hubPage.locator('#share-url').inputValue();
   const cIsleCtx = await newUser('RightIsle');
@@ -626,7 +626,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rexCtx = await newUser('Rex');
   const rexPage = await rexCtx.newPage();
   rexPage.on('console', (m) => { if (m.type() === 'error') console.log('  [rex]', m.text()); });
-  await rexPage.goto(BASE + '/video.html');
+  await rexPage.goto(BASE + '/meet.html');
   await rexPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const meshLink = await rexPage.locator('#share-url').inputValue();
   const samCtx = await newUser('Sam'); await samCtx.addInitScript({ content: dynBlock });
@@ -672,7 +672,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await rexCtx.close(); await samCtx.close(); await tiaCtx.close();
 
   // ================= admin rooms: identity-based, consent-by-address ==========
-  // /call/<room> is anarchic FOREVER; /call/<room>/<verifier> is a DIFFERENT
+  // /meet/<room> is anarchic FOREVER; /meet/<room>/<verifier> is a DIFFERENT
   // room whose address itself declares an authority — joining is consent.
   // Adam mints the admin room from a plain one; Beth joins its full link.
   // Only Adam (who knows the password) can globally moderate; Beth's
@@ -684,7 +684,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pg = await ctx.newPage();
     pg.on('console', (m) => { if (m.type() === 'error') console.log('  [' + label + ']', m.text()); });
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/video.html#' + hash);
+    await pg.goto(BASE + '/meet.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
   };
@@ -952,7 +952,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await pat2.locator('#status').click();
   await pat2.waitForSelector('#who-modal', { state: 'visible', timeout: 6000 });
   const whoText = await pat2.locator('#who-list').textContent();
-  check('the status pill opens "who is on this call" — names with network addresses',
+  check('the status pill opens "who is on this meeting" — names with network addresses',
     /Pat \(you\)/.test(whoText) && /127\.0\.0\.1|address unknown/.test(whoText));
   check('every row carries a real address (the local relay reports 127.0.0.1)', /127\.0\.0\.1/.test(whoText));
   const [dl] = await Promise.all([
@@ -960,7 +960,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     pat2.locator('#who-dl').click(),
   ]);
   check('the list downloads as a file you can hand to the authorities',
-    /^gifos-call-.*\.txt$/.test(dl.suggestedFilename()));
+    /^gifos-meeting-.*\.txt$/.test(dl.suggestedFilename()));
   await pat2.close(); await pat.close();
 
   await browser.close();

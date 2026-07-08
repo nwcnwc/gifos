@@ -47,18 +47,18 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Video Call + Trash + Stolen Apps', labels.length === 9);
+  check('desktop root has folders + Welcome + Meeting + Trash + Stolen Apps', labels.length === 9);
   check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps'].every((f) => labels.includes(f)));
   check('Stolen Apps wears its treasure-chest GIF (not the bare 📁 glyph)',
     await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
-  check('Video Call is a root icon (killer app, not buried in a folder)', labels.includes('Video Call.gif'));
-  check('Video Call icon wears the SYSTEM badge (heightened-permissions signage)',
-    await page.locator('.icon', { hasText: 'Video Call.gif' }).locator('.sysbadge').count() === 1);
-  const vcPos = await page.locator('.icon', { hasText: 'Video Call.gif' })
+  check('Meeting is a root icon (killer app, not buried in a folder)', labels.includes('Meeting.gif'));
+  check('Meeting icon wears the SYSTEM badge (heightened-permissions signage)',
+    await page.locator('.icon', { hasText: 'Meeting.gif' }).locator('.sysbadge').count() === 1);
+  const vcPos = await page.locator('.icon', { hasText: 'Meeting.gif' })
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
   const surfW = await page.evaluate(() => document.getElementById('desktop').clientWidth);
-  check('Video Call sits in the top-right corner', vcPos.top === 12 && vcPos.left > surfW / 2);
+  check('Meeting sits in the top-right corner', vcPos.top === 12 && vcPos.left > surfW / 2);
   check('has Trash', labels.includes('Trash'));
   // folders are GIFs too — each renders its own folder GIF, not an emoji
   check('folders render as GIF images (folders are GIFs)',
@@ -744,22 +744,22 @@ async function openApp(page, ctx, folder, label) {
   check('/join/<code> routes into the app runner with the code', true);
   await routed.close();
   const called = await context.newPage();
-  await called.route('**/call/*', (route) => route.fulfill({
+  await called.route('**/meet/*', (route) => route.fulfill({
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
-  await called.goto(BASE + '/call/wkm4tr7q2x');
-  await called.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x/, { timeout: 5000 });
-  check('/call/<code> routes into the video page with the code', true);
+  await called.goto(BASE + '/meet/wkm4tr7q2x');
+  await called.waitForURL(/meet\.html#v=wkm4tr7q2x&k=wkm4tr7q2x/, { timeout: 5000 });
+  check('/meet/<code> routes into the meeting page with the code', true);
   await called.close();
   const admRouted = await context.newPage();
-  await admRouted.route('**/call/**', (route) => route.fulfill({
+  await admRouted.route('**/meet/**', (route) => route.fulfill({
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
-  await admRouted.goto(BASE + '/call/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
-  await admRouted.waitForURL(/video\.html#v=wkm4tr7q2x&k=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
-  check('/call/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
-  await admRouted.goto(BASE + '/call/a');
-  await admRouted.waitForURL(/video\.html#v=a&k=a/, { timeout: 5000 });
+  await admRouted.goto(BASE + '/meet/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
+  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&k=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
+  check('/meet/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
+  await admRouted.goto(BASE + '/meet/a');
+  await admRouted.waitForURL(/meet\.html#v=a&k=a/, { timeout: 5000 });
   check('single-character rooms route (the low channels are open to the world)', true);
   await admRouted.close();
 

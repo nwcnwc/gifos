@@ -47,7 +47,7 @@
     '3. Identity: const me = await gifos.me(); → { id, name }. Stamp me.id/me.name on records so every player sees who did what.',
     '4. If window.gifos is undefined (opened outside GifOS), degrade gracefully to in-memory state. Mobile-friendly, dark theme (#0a0a0f) by default.',
     '4b. BACK BUTTON: the GifOS shell traps the phone\'s Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.',
-    '5. LIVE MEDIA IS OFF-LIMITS, by design: the sandbox blocks camera, microphone, screen capture, and WebRTC, so a video/voice/streaming app cannot work as a GifOS app — do not attempt one; if I ask for video chat, tell me GifOS already ships it (the Video Call icon on my Home Screen). Apps CAN bundle and display static media (images, GIFs, audio files) inside the GIF and store binary blobs (base64) in gifos.db — but keep hot collections lean: put big blobs (over ~100KB) in their OWN collection, fetched with db.get(), because subscribers re-download a whole collection on every change, and relay-fallback bandwidth is strictly throttled — bloated hot collections make an app slow for everyone.',
+    '5. LIVE MEDIA IS OFF-LIMITS, by design: the sandbox blocks camera, microphone, screen capture, and WebRTC, so a video/voice/streaming app cannot work as a GifOS app — do not attempt one; if I ask for video chat, tell me GifOS already ships it (the Meeting icon on my Home Screen) — and that any app can be run INSIDE a Meeting, gaining shared audio/video/recording around it without the app touching the camera itself. Apps CAN bundle and display static media (images, GIFs, audio files) inside the GIF and store binary blobs (base64) in gifos.db — but keep hot collections lean: put big blobs (over ~100KB) in their OWN collection, fetched with db.get(), because subscribers re-download a whole collection on every change, and relay-fallback bandwidth is strictly throttled — bloated hot collections make an app slow for everyone.',
     '',
     'HOW TO DELIVER THE .gif (in order of preference)',
     'A. If you have the GifOS MCP connector (https://mcp.gifos.app/mcp): call pack_app — it returns the finished file. Done.',
@@ -146,14 +146,14 @@
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
         parent, x: pos.x, y: pos.y, iconSize: 64 });
     };
-    // Layout: Welcome top-left; Video Call (the killer app) alone in the
+    // Layout: Welcome top-left; Meeting (the killer app) alone in the
     // top-right corner; the app folders run down the right-hand side under it.
     const cols = Math.max(2, Math.floor((surface.clientWidth - 20) / GRID.pitch));
     const rightX = GRID.origin + (cols - 1) * GRID.pitch;
     const rowY = (r) => GRID.origin + r * GRID.rowPitch;
     let rightRow = 0, leftRow = 0;
     for (const a of seed.loose) {
-      if (a.appId === 'video') await putApp(a, null, { x: rightX, y: rowY(rightRow++) });
+      if (a.appId === 'meet' || a.appId === 'video') await putApp(a, null, { x: rightX, y: rowY(rightRow++) });
       else await putApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
     const putFolder = async (folder, parent, x, y) => {
@@ -392,7 +392,7 @@
         thumb.appendChild(thumbImg(it.fileId, bytes, it.name));
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
-        if (file.appId === 'video') {
+        if (file.appId === 'meet' || file.appId === 'video') {
           // Honest signage: this launcher opens a SYSTEM page that runs with
           // camera/mic/WebRTC — capabilities sandboxed apps never get.
           const sys = document.createElement('span');

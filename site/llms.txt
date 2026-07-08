@@ -98,9 +98,11 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
 5b. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
    microphone, screen capture, and WebRTC, so a video/voice/streaming app
    cannot work as a GifOS app — don't attempt one. If the user wants video
-   chat, point them at the built-in Video Call on their Home Screen (P2P,
-   permanent room links, moderation, room passwords). Apps CAN bundle and
-   display static media — images, GIFs, audio files — inside the GIF, and
+   chat, point them at the built-in Meeting on their Home Screen (P2P,
+   permanent room links, moderation, room passwords) — and note that ANY app
+   can be RUN INSIDE a Meeting, so all participants share it live with audio/
+   video/recording around it without the app touching the camera. Apps CAN
+   bundle and display static media — images, GIFs, audio files — inside the GIF, and
    store binary blobs (base64) in gifos.db — but keep hot collections
    lean: put big blobs (over ~100KB) in their OWN collection, fetched
    with db.get(), because subscribers re-download a whole collection on

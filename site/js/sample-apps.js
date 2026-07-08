@@ -391,7 +391,7 @@
         try{ blob=await shrink(f); mime='image/jpeg'; const dot=name.lastIndexOf('.'); name=(dot>0?name.slice(0,dot):name)+'.jpg'; }
         catch(e){ alert('That image could not be shrunk to fit — attachments are capped at '+fmt(MAX)+'.'); return; }
       }
-      if(blob.size>MAX){ alert('Attachments here are capped at '+fmt(MAX)+' (images are shrunk automatically). For big files, share them in a Video Call room instead — transfers there go direct, peer to peer.'); return; }
+      if(blob.size>MAX){ alert('Attachments here are capped at '+fmt(MAX)+' (images are shrunk automatically). For big files, share them in a Meeting instead — transfers there go direct, peer to peer.'); return; }
       const B=b64(new Uint8Array(await blob.arrayBuffer()));
       const n=Math.max(1,Math.ceil(B.length/CS));
       const att='a'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);
@@ -812,16 +812,16 @@
 
   // Shown only if this GIF is run somewhere WITHOUT the GifOS system routing
   // (an old build, another host). On a real desktop the runtime never mounts
-  // this — it routes the icon straight to the trusted video.html page.
-  const VIDEO_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
+  // this — it routes the icon straight to the trusted meet.html page.
+  const MEET_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
   body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
   h2{color:#5ca0ff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#5ca0ff}
-</style><div class="card"><h2>Video Call</h2>
+</style><div class="card"><h2>Meeting</h2>
 <p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
 app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
-opens the built-in video page when opened in GifOS.</p>
-<p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a call.</p></div>`;
+opens the built-in meeting page when opened in GifOS.</p>
+<p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a meeting.</p></div>`;
 
   // A real app now: friendly onboarding for non-technical people, with a live
   // checklist that demonstrates the core magic (state lives inside the icon).
@@ -856,7 +856,7 @@ opens the built-in video page when opened in GifOS.</p>
   <p>Whatever you do in an app is saved with its icon automatically. Close the tab, come back tomorrow — you're right where you left off. Nothing is stored on anyone's servers.</p></div>
 
   <div class="card"><h2><span class="emoji">🔗</span>Play together with one link</h2>
-  <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b>, right on your Home Screen!</p></div>
+  <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same room. Try <b>Meeting</b>, right on your Home Screen — you can even run an app inside it!</p></div>
 
   <div class="card"><h2><span class="emoji"></span>Games for real-life hangouts</h2>
   <p>The <b>IRL Games</b> folder is for game night: everyone keeps their own phone — open a game, press <b>Invite</b>, and secret roles, hidden votes, and sneaky lies get dealt to each player's screen while the laughing and accusing happens face to face. Only one phone in the room? The <b>Single Phone</b> subfolder has pass-around versions.</p></div>
@@ -910,7 +910,7 @@ opens the built-in video page when opened in GifOS.</p>
     '  * A backup GIF is a COMPUTER IMAGE: double-click one and BOOT it as',
     '    a computer inside this computer — your real desktop is untouched.',
     '  * Right-click any icon and Download to export it (apps keep their',
-    '    saved state and artwork). Video Call (Social) is strictly',
+    '    saved state and artwork). Meeting (Social) is strictly',
     '    peer-to-peer — the relay refuses to carry media.',
     '',
     'THIS ICON IS A DEMO TOO',
@@ -1215,15 +1215,15 @@ document.getElementById('f').onsubmit=async e=>{
     }
 
     // Loose icons live at the desktop root: Welcome (a real onboarding app —
-    // the README travels inside its GIF too) and Video Call (the killer app,
+    // the README travels inside its GIF too) and Meeting (the killer app,
     // pinned top-right by the seeder, not buried in a folder).
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
       files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
     }, {
-      name: 'Video Call.gif', appId: 'video', accent: [92, 160, 255],
-      files: { 'manifest.json': manifest('video', 'Video Call', [92, 160, 255], { system: 'video' }),
-               'index.html': themeHtml(VIDEO_FALLBACK_HTML, 'full') },
+      name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
+      files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
+               'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') },
     }];
 
     const encGroup = (g) => Promise.all([

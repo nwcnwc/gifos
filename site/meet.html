@@ -4,15 +4,15 @@
 <meta charset="UTF-8">
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Call — GifOS</title>
+<title>Meeting — GifOS</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%B9%3C/text%3E%3C/svg%3E">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { display: flex; flex-direction: column; background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0);
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
-  /* Same system bar as run.html — Video Call is a system app, but it should
-     look like every other running app, just with call controls in the bar. */
+  /* Same system bar as run.html — Meeting is a system app, but it should
+     look like every other running app, just with meeting controls in the bar. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
          background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); flex-wrap: wrap; }
   .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
@@ -189,10 +189,10 @@
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
-    <button id="chatbtn" title="Chat and share files — stays between the people on this call, never on a server">Chat</button>
-    <button id="recbtn" title="Record this call ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
-    <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the call's transcript">CC</button>
-    <button id="trbtn" title="The call's live transcript" style="display:none">Transcript</button>
+    <button id="chatbtn" title="Chat and share files — stays between the people on this meeting, never on a server">Chat</button>
+    <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
+    <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
+    <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <span class="status" id="status">Starting camera…</span>
     <div class="admcount" id="admcount" style="display:none"></div>
   </div>
@@ -202,19 +202,19 @@
     <button id="copy">Copy</button>
   </div>
   <div id="grid"></div>
-  <div class="p2p-note">🔒 Private call — your video and audio go straight to the other people, never through a server.</div>
+  <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
   <div id="chatpanel">
-    <div id="chathead"><span id="paneltitle">Call chat</span> <small style="color:#667;font-weight:400">· private to this call, gone when everyone leaves</small>
+    <div id="chathead"><span id="paneltitle">Meeting chat</span> <small style="color:#667;font-weight:400">· private to this meeting, gone when everyone leaves</small>
       <button id="trtab" style="margin-left:auto">Transcript</button><button id="chatclose">✕</button></div>
     <div id="chatlog"></div>
     <div id="trwrap">
       <div id="trlog"><small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small></div>
       <div id="trfoot"><button id="trdl">Download transcript</button></div>
     </div>
-    <div id="cfiles"><h4>📎 Files pinned to this call</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
+    <div id="cfiles"><h4>📎 Files pinned to this meeting</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
     <form id="chatform">
-      <button type="button" id="cattach" title="Pin a file to the call">📎</button>
+      <button type="button" id="cattach" title="Pin a file to the meeting">📎</button>
       <input type="file" id="cfile-in" multiple style="display:none">
       <input type="text" id="chat-in" placeholder="Message everyone…" autocomplete="off" maxlength="2000">
       <button type="submit">Send</button>
@@ -224,7 +224,7 @@
   <div class="name-modal" id="pw-modal" style="display:none">
     <div class="name-box">
       <h3 id="pw-title">Room password</h3>
-      <p id="pw-hint">Anyone in the call can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
+      <p id="pw-hint">Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
       <div id="pw-cur-row" style="display:flex;gap:.5rem;margin-bottom:.8rem">
         <input id="pw-cur" type="password" readonly>
         <button id="pw-show" style="white-space:nowrap;background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Show current password</button>
@@ -256,8 +256,8 @@
 
   <div class="name-modal" id="who-modal" style="display:none">
     <div class="name-box" style="max-width:480px;text-align:left">
-      <h3>Who is on this call</h3>
-      <p style="color:#889;font-size:.85rem">Calls connect people directly, so everyone here can see everyone's network address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
+      <h3>Who is on this meeting</h3>
+      <p style="color:#889;font-size:.85rem">Meetings connect people directly, so everyone here can see everyone's network address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
       <div id="who-list"></div>
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.8rem">
         <button id="who-dl">Download this list</button>
@@ -278,7 +278,7 @@
   <script src="js/relay-config.js"></script>
   <script>
   /*
-   * GifOS Video Call — a SYSTEM app (first-party page, not a sandboxed GIF app).
+   * GifOS Meeting — a SYSTEM app (first-party page, not a sandboxed GIF app).
    * Sandboxed apps have WebRTC deliberately neutered and no network, and camera
    * permission can't be granted to an opaque origin — so live media has to run
    * at this trusted level. The desktop icon is still a real GIF; its manifest
@@ -341,7 +341,7 @@
         if (me.name) { resolve(me); return; }
         const bg = document.createElement('div'); bg.className = 'name-modal';
         bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
-          '<p>Other people on the call will see this name.</p>' +
+          '<p>Other people on the meeting will see this name.</p>' +
           '<input id="nm" maxlength="40" placeholder="Your name" autocomplete="off">' +
           '<button id="nmok">Continue</button></div>';
         document.body.appendChild(bg);
@@ -373,7 +373,7 @@
     // so guests are always at least softly blurred until an admin decides
     // otherwise — the ungovernable-but-admin rooms can't show clear obscenity.
     // Vote-off-the-island (non-admin rooms): every user carries ONE personal,
-    // GLOBAL vote-off list (device ids) across all calls, in their own
+    // GLOBAL vote-off list (device ids) across all meetings, in their own
     // browser. The here-relevant slice syncs to the relay, which boots any
     // device a majority of the room's devices (min 2) has voted off — and
     // checks arrivals against the room's standing votes. No ban list exists:
@@ -409,7 +409,7 @@
     }
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
-    // room converged — a single lost message now costs seconds, not the call.
+    // room converged — a single lost message now costs seconds, not the meeting.
     setInterval(() => { if (peers.size && ws && ws.readyState === 1) broadcastStatus(); }, 4000);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
@@ -605,7 +605,7 @@
         // Vote-off-the-island button (non-admin rooms only; shown via body.canvote)
         voteBtn = document.createElement('button');
         voteBtn.className = 'votebtn'; voteBtn.textContent = '✕ Vote off';
-        voteBtn.title = 'Vote to remove this person — when a majority of the room agrees they are kicked out. Your vote follows them into every call you share.';
+        voteBtn.title = 'Vote to remove this person — when a majority of the room agrees they are kicked out. Your vote follows them into every meeting you share.';
         voteBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleVote(id); });
         tile.appendChild(voteBtn);
         modbar = document.createElement('div');
@@ -649,7 +649,7 @@
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
       else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
-      if (st.rec) chips.push('<span class="warn">⏺ recording this call</span>');
+      if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
@@ -763,10 +763,10 @@
     // recover. (Group/guest blur stays receiver-side: an uncooperative bad
     // actor can't be made to blur at source, but every receiver blurs them.)
     // ========================= BACKGROUND KEEPALIVE ==========================
-    // There is no single "keep working when unfocused" API — what keeps a call
+    // There is no single "keep working when unfocused" API — what keeps a meeting
     // alive in the background is the combination browsers exempt from
     // throttling: an ACTIVE WebRTC connection (we have one), a screen WAKE
-    // LOCK so the phone doesn't sleep mid-call, and WORKER-driven timers for
+    // LOCK so the phone doesn't sleep mid-meeting, and WORKER-driven timers for
     // our canvas pipelines — a hidden tab clamps main-thread timers to ≥1s
     // (which froze the blurred broadcast and recordings), but a Web Worker's
     // metronome keeps ticking.
@@ -914,7 +914,7 @@
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' on the call · ' + q.label) + link + extra;
+        : n + ' on the meeting · ' + q.label) + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -1088,7 +1088,7 @@
     // Reconcile the mesh against the room's live roster. Present peers get a
     // link (initiated by whichever side the id-order rule picks); absent peers
     // start a grace clock instead of being dropped on the spot — a locked
-    // phone rejoining in ten seconds keeps its tile and its call.
+    // phone rejoining in ten seconds keeps its tile and its meeting.
     function reconcile(list, names) {
       names = names || {};
       for (const pid of list) {
@@ -1120,8 +1120,8 @@
     let roomPw = '', pwBlocked = false;
 
     // ---- admin rooms -----------------------------------------------------------
-    // The admin verifier V is part of the ROOM'S IDENTITY: /call/<room>/<V>
-    // is a DIFFERENT room from /call/<room>, and a plain room can NEVER have
+    // The admin verifier V is part of the ROOM'S IDENTITY: /meet/<room>/<V>
+    // is a DIFFERENT room from /meet/<room>, and a plain room can NEVER have
     // an admin — walking through the extra slash IS the consent to be
     // administered. V = the first 24 hex of SHA-256(K), K = PBKDF2(admin
     // password, salt = room id). 24 hex = 96 bits: V is PUBLIC (it rides in
@@ -1255,8 +1255,8 @@
             bannedOut = true;
             for (const pid of Array.from(peers.keys())) dropPeer(pid);
             try { ws.close(); } catch (e) {}
-            setStatus(voted ? '⛔ The people on this call voted you off.' : '⛔ You were banned from this room by ' + (m.by || 'an admin'));
-          } else setStatus(voted ? '⛔ ' + (m.name || 'Someone') + ' was voted off the call.' : '⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
+            setStatus(voted ? '⛔ The people on this meeting voted you off.' : '⛔ You were banned from this room by ' + (m.by || 'an admin'));
+          } else setStatus(voted ? '⛔ ' + (m.name || 'Someone') + ' was voted off the meeting.' : '⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
         }
         else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
         else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
@@ -1358,7 +1358,7 @@
           }
           // Mutate the SAME MediaStream rather than swapping it: its id is
           // what we announce as "our" stream (peers use it to tell own media
-          // from friend-relayed media), so it must never change mid-call.
+          // from friend-relayed media), so it must never change mid-meeting.
           for (const old of localStream.getTracks()) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
           if (nv) localStream.addTrack(nv);
           if (na) localStream.addTrack(na);
@@ -1376,8 +1376,8 @@
     function showPwModal(locked) {
       document.getElementById('pw-title').textContent = locked ? '🔒 This room is locked' : '🔒 Room password';
       document.getElementById('pw-hint').textContent = locked
-        ? 'Enter the room password to join the call.'
-        : 'Anyone in the call can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
+        ? 'Enter the room password to join the meeting.'
+        : 'Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
       document.getElementById('pw-cur-row').style.display = locked ? 'none' : 'flex';
       document.getElementById('pw-cur').value = roomPw;
       document.getElementById('pw-cur').type = 'password';
@@ -1459,7 +1459,7 @@
         const rin = document.getElementById('adm-room');
         rin.style.display = ''; rin.value = room; // default: the room you're in
         btn.textContent = 'Create admin room';
-        document.getElementById('adm-hint').textContent = 'This room has no admin — and it never can, so nobody can take over your call. Want a room you control? Pick a room name and an admin password: those two together ARE your room. Share the link that appears. Anyone who knows the same name and password can run it (and re-open it from scratch anytime) — so make the password a good one. Only admins can lock the room, mute or blur someone for everyone, or ban a troublemaker.';
+        document.getElementById('adm-hint').textContent = 'This room has no admin — and it never can, so nobody can take over your meeting. Want a room you control? Pick a room name and an admin password: those two together ARE your room. Share the link that appears. Anyone who knows the same name and password can run it (and re-open it from scratch anytime) — so make the password a good one. Only admins can lock the room, mute or blur someone for everyone, or ban a troublemaker.';
       }
       admModal.style.display = 'flex';
     }
@@ -1499,8 +1499,8 @@
         location.reload(); // load the new room fresh
       }
     };
-    // ---- who is on this call (names + addresses) -------------------------------
-    // P2P calls are direct connections: everyone can already learn everyone's
+    // ---- who is on this meeting (names + addresses) -------------------------------
+    // P2P meetings are direct connections: everyone can already learn everyone's
     // network address, so GifOS makes it VISIBLE — nobody here is anonymous,
     // and a downloadable record deters the worst behavior.
     const whoModal = document.getElementById('who-modal');
@@ -1523,17 +1523,17 @@
     document.getElementById('who-close').onclick = () => { whoModal.style.display = 'none'; };
     document.getElementById('who-dl').onclick = () => {
       const stamp = new Date().toISOString();
-      const lines = ['GifOS video call — who is here', 'Room: ' + room, 'Saved: ' + stamp, ''];
+      const lines = ['GifOS meeting — who is here', 'Room: ' + room, 'Saved: ' + stamp, ''];
       for (const r of whoRows()) lines.push(r.name + '\t' + r.ip + (r.dev ? '\tdevice ' + r.dev : '') + (r.pid ? '\tpeer ' + r.pid : ''));
       const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'gifos-call-' + room + '-' + stamp.replace(/[:.]/g, '-') + '.txt';
+      a.download = 'gifos-meeting-' + room + '-' + stamp.replace(/[:.]/g, '-') + '.txt';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     };
     statusEl.style.cursor = 'pointer';
-    statusEl.title = 'Who is on this call — names and network addresses';
+    statusEl.title = 'Who is on this meeting — names and network addresses';
     statusEl.onclick = showWhoModal;
 
     function joinRoom() {
@@ -1550,7 +1550,7 @@
       const wantHash = '#v=' + room + '&k=' + roomToken + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
       const pretty = room === roomToken && /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
-      shareUrl.value = pretty ? location.origin + '/call/' + room + (av ? '/' + av : '')
+      shareUrl.value = pretty ? location.origin + '/meet/' + room + (av ? '/' + av : '')
         : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       openSock();
@@ -1742,7 +1742,7 @@
     }
     function renderFiles() {
       const el = document.getElementById('cfilelist');
-      // Files are only allowed in a PASSWORD-PROTECTED call: an open room anyone
+      // Files are only allowed in a PASSWORD-PROTECTED meeting: an open room anyone
       // can wander into shouldn't leak shared files. No password → no files.
       if (!roomPw) { el.innerHTML = '<small style="color:#889">🔒 Set a room password (the Password button) to share files here. Files are off in open rooms.</small>'; return; }
       const fs = Array.from(files.values()).sort((a, b) => a.at - b.at);
@@ -1779,7 +1779,7 @@
       renderChat();
     });
     document.getElementById('cattach').onclick = () => {
-      if (!roomPw) { setStatus('Set a room password before sharing files — files are only allowed in password-protected calls.'); return; }
+      if (!roomPw) { setStatus('Set a room password before sharing files — files are only allowed in password-protected meetings.'); return; }
       document.getElementById('cfile-in').click();
     };
     document.getElementById('cfile-in').addEventListener('change', (e) => {
@@ -1988,7 +1988,7 @@
       const w = document.getElementById('trwrap'), c = document.getElementById('chatlog');
       w.classList.toggle('show', showTr);
       c.style.display = showTr ? 'none' : '';
-      document.getElementById('paneltitle').textContent = showTr ? 'Transcript' : 'Call chat';
+      document.getElementById('paneltitle').textContent = showTr ? 'Transcript' : 'Meeting chat';
       document.getElementById('trtab').textContent = showTr ? 'Chat' : 'Transcript';
       if (showTr) renderTranscript();
     }
@@ -1996,7 +1996,7 @@
       setPanelView(!document.getElementById('trwrap').classList.contains('show'));
     };
     // The Transcript button in the top bar appears once captions are in play
-    // anywhere in the call — the transcript must not hide behind Chat.
+    // anywhere in the meeting — the transcript must not hide behind Chat.
     document.getElementById('trbtn').onclick = () => {
       chatPanel.classList.add('open');
       setPanelView(true);
@@ -2010,16 +2010,16 @@
         .map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + ': ' + l.text);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }));
-      a.download = 'gifos-call-transcript.txt';
+      a.download = 'gifos-meeting-transcript.txt';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     };
 
-    // ---- recording: this call, composited ON YOUR DEVICE ---------------------
+    // ---- recording: this meeting, composited ON YOUR DEVICE ---------------------
     // Tiles are drawn to a canvas (blur applied for real — a blurred feed is
     // recorded blurred), audio is mixed (group-muted people contribute
     // silence), and MediaRecorder writes a .webm that never leaves your
-    // machine. Everyone in the call sees the ⏺ chip while you record.
+    // machine. Everyone in the meeting sees the ⏺ chip while you record.
     let recRec = null, recTimer = null, recDraw = null, recChunks = [], recStart = 0, recSrcs = new Map(), recDest = null;
     const recBtn = document.getElementById('recbtn');
     function recMixIn(id, stream) {
@@ -2105,7 +2105,7 @@
         recChunks = [];
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'gifos-call-' + room + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.webm';
+        a.download = 'gifos-meeting-' + room + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.webm';
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 10000);
         recBtn.classList.remove('on');
@@ -2183,7 +2183,7 @@
       reactRoomState();  // camera on/off changes your consent
     };
     // The blur slider: pick Max / Min / None directly. It records YOUR choice;
-    // whether a tile actually goes clear is the room rule's call — when your
+    // whether a tile actually goes clear is the room rule's meeting — when your
     // None can't show yet, the status line says exactly why.
     function setPersonalBlur(v) {
       myStatus.blur = v;
@@ -2283,7 +2283,7 @@
     document.getElementById('invite').onclick = () => {
       share.classList.add('show'); // link stays visible/copyable behind the sheet
       if (navigator.share && shareUrl.value) {
-        navigator.share({ title: 'Join my GifOS call', text: 'Tap this link and you’re in:', url: shareUrl.value })
+        navigator.share({ title: 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value })
           .catch(() => { /* user closed the sheet — the copy row remains */ });
       }
     };

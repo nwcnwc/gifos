@@ -336,7 +336,7 @@
     return { dim, core };
   };
 
-  // Video Call — the hero. A camera whose lens is a live radar scope: sweep
+  // Meeting (hero) — the hero. A camera whose lens is a live radar scope: sweep
   // beam, afterglow wedge, a blip lighting when the beam passes, blinking REC.
   ART.video = (C, f) => {
     const ang = f * 60;

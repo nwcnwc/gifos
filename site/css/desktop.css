@@ -140,7 +140,7 @@ body {
 .sig-badge.sig-bad { background: #ff5c5c; }
 .sig-badge.sig-unk { background: #8888aa; }
 
-/* SYSTEM tag on trusted system-app launchers (Video Call): honest signage
+/* SYSTEM tag on trusted system-app launchers (Meeting): honest signage
    that this icon opens a first-party page with camera/mic/WebRTC access. */
 .sysbadge {
   position: absolute; left: 50%; transform: translateX(-50%); top: -7px;

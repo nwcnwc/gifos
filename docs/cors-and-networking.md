@@ -76,7 +76,7 @@ A GifOS app runs in its own tab. The desktop (parent/opener window) exposes a **
 The app developer writes against a single database API. The runtime resolves it based on the **launch URL**:
 
 - **No remote session in the URL** → the runtime creates/opens a **local** authoritative DB. The app is the **server**.
-- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB call over the relay to the server browser. The app is a **client**.
+- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB meeting over the relay to the server browser. The app is a **client**.
 
 ```javascript
 // App-side — identical code whether server or client
@@ -86,7 +86,7 @@ const moves = await db.getAll('moves'); // server: local read; client: relayed r
 db.subscribe('moves', render);          // server broadcasts changes to all clients
 ```
 
-On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the call is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
+On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the meeting is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
 
 ## Joining a Session (the Shareable URL)
 
@@ -149,16 +149,16 @@ relay → all : { t:'roster', peers:[...] }     ← current participant list
 ```
 
 The roster + peer routing is what lets a **full mesh** form (every participant
-connected to every other), which the Video Call app uses for media and which
+connected to every other), which the Meeting app uses for media and which
 future apps can use for any N-way topology. The relay still only ever sees
 signaling envelopes.
 
 ### Built to scale (and to be attacked)
 
 - **WebSocket hibernation**: the Durable Object accepts sockets through the
-  Hibernation API, so an idle session or call room is evicted from memory and
+  Hibernation API, so an idle session or meeting room is evicted from memory and
   accrues **no duration charges** — Cloudflare bills actual messages, not
-  wall-clock call length. Each socket's identity (role, peer id, name, ip,
+  wall-clock meeting length. Each socket's identity (role, peer id, name, ip,
   token, room password) rides in its serialized attachment, which survives
   eviction but dies with the connection — **the relay persists nothing,
   ever**. A room's token and password are properties of its current
@@ -184,15 +184,15 @@ signaling envelopes.
   localhost is always allowed so dev and CI work. Unit-tested in
   `test/relay-origin.js`.
 
-## Video Calls — strictly P2P mesh over permanent rooms
+## Meetings — strictly P2P mesh over permanent rooms
 
-The Video Call system app (`video.html`) is the proof of the guard:
+The Meeting system app (`meet.html`) is the proof of the guard:
 
 - **The room IS its URL — host-less and permanent.** The relay's `mesh` role
   has no host: whoever opens the link joins whoever is there, and the room
   outlives everyone in it (an empty room revives on the next join). The
   unguessable room code is the capability. Nobody's departure — including the
-  creator's — can close a call link.
+  creator's — can close a meeting link.
 - Every participant holds one `RTCPeerConnection` per other participant. For
   each pair, exactly one side initiates, chosen by peer-id order — the same
   deterministic rule for joins, rejoins, and reloads, so there is no glare.
@@ -407,6 +407,6 @@ relay code requires a redeploy**, pushing to GitHub is not enough.
 
 - **Network activity log** — the runtime shows users a DevTools-style request log.
 - **Rate limiting** — per-app request caps enforced by the runtime.
-- **Response caching** — respect `Cache-Control` for repeated external calls.
+- **Response caching** — respect `Cache-Control` for repeated external meetings.
 - **Credential manager** — the runtime stores API keys and injects them by reference, so apps never see raw keys.
 - **End-to-end encrypted sessions** — encrypt relay payloads so even a compromised relay learns nothing.
