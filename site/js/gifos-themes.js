@@ -2,11 +2,16 @@
  * gifos-themes.js — the theme cascade loader.
  *
  * A THEME is just a folder of files. The DEFAULT theme lives in /themes; each
- * numbered computer (0-9.gifos.app) may override it with a /themes/<digit>/
- * folder. Resolution is per-file: a subdomain uses /themes/<digit>/<file> when
- * that file exists, and falls back to /themes/<file> when it doesn't. So:
+ * computer overrides it with a /themes/<subdomain>/ folder named after its
+ * subdomain label (0.gifos.app → themes/0, neon.gifos.app → themes/neon).
+ * Resolution is per-file: a subdomain uses /themes/<label>/<file> when that file
+ * exists, and falls back to /themes/<file> when it doesn't. So:
  *
- *   ADD OR RESKIN A THEME  =  drop a  themes/<digit>/  folder.
+ *   RESKIN a live computer  =  edit its themes/<label>/ folder, push (Pages).
+ *   ADD a NEW computer      =  drop a themes/<label>/ folder AND add its route
+ *                              to mirror/wrangler.toml, then `wrangler deploy`.
+ *                              (Routes are an explicit allow-list — no wildcard,
+ *                              so nobody can spin up infinite subdomains.)
  *     themes/theme.js   themes/icons.js          ← the default look (Aurora)
  *     themes/7/theme.js themes/7/icons.js        ← override for 7.gifos.app
  *
@@ -55,14 +60,19 @@
     if (list && list.length) GifOS.theme.eggs = (GifOS.theme.eggs || []).concat(list);
   };
 
-  // Which folder overrides the base? The hostname digit (0-9.gifos.app), or a
-  // window.GIFOS_THEME dev/test override ('' or 'home' = the plain default).
-  const digit = (((root.location && root.location.hostname) || '').match(/^(\d)\./) || [])[1];
-  let override = (root.GIFOS_THEME != null) ? root.GIFOS_THEME : digit;
+  // Which folder overrides the base? The SUBDOMAIN label — 0.gifos.app →
+  // themes/0, neon.gifos.app → themes/neon. Any label works; a missing folder
+  // just 404s to the base. (Which subdomains actually resolve is gated upstream
+  // by the mirror Worker's explicit route list — deliberately NOT a wildcard,
+  // so bots can't conjure infinite computers.) window.GIFOS_THEME is a dev/test
+  // override ('' or 'home' = the plain default).
+  const parts = (((root.location && root.location.hostname) || '')).split('.');
+  const label = (parts.length >= 3 && parts[0] !== 'www') ? parts[0] : ''; // sub.domain.tld
+  let override = (root.GIFOS_THEME != null) ? root.GIFOS_THEME : label;
   if (override === 'home' || override === 'default') override = '';
 
   const dirs = ['themes'];
-  if (override != null && override !== '' && /^[a-z0-9-]{1,32}$/i.test(String(override))) dirs.push('themes/' + override);
+  if (override && /^[a-z0-9-]{1,32}$/i.test(String(override))) dirs.push('themes/' + override);
 
   // Only the desktop loads gifos-icons.js first (so GifOS.iconPacks exists);
   // the meeting/app pages skip the art packs entirely.

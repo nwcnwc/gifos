@@ -1,21 +1,23 @@
 /*
- * gifos mirror — serves the GifOS site on the ten single-digit subdomains.
+ * gifos mirror — serves the GifOS site on the theme subdomains.
  *
- * 0.gifos.app … 9.gifos.app: each numbered hostname is a distinct browser
- * origin, and IndexedDB is per-origin — so every digit is automatically a
- * separate, fully isolated GifOS computer in the same browser. The Worker's
- * routes enumerate exactly these ten (see wrangler.toml), so traffic to any
- * other subdomain never reaches (or bills) this Worker.
+ * Each subdomain hostname is a distinct browser origin, and IndexedDB is
+ * per-origin — so every one is automatically a separate, fully isolated GifOS
+ * computer in the same browser. The Worker's routes in wrangler.toml are an
+ * EXPLICIT ALLOW-LIST (0.gifos.app … 9.gifos.app today; add named ones as
+ * themes ship) — deliberately NOT a wildcard, so traffic to any un-listed
+ * subdomain never reaches (or bills) this Worker, and nobody can conjure
+ * infinite computers. Adding a computer = a themes/<label>/ folder on the site
+ * (see site/js/gifos-themes.js) + one route here + `wrangler deploy`.
  *
  * GitHub Pages can only serve one hostname (gifos.app), so this Worker
  * transparently fetches the same assets from the canonical origin and
- * re-serves them under the numbered hostname. It holds no state and adds
- * no logic beyond the hostname check.
+ * re-serves them under the subdomain. It holds no state and adds no logic
+ * beyond the hostname check — the site itself picks the theme from the label.
  *
- * Non-numeric subdomains redirect to the main computer. relay.gifos.app is
- * kept out of our hands by the relay Worker's own explicit zone route —
- * Cloudflare ROUTES BEAT CUSTOM DOMAINS, and route-vs-route the relay's
- * non-wildcard pattern outranks our wildcard (see relay/wrangler.toml).
+ * relay.gifos.app / mcp.gifos.app are kept out of our hands by those Workers'
+ * own explicit zone routes (Cloudflare ROUTES BEAT CUSTOM DOMAINS); if one ever
+ * lands here it means that route is missing, so we fail loudly rather than 301.
  */
 
 const ORIGIN = 'https://gifos.app';
@@ -37,7 +39,11 @@ export default {
         { status: 530, headers: { 'content-type': 'text/plain' } });
     }
 
-    if (!sub || !/^\d+$/.test(sub)) {
+    // The routes in wrangler.toml already gate WHICH subdomains reach us (the
+    // allow-list); here we only sanity-check the label shape and proxy. A label
+    // with a dot (nested subdomain) or odd characters never has a route anyway,
+    // so it falls through to the main computer.
+    if (!sub || !/^[a-z0-9-]{1,32}$/.test(sub)) {
       return Response.redirect(ORIGIN + url.pathname + url.search, 301);
     }
 
