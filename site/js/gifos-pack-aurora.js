@@ -1,9 +1,7 @@
 /*
- * gifos-pack-aurora.js — "Desktop", the flagship icon pack (gifos.app default).
+ * gifos-pack-aurora.js — "Aurora", the flagship icon pack (gifos.app default).
  *
- * Hybrid: illustrated PNGs for hero subjects (assets/pack-desktop/), procedural
- * SVG for everything else. Procedural layer is v2 dimensional glossy objects:
- * every app is a top-lit, softly-shadowed 3D
+ * v2: dimensional glossy objects. Every app is a top-lit, softly-shadowed 3D
  * object — gradient bodies, specular highlights, depth faces, glass — floating
  * over its own contact shadow, with a signature iridescent orbit/sparkle in
  * the aurora colors. Think product-grade launcher icons, not glyphs.
@@ -57,8 +55,7 @@
   }
 
   // Motion tables.
-  // No idle bob — motion lives in each subject's own animation.
-  const FLOAT = [0, 0, 0, 0, 0, 0];
+  const FLOAT = [0, -2, -3.5, -4, -3, -1.5];
   const SPARK = [0, 0.3, 0.9, 1, 0.6, 0.15];
 
   // Contact shadow: tightens/lightens as the object floats up.
@@ -675,125 +672,9 @@
     return { defs, art, shadowRx: 36 };
   }
 
-  // Illustrated pilot: baked PNGs for hero subjects; procedural for the rest.
-  const BAKED = {
-    welcome: 'assets/pack-desktop/welcome.png',
-    video: 'assets/pack-desktop/video.png',
-    notes: 'assets/pack-desktop/notes.png',
-    folder: 'assets/pack-desktop/folder.png',
-    chess: 'assets/pack-desktop/chess.png',
-    paint: 'assets/pack-desktop/paint.png',
-  };
-  const bakedCache = {};
-  function loadBaked(url) {
-    const hit = bakedCache[url];
-    if (hit && hit.complete && hit.naturalWidth) return Promise.resolve(hit);
-    return new Promise((res, rej) => {
-      const img = new Image();
-      img.onload = () => { bakedCache[url] = img; res(img); };
-      img.onerror = () => rej(new Error('baked icon failed: ' + url));
-      img.src = url;
-    });
-  }
-  // Meaningful per-subject motion — never idle bobbing.
-  function bakedOverlay(subject, f, ctx, x, y, w) {
-    if (subject === 'video') {
-      if (f % 2 === 0) {
-        ctx.fillStyle = '#ff3b30';
-        ctx.shadowColor = 'rgba(255,59,48,.75)';
-        ctx.shadowBlur = w * 0.05;
-        ctx.beginPath();
-        ctx.arc(x + w * 0.735, y + w * 0.275, w * 0.03, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
-      return;
-    }
-    if (subject === 'welcome') {
-      const spark = (f + 1) % 3 === 0;
-      if (spark) {
-        ctx.fillStyle = 'rgba(255,255,255,.85)';
-        [[0.74, 0.2], [0.8, 0.15], [0.68, 0.24]].forEach((p) => {
-          ctx.beginPath();
-          ctx.arc(x + w * p[0], y + w * p[1], w * 0.014, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
-      return;
-    }
-    if (subject === 'notes') {
-      const reveal = [0.58, 0.64, 0.72, 0.8, 0.88, 0.94][f];
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x + w * 0.18, y + w * 0.52, w * (reveal - 0.18), w * 0.22);
-      ctx.clip();
-      ctx.globalAlpha = 0.35 + 0.15 * (f / (FR - 1));
-      ctx.fillStyle = '#6b4cff';
-      ctx.fillRect(x + w * 0.2, y + w * 0.6, w * 0.45, w * 0.028);
-      ctx.restore();
-      return;
-    }
-    if (subject === 'paint') {
-      const press = [0, 0, 1.5, 3, 1.5, 0][f];
-      ctx.save();
-      ctx.translate(x + w * 0.72, y + w * 0.35 + press);
-      ctx.rotate(0.55);
-      ctx.fillStyle = 'rgba(255,90,120,.55)';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, w * 0.04, w * 0.025, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  function drawBaked(ctx, size, img, subject, f) {
-    ctx.clearRect(0, 0, size, size);
-
-    const scale = 0.96;
-    const w = size * scale;
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Contact shadow (fixed under the spinning object for 3D grounding)
-    const shY = cy + w * 0.42;
-    const shRx = w * 0.37;
-    const shRy = Math.max(3, w * 0.07);
-    ctx.save();
-    ctx.fillStyle = 'rgba(10,14,24,0.28)';
-    ctx.filter = 'blur(' + Math.max(2.5, w * 0.02) + 'px)';
-    ctx.beginPath();
-    ctx.ellipse(cx, shY, shRx, shRy, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Slow gentle spin/rock for 3D objects (subtle, loops smoothly)
-    const angle = Math.sin((f / FR) * Math.PI * 2) * 0.16; // ~9 degrees max rock/spin
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    ctx.drawImage(img, -w / 2, -w / 2, w, w);
-    ctx.restore();
-
-    // Subject-specific overlays (kept in screen space for clarity on spinning art)
-    const x = (size - w) / 2;
-    const y = (size - w) / 2;
-    bakedOverlay(subject, f, ctx, x, y, w);
-  }
-
-  function bakedFrames(subject) {
-    const url = BAKED[subject];
-    if (!url) return null;
-    return range(FR).map((f) => function (ctx, size) {
-      return loadBaked(url).then((img) => drawBaked(ctx, size, img, subject, f));
-    });
-  }
-
   GifOS.iconPacks.register('aurora', {
     size: SIZE, frames: FR, delayCs: DELAY, dither: 14,
     draw(subject, accent) {
-      const baked = bakedFrames(subject);
-      if (baked) return baked;
       const builder = ART[subject];
       if (!builder) return null;
       return range(FR).map((f) => { const r = builder(accent, f); return shell(r.defs, r.art, f, r.shadowRx); });
