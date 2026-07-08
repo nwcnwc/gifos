@@ -339,23 +339,20 @@
   // Meeting (hero) — the hero. A camera whose lens is a live radar scope: sweep
   // beam, afterglow wedge, a blip lighting when the beam passes, blinking REC.
   ART.video = (C, f) => {
-    const ang = f * 60;
-    const tip = pt(52, 66, 12.5, ang);
-    const wedge = 'M52 66 L' + pt(52, 66, 12.5, ang - 46).join(' ') + ' ' + arc(52, 66, 12.5, ang - 46, ang).slice(1) + ' Z';
-    // blip lives at 150°; hot when the beam has just swept it
-    const blip = pt(52, 66, 7, 150);
-    const blipHot = f === 2 || f === 3;
-    const dim =
-      "<circle cx='52' cy='66' r='6.5' opacity='.6'/>"
-      + "<path d='M45 66 h14 M52 59 v14' opacity='.45' stroke-width='1.4'/>"
-      + scan(26, 46, 52, 38)
-      + "<path d='" + wedge + "' fill='" + C.dim + "' stroke='none' opacity='.55'/>";
+    // Meeting on a phosphor scope: a screen framing a 2x2 grid of oscilloscope
+    // "participants" (head + shoulders); the beam-hot ring hops tile to tile.
+    const head = (cx, cy) => "<circle cx='" + cx + "' cy='" + cy + "' r='2.8'/>"
+      + "<path d='M" + (cx - 5.5) + ' ' + (cy + 9) + " a5.5 5 0 0 1 11 0'/>";
+    const tile = (x, y) => "<path d='" + rr(x, y, 20, 16, 3) + "'/>" + head(x + 10, y + 6);
+    const gx = 28, gy = 48, tw = 20, thh = 16, gp = 4, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + thh + gp], [gx + tw + gp, gy + thh + gp]];
+    const hc = cells[act];
+    const dim = scan(26, 44, 52, 46);
     const core =
-      "<path d='" + rr(22, 42, 60, 46, 9) + "'/>"
-      + "<circle cx='52' cy='66' r='14' stroke-width='2.4'/>"
-      + "<path d='M52 66 L" + tip[0] + ' ' + tip[1] + "' stroke-width='2.6'/>"
-      + "<circle cx='" + blip[0] + "' cy='" + blip[1] + "' r='1.8' fill='" + (blipHot ? C.hot : C.dim) + "' stroke='none'/>"
-      + "<path d='M82 58 L104 46 V84 L82 72 Z' stroke-width='3'/>"
+      "<path d='" + rr(24, 42, 54, 50, 7) + "'/>"
+      + cells.map((c) => tile(c[0], c[1])).join('')
+      + "<path d='" + rr(hc[0] - 1.6, hc[1] - 1.6, tw + 3.2, thh + 3.2, 4.6) + "' stroke='" + C.hot + "' stroke-width='2'/>"
+      + "<path d='M80 56 L104 46 V88 L80 78 Z' stroke-width='3'/>"
       + (f % 2 ? "<circle cx='31' cy='34' r='3.2' fill='" + C.core + "' stroke='none'/>" + txt(38, 37.5, 'REC', 8, C.core, null, 700) : "<circle cx='31' cy='34' r='3.2' stroke-width='2'/>");
     return { dim, core };
   };

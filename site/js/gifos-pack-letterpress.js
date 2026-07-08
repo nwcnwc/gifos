@@ -294,16 +294,18 @@
       + range(3).map((k) => "<g transform='rotate(" + (k * 120) + ' ' + cx + ' ' + cy + ")'>" + ln('M' + cx + ' ' + cy + ' V' + (cy - r + 4.5), 2.2) + '</g>').join('')
       + '</g>'
       + "<circle cx='" + cx + "' cy='" + cy + "' r='3' fill='" + INK + "'/>";
-    const art = reel(46, 40, 15, 1) + reel(80, 43, 11.5, -1)
-      + plate(rr(26, 56, 66, 38, 6), PAPER, 3)
-      + ln(rr(32, 62, 38, 26, 3), 1.3, INK, 0.4)
-      + ln('M37 69 h28 M37 75 h28 M37 81 h20', 1.4, INK, 0.4)
-      + "<circle cx='36' cy='89' r='1.2' fill='" + INK + "' opacity='.6'/><circle cx='64' cy='89' r='1.2' fill='" + INK + "' opacity='.6'/>"
-      + "<circle cx='80' cy='66' r='3' fill='" + RED + "'/>"
-      + plate('M92 63 l16 -8 v30 l-16 -8 z', CREAM, 3)
-      + ln('M96 67 l8 -4', 1.4, INK, 0.4)
-      + cut('M34 94 l-7 11 M84 94 l7 11', 2.8)
-      + cut('M59 94 v10', 2.8);
+    // Meeting: a pressed paper sheet holding a 2x2 grid of stamped portraits;
+    // the one speaking wears a cream mat and a small red seal.
+    const head = (cx, cy) => "<circle cx='" + cx + "' cy='" + cy + "' r='3' fill='" + INK + "' opacity='.7'/>"
+      + "<path d='M" + (cx - 5.5) + ' ' + (cy + 9) + " a5.5 5 0 0 1 11 0 z' fill='" + INK + "' opacity='.7'/>";
+    const tile = (x, y, on) => plate(rr(x, y, 22, 17, 4), on ? CREAM : PAPER, 3) + head(x + 11, y + 6.5)
+      + (on ? "<circle cx='" + (x + 18) + "' cy='" + (y + 4) + "' r='2' fill='" + RED + "'/>" : '');
+    const gx = 27, gy = 44, tw = 22, thh = 17, gp = 5, act = f % 4;
+    const cells = [[gx, gy], [gx + tw + gp, gy], [gx, gy + thh + gp], [gx + tw + gp, gy + thh + gp]];
+    const art = plate(rr(22, 38, 66, 60, 7), PAPER, 3)
+      + cells.map((c, i) => tile(c[0], c[1], i === act)).join('')
+      + cut('M34 98 l-6 8 M76 98 l6 8', 2.8)
+      + cut('M55 98 v9', 2.8);
     return { defs: '', art };
   };
 
