@@ -25,7 +25,10 @@
   const GifOS = (root.GifOS = root.GifOS || {});
 
   // ui keys map to CSS variables (see desktop.css :root). Dark computers can
-  // omit ui entirely and inherit the flagship chrome.
+  // omit ui entirely and inherit the flagship chrome. `onaccent` is the text
+  // colour laid over an accent-filled button — set it dark on themes whose
+  // accent is a bright/pastel hue (green, gold, pink) where white would wash
+  // out; it defaults to #fff everywhere it's left unset.
   const THEMES = {
     home: { name: 'Aurora', pack: 'aurora' },
 
@@ -33,6 +36,7 @@
     0: { name: 'Terminal Zero', pack: 'terminal', ui: {
       bg: '#020703', bgglow: '#04180c', surface: '#04120a', border: '#0e3d22',
       text: '#a8ffc4', muted: '#4e8f68', accent: '#33ff77', accent2: '#1fd0a0', glow: 'rgba(51,255,119,.35)',
+      onaccent: '#04120a',
     } },
 
     // 1 — professionals & older users. Warm paper, ink, one red accent. Light.
@@ -53,6 +57,7 @@
     3: { name: 'Toybox', pack: 'toybox', ui: {
       bg: '#e8e4f2', bgglow: '#fbe8f4', surface: '#f6f4fb', border: '#d5cfe8',
       text: '#3a3352', muted: '#8f88a8', accent: '#ff7bb5', accent2: '#5cc8ff', glow: 'rgba(255,123,181,.25)',
+      onaccent: '#3a2740',
       bar: 'rgba(246,244,251,.82)', label: '#3a3352', labelshadow: 'rgba(255,255,255,.85)',
     } },
 
@@ -60,12 +65,14 @@
     4: { name: 'Stadium', pack: 'stadium', ui: {
       bg: '#07120c', bgglow: '#0e2a18', surface: '#0d1f14', border: '#1e4028',
       text: '#e8f4e0', muted: '#7fa88a', accent: '#ffd23c', accent2: '#4dd66a', glow: 'rgba(255,210,60,.3)',
+      onaccent: '#07120c',
     } },
 
     // 5 — space & sci-fi nerds. 5-4-3-2-1… liftoff.
     5: { name: 'Countdown', pack: 'countdown', ui: {
       bg: '#030308', bgglow: '#131335', surface: '#0b0b1a', border: '#232345',
       text: '#e0e0f5', muted: '#8888b0', accent: '#b09aff', accent2: '#ff8a5c', glow: 'rgba(176,154,255,.35)',
+      onaccent: '#241a4d',
     } },
 
     // 6 — artists & dreamers. Loose ink over wet watercolor. Light.
