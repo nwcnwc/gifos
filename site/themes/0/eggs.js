@@ -16,5 +16,5 @@ GifOS.addEggs([{
     + "'\\n        \\\\   ^__^\\n         \\\\  (oo)\\\\_______\\n            (__)\\\\       )\\\\/\\\\\\n                ||----w |\\n                ||     ||';}"
     + "function r(){o.textContent=cow(t.value.split('\\n')[0]);}"
     + "t.addEventListener('input',r);r();"
-    + "<\\/script></body></html>",
+    + "</script></body></html>",
 }]);
