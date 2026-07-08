@@ -95,44 +95,38 @@
   // ---- subjects -------------------------------------------------------------
   const ART = {};
 
-  // Meeting (hero) — a glossy two-tone camera: cream top, accent body, deep glass
-  // lens with a bright catch-light, REC dot, and an orbiting iridescent moon.
+  // Meeting (hero) — a glossy screen holding a 2×2 grid of participant tiles,
+  // each a little head-and-shoulders. A speaking glow travels tile to tile,
+  // frame to frame; the aurora sparkle drifts at the corner.
   ART.video = (a, f) => {
     const base = toHex(candy(a));
-    const g1 = grad(), g2 = grad(), g3 = grad(), g4 = grad(), sh = grad();
-    // orbit: a little glossy ball circles the camera
-    const th = (f / FR) * Math.PI * 2;
-    const ox = 64 + Math.cos(th) * 46, oy = 62 + Math.sin(th) * 13;
-    const behind = Math.sin(th) < 0;
-    const ball = "<circle cx='" + ox + "' cy='" + oy + "' r='4.5' fill='url(#" + g4 + ")'/>"
-      + "<circle cx='" + (ox - 1.4) + "' cy='" + (oy - 1.6) + "' r='1.4' fill='#fff' opacity='.9'/>";
-    const defs = lg(g1, [[0, '#ffffff'], [0.5, '#f3effc'], [1, '#d8d2ea']])
+    const g1 = grad(), g2 = grad(), sh = grad(), scr = grad();
+    const defs = lg(g1, [[0, '#ffffff'], [0.5, '#f3effc'], [1, '#d8d2ea']])      // bezel
+      + rg(scr, [[0, '#2a2152'], [0.7, '#1d1640'], [1, '#140d2e']], 0.42, 0.3)   // screen glass
       + bodyGrad(g2, base)
-      + rg(g3, [[0, '#5d4a9e'], [0.55, '#372a66'], [0.8, '#241d47'], [1, '#180f33']], 0.38, 0.32)
-      + rg(g4, [[0, '#ffe9fb'], [0.55, IRI[2]], [1, '#b23a8c']], 0.35, 0.3)
       + sheenGrad(sh);
-    const art = (behind ? ball : '')
-      // body: cream upper deck + accent lower body
-      + "<path d='" + rr(22, 40, 84, 52, 17) + "' fill='url(#" + g1 + ")'/>"
-      + "<path d='M22 62 h84 v13 a17 17 0 0 1 -17 17 h-50 a17 17 0 0 1 -17 -17 z' fill='url(#" + g2 + ")'/>"
-      + "<path d='M22 62 h84 v2.5 h-84 z' fill='" + INK + "' opacity='.14'/>"
-      // top button + rec dot
-      + "<path d='" + rr(36, 33, 22, 10, 5) + "' fill='url(#" + g2 + ")'/>"
-      + "<circle cx='94' cy='52' r='4.6' fill='" + (f % 2 ? '#ff4d67' : '#ff8ba0') + "'/>"
-      + "<circle cx='94' cy='52' r='4.6' fill='#ff4d67' opacity='.5' filter='url(#fglow)'/>"
-      // lens: metal ring, glass, iris, catch-lights
-      + "<circle cx='58' cy='64' r='23' fill='" + shade(base, -70) + "'/>"
-      + "<circle cx='58' cy='63' r='21.5' fill='#efe9fb'/>"
-      + "<circle cx='58' cy='63.5' r='18' fill='url(#" + g3 + ")'/>"
-      + "<circle cx='58' cy='63.5' r='9' fill='#241d47'/>"
-      + "<circle cx='58' cy='63.5' r='9' fill='url(#" + g3 + ")' opacity='.5'/>"
-      + "<ellipse cx='51' cy='55' rx='6.5' ry='4.5' fill='#fff' opacity='.85' filter='url(#fsoft)'/>"
-      + "<circle cx='66' cy='72' r='2.2' fill='#9fd8ff' opacity='.8'/>"
-      // body sheen + sparkle
-      + "<path d='" + rr(22, 40, 84, 26, 17) + "' fill='url(#" + sh + ")'/>"
-      + (behind ? '' : ball)
-      + sparkle(103, 34, 1, f);
-    return { defs, art, shadowRx: 40 };
+    // one participant: rounded tile, accent body, white head + shoulders,
+    // and a bright accent ring when they're the one speaking this frame.
+    const tile = (x, y, w, h, on) => {
+      const cx = x + w / 2, headR = h * 0.2, headY = y + h * 0.4;
+      return "<path d='" + rr(x, y, w, h, 6) + "' fill='url(#" + g2 + ")'/>"
+        + "<path d='" + rr(x, y, w, h * 0.5, 6) + "' fill='url(#" + sh + ")'/>"
+        + "<path d='M" + (cx - w * 0.3) + ' ' + (y + h - 1.5) + ' a' + (w * 0.3) + ' ' + (h * 0.36)
+          + ' 0 0 1 ' + (w * 0.6) + " 0 z' fill='#fff' opacity='.95'/>"
+        + "<circle cx='" + cx + "' cy='" + headY + "' r='" + headR + "' fill='#fff' opacity='.97'/>"
+        + (on ? "<path d='" + rr(x - 1.6, y - 1.6, w + 3.2, h + 3.2, 7.6) + "' fill='none' stroke='" + base + "' stroke-width='3'/>"
+              + "<path d='" + rr(x - 1.6, y - 1.6, w + 3.2, h + 3.2, 7.6) + "' fill='none' stroke='" + base + "' stroke-width='3' opacity='.6' filter='url(#fglow)'/>" : '');
+    };
+    const gx = 31, gy = 40, tw = 30, th = 24, gp = 6, act = f % 4;
+    const tiles = [[gx, gy], [gx + tw + gp, gy], [gx, gy + th + gp], [gx + tw + gp, gy + th + gp]]
+      .map((p, i) => tile(p[0], p[1], tw, th, i === act)).join('');
+    const art =
+      "<path d='" + rr(20, 26, 88, 76, 17) + "' fill='url(#" + g1 + ")'/>"       // bezel
+      + "<path d='" + rr(26, 33, 76, 62, 11) + "' fill='url(#" + scr + ")'/>"    // screen
+      + tiles
+      + "<path d='" + rr(20, 26, 88, 22, 17) + "' fill='url(#" + sh + ")'/>"     // bezel top-gloss
+      + sparkle(104, 30, 1, f);
+    return { defs, art, shadowRx: 44 };
   };
 
   // Folder — dimensional two-tone folder, paper peeking, star sticker.
