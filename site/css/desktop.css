@@ -21,7 +21,7 @@ body {
 }
 .update-bar button {
   padding: .25rem .8rem; border-radius: .4rem; border: 1px solid var(--accent);
-  background: var(--accent); color: #fff; cursor: pointer; font-size: .78rem;
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; font-size: .78rem;
 }
 .update-bar .dismiss { margin-left: auto; background: none; border: 0; color: var(--muted); padding: .25rem .5rem; }
 
@@ -160,7 +160,7 @@ body {
 }
 .ctx button:hover { background: rgba(123,92,255,.2); }
 .ctx .sep { height: 1px; background: var(--border); margin: .3rem .2rem; }
-.ctx button.danger { color: #ff7b7b; }
+.ctx button.danger { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
 
 /* modal */
 .modal-bg {
@@ -182,7 +182,7 @@ body {
 .modal p a { color: var(--accent); }
 .modal button {
   padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent);
-  background: var(--accent); color: #fff; cursor: pointer;
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer;
 }
 .modal.wide { max-width: 560px; width: 92vw; max-height: 86vh; overflow-y: auto; text-align: left; }
 .modal.wide h3 { text-align: center; }
@@ -209,16 +209,16 @@ details.adv[open] summary { color: var(--text); margin-bottom: .4rem; }
 details.adv h4 { margin-top: .8rem; }
 .modal.wide textarea, .modal.wide input {
   width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
-  border: 1px solid var(--border); background: #0a0a0f; color: var(--text); font: inherit; margin-bottom: .5rem;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; margin-bottom: .5rem;
 }
 .modal.wide textarea { resize: vertical; }
 .modal.wide textarea.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; color: var(--muted); }
 .modal.wide .widebtn { width: 100%; padding: .55rem; border-radius: .5rem; border: 1px solid var(--accent);
-  background: var(--accent); color: #fff; cursor: pointer; margin-bottom: .3rem; }
-#ad-create { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; margin-bottom: .3rem; }
+#ad-create { background: var(--accent); border: 1px solid var(--accent); color: var(--onaccent, #fff); }
 .modal-actions { display: flex; flex-direction: column; gap: .5rem; }
 .modal-actions button { width: 100%; }
-.modal-actions button.danger { background: #a12626; border-color: #a12626; }
+.modal-actions button.danger { background: #a12626; border-color: #a12626; color: #fff; }
 .modal-actions button.danger:hover { background: #c22e2e; }
 .modal-actions button.ghost { background: none; border-color: var(--border); color: var(--muted); }
 

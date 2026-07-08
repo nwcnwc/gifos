@@ -14,34 +14,38 @@
   .brand { font-weight: 800; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   h1 { font-size: 1.5rem; margin: .3rem 0 .2rem; }
-  .lead { color: #9a9ab5; margin-bottom: 1.4rem; }
+  .lead { color: var(--muted, #9a9ab5); margin-bottom: 1.4rem; }
   h2 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
-  p { color: #9a9ab5; margin-bottom: .7rem; }
+  p { color: var(--muted, #9a9ab5); margin-bottom: .7rem; }
   b { color: var(--text, #e0e0f0); }
   label { display: block; color: var(--text, #cfcfe8); font-size: .85rem; margin: .8rem 0 .3rem; }
   input, textarea { width: 100%; padding: .6rem .7rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
     background: var(--surface, #14141f); color: var(--text, #e0e0f0); font: inherit; }
   textarea { font-family: ui-monospace, monospace; font-size: .8rem; }
   .drop { border: 2px dashed var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; text-align: center;
-    color: #9a9ab5; cursor: pointer; margin-bottom: 1rem; }
+    color: var(--muted, #9a9ab5); cursor: pointer; margin-bottom: 1rem; }
   .drop.have { border-color: #34c759; color: var(--text, #cfcfe8); }
   .drop.over { border-color: var(--accent, #7b5cff); background: rgba(123,92,255,.06); }
   .tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
   .tabs button { flex: 1; padding: .6rem; border-radius: .6rem; border: 1px solid var(--border, #2a2a3f);
-    background: var(--surface, #14141f); color: #9a9ab5; cursor: pointer; font: inherit; }
-  .tabs button.on { border-color: var(--accent, #7b5cff); color: #fff; background: rgba(123,92,255,.14); }
+    background: var(--surface, #14141f); color: var(--muted, #9a9ab5); cursor: pointer; font: inherit; }
+  /* Active tab: an accent border + faint accent wash marks it; the label uses
+     the theme's full text colour (not white, which vanishes on light themes
+     whose accent is a pale pastel). */
+  .tabs button.on { border-color: var(--accent, #7b5cff); color: var(--text, #fff);
+    background: color-mix(in srgb, var(--accent, #7b5cff) 16%, transparent); }
   .pane { display: none; } .pane.on { display: block; }
   button.act { padding: .7rem 1.3rem; border-radius: .6rem; border: 1px solid var(--accent, #7b5cff);
-    background: var(--accent, #7b5cff); color: #fff; cursor: pointer; font: inherit; font-weight: 600; margin-top: .8rem; }
+    background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; font-weight: 600; margin-top: .8rem; }
   button.act:disabled { opacity: .5; cursor: default; }
   button.ghost { background: var(--surface, #14141f); border-color: var(--border, #2a2a3f); color: var(--text, #cfcfe8); }
   .box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .6rem; padding: .8rem; margin: .7rem 0; }
   .box code, code { font-family: ui-monospace, monospace; color: var(--accent, #7b5cff); word-break: break-all; }
   .msg { margin-top: .8rem; font-size: .9rem; }
-  .msg.ok { color: #34c759; } .msg.err { color: #ff6b6b; }
+  .msg.ok { color: color-mix(in srgb, #34c759 60%, var(--text, #e0e0f0)); } .msg.err { color: color-mix(in srgb, #ff6b6b 62%, var(--text, #e0e0f0)); }
   .step { color: var(--accent, #7b5cff); font-weight: 700; }
   a { color: var(--accent, #7b5cff); }
-  .foot { margin-top: 2.5rem; font-size: .82rem; color: #667; }
+  .foot { margin-top: 2.5rem; font-size: .82rem; color: var(--muted, #667); }
 </style>
 <script src="js/gifos-themes.js"></script>
 </head>

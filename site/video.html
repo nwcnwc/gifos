@@ -36,11 +36,11 @@
   .blurlbl { color: var(--muted, #8888aa); font-size: .75rem; }
   .segwrap { display: inline-flex; border: 1px solid var(--border, #2a2a3f); border-radius: .4rem; overflow: hidden; }
   .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid var(--border, #2a2a3f); border-radius: 0;
-                  background: var(--surface, #1c1c2b); color: #b8b8cc; font-size: .74rem; cursor: pointer; }
+                  background: var(--surface, #1c1c2b); color: var(--muted, #b8b8cc); font-size: .74rem; cursor: pointer; }
   .segwrap .seg:last-child { border-right: none; }
   /* Only real pointers get a hover tint — on touch, :hover STICKS to the last
      tapped segment and reads as a phantom second selection. */
-  @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover { background: #26263a; } }
+  @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover { background: var(--border, #26263a); } }
   .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: var(--surface, #12121c); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .8rem; }
@@ -69,7 +69,10 @@
     font-size: .72rem; cursor: pointer; display: none; }
   body.canvote .tile:not(.me) .votebtn { display: inline-block; }
   .votebtn.voted { background: #7a1f1f; color: #fff; border-color: #ff5c5c; }
-  .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72);
+  /* Tile overlays always sit on live/dark video, so their text stays a fixed
+     light regardless of the computer's theme — themed (dark-on-light) text
+     would vanish against these permanently-dark pills. */
+  .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72); color: #eceef8;
                 padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; z-index: 2; }
   .tile .note { color: var(--muted, #8888aa); font-size: .8rem; padding: 1rem; text-align: center; }
   .tile.me { border-color: #5ca0ff; }
@@ -78,32 +81,32 @@
   .tile.cam-off .avatar { display: flex; }
   .tile .chips { position: absolute; top: .4rem; left: .4rem; display: flex; flex-direction: column;
                  gap: .25rem; align-items: flex-start; z-index: 3; pointer-events: none; }
-  .tile .chips span { background: rgba(10,10,15,.78); border: 1px solid var(--border, #2a2a3f); border-radius: .4rem;
-                      padding: .12rem .45rem; font-size: .68rem; color: var(--text, #cfcfe8); }
+  .tile .chips span { background: rgba(10,10,15,.78); border: 1px solid rgba(255,255,255,.14); border-radius: .4rem;
+                      padding: .12rem .45rem; font-size: .68rem; color: #eceef8; }
   .tile .chips span.warn { border-color: #b0742a; color: #ffd23c; }
   .tile .modbar { position: absolute; right: .4rem; top: .4rem; display: none; flex-direction: column;
                   gap: .3rem; z-index: 4; }
   .tile:hover .modbar, .tile.menu .modbar { display: flex; }
-  .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
-                         background: rgba(10,10,15,.85); color: var(--text, #e0e0f0); cursor: pointer; font-size: .68rem; }
+  .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid rgba(255,255,255,.16);
+                         background: rgba(10,10,15,.85); color: #eceef8; cursor: pointer; font-size: .68rem; }
   .tile .modbar button:hover { border-color: var(--accent2, #ff5caa); }
   .tile.noroute { opacity: .8; border-style: dashed; }
   /* live audio → glowing border (never while muted) */
   .tile.speaking { border-color: #5cff7b; box-shadow: 0 0 0 2px #5cff7b, 0 0 18px rgba(92,255,123,.4); }
   /* per-tile maximize: the focused feed spans the full row, others wrap below */
   .tile .maxbtn { position: absolute; right: .4rem; bottom: .4rem; z-index: 4; padding: .15rem .5rem;
-                  border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: rgba(10,10,15,.85);
-                  color: var(--text, #e0e0f0); cursor: pointer; font-size: .75rem; }
+                  border-radius: .4rem; border: 1px solid rgba(255,255,255,.16); background: rgba(10,10,15,.85);
+                  color: #eceef8; cursor: pointer; font-size: .75rem; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
   #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
-               background: #101018; border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
+               background: var(--bg, #101018); border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
   #chatpanel.open { display: flex; }
   #chathead { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #2a2a3f); font-weight: 700; }
   #chathead button { margin-left: auto; padding: .2rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
   #chatlog { flex: 1; overflow-y: auto; padding: .6rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
   .cmsg { background: var(--surface, #14141f); border: 1px solid #22223a; border-radius: .5rem; padding: .3rem .55rem; max-width: 94%; align-self: flex-start; overflow-wrap: anywhere; }
-  .cmsg.mine { align-self: flex-end; background: #17222e; border-color: #223448; }
+  .cmsg.mine { align-self: flex-end; background: var(--surface, #17222e); border-color: var(--accent, #223448); }
   .cmsg b { color: #7b9cff; font-size: .7rem; display: block; }
   #cfiles { border-top: 1px solid var(--border, #2a2a3f); padding: .45rem .7rem; max-height: 34%; overflow-y: auto; }
   #cfiles h4 { font-size: .72rem; color: var(--muted, #8888aa); margin-bottom: .3rem; }
@@ -128,7 +131,7 @@
   #trlog { flex: 1; overflow-y: auto; padding: .6rem; }
   #trfoot { padding: .45rem .6rem; border-top: 1px solid var(--border, #2a2a3f); display: flex; gap: .4rem; }
   #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .78rem; }
-  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid var(--surface, #1c1c2b); }
+  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: var(--muted, #667); background: var(--surface, #0d0d14); border-top: 1px solid var(--border, #1c1c2b); }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
@@ -136,7 +139,7 @@
   .name-box p { color: var(--muted, #8888aa); font-size: .85rem; margin-bottom: 1rem; }
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
-  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: #fff; cursor: pointer; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; }
   /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
      their privileged actions anyway — this is honest UI, not the enforcement). */
   body.admroom.notadmin .modbar { display: none !important; }
@@ -212,12 +215,12 @@
       <p id="pw-hint">Anyone in the call can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
       <div id="pw-cur-row" style="display:flex;gap:.5rem;margin-bottom:.8rem">
         <input id="pw-cur" type="password" readonly>
-        <button id="pw-show" style="white-space:nowrap;background:#1c1c2b;border:1px solid #2a2a3f">Show current password</button>
+        <button id="pw-show" style="white-space:nowrap;background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Show current password</button>
       </div>
       <input id="pw-new" maxlength="64" placeholder="New password" autocomplete="off">
       <div style="display:flex;gap:.5rem;justify-content:center">
         <button id="pw-save">Save</button>
-        <button id="pw-cancel" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+        <button id="pw-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
       </div>
     </div>
   </div>
@@ -235,7 +238,7 @@
         <p style="margin-bottom:.2rem">Banned devices:</p>
         <div id="adm-banned"></div>
       </div>
-      <button id="adm-close" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+      <button id="adm-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
     </div>
   </div>
 
@@ -246,7 +249,7 @@
       <div id="who-list"></div>
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.8rem">
         <button id="who-dl">Download this list</button>
-        <button id="who-close" style="background:#1c1c2b;border:1px solid #2a2a3f">Close</button>
+        <button id="who-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
       </div>
     </div>
   </div>

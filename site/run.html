@@ -31,31 +31,34 @@
   .bar button:hover { border-color: var(--accent, #7b5cff); }
   .bar button.urgent { border-color: var(--accent2, #ff5caa); box-shadow: 0 0 14px rgba(255,92,170,.35); }
   .sig { display: inline-flex; align-items: center; gap: .3rem; }
-  .sig.ok  { border-color: #34c759; color: #7fe3a0; }
-  .sig.bad { border-color: #ff5c5c; color: #ff9c9c; }
-  .sig.unk { border-color: var(--muted, #8888aa); color: #b0b0c8; }
+  /* Status text blends its hue toward the theme's own text colour, so the
+     word stays vivid on dark computers and darkens enough to read on the
+     light ones — the saturated border keeps the semantic colour legible. */
+  .sig.ok  { border-color: #34c759; color: color-mix(in srgb, #34c759 60%, var(--text, #e0e0f0)); }
+  .sig.bad { border-color: #ff5c5c; color: color-mix(in srgb, #ff5c5c 60%, var(--text, #e0e0f0)); }
+  .sig.unk { border-color: var(--muted, #8888aa); color: var(--muted, #b0b0c8); }
   /* Network-permission chip: calm blue for a named allowlist, loud red-orange
      when the app can reach ANY site. Click to review/revoke what it can reach. */
   .perms { display: inline-flex; align-items: center; gap: .3rem; }
-  .perms.ok     { border-color: #4a9eff; color: #9ecbff; }
-  .perms.unsafe { border-color: #ff8a3d; color: #ffbf99; box-shadow: 0 0 12px rgba(255,138,61,.3); }
+  .perms.ok     { border-color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
+  .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
   .perm-modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; padding: 1rem; }
   .perm-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
     padding: 1.4rem 1.5rem; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; }
   .perm-box h3 { margin-bottom: .5rem; font-size: 1.1rem; }
-  .perm-box .lead { color: #b0b0c8; font-size: .88rem; line-height: 1.5; margin-bottom: 1rem; }
+  .perm-box .lead { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; margin-bottom: 1rem; }
   .perm-box .warn { background: #2a1710; border: 1px solid #ff8a3d; color: #ffcbab;
     border-radius: .5rem; padding: .6rem .75rem; font-size: .82rem; line-height: 1.5; margin-bottom: 1rem; }
   .perm-row { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .2rem;
     border-top: 1px solid #22222f; }
   .perm-row input { margin-top: .2rem; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #4a9eff; }
   .perm-row .host { font-weight: 600; word-break: break-all; }
-  .perm-row.any .host { color: #ffbf99; }
+  .perm-row.any .host { color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); }
   .perm-row .desc { color: var(--muted, #8888aa); font-size: .8rem; }
-  .perm-box .foot { color: #6a6a86; font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
+  .perm-box .foot { color: var(--muted, #6a6a86); font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
   .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
-    background: var(--accent, #7b5cff); color: #fff; cursor: pointer; font: inherit; }
+    background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
   /* Compact connection pill: a dot + one calm word (client), or per-status
      counts (host). The verbose sentence lives in a click-to-open popover so
      long status text can never wrap across the screen. */
@@ -84,7 +87,7 @@
   .name-box p { color: var(--muted, #8888aa); font-size: .85rem; margin-bottom: 1rem; }
   .name-box input { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
-  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: #fff; cursor: pointer; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; }
 </style>
 <script src="js/gifos-themes.js"></script>
 </head>
