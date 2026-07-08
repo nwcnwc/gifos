@@ -21,7 +21,7 @@
   .empty{color:#999;padding:0 18px}
   .hint{color:#bbb;font-size:12px;padding:0 18px 10px}
 </style>
-<header>📝 Notes</header>
+<header>Notes</header>
 <form id="f"><input id="t" placeholder="Write a note and press Add…" autocomplete="off"><button>Add</button></form>
 <div class="hint">Tap a note to check it off.</div>
 <ul id="list"></ul>
@@ -63,7 +63,7 @@
   li{padding:10px 12px;background:#14141f;border:1px solid #2a2a3f;border-radius:8px;margin-bottom:8px}
   li b{color:#ff5caa}
 </style>
-<header>📖 Shared Guestbook</header>
+<header>Shared Guestbook</header>
 <div class="hint" id="hint">Press Invite and share the link — everyone signs with their screen name.</div>
 <form id="f">
   <input id="msg" placeholder="Say something…" autocomplete="off">
@@ -73,7 +73,7 @@
 <ul id="list"></ul>
 <script>
   const db = gifos.db('entries'), list = document.getElementById('list');
-  ['💜','🎉','⭐','🌈','✍️','🐸'].forEach(function(s){
+  ['💜','','⭐','🌈','✍️','🐸'].forEach(function(s){
     const b=document.createElement('button'); b.type='button'; b.textContent=s;
     b.style.cssText='background:#1c1c2b;border:1px solid #2a2a3f;font-size:17px;padding:5px 9px;border-radius:8px;cursor:pointer';
     b.onclick=function(){ const m=document.getElementById('msg'); m.value+=s; m.focus(); };
@@ -107,7 +107,7 @@
   .score{color:var(--text,#e0e0f0);font-size:14px;margin-top:2px}
   button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:var(--accent,#5cff7b);color:var(--onaccent,#0a0a0f);cursor:pointer;font:inherit;font-weight:700}
 </style>
-<header>⭕ Tic-Tac-Toe</header>
+<header>Tic-Tac-Toe</header>
 <div class="status" id="status">Loading…</div>
 <div class="score" id="score"></div>
 <div class="board" id="board"></div>
@@ -161,7 +161,7 @@
     });
     const vs = 'X: ' + label('X') + '  ·  O: ' + label('O');
     statusEl.textContent = current.winner === 'draw' ? 'Draw! Tap New game. — ' + vs
-      : current.winner ? label(current.winner) + ' (' + current.winner + ') wins! 🎉 — ' + vs
+      : current.winner ? label(current.winner) + ' (' + current.winner + ') wins! — ' + vs
       : (playable ? 'Your move (' + current.turn + ')' : 'Waiting for ' + (label(current.turn) || current.turn)) + '  —  ' + vs;
     const sc = Object.assign({X:0,O:0,D:0}, current.score);
     document.getElementById('score').textContent = 'Series — X: ' + sc.X + ' · O: ' + sc.O + ' · draws: ' + sc.D;
@@ -192,7 +192,7 @@
   .score{color:var(--text,#e0e0f0);font-size:14px}
   button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:var(--accent,#ffb43c);color:var(--onaccent,#0a0a0f);font-weight:700;cursor:pointer}
 </style>
-<header>🔴 Connect Four</header>
+<header>Connect Four</header>
 <div class="status" id="status">Loading…</div>
 <div class="score" id="score"></div>
 <div class="grid" id="grid"></div>
@@ -235,7 +235,7 @@
       d.onclick=function(){ drop(i%W); }; gridEl.appendChild(d); }
     const vs='🔴 '+label('R')+'  vs  🟡 '+label('Y');
     statusEl.textContent = cur.winner==='draw'?'Draw! — '+vs
-      : cur.winner?label(cur.winner)+' wins! 🎉 — '+vs
+      : cur.winner?label(cur.winner)+' wins! — '+vs
       : (canPlay()?'Your move':'Waiting for '+label(cur.turn))+'  —  '+vs;
     const sc=Object.assign({R:0,Y:0,D:0},cur.score);
     document.getElementById('score').textContent='Series — 🔴 '+sc.R+' · 🟡 '+sc.Y+' · draws: '+sc.D;
@@ -275,7 +275,7 @@
   .quick{display:flex;gap:4px;padding:0 18px 8px}
   .quick button{background:var(--surface,#1c1c2b);font-size:18px;padding:6px 10px}
 </style>
-<header>💬 Chat</header>
+<header>Chat</header>
 <div id="log"></div>
 <div class="quick" id="quick"></div>
 <form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (press Invite to chat with friends)" autocomplete="off"><button>Send</button></form>
@@ -350,7 +350,7 @@
     p.state='sending'; paint();
     db.put({id:p.id,by:p.by,uid:p.uid,text:p.text,t:p.t}).then(function(){ p.state='sent'; paint(); },function(){ p.state='failed'; paint(); });
   });
-  ['👍','❤️','😂','🎉','😮','🔥'].forEach(function(e){
+  ['👍','❤️','😂','','😮','🔥'].forEach(function(e){
     const b=document.createElement('button'); b.type='button'; b.textContent=e;
     b.onclick=function(){ sendText(e); };
     document.getElementById('quick').appendChild(b);
@@ -412,7 +412,7 @@
   .sw.sel{border-color:#fff}
   button{margin:12px;padding:8px 16px;border:0;border-radius:8px;background:#ff5caa;color:#fff;cursor:pointer}
 </style>
-<header>🎨 Paint — draw together</header>
+<header>Paint — draw together</header>
 <div class="palette" id="pal"></div>
 <div class="board" id="board"></div>
 <button id="clear">Clear</button>
@@ -447,7 +447,7 @@
   button.eq{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);font-weight:700;border-color:transparent}
   button.wide{grid-column:span 2}
 </style>
-<header>🔢 Calculator</header>
+<header>Calculator</header>
 <div id="disp">0</div>
 <div class="keys" id="keys"></div>
 <script>
@@ -497,7 +497,7 @@
   button.go{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);border-color:transparent}button.stop{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
   .chips button{padding:8px 14px;font-size:14px;border-radius:999px}
 </style>
-<header>⏱️ Timer &amp; Stopwatch</header>
+<header>Timer &amp; Stopwatch</header>
 <div class="tabs"><button id="tabS" class="on">Stopwatch</button><button id="tabT">Timer</button></div>
 <div id="t">00:00.0</div>
 <div class="chips row" id="presets" style="display:none">
@@ -553,7 +553,7 @@
   .n1{color:color-mix(in srgb,#5cc8ff 60%,var(--text,#e0e0f0))}.n2{color:color-mix(in srgb,#3ac46a 60%,var(--text,#e0e0f0))}.n3{color:color-mix(in srgb,#ff8f5c 62%,var(--text,#e0e0f0))}.n4{color:color-mix(in srgb,#ff5caa 62%,var(--text,#e0e0f0))}.n5{color:color-mix(in srgb,#e0a520 62%,var(--text,#e0e0f0))}.n6{color:color-mix(in srgb,#3abfa0 62%,var(--text,#e0e0f0))}
   .status{margin:10px;min-height:20px;color:var(--muted,#8888aa);text-align:center;padding:0 12px}
 </style>
-<header>💣 Minesweeper — co-op</header>
+<header>Minesweeper — co-op</header>
 <div class="status" id="status">Loading…</div>
 <div class="bar">
   <button id="mode">🚩 Flag mode: off</button>
@@ -593,7 +593,7 @@
         d.addEventListener('pointerup',function(e){ if(t){ clearTimeout(t); t=null; } else if(!moved){ e.preventDefault(); } });
       })(i);
       gridEl.appendChild(d); }
-    statusEl.textContent = g.over ? (g.win?'🎉 Cleared! Everyone wins.':'💥 Boom! Game over — New game to retry.')
+    statusEl.textContent = g.over ? (g.win?'Cleared! Everyone wins.':'💥 Boom! Game over — New game to retry.')
       : (g.mines?('💣 left: '+Math.max(0,MINES-Object.keys(g.flags).length)+' of '+MINES+' · long-press to flag')
                 :'Tap any square to start. Long-press (or 🚩 mode) to flag. Press Invite to play together.');
   }
@@ -636,7 +636,7 @@
   .sq.mv{box-shadow:inset 0 0 0 4px rgba(40,160,70,.65)}
   .back{background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
 </style>
-<header>♟️ Chess Tournament</header>
+<header>Chess Tournament</header>
 <div class="status" id="status">Loading…</div>
 <div id="view"></div>
 <script>
@@ -817,7 +817,7 @@
   body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
   h2{color:#5ca0ff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#5ca0ff}
-</style><div class="card"><h2>📹 Video Call</h2>
+</style><div class="card"><h2>Video Call</h2>
 <p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
 app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
 opens the built-in video page when opened in GifOS.</p>
@@ -846,7 +846,7 @@ opens the built-in video page when opened in GifOS.</p>
   .magic{color:#5cc8ff;font-size:.85rem;margin-top:.6rem;display:none}
   .magic.show{display:block}
 </style></head><body><div class="wrap">
-  <h1>👋 Welcome to GifOS</h1>
+  <h1>Welcome to GifOS</h1>
   <p class="lead">Your own computer that lives in your browser. No account, no installs — and everything you make is a file <b>you</b> keep.</p>
 
   <div class="card"><h2><span class="emoji">🖼️</span>Every app is a GIF</h2>
@@ -858,7 +858,7 @@ opens the built-in video page when opened in GifOS.</p>
   <div class="card"><h2><span class="emoji">🔗</span>Play together with one link</h2>
   <p>Open any app and press <b>Invite</b>. Send the link to friends and they join you live — same game, same notes, same call. Try <b>Video Call</b>, right on your Home Screen!</p></div>
 
-  <div class="card"><h2><span class="emoji">🎉</span>Games for real-life hangouts</h2>
+  <div class="card"><h2><span class="emoji"></span>Games for real-life hangouts</h2>
   <p>The <b>IRL Games</b> folder is for game night: everyone keeps their own phone — open a game, press <b>Invite</b>, and secret roles, hidden votes, and sneaky lies get dealt to each player's screen while the laughing and accusing happens face to face. Only one phone in the room? The <b>Single Phone</b> subfolder has pass-around versions.</p></div>
 
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
@@ -867,7 +867,7 @@ opens the built-in video page when opened in GifOS.</p>
   <div class="card"><h2><span class="emoji">💿</span>Your whole computer is one file</h2>
   <p>GifOS menu (top-left) → <b>Back up Home Screen</b> gives you a single GIF holding everything. Keep it safe, or double-click it anywhere to boot your computer — even inside another one.</p></div>
 
-  <div class="try"><h2>🪄 See the magic for yourself</h2>
+  <div class="try"><h2>See the magic for yourself</h2>
   <p>Check something off, close this tab, then open Welcome again — it remembers. That's your data living inside the icon.</p>
   <div id="list"></div><div class="magic" id="magic">Now close this tab and reopen Welcome from your desktop 😉</div></div>
 </div>
@@ -937,7 +937,7 @@ opens the built-in video page when opened in GifOS.</p>
   .kept .k{background:var(--surface,#14141f);border:1px solid var(--border,#22222f);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text,#c8c8dc);margin-bottom:6px}
   .foot{color:var(--muted,#6a6a86);font-size:.72rem;text-align:center;line-height:1.5}
 </style>
-<header>🥠 Fortune</header>
+<header>Fortune</header>
 <main>
   <div class="cookie">🥠</div>
   <div class="slip" id="slip">Crack open a cookie for a little wisdom…</div>
@@ -990,7 +990,7 @@ opens the built-in video page when opened in GifOS.</p>
   .tip{color:#ffce6b;font-size:.88rem;margin-top:10px;line-height:1.45}
   audio{width:100%;margin-top:12px}
 </style>
-<header>🎙 Speech Coach</header>
+<header>Speech Coach</header>
 <main>
   <p class="lead">Record up to 12 seconds of yourself talking. It’s analysed right on your device — nothing leaves it — for pace, pauses and volume.</p>
   <button id="rec">● Record &amp; analyse</button>
@@ -1057,7 +1057,7 @@ recBtn.onclick=async()=>{
   input{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit}
   form button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
 </style>
-<header>🧠 Ask AI</header>
+<header>Ask AI</header>
 <div id="log"></div>
 <div class="pick"><button data-m="cheapest" class="on">Cheapest</button><button data-m="smartest">Smartest</button></div>
 <form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button>Send</button></form>
@@ -1069,7 +1069,7 @@ document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{ model=b.dat
   if(!window.gifos||!gifos.ai){ log.innerHTML='<div class="note">Open this inside GifOS to use AI.</div>'; return; }
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
-    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → 🧠 AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text” or “Smartest text”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
+    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text” or “Smartest text”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
 })();
 document.getElementById('f').onsubmit=async e=>{
   e.preventDefault(); const t=document.getElementById('t'); const q=t.value.trim(); if(!q)return; t.value='';

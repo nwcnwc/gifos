@@ -169,7 +169,7 @@
       // app, and that's fine). '*' means "any website", which we flag as unsafe.
       const permsBtn = document.getElementById('perms');
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: '🎙 Record audio clips', camera: '🎥 Capture photos & video', motion: '📱 Read device motion', ai: '🧠 Use your AI models' };
+      const CAP_LABELS = { microphone: 'Record audio clips', camera: 'Capture photos & video', motion: 'Read device motion', ai: 'Use your AI models' };
       const CAP_DESC = {
         microphone: 'Records short clips when you approve — GifOS shows a recording indicator and hands the app only the clip, never your live mic.',
         camera: 'Captures a photo or short video when you approve, behind a GifOS indicator — never your live camera feed.',
@@ -187,7 +187,7 @@
           const unsafe = hasNet && policy.unsafe();
           permsBtn.style.display = '';
           permsBtn.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
-          permsBtn.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? '🌐 Internet' : '🎛 Abilities');
+          permsBtn.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : 'Abilities');
           permsBtn.title = unsafe
             ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
             : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'
