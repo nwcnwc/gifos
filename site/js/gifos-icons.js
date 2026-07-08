@@ -171,7 +171,7 @@
   // loading it on first use). Unknown subjects get the pack's own lettered
   // fallback, so every app has art.
   function renderApp(appId, accent) {
-    accent = accent || [123, 92, 255];
+    accent = accent || [0, 113, 227];
     const want = (GifOS.theme && GifOS.theme.pack) || 'aurora';
     return ensure(want).then((loaded) => {
       const pack = loaded || packs.aurora || packs.sticker;

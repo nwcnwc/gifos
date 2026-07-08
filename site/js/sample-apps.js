@@ -1017,7 +1017,7 @@ opens the built-in video page when opened in GifOS.</p>
   }
   function themeHtml(html, mode) {
     const ui = GifOS.theme && GifOS.theme.ui;
-    if (!ui) return html; // Aurora / home: ship the hand-tuned originals untouched
+    if (!ui) return html;
     // 'vars'  — the app already references CSS variables by hand (the games);
     //           just inject the palette, no blind hex swap.
     // 'accent'— only recolour highlights.
