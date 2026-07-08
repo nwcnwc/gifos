@@ -3,14 +3,14 @@
 from PIL import Image
 import os, sys
 
-# source jpg index → subject (generation order was non-deterministic on disk)
+# source jpg index → subject. Place 1.jpg..6.jpg in src dir matching this map.
 MAP = {
     'welcome': '1.jpg',
-    'video': '3.jpg',
-    'notes': '6.jpg',
+    'video': '2.jpg',
+    'notes': '3.jpg',
     'folder': '4.jpg',
-    'chess': '2.jpg',
-    'paint': '5.jpg',
+    'chess': '5.jpg',
+    'paint': '6.jpg',
 }
 
 def dist(a, b):
