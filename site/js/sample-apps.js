@@ -1126,7 +1126,7 @@ document.getElementById('f').onsubmit=async e=>{
   }
   function themeHtml(html, mode) {
     const ui = GifOS.theme && GifOS.theme.ui;
-    if (!ui) return html;
+    if (!ui) return html; // Aurora / home: ship the hand-tuned originals untouched
     // 'vars'  — the app already references CSS variables by hand (the games);
     //           just inject the palette, no blind hex swap.
     // 'accent'— only recolour highlights.

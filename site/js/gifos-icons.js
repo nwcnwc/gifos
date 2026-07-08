@@ -66,10 +66,7 @@
   //   function                      → painter: fn(ctx, size, frameIndex)
   function paintFrame(ctx, size, frame, f) {
     ctx.clearRect(0, 0, size, size);
-    if (typeof frame === 'function') {
-      const r = frame(ctx, size, f);
-      return (r && typeof r.then === 'function') ? r : Promise.resolve();
-    }
+    if (typeof frame === 'function') { frame(ctx, size, f); return Promise.resolve(); }
     const src = (typeof frame === 'string' && frame[0] === '<')
       ? 'data:image/svg+xml,' + encodeURIComponent(frame) : frame;
     return new Promise((res, rej) => {
@@ -174,7 +171,7 @@
   // loading it on first use). Unknown subjects get the pack's own lettered
   // fallback, so every app has art.
   function renderApp(appId, accent) {
-    accent = accent || [0, 113, 227];
+    accent = accent || [123, 92, 255];
     const want = (GifOS.theme && GifOS.theme.pack) || 'aurora';
     return ensure(want).then((loaded) => {
       const pack = loaded || packs.aurora || packs.sticker;
