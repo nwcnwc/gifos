@@ -9,18 +9,18 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
-  body { display: flex; flex-direction: column; background: #0a0a0f; color: #e0e0f0;
+  body { display: flex; flex-direction: column; background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0);
          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
   /* Same system bar as run.html — Video Call is a system app, but it should
      look like every other running app, just with call controls in the bar. */
   .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
-         background: #14141f; border-bottom: 1px solid #2a2a3f; flex-wrap: wrap; }
-  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, #7b5cff, #ff5caa);
+         background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); flex-wrap: wrap; }
+  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .bar .status { color: #8888aa; font-size: .8rem; margin-left: auto; }
-  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .8rem; }
-  @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: #7b5cff; } }
+  .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
+  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem; }
+  @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: var(--accent, #7b5cff); } }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
   /* Mic / camera as traffic-light icons: green (live) or red with a slash (off). */
   .iconbtn { display: inline-flex; align-items: center; justify-content: center; padding: .3rem .5rem;
@@ -33,27 +33,27 @@
   /* Blur as a 3-segment slider: Max — Min — None. None grays out when clear
      video isn't allowed (no password, a global blur on you, no admin present). */
   .blurctl { display: inline-flex; align-items: center; gap: .4rem; }
-  .blurlbl { color: #8888aa; font-size: .75rem; }
-  .segwrap { display: inline-flex; border: 1px solid #2a2a3f; border-radius: .4rem; overflow: hidden; }
-  .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid #2a2a3f; border-radius: 0;
-                  background: #1c1c2b; color: #b8b8cc; font-size: .74rem; cursor: pointer; }
+  .blurlbl { color: var(--muted, #8888aa); font-size: .75rem; }
+  .segwrap { display: inline-flex; border: 1px solid var(--border, #2a2a3f); border-radius: .4rem; overflow: hidden; }
+  .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid var(--border, #2a2a3f); border-radius: 0;
+                  background: var(--surface, #1c1c2b); color: #b8b8cc; font-size: .74rem; cursor: pointer; }
   .segwrap .seg:last-child { border-right: none; }
   /* Only real pointers get a hover tint — on touch, :hover STICKS to the last
      tapped segment and reads as a phantom second selection. */
   @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover { background: #26263a; } }
   .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
-           background: #12121c; border-bottom: 1px solid #2a2a3f; font-size: .8rem; }
+           background: var(--surface, #12121c); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .8rem; }
   .share.show { display: flex; }
-  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                 background: #0a0a0f; color: #7b5cff; font-family: ui-monospace, monospace; font-size: .78rem; }
-  .share .hint { color: #8888aa; }
+  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                 background: var(--bg, #0a0a0f); color: var(--accent, #7b5cff); font-family: ui-monospace, monospace; font-size: .78rem; }
+  .share .hint { color: var(--muted, #8888aa); }
   /* The wall of tiles wraps into rows and SCROLLS once it outgrows the
      screen — any number of people fit; you scroll the crowd like a feed. */
   #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto;
           grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
           grid-auto-rows: max-content; align-content: safe center; }
-  .tile { position: relative; background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem;
+  .tile { position: relative; background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
           overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
   /* Two blur strengths. blur2 (Max) destroys every readable edge; blur1
@@ -71,51 +71,51 @@
   .votebtn.voted { background: #7a1f1f; color: #fff; border-color: #ff5c5c; }
   .tile .name { position: absolute; left: .5rem; bottom: .5rem; background: rgba(10,10,15,.72);
                 padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; z-index: 2; }
-  .tile .note { color: #8888aa; font-size: .8rem; padding: 1rem; text-align: center; }
+  .tile .note { color: var(--muted, #8888aa); font-size: .8rem; padding: 1rem; text-align: center; }
   .tile.me { border-color: #5ca0ff; }
   .tile .avatar { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-                  font-size: 3rem; font-weight: 800; color: #3a3a55; background: #14141f; }
+                  font-size: 3rem; font-weight: 800; color: #3a3a55; background: var(--surface, #14141f); }
   .tile.cam-off .avatar { display: flex; }
   .tile .chips { position: absolute; top: .4rem; left: .4rem; display: flex; flex-direction: column;
                  gap: .25rem; align-items: flex-start; z-index: 3; pointer-events: none; }
-  .tile .chips span { background: rgba(10,10,15,.78); border: 1px solid #2a2a3f; border-radius: .4rem;
-                      padding: .12rem .45rem; font-size: .68rem; color: #cfcfe8; }
+  .tile .chips span { background: rgba(10,10,15,.78); border: 1px solid var(--border, #2a2a3f); border-radius: .4rem;
+                      padding: .12rem .45rem; font-size: .68rem; color: var(--text, #cfcfe8); }
   .tile .chips span.warn { border-color: #b0742a; color: #ffd23c; }
   .tile .modbar { position: absolute; right: .4rem; top: .4rem; display: none; flex-direction: column;
                   gap: .3rem; z-index: 4; }
   .tile:hover .modbar, .tile.menu .modbar { display: flex; }
-  .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid #2a2a3f;
-                         background: rgba(10,10,15,.85); color: #e0e0f0; cursor: pointer; font-size: .68rem; }
-  .tile .modbar button:hover { border-color: #ff5caa; }
+  .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                         background: rgba(10,10,15,.85); color: var(--text, #e0e0f0); cursor: pointer; font-size: .68rem; }
+  .tile .modbar button:hover { border-color: var(--accent2, #ff5caa); }
   .tile.noroute { opacity: .8; border-style: dashed; }
   /* live audio → glowing border (never while muted) */
   .tile.speaking { border-color: #5cff7b; box-shadow: 0 0 0 2px #5cff7b, 0 0 18px rgba(92,255,123,.4); }
   /* per-tile maximize: the focused feed spans the full row, others wrap below */
   .tile .maxbtn { position: absolute; right: .4rem; bottom: .4rem; z-index: 4; padding: .15rem .5rem;
-                  border-radius: .4rem; border: 1px solid #2a2a3f; background: rgba(10,10,15,.85);
-                  color: #e0e0f0; cursor: pointer; font-size: .75rem; }
+                  border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: rgba(10,10,15,.85);
+                  color: var(--text, #e0e0f0); cursor: pointer; font-size: .75rem; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
   #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
-               background: #101018; border-left: 1px solid #2a2a3f; display: none; flex-direction: column; }
+               background: #101018; border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
   #chatpanel.open { display: flex; }
-  #chathead { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid #2a2a3f; font-weight: 700; }
-  #chathead button { margin-left: auto; padding: .2rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
+  #chathead { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #2a2a3f); font-weight: 700; }
+  #chathead button { margin-left: auto; padding: .2rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
   #chatlog { flex: 1; overflow-y: auto; padding: .6rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
-  .cmsg { background: #14141f; border: 1px solid #22223a; border-radius: .5rem; padding: .3rem .55rem; max-width: 94%; align-self: flex-start; overflow-wrap: anywhere; }
+  .cmsg { background: var(--surface, #14141f); border: 1px solid #22223a; border-radius: .5rem; padding: .3rem .55rem; max-width: 94%; align-self: flex-start; overflow-wrap: anywhere; }
   .cmsg.mine { align-self: flex-end; background: #17222e; border-color: #223448; }
   .cmsg b { color: #7b9cff; font-size: .7rem; display: block; }
-  #cfiles { border-top: 1px solid #2a2a3f; padding: .45rem .7rem; max-height: 34%; overflow-y: auto; }
-  #cfiles h4 { font-size: .72rem; color: #8888aa; margin-bottom: .3rem; }
+  #cfiles { border-top: 1px solid var(--border, #2a2a3f); padding: .45rem .7rem; max-height: 34%; overflow-y: auto; }
+  #cfiles h4 { font-size: .72rem; color: var(--muted, #8888aa); margin-bottom: .3rem; }
   .cfile { display: flex; align-items: center; gap: .45rem; font-size: .78rem; padding: .18rem 0; }
   .cfile .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cfile small { color: #667; }
-  .cfile button { padding: .1rem .45rem; border-radius: .35rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .72rem; }
-  #chatform { display: flex; gap: .4rem; padding: .5rem .6rem; border-top: 1px solid #2a2a3f; }
-  #chatform input[type=text] { flex: 1; padding: .4rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; font-size: .85rem; }
-  #chatform button { padding: .4rem .7rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
+  .cfile button { padding: .1rem .45rem; border-radius: .35rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .72rem; }
+  #chatform { display: flex; gap: .4rem; padding: .5rem .6rem; border-top: 1px solid var(--border, #2a2a3f); }
+  #chatform input[type=text] { flex: 1; padding: .4rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; font-size: .85rem; }
+  #chatform button { padding: .4rem .7rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
   .tile .cap { position: absolute; left: 50%; transform: translateX(-50%); bottom: 2.1rem; max-width: 92%;
-               background: rgba(10,10,15,.82); border: 1px solid #2a2a3f; border-radius: .45rem;
+               background: rgba(10,10,15,.82); border: 1px solid var(--border, #2a2a3f); border-radius: .45rem;
                padding: .18rem .55rem; font-size: .78rem; z-index: 3; pointer-events: none;
                opacity: 0; transition: opacity .25s; }
   .tile .cap.show { opacity: 1; }
@@ -126,27 +126,28 @@
   #trwrap { flex: 1; display: none; flex-direction: column; min-height: 0; }
   #trwrap.show { display: flex; }
   #trlog { flex: 1; overflow-y: auto; padding: .6rem; }
-  #trfoot { padding: .45rem .6rem; border-top: 1px solid #2a2a3f; display: flex; gap: .4rem; }
-  #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; font-size: .78rem; }
-  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid #1c1c2b; }
+  #trfoot { padding: .45rem .6rem; border-top: 1px solid var(--border, #2a2a3f); display: flex; gap: .4rem; }
+  #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .78rem; }
+  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: #667; background: #0d0d14; border-top: 1px solid var(--surface, #1c1c2b); }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
-  .name-box { background: #14141f; border: 1px solid #2a2a3f; border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
+  .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
   .name-box h3 { margin-bottom: .5rem; }
-  .name-box p { color: #8888aa; font-size: .85rem; margin-bottom: 1rem; }
+  .name-box p { color: var(--muted, #8888aa); font-size: .85rem; margin-bottom: 1rem; }
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
-    border: 1px solid #2a2a3f; background: #0a0a0f; color: #e0e0f0; font: inherit; margin-bottom: .8rem; }
-  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid #7b5cff; background: #7b5cff; color: #fff; cursor: pointer; }
+    border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: #fff; cursor: pointer; }
   /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
      their privileged actions anyway — this is honest UI, not the enforcement). */
   body.admroom.notadmin .modbar { display: none !important; }
   .modbar .banbtn { display: none; }
   body.amadmin .modbar .banbtn { display: inline-block; }
   #adm-banned { max-height: 150px; overflow-y: auto; margin: .5rem 0; text-align: left; font-size: .8rem; }
-  #adm-banned .brow { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid #1c1c2b; }
+  #adm-banned .brow { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid var(--surface, #1c1c2b); }
   #adm-banned .brow button { padding: .15rem .5rem; font-size: .72rem; border-radius: .35rem;
-                             border: 1px solid #2a2a3f; background: #1c1c2b; color: #e0e0f0; cursor: pointer; }
+                             border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
 </style>
+<script src="js/gifos-themes.js"></script>
 </head>
 <body>
   <div class="bar">
