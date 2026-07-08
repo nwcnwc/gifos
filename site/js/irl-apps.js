@@ -17,12 +17,12 @@
   const STYLE = (acc) => `
   *{box-sizing:border-box}
   body{font:16px/1.45 system-ui;margin:0;background:#faf7ef;color:#2b2440;display:flex;flex-direction:column;min-height:100vh}
-  header{padding:13px 18px;font-weight:800;font-size:18px;color:#fff;background:${acc};border-bottom:3px solid #2b2440}
+  header{padding:13px 18px;font-weight:800;font-size:18px;color:#fff;background:var(--accent,${acc});border-bottom:3px solid #2b2440}
   main{flex:1;padding:14px;max-width:540px;margin:0 auto;width:100%}
   .card{background:#fff;border:3px solid #2b2440;border-radius:16px;padding:14px 16px;margin-bottom:12px;box-shadow:0 4px 0 rgba(43,36,64,.15)}
   .card h2{margin:0 0 6px;font-size:17px}
   .muted{color:#7a7391;font-size:13.5px}
-  .btn{display:block;width:100%;padding:13px;border:3px solid #2b2440;border-radius:14px;background:${acc};color:#fff;font:inherit;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2b2440;margin:10px 0;user-select:none;-webkit-user-select:none}
+  .btn{display:block;width:100%;padding:13px;border:3px solid #2b2440;border-radius:14px;background:var(--accent,${acc});color:#fff;font:inherit;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2b2440;margin:10px 0;user-select:none;-webkit-user-select:none}
   .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #2b2440}
   .btn.alt{background:#fff;color:#2b2440}
   .btn.small{width:auto;display:inline-block;padding:8px 14px;font-size:14px;margin:4px 6px 4px 0}
@@ -30,7 +30,7 @@
   input[type=text]{width:100%;padding:11px 12px;border:3px solid #2b2440;border-radius:12px;font:inherit;background:#fff}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
   .chip{background:#fff;border:2.5px solid #2b2440;border-radius:999px;padding:5px 12px;font-weight:700;font-size:14px}
-  .chip.me{background:${acc};color:#fff}
+  .chip.me{background:var(--accent,${acc});color:#fff}
   .bigword{font-size:34px;font-weight:900;text-align:center;margin:18px 0;word-break:break-word}
   .center{text-align:center}
   .timer{font-size:40px;font-weight:900;text-align:center;font-variant-numeric:tabular-nums;margin:8px 0}

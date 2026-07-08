@@ -96,16 +96,16 @@
 
   const TICTACTOE_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#5cff7b;box-sizing:border-box}
-  .status{margin:16px 0 4px;font-size:15px;color:#8888aa;min-height:22px}
+  body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cff7b);box-sizing:border-box}
+  .status{margin:16px 0 4px;font-size:15px;color:var(--muted,#8888aa);min-height:22px}
   .board{display:grid;grid-template-columns:repeat(3,88px);grid-template-rows:repeat(3,88px);gap:8px;margin:14px 0}
-  .cell{background:#14141f;border:1px solid #2a2a3f;border-radius:12px;font-size:44px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
-  .cell:hover{border-color:#5cff7b}
-  .cell.x{color:#7b5cff}.cell.o{color:#ff5caa}
-  .cell.win{background:#233a18;border-color:#5cff7b}
-  .score{color:#e0e0f0;font-size:14px;margin-top:2px}
-  button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:#5cff7b;color:#0a0a0f;cursor:pointer;font:inherit;font-weight:700}
+  .cell{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;font-size:44px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+  .cell:hover{border-color:var(--accent,#5cff7b)}
+  .cell.x{color:var(--accent,#7b5cff)}.cell.o{color:var(--accent2,#ff5caa)}
+  .cell.win{background:color-mix(in srgb,var(--accent,#5cff7b) 24%,var(--surface,#233a18));border-color:var(--accent,#5cff7b)}
+  .score{color:var(--text,#e0e0f0);font-size:14px;margin-top:2px}
+  button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:var(--accent,#5cff7b);color:var(--onaccent,#0a0a0f);cursor:pointer;font:inherit;font-weight:700}
 </style>
 <header>⭕ Tic-Tac-Toe</header>
 <div class="status" id="status">Loading…</div>
@@ -180,15 +180,17 @@
 
   const CONNECT_FOUR_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffb43c}
-  .status{margin:14px 0 6px;color:#8888aa;min-height:20px;text-align:center;padding:0 12px}
+  body{font:15px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ffb43c)}
+  .status{margin:14px 0 6px;color:var(--muted,#8888aa);min-height:20px;text-align:center;padding:0 12px}
+  /* The blue board + red/yellow discs are Connect Four's universal identity —
+     they read on any computer's background, so only the chrome follows the theme. */
   .grid{display:grid;grid-template-columns:repeat(7,44px);gap:6px;background:#12203a;padding:10px;border-radius:12px;margin:6px 0}
-  .cell{width:44px;height:44px;border-radius:50%;background:#0a0a0f;cursor:pointer}
+  .cell{width:44px;height:44px;border-radius:50%;background:var(--bg,#0a0a0f);cursor:pointer}
   .cell.r{background:#ff5c5c}.cell.y{background:#ffd23c}
-  .cell.win{box-shadow:0 0 0 4px #5cff7b inset,0 0 10px #5cff7b}
-  .score{color:#e0e0f0;font-size:14px}
-  button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:#ffb43c;color:#0a0a0f;font-weight:700;cursor:pointer}
+  .cell.win{box-shadow:0 0 0 4px var(--accent,#5cff7b) inset,0 0 10px var(--accent,#5cff7b)}
+  .score{color:var(--text,#e0e0f0);font-size:14px}
+  button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:var(--accent,#ffb43c);color:var(--onaccent,#0a0a0f);font-weight:700;cursor:pointer}
 </style>
 <header>🔴 Connect Four</header>
 <div class="status" id="status">Loading…</div>
@@ -253,25 +255,25 @@
   const CHAT_HTML = `<!doctype html><meta charset="utf-8">
 <style>
   *{box-sizing:border-box} html,body{height:100%}
-  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
-  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#5cdcb4}
+  body{font:15px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column}
+  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cdcb4)}
   #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
-  .m{max-width:80%;padding:8px 12px;border-radius:12px;background:#14141f;border:1px solid #2a2a3f}
-  .m.mine{align-self:flex-end;background:#173a30;border-color:#2a5a48}
-  .m b{color:#5cdcb4;font-size:12px;display:block;margin-bottom:2px}
-  .m small{color:#667;font-size:10px;margin-left:6px;font-weight:400}
-  .m .st{font-size:10px;color:#889;margin-left:5px;font-weight:400}
-  .m .st.ok{color:#5cdcb4}
+  .m{max-width:80%;padding:8px 12px;border-radius:12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f)}
+  .m.mine{align-self:flex-end;background:color-mix(in srgb,var(--accent,#5cdcb4) 18%,var(--surface,#173a30));border-color:var(--accent,#2a5a48)}
+  .m b{color:var(--accent,#5cdcb4);font-size:12px;display:block;margin-bottom:2px}
+  .m small{color:var(--muted,#667);font-size:10px;margin-left:6px;font-weight:400}
+  .m .st{font-size:10px;color:var(--muted,#889);margin-left:5px;font-weight:400}
+  .m .st.ok{color:var(--accent,#5cdcb4)}
   .m .st.fail{color:#ffb86c;cursor:pointer}
   .m img{display:block;max-width:100%;border-radius:8px;margin-top:4px}
-  .m a.file{display:inline-flex;gap:6px;align-items:center;color:#5cdcb4;margin-top:4px;text-decoration:none;border:1px solid #2a5a48;border-radius:8px;padding:6px 10px}
-  .m .fsz{color:#889;font-size:11px;font-weight:400}
-  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
-  input{flex:1;padding:10px 12px;border:1px solid #2a2a3f;border-radius:8px;background:#1c1c2b;color:#e0e0f0;font:inherit}
-  button{padding:10px 16px;border:0;border-radius:8px;background:#5cdcb4;color:#04231b;font-weight:700;cursor:pointer}
-  #att{background:#1c1c2b;padding:10px 12px}
+  .m a.file{display:inline-flex;gap:6px;align-items:center;color:var(--accent,#5cdcb4);margin-top:4px;text-decoration:none;border:1px solid var(--accent,#2a5a48);border-radius:8px;padding:6px 10px}
+  .m .fsz{color:var(--muted,#889);font-size:11px;font-weight:400}
+  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#2a2a3f)}
+  input{flex:1;padding:10px 12px;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit}
+  button{padding:10px 16px;border:0;border-radius:8px;background:var(--accent,#5cdcb4);color:var(--onaccent,#04231b);font-weight:700;cursor:pointer}
+  #att{background:var(--surface,#1c1c2b);padding:10px 12px}
   .quick{display:flex;gap:4px;padding:0 18px 8px}
-  .quick button{background:#1c1c2b;font-size:18px;padding:6px 10px}
+  .quick button{background:var(--surface,#1c1c2b);font-size:18px;padding:6px 10px}
 </style>
 <header>💬 Chat</header>
 <div id="log"></div>
@@ -435,14 +437,14 @@
 
   const CALCULATOR_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#5cc8ff}
-  #disp{width:264px;margin:16px;padding:14px 16px;text-align:right;font-size:30px;background:#14141f;border:1px solid #2a2a3f;border-radius:12px;overflow:hidden}
+  body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cc8ff)}
+  #disp{width:264px;margin:16px;padding:14px 16px;text-align:right;font-size:30px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;overflow:hidden}
   .keys{display:grid;grid-template-columns:repeat(4,60px);gap:8px}
-  button{height:60px;border:0;border-radius:12px;background:#1c1c2b;color:#e0e0f0;font-size:20px;cursor:pointer}
-  button:hover{background:#26263a}
-  button.op{background:#5cc8ff;color:#04223a;font-weight:700}
-  button.eq{background:#5cff7b;color:#04231b;font-weight:700}
+  button{height:60px;border:1px solid var(--border,#1c1c2b);border-radius:12px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font-size:20px;cursor:pointer}
+  button:hover{background:var(--border,#26263a)}
+  button.op{background:var(--accent,#5cc8ff);color:var(--onaccent,#04223a);font-weight:700;border-color:transparent}
+  button.eq{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);font-weight:700;border-color:transparent}
   button.wide{grid-column:span 2}
 </style>
 <header>🔢 Calculator</header>
@@ -482,17 +484,17 @@
 
   const TIMER_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff7878}
+  body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ff7878)}
   .tabs{display:flex;gap:8px;margin:16px 0 0}
-  .tabs button{padding:8px 18px;border:0;border-radius:999px;background:#1c1c2b;color:#8888aa;font:inherit;font-weight:700;cursor:pointer}
-  .tabs button.on{background:#ff7878;color:#2a0a0a}
+  .tabs button{padding:8px 18px;border:1px solid var(--border,#1c1c2b);border-radius:999px;background:var(--surface,#1c1c2b);color:var(--muted,#8888aa);font:inherit;font-weight:700;cursor:pointer}
+  .tabs button.on{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
   #t{font-size:56px;font-variant-numeric:tabular-nums;margin:28px 0 8px;letter-spacing:2px}
-  #t.done{color:#ff7878;animation:blink .5s step-end infinite}
+  #t.done{color:var(--accent,#ff7878);animation:blink .5s step-end infinite}
   @keyframes blink{50%{opacity:.25}}
   .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:8px 0}
-  button{padding:12px 24px;border:0;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;background:#1c1c2b;color:#e0e0f0}
-  button.go{background:#5cff7b;color:#04231b}button.stop{background:#ff7878;color:#2a0a0a}
+  button{padding:12px 24px;border:1px solid var(--border,#1c1c2b);border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
+  button.go{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);border-color:transparent}button.stop{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
   .chips button{padding:8px 14px;font-size:14px;border-radius:999px}
 </style>
 <header>⏱️ Timer &amp; Stopwatch</header>
@@ -537,17 +539,19 @@
 
   const MINESWEEPER_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffd23c}
+  body{font:14px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ffd23c)}
   .bar{display:flex;gap:10px;align-items:center;margin:12px;flex-wrap:wrap;justify-content:center}
-  .bar button{padding:8px 14px;border:0;border-radius:8px;background:#1c1c2b;color:#e0e0f0;cursor:pointer}
-  .bar button.on{background:#ffd23c;color:#2a2400;font-weight:700}
+  .bar button{padding:8px 14px;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer}
+  .bar button.on{background:var(--accent,#ffd23c);color:var(--onaccent,#2a2400);font-weight:700}
   .grid{display:grid;grid-template-columns:repeat(10,30px);gap:2px;touch-action:manipulation}
-  .c{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:#2a3350;cursor:pointer;font-weight:700;user-select:none}
-  .c.rev{background:#14141f;cursor:default}
+  /* unrevealed tiles ride a mid-tone so they stand off the board on any theme;
+     revealed cells sit on the surface, numbers darken toward the text colour. */
+  .c{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--border,#2a3350);cursor:pointer;font-weight:700;user-select:none}
+  .c.rev{background:var(--surface,#14141f);cursor:default}
   .c.mine{background:#ff5c5c}
-  .n1{color:#5cc8ff}.n2{color:#5cff7b}.n3{color:#ff8f5c}.n4{color:#ff5caa}.n5{color:#ffd23c}.n6{color:#5cdcb4}
-  .status{margin:10px;min-height:20px;color:#8888aa;text-align:center;padding:0 12px}
+  .n1{color:color-mix(in srgb,#5cc8ff 60%,var(--text,#e0e0f0))}.n2{color:color-mix(in srgb,#3ac46a 60%,var(--text,#e0e0f0))}.n3{color:color-mix(in srgb,#ff8f5c 62%,var(--text,#e0e0f0))}.n4{color:color-mix(in srgb,#ff5caa 62%,var(--text,#e0e0f0))}.n5{color:color-mix(in srgb,#e0a520 62%,var(--text,#e0e0f0))}.n6{color:color-mix(in srgb,#3abfa0 62%,var(--text,#e0e0f0))}
+  .status{margin:10px;min-height:20px;color:var(--muted,#8888aa);text-align:center;padding:0 12px}
 </style>
 <header>💣 Minesweeper — co-op</header>
 <div class="status" id="status">Loading…</div>
@@ -601,34 +605,36 @@
 
   const CHESS_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#e8c37a}
-  .status{margin:10px;min-height:20px;color:#8888aa;text-align:center;padding:0 12px}
-  button{padding:8px 16px;border:0;border-radius:8px;background:#e8c37a;color:#241a04;font-weight:700;cursor:pointer;margin:6px}
+  body{font:14px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#e8c37a)}
+  .status{margin:10px;min-height:20px;color:var(--muted,#8888aa);text-align:center;padding:0 12px}
+  button{padding:8px 16px;border:0;border-radius:8px;background:var(--accent,#e8c37a);color:var(--onaccent,#241a04);font-weight:700;cursor:pointer;margin:6px}
   .lobby{padding:16px;max-width:420px;text-align:center}
   .players{list-style:none;padding:0;margin:12px 0}
-  .players li{padding:8px 12px;background:#14141f;border:1px solid #2a2a3f;border-radius:8px;margin:6px 0}
+  .players li{padding:8px 12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:8px;margin:6px 0}
   .bracket{display:flex;gap:24px;padding:16px;overflow:auto}
   .round{display:flex;flex-direction:column;gap:12px;justify-content:center}
-  .match{background:#14141f;border:1px solid #2a2a3f;border-radius:8px;padding:8px 12px;min-width:140px;cursor:pointer}
-  .match.mine{border-color:#e8c37a}
-  .match .w{color:#5cff7b}
-  .settings{background:#14141f;border:1px solid #2a2a3f;border-radius:10px;padding:10px 14px;margin:12px 0;text-align:left}
-  .settings h3{margin:0 0 2px;font-size:14px;color:#e8c37a}
-  .settings .hint{color:#8888aa;font-size:12px;margin-bottom:8px}
+  .match{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:8px;padding:8px 12px;min-width:140px;cursor:pointer}
+  .match.mine{border-color:var(--accent,#e8c37a)}
+  .match .w{color:var(--accent,#5cff7b)}
+  .settings{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:10px;padding:10px 14px;margin:12px 0;text-align:left}
+  .settings h3{margin:0 0 2px;font-size:14px;color:var(--accent,#e8c37a)}
+  .settings .hint{color:var(--muted,#8888aa);font-size:12px;margin-bottom:8px}
   .settings label{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:14px}
-  .settings select{padding:6px 8px;border-radius:8px;background:#1c1c2b;color:#e0e0f0;border:1px solid #2a2a3f;font:inherit}
-  .clock{display:flex;justify-content:center;font-variant-numeric:tabular-nums;font-weight:700;padding:4px 10px;margin:2px auto;border-radius:8px;background:#14141f;border:1px solid #2a2a3f;width:fit-content}
-  .clock.live{border-color:#e8c37a;color:#e8c37a}
+  .settings select{padding:6px 8px;border-radius:8px;background:var(--bg,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f);font:inherit}
+  .clock{display:flex;justify-content:center;font-variant-numeric:tabular-nums;font-weight:700;padding:4px 10px;margin:2px auto;border-radius:8px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);width:fit-content}
+  .clock.live{border-color:var(--accent,#e8c37a);color:var(--accent,#e8c37a)}
   .clock.low{color:#ff7878}
+  /* The wooden board + carved pieces are chess's universal identity; they read
+     on any computer, so the theme dresses the chrome and leaves the board be. */
   .board{display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(8,44px);margin:12px;border:3px solid #241a04;border-radius:4px}
   .sq{display:flex;align-items:center;justify-content:center;font-size:32px;cursor:pointer;line-height:1}
   .sq.l{background:#ecd9b5}.sq.d{background:#b08150}
   .sq.pw{color:#fffdf2;text-shadow:0 0 2px #241a04,0 1px 2px rgba(0,0,0,.55)}
   .sq.pb{color:#241a2e;text-shadow:0 0 2px rgba(255,255,255,.35)}
-  .sq.sel{outline:3px solid #7b5cff;outline-offset:-3px}
+  .sq.sel{outline:3px solid var(--accent,#7b5cff);outline-offset:-3px}
   .sq.mv{box-shadow:inset 0 0 0 4px rgba(40,160,70,.65)}
-  .back{background:#1c1c2b;color:#e0e0f0}
+  .back{background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
 </style>
 <header>♟️ Chess Tournament</header>
 <div class="status" id="status">Loading…</div>
@@ -913,22 +919,23 @@ opens the built-in video page when opened in GifOS.</p>
   // unreachable OR the user has switched its internet off from the tab.
   const FORTUNE_HTML = `<!doctype html><meta charset="utf-8">
 <style>
-  body{font:16px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;min-height:100vh}
-  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ffce6b}
+  body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;min-height:100vh}
+  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ffce6b)}
   main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;max-width:460px;margin:0 auto;box-sizing:border-box}
   .cookie{font-size:52px;line-height:1;filter:drop-shadow(0 6px 14px rgba(255,190,80,.25))}
+  /* The paper slip is the fortune's identity — always cream stock, dark ink. */
   .slip{background:#fffdf2;color:#3a3320;border-radius:14px;padding:20px 22px;min-height:56px;width:100%;box-sizing:border-box;
         display:flex;align-items:center;justify-content:center;text-align:center;font-size:18px;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.4)}
   .slip.err{background:#2a1710;color:#ffcbab;border:1px solid #ff8a3d}
   .row{display:flex;gap:10px}
-  button{padding:11px 18px;border-radius:10px;border:1px solid #2a2a3f;background:#1c1c2b;color:#e0e0f0;cursor:pointer;font-size:15px}
-  button.go{background:#ffce6b;color:#3a2c05;border-color:#ffce6b;font-weight:700}
+  button{padding:11px 18px;border-radius:10px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer;font-size:15px}
+  button.go{background:var(--accent,#ffce6b);color:var(--onaccent,#3a2c05);border-color:var(--accent,#ffce6b);font-weight:700}
   button:disabled{opacity:.5;cursor:default}
   button:not(:disabled):hover{filter:brightness(1.08)}
   .kept{width:100%}
-  .kept h4{color:#8888aa;font-size:.8rem;font-weight:600;margin:0 0 6px}
-  .kept .k{background:#14141f;border:1px solid #22222f;border-radius:8px;padding:8px 10px;font-size:13px;color:#c8c8dc;margin-bottom:6px}
-  .foot{color:#6a6a86;font-size:.72rem;text-align:center;line-height:1.5}
+  .kept h4{color:var(--muted,#8888aa);font-size:.8rem;font-weight:600;margin:0 0 6px}
+  .kept .k{background:var(--surface,#14141f);border:1px solid var(--border,#22222f);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text,#c8c8dc);margin-bottom:6px}
+  .foot{color:var(--muted,#6a6a86);font-size:.72rem;text-align:center;line-height:1.5}
 </style>
 <header>🥠 Fortune</header>
 <main>
@@ -991,6 +998,10 @@ opens the built-in video page when opened in GifOS.</p>
     ['#8888aa', 'var(--muted,#8888aa)'],
     ['#7b5cff', 'var(--accent,#7b5cff)'], ['#ff5caa', 'var(--accent2,#ff5caa)'],
     ['color:#fff', 'color:var(--onaccent,#fff)'], ['background:#fff', 'background:var(--surface,#fff)'],
+    // IRL party-game shell (irl-apps.js STYLE): cream paper + ink outline. These
+    // hexes are used only there, so mapping them recolours every IRL game's
+    // shared chrome and per-game extras in one place.
+    ['#faf7ef', 'var(--bg,#faf7ef)'], ['#2b2440', 'var(--text,#2b2440)'], ['#7a7391', 'var(--muted,#7a7391)'],
   ];
   const ACCENT_MAP = [
     ['#7b5cff', 'var(--accent,#7b5cff)'], ['#ff5caa', 'var(--accent2,#ff5caa)'],
@@ -1007,10 +1018,14 @@ opens the built-in video page when opened in GifOS.</p>
   function themeHtml(html, mode) {
     const ui = GifOS.theme && GifOS.theme.ui;
     if (!ui) return html; // Aurora / home: ship the hand-tuned originals untouched
-    const map = mode === 'accent' ? ACCENT_MAP : FULL_MAP;
-    const out = html.replace(/<style>[\s\S]*?<\/style>/g, (block) => {
+    // 'vars'  — the app already references CSS variables by hand (the games);
+    //           just inject the palette, no blind hex swap.
+    // 'accent'— only recolour highlights.
+    // 'full'  — remap the shared chrome hexes (chrome apps).
+    const map = mode === 'vars' ? [] : mode === 'accent' ? ACCENT_MAP : FULL_MAP;
+    const out = map.length ? html.replace(/<style>[\s\S]*?<\/style>/g, (block) => {
       let b = block; for (const p of map) b = b.split(p[0]).join(p[1]); return b;
-    });
+    }) : html;
     return out.includes('<meta charset="utf-8">')
       ? out.replace('<meta charset="utf-8">', '<meta charset="utf-8">' + themeVars(ui))
       : themeVars(ui) + out;
@@ -1018,14 +1033,18 @@ opens the built-in video page when opened in GifOS.</p>
 
   function build() {
     const gif = GifOS.gif;
-    // Board games and the IRL games keep their arena (accent-only); everything
-    // else is a chrome app that takes the full palette.
-    const ACCENT_ONLY = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1 };
+    // Apps that hand-author their theming with CSS variables take 'vars' —
+    // palette injected, no auto-remap. This is any app with a signature accent
+    // the flat chrome-map can't reach: the board games (boards/marks need
+    // contrast choices) and the tools whose own hue (calc blue, chat teal,
+    // timer red, fortune gold) must become the computer's accent. Everything
+    // else is a plain chrome app that takes the full remap.
+    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, calc: 1, chat: 1, timer: 1, fortune: 1 };
     const app = (name, appId, accent, html, extra) => ({
       name: name + '.gif', appId, accent,
       files: {
         'manifest.json': manifest(appId, name, accent, extra),
-        'index.html': themeHtml(html, ACCENT_ONLY[appId] ? 'accent' : 'full'),
+        'index.html': themeHtml(html, VAR_APPS[appId] ? 'vars' : 'full'),
       },
     });
     // Each app gets its own hand-designed animated artwork (gifos-icons.js),
