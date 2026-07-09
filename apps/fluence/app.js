@@ -113,8 +113,8 @@
       $('drill').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       const m = String(e && e.message || e);
-      if (/IMAGE_ROLE/.test(m)) setupCard('An image model', 'Picture-description drills render a scene with an image model. Open <b>GifOS Settings → AI models</b> and set up <b>Text → image</b> (e.g. an OpenAI <span class="mono">gpt-image-1</span> endpoint).');
-      else if (/not set up|Settings → AI/.test(m)) setupCard('A drill model', 'Generating drills needs an AI model. Open <b>GifOS Settings → AI models</b> and set up <b>Cheapest text</b> (any OpenAI-compatible endpoint + key).');
+      // The broker already popped GifOS's setup prompt for a missing model/image role.
+      if (/NOT_CONFIGURED|IMAGE_ROLE|not set up|Settings → AI/.test(m)) { if (/IMAGE_ROLE/.test(m) && gifos.aiSetup) gifos.aiSetup(AI_HINT); setStatus('Set up an AI model (see the pop-up), then try again.', 'bad'); }
       else setStatus('Could not generate that drill: ' + m, 'bad');
     } finally { setBusy(false); }
   }
@@ -150,24 +150,19 @@
   // ---- the take pipeline ----------------------------------------------------
   function setStatus(msg, kind) { const s = $('status'); s.textContent = msg || ''; s.className = 'status' + (kind ? ' ' + kind : ''); }
   function setBusy(b) { busy = b; $('rec').disabled = b || recording; }
-  function setupCard(what, where, extra) {
-    const box = $('results'); box.innerHTML = '';
-    const c = el('div', 'setup'); c.appendChild(el('h3', null, what + ' isn’t set up yet'));
-    const p = el('p'); p.innerHTML = where; c.appendChild(p);
-    if (extra) { const e = el('p', 'muted'); e.innerHTML = extra; c.appendChild(e); }
-    box.appendChild(c); box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-  const SETUP = {
-    deepgram: ['Deepgram', 'Fluence turns your speech into text with <b>Deepgram</b>, using <b>your own</b> key. In GifOS <b>Settings → Third-party APIs</b>, add one named <b>deepgram</b>: base URL <span class="mono">https://api.deepgram.com</span>, auth <b>Token</b>, paste your key, and switch on <b>Route through a CORS proxy</b>.', 'New deepgram.com accounts come with free credit. Your key stays in this browser — Fluence never sees it.'],
-    coach: ['A coach model', 'Coaching needs an AI model. In GifOS <b>Settings → AI models</b>, set up <b>Smartest text</b> — any OpenAI-compatible endpoint and key.', 'The same place also powers drill generation and the weekly review.'],
-  };
-  // Ask the computer what's configured (never the key itself) so we can tell the
-  // user BEFORE they record a whole take, not after.
-  async function whatIsMissing() {
-    if (!has()) return null;
-    try { if (gifos.apiReady && !(await gifos.apiReady('deepgram'))) return SETUP.deepgram; } catch (e) {}
-    try { const m = await gifos.ai.models(); if (!m || (m.available || []).indexOf('smartest') === -1) return SETUP.coach; } catch (e) { return SETUP.coach; }
-    return null;
+
+  // GifOS owns the generic "how to set this up" prompt (it knows Deepgram's URL,
+  // the Settings screens, that keys stay private). Fluence only supplies an
+  // app-specific hint that GifOS appends. We surface it BEFORE recording a whole
+  // take, using apiReady/models to check without ever seeing a key.
+  const DG_HINT = 'Fluence transcribes with Deepgram nova-3 (word confidence + filler tags). New deepgram.com accounts include free credit.';
+  const AI_HINT = 'Fluence uses your “Smartest text” model to coach, “Cheapest text” to make drills, and “Text → image” for picture drills.';
+  async function ready() {
+    if (!has()) return false;
+    try { if (gifos.apiReady && !(await gifos.apiReady('deepgram'))) { if (gifos.apiSetup) gifos.apiSetup('deepgram', DG_HINT); setStatus('Set up Deepgram, then record — see the pop-up.', 'bad'); return false; } } catch (e) {}
+    try { const m = await gifos.ai.models(); if (!m || (m.available || []).indexOf('smartest') === -1) { if (gifos.aiSetup) gifos.aiSetup(AI_HINT); setStatus('Set up a coach model, then record — see the pop-up.', 'bad'); return false; } }
+    catch (e) { if (gifos.aiSetup) gifos.aiSetup(AI_HINT); return false; }
+    return true;
   }
 
   async function transcribe(clip) {
@@ -253,10 +248,9 @@
   async function run() {
     if (recording || busy) return;
     if (!has()) { setStatus('Open this inside GifOS to record.', 'bad'); return; }
-    // Fail fast: if the key/model isn't set up, say so NOW — don't make the user
-    // record a whole take first.
-    const miss = await whatIsMissing();
-    if (miss) { setStatus('Set this up first', 'bad'); setupCard(miss[0], miss[1], miss[2]); return; }
+    // Fail fast: if the key/model isn't set up, GifOS pops its own setup prompt
+    // now — don't make the user record a whole take first.
+    if (!(await ready())) return;
     recording = true; $('rec').disabled = true;
     let clip;
     try {
@@ -295,9 +289,9 @@
     } catch (e) {
       const msg = String(e && e.message || e);
       setStatus('', '');
+      // NOT_CONFIGURED errors already popped GifOS's own setup prompt — just nudge.
       if (/did not declare/.test(msg)) setStatus('This app needs the "deepgram" API — reinstall the app GIF.', 'bad');
-      else if (/not set up|Third-party APIs/.test(msg)) { setStatus('Deepgram isn’t set up', 'bad'); setupCard(SETUP.deepgram[0], SETUP.deepgram[1], SETUP.deepgram[2]); }
-      else if (/No "smartest"|No "cheapest"|Settings → AI/.test(msg)) { setStatus('No coach model yet', 'bad'); setupCard(SETUP.coach[0], SETUP.coach[1], 'Your take was transcribed — set up a model and record again.'); }
+      else if (/NOT_CONFIGURED/.test(msg)) setStatus('Set that up (see the pop-up), then record again.', 'bad');
       else setStatus('Something went wrong: ' + msg, 'bad');
     } finally { recording = false; $('rec').disabled = false; }
   }
@@ -538,9 +532,11 @@
     // live-refresh whichever review view is open when takes change
     if (takesDb && takesDb.subscribe) { try { takesDb.subscribe(() => { if (currentView === 'history') loadTakes().then(renderHistory); else if (currentView === 'stats') renderStats(); else if (currentView === 'benchmarks') renderBenchmarks(); }); } catch (e) {} }
     if (!has()) { setStatus('This is a GifOS app — open it on a GifOS Home Screen to record and get coached.', 'bad'); return; }
-    // On open, if something's missing, show it right away — don't wait for a take.
-    const miss = await whatIsMissing();
-    if (miss) { setStatus('One-time setup needed', 'bad'); setupCard(miss[0], miss[1], miss[2]); }
+    // Optional by design — the user can explore. If a key/model is missing, a
+    // gentle nudge; GifOS itself shows how to set it up when they hit Record.
+    const dg = gifos.apiReady ? await gifos.apiReady('deepgram').catch(() => true) : true;
+    const m = await gifos.ai.models().catch(() => null);
+    if (!dg || !m || (m.available || []).indexOf('smartest') === -1) setStatus('Add your Deepgram key and an AI model in GifOS Settings to start.', '');
   }
   boot();
 })();

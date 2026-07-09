@@ -1,9 +1,8 @@
-// Regression: with NO Deepgram key configured, Fluence must say so up front —
-// on open AND the moment you tap Record — instead of recording a whole take and
-// then hanging on "Transcribing…". Exercises gifos.apiReady + the preflight.
+// Regression: with NO Deepgram key configured, the GIFOS SYSTEM (not the app)
+// shows the "isn't set up" prompt when Fluence tries to use Deepgram — and the
+// app never records a whole take first. The app only contributes a hint.
 //
-// Needs: static server on 8099. (No fake providers — the point is that nothing
-// is configured.)
+// Needs: static server on 8099. No providers configured — that's the point.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -33,19 +32,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const [app] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: 'Fluence.gif' }).dblclick()]);
   app.on('pageerror', (e) => console.log('  [app pageerror]', e.message));
   await app.waitForSelector('iframe', { timeout: 8000 });
+  // Dismiss the capability acknowledgement (Fluence requires nothing — optional).
   await app.locator('.perm-modal .done').click({ timeout: 5000 }).catch(() => {});
   const fr = app.frameLocator('iframe');
 
-  // On open, the setup card should already be visible (no take needed).
-  await fr.locator('.setup').waitFor({ timeout: 8000 });
-  check('missing setup is shown on open (no take required)', /Deepgram|isn’t set up/.test(await fr.locator('.setup').textContent()));
+  // Fluence is OPTIONAL — it opens and lets you look around, no blocking gate.
+  await fr.locator('.prompt').waitFor({ timeout: 6000 });
+  check('the app opens and is explorable even with nothing set up', (await app.locator('#gifos-setup-modal').count()) === 0);
+  check('a gentle status nudges toward Settings', /Settings/i.test(await fr.locator('#status').textContent().catch(() => '')));
 
-  // Tapping Record must NOT start a recording — it should re-point to setup fast.
+  // Tap Record → the SYSTEM (not the app) shows the Deepgram setup prompt, and
+  // NO recording starts.
   await fr.locator('#rec').click();
-  const overlayAppeared = await app.waitForSelector('[data-gifos-capture]', { timeout: 2500 }).then(() => true).catch(() => false);
-  check('tapping Record does NOT start a recording when Deepgram is missing', overlayAppeared === false);
-  check('the status calls out the missing setup immediately', /set/i.test(await fr.locator('#status').textContent()));
-  check('the setup card names Deepgram + where to add it', /Third-party APIs/.test(await fr.locator('.setup').textContent()));
+  await app.waitForSelector('#gifos-setup-modal', { timeout: 6000 }).catch(() => {});
+  check('the GifOS system shows its own setup prompt (not the app)', (await app.locator('#gifos-setup-modal').count()) === 1);
+  const modalText = await app.locator('#gifos-setup-modal').textContent().catch(() => '');
+  check('the system prompt names Deepgram + the base URL (system-owned copy)', /Deepgram/.test(modalText) && /api\.deepgram\.com/.test(modalText), modalText.slice(0, 120));
+  check('the app contributed its own hint (free credit)', /free credit/i.test(modalText));
+  const overlayAppeared = await app.waitForSelector('[data-gifos-capture]', { timeout: 2000 }).then(() => true).catch(() => false);
+  check('no recording started (fail-fast before a wasted take)', overlayAppeared === false);
+  // The prompt is dismissable.
+  await app.locator('#gifos-setup-ok').click();
+  check('the system prompt can be dismissed', (await app.locator('#gifos-setup-modal').count()) === 0);
 
   await app.close();
   await browser.close();

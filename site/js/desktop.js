@@ -1332,34 +1332,33 @@
     const at = c.authType || 'bearer';
     const opts = AUTH_TYPES.map((t) => '<option value="' + t.v + '"' + (t.v === at ? ' selected' : '') + '>' + escapeHtml(t.label) + '</option>').join('');
     const needName = (at === 'header' || at === 'query');
-    const proxyOn = !!c.proxy;
-    const proxyUrl = (c.proxy && c.proxy !== true && c.proxy !== 'default') ? c.proxy : '';
+    const savedNote = c.url ? (c.proxy ? 'saved · via proxy' : 'saved · direct') : '';
+    const customProxy = (c.proxy && c.proxy !== true && c.proxy !== 'default') ? c.proxy : '';
     return '<div class="ai-row api-row" data-row="' + idx + '">' +
       '<div class="ai-head"><input class="api-f api-name" data-row="' + idx + '" data-f="name" placeholder="short name — e.g. deepgram" value="' + escapeHtml(name || '') + '">' +
-      '<button class="ai-test api-test" data-row="' + idx + '">Test</button>' +
-      '<button class="api-del" data-row="' + idx + '" title="Remove this API">✕</button>' +
-      '<span class="ai-status api-status" data-row="' + idx + '"></span></div>' +
+      '<button class="ai-test api-test" data-row="' + idx + '">Test &amp; save</button>' +
+      '<button class="api-del" data-row="' + idx + '" title="Remove this API">✕</button></div>' +
       '<input class="api-f" data-row="' + idx + '" data-f="url" placeholder="Base URL — e.g. https://api.deepgram.com" value="' + escapeHtml(c.url || '') + '">' +
       '<div class="ai-2"><select class="api-f api-auth" data-row="' + idx + '" data-f="authType">' + opts + '</select>' +
       '<input class="api-f api-authname" data-row="' + idx + '" data-f="authName" placeholder="header / param name"' + (needName ? '' : ' style="display:none"') + ' value="' + escapeHtml(c.authName || '') + '"></div>' +
       '<input class="api-f" data-row="' + idx + '" data-f="key" type="password" placeholder="API key" value="' + escapeHtml(c.key || '') + '">' +
-      '<label class="api-proxy-l"><input type="checkbox" class="api-proxy-ck" data-row="' + idx + '"' + (proxyOn ? ' checked' : '') + '> Route through a CORS proxy <span class="api-hint">— needed for server-only APIs like Deepgram that block browser calls</span></label>' +
-      '<input class="api-proxy-url" data-row="' + idx + '" placeholder="' + escapeHtml(API_PROXY_DEFAULT) + ' (default) — or your own proxy" value="' + escapeHtml(proxyUrl) + '"' + (proxyOn ? '' : ' style="display:none"') + '>' +
+      '<details class="api-adv"' + (customProxy ? ' open' : '') + '><summary>Advanced</summary>' +
+      '<input class="api-proxy-url" data-row="' + idx + '" placeholder="Custom CORS proxy URL (optional — self-hosted)" value="' + escapeHtml(customProxy) + '"></details>' +
+      '<div class="ai-status api-status" data-row="' + idx + '">' + escapeHtml(savedNote) + '</div>' +
       '</div>';
   }
   function apiSectionHtml() {
     const cfg = apiCfgAll();
     const rows = Object.keys(cfg).map((n, i) => apiRowHtml(i, n, cfg[n])).join('');
     return '<details class="adv"><summary>Third-party APIs</summary>' +
-      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key. An app that asks for that name under its <b>api</b> ability can call it; the runtime attaches your key and <b>only ever sends it to that API’s own host</b> — the app never sees it, and it stays out of a shared computer backup. The endpoint must allow browser (CORS) requests; if it doesn’t (Deepgram’s REST, most brokerages), tick <b>Route through a CORS proxy</b> and GifOS relays the call through <span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span> (stateless, stores nothing — or point it at your own). Test tells you which you need.</p>' +
+      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key, then hit <b>Test &amp; save</b>. GifOS tries the call <b>directly</b> first; if the site blocks browser calls (Deepgram’s REST, most brokerages), it automatically retries through a stateless CORS proxy (<span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span>) and remembers that. It only saves if a test succeeds. Your key <b>only ever goes to that API’s own host</b>, never to the app, and stays out of a shared backup.</p>' +
       '<div class="api-rows">' + rows + '</div>' +
       '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
       '</details>';
   }
-  function testApiEndpoint(c) {
-    if (!c.url) return Promise.resolve({ ok: false, msg: 'Set a base URL first.' });
-    let u;
-    try { u = new URL(c.url.replace(/\/+$/, '')); } catch (e) { return Promise.resolve({ ok: false, msg: '✗ bad URL' }); }
+  // Build the authed target (auth in headers, or on the URL for query auth).
+  function apiTarget(c) {
+    const u = new URL(String(c.url).replace(/\/+$/, ''));
     const headers = {};
     const at = c.authType || 'bearer', an = c.authName || '', key = c.key || '';
     if (key) {
@@ -1368,21 +1367,18 @@
       else if (at === 'header' && an) headers[an] = key;
       else if (at === 'query' && an) u.searchParams.set(an, key);
     }
-    // Mirror the runtime: if a proxy is configured, probe THROUGH it so the
-    // Test result reflects how the app's calls will actually travel.
-    let fetchUrl = u.toString();
-    if (c.proxy) {
-      const pbase = (c.proxy === true || c.proxy === 'default') ? API_PROXY_DEFAULT : String(c.proxy).replace(/\/+$/, '');
-      headers['x-gifos-target'] = fetchUrl;
-      fetchUrl = pbase + '/';
-    }
-    // A bare GET at the base URL won't match a real endpoint — 400/404/405 all
-    // prove the host answered. Only 401/403 means the key itself was rejected.
-    return fetch(fetchUrl, { method: 'GET', headers }).then((r) => {
-      if (r.status === 401 || r.status === 403) return { ok: false, msg: '✗ key rejected (' + r.status + ')' };
-      if (r.ok || r.status === 400 || r.status === 404 || r.status === 405) return { ok: true, msg: '✓ reachable (' + r.status + ')' };
-      return { ok: true, msg: '⚠ reached, returned ' + r.status };
-    }).catch(() => ({ ok: false, msg: '✗ can’t reach (network or CORS blocked)' }));
+    return { url: u.toString(), headers };
+  }
+  // A bare GET probe. `reached` = the host answered at all (so CORS worked, if
+  // direct); `keyRejected` = it answered 401/403. A thrown fetch (CORS/network)
+  // → reached:false. When proxyBase is set, we probe THROUGH the proxy.
+  function apiProbe(c, proxyBase) {
+    let t; try { t = apiTarget(c); } catch (e) { return Promise.resolve({ bad: true }); }
+    let url = t.url; const headers = Object.assign({}, t.headers);
+    if (proxyBase) { headers['x-gifos-target'] = url; url = String(proxyBase).replace(/\/+$/, '') + '/'; }
+    return fetch(url, { method: 'GET', headers })
+      .then((r) => ({ reached: true, status: r.status, keyRejected: (r.status === 401 || r.status === 403) }))
+      .catch(() => ({ reached: false }));
   }
   function wireApiSection(box) {
     const rowsWrap = box.querySelector('.api-rows');
@@ -1390,35 +1386,60 @@
     const readRow = (row) => {
       const o = {};
       row.querySelectorAll('.api-f').forEach((i) => { const val = (i.value || '').trim(); if (val) o[i.getAttribute('data-f')] = val; });
-      const ck = row.querySelector('.api-proxy-ck');
-      if (ck && ck.checked) { const pu = (row.querySelector('.api-proxy-url').value || '').trim(); o.proxy = pu || 'default'; }
+      const pu = row.querySelector('.api-proxy-url');
+      if (pu && pu.value.trim()) o.customProxy = pu.value.trim();
       return o;
     };
-    const saveApi = () => {
-      const cfg = {};
-      box.querySelectorAll('.api-row').forEach((row) => {
-        const o = readRow(row);
-        const name = o.name; delete o.name;
-        if (name && o.url) cfg[name] = o;
-      });
+    // Persist one API immediately — the ONLY way an API is saved is a passing
+    // Test & save, so a working config is guaranteed. proxyVal: undefined (none),
+    // 'default', or a custom URL.
+    const saveOne = (c, proxyVal) => {
+      const cfg = apiCfgAll();
+      const entry = { url: c.url, authType: c.authType || 'bearer' };
+      if (c.authName) entry.authName = c.authName;
+      if (c.key) entry.key = c.key;
+      if (proxyVal) entry.proxy = proxyVal;
+      cfg[c.name] = entry;
       try { root.localStorage.setItem(API_LS, JSON.stringify(cfg)); } catch (e) {}
     };
-    box._saveApi = saveApi;
+    const removeOne = (name) => { if (!name) return; const cfg = apiCfgAll(); delete cfg[name]; try { root.localStorage.setItem(API_LS, JSON.stringify(cfg)); } catch (e) {} };
+
+    const setSt = (st, msg, cls) => { st.textContent = msg; st.className = 'ai-status api-status' + (cls ? ' ' + cls : ''); };
+
+    async function testAndSave(row, st) {
+      const c = readRow(row);
+      if (!c.name) return setSt(st, 'give it a short name', 'bad');
+      if (!c.url) return setSt(st, 'add the base URL', 'bad');
+      if (!c.key) return setSt(st, 'paste your API key', 'bad');
+      setSt(st, 'testing directly…');
+      const direct = await apiProbe(c, null);
+      if (direct.bad) return setSt(st, '✗ bad URL', 'bad');
+      if (direct.reached) {
+        if (direct.keyRejected) return setSt(st, '✗ key rejected — check your key', 'bad');
+        saveOne(c, undefined); return setSt(st, '✓ saved · direct', 'ok');
+      }
+      // Blocked directly (CORS/network) — retry through the proxy (custom or default).
+      const pbase = c.customProxy || API_PROXY_DEFAULT;
+      setSt(st, 'blocked directly — trying the CORS proxy…');
+      const viaProxy = await apiProbe(c, pbase);
+      if (viaProxy.reached) {
+        if (viaProxy.keyRejected) return setSt(st, '✗ key rejected — check your key', 'bad');
+        saveOne(c, c.customProxy || 'default'); return setSt(st, '✓ saved · via proxy', 'ok');
+      }
+      setSt(st, '✗ can’t reach it directly or through the proxy', 'bad');
+    }
+
     const wireRow = (row) => {
       const auth = row.querySelector('.api-auth');
       const nameInput = row.querySelector('.api-authname');
       if (auth) auth.onchange = () => { nameInput.style.display = (auth.value === 'header' || auth.value === 'query') ? '' : 'none'; };
-      const ck = row.querySelector('.api-proxy-ck');
-      const purl = row.querySelector('.api-proxy-url');
-      if (ck) ck.onchange = () => { purl.style.display = ck.checked ? '' : 'none'; };
       const del = row.querySelector('.api-del');
-      if (del) del.onclick = () => row.remove();
+      if (del) del.onclick = () => { removeOne((readRow(row).name || '')); row.remove(); };
       const test = row.querySelector('.api-test');
-      if (test) test.onclick = () => {
-        const st = row.querySelector('.api-status');
-        st.textContent = '…'; st.className = 'ai-status api-status';
-        testApiEndpoint(readRow(row)).then((r) => { st.textContent = r.msg; st.className = 'ai-status api-status ' + (r.ok ? 'ok' : 'bad'); });
-      };
+      const st = row.querySelector('.api-status');
+      if (test) test.onclick = () => { test.disabled = true; testAndSave(row, st).finally(() => { test.disabled = false; }); };
+      // typing invalidates the "saved" note so it can't mislead
+      row.querySelectorAll('.api-f').forEach((i) => i.addEventListener('input', () => { if (/saved/.test(st.textContent)) setSt(st, ''); }));
     };
     box.querySelectorAll('.api-row').forEach(wireRow);
     const add = box.querySelector('#api-add');
@@ -1542,7 +1563,8 @@
       try { if (v) localStorage.setItem('gifos_relay', v); else localStorage.removeItem('gifos_relay'); } catch (e) {}
       store.setName(box.querySelector('#set-name').value);
       if (box._saveAi) box._saveAi();
-      if (box._saveApi) box._saveApi();
+      // Third-party APIs save themselves via each row's Test & save (so a saved
+      // API always has a passing test) — nothing to persist here.
       bg.remove();
     };
     box.querySelector('#set-close').onclick = () => bg.remove();
