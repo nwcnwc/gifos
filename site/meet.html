@@ -23,12 +23,18 @@
   @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: var(--accent, #7b5cff); } }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
   /* Collapsible header: only mic / camera / blur stay on the always-visible row;
-     everything else lives in .barmore, which flows inline (display:contents)
-     when open and is hidden when the bar is collapsed. */
+     everything else — action buttons, status/roster messages, the invite bar —
+     lives in .barmore (flows inline via display:contents when open, hidden when
+     collapsed), so the meeting reclaims that space for video tiles and apps.
+     The toggle is a chevron chip parked left of the GifOS logo. */
   .barmore { display: contents; }
   .bar.collapsed .barmore { display: none; }
-  .moretoggle { white-space: nowrap; }
-  .bar.collapsed .moretoggle { border-color: var(--accent, #7b5cff); }
+  .bar.collapsed ~ .share { display: none !important; } /* the invite bar folds away too */
+  .bartoggle { display: inline-flex; align-items: center; justify-content: center;
+               width: 30px; height: 30px; padding: 0; flex: 0 0 auto; color: var(--muted, #b8b8cc); }
+  .bartoggle svg { transition: transform .2s ease; }
+  .bar:not(.collapsed) .bartoggle svg { transform: rotate(180deg); }
+  .bar.collapsed .bartoggle { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
   /* Mic / camera as traffic-light icons: green (live) or red with a slash (off). */
   .iconbtn { display: inline-flex; align-items: center; justify-content: center; padding: .3rem .5rem;
              color: #6cf39a; border-color: #2e7d46; }
@@ -189,6 +195,9 @@
 </head>
 <body>
   <div class="bar collapsed">
+    <button id="bartoggle" class="bartoggle" aria-expanded="false" aria-label="Show meeting controls" title="Show meeting controls">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <button id="mic" class="iconbtn off" aria-label="Microphone" title="Your mic">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -208,7 +217,6 @@
         <button class="seg" id="blur-none" data-blur="0">None</button>
       </span>
     </span>
-    <button id="bartoggle" class="moretoggle" aria-expanded="false" title="Show more controls">More ▾</button>
     <div class="barmore" id="barmore">
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
@@ -221,9 +229,9 @@
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
-    </div>
     <span class="status" id="status">Starting camera…</span>
     <div class="admcount" id="admcount" style="display:none"></div>
+    </div>
   </div>
   <div class="share" id="share">
     <span class="hint">Send this link to friends — opening it brings them right in:</span>
@@ -2193,8 +2201,7 @@
       function apply(collapsed) {
         bar.classList.toggle('collapsed', collapsed);
         toggle.setAttribute('aria-expanded', String(!collapsed));
-        toggle.textContent = collapsed ? 'More ▾' : 'Less ▴';
-        toggle.title = collapsed ? 'Show more controls' : 'Hide extra controls';
+        toggle.title = collapsed ? 'Show meeting controls' : 'Hide meeting controls';
       }
       toggle.onclick = function () {
         const next = !bar.classList.contains('collapsed'); apply(next);
