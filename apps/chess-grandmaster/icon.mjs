@@ -79,8 +79,13 @@ function frameIndices(pal, phase) {
 }
 
 export function grandmasterIcon() {
-  const pal = buildPalette();
+  const pal = buildPalette(); // array of [r,g,b], index 0 reserved transparent
   const frames = [];
   for (let f = 0; f < FRAMES; f++) { const phase = -0.25 + 1.5 * (f / (FRAMES - 1)); frames.push(frameIndices(pal, phase)); }
-  return { width: OUT, height: OUT, palette: pal, numColors: pal.length, minCodeSize: Math.max(2, Math.ceil(Math.log2(pal.length))), frames, delayCs: 12, transparentIndex: 0 };
+  // The GIF colour table must be a power of two and a FLAT byte array
+  // (numColors*3). Pad up to 64 entries; the tail entries stay unused.
+  const CT = 64;
+  const flat = new Array(CT * 3).fill(0);
+  for (let i = 0; i < pal.length && i < CT; i++) { flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0; }
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 12, transparentIndex: 0 };
 }
