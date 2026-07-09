@@ -176,7 +176,7 @@
       // app, and that's fine). '*' means "any website", which we flag as unsafe.
       const permsBtn = document.getElementById('perms');
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: '🎤 Record short voice clips', camera: '📷 Take photos and short videos', motion: '📱 Sense how you tilt your phone', ai: '🤖 Use your AI', api: '🔌 Use your account with' };
+      const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with' };
       const CAP_DESC = {
         microphone: 'Only while you’re recording — you’ll see a recorder the whole time, and it gets just the finished clip, never your live mic.',
         camera: 'Only when you take one — you’ll see it happen, and it gets just the photo or clip, never your live camera.',
@@ -210,7 +210,7 @@
           return caps.map(function (k) {
             if (k === 'api') {
               return apiNames(manifest).map(function (n) {
-                return '<div class="perm-row"><span><span class="host">🔌 Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
+                return '<div class="perm-row"><span><span class="host">Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
                   '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
               }).join('');
             }
@@ -228,7 +228,7 @@
               : 'It can exchange data with this one website.';
             return '<label class="perm-row' + (any ? ' any' : '') + '">' +
               '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
-              '<span><span class="host">🌐 ' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
+              '<span><span class="host">' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
               '<br><span class="desc">' + desc + ' Uncheck to block it.</span></span></label>';
           }).join('');
           const unsafeNote = (hasNet && policy.unsafe())
