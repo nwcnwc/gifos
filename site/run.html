@@ -252,11 +252,63 @@
           bg.querySelector('.done').onclick = close;
           bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
         }
-        paintChip();
-        permsBtn.onclick = openModal;
-        // Prompt once — first run, or again only if the app changed what it asks
-        // for (new hosts, or new device/AI abilities). Otherwise the chip stays.
-        if ((hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
+        function proceed() {
+          paintChip();
+          permsBtn.onclick = openModal;
+          // Prompt once — first run, or again only if the app changed what it asks
+          // for (new hosts, or new device/AI abilities). Otherwise the chip stays.
+          if ((hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
+        }
+
+        // ---- REQUIRED capabilities gate --------------------------------------
+        // Capabilities are OPTIONAL by default — the app runs and the user can
+        // look around. An app may instead mark some as REQUIRED
+        // (manifest.requires: ["ai","deepgram",…]); a required capability that
+        // isn't set up leaves the app unable to do its job, so we block until the
+        // user configures it. We can only check settings-backed capabilities here
+        // (an AI model, or a named third-party account); device permissions
+        // (microphone/camera/motion) and network are granted at use, so listing
+        // them as required is accepted but never blocks.
+        const requires = (manifest && Array.isArray(manifest.requires)) ? manifest.requires : [];
+        function lsCfg(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; } }
+        function aiConfigured() { const c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
+        function apiConfigured(name) { const c = lsCfg('gifos_api_config')[name]; return !!(c && c.url); }
+        function titleCase(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+        function missingRequired() {
+          const out = [];
+          requires.forEach(function (r) {
+            if (r === 'ai') { if (!aiConfigured()) out.push({ what: 'an AI model', where: 'Settings → AI models' }); }
+            else if (r === 'microphone' || r === 'camera' || r === 'motion' || r === 'network') { /* granted at use — nothing to pre-configure */ }
+            else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', where: 'Settings → Third-party APIs' });
+          });
+          return out;
+        }
+        function showRequiredGate(missing) {
+          const old = document.getElementById('req-gate'); if (old) old.remove();
+          const bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'req-gate';
+          const appName = (manifest && manifest.name) || 'This app';
+          const rows = missing.map(function (m) {
+            return '<div class="perm-row"><span><span class="host">Set up ' + escapeText(m.what) + '</span>' +
+              '<br><span class="desc">On your GifOS Home Screen, open <b>' + escapeText(m.where) + '</b>.</span></span></div>';
+          }).join('');
+          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' needs setup to run</h3>' +
+            '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app never sees them.</p>' +
+            rows +
+            '<div class="perm-btns"><button class="ghost" id="req-leave">Close</button><button class="done" id="req-recheck">I’ve set it up</button></div></div>';
+          document.body.appendChild(bg);
+          function recheck() {
+            if (!missingRequired().length) { document.removeEventListener('visibilitychange', onVis); bg.remove(); proceed(); }
+            else { bg.querySelector('#req-recheck').textContent = 'Still not set up — check Settings, then tap again'; }
+          }
+          function onVis() { if (!document.hidden) recheck(); } // auto-recheck when they return from Settings
+          bg.querySelector('#req-recheck').onclick = recheck;
+          bg.querySelector('#req-leave').onclick = function () { try { window.close(); } catch (e) {} if (!window.closed) { if (history.length > 1) history.back(); else location.href = '/'; } };
+          document.addEventListener('visibilitychange', onVis);
+        }
+
+        const missingReq = missingRequired();
+        if (missingReq.length) showRequiredGate(missingReq);
+        else proceed();
       };
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).
