@@ -121,7 +121,7 @@
             rpc({type:'db',op:'getAll',collection:collection}).then(cb); }
         }; },
         fetch: function(url, opts){ opts=opts||{};
-          return rpc({type:'fetch',url:url,method:opts.method||'GET',headers:opts.headers||{},body:opts.body||null})
+          return rpc({type:'fetch',url:url,method:opts.method||'GET',headers:opts.headers||{},body:opts.body||null,proxy:!!opts.proxy})
             .then(function(r){ return { status:r.status, headers:r.headers, ok:r.status>=200&&r.status<300,
               json:function(){return Promise.resolve(JSON.parse(r.body));}, text:function(){return Promise.resolve(r.body);} }; });
         },
@@ -371,15 +371,35 @@
     }
     if (firstPartyHost(u.hostname)) return Promise.reject(new Error('Network denied: apps cannot call the GifOS origin'));
     if (!policy.allow(u.hostname)) return Promise.reject(new Error('Network denied: ' + u.hostname + ' not in app permissions'));
-    return fetch(d.url, { method: d.method, headers: d.headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
+    // Optional CORS proxy. Some hosts serve public data but send NO
+    // Access-Control-Allow-* headers, so a direct browser fetch is blocked. When
+    // the app passes { proxy: true }, route through the GifOS CORS proxy (our own
+    // first-party Worker, which enforces its OWN host allow-list and adds the CORS
+    // headers). The app can ONLY select our default proxy — never an arbitrary URL
+    // — so it can't turn the bridge into an exfiltration channel; the operator can
+    // override the base once via window.GIFOS_CORS_PROXY on a self-hosted copy.
+    // The host allow-list above still gates WHICH sites the app may reach.
+    const viaProxy = !!d.proxy;
+    const headers = Object.assign({}, d.headers);
+    let fetchUrl = d.url;
+    if (viaProxy) {
+      const pbase = String(root.GIFOS_CORS_PROXY || API_PROXY_DEFAULT).replace(/\/+$/, '');
+      headers['x-gifos-target'] = d.url;
+      fetchUrl = pbase + '/';
+    }
+    return fetch(fetchUrl, { method: d.method, headers: headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
       .then((resp) => {
         // A redirect can walk an allowed (or '*') host to a first-party or
         // otherwise-forbidden one, and follow makes the FINAL response readable.
         // Re-check the URL we actually landed on and refuse to hand back its body.
-        let fu; try { fu = new URL(resp.url); } catch (e) { fu = null; }
-        const finalHost = fu ? fu.hostname : u.hostname;
-        if (firstPartyHost(finalHost) || !policy.allow(finalHost)) {
-          throw new Error('Network denied: redirected to a disallowed host (' + finalHost + ')');
+        // (Via the proxy the final URL is the proxy's own origin — the proxy
+        // enforces its host allow-list, so we skip this second-guess there.)
+        if (!viaProxy) {
+          let fu; try { fu = new URL(resp.url); } catch (e) { fu = null; }
+          const finalHost = fu ? fu.hostname : u.hostname;
+          if (firstPartyHost(finalHost) || !policy.allow(finalHost)) {
+            throw new Error('Network denied: redirected to a disallowed host (' + finalHost + ')');
+          }
         }
         return resp.arrayBuffer().then((buf) => {
           if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');

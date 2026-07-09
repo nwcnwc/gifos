@@ -29,6 +29,9 @@
 // new server-only API. (A self-hosted copy can widen or replace this list.)
 const ALLOW_HOSTS = new Set([
   'api.deepgram.com',
+  // Public Bible text for the default "Bible Browser" app. Sends no CORS
+  // headers, so the app reads it through this proxy (gifos.fetch{proxy:true}).
+  'text.recoveryversion.bible',
 ]);
 
 // Requests are only served for these origins. Empty Origin (same-origin / curl)

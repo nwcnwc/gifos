@@ -1044,6 +1044,105 @@ opens the built-in meeting page when opened in GifOS.</p>
   crackOne();
 </script>`;
 
+  // Bible Browser — reads the Recovery Version straight from
+  // text.recoveryversion.bible. That site sends no CORS headers, so a direct
+  // browser fetch is blocked; the app calls gifos.fetch(url, { proxy:true }),
+  // and the runtime routes it through the GifOS CORS proxy (which adds the
+  // headers). A live demo of the proxy on a real, public, non-CORS site. The
+  // fetched HTML is sanitised (scripts/styles/handlers stripped) and its
+  // same-site links rewritten to navigate inside the app; the last page read is
+  // remembered in the icon so it reopens where you left off.
+  const BIBLE_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  :root{--bg:#0f0e0c;--surface:#1a1712;--border:#332c22;--text:#ece6da;--muted:#a89f8c;--accent:#c8a24b;--onaccent:#241a05}
+  *{box-sizing:border-box}
+  body{font:16px system-ui;margin:0;background:var(--bg,#0f0e0c);color:var(--text,#ece6da);display:flex;flex-direction:column;height:100vh}
+  header{background:var(--surface,#1a1712);border-bottom:1px solid var(--border,#332c22);padding:10px 14px;display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  header .ttl{font-weight:800;color:var(--accent,#c8a24b);font-size:15px;white-space:nowrap}
+  header .loc{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#a89f8c);font-size:12px}
+  nav{display:flex;gap:6px;background:var(--surface,#1a1712);border-bottom:1px solid var(--border,#332c22);padding:8px 12px;flex:0 0 auto}
+  nav button{padding:7px 12px;border-radius:9px;border:1px solid var(--border,#332c22);background:var(--bg,#0f0e0c);color:var(--text,#ece6da);cursor:pointer;font-size:14px}
+  nav button:disabled{opacity:.4;cursor:default}
+  nav button.home{margin-left:auto;background:var(--accent,#c8a24b);color:var(--onaccent,#241a05);border-color:var(--accent,#c8a24b);font-weight:700}
+  main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+  .doc{max-width:680px;margin:0 auto;padding:22px 20px 60px;line-height:1.7;font-size:17px;font-family:Georgia,'Times New Roman',serif}
+  .doc h1,.doc h2,.doc h3{font-family:system-ui;color:var(--accent,#c8a24b);line-height:1.25}
+  .doc a{color:#7fb2ff;text-decoration:none}
+  .doc a[data-nav]{color:var(--accent,#c8a24b);border-bottom:1px dotted currentColor;cursor:pointer}
+  .doc a.ext{color:var(--muted,#a89f8c);cursor:default;border:0}
+  .doc table{width:100%;border-collapse:collapse}
+  .doc td,.doc th{padding:2px 6px;vertical-align:top}
+  .status{padding:34px 20px;text-align:center;color:var(--muted,#a89f8c);max-width:520px;margin:0 auto;line-height:1.6}
+  .status.err{color:#ffcbab}
+  .foot{color:var(--muted,#6f6858);font-size:.72rem;text-align:center;padding:26px 20px 0;line-height:1.5}
+</style>
+<header><span class="ttl">📖 Bible Browser</span><span class="loc" id="loc"></span></header>
+<nav>
+  <button id="back" title="Back">&lsaquo; Back</button>
+  <button id="fwd" title="Forward">Forward &rsaquo;</button>
+  <button id="reload" title="Reload">&#8635;</button>
+  <button class="home" id="home">Home</button>
+</nav>
+<main id="main"><div class="status">Loading the Recovery Version…</div></main>
+<script>
+  var HOST='text.recoveryversion.bible', HOME='https://text.recoveryversion.bible/';
+  var main=document.getElementById('main'), locEl=document.getElementById('loc');
+  var backB=document.getElementById('back'), fwdB=document.getElementById('fwd');
+  var db=(window.gifos&&gifos.db)?gifos.db('bible'):null;
+  var hist=[], hi=-1, curUrl=HOME;
+  function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+  function setStatus(msg,err){ main.innerHTML='<div class="status'+(err?' err':'')+'">'+msg+'</div>'; }
+  function buttons(){ backB.disabled=hi<=0; fwdB.disabled=hi>=hist.length-1; }
+  function shortLoc(u){ try{ var x=new URL(u); return (x.pathname+x.search)||'/'; }catch(e){ return u; } }
+  function absolute(href){ try{ return new URL(href, curUrl).toString(); }catch(e){ return null; } }
+  function sanitize(htmlText){
+    var doc; try{ doc=new DOMParser().parseFromString(htmlText,'text/html'); }catch(e){ return null; }
+    doc.querySelectorAll('script,style,link,meta,noscript,iframe,object,embed,base,svg').forEach(function(n){ n.remove(); });
+    var rootEl=doc.querySelector('main,article,#content,.content,#main')||doc.body||doc.documentElement;
+    var title=(doc.querySelector('title')||{}).textContent||'';
+    Array.prototype.forEach.call(rootEl.querySelectorAll('*'), function(el){
+      for(var i=el.attributes.length-1;i>=0;i--){ if(el.attributes[i].name.slice(0,2).toLowerCase()==='on') el.removeAttribute(el.attributes[i].name); }
+      var tag=el.tagName;
+      if(tag==='IMG'){ var alt=el.getAttribute('alt')||''; if(el.parentNode) el.parentNode.replaceChild(document.createTextNode(alt),el); return; }
+      if(tag==='A'){
+        var href=el.getAttribute('href')||''; el.removeAttribute('target'); el.removeAttribute('rel');
+        if(href&&href.charAt(0)==='#'){ el.setAttribute('href','#'); return; }
+        var abs=absolute(href), host=''; try{ host=new URL(abs).hostname; }catch(e){}
+        if(abs&&host===HOST){ el.setAttribute('data-nav',abs); el.setAttribute('href','#'); }
+        else { el.removeAttribute('href'); el.className=(el.className+' ext').trim(); el.title='External link — open it in your own browser'; }
+      }
+    });
+    return { title:title, html:rootEl.innerHTML };
+  }
+  function render(htmlText){
+    var s=sanitize(htmlText);
+    if(!s){ setStatus('Could not read that page.', true); return; }
+    main.innerHTML='<div class="doc">'+s.html+'<p class="foot">Text from text.recoveryversion.bible over the internet, read through the GifOS CORS proxy — tap the “Internet” button up top to see or change that.</p></div>';
+    main.scrollTop=0; locEl.textContent=shortLoc(curUrl); document.title=(s.title||'Bible Browser');
+  }
+  function go(url, push){
+    curUrl=url;
+    if(push){ hist=hist.slice(0,hi+1); hist.push(url); hi=hist.length-1; }
+    buttons(); locEl.textContent=shortLoc(url); setStatus('Loading '+esc(shortLoc(url))+'…');
+    if(!window.gifos||!gifos.fetch){ setStatus('Open this from GifOS to reach the internet.', true); return; }
+    gifos.fetch(url, { proxy:true }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+      .then(function(t){ render(t); if(db) db.put({id:'last',url:url}); })
+      .catch(function(e){ setStatus('Couldn’t reach the Recovery Version. You may be offline — or you’ve switched this app’s internet off with the “Internet” button up top.<br><br><small>'+esc(e&&e.message||'')+'</small>', true); });
+  }
+  main.addEventListener('click', function(e){
+    var a=e.target.closest&&e.target.closest('a[data-nav]');
+    if(a){ e.preventDefault(); go(a.getAttribute('data-nav'), true); }
+  });
+  backB.onclick=function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } };
+  fwdB.onclick=function(){ if(hi<hist.length-1){ hi++; go(hist[hi], false); buttons(); } };
+  document.getElementById('reload').onclick=function(){ go(curUrl, false); };
+  document.getElementById('home').onclick=function(){ go(HOME, true); };
+  if(window.gifos&&gifos.onBack) gifos.onBack(function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } });
+  (db?db.get('last'):Promise.resolve(null)).then(function(rec){
+    go(rec&&rec.url&&rec.url.indexOf('https://'+HOST)===0?rec.url:HOME, true);
+  }).catch(function(){ go(HOME, true); });
+</script>`;
+
   // Speech Coach — showcases brokered capture + on-device DSP. Records a clip
   // via gifos.recordAudio (GifOS shows its own indicator), then analyses pace,
   // pauses and volume entirely locally with the Web Audio API. No network.
@@ -1221,7 +1320,7 @@ document.getElementById('f').onsubmit=async e=>{
     // contrast choices) and the tools whose own hue (calc blue, chat teal,
     // timer red, fortune gold) must become the computer's accent. Everything
     // else is a plain chrome app that takes the full remap.
-    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, calc: 1, chat: 1, timer: 1, fortune: 1 };
+    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1 };
     const app = (name, appId, accent, html, extra) => ({
       name: name + '.gif', appId, accent,
       files: {
@@ -1258,6 +1357,9 @@ document.getElementById('f').onsubmit=async e=>{
         // The one app that reaches out: it declares exactly the site it needs,
         // so opening it demonstrates the network acknowledgement on a real app.
         app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
+        // Reads the Recovery Version through the GifOS CORS proxy — a live demo
+        // of gifos.fetch({ proxy:true }) against a real, public, non-CORS site.
+        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, network: ['text.recoveryversion.bible'] } }),
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
