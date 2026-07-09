@@ -634,6 +634,12 @@
   .sq.pb{color:#241a2e;text-shadow:0 0 2px rgba(255,255,255,.35)}
   .sq.sel{outline:3px solid var(--accent,#7b5cff);outline-offset:-3px}
   .sq.mv{box-shadow:inset 0 0 0 4px rgba(40,160,70,.65)}
+  .sq.hintf{box-shadow:inset 0 0 0 4px rgba(120,90,255,.85)}
+  .sq.hintt{box-shadow:inset 0 0 0 4px rgba(120,90,255,.85),inset 0 0 22px rgba(120,90,255,.55)}
+  .hintbar{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:2px 0}
+  .hintbar .why{color:var(--muted,#8888aa);font-size:12.5px;max-width:340px;text-align:center}
+  button.ghost{background:var(--surface,#1c1c2b);color:var(--accent,#e8c37a);border:1px solid var(--accent,#e8c37a)}
+  button:disabled{opacity:.55;cursor:default}
   .back{background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
 </style>
 <header>Chess Tournament</header>
@@ -642,6 +648,8 @@
 <script>
   const db=gifos.db('chess');
   let me={id:'local',name:'You'}, viewMatch=null, sel=null;
+  // AI hint: {from:[x,y],to:[x,y],why} for the match currently on screen, or null.
+  let hint=null, hinting=false;
   const START='rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR';
   // Both sides use the FILLED glyphs and get their color from CSS (.pw/.pb):
   // the outline glyphs ♙♖… inherit whatever text color the platform font
@@ -712,7 +720,49 @@
     if(p==='P'&&ty===0) bd[ty*8+tx]='Q'; if(p==='p'&&ty===7) bd[ty*8+tx]='q'; // auto-queen
     m.board=bd.join(''); m.turn=m.turn==='w'?'b':'w';
     if(target==='k'||target==='K'){ m.winner=seat==='w'?m.a:m.b; }
-    save(); if(m.winner) advance(); sel=null; render();
+    save(); if(m.winner) advance(); sel=null; hint=null; render();
+  }
+  // ---- AI hint (brokered Smartest model) ------------------------------------
+  // The board is unlabelled glyph divs, and LLMs invent illegal moves from
+  // prose — so we hand the model a clean FEN AND the EXACT legal-move list from
+  // our own generator, and constrain its answer to that list. The key never
+  // leaves the runtime; the app only declared capabilities.ai:["smartest"].
+  function algSq(x,y){ return 'abcdefgh'[x]+(8-y); }
+  function toFEN(bd,turn){ const rows=[];
+    for(let y=0;y<8;y++){ let row='',run=0;
+      for(let x=0;x<8;x++){ const c=bd[y*8+x];
+        if(c==='.'){ run++; } else { if(run){ row+=run; run=0; } row+=c; } }
+      if(run) row+=run; rows.push(row); }
+    return rows.join('/')+' '+turn+' - - 0 1';
+  }
+  function legalMoves(bd,turn){ const out=[];
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){ if(mine(bd[y*8+x],turn)){
+      moves(bd,x,y).forEach(function(c){ out.push({uci:algSq(x,y)+algSq(c[0],c[1]), from:[x,y], to:c}); }); } }
+    return out;
+  }
+  function askHint(m){
+    const seat=mySeat(m); if(!seat||seat!==m.turn||m.winner||hinting) return;
+    if(!(window.gifos&&gifos.ai)){ hint={err:'Hints need the computer’s AI.'}; render(); return; }
+    const legal=legalMoves(m.board, m.turn);
+    if(!legal.length){ hint={err:'No legal moves to suggest.'}; render(); return; }
+    hinting=true; hint=null; render();
+    const side=m.turn==='w'?'White':'Black';
+    const sys='You are a strong chess coach. You are given a position as FEN plus the EXACT list of legal moves in coordinate (UCI) notation. Choose the single strongest move for '+side+'. Reply with ONLY compact JSON and nothing else: {"move":"<one move copied verbatim from the legal list>","why":"<one short plain-language sentence>"}.';
+    const usr='FEN: '+toFEN(m.board,m.turn)+'\\nLegal moves: '+legal.map(function(l){return l.uci;}).join(' ')+'\\nPick the best move for '+side+'.';
+    gifos.ai.chat({ model:'smartest', temperature:0, messages:[{role:'system',content:sys},{role:'user',content:usr}] })
+      .then(function(r){
+        const txt=((r&&r.text)||'').trim(); let uci=null, why='';
+        try{ const j=JSON.parse(txt.replace(/\`\`\`json|\`\`\`/g,'').trim()); uci=String(j.move||'').trim().toLowerCase(); why=j.why||''; }catch(e){}
+        if(!uci){ const mm=txt.toLowerCase().match(/[a-h][1-8][a-h][1-8]/); if(mm) uci=mm[0]; }
+        let pick=legal.find(function(l){return l.uci===uci;});
+        if(!pick){ pick=legal[0]; why=why||'A safe, legal option.'; } // model strayed off-list → point at a real move
+        const cur=findMatch(viewMatch);
+        if(cur&&cur.id===m.id&&cur.turn===m.turn&&!cur.winner) hint={ from:pick.from, to:pick.to, why:why, uci:pick.uci };
+      })
+      .catch(function(e){ const msg=String((e&&e.message)||e);
+        hint={ err: /NOT_CONFIGURED/.test(msg) ? 'Set up your Smartest AI in Settings to get hints.' : 'Couldn’t get a hint right now.' };
+      })
+      .then(function(){ hinting=false; render(); });
   }
   // ---- rendering ----
   function render(){
@@ -751,7 +801,7 @@
       ms.forEach(function(m){ const el=document.createElement('div'); el.className='match'+((mySeat(m))?' mine':'');
         const an=m.a?m.a.name:'—', bn=m.b?m.b.name:'(bye)';
         el.innerHTML='<div class="'+(m.winner&&m.winner.id===(m.a&&m.a.id)?'w':'')+'">'+esc(an)+'</div><div class="'+(m.winner&&m.b&&m.winner.id===m.b.id?'w':'')+'">'+esc(bn)+'</div>';
-        el.onclick=function(){ viewMatch=m.id; sel=null; render(); };
+        el.onclick=function(){ viewMatch=m.id; sel=null; hint=null; render(); };
         rd.appendChild(el); });
       wrap.appendChild(rd); });
     view.appendChild(wrap);
@@ -770,7 +820,7 @@
   }
   function renderBoard(){
     const m=findMatch(viewMatch); if(!m){ viewMatch=null; return render(); }
-    const back=document.createElement('button'); back.className='back'; back.textContent='← Bracket'; back.onclick=function(){ viewMatch=null; sel=null; render(); }; view.appendChild(back);
+    const back=document.createElement('button'); back.className='back'; back.textContent='← Bracket'; back.onclick=function(){ viewMatch=null; sel=null; hint=null; render(); }; view.appendChild(back);
     const seat=mySeat(m); const bd=m.board;
     if(m.clock) view.appendChild(clockRow(m,'b'));
     const legal = sel ? moves(bd, sel[0], sel[1]) : [];
@@ -779,6 +829,7 @@
       const p=bd[y*8+x]; if(p!=='.'){ sq.textContent=GLYPH[p.toLowerCase()]; sq.classList.add(p>='A'&&p<='Z'?'pw':'pb'); }
       if(sel&&sel[0]===x&&sel[1]===y) sq.classList.add('sel');
       if(legal.some(function(c){return c[0]===x&&c[1]===y;})) sq.classList.add('mv');
+      if(hint&&seat===m.turn&&!m.winner){ if(hint.from&&hint.from[0]===x&&hint.from[1]===y) sq.classList.add('hintf'); if(hint.to&&hint.to[0]===x&&hint.to[1]===y) sq.classList.add('hintt'); }
       sq.onclick=(function(cx,cy){ return function(){
         if(m.winner||seat!==m.turn) return;
         if(sel){ if(legal.some(function(c){return c[0]===cx&&c[1]===cy;})){ doMove(m,sel[0],sel[1],cx,cy); return; } sel=null; }
@@ -788,6 +839,20 @@
       board.appendChild(sq); }
     view.appendChild(board);
     if(m.clock) view.appendChild(clockRow(m,'w'));
+    // AI hint — only when it's the player's live turn (not spectating/finished).
+    if(seat&&seat===m.turn&&!m.winner){
+      const hb=document.createElement('div'); hb.className='hintbar';
+      const hbtn=document.createElement('button'); hbtn.className='ghost';
+      hbtn.textContent=hinting?'Thinking…':'💡 Hint'; hbtn.disabled=hinting;
+      hbtn.onclick=function(){ askHint(m); };
+      hb.appendChild(hbtn);
+      const why=document.createElement('div'); why.className='why';
+      if(hinting) why.textContent='Reading the board and weighing your options…';
+      else if(hint&&hint.err) why.textContent=hint.err;
+      else if(hint&&hint.uci) why.textContent='Suggested: '+hint.uci.slice(0,2)+'→'+hint.uci.slice(2)+(hint.why?' — '+hint.why:'');
+      else why.textContent='Ask the computer’s AI for your strongest move.';
+      hb.appendChild(why); view.appendChild(hb);
+    }
     statusEl.textContent = m.winner ? ('Winner: '+esc(m.winner.name))
       : (seat? (m.turn===seat?'Your move ('+(seat==='w'?'White':'Black')+')':'Waiting for opponent') : 'Spectating')
         + ' — '+esc(m.a?m.a.name:'?')+' vs '+esc(m.b?m.b.name:'?');
@@ -1176,7 +1241,11 @@ document.getElementById('f').onsubmit=async e=>{
         app('Tic-Tac-Toe', 'tictactoe', [92, 255, 123], TICTACTOE_HTML),
         app('Connect Four', 'connect4', [255, 180, 60], CONNECT_FOUR_HTML),
         app('Minesweeper', 'minesweeper', [255, 210, 60], MINESWEEPER_HTML),
-        app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML),
+        // Declares Smartest text so the in-board "Hint" button can ask the
+        // computer's AI for a move — the app feeds it a clean FEN + the exact
+        // legal-move list (from its own generator) so the model picks among
+        // real moves, never a hallucinated one. Key stays in the runtime.
+        app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML, { capabilities: { db: true, multiplayer: true, network: [], ai: ['smartest'] } }),
       ] },
       { name: 'Studio', apps: [
         app('Paint', 'paint', [255, 92, 170], PAINT_HTML),

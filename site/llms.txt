@@ -140,6 +140,15 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      THIS app), and GifOS brokers the model so the key never enters the sandbox.
      Great for form-heavy / many-control apps. Make controls have clear labels /
      aria-labels so the agent can find them.
+   - wasm: declare capabilities.wasm:true to run a COMPILED WebAssembly engine (a
+     chess engine, a codec, a physics sim). The sandbox refuses WASM by default;
+     this relaxes the CSP by exactly two things — 'wasm-unsafe-eval' (instantiate
+     a module) and worker-src blob: (run it on a Web Worker) — and NOTHING else.
+     connect-src stays 'none': the engine gets zero network, so ship its .wasm
+     bytes INSIDE the app (base64 in a bundled .js) and instantiate from bytes
+     (WebAssembly.instantiate / Module.wasmBinary) — never fetch. Shown to the
+     user as "runs a compiled engine on your device." (See apps/chess-grandmaster,
+     which bundles full-strength Stockfish and plays entirely offline.)
    ALWAYS feature-detect and never fake a result. You do NOT need to write your
    own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
    missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL
