@@ -57,9 +57,9 @@
   .perm-row { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .2rem;
     border-top: 1px solid #22222f; }
   .perm-row input { margin-top: .2rem; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #4a9eff; }
-  .perm-row .host { font-weight: 600; word-break: break-all; }
+  .perm-row .host { display: block; font-weight: 600; word-break: break-word; }
   .perm-row.any .host { color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); }
-  .perm-row .desc { color: var(--muted, #8888aa); font-size: .8rem; }
+  .perm-row .desc { display: block; margin-top: .15rem; color: var(--muted, #8888aa); font-size: .8rem; line-height: 1.35; }
   .perm-box .foot { color: var(--muted, #6a6a86); font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
   .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
     background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
