@@ -24,9 +24,19 @@ const PAGES = {
   '/': '<!doctype html><html><head><title>Recovery Version</title><style>body{color:red}</style>'
     + '<script>document.title="HACKED"</script></head><body><h1>Holy Bible Recovery Version</h1>'
     + '<p onclick="alert(1)">Choose a book.</p><a href="/genesis/1">Genesis 1</a> · '
+    + '<a href="/toc.htm">Contents</a> · '
     + '<a href="https://evil.example/x">external</a><img src="/logo.png" alt="logo-alt"></body></html>',
   '/genesis/1': '<!doctype html><html><head><title>Genesis 1</title></head><body><h2>Genesis 1</h2>'
     + '<p>In the beginning God created the heavens and the earth.</p><a href="/">&larr; Home</a></body></html>',
+  // TOC declares a <base> in a subdir; the John link is relative to it, so
+  // honouring <base> is what sends it to /bible/john3.htm (not /john3.htm).
+  '/toc.htm': '<!doctype html><html><head><base href="https://text.recoveryversion.bible/bible/">'
+    + '<title>Contents</title></head><body><h2>Books</h2><a href="john3.htm">John 3</a></body></html>',
+  // A frameset page: the scripture lives in a content frame that must be inlined.
+  '/bible/john3.htm': '<!doctype html><html><head><title>John 3</title></head>'
+    + '<frameset><frame src="john3_text.htm"></frameset></html>',
+  '/bible/john3_text.htm': '<!doctype html><html><body><h2>John 3</h2>'
+    + '<p>For God so loved the world.</p></body></html>',
 };
 function startProxy() {
   return new Promise((resolve) => {
@@ -83,6 +93,18 @@ function startProxy() {
   await fr.locator('#back').click();
   await sleep(600);
   check('Back returns to the home page', /Holy Bible Recovery Version/.test(await fr.locator('.doc').innerHTML().catch(() => '')));
+
+  // <base href> + frameset: Contents → John 3. The link resolves via <base> to
+  // /bible/john3.htm, whose content <frame> is inlined so the verses appear.
+  await fr.locator('.doc a[data-nav]').filter({ hasText: 'Contents' }).click();
+  await fr.locator('.doc a[data-nav]').filter({ hasText: 'John 3' }).waitFor({ timeout: 6000 }).catch(() => {});
+  const tocHtml = await fr.locator('.doc').innerHTML().catch(() => '');
+  check('<base href> honoured: John link points into /bible/', /data-nav="https:\/\/text\.recoveryversion\.bible\/bible\/john3\.htm"/.test(tocHtml), '');
+  await fr.locator('.doc a[data-nav]').filter({ hasText: 'John 3' }).click();
+  await fr.locator('.doc h2').waitFor({ timeout: 6000 }).catch(() => {});
+  const john = await fr.locator('.doc').innerHTML().catch(() => '');
+  check('frameset content frame inlined (verses shown, not a blank frame)', /For God so loved the world/.test(john), john.slice(0, 60));
+  check('the John 3 location is the framed page', /\/bible\/john3\.htm/.test(await fr.locator('#loc').textContent().catch(() => '')));
 
   await b.close();
   srv.close();
