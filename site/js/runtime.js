@@ -433,7 +433,7 @@
   // the connect snapshot, so "data at connect time" costs at most one repack.
   function stealApp(originalBytes, files, manifest, db, ctx, opts) {
     opts = opts || {};
-    const mode = opts.data || (opts.withData ? 'current' : 'none'); // legacy withData→data
+    const mode = opts.data || 'none';
     const toDesktop = !!opts.toDesktop;
     const stateFor = () => mode === 'current' ? Promise.resolve(db.getFullState())
       : mode === 'connect' ? Promise.resolve((ctx && ctx.connectState) || null)
