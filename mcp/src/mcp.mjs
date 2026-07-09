@@ -277,6 +277,7 @@ const TOOLS = [
         motion: { type: 'boolean', description: 'Set true if the app uses gifos.motion (device tilt/orientation).' },
         ai: { type: ['array', 'boolean'], items: { type: 'string' }, description: 'The AI TYPES the app uses via gifos.ai.*, so the user knows which to set up: ["smartest","cheapest"] for text, plus "tts" (text→speech), "stt" (speech→text), "image" (text→image), "image_to_video", "video". Prefer the array — list ONLY the ones you actually call. A bare true means generic/any. The app never sees keys.' },
         api: { type: 'array', items: { type: 'string' }, description: 'Names of keyed third-party APIs the app calls via gifos.api(name, …), e.g. ["deepgram"]. The user configures each in Settings → Third-party APIs; the app never sees the key. Only for CORS-enabled endpoints (a browser fetch must succeed).' },
+        agent: { type: 'boolean', description: 'Set true to add a GifOS "agent" bar to the app: a built-in assistant that reads and clicks/types on THIS app\'s screen by natural language, driven by the user\'s Smartest model. It runs inside the app\'s own sandbox (blast radius = this app only) and brokers the model through GifOS (never sees the key). Great for apps with lots of controls/forms. No code needed — declaring it injects the bar.' },
         requires: { type: 'array', items: { type: 'string' }, description: 'Capabilities the app CANNOT run without — GifOS blocks launch until the user sets them up. Entries are capability keys (e.g. "ai") or third-party API names (e.g. "deepgram"). Default: everything is OPTIONAL (the app runs and can show what it is). Only list something here if the app genuinely shows nothing useful without it. Device permissions (microphone/camera/motion) are granted at use, so listing them never blocks.' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
         hide_in_gif_base64: { type: 'string', description: 'PREFERRED when the user has any GIF of their own: base64 bytes of that EXISTING GIF. The app is hidden inside it and the original animation is preserved byte-for-byte — never redrawn or re-encoded. Ask the user for their GIF before drawing an icon.' },
@@ -362,7 +363,7 @@ async function callTool(name, args) {
     const accent = hexToRgb(args.accent) || [123, 92, 255];
 
     const caps = { db: true, multiplayer: true, network: Array.isArray(args.network) ? args.network.map(String) : [] };
-    for (const c of ['microphone', 'camera', 'motion']) if (args[c]) caps[c] = true;
+    for (const c of ['microphone', 'camera', 'motion', 'agent']) if (args[c]) caps[c] = true;
     // ai: an array of AI TYPES the app uses (smartest/cheapest/tts/stt/image/
     // image_to_video/video) so the user knows exactly which to set up; a bare
     // `true` still works (generic, any type).

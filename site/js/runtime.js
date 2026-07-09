@@ -182,6 +182,10 @@
         // role is an AI type ('smartest'|'cheapest'|'tts'|'stt'|'image'|'video'…)
         // so GifOS names exactly which model to set up; omit for a generic prompt.
         aiSetup: function(role, hint){ return rpc({type:'aiSetup', role:role, hint:hint}); },
+        // Internal: the GifOS-injected in-app agent (capabilities.agent) brokers
+        // its Smartest-model calls through here so the KEY never enters this
+        // sandbox. Not part of the public app API.
+        _agentChat: function(messages){ return rpc({type:'agentChat', messages:messages}); },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -221,7 +225,8 @@
   ].join('; ');
 
   // ---- build a runnable, self-contained HTML doc from the archive ----------
-  function buildAppHtml(files) {
+  function buildAppHtml(files, manifest) {
+    const withAgent = hasCap(manifest, 'agent');
     let html = gif.bytesToText(files['index.html']);
     html = html.replace(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*><\/script>/gi, (m, src) => {
       const key = norm(src); return files[key] ? '<script>' + gif.bytesToText(files[key]) + '</script>' : m;
@@ -246,12 +251,15 @@
       shim.textContent = clientShim();
       doc.head.insertBefore(shim, doc.head.firstChild);
       doc.head.insertBefore(meta, doc.head.firstChild);
+      if (withAgent) { const ag = doc.createElement('script'); ag.textContent = agentBootstrap(); doc.body.appendChild(ag); }
       return '<!doctype html>' + doc.documentElement.outerHTML;
     }
     // Non-DOM fallback (tooling): best-effort inject into <head> if present.
     const head = '<meta http-equiv="Content-Security-Policy" content="' + APP_CSP + '">' +
       '<script>' + clientShim() + '</script>';
-    return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
+    const tail = withAgent ? '<script>' + agentBootstrap() + '</script>' : '';
+    const withHead = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
+    return withHead + tail;
   }
 
   function buildFolderHtml(files) {
@@ -824,6 +832,85 @@
     });
   }
 
+  // ---- in-app agent (capabilities.agent) ------------------------------------
+  // When an app declares `agent`, GifOS injects a small agent (agentBootstrap,
+  // below) INTO the app's sandboxed iframe. It reads only that app's DOM and
+  // clicks/types on it — the opaque-origin sandbox confines its blast radius to
+  // this one app. Its "brain" is the user's Smartest model, brokered here so the
+  // KEY never enters the sandbox. Gated by the `agent` capability.
+  function brokerAgentChat(manifest, d) {
+    if (!hasCap(manifest, 'agent')) return Promise.reject(new Error('This app did not declare the "agent" capability.'));
+    const c = aiConfig().smartest;
+    if (!c || !c.url) { showSystemSetup({ kind: 'ai', role: 'smartest' }); return Promise.reject(new Error('NOT_CONFIGURED:ai:smartest')); }
+    const url = aiEndpoint(c, 'chat');
+    const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
+    const body = { model: c.model || 'gpt-4o', messages: d.messages || [], stream: false, temperature: 0.1 };
+    if (d.maxTokens != null) body.max_tokens = d.maxTokens;
+    return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
+      .then((r) => r.ok ? r.json() : r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 200) : '')); }))
+      .then((j) => ({ text: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '' }));
+  }
+
+  // The injected agent: a compact read-DOM → ask-Smartest → click/type loop, plus
+  // a visible bar the user drives and can stop. Runs INSIDE the app sandbox (so
+  // it can only ever see/touch this app), talks to the model only via
+  // gifos._agentChat (key stays out). Returned as a source string; buildAppHtml
+  // drops it in as a <script> when the app declares `agent`.
+  function agentBootstrap() {
+    return "(function(){\n" +
+"  if (!window.gifos || typeof gifos._agentChat !== 'function') return;\n" +
+"  var running = false, MAXSTEPS = 10;\n" +
+"  var css = 'position:fixed;z-index:2147483000;font:13px system-ui,-apple-system,sans-serif;';\n" +
+"  var bar = document.createElement('div'); bar.setAttribute('data-agent-ui','1');\n" +
+"  bar.setAttribute('style', css+'left:0;right:0;bottom:0;background:#14141f;color:#e8e8f4;border-top:1px solid #2a2a3f;padding:.45rem .5rem;display:flex;gap:.4rem;align-items:center');\n" +
+"  var inp = document.createElement('input'); inp.placeholder='Tell the agent what to do on this app…';\n" +
+"  inp.setAttribute('style','flex:1;min-width:0;padding:.4rem .55rem;border-radius:.45rem;border:1px solid #2a2a3f;background:#0a0a0f;color:#e8e8f4;font:inherit');\n" +
+"  var run = document.createElement('button'); run.textContent='Run'; run.setAttribute('style','padding:.4rem .9rem;border:none;border-radius:.45rem;background:#7b5cff;color:#fff;font:inherit;cursor:pointer');\n" +
+"  var stop = document.createElement('button'); stop.textContent='Stop'; stop.setAttribute('style','padding:.4rem .8rem;border:1px solid #2a2a3f;border-radius:.45rem;background:transparent;color:#b6b6cf;font:inherit;cursor:pointer;display:none');\n" +
+"  var tag = document.createElement('span'); tag.textContent='\\u2726 Agent'; tag.setAttribute('style','font-weight:700;color:#8f78ff;white-space:nowrap');\n" +
+"  bar.appendChild(tag); bar.appendChild(inp); bar.appendChild(run); bar.appendChild(stop);\n" +
+"  var logbox = document.createElement('div'); logbox.setAttribute('data-agent-ui','1');\n" +
+"  logbox.setAttribute('style', css+'right:.5rem;bottom:3rem;max-width:18rem;max-height:40vh;overflow:auto;color:#b6b6cf;text-align:right;pointer-events:none');\n" +
+"  document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(bar); document.body.appendChild(logbox); });\n" +
+"  if (document.body) { document.body.appendChild(bar); document.body.appendChild(logbox); }\n" +
+"  function log(m){ var d=document.createElement('div'); d.textContent=m; d.setAttribute('style','background:rgba(20,20,31,.9);border:1px solid #2a2a3f;border-radius:.4rem;padding:.2rem .45rem;margin-top:.25rem;display:inline-block'); logbox.appendChild(d); logbox.scrollTop=logbox.scrollHeight; }\n" +
+"  function vis(el){ var r=el.getBoundingClientRect(); if (r.width<1||r.height<1) return false; var s=getComputedStyle(el); return s.visibility!=='hidden'&&s.display!=='none'&&el.offsetParent!==null; }\n" +
+"  function label(el){ return (el.getAttribute('aria-label')||el.placeholder||el.value||(el.textContent||'').trim()||el.name||el.title||'').replace(/\\s+/g,' ').trim().slice(0,70); }\n" +
+"  function snapshot(){ var sel='a,button,input,textarea,select,[role=button],[contenteditable=\"\"],[contenteditable=\"true\"],[onclick]';\n" +
+"    var els=[].slice.call(document.querySelectorAll(sel)), map=[], lines=[];\n" +
+"    els.forEach(function(el){ if (el.closest('[data-agent-ui]')) return; if (!vis(el)) return; var i=map.length; map.push(el);\n" +
+"      lines.push('['+i+'] '+el.tagName.toLowerCase()+(el.type?(':'+el.type):'')+' \\\"'+label(el)+'\\\"'); });\n" +
+"    return { text: lines.join('\\n'), map: map }; }\n" +
+"  function setVal(el, v){ var t=el.tagName.toLowerCase();\n" +
+"    if (t==='input'||t==='textarea'||t==='select'){ el.focus(); el.value=v; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }\n" +
+"    else { el.focus(); el.textContent=v; el.dispatchEvent(new Event('input',{bubbles:true})); } }\n" +
+"  function flash(el){ var o=el.style.outline; el.style.outline='2px solid #8f78ff'; setTimeout(function(){ el.style.outline=o; }, 600); }\n" +
+"  var SYS='You operate a web app for the user by choosing ONE UI action at a time. You are given a numbered list of the app\\'s interactive elements and the goal. Reply with STRICT JSON only, no prose: {\\\"action\\\":\\\"click\\\"|\\\"type\\\"|\\\"done\\\",\\\"index\\\":<number>,\\\"text\\\":\\\"<text to type>\\\",\\\"say\\\":\\\"<short status>\\\"}. Choose done when the goal is achieved or clearly impossible. Only use element indices that exist.';\n" +
+"  function strip(s){ return String(s||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim(); }\n" +
+"  function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }\n" +
+"  async function go(task){ if (running) return; running=true; run.style.display='none'; stop.style.display=''; logbox.innerHTML=''; var hist=[];\n" +
+"    log('\\u25B6 '+task);\n" +
+"    for (var step=0; step<MAXSTEPS && running; step++){\n" +
+"      var snap=snapshot();\n" +
+"      var user='GOAL: '+task+'\\n\\nINTERACTIVE ELEMENTS:\\n'+(snap.text||'(none)')+'\\n\\nACTIONS SO FAR:\\n'+(hist.join('\\n')||'(none yet)');\n" +
+"      var res; try { res=await gifos._agentChat([{role:'system',content:SYS},{role:'user',content:user}]); } catch(e){ log('\\u26A0 '+(e&&e.message||e)); break; }\n" +
+"      var act; try { act=JSON.parse(strip(res.text)); } catch(e){ log('\\u26A0 could not read the model\\'s reply'); break; }\n" +
+"      if (act.say) log(act.say);\n" +
+"      if (act.action==='done'){ log('\\u2713 done'); break; }\n" +
+"      var el=snap.map[act.index]; if (!el){ log('\\u26A0 no element ['+act.index+']'); break; }\n" +
+"      flash(el);\n" +
+"      if (act.action==='type'){ setVal(el, act.text||''); hist.push('typed \\\"'+(act.text||'')+'\\\" into ['+act.index+']'); }\n" +
+"      else { el.click(); hist.push('clicked ['+act.index+']'); }\n" +
+"      await sleep(500);\n" +
+"      if (step===MAXSTEPS-1) log('\\u26A0 stopped after '+MAXSTEPS+' steps');\n" +
+"    }\n" +
+"    running=false; run.style.display=''; stop.style.display='none'; }\n" +
+"  run.onclick=function(){ var t=inp.value.trim(); if (t) go(t); };\n" +
+"  inp.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); run.click(); } });\n" +
+"  stop.onclick=function(){ running=false; log('stopped'); };\n" +
+"})();";
+  }
+
   function mountApp(iframe, files, manifest, db, originalBytes, policy) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     armBackTrap(() => iframe);
@@ -840,6 +927,7 @@
       else if (d.type === 'apiReady') { const c = apiConfig()[d.name]; reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
       else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', role: d.role, hint: d.hint }); reply({ ok: true, result: true }); }
+      else if (d.type === 'agentChat') brokerAgentChat(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
@@ -858,7 +946,7 @@
     // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
     // those are captured by the trusted parent and handed back as clips.
     if (hasCap(manifest, 'motion')) { try { iframe.setAttribute('allow', 'gyroscope; accelerometer; magnetometer'); } catch (e) {} }
-    iframe.srcdoc = buildAppHtml(files);
+    iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
   }
 
