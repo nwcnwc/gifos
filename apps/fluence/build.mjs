@@ -19,6 +19,8 @@ const files = {
   'wordlists.js': read('wordlists.js'),
   'features.js': read('features.js'),
   'coach.js': read('coach.js'),
+  'drills.js': read('drills.js'),
+  'weekly.js': read('weekly.js'),
   'app.js': read('app.js'),
 };
 

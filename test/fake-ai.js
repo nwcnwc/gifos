@@ -25,9 +25,36 @@ const server = http.createServer((req, res) => {
   req.on('data', (c) => { raw += c; });
   req.on('end', () => {
     if (url.endsWith('/chat/completions')) {
-      return send(res, 200, 'application/json', JSON.stringify({
-        choices: [{ message: { role: 'assistant', content: 'pong' } }],
-      }));
+      // Branch on the system/user text so callers that expect JSON (Fluence's
+      // drill generation, coach, weekly review, picture scenes) get well-formed
+      // JSON. Anything unrecognized still returns 'pong' (keeps e2e-caps green).
+      let text = 'pong';
+      try {
+        const body = JSON.parse(raw || '{}');
+        const blob = (body.messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
+        if (/candid speech coach/i.test(blob)) {
+          text = JSON.stringify({
+            overall: 'Solid, but you leaned on fillers early.',
+            strengths: [{ label: 'clear open', evidence: 'named the topic in the first sentence' }],
+            weaknesses: [{ label: 'fillers', evidence: 'two "um"s by 0.2s', dimension: 'fillers' }],
+            moments: [{ at_seconds: 0.2, what_happened: 'a filler before the first content word', suggestion: 'pause silently instead' }],
+            suggested_drill_type: 'forced_substitution', drill_rationale: 'targets your filler habit',
+          });
+        } else if (/design picture-description drills/i.test(blob)) {
+          text = JSON.stringify({ prompt: 'Describe this scene in detail for 90 seconds.', scene_description: 'A sunlit carpentry workshop with a workbench, hand tools on a pegboard, and shavings on the floor.', ground_truth_elements: ['workbench', 'pegboard of tools', 'wood shavings', 'a window'] });
+        } else if (/reviewing a week/i.test(blob)) {
+          text = JSON.stringify({ period_summary: 'Steady week; fillers trended down.', patterns: [{ label: 'fewer fillers', evidence: 'takes 1→3', direction: 'improving' }], breakthroughs: [{ take_index: 3, what_happened: 'no long pauses' }], recommended_focus_next_week: { what: 'vocabulary reach', why: 'uncommon ratio flat', drill_suggestion: 'letter_fluency' } });
+        } else if (/generate short spontaneous-speaking drills/i.test(blob)) {
+          let params = {};
+          if (/'semantic_fluency'/.test(blob)) params = { category: 'kitchen utensils', time_seconds: 60 };
+          else if (/'forced_substitution'/.test(blob)) params = { banned_words: ['good', 'bad', 'thing', 'really', 'very'] };
+          else if (/'bridging'/.test(blob)) params = { start_sentence: 'The kettle had just boiled.', end_sentence: 'And that is why the bridge was never built.' };
+          else if (/'topic_switch'/.test(blob)) params = { topics: ['Why maps distort the poles', 'How a lock and key actually work', 'The case for eating breakfast last'], switch_interval_seconds: 30 };
+          else if (/'bullet_points'/.test(blob)) params = { topic: 'How compost works', bullets: ['what compost actually is', 'the organisms doing the work', 'why heat and air matter', 'when it is finished'], duration_seconds: 120 };
+          text = JSON.stringify({ prompt: 'Explain a everyday process to a curious ten-year-old.', params });
+        }
+      } catch (e) { /* fall through to pong */ }
+      return send(res, 200, 'application/json', JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }));
     }
     if (url.endsWith('/audio/speech')) {
       return send(res, 200, 'audio/mpeg', Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00])); // fake ID3 header
