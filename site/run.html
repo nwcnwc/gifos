@@ -178,11 +178,11 @@
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
       const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with' };
       const CAP_DESC = {
-        microphone: 'Only while you’re recording — you’ll see a recorder the whole time, and it gets just the finished clip, never your live mic.',
-        camera: 'Only when you take one — you’ll see it happen, and it gets just the photo or clip, never your live camera.',
-        motion: 'For tilt games and levels. No camera, no location.',
-        ai: 'It sends questions to the AI you set up and gets answers back. Your key stays private — it never sees it.',
-        api: 'It uses an account you set up (like Deepgram). Your key stays private — it never sees it, and it’s only ever sent to that company.'
+        microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
+        camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
+        motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
+        ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
+        api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.'
       };
       const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
       window.__gifosPermissions = function (policy, manifest) {
@@ -224,8 +224,8 @@
           const rows = (hasNet ? policy.list() : []).map(function (e) {
             const any = e.host === '*';
             const desc = any
-              ? 'It could send anything it sees to anyone, anywhere.'
-              : 'It can exchange data with this one website.';
+              ? 'Lets the app reach any website, so it could send whatever it sees to anyone.'
+              : 'Lets the app send and receive data with this one website.';
             return '<label class="perm-row' + (any ? ' any' : '') + '">' +
               '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
               '<span><span class="host">' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
