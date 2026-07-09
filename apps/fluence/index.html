@@ -14,29 +14,50 @@
       <p class="tag">Speak off the cuff. Get honest, grounded coaching.</p>
     </header>
 
-    <section id="drill" class="card drillcard"></section>
+    <nav id="nav">
+      <button data-view="practice" class="on">Practice</button>
+      <button data-view="stats">Stats</button>
+      <button data-view="history">History</button>
+      <button data-view="benchmarks">Benchmarks</button>
+    </nav>
 
-    <button id="rec" class="rec">● Record a take</button>
-    <p id="status" class="status"></p>
-
-    <section id="results" class="results"></section>
-    <section id="catalog" class="catalog"></section>
-
-    <section class="weekly">
-      <div class="weekly-head">
-        <h2>Weekly review</h2>
-        <button id="weekly-btn" class="ghost">Review my week</button>
-      </div>
-      <p class="muted small">A longer-form look across your last 7 days — patterns the per-take coach can’t see.</p>
-      <div id="weekly-out" class="weekly-out"></div>
+    <section id="view-practice" class="view">
+      <section id="drill" class="card drillcard"></section>
+      <button id="rec" class="rec">● Record a take</button>
+      <p id="status" class="status"></p>
+      <section id="results" class="results"></section>
+      <section id="catalog" class="catalog"></section>
     </section>
 
-    <section id="history" class="history"></section>
+    <section id="view-stats" class="view" hidden>
+      <div class="view-head">
+        <h2>Your progress</h2>
+        <button id="weekly-btn" class="ghost">Review my week</button>
+      </div>
+      <div id="weekly-out" class="weekly-out"></div>
+      <p class="muted small">Trends across your takes. For a progress signal that controls for prompt variation, use the same prompt repeatedly — see Benchmarks.</p>
+      <div id="stats-range" class="stats-range"></div>
+      <div id="stats-out"></div>
+    </section>
+
+    <section id="view-history" class="view" hidden>
+      <div id="history" class="history"></div>
+    </section>
+
+    <section id="view-benchmarks" class="view" hidden>
+      <div class="view-head">
+        <h2>Benchmarks</h2>
+        <button id="bench-add" class="ghost">＋ Add</button>
+      </div>
+      <p class="muted small">A small fixed set of prompts you re-record periodically. Same prompt, same conditions — the most honest progress signal. Aim to re-run each one about once a month.</p>
+      <div id="bench-form" class="bench-form" hidden></div>
+      <div id="bench-list"></div>
+    </section>
 
     <footer>
       <p class="fine">Your mic clip is captured by GifOS behind its own recorder — this app never holds the live mic.
       Transcription uses <b>your</b> Deepgram key (Settings → Third-party APIs); coaching, drills and images use your configured AI models.
-      Takes are saved on this device, inside the app’s GIF.</p>
+      Everything is saved on this device, inside the app’s GIF.</p>
     </footer>
   </main>
 

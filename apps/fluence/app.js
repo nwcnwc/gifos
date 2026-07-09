@@ -51,13 +51,14 @@
 
   // ---- drill card -----------------------------------------------------------
   function renderDrill() {
-    const d = drill, def = FL.getDrillType(d.type), box = $('drill');
+    const d = drill, isBench = d.type === 'benchmark', def = FL.getDrillType(d.type), box = $('drill');
     box.innerHTML = '';
     const head = el('div', 'drill-head');
-    head.appendChild(el('span', 'drill-tag', def.short));
+    head.appendChild(el('span', 'drill-tag', isBench ? 'BENCHMARK' : def.short));
     head.appendChild(el('span', 'drill-dur', d.duration + 's'));
     box.appendChild(head);
     box.appendChild(el('div', 'prompt', d.prompt));
+    if (isBench) box.appendChild(el('p', 'muted small', 'Same prompt every time — your honest progress signal. Speak as you would fresh.'));
     const p = d.params || {};
 
     if (d.type === 'letter_fluency' && p.letter) box.appendChild(el('div', 'big-letter', p.letter));
@@ -86,9 +87,11 @@
     }
 
     const actions = el('div', 'drill-actions');
-    const shuffle = el('button', 'ghost', d.type === 'free' ? '↻ New prompt' : '↻ Regenerate');
-    shuffle.onclick = () => { if (d.type === 'free') { drill = freestyle(); renderDrill(); } else regen(d.type); };
-    actions.appendChild(shuffle);
+    if (!isBench) { // a benchmark's prompt is fixed on purpose — no regenerate
+      const shuffle = el('button', 'ghost', d.type === 'free' ? '↻ New prompt' : '↻ Regenerate');
+      shuffle.onclick = () => { if (d.type === 'free') { drill = freestyle(); renderDrill(); } else regen(d.type); };
+      actions.appendChild(shuffle);
+    }
     const pick = el('button', 'ghost', '☰ Choose a drill');
     pick.onclick = toggleCatalog;
     actions.appendChild(pick);
@@ -236,6 +239,14 @@
     }
 
     if (transcript) { const det = el('details', 'tx'); det.appendChild(el('summary', null, 'Transcript')); det.appendChild(el('p', null, transcript)); box.appendChild(det); }
+
+    // Offer to make this prompt a recurring benchmark (except when it already is one).
+    if (drill.type !== 'benchmark') {
+      const promote = el('button', 'ghost', '＋ Save this prompt as a benchmark');
+      promote.style.marginTop = '.8rem';
+      promote.onclick = async () => { await addBenchmark({ title: (drill.prompt || 'Benchmark').slice(0, 40), prompt: drill.prompt, duration: drill.duration || 90 }); promote.textContent = 'Saved to Benchmarks ✓'; promote.disabled = true; };
+      box.appendChild(promote);
+    }
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -275,6 +286,7 @@
           created_at: (history[0] && history[0].created_at ? Math.max(history[0].created_at + 1, nowish()) : nowish()),
           by: me && me.id, by_name: me && me.name,
           drill_type: drill.type, drill_prompt: drill.prompt, drill_params: drill.params,
+          benchmark_id: drill.benchmark_id || null,
           transcript: text, features, feedback,
         };
         try { await takesDb.put(rec); } catch (e) {}
@@ -331,25 +343,184 @@
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ---- history --------------------------------------------------------------
+  // ---- history (grouped by month, tap a take to expand) ---------------------
+  const monthKey = (ms) => { const d = new Date(ms || 0); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+  const monthLabel = (ms) => new Date(ms || 0).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  function takeRow(t) {
+    const row = el('div', 'take'), f = t.features || {};
+    const top = el('div', 'take-top');
+    top.appendChild(el('span', 'take-type', t.benchmark_id ? 'BENCHMARK' : FL.shortLabel(t.drill_type)));
+    top.appendChild(el('span', 'take-when', t.created_at ? new Date(t.created_at).toLocaleString() : ''));
+    row.appendChild(top);
+    const stats = el('div', 'take-stats');
+    const chip = (label, val) => { const c = el('span', 'chip'); c.innerHTML = '<b>' + val + '</b> ' + label; stats.appendChild(c); };
+    if (isListing(t.drill_type)) { chip('items', (f.meta && f.meta.word_count) || 0); chip('unique', (f.lexical && f.lexical.types) || 0); }
+    else { chip('wpm', (f.pace && f.pace.wpm) || 0); chip('fillers/min', (f.fillers && f.fillers.per_minute) || 0); chip('TTR', (f.lexical && f.lexical.ttr) || 0); }
+    row.appendChild(stats);
+    if (t.drill_prompt) row.appendChild(el('div', 'muted small', t.drill_prompt));
+    if (t.feedback && t.feedback.overall) row.appendChild(el('div', 'take-overall', t.feedback.overall));
+    if (t.transcript) { const det = el('details', 'tx'); det.appendChild(el('summary', null, 'Transcript')); det.appendChild(el('p', null, t.transcript)); row.appendChild(det); }
+    return row;
+  }
+
   function renderHistory(all) {
     const wrap = $('history'); wrap.innerHTML = '';
-    if (!all.length) { wrap.appendChild(el('p', 'muted', 'No takes yet. Your history and trends show up here.')); return; }
-    wrap.appendChild(el('h2', null, 'Your takes'));
-    all.slice(0, 15).forEach((t) => {
-      const row = el('div', 'take'), f = t.features || {};
-      const top = el('div', 'take-top');
-      top.appendChild(el('span', 'take-type', FL.shortLabel(t.drill_type)));
-      top.appendChild(el('span', 'take-when', t.created_at ? new Date(t.created_at).toLocaleString() : ''));
-      row.appendChild(top);
-      const stats = el('div', 'take-stats');
-      const chip = (label, val) => { const c = el('span', 'chip'); c.innerHTML = '<b>' + val + '</b> ' + label; stats.appendChild(c); };
-      if (isListing(t.drill_type)) { chip('items', (f.meta && f.meta.word_count) || 0); chip('unique', (f.lexical && f.lexical.types) || 0); }
-      else { chip('wpm', (f.pace && f.pace.wpm) || 0); chip('fillers/min', (f.fillers && f.fillers.per_minute) || 0); chip('TTR', (f.lexical && f.lexical.ttr) || 0); }
-      row.appendChild(stats);
-      if (t.feedback && t.feedback.overall) row.appendChild(el('div', 'take-overall', t.feedback.overall));
-      wrap.appendChild(row);
+    wrap.appendChild(el('h2', null, 'History'));
+    if (!all.length) { wrap.appendChild(el('p', 'muted', 'No takes yet. Record one on the Practice tab and it shows up here.')); return; }
+    let curKey = null;
+    all.forEach((t) => {
+      const k = monthKey(t.created_at);
+      if (k !== curKey) { curKey = k; wrap.appendChild(el('h3', 'month-head', monthLabel(t.created_at))); }
+      wrap.appendChild(takeRow(t));
     });
+  }
+
+  // ---- stats / trends -------------------------------------------------------
+  const STATS_METRICS = [
+    { label: 'Fillers / min', getter: (f) => f.fillers && f.fillers.per_minute, better: 'down', p: 1, suffix: '' },
+    { label: 'Words / min', getter: (f) => f.pace && f.pace.wpm, better: 'sweet', sweet: [140, 170], p: 0, suffix: '' },
+    { label: 'Lexical diversity (TTR)', getter: (f) => f.lexical && f.lexical.ttr, better: 'up', p: 2, suffix: '' },
+    { label: 'Vocabulary reach', getter: (f) => f.lexical && f.lexical.uncommon_word_ratio, better: 'up', p: 2, suffix: '' },
+    { label: 'Long pauses / take', getter: (f) => f.pauses && f.pauses.long_pause_count, better: 'down', p: 0, suffix: '' },
+    { label: 'Hedges / min', getter: (f) => f.hedges && f.hedges.per_minute, better: 'down', p: 1, suffix: '' },
+  ];
+  const RANGES = [['7 days', 7], ['30 days', 30], ['90 days', 90], ['All', null]];
+  let statDays = null; // null = all
+  const round = (x, p) => (x == null ? null : Math.round(x * 10 ** p) / 10 ** p);
+
+  function bestOf(vals, m) {
+    if (m.better === 'down') return Math.min(...vals);
+    if (m.better === 'up') return Math.max(...vals);
+    const [lo, hi] = m.sweet; // sweet: closest to the band
+    return vals.reduce((best, v) => {
+      const db = best < lo ? lo - best : best > hi ? best - hi : 0;
+      const dv = v < lo ? lo - v : v > hi ? v - hi : 0;
+      return dv < db ? v : best;
+    }, vals[0]);
+  }
+  function spark(vals, m) {
+    const wrap = el('div', 'spark');
+    const arr = vals.slice(-40);
+    const max = Math.max.apply(null, arr), min = Math.min.apply(null, arr), span = (max - min) || 1;
+    arr.forEach((v, i) => {
+      const bar = el('div', 'bar');
+      bar.style.height = (8 + 34 * ((v - min) / span)) + 'px';
+      if (m.better === 'sweet') bar.classList.add(v >= m.sweet[0] && v <= m.sweet[1] ? 'good' : 'bad');
+      if (i === arr.length - 1) bar.classList.add('last');
+      wrap.appendChild(bar);
+    });
+    return wrap;
+  }
+
+  async function renderStats() {
+    const box = $('stats-out'); box.innerHTML = '';
+    // range pills
+    const pills = $('stats-range'); pills.innerHTML = '';
+    RANGES.forEach(([label, days]) => {
+      const b = el('button', 'range-pill' + (days === statDays ? ' on' : ''), label);
+      b.onclick = () => { statDays = days; renderStats(); };
+      pills.appendChild(b);
+    });
+    let all = await loadTakes();
+    const from = statDays ? nowish() - statDays * 86400000 : 0;
+    // connected-speech only (listing tasks distort these metrics), oldest→newest
+    const takes = all.filter((t) => !isListing(t.drill_type) && t.features && (t.created_at || 0) >= from).sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+    if (takes.length < 1) { box.appendChild(el('div', 'stats-empty', 'No connected-speech takes in this range yet. Record a few (freestyle, bridging, benchmarks…).')); return; }
+    STATS_METRICS.forEach((m) => {
+      const vals = takes.map((t) => m.getter(t.features)).filter((v) => v != null);
+      if (!vals.length) return;
+      const card = el('div', 'metric');
+      const head = el('div', 'metric-head');
+      head.appendChild(el('div', 'metric-name', m.label));
+      const nums = el('div', 'metric-nums');
+      const stat = (l, v) => { const s = el('span'); s.innerHTML = l + ' <b>' + v + '</b>'; nums.appendChild(s); };
+      stat('now', round(vals[vals.length - 1], m.p));
+      stat('avg', round(vals.reduce((a, b) => a + b, 0) / vals.length, m.p));
+      stat('best', round(bestOf(vals, m), m.p));
+      head.appendChild(nums); card.appendChild(head);
+      card.appendChild(spark(vals, m));
+      box.appendChild(card);
+    });
+  }
+
+  // ---- benchmarks -----------------------------------------------------------
+  const benchDb = has() ? gifos.db('benchmarks') : null;
+  const STARTER_BENCHMARKS = [
+    { title: 'Your day', prompt: 'Walk through your day so far — or your plan for the rest of it — in as much specific detail as you can.', duration: 90 },
+    { title: 'Explain your work', prompt: 'Explain what you do (your work or your studies) to a sharp 12-year-old who’s never heard of it.', duration: 90 },
+    { title: 'A held opinion', prompt: 'Make the case for an opinion you actually hold, then give the strongest argument against it.', duration: 90 },
+  ];
+  async function loadBenchmarks() { if (!benchDb) return []; let a = []; try { a = await benchDb.getAll(); } catch (e) {} return a.sort((x, y) => (x.created_at || 0) - (y.created_at || 0)); }
+  async function addBenchmark(o) {
+    if (!benchDb) return;
+    const rec = { id: 'bm_' + Math.random().toString(36).slice(2, 10), created_at: nowish(), title: o.title || 'Benchmark', prompt: o.prompt || '', duration: o.duration || 90 };
+    try { await benchDb.put(rec); } catch (e) {}
+    return rec;
+  }
+  async function deleteBenchmark(id) { if (benchDb) { try { await benchDb.delete(id); } catch (e) {} } renderBenchmarks(); }
+  function runBenchmark(b) {
+    drill = { type: 'benchmark', prompt: b.prompt, params: null, duration: b.duration || 90, benchmark_id: b.id, benchmark_title: b.title, generated_by: 'benchmark' };
+    showView('practice'); renderDrill();
+    $('rec').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function renderBenchmarks() {
+    const list = $('bench-list'); list.innerHTML = '';
+    const [benches, takes] = await Promise.all([loadBenchmarks(), loadTakes()]);
+    if (!benches.length) {
+      const empty = el('div', 'stats-empty', 'No benchmarks yet — a fixed prompt you re-record over time is the cleanest way to see real progress. ');
+      const seed = el('button', 'primary', 'Add 3 starter benchmarks');
+      seed.onclick = async () => { for (const s of STARTER_BENCHMARKS) await addBenchmark(s); renderBenchmarks(); };
+      empty.appendChild(el('br')); empty.appendChild(seed); list.appendChild(empty); return;
+    }
+    benches.forEach((b) => {
+      const runs = takes.filter((t) => t.benchmark_id === b.id).sort((x, y) => (x.created_at || 0) - (y.created_at || 0));
+      const card = el('div', 'bench');
+      const top = el('div', 'bench-top');
+      top.appendChild(el('div', 'bench-title', b.title));
+      const acts = el('div', 'bench-actions');
+      const run = el('button', 'primary', runs.length ? 'Run again' : 'Run now'); run.onclick = () => runBenchmark(b); acts.appendChild(run);
+      const del = el('button', 'bench-del', '✕'); del.title = 'Remove'; del.onclick = () => deleteBenchmark(b.id); acts.appendChild(del);
+      top.appendChild(acts); card.appendChild(top);
+      card.appendChild(el('div', 'bench-prompt', b.prompt));
+      if (runs.length) {
+        const vals = runs.map((t) => t.features && t.features.fillers && t.features.fillers.per_minute).filter((v) => v != null);
+        if (vals.length) card.appendChild(spark(vals, STATS_METRICS[0]));
+        const meta = el('div', 'bench-meta');
+        meta.appendChild(el('span', null, runs.length + (runs.length === 1 ? ' run' : ' runs')));
+        meta.appendChild(el('span', null, 'last ' + new Date(runs[runs.length - 1].created_at).toLocaleDateString()));
+        meta.appendChild(el('span', null, 'fillers/min shown'));
+        card.appendChild(meta);
+      } else {
+        card.appendChild(el('div', 'bench-meta', 'Not run yet.'));
+      }
+      list.appendChild(card);
+    });
+  }
+
+  function showAddBenchmarkForm() {
+    const form = $('bench-form');
+    if (!form.hidden) { form.hidden = true; return; }
+    form.hidden = false; form.innerHTML = '';
+    const title = el('input'); title.placeholder = 'Short title (e.g. Elevator pitch)';
+    const prompt = el('textarea'); prompt.placeholder = 'The prompt you’ll re-record each time'; prompt.rows = 2;
+    const save = el('button', 'primary', 'Add benchmark');
+    save.onclick = async () => { if (!prompt.value.trim()) { prompt.focus(); return; } await addBenchmark({ title: title.value.trim() || prompt.value.trim().slice(0, 40), prompt: prompt.value.trim(), duration: 90 }); form.hidden = true; renderBenchmarks(); };
+    form.appendChild(title); form.appendChild(prompt); form.appendChild(save);
+    title.focus();
+  }
+
+  // ---- view router ----------------------------------------------------------
+  let currentView = 'practice';
+  function showView(name) {
+    currentView = name;
+    ['practice', 'stats', 'history', 'benchmarks'].forEach((v) => { $('view-' + v).hidden = (v !== name); });
+    document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.getAttribute('data-view') === name));
+    if (name === 'stats') renderStats();
+    else if (name === 'history') loadTakes().then(renderHistory);
+    else if (name === 'benchmarks') renderBenchmarks();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
   }
 
   // ---- boot -----------------------------------------------------------------
@@ -357,9 +528,15 @@
     renderDrill();
     $('rec').onclick = run;
     $('weekly-btn').onclick = runWeekly;
-    if (has() && gifos.onBack) gifos.onBack(() => { if (catalogOpen) { closeCatalog(); return true; } return false; });
-    if (takesDb && takesDb.subscribe) { try { takesDb.subscribe((all) => renderHistory((all || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0)))); } catch (e) {} }
-    renderHistory(await loadTakes());
+    $('bench-add').onclick = showAddBenchmarkForm;
+    document.querySelectorAll('#nav button').forEach((b) => { b.onclick = () => showView(b.getAttribute('data-view')); });
+    if (has() && gifos.onBack) gifos.onBack(() => {
+      if (catalogOpen) { closeCatalog(); return true; }
+      if (currentView !== 'practice') { showView('practice'); return true; }
+      return false;
+    });
+    // live-refresh whichever review view is open when takes change
+    if (takesDb && takesDb.subscribe) { try { takesDb.subscribe(() => { if (currentView === 'history') loadTakes().then(renderHistory); else if (currentView === 'stats') renderStats(); else if (currentView === 'benchmarks') renderBenchmarks(); }); } catch (e) {} }
     if (!has()) { setStatus('This is a GifOS app — open it on a GifOS Home Screen to record and get coached.', 'bad'); return; }
     // On open, if something's missing, show it right away — don't wait for a take.
     const miss = await whatIsMissing();
