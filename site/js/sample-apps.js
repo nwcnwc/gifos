@@ -1018,7 +1018,7 @@ opens the built-in meeting page when opened in GifOS.</p>
     <button id="keep" disabled>Keep it</button>
   </div>
   <div class="kept" id="keptWrap" style="display:none"><h4>Kept fortunes</h4><div id="kept"></div></div>
-  <p class="foot">Fortunes come from adviceslip.com over the internet — tap the 🌐 button up top to see or change that.</p>
+  <p class="foot">Fortunes come from adviceslip.com over the internet — tap the “Internet” button up top to see or change that.</p>
 </main>
 <script>
   var slip=document.getElementById('slip'),crack=document.getElementById('crack'),keepBtn=document.getElementById('keep');
@@ -1036,7 +1036,7 @@ opens the built-in meeting page when opened in GifOS.</p>
       .then(function(r){if(!r.ok)throw new Error('bad');return r.json();})
       .then(function(d){current=(d&&d.slip&&d.slip.advice)||'…';slip.textContent='“'+current+'”';
         keepBtn.disabled=false;crack.disabled=false;})
-      .catch(function(){fail('Couldn’t reach the fortune teller. You may be offline — or you’ve switched this app’s internet off with the 🌐 button up top.');});
+      .catch(function(){fail('Couldn’t reach the fortune teller. You may be offline — or you’ve switched this app’s internet off with the “Internet” button up top.');});
   }
   crack.onclick=crackOne;
   keepBtn.onclick=function(){if(current&&db){db.put({text:current,t:Date.now()});keepBtn.disabled=true;}};
