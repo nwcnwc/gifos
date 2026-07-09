@@ -401,14 +401,42 @@
       ? gif.repack(originalBytes, out)
       : gif.encode(out, { accent: manifest.accent }); // Promise<Uint8Array>
   }
+  function downloadBytes(bytes, name) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return name;
+  }
   function downloadSnapshot(originalBytes, files, manifest, db) {
-    return Promise.resolve(db.getFullState()).then((state) => packSnapshot(originalBytes, files, manifest, state)).then((bytes) => {
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
-      const a = document.createElement('a');
-      const name = (manifest.appId || 'app') + '-snapshot.gif';
-      a.href = url; a.download = name; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      return name;
+    return Promise.resolve(db.getFullState())
+      .then((state) => packSnapshot(originalBytes, files, manifest, state))
+      .then((bytes) => downloadBytes(bytes, (manifest.appId || 'app') + '-snapshot.gif'));
+  }
+  // Strip any baked-in .state/ so a copy opens FRESH (app only, no data).
+  function stripState(originalBytes, files) {
+    const clean = {}; let hadState = false;
+    for (const p in files) { if (p.startsWith('.state/')) hadState = true; else clean[p] = files[p]; }
+    return (hadState && gif.repack) ? gif.repack(originalBytes, clean) : Promise.resolve(originalBytes);
+  }
+  // Unified "steal": opts = { toDesktop, withData }. Four combinations:
+  //   Stolen Apps + without data → a fresh copy filed into the desktop's chest
+  //   Stolen Apps + with data    → a copy carrying the current data
+  //   Download   + without data → a fresh, self-contained App GIF file
+  //   Download   + with data     → a full snapshot GIF (app + everything in it)
+  // On the desktop, state is stored beside the icon (setState) rather than baked;
+  // a downloaded GIF bakes it into `.state/` so it travels.
+  function stealApp(originalBytes, files, manifest, db, opts) {
+    opts = opts || {};
+    const withData = !!opts.withData, toDesktop = !!opts.toDesktop;
+    const stateP = withData ? Promise.resolve(db.getFullState()) : Promise.resolve(null);
+    return stateP.then((state) => {
+      if (toDesktop) {
+        return Promise.all([stripState(originalBytes, files), ensureStolenFolder()])
+          .then(([bytes, folder]) => saveAppToDesktop(bytes, manifest, withData ? state : null, folder))
+          .then(() => ({ toDesktop: true, withData: withData }));
+      }
+      const bytesP = withData ? packSnapshot(originalBytes, files, manifest, state) : stripState(originalBytes, files);
+      return bytesP.then((bytes) => ({ name: downloadBytes(bytes, (manifest.appId || 'app') + (withData ? '-snapshot' : '') + '.gif'), withData: withData }));
     });
   }
 
@@ -1541,7 +1569,7 @@
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
-        return { save: () => downloadSnapshot(appBytes, files, manifest, db), becomeHost, sessionInfo, endSession };
+        return { save: () => downloadSnapshot(appBytes, files, manifest, db), steal: (opts) => stealApp(appBytes, files, manifest, db, opts), becomeHost, sessionInfo, endSession };
       });
     }
   }
@@ -1891,6 +1919,7 @@
     return Promise.resolve({
       save: () => (filesRef && remoteDb ? downloadSnapshot(appBytes, filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
       saveToDesktop,
+      steal: (opts) => (filesRef && remoteDb ? stealApp(appBytes, filesRef, manifestRef, remoteDb, opts) : Promise.reject(new Error('app not loaded yet'))),
       becomeHost,
     });
   }
