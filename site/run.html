@@ -44,10 +44,11 @@
   /* Identity pill: the signed app's own short name + version. Only shown when
      the app is signed — an unsigned GIF could claim any name, so we don't. */
   .appid { display: inline-flex; align-items: center; gap: .3rem; max-width: 12rem;
-    border-color: color-mix(in srgb, #7b5cff 55%, var(--border, #33334d));
-    color: color-mix(in srgb, #7b5cff 55%, var(--text, #e0e0f0)); }
-  .appid .ver { font-weight: 700; opacity: .85; }
-  .appid .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    color: var(--text, #e0e0f0);
+    border-color: color-mix(in srgb, #7b5cff 45%, var(--border, #33334d));
+    background: color-mix(in srgb, #7b5cff 10%, transparent); }
+  .appid .ver { font-weight: 800; color: color-mix(in srgb, #2ba6e0 65%, var(--text, #1a1a2a)); }
+  .appid .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   /* Network-permission chip: calm blue for a named allowlist, loud red-orange
      when the app can reach ANY site. Click to review/revoke what it can reach. */
   .perms { display: inline-flex; align-items: center; gap: .3rem; }
