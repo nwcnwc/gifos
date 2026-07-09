@@ -92,82 +92,122 @@ function hatch(buf, x0, y0, x1, y1, n, angle, o) {
   }
 }
 
-// Everything except the mouth — painted once, reused for every frame.
+// A soft elliptical form-shadow — smooth graphite tone under the linework, so
+// the portrait reads as shaded volume, not just outlines. Light is upper-left,
+// so shadows sit on the viewer's-right of forms and under them.
+function softShade(b, cx, cy, rx, ry, amt) {
+  const X = cx * RW, Y = cy * RW, RX = rx * RW, RY = ry * RW;
+  const x0 = Math.max(0, (X - RX) | 0), x1 = Math.min(RW - 1, (X + RX) | 0);
+  const y0 = Math.max(0, (Y - RY) | 0), y1 = Math.min(RW - 1, (Y + RY) | 0);
+  for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+    const nx = (px - X) / RX, ny = (py - Y) / RY, d = nx * nx + ny * ny;
+    if (d > 1) continue;
+    let f = 1 - Math.sqrt(d); f *= f;
+    b[py * RW + px] += amt * f;
+  }
+}
+
+// A 3/4-ish portrait of an earnest speaker: shaded, with real features, but
+// still a loose graphite sketch. Everything except the mouth (redrawn per frame).
 function paintBase() {
   const b = new Float32Array(RW * RW);
 
-  // hair — wispy strokes flowing up and back over the crown
-  const hairSeeds = [11, 23, 37, 51, 67, 83, 97, 113, 131];
-  const hairPaths = [
-    [[0.30, 0.30], [0.34, 0.17], [0.46, 0.11], [0.58, 0.13]],
-    [[0.28, 0.34], [0.31, 0.19], [0.44, 0.10], [0.60, 0.12]],
-    [[0.33, 0.27], [0.40, 0.15], [0.52, 0.11], [0.62, 0.16]],
-    [[0.31, 0.24], [0.42, 0.14], [0.55, 0.13], [0.63, 0.20]],
-    [[0.29, 0.31], [0.35, 0.22], [0.47, 0.15], [0.57, 0.15]],
+  // --- tonal foundation: soft form shadows, painted first, under the lines ---
+  softShade(b, 0.615, 0.44, 0.135, 0.20, 0.34);   // shadow side of the face (right)
+  softShade(b, 0.50, 0.585, 0.155, 0.085, 0.30);  // under jaw / neck shadow
+  softShade(b, 0.455, 0.235, 0.215, 0.135, 0.42); // hair mass volume
+  softShade(b, 0.56, 0.475, 0.045, 0.07, 0.30);   // shadow beside the nose
+  softShade(b, 0.50, 0.83, 0.40, 0.18, 0.40);     // jacket / torso mass
+  softShade(b, 0.50, 0.60, 0.05, 0.03, 0.22);     // shadow under lower lip
+
+  // --- hair: side-parted, wispy strands over a shaded mass ---
+  const hair = [
+    [[0.31, 0.34], [0.33, 0.20], [0.45, 0.13], [0.60, 0.17]],
+    [[0.30, 0.30], [0.36, 0.17], [0.50, 0.12], [0.63, 0.19]],
+    [[0.33, 0.27], [0.42, 0.15], [0.55, 0.13], [0.645, 0.22]],
+    [[0.355, 0.315], [0.44, 0.19], [0.55, 0.16], [0.62, 0.20]], // part sweep
+    [[0.32, 0.37], [0.30, 0.28], [0.34, 0.21], [0.42, 0.17]],   // left temple wisp
+    [[0.66, 0.30], [0.665, 0.24], [0.62, 0.19], [0.55, 0.165]], // right crown
   ];
-  hairPaths.forEach((p, i) => stroke(b, p, { seed: hairSeeds[i], width: 0.010, amt: 0.34, passes: 3, jit: 0.9, taper: true }));
+  hair.forEach((p, i) => stroke(b, p, { seed: 11 + i * 17, width: 0.011, amt: 0.34, passes: 3, jit: 1.0, taper: true }));
+  // hairline across the forehead
+  stroke(b, [[0.345, 0.325], [0.44, 0.285], [0.56, 0.285], [0.655, 0.325]], { seed: 141, width: 0.008, amt: 0.3, passes: 2, jit: 0.6 });
 
-  // head / face outline: left temple → cheek → jaw → chin → up the front to brow
-  stroke(b, [[0.30, 0.30], [0.27, 0.42], [0.30, 0.55], [0.40, 0.64], [0.50, 0.66], [0.585, 0.60]], { seed: 201, width: 0.011, amt: 0.5, passes: 2, jit: 0.5 });
-  // front of face (facing viewer's right): forehead → brow → nose → lip → chin
-  stroke(b, [[0.585, 0.19], [0.63, 0.30], [0.635, 0.40], [0.66, 0.45], [0.63, 0.485]], { seed: 211, width: 0.010, amt: 0.5, passes: 2, jit: 0.5 });
-  stroke(b, [[0.615, 0.545], [0.60, 0.585], [0.585, 0.60]], { seed: 213, width: 0.010, amt: 0.45, passes: 2, jit: 0.5 }); // chin
+  // --- face + jaw contour (left lit edge lighter, right shadow edge firmer) ---
+  stroke(b, [[0.335, 0.31], [0.315, 0.41], [0.335, 0.52], [0.40, 0.605], [0.47, 0.64]], { seed: 201, width: 0.009, amt: 0.42, passes: 2, jit: 0.4 }); // left
+  stroke(b, [[0.665, 0.31], [0.685, 0.41], [0.665, 0.52], [0.60, 0.605], [0.53, 0.64]], { seed: 205, width: 0.010, amt: 0.52, passes: 2, jit: 0.4 }); // right
+  stroke(b, [[0.47, 0.64], [0.50, 0.648], [0.53, 0.64]], { seed: 209, width: 0.009, amt: 0.44, passes: 2, jit: 0.4 }); // chin
+  // ears
+  stroke(b, [[0.335, 0.40], [0.315, 0.44], [0.335, 0.48]], { seed: 221, width: 0.008, amt: 0.34, passes: 2, jit: 0.4 });
+  stroke(b, [[0.665, 0.40], [0.685, 0.44], [0.665, 0.485]], { seed: 225, width: 0.008, amt: 0.4, passes: 2, jit: 0.4 });
 
-  // brow + eyes (expressive, engaged)
-  stroke(b, [[0.40, 0.375], [0.47, 0.35], [0.53, 0.36]], { seed: 301, width: 0.009, amt: 0.55, passes: 2, jit: 0.4 }); // near brow
-  stroke(b, [[0.545, 0.365], [0.585, 0.35], [0.60, 0.365]], { seed: 305, width: 0.008, amt: 0.5, passes: 2, jit: 0.4 }); // far brow
-  stroke(b, [[0.42, 0.415], [0.47, 0.405], [0.505, 0.415]], { seed: 311, width: 0.008, amt: 0.6, passes: 2, jit: 0.35 }); // near eye
-  stroke(b, [[0.55, 0.41], [0.58, 0.405], [0.60, 0.415]], { seed: 315, width: 0.007, amt: 0.5, passes: 2, jit: 0.35 }); // far eye
-  deposit(b, 0.465 * RW, 0.415 * RW, 0.011 * RW, 0.5 * INK); // near pupil
-  deposit(b, 0.577 * RW, 0.412 * RW, 0.009 * RW, 0.42 * INK); // far pupil
+  // --- brows (raised, engaged — set well above the eyes) ---
+  stroke(b, [[0.375, 0.368], [0.44, 0.348], [0.478, 0.362]], { seed: 301, width: 0.010, amt: 0.5, passes: 2, jit: 0.3 });
+  stroke(b, [[0.522, 0.362], [0.56, 0.348], [0.625, 0.37]], { seed: 305, width: 0.010, amt: 0.5, passes: 2, jit: 0.3 });
 
-  // loose "construction" wisps for an unfinished-sketch feel
-  stroke(b, [[0.24, 0.40], [0.27, 0.44]], { seed: 951, width: 0.006, amt: 0.16, passes: 1, jit: 1.4 });
-  stroke(b, [[0.63, 0.66], [0.60, 0.70]], { seed: 953, width: 0.006, amt: 0.14, passes: 1, jit: 1.4 });
-  stroke(b, [[0.36, 0.20], [0.44, 0.16]], { seed: 957, width: 0.006, amt: 0.15, passes: 1, jit: 1.4 });
+  // --- eyes: clearly OPEN — a gentle upper lid over a round, looking pupil ---
+  const eye = (ex, ey, w, dark) => {
+    stroke(b, [[ex - w, ey - w * 0.02], [ex - w * 0.2, ey - w * 0.26], [ex + w, ey + w * 0.02]], { seed: (ex * 1000) | 0, width: 0.006, amt: dark, passes: 2, jit: 0.22 }); // upper lid
+    const cx0 = (ex + w * 0.06) * RW, cy0 = (ey + w * 0.16) * RW;
+    deposit(b, cx0, cy0, 0.025 * RW, 0.20 * INK); // soft iris / socket
+    deposit(b, cx0, cy0, 0.015 * RW, 0.95 * INK); // round pupil — reads as an open eye
+    stroke(b, [[ex - w * 0.7, ey + w * 0.42], [ex + w * 0.6, ey + w * 0.36]], { seed: ((ex + 3) * 1000) | 0, width: 0.004, amt: dark * 0.3, passes: 1, jit: 0.3 }); // faint lower lid
+  };
+  eye(0.44, 0.42, 0.052, 0.5);    // near eye
+  eye(0.575, 0.42, 0.047, 0.46);  // far eye
 
-  // nose
-  stroke(b, [[0.55, 0.42], [0.55, 0.47], [0.585, 0.49], [0.55, 0.50]], { seed: 401, width: 0.008, amt: 0.42, passes: 2, jit: 0.4 });
+  // --- nose: bridge, tip, a nostril and the shadow plane ---
+  stroke(b, [[0.505, 0.40], [0.50, 0.46], [0.485, 0.50]], { seed: 401, width: 0.007, amt: 0.3, passes: 2, jit: 0.35 }); // bridge (soft, lit side)
+  stroke(b, [[0.485, 0.50], [0.50, 0.515], [0.545, 0.505]], { seed: 405, width: 0.008, amt: 0.44, passes: 2, jit: 0.35 }); // base + tip
+  deposit(b, 0.505 * RW, 0.503 * RW, 0.010 * RW, 0.34 * INK); // nostril
 
-  // cheek + jaw shading, and a hint of a mustache/shadow above the lip
-  hatch(b, 0.35 * RW, 0.50 * RW, 0.31 * RW, 0.58 * RW, 6, 1.2, { seed: 501, len: 0.03, amt: 0.16 });
-  hatch(b, 0.58 * RW, 0.50 * RW, 0.60 * RW, 0.575 * RW, 5, 1.1, { seed: 555, len: 0.028, amt: 0.14 });
+  // --- cheek + smile lines ---
+  stroke(b, [[0.585, 0.49], [0.60, 0.53], [0.585, 0.565]], { seed: 501, width: 0.006, amt: 0.24, passes: 1, jit: 0.4 }); // right nasolabial
 
-  // neck
-  stroke(b, [[0.44, 0.66], [0.44, 0.74]], { seed: 601, width: 0.010, amt: 0.4, passes: 2, jit: 0.4 });
-  stroke(b, [[0.56, 0.62], [0.565, 0.72]], { seed: 605, width: 0.010, amt: 0.4, passes: 2, jit: 0.4 });
+  // --- neck ---
+  stroke(b, [[0.44, 0.645], [0.445, 0.72]], { seed: 601, width: 0.009, amt: 0.32, passes: 2, jit: 0.35 });
+  stroke(b, [[0.565, 0.645], [0.56, 0.72]], { seed: 605, width: 0.009, amt: 0.4, passes: 2, jit: 0.35 });
 
-  // shoulders + suit collar / lapels (an orator in a jacket)
-  stroke(b, [[0.12, 0.98], [0.16, 0.82], [0.30, 0.74], [0.44, 0.74]], { seed: 701, width: 0.012, amt: 0.5, passes: 2, jit: 0.5 });
-  stroke(b, [[0.88, 0.98], [0.84, 0.80], [0.70, 0.72], [0.565, 0.72]], { seed: 705, width: 0.012, amt: 0.5, passes: 2, jit: 0.5 });
-  stroke(b, [[0.44, 0.74], [0.40, 0.86], [0.34, 0.98]], { seed: 711, width: 0.010, amt: 0.45, passes: 2, jit: 0.5 }); // left lapel
-  stroke(b, [[0.565, 0.72], [0.60, 0.85], [0.66, 0.98]], { seed: 715, width: 0.010, amt: 0.45, passes: 2, jit: 0.5 }); // right lapel
-  stroke(b, [[0.50, 0.76], [0.50, 0.98]], { seed: 721, width: 0.008, amt: 0.35, passes: 1, jit: 0.5 }); // shirt placket
-  hatch(b, 0.20 * RW, 0.86 * RW, 0.30 * RW, 0.80 * RW, 7, 0.5, { seed: 731, len: 0.05, amt: 0.13 }); // jacket shade
-  hatch(b, 0.72 * RW, 0.82 * RW, 0.80 * RW, 0.88 * RW, 7, 2.5, { seed: 741, len: 0.05, amt: 0.13 });
+  // --- shirt collar + tie + jacket lapels (professional, a touch earnest) ---
+  stroke(b, [[0.44, 0.72], [0.50, 0.80], [0.56, 0.72]], { seed: 621, width: 0.008, amt: 0.4, passes: 2, jit: 0.35 }); // collar V
+  stroke(b, [[0.475, 0.755], [0.50, 0.735], [0.525, 0.755], [0.50, 0.785], [0.475, 0.755]], { seed: 631, width: 0.008, amt: 0.5, passes: 2, jit: 0.3 }); // tie knot
+  stroke(b, [[0.485, 0.785], [0.47, 0.98]], { seed: 635, width: 0.012, amt: 0.42, passes: 2, jit: 0.35 }); // tie L
+  stroke(b, [[0.515, 0.785], [0.53, 0.98]], { seed: 637, width: 0.012, amt: 0.42, passes: 2, jit: 0.35 }); // tie R
+  softShade(b, 0.50, 0.90, 0.05, 0.10, 0.5);                    // tie tone
+  stroke(b, [[0.13, 0.98], [0.17, 0.83], [0.31, 0.75], [0.44, 0.75]], { seed: 701, width: 0.012, amt: 0.5, passes: 2, jit: 0.45 }); // left shoulder
+  stroke(b, [[0.87, 0.98], [0.83, 0.81], [0.69, 0.74], [0.565, 0.745]], { seed: 705, width: 0.012, amt: 0.5, passes: 2, jit: 0.45 }); // right shoulder
+  stroke(b, [[0.44, 0.75], [0.39, 0.87], [0.33, 0.98]], { seed: 711, width: 0.010, amt: 0.46, passes: 2, jit: 0.4 }); // left lapel
+  stroke(b, [[0.565, 0.745], [0.61, 0.87], [0.67, 0.98]], { seed: 715, width: 0.010, amt: 0.46, passes: 2, jit: 0.4 }); // right lapel
 
-  // a raised, gesturing hand — the charismatic orator's flourish (lower right)
-  stroke(b, [[0.66, 0.98], [0.74, 0.82], [0.82, 0.70], [0.86, 0.60]], { seed: 801, width: 0.011, amt: 0.42, passes: 2, jit: 0.5 }); // forearm
-  stroke(b, [[0.86, 0.60], [0.90, 0.55], [0.885, 0.50]], { seed: 805, width: 0.009, amt: 0.4, passes: 2, jit: 0.5 }); // fingers
-  stroke(b, [[0.86, 0.60], [0.845, 0.53], [0.86, 0.49]], { seed: 809, width: 0.008, amt: 0.36, passes: 2, jit: 0.5 });
-  stroke(b, [[0.855, 0.61], [0.815, 0.575], [0.80, 0.55]], { seed: 813, width: 0.008, amt: 0.34, passes: 2, jit: 0.5 }); // thumb
+  // --- a raised, open hand — the earnest speaker's flourish (kept, refined) ---
+  stroke(b, [[0.70, 0.98], [0.77, 0.83], [0.83, 0.71], [0.855, 0.63]], { seed: 801, width: 0.011, amt: 0.4, passes: 2, jit: 0.45 }); // forearm
+  stroke(b, [[0.855, 0.63], [0.90, 0.585], [0.905, 0.53]], { seed: 805, width: 0.009, amt: 0.38, passes: 2, jit: 0.45 }); // finger 1
+  stroke(b, [[0.86, 0.62], [0.885, 0.55], [0.875, 0.50]], { seed: 809, width: 0.008, amt: 0.36, passes: 2, jit: 0.45 }); // finger 2
+  stroke(b, [[0.84, 0.62], [0.85, 0.55], [0.835, 0.51]], { seed: 811, width: 0.008, amt: 0.34, passes: 2, jit: 0.45 }); // finger 3
+  stroke(b, [[0.85, 0.635], [0.815, 0.60], [0.80, 0.57]], { seed: 813, width: 0.008, amt: 0.33, passes: 2, jit: 0.45 }); // thumb
+  softShade(b, 0.86, 0.63, 0.045, 0.05, 0.24); // palm tone
 
   return b;
 }
 
-// The mouth for a given openness (0..1). Upper + lower lip, and a darker open
-// interior when wide — the animated part.
+// The mouth for a given openness (0..1) — the animated part. A confident,
+// slightly-smiling speaking mouth: upper lip, lower lip, teeth/interior when open.
 function paintMouth(b, open) {
-  const cx = 0.60, cy = 0.535, w = 0.055;
-  const h = 0.006 + open * 0.032;
-  stroke(b, [[cx - w, cy - 0.004], [cx - w * 0.3, cy - h * 0.6], [cx + w * 0.4, cy - h * 0.55], [cx + w, cy]], { seed: 901, width: 0.008, amt: 0.5, passes: 2, jit: 0.35 }); // upper lip
-  stroke(b, [[cx - w, cy + 0.002], [cx - w * 0.2, cy + h], [cx + w * 0.5, cy + h * 0.9], [cx + w, cy]], { seed: 905, width: 0.009, amt: 0.5, passes: 2, jit: 0.35 }); // lower lip
-  if (open > 0.35) { // open-mouth interior shadow
-    const ix = cx * RW, iy = (cy + h * 0.35) * RW, ir = w * RW * 0.62;
-    for (let py = -ir; py <= ir; py++) for (let px = -ir; px <= ir; px++) {
-      const nx = px / (ir), ny = py / (ir * 0.7);
-      if (nx * nx + ny * ny <= 1) deposit(b, ix + px, iy + py, 1.4, 0.10 * (open - 0.2));
+  const cx = 0.50, cy = 0.565, w = 0.058;
+  const h = 0.006 + open * 0.030;
+  // upper lip with a gentle smile lift at the corners
+  stroke(b, [[cx - w, cy - 0.006], [cx - w * 0.35, cy - h * 0.5], [cx + w * 0.35, cy - h * 0.5], [cx + w, cy - 0.004]], { seed: 901, width: 0.007, amt: 0.5, passes: 2, jit: 0.3 });
+  // lower lip
+  stroke(b, [[cx - w * 0.9, cy + 0.004], [cx - w * 0.2, cy + h], [cx + w * 0.5, cy + h * 0.9], [cx + w * 0.9, cy + 0.002]], { seed: 905, width: 0.008, amt: 0.46, passes: 2, jit: 0.3 });
+  if (open > 0.3) { // open interior with a hint of upper teeth
+    const ix = cx * RW, iy = (cy + h * 0.42) * RW, irx = w * RW * 0.72, iry = h * RW * 1.3 + 2;
+    for (let py = -iry; py <= iry; py++) for (let px = -irx; px <= irx; px++) {
+      const nx = px / irx, ny = py / iry;
+      if (nx * nx + ny * ny <= 1) deposit(b, ix + px, iy + py, 1.3, 0.12 * (open - 0.15));
     }
+    // teeth: a light band just below the upper lip (subtract a little darkness)
+    const ty = (cy - h * 0.1) * RW;
+    for (let px = -irx * 0.85; px <= irx * 0.85; px++) deposit(b, ix + px, ty, 1.6, -0.05 * open);
   }
 }
 
@@ -218,7 +258,7 @@ function quantize(buf, mask, numColors) {
       let acc = 0;
       for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) acc += buf[(y * SS + sy) * RW + (x * SS + sx)];
       let d = acc / (SS * SS);
-      d = Math.pow(Math.min(1, d), 1.25); // gamma — keep faint strokes light & wispy
+      d = Math.pow(Math.max(0, Math.min(1, d)), 1.25); // clamp (teeth use negative dabs), gamma for wispy faint strokes
       if (d < 0.03) { idx[y * OUT + x] = 1; continue; } // bare paper
       const g = Math.min(grays - 1, 1 + Math.round(d * (grays - 1)));
       idx[y * OUT + x] = 2 + (g - 1);
