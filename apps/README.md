@@ -32,9 +32,10 @@ source with the app's build script (or the MCP `pack_app` tool / `+ Add`).
 
 ## Apps
 
-- **[fluence](fluence/)** — spontaneous-speech coach. Record a take →
-  Deepgram nova-3 transcript (word confidence + filler tagging via
-  `gifos.api`) → deterministic pace/filler/lexical features → a candid
-  `gifos.ai` coaching pass → history in `gifos.db`. Finished GIF:
-  [`fluence.gif`](fluence.gif). The first app to exercise the generic
-  third-party-API capability.
+- **[fluence](fluence/)** — spontaneous-speech coach (full port). Nine drill
+  types, record a take → Deepgram nova-3 transcript (word confidence + filler
+  tagging via `gifos.api`) → deterministic pace/filler/lexical features →
+  drill-type-aware `gifos.ai` coaching → suggested next drill → weekly review,
+  all in `gifos.db`. Picture-description drills render a scene with
+  `gifos.ai.image`. Finished GIF: [`fluence.gif`](fluence.gif). The first app to
+  exercise the generic third-party-API capability.

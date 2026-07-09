@@ -18,7 +18,7 @@ let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, cheapest: { url: AI, key: 'k', model: 'x' } });
+const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, cheapest: { url: AI, key: 'k', model: 'x' }, image: { url: AI, key: 'k', model: 'x' } });
 const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'dg-secret-key' } });
 
 (async () => {
@@ -67,9 +67,10 @@ const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'd
   const fr = app.frameLocator('iframe');
 
   // The app booted and shows a prompt + the record button.
-  await fr.locator('#prompt').filter({ hasText: /\w+/ }).waitFor({ timeout: 8000 });
-  check('Fluence boots and shows a speaking prompt', /\w/.test(await fr.locator('#prompt').textContent()));
+  await fr.locator('.prompt').filter({ hasText: /\w+/ }).waitFor({ timeout: 8000 });
+  check('Fluence boots and shows a speaking prompt', /\w/.test(await fr.locator('.prompt').textContent()));
   check('the deterministic feature core loaded (FL.extractFeatures)', await fr.locator('body').evaluate(() => typeof FL !== 'undefined' && typeof FL.extractFeatures === 'function'));
+  check('all nine drill types are registered', await fr.locator('body').evaluate(() => FL.DRILL_TYPE_IDS.length === 9));
 
   // Drive a full take. recordAudio uses the fake mic; the runtime's capture
   // overlay lets us stop it deterministically.
@@ -95,6 +96,29 @@ const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'd
   // History persisted to gifos.db.
   await fr.locator('.take').first().waitFor({ timeout: 6000 });
   check('the take was saved to history (gifos.db)', (await fr.locator('.take').count()) >= 1);
+
+  // Generate a real drill via the catalog (forced_substitution → fake AI JSON
+  // with banned words), exercising gifos.ai.chat drill generation.
+  await fr.locator('button', { hasText: 'Choose a drill' }).click();
+  await fr.locator('.cat-card').first().waitFor({ timeout: 5000 });
+  check('the drill catalog lists all nine types', (await fr.locator('.cat-card').count()) === 9);
+  // Click "Generate" on the Forced substitution card.
+  const fsCard = fr.locator('.cat-card', { hasText: 'Forced substitution' });
+  await fsCard.locator('button', { hasText: 'Generate' }).click();
+  await fr.locator('.banned-chip').first().waitFor({ timeout: 10000 });
+  check('a generated drill renders its type-specific params (banned words)', (await fr.locator('.banned-chip').count()) >= 1);
+  check('the drill card shows the FORCED SUBSTITUTION tag', /FORCED/.test(await fr.locator('.drill-tag').textContent()));
+
+  // Picture description → scene JSON + gifos.ai.image render.
+  await fr.locator('button', { hasText: 'Choose a drill' }).click();
+  await fr.locator('.cat-card', { hasText: 'Picture description' }).locator('button', { hasText: 'Generate' }).click();
+  await fr.locator('img.scene').waitFor({ timeout: 12000 });
+  check('picture-description generates a scene and renders the image (gifos.ai.image)', await fr.locator('img.scene').evaluate((i) => i.getAttribute('src').startsWith('blob:') || i.getAttribute('src').startsWith('data:') || /http/.test(i.getAttribute('src'))));
+
+  // Weekly review → fake AI returns weekly JSON.
+  await fr.locator('#weekly-btn').click();
+  await fr.locator('#weekly-out .pattern').first().waitFor({ timeout: 10000 });
+  check('the weekly review renders patterns from gifos.ai', (await fr.locator('#weekly-out .pattern').count()) >= 1);
 
   await app.close();
   await browser.close();
