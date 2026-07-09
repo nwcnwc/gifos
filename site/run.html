@@ -176,13 +176,13 @@
       // app, and that's fine). '*' means "any website", which we flag as unsafe.
       const permsBtn = document.getElementById('perms');
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: 'Record audio clips', camera: 'Capture photos & video', motion: 'Read device motion', ai: 'Use your AI models', api: 'Use your third-party APIs' };
+      const CAP_LABELS = { microphone: '🎤 Record short voice clips', camera: '📷 Take photos and short videos', motion: '📱 Sense how you tilt your phone', ai: '🤖 Use your AI', api: '🔌 Use your account with' };
       const CAP_DESC = {
-        microphone: 'Records short clips when you approve — GifOS shows a recording indicator and hands the app only the clip, never your live mic.',
-        camera: 'Captures a photo or short video when you approve, behind a GifOS indicator — never your live camera feed.',
-        motion: 'Reads your device tilt / orientation (for tilt games and the like). No camera, no location.',
-        ai: 'Uses the AI models you set up in Settings. The app sends prompts and gets results — it never sees your API keys.',
-        api: 'Uses third-party APIs you set up in Settings. GifOS attaches the key and only ever contacts that API’s own host — the app never sees the key.'
+        microphone: 'Only while you’re recording — you’ll see a recorder the whole time, and it gets just the finished clip, never your live mic.',
+        camera: 'Only when you take one — you’ll see it happen, and it gets just the photo or clip, never your live camera.',
+        motion: 'For tilt games and levels. No camera, no location.',
+        ai: 'It sends questions to the AI you set up and gets answers back. Your key stays private — it never sees it.',
+        api: 'It uses an account you set up (like Deepgram). Your key stays private — it never sees it, and it’s only ever sent to that company.'
       };
       const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
       window.__gifosPermissions = function (policy, manifest) {
@@ -207,10 +207,10 @@
         }
         function capBlock() {
           if (!caps.length) return '';
-          return '<h4 style="margin:.6rem 0 .35rem;font-size:.92rem">On your device</h4>' + caps.map(function (k) {
+          return caps.map(function (k) {
             if (k === 'api') {
               return apiNames(manifest).map(function (n) {
-                return '<div class="perm-row"><span><span class="host">Use your ' + n + ' API</span>' +
+                return '<div class="perm-row"><span><span class="host">🔌 Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
                   '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
               }).join('');
             }
@@ -220,31 +220,26 @@
         }
         function openModal() {
           const bg = document.createElement('div'); bg.className = 'perm-modal';
+          const appName = (manifest && manifest.name) || 'This app';
           const rows = (hasNet ? policy.list() : []).map(function (e) {
             const any = e.host === '*';
             const desc = any
-              ? 'This app could send anything it sees to anyone, anywhere.'
-              : 'The app can send and receive things from this one website.';
+              ? 'It could send anything it sees to anyone, anywhere.'
+              : 'It can exchange data with this one website.';
             return '<label class="perm-row' + (any ? ' any' : '') + '">' +
               '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
-              '<span><span class="host">' + (any ? 'Any website' : escapeText(e.host)) + '</span>' +
-              '<br><span class="desc">' + desc + '</span></span></label>';
+              '<span><span class="host">🌐 ' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
+              '<br><span class="desc">' + desc + ' Uncheck to block it.</span></span></label>';
           }).join('');
           const unsafeNote = (hasNet && policy.unsafe())
-            ? '<div class="warn"><b>Careful — this app is marked unsafe.</b> It wants to reach <b>any</b> website, ' +
-              'so it could quietly send what it sees to a stranger. Only leave this on for an app you really trust. ' +
-              'Uncheck the box below to shut it off.</div>'
+            ? '<div class="warn"><b>Careful.</b> This one wants to reach <b>any</b> website, so it could quietly send what it sees to a stranger. ' +
+              'Only leave this on for something you really trust — otherwise uncheck it below.</div>'
             : '';
-          const netBlock = hasNet
-            ? '<h4 style="margin:.2rem 0 .35rem;font-size:.92rem">On the internet</h4>' +
-              '<p class="lead" style="margin-bottom:.6rem">This app wants to reach the sites below — uncheck anything you don’t want it to reach.</p>' +
-              unsafeNote + rows
-            : '';
-          bg.innerHTML = '<div class="perm-box"><h3>What can this app do?</h3>' +
-            netBlock + capBlock() +
-            '<p class="foot">GifOS itself is always off-limits to apps, even unsafe ones. ' +
-            'Camera, mic and AI keys stay with GifOS — an app only ever gets a result. We’ll remember this.</p>' +
-            '<button class="done">Done</button></div>';
+          const netBlock = hasNet ? unsafeNote + rows : '';
+          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' would like to…</h3>' +
+            capBlock() + netBlock +
+            '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s tab.</p>' +
+            '<button class="done">Sounds good</button></div>';
           document.body.appendChild(bg);
           bg.addEventListener('change', function (ev) {
             const cb = ev.target; if (!cb || cb.type !== 'checkbox') return;

@@ -168,6 +168,11 @@
         // API's name under capabilities.api. req: { path, method, query, headers,
         // body, as:'json'|'text'|'bytes' }. Returns { status, ok, json|text|bytes }.
         api: function(name, req){ return rpc(Object.assign({type:'api', name:name}, req||{})); },
+        // Ask whether a third-party API the app declared is actually set up
+        // (base URL present) — WITHOUT revealing the key. Lets an app tell the
+        // user up front "add your Deepgram key in Settings" instead of failing
+        // mid-task. Returns true/false.
+        apiReady: function(name){ return rpc({type:'apiReady', name:name}); },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -764,6 +769,7 @@
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'apiReady') { const c = apiConfig()[d.name]; reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
