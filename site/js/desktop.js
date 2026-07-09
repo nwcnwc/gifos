@@ -63,12 +63,13 @@
     '         block += b"\\x00"',
     '         end = len(gif_bytes) - (gif_bytes[-1] == 0x3B)',
     '         return gif_bytes[:end] + block + b"\\x3b"',
-    '     manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App", "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})',
+    '     manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App", "shortName": "My App", "version": "1.0", "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})',
     '     open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(), {"manifest.json": manifest, "index.html": HTML}))',
     '   Attach the resulting "My App.gif" for me to download. Remember: when the host GIF is mine, the result still looks and animates EXACTLY like my original everywhere — that is the point.',
     'C. ONLY if you can do neither A nor B: reply with a complete single-file index.html in a ```html code block (the paste box takes one file; multi-file needs a .zip) and tell me to paste it into GifOS → ＋ Add → the app builder.',
     '',
     'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
+    'IDENTITY (manifest "shortName" and "version"): set "shortName" to a compact label (≤ ~14 chars, e.g. "Chess" for "Chess Grandmaster") and "version" to a short string like "1.0" or "2.3". GifOS shows them together as an identity pill — "Chess v1.0" — on the app\'s desktop tile and in its runtime header, BUT ONLY once the app is signed (an unsigned GIF could claim any name, so GifOS never vouches for one). Bump "version" whenever you ship a change.',
     '',
     'MODDING IS ENCOURAGED: if I hand you an EXISTING GifOS app .gif and ask for changes, do not rebuild from scratch — extract its files, apply my changes, and splice them back into the SAME GIF so its animation and my saved data survive. To extract (Python): find b"\\x21\\xff\\x0bGIFOS1.0GOS" in the bytes; after those 14 header bytes read length-prefixed sub-blocks until a zero byte; the joined payload (skipping its first flag byte) is raw-deflate JSON {"files": {path: base64}}. Cut that whole block out of the GIF, modify the files, keep every ".state/…" entry unchanged (my data), then run pack_gifos on the remaining bytes. Cut out any "GIFOSSIG" block the same way — a mod is a new work I can re-sign.',
     '',
@@ -219,11 +220,25 @@
     if (fileCache.has(fileId)) return Promise.resolve(fileCache.get(fileId));
     return store.getFile(fileId).then((f) => { const v = f || null; fileCache.set(fileId, v); return v; });
   }
+  // The signed app's declared short name + version (for the identity pill on its
+  // tile). Reading it means decoding the GIF's manifest, so we do it once per
+  // fileId and cache the promise; bytes changing calls forgetFile, which clears it.
+  const appMetaCache = new Map(); // fileId -> Promise<{ shortName, version }>
+  function getAppMeta(fileId, bytes) {
+    if (appMetaCache.has(fileId)) return appMetaCache.get(fileId);
+    const p = gif.decode(bytes).then((arc) => {
+      const m = arc ? (gif.readManifest(arc) || {}) : {};
+      return { shortName: (m.shortName || m.name || '').toString().trim(), version: (m.version || '').toString().trim() };
+    }).catch(() => ({ shortName: '', version: '' }));
+    appMetaCache.set(fileId, p);
+    return p;
+  }
   // A file's bytes changed (or it was deleted): drop its cached record, blob URL
   // and any icon node built from it, so the next render rebuilds from fresh bytes.
   function forgetFile(fileId) {
     if (!fileId) return;
     fileCache.delete(fileId);
+    appMetaCache.delete(fileId);
     if (blobUrls.has(fileId)) { URL.revokeObjectURL(blobUrls.get(fileId)); blobUrls.delete(fileId); }
     for (const [id, e] of iconCache) if (e.fileId === fileId) iconCache.delete(id);
   }
@@ -231,6 +246,7 @@
   // visual and repaint from scratch. Only runs on cross-tab / refocus events.
   function dropRenderCaches() {
     fileCache.clear();
+    appMetaCache.clear();
     iconCache.clear();
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
     blobUrls.clear();
@@ -257,13 +273,14 @@
   // Everything that changes how an icon LOOKS or WHERE it sits. Bytes aren't in
   // the key — forgetFile() evicts the node directly when bytes change — so a
   // repaint after a mere selection/drag reuses the untouched nodes.
-  function iconKey(it, file, fresh) {
+  function iconKey(it, file, fresh, meta) {
     const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
     const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
+    const idpill = meta ? (meta.shortName + '@' + meta.version) : '';
     // Joined with a control char (U+0001) that can't appear in names/ids, so
     // distinct field combinations can never collide into the same key.
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
-      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : ''].join('');
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill].join('');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -287,16 +304,25 @@
       if (!f || !f.isApp || f.appId === 'meet' || f.appId === 'video') return false;
       return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
     }));
+    // Identity pill (short name + version) for SIGNED app tiles only — decoding
+    // the manifest is cached per fileId, and unsigned/non-app tiles never decode.
+    const metas = await Promise.all(visible.map((it, i) => {
+      const f = files[i];
+      if (!f || !f.isApp || f.kind !== 'gif' || !f.bytes) return null;
+      const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+      if (!GifOS.sign || !GifOS.sign.readSig(bytes)) return null;
+      return getAppMeta(it.fileId, bytes).then((m) => (m && (m.shortName || m.version)) ? m : null).catch(() => null);
+    }));
     if (seq !== renderSeq) return; // a newer render started — abandon this one
     // Reconcile: reuse the cached node when its key matches, rebuild only what
     // changed, and keep selection in sync on the survivors.
     const keep = new Set();
     let reused = 0;
     const els = visible.map((it, i) => {
-      const key = iconKey(it, files[i], fresh[i]);
+      const key = iconKey(it, files[i], fresh[i], metas[i]);
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
-        entry = { el: buildIcon(it, files[i], fresh[i]), key, fileId: it.fileId };
+        entry = { el: buildIcon(it, files[i], fresh[i], metas[i]), key, fileId: it.fileId };
         iconCache.set(it.id, entry);
       } else {
         // Reuse the node, but re-assert its authoritative position/selection —
@@ -371,7 +397,7 @@
     }, { once: true });
     return img;
   }
-  function buildIcon(it, file, fresh) {
+  function buildIcon(it, file, fresh, meta) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -417,6 +443,15 @@
           sys.textContent = 'SYSTEM';
           sys.title = 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.';
           thumb.appendChild(sys);
+        } else if (meta && (meta.shortName || meta.version)) {
+          // Identity pill (top-center, like SYSTEM): the signed app's own short
+          // name + version. Only signed tiles reach here — see render().
+          const idp = document.createElement('span');
+          idp.className = 'idbadge';
+          const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
+          idp.textContent = (nm ? nm : '') + (meta.version ? (nm ? ' ' : '') + 'v' + meta.version : '');
+          idp.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '') + ' — the app’s own name and version, shown because this app is signed.';
+          thumb.appendChild(idp);
         }
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';

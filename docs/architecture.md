@@ -98,8 +98,9 @@ app.gif
 {
   "gifos": "1.0",
   "appId": "chess",
-  "name": "Chess",
-  "version": "1.0.0",
+  "name": "Chess Grandmaster",
+  "shortName": "Chess",
+  "version": "1.0",
   "description": "Two-player chess over the relay",
   "icon": "assets/icon.png",
   "entry": "index.html",
@@ -111,6 +112,7 @@ app.gif
 }
 ```
 
+- `name` / `shortName` / `version` — **display identity**. `name` is the full title (the tile's label). `shortName` is a compact label (≤ ~14 chars, e.g. `"Chess"` for `"Chess Grandmaster"`) and `version` a short string (`"1.0"`, `"2.3"`). GifOS renders `shortName` + `version` together as an **identity pill** — "Chess v1.0", styled like the `SYSTEM` marker — on the app's desktop tile *and* in its runtime header, **but only when the app is signed**. An unsigned GIF can claim any name, so GifOS never shows an identity pill for one; the pill's presence means "this signed author declares this is Chess v1.0."
 - `capabilities.db` — the app wants the runtime database library.
 - `capabilities.multiplayer` — the app can host/join sessions over the relay.
 - `capabilities.network` — external API hosts the app may call through the fetch bridge (see the networking doc).

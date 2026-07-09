@@ -206,6 +206,11 @@ recipients verify via keys.openpgp.org).
 The signature excludes app state, so it stays valid in use. NEVER ask for
 their private key — signing happens entirely on their side. It proves
 authorship, not safety.
+Set the manifest's "shortName" (a compact label, e.g. "Chess") and
+"version" ("1.0", "2.3") on every app you pack: once the user signs the
+GIF, GifOS shows them as an identity pill — "Chess v1.0" — on the tile and
+in the app header. Unsigned apps show no pill (any GIF could claim a name),
+so the pill and the signature go together. Bump "version" on each change.
 
 No account, no server, no build step. The GIF is the whole product.`;
 
@@ -277,6 +282,8 @@ const TOOLS = [
         name: { type: 'string', description: 'Human app name, e.g. "Star Tracker"' },
         html: { type: 'string', description: 'The complete self-contained index.html' },
         appId: { type: 'string', description: 'Optional slug id; derived from name if omitted' },
+        shortName: { type: 'string', description: 'Optional compact label (≤ ~14 chars, e.g. "Chess" for "Chess Grandmaster"). Shown with the version as an identity pill on the tile and in the app header — but only once the user signs the GIF. Defaults to name.' },
+        version: { type: 'string', description: 'Optional version string, e.g. "1.0" or "2.3". Shown as "v1.0" in the identity pill (signed apps only). Bump it whenever you ship a change. Defaults to "1.0".' },
         accent: { type: 'string', description: 'Optional #rrggbb accent color (used for the procedural icon fallback)' },
         network: { type: 'array', items: { type: 'string' }, description: 'Hostnames the app may reach with gifos.fetch (e.g. ["api.example.com"]). "*" means any site and marks the app Unsafe. Omit for a self-contained app.' },
         microphone: { type: 'boolean', description: 'Set true if the app uses gifos.recordAudio (brokered mic clip capture).' },
@@ -378,8 +385,10 @@ async function callTool(name, args) {
     if (Array.isArray(args.ai)) { if (args.ai.length) caps.ai = args.ai.map(String); }
     else if (args.ai) caps.ai = true;
     if (Array.isArray(args.api) && args.api.length) caps.api = args.api.map(String);
+    const shortName = String(args.shortName || appName).trim().slice(0, 24);
+    const version = String(args.version || '1.0').trim();
     const manifest = {
-      gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',
+      gifos: '1.0', appId: slug, name: appName, shortName, version, entry: 'index.html',
       accent, capabilities: caps,
     };
     // Capabilities are OPTIONAL by default. List any the app CANNOT run without

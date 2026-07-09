@@ -41,6 +41,13 @@
   .sig.ok  { border-color: #34c759; color: color-mix(in srgb, #34c759 60%, var(--text, #e0e0f0)); }
   .sig.bad { border-color: #ff5c5c; color: color-mix(in srgb, #ff5c5c 60%, var(--text, #e0e0f0)); }
   .sig.unk { border-color: var(--muted, #8888aa); color: var(--muted, #b0b0c8); }
+  /* Identity pill: the signed app's own short name + version. Only shown when
+     the app is signed — an unsigned GIF could claim any name, so we don't. */
+  .appid { display: inline-flex; align-items: center; gap: .3rem; max-width: 12rem;
+    border-color: color-mix(in srgb, #7b5cff 55%, var(--border, #33334d));
+    color: color-mix(in srgb, #7b5cff 55%, var(--text, #e0e0f0)); }
+  .appid .ver { font-weight: 700; opacity: .85; }
+  .appid .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Network-permission chip: calm blue for a named allowlist, loud red-orange
      when the app can reach ANY site. Click to review/revoke what it can reach. */
   .perms { display: inline-flex; align-items: center; gap: .3rem; }
@@ -103,6 +110,7 @@
   <div class="bar">
     <img id="appgif" class="appgif" alt="" style="display:none">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
+    <button class="appid" id="appid" title="This app's name and version" style="display:none"></button>
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
@@ -169,10 +177,25 @@
 
       // ---- provenance badge: verify the running app's signature ----
       const sigBtn = document.getElementById('sig');
-      window.__gifosOnApp = function (bytes) {
+      const appIdBtn = document.getElementById('appid');
+      // The identity pill: short name + version, shown ONLY for signed apps —
+      // an unsigned GIF could claim any name, so we don't vouch for one.
+      function showAppId(manifest, signed) {
+        if (!appIdBtn) return;
+        const nm = (manifest && (manifest.shortName || manifest.name) || '').toString().trim();
+        const ver = (manifest && manifest.version || '').toString().trim();
+        if (!signed || (!nm && !ver)) { appIdBtn.style.display = 'none'; return; }
+        appIdBtn.innerHTML = '';
+        if (nm) { const s = document.createElement('span'); s.className = 'nm'; s.textContent = nm.length > 22 ? nm.slice(0, 21) + '…' : nm; appIdBtn.appendChild(s); }
+        if (ver) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = 'v' + ver; appIdBtn.appendChild(s); }
+        appIdBtn.title = (nm ? nm + ' ' : '') + (ver ? 'version ' + ver : '') + ' — the app’s own declared name and version, shown because this app is signed.';
+        appIdBtn.style.display = '';
+      }
+      window.__gifosOnApp = function (bytes, manifest) {
         appGifLoaded = true; showAppGif();
         if (!window.GifOS || !GifOS.sign) return;
         const claim = GifOS.sign.readSig(bytes);
+        showAppId(manifest, !!claim);
         if (!claim) { sigBtn.style.display = 'none'; return; }
         sigBtn.style.display = ''; sigBtn.className = 'sig unk';
         sigBtn.textContent = '🛡 checking…';
