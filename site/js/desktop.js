@@ -1667,27 +1667,59 @@
   // bytes go through the exact same import path as a dropped file — app GIFs,
   // folder bundles and backups all work. Returns null on success, or a short
   // human error string to show inline (CORS/404/not-a-GIF).
-  async function addFromUrl(raw) {
+  // Fetch + validate a GIF from a web URL. Returns { bytes, name } or { error }.
+  async function fetchGifFromUrl(raw) {
     let url;
-    try { url = new URL(raw); } catch (e) { return 'That doesn’t look like a web link.'; }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'Only http(s) links work.';
+    try { url = new URL(raw); } catch (e) { return { error: 'That doesn’t look like a web link.' }; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return { error: 'Only http(s) links work.' };
     let buf;
     try {
       const r = await fetch(url.toString(), { redirect: 'follow' });
-      if (!r.ok) return 'The link returned an error (' + r.status + ').';
+      if (!r.ok) return { error: 'The link returned an error (' + r.status + ').' };
       buf = new Uint8Array(await r.arrayBuffer());
     } catch (e) {
       // Almost always a CORS block: the host won’t let another page read its file.
-      return 'Couldn’t download that — the site may not allow it. Download the GIF, then use ＋ Add file(s).';
+      return { error: 'Couldn’t download that — the site may not allow it (CORS). Download the GIF, then use ＋ Add file(s).' };
     }
-    if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return 'That link isn’t a GIF file.';
+    if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
     let name = '';
     try { name = decodeURIComponent((url.pathname.split('/').pop() || '').split('?')[0]); } catch (e) {}
     name = (name || 'download').replace(/[^\w.\-]+/g, '_');
     if (!/\.gif$/i.test(name)) name += '.gif';
-    const file = new File([buf], name, { type: 'image/gif' });
-    await importFiles([file], 60, 60);
+    return { bytes: buf, name };
+  }
+
+  async function addFromUrl(raw) {
+    const r = await fetchGifFromUrl(raw);
+    if (r.error) return r.error;
+    await importFiles([new File([r.bytes], r.name, { type: 'image/gif' })], 60, 60);
     return null;
+  }
+
+  // ?run=<gif url> — fetch the GIF, drop it into Stolen Apps, and run it. A
+  // shareable "open this app" link. Same-tab redirect to run.html (a boot-time
+  // window.open would be popup-blocked). Non-app GIFs (folders, backups, plain)
+  // are still filed in; only real app GIFs auto-run.
+  async function handleRunParam() {
+    let raw = '';
+    try { raw = new URLSearchParams(location.search).get('run') || ''; } catch (e) {}
+    if (!raw) return;
+    // Strip ?run= from the address bar first, so a refresh/back never re-runs it.
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    const r = await fetchGifFromUrl(raw);
+    if (r.error) { showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
+    const archive = await gif.decode(r.bytes).catch(() => null);
+    const m = archive ? (gif.readManifest(archive) || {}) : {};
+    const isApp = !!(archive && (m.appId || m.entry));
+    const fileId = store.uid('file');
+    await store.putFile({ id: fileId, name: r.name, bytes: r.bytes, kind: 'gif', isApp, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
+    await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
+    const spot = nearestFreeCell(GRID.origin, GRID.origin, 'sys_stolen', null);
+    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', x: spot.x, y: spot.y, iconSize: 64 });
+    await load();
+    if (isApp) { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
+    render();
+    showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
   }
 
   function showAddDialog() {
@@ -1705,6 +1737,7 @@
         '<button id="ad-url-go">Add</button>' +
       '</div>' +
       '<p class="add-help" id="ad-url-msg"></p>' +
+      '<p class="add-help">Share a one-tap link: <span class="mono">gifos.app/?run=&lt;gif link&gt;</span> opens that app and saves it to your <b>Stolen Apps</b>.</p>' +
       '<div class="add-sep"></div>' +
       '<h4>Ask an AI to build you an app</h4>' +
       '<p class="add-help">Copy this prompt into any AI (Claude, ChatGPT, Gemini…). It asks what you want, then hands you back a <b>finished .gif file</b> — add it with ＋ Add file(s) above, or just drop it on your Home Screen.</p>' +
@@ -1849,7 +1882,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(ensureSystemItems).then(render).then(checkForUpdate);
+  load().then(seedIfEmpty).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

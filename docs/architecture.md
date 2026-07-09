@@ -272,6 +272,19 @@ The app GIF itself is **delivered by the host browser** over the session on
 join — the relay never stores it, and the bandwidth guard's burst allowance
 (1 MB) exists precisely to let this one-time delivery through.
 
+### The `?run=` link — open any app GIF by URL
+
+`https://gifos.app/?run=<url-to-a-gif>` is a shareable "open this app" link. On
+load the desktop fetches that GIF, files it into the user's **Stolen Apps**
+folder (so it persists), and — if it's a real app GIF — runs it (a same-tab
+redirect to `run.html`, avoiding a popup-blocked `window.open`). The `?run=`
+query is stripped from the address bar first, so a refresh never re-runs it.
+The fetch is a direct browser request, so the GIF's host must allow CORS
+(GitHub raw and most CDNs do); if it doesn't, the user gets a clear error and
+can download + `＋ Add` instead. The app still runs sandboxed and shows the
+capability acknowledgement — `?run=` is a convenience over "download then add",
+not a new trust path.
+
 Flow when a friend opens the link:
 
 ```
