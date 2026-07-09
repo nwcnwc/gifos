@@ -1640,6 +1640,34 @@
     });
   }
 
+  // Add a GIF straight from a web link. The desktop is trusted first-party
+  // chrome (unlike a sandboxed app), so a user-typed URL is fetched here and the
+  // bytes go through the exact same import path as a dropped file — app GIFs,
+  // folder bundles and backups all work. Returns null on success, or a short
+  // human error string to show inline (CORS/404/not-a-GIF).
+  async function addFromUrl(raw) {
+    let url;
+    try { url = new URL(raw); } catch (e) { return 'That doesn’t look like a web link.'; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'Only http(s) links work.';
+    let buf;
+    try {
+      const r = await fetch(url.toString(), { redirect: 'follow' });
+      if (!r.ok) return 'The link returned an error (' + r.status + ').';
+      buf = new Uint8Array(await r.arrayBuffer());
+    } catch (e) {
+      // Almost always a CORS block: the host won’t let another page read its file.
+      return 'Couldn’t download that — the site may not allow it. Download the GIF, then use ＋ Add file(s).';
+    }
+    if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return 'That link isn’t a GIF file.';
+    let name = '';
+    try { name = decodeURIComponent((url.pathname.split('/').pop() || '').split('?')[0]); } catch (e) {}
+    name = (name || 'download').replace(/[^\w.\-]+/g, '_');
+    if (!/\.gif$/i.test(name)) name += '.gif';
+    const file = new File([buf], name, { type: 'image/gif' });
+    await importFiles([file], 60, 60);
+    return null;
+  }
+
   function showAddDialog() {
     closeContext();
     const bg = document.createElement('div'); bg.className = 'modal-bg';
@@ -1650,6 +1678,11 @@
         '<button id="ad-file">📄 Add file(s)…</button>' +
         '<button id="ad-folder">📁 New Folder</button>' +
       '</div>' +
+      '<div class="add-url-row">' +
+        '<input id="ad-url" type="url" placeholder="…or paste a link to a .gif" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button id="ad-url-go">Add</button>' +
+      '</div>' +
+      '<p class="add-help" id="ad-url-msg"></p>' +
       '<div class="add-sep"></div>' +
       '<h4>Ask an AI to build you an app</h4>' +
       '<p class="add-help">Copy this prompt into any AI (Claude, ChatGPT, Gemini…). It asks what you want, then hands you back a <b>finished .gif file</b> — add it with ＋ Add file(s) above, or just drop it on your Home Screen.</p>' +
@@ -1670,6 +1703,17 @@
 
     box.querySelector('#ad-file').onclick = () => { bg.remove(); fileInput.click(); };
     box.querySelector('#ad-folder').onclick = () => { bg.remove(); newFolder(60, 60); };
+    const urlInput = box.querySelector('#ad-url'), urlBtn = box.querySelector('#ad-url-go'), urlMsg = box.querySelector('#ad-url-msg');
+    const goUrl = async () => {
+      const v = urlInput.value.trim();
+      if (!v) { urlInput.focus(); return; }
+      urlBtn.disabled = true; urlMsg.textContent = 'Fetching…'; urlMsg.className = 'add-help';
+      const err = await addFromUrl(v);
+      if (err) { urlBtn.disabled = false; urlMsg.textContent = err; urlMsg.className = 'add-help bad'; return; }
+      bg.remove();
+    };
+    urlBtn.onclick = goUrl;
+    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); goUrl(); } });
     box.querySelector('#ad-copy').onclick = () => {
       const t = box.querySelector('#ad-prompt'); t.select();
       try { document.execCommand('copy'); } catch (e) {}
