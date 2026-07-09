@@ -1583,7 +1583,7 @@
         // "data at connect time" steal share the same (memoized) bytes.
         const stealCtx = { connectState: connectState, cache: { bytes: null } };
         mountApp(iframe, files, manifest, db, appBytes, netPolicy);
-        if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
+        if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifest);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
         return { save: () => downloadSnapshot(appBytes, files, manifest, db), steal: (opts) => stealApp(appBytes, files, manifest, db, stealCtx, opts), becomeHost, sessionInfo, endSession };
@@ -1772,7 +1772,7 @@
         // Client-run: the veto is session-only (no local icon to persist under).
         mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
         Promise.resolve(remoteDb.getFullState()).then((cs) => { stealCtx.connectState = cs; });
-        if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
+        if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifestRef);
         root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
         runningStatus();
         announceClient();

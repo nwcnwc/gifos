@@ -157,6 +157,18 @@ body {
   background: #14141f; color: #a08dff; border: 1px solid #7b5cff;
 }
 
+/* Identity pill on a SIGNED app's tile: its own declared short name + version.
+   Same top-center placement as SYSTEM; muted-purple so it reads as provenance,
+   not a warning. Only signed tiles get one (see desktop.js render). */
+.idbadge {
+  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
+  max-width: calc(var(--isize, 64px) + 18px); box-sizing: border-box;
+  font-size: .5rem; font-weight: 700; letter-spacing: .02em; line-height: 1;
+  padding: .16rem .32rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #14141f; color: #b6a8ff; border: 1px solid color-mix(in srgb, #7b5cff 60%, #14141f);
+}
+
 /* context menu */
 .ctx {
   position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border);
