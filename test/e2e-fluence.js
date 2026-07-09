@@ -93,8 +93,8 @@ const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'd
   await fr.locator('.overall p').waitFor({ timeout: 4000 }).catch(() => {});
   check('the coach rendered an overall verdict', /\w/.test(await fr.locator('.overall p').textContent().catch(() => '')));
 
-  // History persisted to gifos.db.
-  await fr.locator('.take').first().waitFor({ timeout: 6000 });
+  // History persisted to gifos.db (History view is hidden here — check attached).
+  await fr.locator('.take').first().waitFor({ state: 'attached', timeout: 6000 });
   check('the take was saved to history (gifos.db)', (await fr.locator('.take').count()) >= 1);
 
   // Generate a real drill via the catalog (forced_substitution → fake AI JSON
@@ -115,10 +115,35 @@ const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'd
   await fr.locator('img.scene').waitFor({ timeout: 12000 });
   check('picture-description generates a scene and renders the image (gifos.ai.image)', await fr.locator('img.scene').evaluate((i) => i.getAttribute('src').startsWith('blob:') || i.getAttribute('src').startsWith('data:') || /http/.test(i.getAttribute('src'))));
 
-  // Weekly review → fake AI returns weekly JSON.
+  // ---- review views (nav) ----
+  check('the top nav has Practice / Stats / History / Benchmarks', (await fr.locator('#nav button').count()) === 4);
+
+  // Stats view: trend metrics render from the connected-speech take(s).
+  await fr.locator('#nav button', { hasText: 'Stats' }).click();
+  await fr.locator('#stats-out .metric').first().waitFor({ timeout: 6000 });
+  check('Stats shows per-metric trend cards', (await fr.locator('#stats-out .metric').count()) >= 1);
+  check('Stats has range pills', (await fr.locator('.range-pill').count()) === 4);
+
+  // Weekly review lives in the Stats view now.
   await fr.locator('#weekly-btn').click();
   await fr.locator('#weekly-out .pattern').first().waitFor({ timeout: 10000 });
   check('the weekly review renders patterns from gifos.ai', (await fr.locator('#weekly-out .pattern').count()) >= 1);
+
+  // History view: grouped by month.
+  await fr.locator('#nav button', { hasText: 'History' }).click();
+  await fr.locator('#view-history .month-head').first().waitFor({ timeout: 5000 });
+  check('History groups takes under a month heading', (await fr.locator('#view-history .month-head').count()) >= 1);
+
+  // Benchmarks view: seed starters, then a benchmark card appears with a Run button.
+  await fr.locator('#nav button', { hasText: 'Benchmarks' }).click();
+  await fr.locator('button', { hasText: 'Add 3 starter benchmarks' }).click();
+  await fr.locator('#bench-list .bench').first().waitFor({ timeout: 5000 });
+  check('Benchmarks seeds starter prompts', (await fr.locator('#bench-list .bench').count()) === 3);
+  check('a benchmark offers a Run button', (await fr.locator('.bench button', { hasText: 'Run' }).count()) >= 1);
+  // Running a benchmark jumps to Practice with a BENCHMARK drill card.
+  await fr.locator('.bench button', { hasText: 'Run' }).first().click();
+  await fr.locator('.drill-tag', { hasText: 'BENCHMARK' }).waitFor({ timeout: 5000 });
+  check('running a benchmark loads a BENCHMARK drill on Practice', /BENCHMARK/.test(await fr.locator('.drill-tag').textContent()));
 
   await app.close();
   await browser.close();

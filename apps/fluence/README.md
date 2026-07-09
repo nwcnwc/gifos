@@ -35,7 +35,23 @@ original had.
    days finds patterns the per-take coach can't see (improving / worsening /
    flat), breakthroughs, and one focus for next week.
 7. **Remember** — takes in `gifos.db('takes')`, weekly reviews in
-   `gifos.db('reviews')`. Data lives on your device, inside the app's GIF.
+   `gifos.db('reviews')`, benchmarks in `gifos.db('benchmarks')`. Data lives on
+   your device, inside the app's GIF.
+
+## The four tabs
+
+- **Practice** — the drill card, record, coaching, the drill catalog.
+- **Stats** — trend charts for six metrics (fillers/min, words/min with a
+  140–170 sweet spot, TTR, vocabulary reach, long pauses, hedges/min) with
+  now / avg / best and a sparkline, over a 7 / 30 / 90-day / all window
+  (connected-speech takes only — listing tasks would distort them). The weekly
+  review lives here too.
+- **History** — every take grouped by month; tap one to read its transcript.
+- **Benchmarks** — a fixed set of prompts you re-record over time; each shows a
+  fillers/min trend across its runs. "Same prompt, same conditions" is the
+  cleanest progress signal, controlling for prompt difficulty. Seed three
+  starters, add your own, or save any take's prompt as a benchmark from its
+  coaching card.
 
 ## Drill types (drills.js)
 

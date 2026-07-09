@@ -125,4 +125,37 @@ button.primary { margin-top: .6rem; padding: .5rem 1rem; border: none; border-ra
 .take-top { display: flex; align-items: baseline; justify-content: space-between; }
 .take-type { font-size: .66rem; letter-spacing: .06em; font-weight: 700; color: var(--accent2); }
 
+/* top nav */
+#nav { display: flex; gap: .3rem; margin-top: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: .6rem; padding: .25rem; }
+#nav button { flex: 1; padding: .5rem .3rem; border: none; border-radius: .45rem; background: none; color: var(--muted); font: inherit; font-size: .9rem; cursor: pointer; }
+#nav button.on { background: var(--surface2); color: var(--text); font-weight: 600; }
+.view-head { display: flex; align-items: center; justify-content: space-between; margin: 1.2rem 0 .3rem; }
+.view-head h2 { font-size: 1.1rem; }
+
+/* stats */
+.stats-range { display: flex; gap: .3rem; flex-wrap: wrap; margin: .6rem 0 1rem; }
+.range-pill { padding: .3rem .7rem; border-radius: 1rem; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: .8rem; cursor: pointer; }
+.range-pill.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.metric { background: var(--surface); border: 1px solid var(--border); border-radius: .6rem; padding: .7rem .8rem; margin-bottom: .6rem; }
+.metric-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; }
+.metric-name { font-size: .9rem; font-weight: 600; }
+.metric-nums { display: flex; gap: .7rem; font-size: .72rem; color: var(--muted); }
+.metric-nums b { color: var(--text); font-size: .82rem; }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 44px; }
+.spark .bar { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--muted); opacity: .5; }
+.spark .bar.good { background: var(--good); opacity: .8; }
+.spark .bar.bad { background: var(--bad); opacity: .7; }
+.spark .bar.last { opacity: 1; outline: 1px solid var(--text); }
+.stats-empty { color: var(--muted); font-size: .9rem; padding: 1rem 0; }
+
+/* benchmarks */
+.bench-form { background: var(--surface); border: 1px solid var(--border); border-radius: .6rem; padding: .8rem; margin-bottom: .8rem; }
+.bench { background: var(--surface); border: 1px solid var(--border); border-radius: .6rem; padding: .8rem; margin-bottom: .6rem; }
+.bench-top { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.bench-title { font-weight: 600; }
+.bench-prompt { color: var(--muted); font-size: .88rem; margin: .3rem 0 .5rem; }
+.bench-meta { display: flex; align-items: center; gap: .8rem; font-size: .74rem; color: var(--muted); margin-top: .5rem; }
+.bench-actions { display: flex; gap: .4rem; }
+.bench-del { border: none; background: none; color: var(--muted); cursor: pointer; font-size: .85rem; }
+
 @media (max-width: 460px) { .nums { grid-template-columns: repeat(2, 1fr); } .cols { grid-template-columns: 1fr; } }
