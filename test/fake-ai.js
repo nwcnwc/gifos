@@ -32,7 +32,12 @@ const server = http.createServer((req, res) => {
       try {
         const body = JSON.parse(raw || '{}');
         const blob = (body.messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
-        if (/candid speech coach/i.test(blob)) {
+        if (/operate a web app/i.test(blob)) {
+          // The in-app agent loop: click element 0 first, then report done.
+          text = /ACTIONS SO FAR:\s*\n?\s*\(none/i.test(blob)
+            ? JSON.stringify({ action: 'click', index: 0, say: 'clicking the first control' })
+            : JSON.stringify({ action: 'done', say: 'finished' });
+        } else if (/candid speech coach/i.test(blob)) {
           text = JSON.stringify({
             overall: 'Solid, but you leaned on fillers early.',
             strengths: [{ label: 'clear open', evidence: 'named the topic in the first sentence' }],

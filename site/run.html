@@ -176,13 +176,14 @@
       // app, and that's fine). '*' means "any website", which we flag as unsafe.
       const permsBtn = document.getElementById('perms');
       function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with' };
+      const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app' };
       const CAP_DESC = {
         microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
         camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
         motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
         ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
-        api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.'
+        api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
+        agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
       };
       const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
       const AI_ROLE_LABELS = { smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };

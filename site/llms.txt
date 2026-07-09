@@ -133,6 +133,13 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      GifOS relays the call through a stateless proxy — you don't write any of
      that, just call gifos.api and tell the user to enable it if a call is CORS-
      blocked.
+   - agent: declare capabilities.agent:true to add a GifOS ASSISTANT BAR to your
+     app — a built-in agent that reads and clicks/types on your app's screen by
+     natural language (driven by the user's Smartest model). No code: declaring
+     it injects the bar. It runs inside your app's own sandbox (it can only touch
+     THIS app), and GifOS brokers the model so the key never enters the sandbox.
+     Great for form-heavy / many-control apps. Make controls have clear labels /
+     aria-labels so the agent can find them.
    ALWAYS feature-detect and never fake a result. You do NOT need to write your
    own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
    missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL
