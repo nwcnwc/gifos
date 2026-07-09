@@ -1,0 +1,14 @@
+{
+  "gifos": "1.0",
+  "appId": "fluence",
+  "name": "Fluence",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "accent": [123, 92, 255],
+  "capabilities": {
+    "db": true,
+    "microphone": true,
+    "ai": true,
+    "api": ["deepgram"]
+  }
+}
