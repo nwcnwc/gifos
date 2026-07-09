@@ -478,9 +478,15 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   signalling + fallback; once peers are connected directly there is no bandwidth
   ceiling. The transport fragmentation layer reassembles up to ~25 MB
   (`FRAG_MAX_PARTS`), and the client receives the app over whichever transport
-  delivered it (the same `receiveApp` path serves relay and DataChannel). The
-  honest limit: a peer that never establishes P2P (symmetric NAT, and there's no
-  TURN) can't receive a heavy app — small apps still arrive over the relay.
+  delivered it (the same `receiveApp` path serves relay and DataChannel). If the
+  DataChannel never opens within `APP_P2P_WAIT` (symmetric NAT, and there's no
+  TURN), the host falls back to **dripping the app over the relay paced under its
+  ~48 KB/s refill** (`relayPaced`) so nothing is dropped — slow (minutes for a
+  big app) but it still arrives. Throughout, the joiner isn't a blank page: a
+  loader in the mount area narrates the stage ("Connecting…", "opening a direct
+  route…", "Receiving the app…") and shows a **live percent** bar driven by the
+  defragmenter's progress callback, labelling whether the app is coming over the
+  direct channel or the (slower) relay.
 - **Booted computer images** run in separate IndexedDB namespaces with
   namespaced broadcast channels; a VM cannot read, write, or repaint the host
   desktop (and vice versa).

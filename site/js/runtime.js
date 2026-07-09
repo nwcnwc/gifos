@@ -1123,7 +1123,7 @@
   // Stateful filter: feed every parsed inbound message with its sender key;
   // frag pieces buffer and return null until the last one completes the
   // original message. Non-frag messages pass straight through.
-  const makeDefrag = () => {
+  const makeDefrag = (onProgress) => {
     const bufs = new Map(); // sender|fid -> { parts, got, n, at }
     return (m, sender) => {
       if (!m || m.t !== 'frag') return m;
@@ -1139,6 +1139,7 @@
       }
       if (b.n !== n || b.parts[i] !== undefined) { bufs.delete(key); return null; } // inconsistent sender
       b.parts[i] = m.p; b.got++;
+      if (onProgress) { try { onProgress(m.fid, b.got, b.n); } catch (e) {} }
       if (root.__fragDebug) console.error('[defrag] ' + key + ' ' + b.got + '/' + b.n);
       if (b.got < b.n) return null;
       bufs.delete(key);
@@ -1180,14 +1181,37 @@
     // strings are built once and replayed to each new peer.
     const appMsg = { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0 };
     const APP_RELAY_MAX = 700 * 1024; // bytes; base64 of this stays under the relay's 1MB burst
+    const APP_P2P_WAIT = 10000;       // give the DataChannel this long before the paced-relay fallback
     const appSmall = appBytes.length <= APP_RELAY_MAX;
-    const appParts = appSmall ? null : (function () { const a = []; sendChunked(appMsg, (p, s) => a.push(s)); return a; })();
-    const pumpApp = (ch) => {
-      let i = 0; const HIGH = 4 * 1024 * 1024; // keep the DataChannel's buffered bytes bounded
+    // Fragment the heavy app ONCE; keep both the object (to relay-wrap) and the
+    // string (to DataChannel-send).
+    const appFrags = appSmall ? null : (function () { const a = []; sendChunked(appMsg, (o, s) => a.push({ o: o, s: s })); return a; })();
+    const pumpApp = (ch) => { // over the direct channel: fast, paced only to the send buffer
+      let i = 0; const HIGH = 4 * 1024 * 1024;
       (function pump() {
-        try { while (i < appParts.length && ch.readyState === 'open' && ch.bufferedAmount < HIGH) ch.send(appParts[i++]); } catch (e) { return; }
-        if (i < appParts.length && ch.readyState === 'open') setTimeout(pump, 50);
+        try { while (i < appFrags.length && ch.readyState === 'open' && ch.bufferedAmount < HIGH) ch.send(appFrags[i++].s); } catch (e) { return; }
+        if (i < appFrags.length && ch.readyState === 'open') setTimeout(pump, 50);
       })();
+    };
+    // Last resort for a peer that never gets a direct channel (symmetric NAT, no
+    // TURN): drip the app over the RELAY, paced under its ~48KB/s refill so
+    // nothing is dropped. Slow (minutes for a big app) but it arrives.
+    const relayPaced = (peer) => {
+      let i = 0; const BURST = 8; // ~800KB up front fits the relay's one-time burst
+      (function drip() {
+        const q = peers.get(peer); if (!q || !q.appSending) return; // peer gone or superseded
+        const target = i < BURST ? BURST : i + 1;
+        try { while (i < appFrags.length && i < target) { ws.send(JSON.stringify({ t: 'to', to: peer, msg: appFrags[i].o })); i++; } } catch (e) {}
+        if (i < appFrags.length) setTimeout(drip, 2300); // one 100KB piece / 2.3s ≈ 43KB/s, under the refill
+      })();
+    };
+    // Deliver the heavy app to a peer once, over the best transport available:
+    // the direct channel if it's open, else a paced relay drip.
+    const deliverApp = (peer, ch) => {
+      const p = peers.get(peer); if (!p || p.appSending) return;
+      p.appSending = true; p.needsApp = false;
+      if (p.appTimer) { clearTimeout(p.appTimer); p.appTimer = 0; }
+      if (ch && ch.readyState === 'open') pumpApp(ch); else relayPaced(peer);
     };
     const stats = () => {
       let p2p = 0;
@@ -1256,7 +1280,7 @@
       channel.onopen = () => {
         entry.channel = channel;
         // Hand a heavy app across now that we have a direct, uncapped channel.
-        if (entry.needsApp) { entry.needsApp = false; pumpApp(channel); }
+        if (entry.needsApp) deliverApp(peer, channel);
         notify();
       };
       channel.onclose = () => { if (entry.channel === channel) { entry.channel = null; notify(); } };
@@ -1300,8 +1324,12 @@
         // already has it (and the client dedups regardless), and skipping the
         // resend keeps reconnect storms inside the relay's bandwidth budget.
         // Small apps go straight over the relay; a heavy app waits for the peer's
-        // DataChannel (set needsApp) and is handed over on channel.onopen.
-        if (!known) { if (appSmall) relayTo(m.peer, appMsg); else peers.get(m.peer).needsApp = true; }
+        // DataChannel (set needsApp) and is handed over on channel.onopen — with
+        // a paced-relay fallback if that never happens (no direct route).
+        if (!known) {
+          if (appSmall) relayTo(m.peer, appMsg);
+          else { const p = peers.get(m.peer); p.needsApp = true; p.appTimer = setTimeout(() => { if (p.needsApp && !p.appSending) deliverApp(m.peer, null); }, APP_P2P_WAIT); }
+        }
         offerP2P(m.peer);
         notify();
       } else if (m.t === 'peer-leave') {
@@ -1521,7 +1549,26 @@
   // ---- client boot (join a host over the relay) ----------------------------
   function bootClient(mountEl, params, statusEl, hooks) {
     hooks = hooks || {};
-    const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
+    // Join loader: rather than a blank page while we connect and pull the app,
+    // narrate what's happening in the mount area and show transfer progress.
+    let loaderUp = false, appVia = 'relay';
+    const showLoader = () => {
+      if (loaderUp || !mountEl) return; loaderUp = true;
+      // A self-contained dark card so it reads on any page theme (the join page
+      // may be light or dark), rather than relying on the surrounding colors.
+      mountEl.innerHTML = '<div style="display:flex;justify-content:center;padding:12vh 16px 0;box-sizing:border-box">'
+        + '<div style="max-width:440px;width:100%;background:#14141f;border:1px solid #2a2a3f;border-radius:16px;padding:26px 24px;text-align:center;font:15px system-ui,-apple-system,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.28)">'
+        + '<div style="font-size:38px;margin-bottom:14px">🕸️</div>'
+        + '<div id="cl-title" style="font-weight:700;font-size:17px;color:#f0f0f8;margin-bottom:6px">Connecting…</div>'
+        + '<div id="cl-sub" style="color:#9a9ab5;margin-bottom:16px;min-height:18px;line-height:1.4">&nbsp;</div>'
+        + '<div style="height:8px;background:#26263a;border-radius:6px;overflow:hidden"><i id="cl-fill" style="display:block;height:100%;width:0;background:linear-gradient(90deg,#7b5cff,#5cc8ff);transition:width .25s"></i></div>'
+        + '</div></div>';
+    };
+    const loadTitle = (t) => { const e = document.getElementById('cl-title'); if (e) e.textContent = t; };
+    const loadSub = (t) => { const e = document.getElementById('cl-sub'); if (e) e.textContent = t || ''; };
+    const loadFrac = (f) => { const e = document.getElementById('cl-fill'); if (e) e.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; };
+    const setStatus = (m) => { if (statusEl) statusEl.textContent = m; if (loaderUp && !filesRef) loadTitle(m); };
+    const narrate = (title, sub) => { showLoader(); setStatus(title); loadSub(sub); };
     const idle = { save: () => Promise.resolve(null), saveToDesktop: () => Promise.reject(new Error('app not loaded yet')), becomeHost: () => Promise.reject(new Error('host still alive')) };
     if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve(idle); }
     holdSessionLock(); // a frozen client tab would silently miss the session too
@@ -1555,7 +1602,13 @@
     // Transport ladder: DataChannel when open, relay WebSocket otherwise.
     // The app never knows which one carried its request. Oversized payloads
     // fragment transparently (see sendChunked); the host defrags per peer.
-    const defrag = makeDefrag();
+    const defrag = makeDefrag((fid, got, n) => {
+      if (filesRef || tookOver) return; // app already mounted — later big records aren't the app
+      showLoader(); loadTitle('Receiving the app…'); loadFrac(got / n);
+      loadSub(appVia === 'relay'
+        ? 'No direct route found — coming over the relay. This can take a few minutes…'
+        : 'Direct connection · ' + Math.round(got / n * 100) + '%');
+    });
     const transportSend = (payload) => {
       if (channel && channel.readyState === 'open') sendChunked(payload, (piece, str) => channel.send(str));
       else sendChunked(payload, (piece, str) => ws.send(str));
@@ -1714,11 +1767,12 @@
         if (pc) { try { pc.close(); } catch (e) { /* stale */ } pc = null; channel = null; }
         pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
         pc.onicecandidate = (e) => { if (e.candidate) ws.send(JSON.stringify({ t: 'sig', ice: e.candidate })); };
+        if (!filesRef) loadSub('Found your friend — opening a direct route…');
         pc.ondatachannel = (e) => {
           const ch = e.channel;
-          ch.onopen = () => { channel = ch; root.__gifosTransport = 'p2p'; if (!hostGone && !tookOver) runningStatus(); };
+          ch.onopen = () => { channel = ch; root.__gifosTransport = 'p2p'; if (!filesRef) loadSub('Direct connection ready — receiving the app…'); if (!hostGone && !tookOver) runningStatus(); };
           ch.onclose = () => { if (channel === ch) { channel = null; root.__gifosTransport = 'relay'; if (!hostGone && !tookOver) runningStatus(); } };
-          ch.onmessage = (ev2) => { let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } mm = defrag(mm, 'host'); if (mm) dispatch(mm); };
+          ch.onmessage = (ev2) => { appVia = 'p2p'; let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } mm = defrag(mm, 'host'); if (mm) dispatch(mm); };
         };
         pc.setRemoteDescription(msg.sdp)
           .then(() => pc.createAnswer())
@@ -1730,7 +1784,7 @@
       }
     };
 
-    setStatus('Connecting to host…');
+    narrate('Connecting to your friend’s room…', '');
     // Socket healed: re-sync the view and replay unanswered requests. The host
     // sees our rejoin (same peer id) and re-offers P2P on its own.
     ws.onopen = () => {
@@ -1742,9 +1796,10 @@
     };
     ws.onstate = () => announceClient();
     ws.onmessage = (ev) => {
+      appVia = 'relay';
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       m = defrag(m, 'host'); if (!m) return; // fragmented app delivery / replies reassemble here
-      if (m.t === 'joined') { myPeer = m.peer; if (!filesRef) setStatus('Connected · waiting for app…'); }
+      if (m.t === 'joined') { myPeer = m.peer; if (!filesRef) narrate('Connected', 'Getting the game ready…'); }
       else if (m.t === 'error') {
         if (/token/i.test(m.error || '')) { ws.close(); setStatus('Cannot join: ' + m.error); }
         else if (/no host/i.test(m.error || '')) {
