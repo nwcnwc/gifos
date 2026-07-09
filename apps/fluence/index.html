@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fluence</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%97%A3%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Fluence</h1>
+      <p class="tag">Speak off the cuff. Get honest, grounded coaching.</p>
+    </header>
+
+    <section class="card promptcard">
+      <div class="prompt-label">Your prompt</div>
+      <div id="prompt" class="prompt">…</div>
+      <button id="shuffle" class="ghost">↻ New prompt</button>
+    </section>
+
+    <button id="rec" class="rec">● Record a take</button>
+    <p id="status" class="status"></p>
+
+    <section id="results" class="results"></section>
+    <section id="history" class="history"></section>
+
+    <footer>
+      <p class="fine">Your mic clip is captured by GifOS behind its own recorder — this app never holds the live mic.
+      Transcription uses <b>your</b> Deepgram key (set up in Settings → Third-party APIs); coaching uses your configured AI model.
+      Takes are saved on this device, inside the app’s GIF.</p>
+    </footer>
+  </main>
+
+  <script src="wordlists.js"></script>
+  <script src="features.js"></script>
+  <script src="coach.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

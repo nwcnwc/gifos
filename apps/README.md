@@ -32,4 +32,9 @@ source with the app's build script (or the MCP `pack_app` tool / `+ Add`).
 
 ## Apps
 
-_(none yet — fluence is the first, in progress)_
+- **[fluence](fluence/)** — spontaneous-speech coach. Record a take →
+  Deepgram nova-3 transcript (word confidence + filler tagging via
+  `gifos.api`) → deterministic pace/filler/lexical features → a candid
+  `gifos.ai` coaching pass → history in `gifos.db`. Finished GIF:
+  [`fluence.gif`](fluence.gif). The first app to exercise the generic
+  third-party-API capability.
