@@ -123,9 +123,12 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      user configures each in Settings -> Third-party APIs (base URL + auth +
      key); the runtime attaches the credential, PINS it to that API's own host
      (an off-host path is refused), and the app never sees the key. path is
-     relative to the configured base URL. CAVEAT: this is a direct browser fetch,
-     so the endpoint MUST send CORS headers — server-only APIs (Deepgram's REST
-     among them) can't be reached browser-direct without a CORS-forwarding relay.
+     relative to the configured base URL. CORS: this is a direct browser fetch,
+     so the endpoint must send CORS headers; for server-only APIs (Deepgram's
+     REST among them) the user ticks "Route through a CORS proxy" in Settings and
+     GifOS relays the call through a stateless proxy — you don't write any of
+     that, just call gifos.api and tell the user to enable it if a call is CORS-
+     blocked.
    ALWAYS feature-detect and, if a capability isn't set up, tell the user to
    configure it in Settings — never fake a result.
 6. Icon: the user's OWN GIF, used unchanged, is always the preferred

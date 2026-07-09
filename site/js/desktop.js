@@ -1319,6 +1319,7 @@
   // calls gifos.api(name, …); the runtime attaches the key and only ever sends
   // it to that API's own host. The app never sees the key.
   const API_LS = 'gifos_api_config';
+  const API_PROXY_DEFAULT = 'https://cors-proxy.gifos.app';
   const AUTH_TYPES = [
     { v: 'bearer', label: 'Bearer  (Authorization: Bearer …)' },
     { v: 'token', label: 'Token  (Authorization: Token …) — Deepgram' },
@@ -1331,6 +1332,8 @@
     const at = c.authType || 'bearer';
     const opts = AUTH_TYPES.map((t) => '<option value="' + t.v + '"' + (t.v === at ? ' selected' : '') + '>' + escapeHtml(t.label) + '</option>').join('');
     const needName = (at === 'header' || at === 'query');
+    const proxyOn = !!c.proxy;
+    const proxyUrl = (c.proxy && c.proxy !== true && c.proxy !== 'default') ? c.proxy : '';
     return '<div class="ai-row api-row" data-row="' + idx + '">' +
       '<div class="ai-head"><input class="api-f api-name" data-row="' + idx + '" data-f="name" placeholder="short name — e.g. deepgram" value="' + escapeHtml(name || '') + '">' +
       '<button class="ai-test api-test" data-row="' + idx + '">Test</button>' +
@@ -1340,13 +1343,15 @@
       '<div class="ai-2"><select class="api-f api-auth" data-row="' + idx + '" data-f="authType">' + opts + '</select>' +
       '<input class="api-f api-authname" data-row="' + idx + '" data-f="authName" placeholder="header / param name"' + (needName ? '' : ' style="display:none"') + ' value="' + escapeHtml(c.authName || '') + '"></div>' +
       '<input class="api-f" data-row="' + idx + '" data-f="key" type="password" placeholder="API key" value="' + escapeHtml(c.key || '') + '">' +
+      '<label class="api-proxy-l"><input type="checkbox" class="api-proxy-ck" data-row="' + idx + '"' + (proxyOn ? ' checked' : '') + '> Route through a CORS proxy <span class="api-hint">— needed for server-only APIs like Deepgram that block browser calls</span></label>' +
+      '<input class="api-proxy-url" data-row="' + idx + '" placeholder="' + escapeHtml(API_PROXY_DEFAULT) + ' (default) — or your own proxy" value="' + escapeHtml(proxyUrl) + '"' + (proxyOn ? '' : ' style="display:none"') + '>' +
       '</div>';
   }
   function apiSectionHtml() {
     const cfg = apiCfgAll();
     const rows = Object.keys(cfg).map((n, i) => apiRowHtml(i, n, cfg[n])).join('');
     return '<details class="adv"><summary>Third-party APIs</summary>' +
-      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key. An app that asks for that name under its <b>api</b> ability can call it; the runtime attaches your key and <b>only ever sends it to that API’s own host</b> — the app never sees it, and it stays out of a shared computer backup. The endpoint must allow browser (CORS) requests — Test tells you.</p>' +
+      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key. An app that asks for that name under its <b>api</b> ability can call it; the runtime attaches your key and <b>only ever sends it to that API’s own host</b> — the app never sees it, and it stays out of a shared computer backup. The endpoint must allow browser (CORS) requests; if it doesn’t (Deepgram’s REST, most brokerages), tick <b>Route through a CORS proxy</b> and GifOS relays the call through <span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span> (stateless, stores nothing — or point it at your own). Test tells you which you need.</p>' +
       '<div class="api-rows">' + rows + '</div>' +
       '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
       '</details>';
@@ -1363,9 +1368,17 @@
       else if (at === 'header' && an) headers[an] = key;
       else if (at === 'query' && an) u.searchParams.set(an, key);
     }
+    // Mirror the runtime: if a proxy is configured, probe THROUGH it so the
+    // Test result reflects how the app's calls will actually travel.
+    let fetchUrl = u.toString();
+    if (c.proxy) {
+      const pbase = (c.proxy === true || c.proxy === 'default') ? API_PROXY_DEFAULT : String(c.proxy).replace(/\/+$/, '');
+      headers['x-gifos-target'] = fetchUrl;
+      fetchUrl = pbase + '/';
+    }
     // A bare GET at the base URL won't match a real endpoint — 400/404/405 all
     // prove the host answered. Only 401/403 means the key itself was rejected.
-    return fetch(u.toString(), { method: 'GET', headers }).then((r) => {
+    return fetch(fetchUrl, { method: 'GET', headers }).then((r) => {
       if (r.status === 401 || r.status === 403) return { ok: false, msg: '✗ key rejected (' + r.status + ')' };
       if (r.ok || r.status === 400 || r.status === 404 || r.status === 405) return { ok: true, msg: '✓ reachable (' + r.status + ')' };
       return { ok: true, msg: '⚠ reached, returned ' + r.status };
@@ -1377,6 +1390,8 @@
     const readRow = (row) => {
       const o = {};
       row.querySelectorAll('.api-f').forEach((i) => { const val = (i.value || '').trim(); if (val) o[i.getAttribute('data-f')] = val; });
+      const ck = row.querySelector('.api-proxy-ck');
+      if (ck && ck.checked) { const pu = (row.querySelector('.api-proxy-url').value || '').trim(); o.proxy = pu || 'default'; }
       return o;
     };
     const saveApi = () => {
@@ -1393,6 +1408,9 @@
       const auth = row.querySelector('.api-auth');
       const nameInput = row.querySelector('.api-authname');
       if (auth) auth.onchange = () => { nameInput.style.display = (auth.value === 'header' || auth.value === 'query') ? '' : 'none'; };
+      const ck = row.querySelector('.api-proxy-ck');
+      const purl = row.querySelector('.api-proxy-url');
+      if (ck) ck.onchange = () => { purl.style.display = ck.checked ? '' : 'none'; };
       const del = row.querySelector('.api-del');
       if (del) del.onclick = () => row.remove();
       const test = row.querySelector('.api-test');

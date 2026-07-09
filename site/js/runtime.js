@@ -692,6 +692,7 @@
   // send it anywhere but that API's own origin, so a key can never be leaked to
   // an app or redirected to another host.
   const API_KEY = 'gifos_api_config';
+  const API_PROXY_DEFAULT = 'https://cors-proxy.gifos.app';
   function apiConfig() { try { return JSON.parse(root.localStorage.getItem(API_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function apiAllowed(manifest, name) {
     const list = (manifest && manifest.capabilities && manifest.capabilities.api) || [];
@@ -730,7 +731,18 @@
     const method = String(d.method || 'GET').toUpperCase();
     const init = { method, headers };
     if (method !== 'GET' && method !== 'HEAD' && body != null) init.body = body;
-    return root.fetch(u.toString(), init).then((r) => {
+    // Server-only APIs (Deepgram's REST, …) send no CORS headers, so a direct
+    // browser fetch is blocked. If the user turned on a CORS proxy for this API,
+    // we send to the proxy with the true target in x-gifos-target; the proxy
+    // forwards and adds the CORS headers. The key still travels ONLY toward the
+    // configured host (host-pinning above already proved u.origin === base).
+    let fetchUrl = u.toString();
+    if (c.proxy) {
+      const pbase = (c.proxy === true || c.proxy === 'default') ? API_PROXY_DEFAULT : String(c.proxy).replace(/\/+$/, '');
+      headers['x-gifos-target'] = fetchUrl;
+      fetchUrl = pbase + '/';
+    }
+    return root.fetch(fetchUrl, init).then((r) => {
       const ct = r.headers.get('content-type') || '';
       const as = d.as || (/json/.test(ct) ? 'json' : 'text');
       const meta = { status: r.status, ok: r.ok, contentType: ct };
