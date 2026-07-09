@@ -20,8 +20,13 @@ A complete chess app in one GIF:
 - **Live probabilities.** With `UCI_ShowWDL` on, every search reports the
   engine's win / draw / loss odds; the app shows them from White's side, plus a
   centipawn evaluation and the best line it's found.
-- **Hints, take-backs, resign, promotion picker,** and your game auto-saves
-  into the icon (close the tab, come back, resume right where you were).
+- **Hints, take-backs, resign, promotion picker.** A hint only ever appears
+  when you press **Hint** — never on its own — and the whole coaching layer
+  (eval bar, W/D/L, best line, Hint) toggles off for a distraction-free game.
+- **Game history & replay.** Every finished game is saved into the icon; open
+  **Game history** to see your results and step through any past game move by
+  move. Your in-progress game also auto-saves, so you can close the tab and
+  resume right where you left off.
 
 ## Why it needs `capabilities.wasm`
 

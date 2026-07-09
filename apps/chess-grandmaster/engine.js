@@ -76,8 +76,23 @@
 
   // Search a FEN. go = {movetime:ms} or {depth:n}. onInfo(info) fires as the
   // engine deepens. Resolves { bestmove, ponder, score, mate, wdl, pv, depth }.
+  //
+  // Stockfish runs ONE search at a time, so searches are serialised: a new
+  // request stops any in-flight search (so it yields its bestmove promptly) and
+  // then runs after it settles. Without this, a quick "keep the eval fresh"
+  // search overlapping the engine's move search would swallow the move's `go`.
   Engine.prototype.search = function (fen, go, onInfo) {
     const self = this;
+    if (self._running) self.send('stop');
+    const run = function () { return self._doSearch(fen, go, onInfo); };
+    const p = (self._chain || Promise.resolve()).then(run, run);
+    self._chain = p.catch(function () {});
+    return p;
+  };
+
+  Engine.prototype._doSearch = function (fen, go, onInfo) {
+    const self = this;
+    self._running = true;
     let latest = { score: null, mate: null, wdl: null, pv: [], depth: 0 };
     return new Promise(function (res, rej) {
       const to = setTimeout(function () { off(); rej(new Error('search timeout')); }, (go.movetime || 0) + 60000);
@@ -92,7 +107,7 @@
           res({ bestmove: parts[1] || null, ponder: parts[3] || null, score: latest.score, mate: latest.mate, wdl: latest.wdl, pv: latest.pv, depth: latest.depth });
         }
       }
-      function off() { clearTimeout(to); const i = self.lines.indexOf(fn); if (i >= 0) self.lines.splice(i, 1); }
+      function off() { clearTimeout(to); self._running = false; const i = self.lines.indexOf(fn); if (i >= 0) self.lines.splice(i, 1); }
       self.lines.push(fn);
       self.send('position fen ' + fen);
       self.send('go ' + (go.depth ? 'depth ' + go.depth : 'movetime ' + (go.movetime || 1000)));

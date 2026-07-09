@@ -35,12 +35,17 @@
         <option value="5000">Deep — 5s</option>
       </select>
     </label>
+    <label class="row">Coaching
+      <input type="checkbox" id="coachChk" checked>
+    </label>
+    <p class="lvlnote">Evaluation bar, win/draw/loss odds and the Hint button. A hint only shows when you press Hint — never on its own. Turn off for a pure game.</p>
     <button class="primary" id="startBtn" disabled>Loading engine…</button>
+    <button class="ghost wide" id="historyBtn">📜 Game history</button>
   </section>
 
   <!-- Game view -->
   <section class="game" id="game" hidden>
-    <div class="evalwrap">
+    <div class="evalwrap" id="evalWrap">
       <div class="evalbar" id="evalBar" title="Win / draw / loss for White"><i class="w"></i><i class="d"></i><i class="b"></i></div>
       <div class="evalnum" id="evalNum">0.0</div>
     </div>
@@ -60,6 +65,7 @@
     <div class="controls">
       <button id="hintBtn" class="ghost">💡 Hint</button>
       <button id="undoBtn" class="ghost">↶ Take back</button>
+      <button id="coachBtn" class="ghost">👁 Coaching: on</button>
       <button id="resignBtn" class="ghost">🏳 Resign</button>
       <button id="newBtn" class="ghost">＋ New game</button>
     </div>
@@ -68,6 +74,26 @@
       <div class="best" id="bestLine"></div>
       <div class="moves" id="moveList"></div>
     </div>
+  </section>
+
+  <!-- Game history -->
+  <section class="card history" id="history" hidden>
+    <div class="vhead"><h2>Game history</h2><button class="ghost" id="histBack">← Back</button></div>
+    <div class="histlist" id="histList"></div>
+  </section>
+
+  <!-- Replay a finished game -->
+  <section class="review" id="review" hidden>
+    <div class="vhead"><button class="ghost" id="revBack">← History</button><div class="rtitle" id="revTitle"></div></div>
+    <div class="boardwrap"><div class="board" id="revBoard"></div></div>
+    <div class="revnav">
+      <button class="ghost" id="revFirst" title="Start">⏮</button>
+      <button class="ghost" id="revPrev" title="Previous move">◀</button>
+      <span class="revcount" id="revCount">0 / 0</span>
+      <button class="ghost" id="revNext" title="Next move">▶</button>
+      <button class="ghost" id="revLast" title="End">⏭</button>
+    </div>
+    <div class="moves" id="revMoves"></div>
   </section>
 </main>
 
