@@ -75,9 +75,11 @@ The entry point is index.html; multi-file apps are fully supported:
        No camera, no location.
      • gifos.ai.chat({ model:'smartest'|'cheapest', messages | prompt }) → {text}.
        Also gifos.ai.tts / stt({bytes,mime}) / image({prompt}) / imageToVideo /
-       video, and gifos.ai.models() → { available:[roles] }. Needs
-       capabilities.ai. The USER wires endpoints+keys in Settings → AI (OpenAI-
-       shaped); the app never sees a key and is portable across providers.
+       video, and gifos.ai.models() → { available:[roles] }. DECLARE the AI TYPES
+       you use as an array — capabilities.ai:["smartest","cheapest","image"] —
+       NOT a bare true, so the user knows exactly which models to set up (and the
+       app is gated to those types). The USER wires endpoints+keys in Settings →
+       AI (OpenAI-shaped); the app never sees a key and is portable across providers.
        ALWAYS feature-detect: if ai.models() lists nothing (or a call rejects),
        tell the user to set a model up in Settings → AI — never fake a result.
      • gifos.api(name, { method, path, query, headers, body, as }) → { status,
@@ -273,7 +275,7 @@ const TOOLS = [
         microphone: { type: 'boolean', description: 'Set true if the app uses gifos.recordAudio (brokered mic clip capture).' },
         camera: { type: 'boolean', description: 'Set true if the app uses gifos.recordVideo / gifos.takePhoto (brokered camera capture).' },
         motion: { type: 'boolean', description: 'Set true if the app uses gifos.motion (device tilt/orientation).' },
-        ai: { type: 'boolean', description: 'Set true if the app uses gifos.ai.* (the user\'s configured AI models; the app never sees keys).' },
+        ai: { type: ['array', 'boolean'], items: { type: 'string' }, description: 'The AI TYPES the app uses via gifos.ai.*, so the user knows which to set up: ["smartest","cheapest"] for text, plus "tts" (text→speech), "stt" (speech→text), "image" (text→image), "image_to_video", "video". Prefer the array — list ONLY the ones you actually call. A bare true means generic/any. The app never sees keys.' },
         api: { type: 'array', items: { type: 'string' }, description: 'Names of keyed third-party APIs the app calls via gifos.api(name, …), e.g. ["deepgram"]. The user configures each in Settings → Third-party APIs; the app never sees the key. Only for CORS-enabled endpoints (a browser fetch must succeed).' },
         requires: { type: 'array', items: { type: 'string' }, description: 'Capabilities the app CANNOT run without — GifOS blocks launch until the user sets them up. Entries are capability keys (e.g. "ai") or third-party API names (e.g. "deepgram"). Default: everything is OPTIONAL (the app runs and can show what it is). Only list something here if the app genuinely shows nothing useful without it. Device permissions (microphone/camera/motion) are granted at use, so listing them never blocks.' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
@@ -360,7 +362,12 @@ async function callTool(name, args) {
     const accent = hexToRgb(args.accent) || [123, 92, 255];
 
     const caps = { db: true, multiplayer: true, network: Array.isArray(args.network) ? args.network.map(String) : [] };
-    for (const c of ['microphone', 'camera', 'motion', 'ai']) if (args[c]) caps[c] = true;
+    for (const c of ['microphone', 'camera', 'motion']) if (args[c]) caps[c] = true;
+    // ai: an array of AI TYPES the app uses (smartest/cheapest/tts/stt/image/
+    // image_to_video/video) so the user knows exactly which to set up; a bare
+    // `true` still works (generic, any type).
+    if (Array.isArray(args.ai)) { if (args.ai.length) caps.ai = args.ai.map(String); }
+    else if (args.ai) caps.ai = true;
     if (Array.isArray(args.api) && args.api.length) caps.api = args.api.map(String);
     const manifest = {
       gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',

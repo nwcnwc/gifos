@@ -114,7 +114,7 @@
     } catch (e) {
       const m = String(e && e.message || e);
       // The broker already popped GifOS's setup prompt for a missing model/image role.
-      if (/NOT_CONFIGURED|IMAGE_ROLE|not set up|Settings → AI/.test(m)) { if (/IMAGE_ROLE/.test(m) && gifos.aiSetup) gifos.aiSetup(AI_HINT); setStatus('Set up an AI model (see the pop-up), then try again.', 'bad'); }
+      if (/NOT_CONFIGURED|IMAGE_ROLE|not set up|Settings → AI/.test(m)) { if (/IMAGE_ROLE/.test(m) && gifos.aiSetup) gifos.aiSetup('image', AI_HINT); setStatus('Set up an AI model (see the pop-up), then try again.', 'bad'); }
       else setStatus('Could not generate that drill: ' + m, 'bad');
     } finally { setBusy(false); }
   }
@@ -160,8 +160,8 @@
   async function ready() {
     if (!has()) return false;
     try { if (gifos.apiReady && !(await gifos.apiReady('deepgram'))) { if (gifos.apiSetup) gifos.apiSetup('deepgram', DG_HINT); setStatus('Set up Deepgram, then record — see the pop-up.', 'bad'); return false; } } catch (e) {}
-    try { const m = await gifos.ai.models(); if (!m || (m.available || []).indexOf('smartest') === -1) { if (gifos.aiSetup) gifos.aiSetup(AI_HINT); setStatus('Set up a coach model, then record — see the pop-up.', 'bad'); return false; } }
-    catch (e) { if (gifos.aiSetup) gifos.aiSetup(AI_HINT); return false; }
+    try { const m = await gifos.ai.models(); if (!m || (m.available || []).indexOf('smartest') === -1) { if (gifos.aiSetup) gifos.aiSetup('smartest', AI_HINT); setStatus('Set up a coach model, then record — see the pop-up.', 'bad'); return false; } }
+    catch (e) { if (gifos.aiSetup) gifos.aiSetup('smartest', AI_HINT); return false; }
     return true;
   }
 
