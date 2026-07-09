@@ -27,6 +27,21 @@ A complete chess app in one GIF:
   **Game history** to see your results and step through any past game move by
   move. Your in-progress game also auto-saves, so you can close the tab and
   resume right where you left off.
+- **Play a friend (multiplayer).** Press **Play a friend**, then **Invite**
+  (top bar) to bring people in. Two players take the White/Black seats and
+  everyone else waits in line; **winner stays**, loser goes to the back of the
+  queue. Stockfish is *not* a player and gives no hints, but either seat can
+  flip a shared **Commentary** toggle — after each move the engine reacts
+  ("Nice move! 😎", "Ouch. 😬") for both players, colour commentary only, never
+  the best move. Choose **"let a friend keep it going"** when you Invite so the
+  game survives if the person who started it leaves. Games with guests are saved
+  to history too.
+
+  > The board and seats live in a shared `gifos.db` collection synced to every
+  > peer; a separate presence collection carries heartbeats (GifOS has no
+  > presence API) so the queue knows when someone left. Because this app bundles
+  > a 7 MB engine, it's too big for the relay's payload cap — it's handed to
+  > each joiner over the **P2P DataChannel** instead (see below).
 
 ## Why it needs `capabilities.wasm`
 

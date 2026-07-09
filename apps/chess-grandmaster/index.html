@@ -40,7 +40,23 @@
     </label>
     <p class="lvlnote">Evaluation bar, win/draw/loss odds and the Hint button. A hint only shows when you press Hint — never on its own. Turn off for a pure game.</p>
     <button class="primary" id="startBtn" disabled>Loading engine…</button>
+    <button class="ghost wide" id="friendBtn">👥 Play a friend</button>
     <button class="ghost wide" id="historyBtn">📜 Game history</button>
+  </section>
+
+  <!-- Play a friend (multiplayer) -->
+  <section class="game" id="friend" hidden>
+    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave">← Leave</button></div>
+    <div class="seats" id="fSeats"></div>
+    <div class="fqueue" id="fQueue"></div>
+    <div class="statusline" id="fStatus"></div>
+    <div class="boardwrap"><div class="board" id="fBoard"></div></div>
+    <div class="fCommentBox" id="fCommentBox"></div>
+    <div class="controls">
+      <label class="ftoggle" title="Stockfish reacts to each move — never reveals the best move"><input type="checkbox" id="fComment"> 🎙 Commentary</label>
+      <button id="fResign" class="ghost" style="display:none">🏳 Resign</button>
+    </div>
+    <div class="moves" id="fMoves"></div>
   </section>
 
   <!-- Game view -->
