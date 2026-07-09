@@ -42,27 +42,28 @@ const API_CFG = JSON.stringify({
   check('Settings shows a row for every pre-seeded third-party API', (await page.locator('.api-row').count()) === 2);
   await page.locator('summary', { hasText: 'Third-party APIs' }).click();
   await page.waitForSelector('.api-test', { state: 'visible', timeout: 5000 });
-  // Test the seeded "deepgram" row — key attached → reachable.
+  // Test & save the seeded "deepgram" row — the fake host is CORS-open, so the
+  // direct probe succeeds and it saves without a proxy.
   await page.locator('.api-test').first().click();
-  await page.waitForFunction(() => {
-    const s = document.querySelector('.api-status');
-    return s && /reachable|rejected|reach|returned/.test(s.textContent);
-  }, null, { timeout: 8000 });
+  await page.waitForFunction(() => /saved|rejected|reach/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 8000 });
   const st = await page.locator('.api-status').first().textContent();
-  check('the API Test button reports the host reachable with the key', /reachable/.test(st), st);
-  // Wrong key → rejected.
+  check('Test & save saves a reachable API directly', /saved · direct/.test(st), st);
+  // Wrong key → rejected, and it does NOT save.
   await page.locator('.api-f[data-f="key"]').first().fill('nope');
   await page.locator('.api-test').first().click();
   await page.waitForFunction(() => /rejected/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 8000 });
-  check('Test flags a rejected key', /rejected/.test(await page.locator('.api-status').first().textContent()));
+  check('Test & save flags a rejected key (and refuses to save)', /rejected/.test(await page.locator('.api-status').first().textContent()));
   // ＋ Add makes a fresh, empty row.
   await page.locator('#api-add').click();
   check('＋ Add creates another API row', (await page.locator('.api-row').count()) === 3);
-  // The proxy toggle reveals a custom-proxy URL field.
-  await page.locator('.api-proxy-ck').last().check();
-  check('ticking the CORS-proxy box reveals the custom-proxy URL field', await page.locator('.api-proxy-url').last().isVisible());
-  // Restore the good key before closing so nothing is saved wrong (we close
-  // without saving anyway; the app reads localStorage which is untouched).
+  // Advanced holds an optional custom-proxy field (no manual proxy checkbox).
+  check('there is no manual proxy checkbox anymore', (await page.locator('.api-proxy-ck').count()) === 0);
+  await page.locator('.api-row').last().locator('.api-adv summary').click();
+  check('Advanced reveals a custom-proxy URL field', await page.locator('.api-row').last().locator('.api-proxy-url').isVisible());
+  // Re-save the good key so the app-side checks below still round-trip.
+  await page.locator('.api-f[data-f="key"]').first().fill('dg-secret-key');
+  await page.locator('.api-test').first().click();
+  await page.waitForFunction(() => /saved/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 8000 });
   await page.locator('#set-close').click();
 
   // ---- a capability app that calls gifos.api ----

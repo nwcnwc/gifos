@@ -89,16 +89,19 @@ The entry point is index.html; multi-file apps are fully supported:
        so the app never sees the key and can't redirect it. path is relative to
        the configured base URL (absolute/off-host paths are refused). body: a
        plain object is sent as JSON; pass {b64} or an ArrayBuffer for binary.
-       Feature-detect and tell the user to add the API in Settings if a call
-       rejects — never fake a result. NOTE: this is a direct browser fetch, so
-       the API must send CORS headers; server-only APIs (Deepgram REST included)
-       need a CORS-forwarding relay to work from the browser.
+       Feature-detect; never fake a result. You DON'T write "go to Settings and
+       type https://…" — on missing config GifOS shows its OWN setup prompt (it
+       knows the provider). Pass an app-specific hint on the call to append
+       extras, or call gifos.apiSetup(name, hint) / gifos.aiSetup(hint) to pop it
+       proactively after a gifos.apiReady / gifos.ai.models() check. CORS: the
+       user sets up the API with Settings "Test & save", which auto-detects
+       whether a CORS proxy is needed (server-only APIs like Deepgram get one).
    Every one of these pops a plain-language acknowledgement at launch and (for
    capture) a browser prompt + an on-screen recorder the app can't hide.
    OPTIONAL vs REQUIRED: capabilities are optional by default — the app runs and
    the user can look around even before setting a key up (feature-detect and
    guide them, like the shim notes say). If the app shows NOTHING useful without
-   a capability, list it in `requires` (see pack_app) and GifOS blocks launch
+   a capability, list it in "requires" (see pack_app) and GifOS blocks launch
    until it's set up. Prefer optional; only require what's truly load-bearing.
    Live
    realtime video/voice is still not something an app does itself — GifOS ships

@@ -173,6 +173,13 @@
         // user up front "add your Deepgram key in Settings" instead of failing
         // mid-task. Returns true/false.
         apiReady: function(name){ return rpc({type:'apiReady', name:name}); },
+        // Ask GifOS to show its own "set this up" prompt for an API / AI model.
+        // The generic instructions are GifOS's (consistent across apps); pass an
+        // optional hint for app-specific extras ("new accounts include credit").
+        // Also fires automatically when a gifos.api / gifos.ai call hits missing
+        // config — so an app can just make the call and let GifOS handle it.
+        apiSetup: function(name, hint){ return rpc({type:'apiSetup', name:name, hint:hint}); },
+        aiSetup: function(hint){ return rpc({type:'aiSetup', hint:hint}); },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -635,7 +642,7 @@
     if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && cfg[k].url) });
     const role = d.op === 'chat' ? (d.model === 'smartest' ? 'smartest' : 'cheapest') : d.op;
     const c = cfg[role];
-    if (!c || !c.url) return Promise.reject(new Error('No "' + role + '" model is set up. Configure it in GifOS Settings → AI.'));
+    if (!c || !c.url) { showSystemSetup({ kind: 'ai', hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai')); }
     const url = aiEndpoint(c, d.op);
     const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
     const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
@@ -703,11 +710,52 @@
     const list = (manifest && manifest.capabilities && manifest.capabilities.api) || [];
     return Array.isArray(list) && list.indexOf(name) !== -1;
   }
+  // Known third-party providers — lets the SYSTEM render specific setup guidance
+  // (base URL, auth scheme) when an app asks for one that isn't configured, so
+  // apps don't hardcode "go to Settings and type https://api.deepgram.com".
+  const KNOWN_APIS = {
+    deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'Token' },
+  };
+  function escHtml(s) { const e = root.document.createElement('div'); e.textContent = s == null ? '' : String(s); return e.innerHTML; }
+
+  // The GifOS-owned "you need to set this up" prompt. Apps trigger it (by making
+  // the call, or via gifos.apiSetup / gifos.aiSetup) but never author its generic
+  // text — GifOS does, consistently. Apps may pass a `hint` with app-specific
+  // extras (e.g. "new accounts include free credit"), appended below.
+  function showSystemSetup(opts) {
+    try {
+      const doc = root.document; if (!doc || !doc.body) return;
+      const old = doc.getElementById('gifos-setup-modal'); if (old) old.remove();
+      let title, body;
+      if (opts.kind === 'ai') {
+        title = 'An AI model isn’t set up yet';
+        body = 'This app uses an AI model you provide. In GifOS <b>Settings → AI models</b>, set up a text model — any OpenAI-compatible endpoint and key.';
+      } else {
+        const k = KNOWN_APIS[String(opts.name || '').toLowerCase()];
+        title = (k ? k.label : opts.name) + ' isn’t set up yet';
+        body = 'In GifOS <b>Settings → Third-party APIs</b>, add one named <b>' + escHtml(opts.name) + '</b>' +
+          (k ? ', base URL <span style="font-family:ui-monospace,monospace">' + escHtml(k.url) + '</span>' + (k.auth ? ', <b>' + escHtml(k.auth) + '</b> auth' : '') : '') + '.';
+      }
+      body += ' Your key stays in this browser — the app never sees it.';
+      const bg = doc.createElement('div'); bg.id = 'gifos-setup-modal'; bg.className = 'perm-modal';
+      bg.setAttribute('style', 'position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+      const box = doc.createElement('div'); box.className = 'perm-box';
+      box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:23rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+      box.innerHTML = '<h3 style="margin:0 0 .5rem;font-size:1.1rem">' + escHtml(title) + '</h3>' +
+        '<p style="color:#b6b6cf;font-size:.9rem;margin:0 0 .7rem">' + body + '</p>' +
+        (opts.hint ? '<p style="color:#9a9ab5;font-size:.83rem;margin:0 0 .9rem">' + escHtml(opts.hint) + '</p>' : '') +
+        '<div style="text-align:right"><button id="gifos-setup-ok" style="padding:.5rem 1.3rem;border-radius:.5rem;border:none;background:#7b5cff;color:#fff;cursor:pointer;font:inherit">Got it</button></div>';
+      bg.appendChild(box); doc.body.appendChild(bg);
+      box.querySelector('#gifos-setup-ok').onclick = function () { bg.remove(); };
+      bg.addEventListener('click', function (e) { if (e.target === bg) bg.remove(); });
+    } catch (e) { /* no DOM host — the coded rejection still reaches the app */ }
+  }
+
   function brokerApi(manifest, d) {
     const name = d.name;
     if (!name || !apiAllowed(manifest, name)) return Promise.reject(new Error('This app did not declare the "' + name + '" third-party API in its manifest.'));
     const c = apiConfig()[name];
-    if (!c || !c.url) return Promise.reject(new Error('The "' + name + '" API is not set up. Add it in GifOS Settings → Third-party APIs.'));
+    if (!c || !c.url) { showSystemSetup({ kind: 'api', name: name, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:' + name)); }
     let baseOrigin;
     const base = String(c.url).replace(/\/+$/, '');
     try { baseOrigin = new URL(base).origin; } catch (e) { return Promise.reject(new Error('Bad base URL for "' + name + '".')); }
@@ -770,6 +818,8 @@
       else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'apiReady') { const c = apiConfig()[d.name]; reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
+      else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
+      else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });

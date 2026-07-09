@@ -129,8 +129,15 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      GifOS relays the call through a stateless proxy — you don't write any of
      that, just call gifos.api and tell the user to enable it if a call is CORS-
      blocked.
-   ALWAYS feature-detect and, if a capability isn't set up, tell the user to
-   configure it in Settings — never fake a result.
+   ALWAYS feature-detect and never fake a result. You do NOT need to write your
+   own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
+   missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL
+   and the Settings screen). Pass an app-specific `hint` on the call (e.g.
+   gifos.api('deepgram', { …, hint: 'new accounts include free credit' })) and it
+   appends below the system text. To prompt BEFORE making a call (so you don't do
+   wasted work), check gifos.apiReady(name) / gifos.ai.models(), and if missing
+   call gifos.apiSetup(name, hint) or gifos.aiSetup(hint) to pop the same system
+   prompt. Keep your own copy to app-specifics only.
    OPTIONAL vs REQUIRED: capabilities are OPTIONAL by default — the app launches
    even before the user has set up a key, so they can explore it. If the app is
    useless without one, add its name to a manifest "requires" array (a capability
