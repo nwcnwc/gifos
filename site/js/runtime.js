@@ -1928,7 +1928,7 @@
       if (!appBytes || !filesRef) return Promise.reject(new Error('app not loaded yet'));
       // Steal the APP, not its data: no session state is captured, and any
       // state baked into the GIF itself (snapshot-origin apps) is stripped,
-      // so the stolen copy opens fresh. Download Snapshot captures the data.
+      // so the stolen copy opens fresh. Steal with data:'current' keeps it.
       const clean = {};
       let hadState = false;
       for (const p in filesRef) { if (p.startsWith('.state/')) hadState = true; else clean[p] = filesRef[p]; }
