@@ -191,8 +191,14 @@ body {
 .add-actions button { flex: 1; padding: .6rem; border-radius: .5rem; border: 1px solid var(--border);
   background: var(--surface); color: var(--text); cursor: pointer; }
 .add-actions button:hover { border-color: var(--accent); }
+.add-url-row { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.add-url-row input { flex: 1; min-width: 0; margin: 0; }
+.add-url-row button { padding: .6rem 1rem; border-radius: .5rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; }
+.add-url-row button:disabled { opacity: .55; cursor: default; }
 .add-sep { height: 1px; background: var(--border); margin: 1rem 0; }
 .add-help { color: var(--muted); font-size: .82rem; line-height: 1.4; margin-bottom: .6rem; }
+.add-help.bad { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
 
 /* settings: background picker row + collapsed Advanced section */
 .bg-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
