@@ -63,8 +63,8 @@ async function invite(page, lifetime, resilient) {
   const B = await join('clientB');
   await sleep(800); // let A/B mirror the host state
 
-  // client A: Steal App → the app lands on A's desktop, WITHOUT its data
-  // (Download Snapshot is the capture-the-data path; takeover keeps data too)
+  // client A: Steal → the app lands on A's desktop, WITHOUT its data
+  // (Steal with data:'current' is the capture-the-data path; takeover keeps data too)
   await A.page.locator('#save-desktop').click();
   await sleep(500);
   const aDesk = await A.ctx.newPage();
