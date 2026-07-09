@@ -245,7 +245,7 @@
     // Fail fast: if the key/model isn't set up, say so NOW — don't make the user
     // record a whole take first.
     const miss = await whatIsMissing();
-    if (miss) { setStatus('Set this up first 👇', 'bad'); setupCard(miss[0], miss[1], miss[2]); return; }
+    if (miss) { setStatus('Set this up first', 'bad'); setupCard(miss[0], miss[1], miss[2]); return; }
     recording = true; $('rec').disabled = true;
     let clip;
     try {
@@ -284,8 +284,8 @@
       const msg = String(e && e.message || e);
       setStatus('', '');
       if (/did not declare/.test(msg)) setStatus('This app needs the "deepgram" API — reinstall the app GIF.', 'bad');
-      else if (/not set up|Third-party APIs/.test(msg)) { setStatus('Deepgram isn’t set up 👇', 'bad'); setupCard(SETUP.deepgram[0], SETUP.deepgram[1], SETUP.deepgram[2]); }
-      else if (/No "smartest"|No "cheapest"|Settings → AI/.test(msg)) { setStatus('No coach model yet 👇', 'bad'); setupCard(SETUP.coach[0], SETUP.coach[1], 'Your take was transcribed — set up a model and record again.'); }
+      else if (/not set up|Third-party APIs/.test(msg)) { setStatus('Deepgram isn’t set up', 'bad'); setupCard(SETUP.deepgram[0], SETUP.deepgram[1], SETUP.deepgram[2]); }
+      else if (/No "smartest"|No "cheapest"|Settings → AI/.test(msg)) { setStatus('No coach model yet', 'bad'); setupCard(SETUP.coach[0], SETUP.coach[1], 'Your take was transcribed — set up a model and record again.'); }
       else setStatus('Something went wrong: ' + msg, 'bad');
     } finally { recording = false; $('rec').disabled = false; }
   }
@@ -363,7 +363,7 @@
     if (!has()) { setStatus('This is a GifOS app — open it on a GifOS Home Screen to record and get coached.', 'bad'); return; }
     // On open, if something's missing, show it right away — don't wait for a take.
     const miss = await whatIsMissing();
-    if (miss) { setStatus('One-time setup needed 👇', 'bad'); setupCard(miss[0], miss[1], miss[2]); }
+    if (miss) { setStatus('One-time setup needed', 'bad'); setupCard(miss[0], miss[1], miss[2]); }
   }
   boot();
 })();
