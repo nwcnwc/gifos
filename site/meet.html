@@ -32,7 +32,8 @@
   .bar.collapsed ~ .share { display: none !important; } /* the invite bar folds away too */
   .bartoggle { display: inline-flex; align-items: center; justify-content: center;
                width: 30px; height: 30px; padding: 0; flex: 0 0 auto; color: var(--muted, #b8b8cc); }
-  .bartoggle svg { transition: transform .2s ease; }
+  /* Pin the icon's size — as a flex child the SVG was collapsing to 0 width. */
+  .bartoggle svg { flex: 0 0 auto; width: 16px; height: 16px; display: block; transition: transform .2s ease; }
   .bar:not(.collapsed) .bartoggle svg { transform: rotate(180deg); }
   .bar.collapsed .bartoggle { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
   /* Mic / camera as traffic-light icons: green (live) or red with a slash (off). */
