@@ -375,6 +375,15 @@ async function smartFetch(url, options) {
 }
 ```
 
+### From a sandboxed app: `gifos.fetch(url, { proxy: true })`
+
+The production proxy is `cors-proxy.gifos.app` (source in `cors-proxy/`). It is **not** open — it only serves `gifos.app` origins and only forwards to a curated **host allow-list** (`ALLOW_HOSTS` in `cors-proxy/src/cors-proxy.js`), passing the true destination in an `x-gifos-target` header. Adding a host means one line + a `wrangler deploy`.
+
+Two ways an app reaches it:
+
+- **`api` capability** — a keyed third-party API configured in *Settings → Third-party APIs* with the per-API "use CORS proxy" toggle. The runtime attaches the credential and routes through the proxy (see `brokerApi`).
+- **`network` capability** — for **public** data with no key. The app declares the host under `capabilities.network` and calls `gifos.fetch(url, { proxy: true })`. The runtime still gates the call on the declared-host allow-list, then routes it through `cors-proxy.gifos.app` (which enforces its own `ALLOW_HOSTS`). The app can **only** select the default GifOS proxy — never an arbitrary URL — so the bridge can't become an exfiltration channel; a self-hosted deployment overrides the base once via `window.GIFOS_CORS_PROXY`. The default **Bible Browser** app (`sample-apps.js`) is a live demo: it reads `text.recoveryversion.bible` (which sends no CORS headers) entirely through this path.
+
 The Worker is a dumb pipe: it adds one CORS header and forwards everything else unchanged. **API keys still flow directly from the user to the target API** — the Worker doesn't log or persist them. CORS-friendly APIs (the growing majority) never touch the proxy.
 
 ### Deployment
