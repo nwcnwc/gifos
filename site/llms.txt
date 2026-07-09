@@ -115,8 +115,12 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      gifos.recordVideo() / gifos.takePhoto() -> { bytes, mime }; gifos.motion(cb).
      GifOS captures behind its own visible indicator; the app never holds the
      live device.
-   - ai: gifos.ai.chat/tts/stt/image/video and gifos.ai.models(). The user wires
-     OpenAI-shaped endpoints + keys in Settings -> AI; the app never sees a key.
+   - ai: gifos.ai.chat/tts/stt/image/video and gifos.ai.models(). DECLARE the AI
+     TYPES you use as an array — capabilities.ai:["smartest","cheapest","image"]
+     — not a bare true, so the user knows which models to set up and the app is
+     gated to those types (smartest/cheapest text, tts, stt, image,
+     image_to_video, video). The user wires endpoints + keys per type in
+     Settings -> AI models; the app never sees a key.
    - api: gifos.api(name, { method, path, query, headers, body, as }) for ANY
      keyed third-party API that isn't OpenAI-shaped (Deepgram, a trading API…).
      Declare the names you use: "capabilities": { "api": ["deepgram"] }. The

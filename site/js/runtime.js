@@ -179,7 +179,9 @@
         // Also fires automatically when a gifos.api / gifos.ai call hits missing
         // config — so an app can just make the call and let GifOS handle it.
         apiSetup: function(name, hint){ return rpc({type:'apiSetup', name:name, hint:hint}); },
-        aiSetup: function(hint){ return rpc({type:'aiSetup', hint:hint}); },
+        // role is an AI type ('smartest'|'cheapest'|'tts'|'stt'|'image'|'video'…)
+        // so GifOS names exactly which model to set up; omit for a generic prompt.
+        aiSetup: function(role, hint){ return rpc({type:'aiSetup', role:role, hint:hint}); },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -641,8 +643,9 @@
     const cfg = aiConfig();
     if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && cfg[k].url) });
     const role = d.op === 'chat' ? (d.model === 'smartest' ? 'smartest' : 'cheapest') : d.op;
+    if (!aiAllowed(manifest, role)) return Promise.reject(new Error('This app did not declare the "' + role + '" AI type in its manifest (capabilities.ai).'));
     const c = cfg[role];
-    if (!c || !c.url) { showSystemSetup({ kind: 'ai', hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai')); }
+    if (!c || !c.url) { showSystemSetup({ kind: 'ai', role: role, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai:' + role)); }
     const url = aiEndpoint(c, d.op);
     const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
     const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
@@ -716,6 +719,21 @@
   const KNOWN_APIS = {
     deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'Token' },
   };
+  // The AI "types" a manifest can name under capabilities.ai (an array), each a
+  // row the user sets up in Settings → AI models. Labels match that screen.
+  const AI_ROLE_LABELS = {
+    smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech',
+    stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video',
+  };
+  // Which AI roles a manifest declares. true / missing array = generic (any).
+  function aiRoles(manifest) {
+    const a = manifest && manifest.capabilities && manifest.capabilities.ai;
+    return Array.isArray(a) ? a.filter((r) => AI_ROLE_LABELS[r]) : null; // null = generic
+  }
+  function aiAllowed(manifest, role) {
+    const roles = aiRoles(manifest);
+    return roles === null ? true : roles.indexOf(role) !== -1; // generic allows any; array gates
+  }
   function escHtml(s) { const e = root.document.createElement('div'); e.textContent = s == null ? '' : String(s); return e.innerHTML; }
 
   // The GifOS-owned "you need to set this up" prompt. Apps trigger it (by making
@@ -728,8 +746,10 @@
       const old = doc.getElementById('gifos-setup-modal'); if (old) old.remove();
       let title, body;
       if (opts.kind === 'ai') {
-        title = 'An AI model isn’t set up yet';
-        body = 'This app uses an AI model you provide. In GifOS <b>Settings → AI models</b>, set up a text model — any OpenAI-compatible endpoint and key.';
+        const label = AI_ROLE_LABELS[opts.role];
+        title = (label || 'An AI model') + ' isn’t set up yet';
+        body = 'This app uses an AI model you provide. In GifOS <b>Settings → AI models</b>, set up ' +
+          (label ? 'the <b>' + escHtml(label) + '</b> model' : 'a text model') + ' — any OpenAI-compatible endpoint and key.';
       } else {
         const k = KNOWN_APIS[String(opts.name || '').toLowerCase()];
         title = (k ? k.label : opts.name) + ' isn’t set up yet';
@@ -819,7 +839,7 @@
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'apiReady') { const c = apiConfig()[d.name]; reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
       else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
-      else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', hint: d.hint }); reply({ ok: true, result: true }); }
+      else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', role: d.role, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });

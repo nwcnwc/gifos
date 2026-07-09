@@ -185,6 +185,9 @@
         api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.'
       };
       const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
+      const AI_ROLE_LABELS = { smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };
+      // AI types the app names under capabilities.ai (array). true/absent = generic.
+      const aiRoles = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.ai; return Array.isArray(a) ? a.filter(function (r) { return AI_ROLE_LABELS[r]; }) : []; };
       window.__gifosPermissions = function (policy, manifest) {
         const caps = Object.keys(CAP_LABELS).filter(function (k) {
           return k === 'api' ? apiNames(manifest).length : (manifest && manifest.capabilities && manifest.capabilities[k]);
@@ -192,7 +195,7 @@
         const hasNet = !!(policy && policy.hasNetwork());
         if (!hasNet && !caps.length) { permsBtn.style.display = 'none'; return; }
         const capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
-        const sig = caps.join(',') + '|' + apiNames(manifest).join(',');
+        const sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',');
         function capAcked() { try { return localStorage.getItem(capSig) === sig; } catch (e) { return false; } }
         function ackCaps() { try { localStorage.setItem(capSig, sig); } catch (e) {} }
         function paintChip() {
@@ -213,6 +216,14 @@
                 return '<div class="perm-row"><span><span class="host">Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
                   '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
               }).join('');
+            }
+            if (k === 'ai') {
+              const roles = aiRoles(manifest);
+              const which = roles.length
+                ? ' <span class="host" style="font-weight:400">— ' + roles.map(function (r) { return escapeText(AI_ROLE_LABELS[r]); }).join(', ') + '</span>'
+                : '';
+              return '<div class="perm-row"><span><span class="host">' + CAP_LABELS.ai + which + '</span>' +
+                '<br><span class="desc">' + CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : '') + '</span></span></div>';
             }
             return '<div class="perm-row"><span><span class="host">' + CAP_LABELS[k] + '</span>' +
               '<br><span class="desc">' + CAP_DESC[k] + '</span></span></div>';
@@ -272,12 +283,14 @@
         const requires = (manifest && Array.isArray(manifest.requires)) ? manifest.requires : [];
         function lsCfg(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; } }
         function aiConfigured() { const c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
+        function aiRoleConfigured(role) { const c = lsCfg('gifos_ai_config')[role]; return !!(c && c.url); }
         function apiConfigured(name) { const c = lsCfg('gifos_api_config')[name]; return !!(c && c.url); }
         function titleCase(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
         function missingRequired() {
           const out = [];
           requires.forEach(function (r) {
             if (r === 'ai') { if (!aiConfigured()) out.push({ what: 'an AI model', where: 'Settings → AI models' }); }
+            else if (AI_ROLE_LABELS[r]) { if (!aiRoleConfigured(r)) out.push({ what: 'the ' + AI_ROLE_LABELS[r] + ' model', where: 'Settings → AI models' }); }
             else if (r === 'microphone' || r === 'camera' || r === 'motion' || r === 'network') { /* granted at use — nothing to pre-configure */ }
             else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', where: 'Settings → Third-party APIs' });
           });
