@@ -418,31 +418,40 @@
     for (const p in files) { if (p.startsWith('.state/')) hadState = true; else clean[p] = files[p]; }
     return (hadState && gif.repack) ? gif.repack(originalBytes, clean) : Promise.resolve(originalBytes);
   }
-  // Unified "steal": opts = { toDesktop, withData }. Four combinations:
-  //   Stolen Apps + without data → a fresh copy filed into the desktop's chest
-  //   Stolen Apps + with data    → a copy carrying the current data
-  //   Download   + without data → a fresh, self-contained App GIF file
-  //   Download   + with data     → a full snapshot GIF (app + everything in it)
-  // On the desktop, state is stored beside the icon (setState) rather than baked;
-  // a downloaded GIF bakes it into `.state/` so it travels.
-  function stealApp(originalBytes, files, manifest, db, opts) {
+  // Unified "steal". The app bytes were already transported/read ONCE (they live
+  // in `originalBytes`); every variant here is a LOCAL repack — never a re-fetch.
+  //   opts.data : 'none'    — a clean, empty copy (just the app)
+  //               'current' — everything in the app right now
+  //               'connect' — everything as of when it loaded (the snapshot the
+  //                           corner app-GIF already holds — cached, so it's free
+  //                           to reuse and instant on repeat)
+  //   opts.toDesktop : file into Stolen Apps (state stored beside the icon) vs
+  //                    download a self-contained GIF (state baked into .state/)
+  //   opts.bytesOnly : return the packed bytes instead of downloading (the
+  //                    corner app-GIF easter egg feeds these to its <img>)
+  // ctx = { connectState, cache } holds the state captured at load and memoizes
+  // the connect snapshot, so "data at connect time" costs at most one repack.
+  function stealApp(originalBytes, files, manifest, db, ctx, opts) {
     opts = opts || {};
-    const withData = !!opts.withData, toDesktop = !!opts.toDesktop;
-    const stateP = withData ? Promise.resolve(db.getFullState()) : Promise.resolve(null);
-    return stateP.then((state) => {
-      if (toDesktop) {
-        return Promise.all([stripState(originalBytes, files), ensureStolenFolder()])
-          .then(([bytes, folder]) => saveAppToDesktop(bytes, manifest, withData ? state : null, folder))
-          .then(() => ({ toDesktop: true, withData: withData }));
-      }
-      const bytesP = withData ? packSnapshot(originalBytes, files, manifest, state) : stripState(originalBytes, files);
-      // bytesOnly: hand back the packed GIF instead of downloading it — same
-      // snapshot the "Download · with data" path produces, used by the corner
-      // app-GIF easter egg (right-click → Save image = a working snapshot).
-      return bytesP.then((bytes) => opts.bytesOnly
-        ? { bytes: bytes, withData: withData }
-        : { name: downloadBytes(bytes, (manifest.appId || 'app') + (withData ? '-snapshot' : '') + '.gif'), withData: withData });
-    });
+    const mode = opts.data || (opts.withData ? 'current' : 'none'); // legacy withData→data
+    const toDesktop = !!opts.toDesktop;
+    const stateFor = () => mode === 'current' ? Promise.resolve(db.getFullState())
+      : mode === 'connect' ? Promise.resolve((ctx && ctx.connectState) || null)
+        : Promise.resolve(null);
+    if (toDesktop) {
+      return Promise.all([stripState(originalBytes, files), stateFor(), ensureStolenFolder()])
+        .then(([bytes, state, folder]) => saveAppToDesktop(bytes, manifest, state, folder))
+        .then(() => ({ toDesktop: true, data: mode }));
+    }
+    const bakedBytes = () => {
+      if (mode === 'none') return stripState(originalBytes, files);
+      if (mode === 'connect' && ctx && ctx.cache && ctx.cache.bytes) return Promise.resolve(ctx.cache.bytes);
+      return stateFor().then((s) => packSnapshot(originalBytes, files, manifest, s))
+        .then((b) => { if (mode === 'connect' && ctx && ctx.cache) ctx.cache.bytes = b; return b; });
+    };
+    return bakedBytes().then((bytes) => opts.bytesOnly
+      ? { bytes: bytes, data: mode }
+      : { name: downloadBytes(bytes, (manifest.appId || 'app') + (mode === 'none' ? '' : '-snapshot') + '.gif'), data: mode });
   }
 
   // ---- desktop capture: write app + state into THIS browser's desktop ------
@@ -1569,12 +1578,15 @@
             if (embedded && embedded.collections) return db.import(embedded);
           } catch (e) { /* corrupt embedded state — start fresh */ }
         }
-      }).then(() => netPolicy.load()).then(() => {
+      }).then(() => netPolicy.load()).then(() => Promise.resolve(db.getFullState())).then((connectState) => {
+        // Snapshot the state AT LOAD once, so the corner app-GIF and a
+        // "data at connect time" steal share the same (memoized) bytes.
+        const stealCtx = { connectState: connectState, cache: { bytes: null } };
         mountApp(iframe, files, manifest, db, appBytes, netPolicy);
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
-        return { save: () => downloadSnapshot(appBytes, files, manifest, db), steal: (opts) => stealApp(appBytes, files, manifest, db, opts), becomeHost, sessionInfo, endSession };
+        return { save: () => downloadSnapshot(appBytes, files, manifest, db), steal: (opts) => stealApp(appBytes, files, manifest, db, stealCtx, opts), becomeHost, sessionInfo, endSession };
       });
     }
   }
@@ -1610,6 +1622,9 @@
       '?role=client&token=' + params.k + (myPeer ? '&peer=' + myPeer : ''));
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
     let appBytes = null, lastDump = null, hostGone = false, hostGoneAt = null, tookOver = false;
+    // Cache the state captured at connect time + memoize the connect-snapshot
+    // bytes, so "steal with data at connect" is instant and re-transports nothing.
+    const stealCtx = { connectState: null, cache: { bytes: null } };
     let pc = null, channel = null; // P2P DataChannel to the host (when it opens)
     // The host tells us whether this session self-heals (only 'forever' links
     // do). If it doesn't, we never mirror its state — so there's nothing to
@@ -1756,6 +1771,7 @@
         iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
         // Client-run: the veto is session-only (no local icon to persist under).
         mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
+        Promise.resolve(remoteDb.getFullState()).then((cs) => { stealCtx.connectState = cs; });
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
         root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
         runningStatus();
@@ -1924,7 +1940,7 @@
     return Promise.resolve({
       save: () => (filesRef && remoteDb ? downloadSnapshot(appBytes, filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
       saveToDesktop,
-      steal: (opts) => (filesRef && remoteDb ? stealApp(appBytes, filesRef, manifestRef, remoteDb, opts) : Promise.reject(new Error('app not loaded yet'))),
+      steal: (opts) => (filesRef && remoteDb ? stealApp(appBytes, filesRef, manifestRef, remoteDb, stealCtx, opts) : Promise.reject(new Error('app not loaded yet'))),
       becomeHost,
     });
   }

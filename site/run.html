@@ -159,7 +159,7 @@
       function showAppGif() {
         if (appGifDone || !appGifLoaded || !controller || !controller.steal) return;
         appGifDone = true;
-        controller.steal({ withData: true, bytesOnly: true }).then(function (r) {
+        controller.steal({ data: 'connect', bytesOnly: true }).then(function (r) {
           if (!r || !r.bytes) { appGifDone = false; return; }
           const img = document.getElementById('appgif');
           img.src = URL.createObjectURL(new Blob([r.bytes], { type: 'image/gif' }));
@@ -559,9 +559,10 @@
           '<p class="lead">Where should the copy go?</p>' +
           '<label class="perm-row"><input type="radio" name="dest" value="desktop" checked><span><span class="host">Save in Stolen Apps</span><span class="desc">A fresh icon lands in your Stolen Apps folder on this computer.</span></span></label>' +
           '<label class="perm-row"><input type="radio" name="dest" value="download"><span><span class="host">Download a file</span><span class="desc">Get it as one GIF you can keep or send to anyone.</span></span></label>' +
-          '<p class="lead">Include the data that’s in it now?</p>' +
-          '<label class="perm-row"><input type="radio" name="data" value="no" checked><span><span class="host">Without data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
-          '<label class="perm-row"><input type="radio" name="data" value="yes"><span><span class="host">With data</span><span class="desc">Carries everything currently in the app.</span></span></label>' +
+          '<p class="lead">What data should ride along?</p>' +
+          '<label class="perm-row"><input type="radio" name="data" value="none" checked><span><span class="host">No data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="connect"><span><span class="host">Data as it arrived</span><span class="desc">The snapshot from the moment you opened it — instant, nothing re-sent.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries everything currently in the app, live.</span></span></label>' +
           '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Steal it</button></div>' +
           '</div>';
         document.body.appendChild(bg);
@@ -570,12 +571,13 @@
         bg.querySelector('#steal-cancel').onclick = close;
         bg.querySelector('#steal-go').onclick = function () {
           var toDesktop = (bg.querySelector('input[name=dest]:checked') || {}).value === 'desktop';
-          var withData = (bg.querySelector('input[name=data]:checked') || {}).value === 'yes';
+          var data = (bg.querySelector('input[name=data]:checked') || {}).value || 'none';
           close();
           if (!controller || !controller.steal) return;
-          controller.steal({ toDesktop: toDesktop, withData: withData }).then(function (r) {
+          var dataNote = data === 'none' ? '' : data === 'connect' ? ' (with its data) 😏' : ' (with live data) 😏';
+          controller.steal({ toDesktop: toDesktop, data: data }).then(function (r) {
             status.textContent = toDesktop
-              ? ('Stolen into your Stolen Apps' + (withData ? ' (with data) 😏' : ' 😏'))
+              ? ('Stolen into your Stolen Apps' + (dataNote || ' 😏'))
               : ('Downloaded: ' + (r && r.name ? r.name : 'app.gif'));
             connPop.classList.add('show');
           }).catch(function (err) { status.textContent = 'Steal failed: ' + err.message; connPop.classList.add('show'); });
