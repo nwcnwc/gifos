@@ -32,7 +32,13 @@ const server = http.createServer((req, res) => {
       try {
         const body = JSON.parse(raw || '{}');
         const blob = (body.messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
-        if (/operate a web app/i.test(blob)) {
+        if (/Legal moves:/i.test(blob)) {
+          // The default Chess app's Hint: pick the first move from the exact
+          // legal list it hands us, so the reply is always a real, legal move.
+          const mm = blob.match(/Legal moves:\s*([a-h1-8 ]+)/i);
+          const first = mm ? mm[1].trim().split(/\s+/)[0] : 'e2e4';
+          text = JSON.stringify({ move: first, why: 'A principled developing move.' });
+        } else if (/operate a web app/i.test(blob)) {
           // The in-app agent loop: click element 0 first, then report done.
           text = /ACTIONS SO FAR:\s*\n?\s*\(none/i.test(blob)
             ? JSON.stringify({ action: 'click', index: 0, say: 'clicking the first control' })

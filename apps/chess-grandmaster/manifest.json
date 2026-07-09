@@ -1,0 +1,12 @@
+{
+  "gifos": "1.0",
+  "appId": "chess-grandmaster",
+  "name": "Chess Grandmaster",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "accent": [201, 162, 75],
+  "capabilities": {
+    "db": true,
+    "wasm": true
+  }
+}

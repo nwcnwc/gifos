@@ -205,6 +205,8 @@
   // path is the postMessage bridge — enforced by the runtime's manifest
   // allowlist and executed from the runtime's origin, which this CSP does not
   // govern. Inline code and data:/blob: assets (how apps are packed) stay legal.
+  // Default policy: no workers, no wasm-eval. An app that declares
+  // capabilities.wasm opts into the relaxed policy below (appCsp()).
   const APP_CSP = [
     "default-src 'none'",
     "script-src 'unsafe-inline'",
@@ -224,9 +226,24 @@
     //  which is not supported across all browsers.)
   ].join('; ');
 
+  // The "wasm hatch": an app that declares capabilities.wasm gets exactly two
+  // relaxations and nothing more — 'wasm-unsafe-eval' so it can instantiate a
+  // WebAssembly module (Chrome refuses WASM under a bare 'unsafe-inline'
+  // script-src), and worker-src blob: so it can spin up the Web Worker that
+  // heavy WASM engines (a chess engine, a codec) run on to keep the UI alive.
+  // Crucially connect-src STAYS 'none': the worker and the WASM get zero
+  // network — same airtight sandbox, just allowed to compute. The hatch is
+  // gated by the manifest and surfaced in the abilities acknowledgement, so a
+  // user always sees that an app runs a compiled engine before it does.
+  const APP_CSP_WASM = APP_CSP
+    .replace("script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'wasm-unsafe-eval'")
+    .replace("object-src 'none'", "worker-src blob:; object-src 'none'");
+  const appCsp = (manifest) => hasCap(manifest, 'wasm') ? APP_CSP_WASM : APP_CSP;
+
   // ---- build a runnable, self-contained HTML doc from the archive ----------
   function buildAppHtml(files, manifest) {
     const withAgent = hasCap(manifest, 'agent');
+    const CSP = appCsp(manifest);
     let html = gif.bytesToText(files['index.html']);
     html = html.replace(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*><\/script>/gi, (m, src) => {
       const key = norm(src); return files[key] ? '<script>' + gif.bytesToText(files[key]) + '</script>' : m;
@@ -246,7 +263,7 @@
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const meta = doc.createElement('meta');
       meta.setAttribute('http-equiv', 'Content-Security-Policy');
-      meta.setAttribute('content', APP_CSP);
+      meta.setAttribute('content', CSP);
       const shim = doc.createElement('script');
       shim.textContent = clientShim();
       doc.head.insertBefore(shim, doc.head.firstChild);
@@ -255,7 +272,7 @@
       return '<!doctype html>' + doc.documentElement.outerHTML;
     }
     // Non-DOM fallback (tooling): best-effort inject into <head> if present.
-    const head = '<meta http-equiv="Content-Security-Policy" content="' + APP_CSP + '">' +
+    const head = '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">' +
       '<script>' + clientShim() + '</script>';
     const tail = withAgent ? '<script>' + agentBootstrap() + '</script>' : '';
     const withHead = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
