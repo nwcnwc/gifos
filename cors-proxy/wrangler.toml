@@ -1,0 +1,22 @@
+name = "gifos-cors-proxy"
+main = "src/cors-proxy.js"
+compatibility_date = "2026-01-01"
+
+# Stateless — no Durable Objects, no storage. It only forwards a request and
+# adds CORS headers, so idle time and payload size cost nothing (Workers bill by
+# request + CPU-ms, never bandwidth).
+
+# Branded domain — TWO bindings, same rationale as relay/wrangler.toml:
+#
+# 1. The custom domain manages DNS + the TLS certificate for cors-proxy.gifos.app.
+# 2. The explicit zone ROUTE actually wins the traffic. Cloudflare's precedence
+#    rule is ROUTES BEAT CUSTOM DOMAINS when both match — so if a wildcard route
+#    ever comes back on another Worker, this non-wildcard route still outranks it
+#    and the proxy keeps working (this is exactly what bit the relay in prod).
+[[routes]]
+pattern = "cors-proxy.gifos.app"
+custom_domain = true
+
+[[routes]]
+pattern = "cors-proxy.gifos.app/*"
+zone_name = "gifos.app"

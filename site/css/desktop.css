@@ -249,3 +249,7 @@ details.adv h4 { margin-top: .8rem; }
 .modal.wide .api-row .ai-2 { align-items: stretch; }
 .modal.wide .api-row .ai-2 select { flex: 1; }
 .modal.wide .api-row .ai-2 .api-authname { flex: 1; }
+.api-proxy-l { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--text); margin: .1rem 0 .4rem; cursor: pointer; }
+.modal.wide .api-row .api-proxy-l input { width: auto; margin: 0; }
+.api-proxy-l .api-hint { color: var(--muted); font-weight: 400; }
+.modal.wide .api-row .api-proxy-url { margin-bottom: 0; font-size: .82rem; }
