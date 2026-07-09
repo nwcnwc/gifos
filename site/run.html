@@ -18,6 +18,10 @@
          overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .bar::-webkit-scrollbar { display: none; }
   .bar > * { flex: 0 0 auto; }
+  /* the app's own GIF, upper-left. Looks like a tidy app icon; its bytes are a
+     live snapshot, so a right-click "Save image as…" grabs a working copy. */
+  .appgif { width: 1.4rem; height: 1.4rem; border-radius: .3rem; object-fit: cover;
+            image-rendering: auto; display: block; }
   .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
@@ -97,6 +101,7 @@
 </head>
 <body>
   <div class="bar">
+    <img id="appgif" class="appgif" alt="" style="display:none">
     <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
     <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
     <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
@@ -145,9 +150,27 @@
 
       function showShare(url) { shareUrl.value = url; share.classList.add('show'); }
 
+      // ---- easter egg: the app's own GIF in the corner is a LIVE snapshot ----
+      // It shows the app's artwork, but its bytes are the "Download · with data"
+      // snapshot (same steal() path) — so right-clicking it and using the
+      // browser's own "Save image as…" downloads a working snapshot of the app
+      // as it was loaded. No button, no hint: just the icon sitting there.
+      let appGifLoaded = false, appGifDone = false;
+      function showAppGif() {
+        if (appGifDone || !appGifLoaded || !controller || !controller.steal) return;
+        appGifDone = true;
+        controller.steal({ withData: true, bytesOnly: true }).then(function (r) {
+          if (!r || !r.bytes) { appGifDone = false; return; }
+          const img = document.getElementById('appgif');
+          img.src = URL.createObjectURL(new Blob([r.bytes], { type: 'image/gif' }));
+          img.style.display = '';
+        }).catch(function () { appGifDone = false; });
+      }
+
       // ---- provenance badge: verify the running app's signature ----
       const sigBtn = document.getElementById('sig');
       window.__gifosOnApp = function (bytes) {
+        appGifLoaded = true; showAppGif();
         if (!window.GifOS || !GifOS.sign) return;
         const claim = GifOS.sign.readSig(bytes);
         if (!claim) { sigBtn.style.display = 'none'; return; }
@@ -404,12 +427,12 @@
               if (r) { inviteUrl = r.shareUrl; if (r.save) controller = Object.assign({}, controller, { save: r.save }); }
             },
           });
-        }).then(function (c) { controller = c; });
+        }).then(function (c) { controller = c; showAppGif(); });
       } else {
         // Standalone / potential host — run a local App GIF.
         const fileId = params.get('id');
         if (!fileId) { status.textContent = 'No app id in URL.'; return; }
-        GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; });
+        GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; showAppGif(); });
         // Second entry point into a meeting: hand THIS app to the meeting page
         // (same browser, same saved state) with shared audio/video/recording.
         var toMeet = document.getElementById('tomeet');

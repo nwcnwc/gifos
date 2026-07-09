@@ -436,7 +436,12 @@
           .then(() => ({ toDesktop: true, withData: withData }));
       }
       const bytesP = withData ? packSnapshot(originalBytes, files, manifest, state) : stripState(originalBytes, files);
-      return bytesP.then((bytes) => ({ name: downloadBytes(bytes, (manifest.appId || 'app') + (withData ? '-snapshot' : '') + '.gif'), withData: withData }));
+      // bytesOnly: hand back the packed GIF instead of downloading it — same
+      // snapshot the "Download · with data" path produces, used by the corner
+      // app-GIF easter egg (right-click → Save image = a working snapshot).
+      return bytesP.then((bytes) => opts.bytesOnly
+        ? { bytes: bytes, withData: withData }
+        : { name: downloadBytes(bytes, (manifest.appId || 'app') + (withData ? '-snapshot' : '') + '.gif'), withData: withData });
     });
   }
 
