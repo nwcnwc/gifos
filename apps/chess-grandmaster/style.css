@@ -47,9 +47,13 @@ button{font:inherit}
 .evalnum{font-variant-numeric:tabular-nums;font-weight:800;min-width:52px;text-align:right;color:var(--accent2)}
 
 .boardwrap{width:100%;display:flex;justify-content:center}
-.board{display:grid;grid-template-columns:repeat(8,1fr);width:min(92vw,420px);aspect-ratio:1/1;
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+  width:min(92vw,420px);aspect-ratio:1/1;
   border:4px solid #1c130a;border-radius:8px;box-shadow:0 12px 34px rgba(0,0,0,.5);overflow:hidden}
+/* rows are an explicit 1fr each so a rank with tall glyphs can't stretch taller
+   than an empty rank — every square stays identical and truly square. */
 .sq{position:relative;display:flex;align-items:center;justify-content:center;
+  min-width:0;min-height:0;aspect-ratio:1/1;
   font-size:min(8.4vw,38px);line-height:1;cursor:pointer;user-select:none}
 .sq.l{background:var(--lite)}.sq.d{background:var(--dark)}
 .sq.pw{color:#fffdf5;text-shadow:0 0 2px #2a1a08,0 1px 2px rgba(0,0,0,.5)}
@@ -77,6 +81,32 @@ button{font:inherit}
   background:var(--surface);color:var(--accent2);border:1px solid var(--border);font-weight:700}
 .ghost:disabled{opacity:.45;cursor:default}
 .ghost:active{transform:translateY(1px)}
+.ghost.wide{width:100%;flex:none;margin-top:8px}
+
+/* history + review */
+.history{width:100%}
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.vhead h2{margin:0}
+.vhead .ghost{flex:none;min-width:0;padding:8px 12px}
+.rtitle{font-weight:700;font-size:14px;text-align:right;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.histlist{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
+.hrow{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.hinfo{flex:1;min-width:0;cursor:pointer}
+.hopp{font-weight:700}
+.hmeta{color:var(--muted);font-size:12px;margin-top:2px}
+.hdel{flex:none;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer}
+.hdel:hover{color:var(--bad);border-color:var(--bad)}
+.badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;background:#3a3a46;color:#fff;vertical-align:middle}
+.badge.win{background:#2f7a45;color:#dfffe8}
+.badge.loss{background:#7a2f34;color:#ffe0e2}
+.badge.draw{background:#5a5a2f;color:#f6f3d6}
+.review{display:flex;flex-direction:column;gap:12px;align-items:center;width:100%}
+.review .vhead{width:100%}
+.revnav{display:flex;gap:8px;align-items:center;justify-content:center;width:100%}
+.revnav .ghost{flex:none;min-width:48px;font-size:16px;padding:9px 12px}
+.revcount{font-variant-numeric:tabular-nums;color:var(--muted);min-width:64px;text-align:center;font-weight:700}
+.moves .mv.cur{color:var(--onaccent);background:var(--accent);border-radius:5px;padding:0 4px}
+.moves .mv{cursor:pointer}
 
 .analysis{width:100%;display:flex;flex-direction:column;gap:8px}
 .best{color:var(--muted);font-size:12.5px;min-height:16px;text-align:center;font-variant-numeric:tabular-nums}

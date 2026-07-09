@@ -25,10 +25,14 @@
   const state = {
     s: null, hist: [], uci: [],
     playerColor: 'w', orient: 'w', levelIx: 3, movetime: 800,
+    coach: true, recorded: false, startedAt: 0,
     over: false, result: '', lastMove: null, sel: null, legalFromSel: [],
     hint: null, thinking: false, token: 0,
     evalWhite: 0, mate: null, wdlWhite: null, pv: [],
   };
+  let review = null; // an independent replay session: { game, hist, ix, orient }
+  const nowMs = () => (window.Date ? Date.now() : 0);
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
   const engine = new window.GM.Engine();
   let db = null; try { db = window.gifos ? gifos.db('chess-gm') : null; } catch (e) {}
@@ -62,21 +66,37 @@
   // ---- start / resume ----
   $('startBtn').onclick = function () { newGame(); };
   $('newBtn').onclick = function () { $('game').hidden = true; $('setup').hidden = false; };
-  $('resignBtn').onclick = function () { if (state.over) return; endGame('You resigned. ' + (state.playerColor === 'w' ? 'Black' : 'White') + ' wins.', 'warn'); };
+  $('resignBtn').onclick = function () { if (state.over) return; endGame('You resigned. ' + (state.playerColor === 'w' ? 'Black' : 'White') + ' wins.', 'warn', 'loss'); };
   $('undoBtn').onclick = takeBack;
   $('hintBtn').onclick = showHint;
+  $('coachChk').onchange = function () { state.coach = this.checked; };
+  $('coachBtn').onclick = function () { state.coach = !state.coach; $('coachChk').checked = state.coach; applyCoach(); };
+  $('historyBtn').onclick = openHistory;
+
+  // Show/hide all the coaching surfaces (eval bar, W/D/L, best line, Hint).
+  function applyCoach() {
+    const on = state.coach;
+    $('evalWrap').hidden = !on;
+    $('wdl').hidden = !on;
+    $('bestLine').style.display = on ? '' : 'none';
+    $('hintBtn').style.display = on ? '' : 'none';
+    $('coachBtn').textContent = on ? '👁 Coaching: on' : '👁 Coaching: off';
+    if (on) { if (!state.over && state.s && state.s.turn === state.playerColor) evalNow(); }
+    else { state.hint = null; renderBoard(); }
+  }
 
   function newGame() {
     let pc = state.playerColor; if (pc === 'r') pc = Math.random() < 0.5 ? 'w' : 'b';
     state.playerColor = pc; state.orient = pc;
+    state.coach = $('coachChk').checked;
     state.s = C.fresh(); state.hist = [state.s]; state.uci = [];
-    state.over = false; state.result = ''; state.lastMove = null; state.sel = null;
+    state.over = false; state.recorded = false; state.result = ''; state.lastMove = null; state.sel = null;
     state.hint = null; state.evalWhite = 0; state.mate = null; state.wdlWhite = null; state.pv = [];
-    state.token++;
-    $('setup').hidden = true; $('game').hidden = false;
+    state.startedAt = nowMs(); state.token++;
+    $('setup').hidden = true; $('history').hidden = true; $('review').hidden = true; $('game').hidden = false;
     engine.newGame();
     engine.configure(LEVELS[state.levelIx].elo != null ? { elo: LEVELS[state.levelIx].elo } : { skill: LEVELS[state.levelIx].skill });
-    render(); save();
+    render(); applyCoach(); save();
     if (state.s.turn !== state.playerColor) engineMove(); else evalNow();
   }
 
@@ -88,12 +108,13 @@
       let s = C.fresh(); const hist = [s];
       for (const u of g.uci) { const mv = C.uciToMove(s, u); if (!mv) break; s = C.make(s, mv); hist.push(s); }
       state.s = s; state.hist = hist; state.uci = g.uci.slice(); state.over = !!g.over; state.result = g.result || '';
+      state.recorded = !!g.over; state.startedAt = g.startedAt || nowMs();
       state.lastMove = lastMoveFromUci(state.uci[state.uci.length - 1]);
       state.token++;
       engine.newGame();
       engine.configure(LEVELS[state.levelIx].elo != null ? { elo: LEVELS[state.levelIx].elo } : { skill: LEVELS[state.levelIx].skill });
       $('setup').hidden = true; $('game').hidden = false;
-      render();
+      render(); applyCoach();
       if (!state.over) { if (state.s.turn !== state.playerColor) engineMove(); else evalNow(); }
       statusLine.textContent = state.over ? state.result : (state.s.turn === state.playerColor ? 'Your move.' : 'Stockfish is thinking…');
     } catch (e) {}
@@ -119,16 +140,17 @@
   }
 
   // A short, non-committal search while it's the human's turn: keeps the eval
-  // bar and probabilities live, and stocks the Hint button.
+  // bar and probabilities live. It does NOT populate the on-board hint — a hint
+  // only ever appears when the player presses Hint. Skipped entirely when
+  // coaching is off (no eval, no probabilities, no wasted search).
   function evalNow() {
-    if (state.over || state.s.turn !== state.playerColor) return;
+    if (!state.coach || state.over || state.s.turn !== state.playerColor) return;
     const tok = state.token;
     engine.search(C.toFEN(state.s), { movetime: Math.min(500, state.movetime) }, function (info) {
       if (tok === state.token) { applyEval(info, state.s.turn); renderEvalOnly(); }
     }).then(function (r) {
       if (tok !== state.token) return;
       applyEval(r, state.s.turn);
-      state.hint = r.bestmove ? lastMoveFromUci(r.bestmove) : null;
       renderEvalOnly();
     }).catch(function () {});
   }
@@ -165,17 +187,32 @@
 
   function checkEnd() {
     const st = C.status(state.s);
-    if (st === 'checkmate') { const winner = state.s.turn === 'w' ? 'Black' : 'White'; endGame('Checkmate — ' + winner + ' wins.', winner === (state.playerColor === 'w' ? 'White' : 'Black') ? 'warn' : (isPlayerWinner(winner) ? 'good' : 'warn')); return true; }
-    if (st === 'stalemate') { endGame('Stalemate — it’s a draw.', ''); return true; }
-    if (state.s.half >= 100) { endGame('Draw by the fifty-move rule.', ''); return true; }
+    if (st === 'checkmate') { const winner = state.s.turn === 'w' ? 'Black' : 'White'; const won = isPlayerWinner(winner); endGame('Checkmate — ' + winner + ' wins.', won ? 'good' : 'warn', won ? 'win' : 'loss'); return true; }
+    if (st === 'stalemate') { endGame('Stalemate — it’s a draw.', '', 'draw'); return true; }
+    if (state.s.half >= 100) { endGame('Draw by the fifty-move rule.', '', 'draw'); return true; }
     return false;
   }
   function isPlayerWinner(winner) { return (winner === 'White') === (state.playerColor === 'w'); }
 
-  function endGame(msg, cls) {
+  function endGame(msg, cls, code) {
     state.over = true; state.result = msg; state.token++; setThinking(false);
     statusLine.className = 'statusline' + (cls ? ' ' + cls : ''); statusLine.textContent = msg;
+    recordGame(code || 'draw');
     render(); save();
+  }
+
+  // ---- game history (each finished game saved as its own db record) ----
+  function recordGame(code) {
+    if (!db || state.recorded || !state.uci.length) return;
+    state.recorded = true;
+    const lvl = LEVELS[state.levelIx];
+    db.put({
+      id: 'game_' + nowMs() + '_' + Math.random().toString(36).slice(2, 6),
+      kind: 'history', when: state.startedAt || nowMs(),
+      opponent: 'Stockfish · ' + lvl.name, mode: 'solo',
+      playerColor: state.playerColor, levelIx: state.levelIx,
+      result: code, resultText: state.result, moves: state.uci.slice(),
+    }).catch(function () {});
   }
 
   function setThinking(on) {
@@ -293,5 +330,86 @@
     db.put({ id: 'game', uci: state.uci, playerColor: state.playerColor, levelIx: state.levelIx, movetime: state.movetime, over: state.over, result: state.result }).catch(function () {});
   }
 
-  if (window.gifos && gifos.onBack) gifos.onBack(function () { if (!$('game').hidden) { $('game').hidden = true; $('setup').hidden = false; } });
+  // ---- history list ----
+  const RESULT = { win: ['Win', 'win'], loss: ['Loss', 'loss'], draw: ['Draw', 'draw'] };
+  function fmtDate(ts) { try { const d = new Date(ts); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
+
+  function openHistory() {
+    $('setup').hidden = true; $('game').hidden = true; $('review').hidden = true; $('history').hidden = false;
+    const el = $('histList'); el.innerHTML = '<p class="lvlnote">Loading…</p>';
+    if (!db) { el.innerHTML = '<p class="lvlnote">No storage available.</p>'; return; }
+    db.getAll().then(function (items) {
+      const games = (items || []).filter(function (x) { return x && x.kind === 'history'; }).sort(function (a, b) { return b.when - a.when; });
+      if (!games.length) { el.innerHTML = '<p class="lvlnote">No games yet. Finish a game and it lands here — then you can replay it move by move.</p>'; return; }
+      el.innerHTML = '';
+      games.forEach(function (g) {
+        const meta = RESULT[g.result] || ['Done', ''];
+        const row = document.createElement('div'); row.className = 'hrow';
+        const info = document.createElement('div'); info.className = 'hinfo';
+        info.innerHTML = '<div class="hopp"><span class="badge ' + meta[1] + '">' + meta[0] + '</span> ' + esc(g.opponent) + '</div>' +
+          '<div class="hmeta">' + (g.playerColor === 'w' ? '♔ White' : '♚ Black') + ' · ' + Math.ceil(g.moves.length / 2) + ' moves · ' + fmtDate(g.when) + '</div>';
+        info.onclick = function () { openReview(g); };
+        const del = document.createElement('button'); del.className = 'hdel'; del.textContent = '✕'; del.title = 'Delete this game';
+        del.onclick = function (ev) { ev.stopPropagation(); db.delete(g.id).then(openHistory).catch(openHistory); };
+        row.appendChild(info); row.appendChild(del); el.appendChild(row);
+      });
+    }).catch(function () { el.innerHTML = '<p class="lvlnote">Could not load history.</p>'; });
+  }
+  $('histBack').onclick = function () { $('history').hidden = true; $('setup').hidden = false; };
+
+  // ---- replay / review a finished game ----
+  function drawStatic(container, s, orient, lastMove) {
+    container.innerHTML = '';
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const x = orient === 'w' ? c : 7 - c, y = orient === 'w' ? r : 7 - r;
+      const sq = document.createElement('div'); sq.className = 'sq ' + (((x + y) % 2) ? 'd' : 'l');
+      const p = s.board[y * 8 + x];
+      if (p !== '.') { sq.textContent = GLYPH[p.toLowerCase()]; sq.classList.add(p >= 'A' && p <= 'Z' ? 'pw' : 'pb'); }
+      if (lastMove && ((lastMove.from[0] === x && lastMove.from[1] === y) || (lastMove.to[0] === x && lastMove.to[1] === y))) sq.classList.add('last');
+      if (c === 0) { const rc = document.createElement('span'); rc.className = 'coord r'; rc.textContent = 8 - y; sq.appendChild(rc); }
+      if (r === 7) { const fc = document.createElement('span'); fc.className = 'coord f'; fc.textContent = 'abcdefgh'[x]; sq.appendChild(fc); }
+      container.appendChild(sq);
+    }
+  }
+
+  function openReview(g) {
+    const hist = [C.fresh()]; let s = hist[0];
+    for (const u of g.moves) { const mv = C.uciToMove(s, u); if (!mv) break; s = C.make(s, mv); hist.push(s); }
+    review = { game: g, hist: hist, ix: hist.length - 1, orient: g.playerColor || 'w' };
+    $('history').hidden = true; $('setup').hidden = true; $('game').hidden = true; $('review').hidden = false;
+    const meta = RESULT[g.result] || ['Done', ''];
+    $('revTitle').innerHTML = '<span class="badge ' + meta[1] + '">' + meta[0] + '</span> vs ' + esc(g.opponent);
+    renderReview();
+  }
+
+  function renderReview() {
+    if (!review) return;
+    const s = review.hist[review.ix];
+    const lm = review.ix > 0 ? lastMoveFromUci(review.game.moves[review.ix - 1]) : null;
+    drawStatic($('revBoard'), s, review.orient, lm);
+    $('revCount').textContent = review.ix + ' / ' + (review.hist.length - 1);
+    const el = $('revMoves'); el.innerHTML = ''; const mv = review.game.moves;
+    for (let i = 0; i < mv.length; i += 2) {
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = (i / 2 + 1) + '.'; el.appendChild(n);
+      [i, i + 1].forEach(function (j) {
+        if (mv[j] === undefined) return;
+        const w = document.createElement('span'); w.className = 'mv' + (j === review.ix - 1 ? ' cur' : ''); w.textContent = mv[j];
+        w.onclick = function () { review.ix = j + 1; renderReview(); };
+        el.appendChild(w);
+      });
+    }
+    const cur = el.querySelector('.mv.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+  }
+  function revGo(ix) { if (!review) return; review.ix = Math.max(0, Math.min(review.hist.length - 1, ix)); renderReview(); }
+  $('revFirst').onclick = function () { revGo(0); };
+  $('revPrev').onclick = function () { revGo(review.ix - 1); };
+  $('revNext').onclick = function () { revGo(review.ix + 1); };
+  $('revLast').onclick = function () { revGo(review.hist.length - 1); };
+  $('revBack').onclick = function () { $('review').hidden = true; openHistory(); };
+
+  if (window.gifos && gifos.onBack) gifos.onBack(function () {
+    if (!$('review').hidden) { $('review').hidden = true; openHistory(); }
+    else if (!$('history').hidden) { $('history').hidden = true; $('setup').hidden = false; }
+    else if (!$('game').hidden) { $('game').hidden = true; $('setup').hidden = false; }
+  });
 })();
