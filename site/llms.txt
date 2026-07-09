@@ -131,6 +131,13 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      blocked.
    ALWAYS feature-detect and, if a capability isn't set up, tell the user to
    configure it in Settings — never fake a result.
+   OPTIONAL vs REQUIRED: capabilities are OPTIONAL by default — the app launches
+   even before the user has set up a key, so they can explore it. If the app is
+   useless without one, add its name to a manifest "requires" array (a capability
+   key like "ai", or a third-party API name like "deepgram") and GifOS blocks
+   launch until the user sets it up. Prefer optional; only require what's truly
+   load-bearing. Device permissions (mic/camera/motion) are granted at use and
+   never block.
 6. Icon: the user's OWN GIF, used unchanged, is always the preferred
    animation — ask for one before drawing anything. Otherwise: include
    <link rel="icon" href="data:image/svg+xml,..."> in the HTML (used when

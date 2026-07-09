@@ -94,7 +94,13 @@ The entry point is index.html; multi-file apps are fully supported:
        the API must send CORS headers; server-only APIs (Deepgram REST included)
        need a CORS-forwarding relay to work from the browser.
    Every one of these pops a plain-language acknowledgement at launch and (for
-   capture) a browser prompt + an on-screen recorder the app can't hide. Live
+   capture) a browser prompt + an on-screen recorder the app can't hide.
+   OPTIONAL vs REQUIRED: capabilities are optional by default — the app runs and
+   the user can look around even before setting a key up (feature-detect and
+   guide them, like the shim notes say). If the app shows NOTHING useful without
+   a capability, list it in `requires` (see pack_app) and GifOS blocks launch
+   until it's set up. Prefer optional; only require what's truly load-bearing.
+   Live
    realtime video/voice is still not something an app does itself — GifOS ships
    Meetings for that (P2P, permanent room links, moderation), and ANY app can be
    RUN INSIDE a Meeting so all participants share it live with audio/video/
@@ -266,6 +272,7 @@ const TOOLS = [
         motion: { type: 'boolean', description: 'Set true if the app uses gifos.motion (device tilt/orientation).' },
         ai: { type: 'boolean', description: 'Set true if the app uses gifos.ai.* (the user\'s configured AI models; the app never sees keys).' },
         api: { type: 'array', items: { type: 'string' }, description: 'Names of keyed third-party APIs the app calls via gifos.api(name, …), e.g. ["deepgram"]. The user configures each in Settings → Third-party APIs; the app never sees the key. Only for CORS-enabled endpoints (a browser fetch must succeed).' },
+        requires: { type: 'array', items: { type: 'string' }, description: 'Capabilities the app CANNOT run without — GifOS blocks launch until the user sets them up. Entries are capability keys (e.g. "ai") or third-party API names (e.g. "deepgram"). Default: everything is OPTIONAL (the app runs and can show what it is). Only list something here if the app genuinely shows nothing useful without it. Device permissions (microphone/camera/motion) are granted at use, so listing them never blocks.' },
         extra_files: { type: 'object', additionalProperties: { type: 'string' }, description: 'Optional additional text files, path -> content (app.js, style.css, data.json, …)' },
         hide_in_gif_base64: { type: 'string', description: 'PREFERRED when the user has any GIF of their own: base64 bytes of that EXISTING GIF. The app is hidden inside it and the original animation is preserved byte-for-byte — never redrawn or re-encoded. Ask the user for their GIF before drawing an icon.' },
         icon: {
@@ -352,11 +359,16 @@ async function callTool(name, args) {
     const caps = { db: true, multiplayer: true, network: Array.isArray(args.network) ? args.network.map(String) : [] };
     for (const c of ['microphone', 'camera', 'motion', 'ai']) if (args[c]) caps[c] = true;
     if (Array.isArray(args.api) && args.api.length) caps.api = args.api.map(String);
+    const manifest = {
+      gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',
+      accent, capabilities: caps,
+    };
+    // Capabilities are OPTIONAL by default. List any the app CANNOT run without
+    // in `requires` (capability keys like 'ai', or a third-party API name like
+    // 'deepgram'); GifOS blocks launch until the user has set those up.
+    if (Array.isArray(args.requires) && args.requires.length) manifest.requires = args.requires.map(String);
     const files = {
-      'manifest.json': JSON.stringify({
-        gifos: '1.0', appId: slug, name: appName, version: '1.0.0', entry: 'index.html',
-        accent, capabilities: caps,
-      }),
+      'manifest.json': JSON.stringify(manifest),
       'index.html': html,
     };
     if (args.extra_files && typeof args.extra_files === 'object') {
