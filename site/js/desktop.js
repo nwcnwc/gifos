@@ -257,13 +257,13 @@
   // Everything that changes how an icon LOOKS or WHERE it sits. Bytes aren't in
   // the key — forgetFile() evicts the node directly when bytes change — so a
   // repaint after a mere selection/drag reuses the untouched nodes.
-  function iconKey(it, file) {
+  function iconKey(it, file, fresh) {
     const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
     const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
     // Joined with a control char (U+0001) that can't appear in names/ids, so
     // distinct field combinations can never collide into the same key.
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
-      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict].join('');
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : ''].join('');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -279,16 +279,24 @@
     const visible = items.filter((it) => (it.parent || null) === currentFolder);
     // One batched, cached read instead of a serial getFile() per icon per paint.
     const files = await Promise.all(visible.map((it) => getFileCached(it.fileId)));
+    // "NEW" freshness per tile (an app with no saved data yet). Batched with the
+    // file read; system launchers and non-apps are never fresh (no NEW badge).
+    // Folded into the icon key so a tile rebuilds the moment its app gains data.
+    const fresh = await Promise.all(visible.map((it, i) => {
+      const f = files[i];
+      if (!f || !f.isApp || f.appId === 'meet' || f.appId === 'video') return false;
+      return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
+    }));
     if (seq !== renderSeq) return; // a newer render started — abandon this one
     // Reconcile: reuse the cached node when its key matches, rebuild only what
     // changed, and keep selection in sync on the survivors.
     const keep = new Set();
     let reused = 0;
     const els = visible.map((it, i) => {
-      const key = iconKey(it, files[i]);
+      const key = iconKey(it, files[i], fresh[i]);
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
-        entry = { el: buildIcon(it, files[i]), key, fileId: it.fileId };
+        entry = { el: buildIcon(it, files[i], fresh[i]), key, fileId: it.fileId };
         iconCache.set(it.id, entry);
       } else {
         // Reuse the node, but re-assert its authoritative position/selection —
@@ -363,7 +371,7 @@
     }, { once: true });
     return img;
   }
-  function buildIcon(it, file) {
+  function buildIcon(it, file, fresh) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -392,6 +400,15 @@
         thumb.appendChild(thumbImg(it.fileId, bytes, it.name));
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
+        // "NEW" tag (bottom-left, opposite the shield) on apps you haven't put
+        // anything into yet — freshly seeded defaults, or a just-stolen empty
+        // copy. `fresh` is computed in render() and baked into the icon key.
+        if (fresh) {
+          const nb = document.createElement('span');
+          nb.className = 'new-badge'; nb.textContent = 'NEW';
+          nb.title = 'Fresh — you haven’t saved anything in this app yet.';
+          thumb.appendChild(nb);
+        }
         if (file.appId === 'meet' || file.appId === 'video') {
           // Honest signage: this launcher opens a SYSTEM page that runs with
           // camera/mic/WebRTC — capabilities sandboxed apps never get.
@@ -437,6 +454,12 @@
     badge.textContent = SIG_ICON[state] || '🛡';
     badge.title = cached ? sigLabel(cached) : ('Signed by ' + sig.id + ' — tap Verify to check');
     thumb.appendChild(badge);
+  }
+  // Does an app's saved state hold any real data? (empty collections don't count)
+  function stateHasData(st) {
+    if (!st) return false;
+    if (st.collections) { for (const c in st.collections) { const coll = st.collections[c]; if (coll && Object.keys(coll).length) return true; } return false; }
+    return Object.keys(st).length > 0;
   }
   function sigLabel(v) {
     if (v.status === 'valid') return 'Signed by ' + v.id + (v.ts ? ' · ' + v.ts : '') + (v.keyChanged ? ' (key changed since first seen!)' : '');

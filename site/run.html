@@ -102,9 +102,8 @@
     <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
     <button id="host" title="Friends join you live with one link">Invite</button>
     <button id="tomeet" title="Turn this into a meeting — add shared audio, video and recording around this app" style="display:none">Meeting</button>
-    <button id="save-desktop" title="Steal this app — a fresh copy lands on your Home Screen (app only, no data; Download Snapshot keeps the data too)" style="display:none">Steal App</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
-    <button id="save" title="Download this app — with everything in it — as one GIF file">Download Snapshot</button>
+    <button id="steal" title="Steal a copy of this app — choose where it goes and whether to include the data">Steal</button>
     <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
   </div>
   <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
@@ -137,8 +136,7 @@
       const mount = document.getElementById('mount');
       const status = document.getElementById('status');
       const hostBtn = document.getElementById('host');
-      const saveBtn = document.getElementById('save');
-      const saveDeskBtn = document.getElementById('save-desktop');
+      const stealBtn = document.getElementById('steal');
       const becomeBtn = document.getElementById('become-host');
       const share = document.getElementById('share');
       const shareUrl = document.getElementById('share-url');
@@ -397,7 +395,6 @@
       if (joinS) {
         // Client mode — join a host over the relay. Name first.
         hostBtn.style.display = 'none';
-        saveDeskBtn.style.display = '';
         ensureName().then(function () {
           return GifOS.runtime.bootClient(mount, { s: joinS, k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {
             onHostGone: function (canTakeOver) { if (canTakeOver) { becomeBtn.style.display = ''; becomeBtn.classList.add('urgent'); } },
@@ -528,20 +525,43 @@
           connPop.classList.add('show');
         });
       });
-      saveDeskBtn.addEventListener('click', function () {
-        if (!controller || !controller.saveToDesktop) return;
-        controller.saveToDesktop().then(function () {
-          saveDeskBtn.textContent = 'Stolen! 😏';
-          setTimeout(function () { saveDeskBtn.textContent = 'Steal App'; }, 2500);
-        }).catch(function (err) { status.textContent = 'Save failed: ' + err.message; });
-      });
+      // One "Steal" button → a small modal with two choices: WHERE the copy
+      // goes (this computer's Stolen Apps chest, or a downloaded file) and
+      // WHETHER it carries the current data.
+      function chooseSteal() {
+        var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'steal-modal';
+        bg.innerHTML =
+          '<div class="perm-box">' +
+          '<h3>Steal this app</h3>' +
+          '<p class="lead">Where should the copy go?</p>' +
+          '<label class="perm-row"><input type="radio" name="dest" value="desktop" checked><span><span class="host">Save in Stolen Apps</span><span class="desc">A fresh icon lands in your Stolen Apps folder on this computer.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="dest" value="download"><span><span class="host">Download a file</span><span class="desc">Get it as one GIF you can keep or send to anyone.</span></span></label>' +
+          '<p class="lead">Include the data that’s in it now?</p>' +
+          '<label class="perm-row"><input type="radio" name="data" value="no" checked><span><span class="host">Without data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="yes"><span><span class="host">With data</span><span class="desc">Carries everything currently in the app.</span></span></label>' +
+          '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Steal it</button></div>' +
+          '</div>';
+        document.body.appendChild(bg);
+        function close() { bg.remove(); }
+        bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+        bg.querySelector('#steal-cancel').onclick = close;
+        bg.querySelector('#steal-go').onclick = function () {
+          var toDesktop = (bg.querySelector('input[name=dest]:checked') || {}).value === 'desktop';
+          var withData = (bg.querySelector('input[name=data]:checked') || {}).value === 'yes';
+          close();
+          if (!controller || !controller.steal) return;
+          controller.steal({ toDesktop: toDesktop, withData: withData }).then(function (r) {
+            status.textContent = toDesktop
+              ? ('Stolen into your Stolen Apps' + (withData ? ' (with data) 😏' : ' 😏'))
+              : ('Downloaded: ' + (r && r.name ? r.name : 'app.gif'));
+            connPop.classList.add('show');
+          }).catch(function (err) { status.textContent = 'Steal failed: ' + err.message; connPop.classList.add('show'); });
+        };
+      }
+      stealBtn.addEventListener('click', chooseSteal);
       document.getElementById('copy').addEventListener('click', function () {
         shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
         if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(function () {});
-      });
-      saveBtn.addEventListener('click', function () {
-        if (!controller) return;
-        controller.save().then(function (name) { if (name) status.textContent = 'Snapshot saved: ' + name; });
       });
     })();
   </script>
