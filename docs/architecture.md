@@ -468,6 +468,19 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   server-side **token-bucket bandwidth guard** (1 MB burst, ~384 Kbps
   sustained) makes it physically unusable for streaming media — see the
   networking doc.
+- **App delivery scales past the relay budget over P2P.** A joining peer needs
+  the app archive to boot. A *small* app rides the relay immediately (fast first
+  paint, inside the burst). A *heavy* app — e.g. one bundling a multi-megabyte
+  WASM engine — is far past the relay's per-message cap, so `attachHost` defers
+  it: the peer is flagged `needsApp` and the archive is handed over the **P2P
+  DataChannel** the moment it opens (`channel.onopen`), paced to the channel's
+  `bufferedAmount` so the send buffer never overflows. The relay is only ever
+  signalling + fallback; once peers are connected directly there is no bandwidth
+  ceiling. The transport fragmentation layer reassembles up to ~25 MB
+  (`FRAG_MAX_PARTS`), and the client receives the app over whichever transport
+  delivered it (the same `receiveApp` path serves relay and DataChannel). The
+  honest limit: a peer that never establishes P2P (symmetric NAT, and there's no
+  TURN) can't receive a heavy app — small apps still arrive over the relay.
 - **Booted computer images** run in separate IndexedDB namespaces with
   namespaced broadcast channels; a VM cannot read, write, or repaint the host
   desktop (and vice versa).

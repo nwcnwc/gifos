@@ -108,6 +108,19 @@ button{font:inherit}
 .moves .mv.cur{color:var(--onaccent);background:var(--accent);border-radius:5px;padding:0 4px}
 .moves .mv{cursor:pointer}
 
+/* friend (multiplayer) */
+#friend{align-items:center}
+.seats{display:flex;gap:10px;width:100%;justify-content:center}
+.seat{flex:1;max-width:200px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;font-weight:700;font-size:14px}
+.seat.me{border-color:var(--accent)}
+.seat.turn{box-shadow:0 0 0 2px var(--accent2) inset}
+.seat .open{color:var(--muted);font-weight:600;font-style:italic}
+.fqueue{color:var(--muted);font-size:12.5px;text-align:center;min-height:14px}
+.ftoggle{flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px;border-radius:11px;
+  background:var(--surface);border:1px solid var(--border);color:var(--accent2);font-weight:700;cursor:pointer}
+.ftoggle input{accent-color:var(--accent)}
+.fCommentBox{min-height:22px;font-weight:800;text-align:center;color:var(--accent2);font-size:15px}
+
 .analysis{width:100%;display:flex;flex-direction:column;gap:8px}
 .best{color:var(--muted);font-size:12.5px;min-height:16px;text-align:center;font-variant-numeric:tabular-nums}
 .moves{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 12px;

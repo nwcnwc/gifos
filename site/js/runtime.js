@@ -1104,7 +1104,8 @@
   // design. Fragments carry their index, so mixed arrival order across a
   // healing transport is fine; incomplete messages are swept after 30s.
   const FRAG_PART = 100 * 1024; // chars per piece — envelope stays well under DC limits
-  const FRAG_MAX_PARTS = 96;    // ~9.6MB reassembled max; refuse absurd claims
+  const FRAG_MAX_PARTS = 256;   // ~25MB reassembled max — lets a heavy app (e.g. a bundled
+                                // WASM engine) ride the P2P DataChannel; still refuses absurd claims
   let fragSeq = 0;
   // emit(pieceObj, pieceStr) is called once for small messages (the original)
   // or once per fragment — the caller picks which form its transport wants.
@@ -1168,6 +1169,26 @@
       else relayTo(peer, msg);
     };
     const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
+
+    // App delivery. A SMALL app goes over the relay the instant a peer joins —
+    // fastest first paint, and it fits inside the relay's one-time burst. A
+    // HEAVY app (e.g. one bundling a WASM engine) is far past the relay's
+    // per-message cap, so it rides the P2P DataChannel instead: sent once the
+    // channel opens, and paced to the channel's send buffer so we never
+    // overflow it. The relay is only ever the signalling + fallback path; once
+    // peers are connected directly there is no bandwidth ceiling. Fragment
+    // strings are built once and replayed to each new peer.
+    const appMsg = { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0 };
+    const APP_RELAY_MAX = 700 * 1024; // bytes; base64 of this stays under the relay's 1MB burst
+    const appSmall = appBytes.length <= APP_RELAY_MAX;
+    const appParts = appSmall ? null : (function () { const a = []; sendChunked(appMsg, (p, s) => a.push(s)); return a; })();
+    const pumpApp = (ch) => {
+      let i = 0; const HIGH = 4 * 1024 * 1024; // keep the DataChannel's buffered bytes bounded
+      (function pump() {
+        try { while (i < appParts.length && ch.readyState === 'open' && ch.bufferedAmount < HIGH) ch.send(appParts[i++]); } catch (e) { return; }
+        if (i < appParts.length && ch.readyState === 'open') setTimeout(pump, 50);
+      })();
+    };
     const stats = () => {
       let p2p = 0;
       const counts = { up: 0, soft: 0, warn: 0 };
@@ -1232,7 +1253,12 @@
       const pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
       entry.pc = pc;
       const channel = pc.createDataChannel('gifos');
-      channel.onopen = () => { entry.channel = channel; notify(); };
+      channel.onopen = () => {
+        entry.channel = channel;
+        // Hand a heavy app across now that we have a direct, uncapped channel.
+        if (entry.needsApp) { entry.needsApp = false; pumpApp(channel); }
+        notify();
+      };
       channel.onclose = () => { if (entry.channel === channel) { entry.channel = null; notify(); } };
       channel.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch (err) { return; }
@@ -1269,11 +1295,13 @@
         // (dropped socket, refocus) is already inside and always let back in.
         if (!known && opts.exp && Date.now() > opts.exp) { relayTo(m.peer, { t: 'ended', reason: 'expired' }); return; }
         if (known && known.pc) { try { known.pc.close(); } catch (e) { /* stale */ } }
-        peers.set(m.peer, { pc: null, channel: null, away: null });
+        peers.set(m.peer, { pc: null, channel: null, away: null, needsApp: false });
         // The app GIF only goes to genuinely new peers — a rejoining phone
         // already has it (and the client dedups regardless), and skipping the
         // resend keeps reconnect storms inside the relay's bandwidth budget.
-        if (!known) relayTo(m.peer, { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0 });
+        // Small apps go straight over the relay; a heavy app waits for the peer's
+        // DataChannel (set needsApp) and is handed over on channel.onopen.
+        if (!known) { if (appSmall) relayTo(m.peer, appMsg); else peers.get(m.peer).needsApp = true; }
         offerP2P(m.peer);
         notify();
       } else if (m.t === 'peer-leave') {
@@ -1624,8 +1652,35 @@
       announceClient();
     };
 
+    // Receive the app archive (over EITHER transport): the relay for a small
+    // app, or the P2P DataChannel for a heavy one. Idempotent — a redelivery
+    // once we're already mounted is ignored.
+    const receiveApp = (m) => {
+      hostIsBack();
+      sessionHeal = !!m.heal; // does this link self-heal? governs mirroring
+      sessionExp = m.exp || 0; // admission deadline, carried into any takeover
+      if (filesRef || tookOver) { runningStatus(); return; }
+      appBytes = gif.b64decode(m.gif);
+      gif.decode(appBytes).then((archive) => {
+        if (tookOver || filesRef) return;
+        if (!archive) { setStatus('Bad app from host.'); return; }
+        filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
+        document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
+        remoteDb = makeRemoteDb(transportSend);
+        iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
+        // Client-run: the veto is session-only (no local icon to persist under).
+        mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
+        if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
+        root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
+        runningStatus();
+        announceClient();
+        mirror();
+      });
+    };
+
     // Shared dispatch for host->client session messages, from either transport.
     const dispatch = (m) => {
+      if (m.t === 'app') { receiveApp(m); return; }
       if (m.t === 'ended') {
         // The host closed or expired a bounded link. It won't come back and
         // there's nothing to take over — stop waiting and say so plainly.
@@ -1708,26 +1763,7 @@
         hostGone = true; hostGoneAt = Date.now();
         announceClient();
       } else if (m.t === 'app') {
-        hostIsBack();
-        sessionHeal = !!m.heal; // does this link self-heal? governs mirroring
-        sessionExp = m.exp || 0; // admission deadline, carried into any takeover
-        if (filesRef || tookOver) { runningStatus(); return; } // rejoin redelivery — already mounted
-        appBytes = gif.b64decode(m.gif);
-        gif.decode(appBytes).then((archive) => {
-          if (tookOver || filesRef) return;
-          if (!archive) { setStatus('Bad app from host.'); return; }
-          filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
-          document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
-          remoteDb = makeRemoteDb(transportSend);
-          iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
-          // Client-run: the veto is session-only (no local icon to persist under).
-          mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
-          if (root.__gifosOnApp) root.__gifosOnApp(appBytes);
-          root.__gifosTransport = (channel && channel.readyState === 'open') ? 'p2p' : 'relay';
-          runningStatus();
-          announceClient();
-          mirror();
-        });
+        receiveApp(m);
       } else {
         dispatch(m);
       }
