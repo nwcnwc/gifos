@@ -449,7 +449,8 @@
           const idp = document.createElement('span');
           idp.className = 'idbadge';
           const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
-          idp.textContent = (nm ? nm : '') + (meta.version ? (nm ? ' ' : '') + 'v' + meta.version : '');
+          if (nm) { const s = document.createElement('span'); s.textContent = nm; idp.appendChild(s); }
+          if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = (nm ? ' ' : '') + 'v' + meta.version; idp.appendChild(s); }
           idp.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '') + ' — the app’s own name and version, shown because this app is signed.';
           thumb.appendChild(idp);
         }

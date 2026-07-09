@@ -152,22 +152,29 @@ body {
    that this icon opens a first-party page with camera/mic/WebRTC access. */
 .sysbadge {
   position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
-  font-size: .5rem; font-weight: 800; letter-spacing: .09em; line-height: 1;
-  padding: .16rem .32rem; border-radius: .3rem; pointer-events: auto; cursor: help;
-  background: #14141f; color: #a08dff; border: 1px solid #7b5cff;
+  font-size: .5rem; font-weight: 800; letter-spacing: .1em; line-height: 1;
+  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  text-transform: uppercase;
+  /* Solid violet: the "elevated system launcher" marker. White on saturated
+     purple reads on any wallpaper and is unmistakable next to the id pill. */
+  background: #7b5cff; color: #fff; border: 1px solid #9d86ff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.32); text-shadow: 0 1px 1px rgba(0,0,0,.3);
 }
 
 /* Identity pill on a SIGNED app's tile: its own declared short name + version.
-   Same top-center placement as SYSTEM; muted-purple so it reads as provenance,
-   not a warning. Only signed tiles get one (see desktop.js render). */
+   Same top-center placement as SYSTEM, but a DIFFERENT family — deep navy with
+   a cyan version — so provenance never reads as "system privilege". Only signed
+   tiles get one (see desktop.js render). */
 .idbadge {
   position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
-  max-width: calc(var(--isize, 64px) + 18px); box-sizing: border-box;
-  font-size: .5rem; font-weight: 700; letter-spacing: .02em; line-height: 1;
-  padding: .16rem .32rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  max-width: calc(var(--isize, 64px) + 26px); box-sizing: border-box;
+  font-size: .5rem; font-weight: 700; letter-spacing: .01em; line-height: 1;
+  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: #14141f; color: #b6a8ff; border: 1px solid color-mix(in srgb, #7b5cff 60%, #14141f);
+  background: #0e1526; color: #e4ebf8; border: 1px solid #3b4d6b;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
 }
+.idbadge .ver { color: #57ccff; font-weight: 800; }
 
 /* context menu */
 .ctx {
