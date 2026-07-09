@@ -26,6 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Cache-busting: stamp ?v=<short-sha> onto every LOCAL css/js reference in
+      # the published HTML. Each deploy gets a unique version, so a returning
+      # browser fetches fresh CSS/JS the moment it loads a new page instead of
+      # serving a stale cached asset. Only relative paths match (no ':' → skips
+      # http(s) URLs; no '?' → never double-stamps); serving site/ directly in
+      # dev is unaffected since static servers ignore the query string.
+      - name: Cache-bust local css/js assets
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          find site -name '*.html' -print0 \
+            | xargs -0 sed -i -E "s/(href|src)=\"([^\":?]+\.(css|js))\"/\1=\"\2?v=${SHA}\"/g"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
