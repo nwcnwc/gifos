@@ -2563,7 +2563,7 @@
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return { error: 'Only http(s) links work.' };
       let buf;
       try { const r = await fetch(url.toString(), { redirect: 'follow' }); if (!r.ok) return { error: 'The link returned an error (' + r.status + ').' }; buf = new Uint8Array(await r.arrayBuffer()); }
-      catch (e) { return { error: 'Couldn’t download that — the site may not allow it (CORS). Download the GIF, then use “Choose a GIF file”.' }; }
+      catch (e) { return { error: 'Couldn’t load that link. Save the GIF to your device, then use “Choose a GIF file”.' }; }
       if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
       let name = ''; try { name = decodeURIComponent((url.pathname.split('/').pop() || '').split('?')[0]); } catch (e) {}
       name = (name || 'app').replace(/[^\w.\-]+/g, '_'); if (!/\.gif$/i.test(name)) name += '.gif';
