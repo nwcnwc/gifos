@@ -140,6 +140,14 @@ export class Session {
     const peer = (url.searchParams.get('peer') || 'c_' + crypto.randomUUID().slice(0, 8)).slice(0, 64);
     const name = (url.searchParams.get('name') || '').slice(0, 40);
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    // The session id string, straight from the path (/s/<sid>). An OWNED app
+    // session is named "<room>.<verifier>": to hold its HOST slot you must
+    // present a secret whose SHA-256 begins with that verifier. The secret lives
+    // only in the creator's app — never in the shared link — so a guest holding
+    // the link can JOIN but can never take over the host slot and impersonate
+    // the app. A plain sid (no dot) is an "anyone-owns" self-healing session:
+    // the host slot is epoch-guarded only (a friend may keep it going).
+    const sid = (url.pathname.split('/').filter(Boolean)[1] || '');
 
     const pair = new WebSocketPair();
     const client = pair[0], server = pair[1];
@@ -163,6 +171,16 @@ export class Session {
     if (log.length > MAX_JOINS_PER_IP_MIN) return reject('joining too fast — slow down', 1013);
 
     if (role === 'host') {
+      // OWNED-app gate: if the sid carries a verifier, only the secret's holder
+      // may host. Checked here, before the epoch race, so no guest can ever seize
+      // the slot regardless of epoch. (A dotless sid skips this — self-healing.)
+      const vdot = sid.lastIndexOf('.');
+      if (vdot > 0) {
+        const verifier = sid.slice(vdot + 1);
+        const adm = url.searchParams.get('adm') || '';
+        const proven = adm && /^[a-f0-9]+$/i.test(verifier) && (await sha256hex(adm)).slice(0, verifier.length) === verifier;
+        if (!proven) return reject('this app link is owned — only its creator can host it', 4010);
+      }
       // The host slot is guarded by an EPOCH so self-healing takeover can't
       // split-brain: every takeover claims epoch+1, and a returning host with
       // a stale epoch is bounced (it rejoins as a guest instead of clobbering

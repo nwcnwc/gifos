@@ -175,6 +175,16 @@ server.on('upgrade', (req, socket) => {
   };
 
   if (role === 'host') {
+    // Owned-app gate (mirrors the Worker): a sid "<room>.<verifier>" gates the
+    // host slot by a secret whose SHA-256 begins with the verifier — only the
+    // creator (who holds the secret) may host; guests join but can't take over.
+    const vdot = parts[1].lastIndexOf('.');
+    if (vdot > 0) {
+      const verifier = parts[1].slice(vdot + 1);
+      const adm = url.searchParams.get('adm') || '';
+      const proven = adm && /^[a-f0-9]+$/i.test(verifier) && crypto.createHash('sha256').update(adm).digest('hex').slice(0, verifier.length) === verifier;
+      if (!proven) { rejectConn('this app link is owned — only its creator can host it'); return; }
+    }
     // Epoch-guarded host slot (mirrors the Worker): a takeover claims epoch+1;
     // a stale returning host is bounced to rejoin as a guest; a same-epoch
     // claim from a different machine loses the race. Same hostid = reconnect.
