@@ -53,11 +53,29 @@
     for (let i = 0; i < n; i++) s += CODE_ALPHABET[buf[i] % CODE_ALPHABET.length];
     return s;
   }
+  // High-entropy random hex — the OWNED-app host secret (never shown to a human,
+  // never in the link; only its SHA-256 prefix, the verifier, travels).
+  function randHex(bytes) {
+    const b = new Uint8Array(bytes || 24);
+    if ((root.crypto || {}).getRandomValues) root.crypto.getRandomValues(b); else for (let i = 0; i < b.length; i++) b[i] = (i * 137 + 11) & 255;
+    return Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  function sha256hex(s) {
+    if (!(root.crypto && root.crypto.subtle)) return Promise.resolve('');
+    return root.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)))
+      .then((d) => Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  }
+  // App short-name → a URL-safe room label. Dot-free (a dot marks the verifier).
+  function slug(s) { return (String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)) || 'app'; }
   // gifos.app/join/<code> on production (404.html routes it into run.html);
   // hash form everywhere else (local dev, custom relays, legacy split ids).
   function buildJoinUrl(page, sid, token, relay) {
     const meet = page === 'video' || page === 'meet'; // 'video' kept as a legacy alias
-    const pretty = sid === token && /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
+    const onProd = /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
+    // Owned app: sid is "<room>.<verifier>" → pretty /join/<room>/<verifier>.
+    const dot = sid.indexOf('.');
+    if (!meet && onProd && dot > 0) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1);
+    const pretty = sid === token && onProd;
     if (pretty) return location.origin + (meet ? '/meet/' : '/join/') + sid;
     const base = location.origin + (meet ? '/meet.html' : '/run.html');
     const pair = meet ? 'v=' + sid + '&k=' + token : (sid === token ? 'j=' + sid : 's=' + sid + '&k=' + token);
@@ -1431,10 +1449,10 @@
     return { sendToAll, stats, stop: () => clearInterval(sweeper) };
   }
 
-  function openHostSocket(relay, sid, token, epoch, hostid) {
+  function openHostSocket(relay, sid, token, epoch, hostid, adm) {
     return new Promise((resolve, reject) => {
       const sock = steadySocket(() => relay.replace(/\/$/, '') + '/s/' + sid + '?role=host&token=' + token +
-        '&epoch=' + (epoch || 0) + (hostid ? '&hostid=' + encodeURIComponent(hostid) : ''));
+        '&epoch=' + (epoch || 0) + (hostid ? '&hostid=' + encodeURIComponent(hostid) : '') + (adm ? '&adm=' + encodeURIComponent(adm) : ''));
       const timer = setTimeout(() => { sock.close(); reject(new Error('relay connection failed')); }, 8000);
       // Resolve only on the relay's host-ready — a rejected claim (host-stale /
       // host-taken) must fail the promise, not hand back a dead socket.
@@ -1537,20 +1555,31 @@
         return store.getState(fileId + '::session').then((sess) => {
           const now = Date.now();
           const valid = sess && sess.keep === 'persist' && (!sess.exp || now < sess.exp);
-          let sid, token, epoch, keep, exp, heal;
-          if (opts.lifetime) {
-            // An explicit choice mints a FRESH link, which revokes any old one:
-            // one live link per app, so past guests can no longer rejoin.
-            const spec = lifetimeToSpec(opts.lifetime, now);
-            sid = token = shortCode(); epoch = 0; keep = spec.keep; exp = spec.exp;
-            heal = keep === 'persist' && !!opts.resilient; // 'close' can't self-heal
-          } else if (valid) {
-            sid = sess.sid; token = sess.token; epoch = sess.epoch || 0;
-            keep = sess.keep; exp = sess.exp || 0; heal = !!sess.heal;
-          } else {
-            // No stored link to resume and no choice given → ephemeral default.
-            sid = token = shortCode(); epoch = 0; keep = 'close'; exp = 0; heal = false;
-          }
+          // Resolve this session's identity — minting a fresh link when asked.
+          // DEFAULT is an OWNED link: the host slot is gated by a secret only
+          // this app holds (never shown, never in the link). Its sid is
+          // "<room>.<verifier>" where room labels the app and verifier =
+          // SHA-256(secret). Only 'resilient' (a friend may keep it going) opts
+          // OUT into an anyone-owns, self-healing, secret-less link.
+          const resolveMint = () => {
+            if (opts.lifetime || !valid) {
+              const spec = opts.lifetime ? lifetimeToSpec(opts.lifetime, now) : { keep: 'close', exp: 0 };
+              const wantHeal = spec.keep === 'persist' && !!opts.resilient;
+              if (wantHeal) return Promise.resolve({ sid: shortCode(), token: null, epoch: 0, keep: spec.keep, exp: spec.exp, heal: true, av: null, sec: null });
+              const signed = !!(GifOS.sign && GifOS.sign.readSig && GifOS.sign.readSig(appBytes));
+              const shortName = manifest.shortName || manifest.name || manifest.appId || 'app';
+              const room = slug(signed ? shortName : shortName + '-anon');
+              const sec = randHex(24);
+              return sha256hex(sec).then((h) => {
+                const av = h.slice(0, 24);
+                return { sid: room + '.' + av, token: av, epoch: 0, keep: spec.keep, exp: spec.exp, heal: false, av: av, sec: sec };
+              });
+            }
+            // Resume the stored link (owned or not) exactly as it was.
+            return Promise.resolve({ sid: sess.sid, token: sess.token, epoch: sess.epoch || 0, keep: sess.keep, exp: sess.exp || 0, heal: !!sess.heal, av: sess.av || null, sec: sess.sec || null });
+          };
+          return resolveMint().then((m) => {
+          const sid = m.sid, token = m.token || m.sid, epoch = m.epoch, keep = m.keep, exp = m.exp, heal = m.heal, av = m.av, sec = m.sec;
           const joinUrl = buildJoinUrl('app', sid, token, relay);
           // If the session healed itself while we were dead, our epoch is stale
           // and the relay bounces us — the newest state lives with the promoted
@@ -1570,7 +1599,7 @@
             try { prior.ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'ended', reason: 'revoked' } })); } catch (e) { /* socket gone */ }
             setTimeout(() => retire(prior), 200);
           }
-          return openHostSocket(relay, sid, token, epoch, identity().id).then((ws) => {
+          return openHostSocket(relay, sid, token, epoch, identity().id, sec).then((ws) => {
             hostApi = attachHost(ws, db, appBytes, (s) => {
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
@@ -1585,13 +1614,14 @@
             setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
             ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-            return store.setState(fileId + '::session', { sid, token, relay, epoch, keep, exp, heal }).then(() => ({
-              shareUrl: joinUrl, keep, exp, heal,
+            return store.setState(fileId + '::session', { sid, token, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
+              shareUrl: joinUrl, keep, exp, heal, owned: !!av,
             }));
           }).catch((err) => {
             if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
             throw err;
           });
+          }); // resolveMint().then
         });
       }
 
