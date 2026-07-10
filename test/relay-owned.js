@@ -62,6 +62,25 @@ function probe(sid, q, waitMs) {
     // a dotless (anyone-owns) sid needs no secret to host — self-healing preserved
     const openHost = await probe('plainroom', { epoch: '0', hostid: 'a' });
     check('a dotless (self-healing) sid hosts with no secret', !openHost.err);
+
+    // Meeting admin (role=mesh) now derives its verifier from the SID too — the
+    // same verifierOf helper — instead of a separate ?av= param. Proving the key
+    // still grants admin confirms meet + join are unified on the dot.
+    const mk = crypto.randomBytes(8).toString('hex');
+    const mv = crypto.createHash('sha256').update(mk).digest('hex').slice(0, 24);
+    const meshSid = 'lounge.' + mv;
+    const meshJoin = (q) => new Promise((resolve) => {
+      const params = new URLSearchParams(Object.assign({ role: 'mesh', peer: 'p' + Math.floor(Math.random() * 1e9), token: 't' }, q));
+      const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/s/' + meshSid + '?' + params.toString());
+      let r = { admin: null };
+      ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.t === 'joined') r.admin = !!m.admin; } catch (_) {} };
+      setTimeout(() => { try { ws.close(); } catch (e) {} resolve(r); }, 700);
+    });
+    const admIn = await meshJoin({ adm: mk });
+    check('meeting: correct key → admin (verifier taken from the sid)', admIn.admin === true);
+    await sleep(150);
+    const guestIn = await meshJoin({});
+    check('meeting: no key → not admin', guestIn.admin === false);
   } finally { relay.kill(); }
   console.log(fail ? ('\n' + fail + ' failed') : '\nAll checks passed');
   process.exit(fail ? 1 : 0);

@@ -46,6 +46,16 @@ async function sha256hex(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
   return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+// A session id "<room>.<verifier>" carries its verifier after the LAST dot —
+// hex, 16–64 chars (24 now, legacy 64). ONE derivation, used by BOTH the app
+// host gate and the meeting admin check: the id already holds it, so neither
+// needs a separate query param. A dotless id or non-hex tail → no verifier.
+function verifierOf(sid) {
+  const dot = String(sid || '').lastIndexOf('.');
+  if (dot <= 0) return '';
+  const v = sid.slice(dot + 1);
+  return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
+}
 
 // Token bucket: a one-time BURST (delivering an App GIF) is fine, but SUSTAINED
 // throughput is refilled far below any usable audio/video bitrate.
@@ -174,11 +184,10 @@ export class Session {
       // OWNED-app gate: if the sid carries a verifier, only the secret's holder
       // may host. Checked here, before the epoch race, so no guest can ever seize
       // the slot regardless of epoch. (A dotless sid skips this — self-healing.)
-      const vdot = sid.lastIndexOf('.');
-      if (vdot > 0) {
-        const verifier = sid.slice(vdot + 1);
+      const verifier = verifierOf(sid);
+      if (verifier) {
         const adm = url.searchParams.get('adm') || '';
-        const proven = adm && /^[a-f0-9]+$/i.test(verifier) && (await sha256hex(adm)).slice(0, verifier.length) === verifier;
+        const proven = adm && (await sha256hex(adm)).slice(0, verifier.length) === verifier;
         if (!proven) return reject('this app link is owned — only its creator can host it', 4010);
       }
       // The host slot is guarded by an EPOCH so self-healing takeover can't
@@ -231,7 +240,9 @@ export class Session {
       const offeredPw = url.searchParams.get('pw') || '';
       const roomPw = first ? (first.pw || '') : offeredPw;
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
-      const av = (url.searchParams.get('av') || '').slice(0, 64);
+      // The verifier comes from the session id itself (…/<room>.<verifier>) —
+      // the SAME derivation the app host gate uses, no separate query param.
+      const av = verifierOf(sid);
       const admK = (url.searchParams.get('adm') || '').slice(0, 128);
       // Admin iff SHA-256(presented K) STARTS WITH the room's verifier. V is
       // 24 hex now (96-bit, preimage-safe for a public token); legacy 64-hex
