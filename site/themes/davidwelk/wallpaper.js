@@ -1,5 +1,6 @@
 /*
- * space.js — the live wallpaper for the "David Welk" computer (davidwelk.gifos.app).
+ * wallpaper.js — the live wallpaper for the "David Welk" computer (davidwelk.gifos.app).
+ * Loaded automatically by the theme cascade (desktop only) — see gifos-themes.js.
  *
  * Two-pass renderer. Pass 1 (the BAKE) ray-traces the whole scene ONCE into an
  * offscreen texture at 10-octave noise detail, supersampled ~1.45x and rendered
