@@ -21,7 +21,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       '--use-fake-device-for-media-stream',
     ],
   });
-  const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "')}catch(e){}" });
+  // gifos_meet_bar='0' keeps the controls bar expanded (it defaults collapsed to
+  // give video the space) so the test can reach Password/Hand/Chat/Record.
+  const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
   const newUser = async (name) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
     await ctx.addInitScript(setup(name));
