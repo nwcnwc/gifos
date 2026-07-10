@@ -1530,10 +1530,10 @@
   // rem-based chrome follows. index/run/meet each read it on load and live-update
   // on the cross-tab `storage` event; this is the same math, for the live tab.
   function getUiScale() {
-    try { const s = parseFloat(localStorage.getItem('gifos_ui_scale')); return isNaN(s) ? 1 : Math.max(0.7, Math.min(1.6, s)); } catch (e) { return 1; }
+    try { const s = parseFloat(localStorage.getItem('gifos_ui_scale')); return isNaN(s) ? 1 : Math.max(0.2, Math.min(3, s)); } catch (e) { return 1; }
   }
   function setUiScale(s) {
-    s = Math.max(0.7, Math.min(1.6, Math.round(s * 100) / 100));
+    s = Math.max(0.2, Math.min(3, Math.round(s * 100) / 100));
     try { localStorage.setItem('gifos_ui_scale', String(s)); } catch (e) {}
     document.documentElement.style.fontSize = s === 1 ? '' : (16 * s).toFixed(2) + 'px';
     return s;
