@@ -387,7 +387,12 @@
       headers['x-gifos-target'] = d.url;
       fetchUrl = pbase + '/';
     }
-    return fetch(fetchUrl, { method: d.method, headers: headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow' })
+    // Proxied requests all share ONE URL (the proxy origin) with the real target
+    // in the x-gifos-target header, so the browser's HTTP cache — which keys on
+    // URL — would replay the first target's response for every later one (e.g.
+    // every Bible chapter comes back as the home page). Bypass the cache for
+    // proxied fetches; direct fetches keep normal caching (distinct URLs).
+    return fetch(fetchUrl, { method: d.method, headers: headers, body: d.body || undefined, credentials: 'omit', redirect: 'follow', cache: viaProxy ? 'no-store' : 'default' })
       .then((resp) => {
         // A redirect can walk an allowed (or '*') host to a first-party or
         // otherwise-forbidden one, and follow makes the FINAL response readable.
