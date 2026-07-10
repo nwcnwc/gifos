@@ -1976,9 +1976,15 @@
       const clean = {}; let hadState = false;
       for (const p in filesRef) { if (p.startsWith('.state/')) hadState = true; else clean[p] = filesRef[p]; }
       const bytes = hadState && gif.repack ? gif.repack(appBytes, clean) : appBytes;
+      let seedState = null;
       return Promise.resolve(lastDump || remoteDb.getFullState()).catch(() => null)
-        .then((state) => ensureStolenFolder().then((folder) => saveAppToDesktop(bytes, manifestRef, state, folder)))
-        .then((fid) => store.setState(fid + '::mirror', { s: params.s, k: params.k, relay: params.relay, syncedAt: Date.now() }).then(() => ({ fileId: fid, name: (manifestRef.name || manifestRef.appId || 'App') })));
+        .then((state) => { seedState = state; return ensureStolenFolder(); })
+        .then((folder) => saveAppToDesktop(bytes, manifestRef, seedState, folder))
+        // syncedHash records the state we last agreed with the master on, so a
+        // later open can tell whether YOU changed this copy (divergence) vs the
+        // copy simply being behind the master.
+        .then((fid) => store.setState(fid + '::mirror', { s: params.s, k: params.k, relay: params.relay, syncedAt: Date.now(), syncedHash: hashState(seedState) })
+          .then(() => ({ fileId: fid, name: (manifestRef.name || manifestRef.appId || 'App') })));
     }
 
     return Promise.resolve({
@@ -2021,21 +2027,45 @@
   }
 
   // Boot an app that MIGHT be a mirror: sync first if it is, then boot locally.
+  // A cheap, stable fingerprint of a full app state — used only to tell "did I
+  // change this copy since the last sync?", never for security.
+  function hashState(state) {
+    let str = ''; try { str = JSON.stringify(state) || ''; } catch (e) { str = ''; }
+    let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36) + ':' + str.length;
+  }
+  // Break a mirror: drop its binding so it becomes a plain, independent copy.
+  function breakMirror(fileId) { return store.deleteState(fileId + '::mirror'); }
+
   // Non-mirror icons fall straight through to boot(), so this is a safe drop-in.
-  function bootMirror(mountEl, fileId, statusEl) {
+  // opts.onDiverged(masterState) — called ONLY when the master is reachable AND
+  // this copy has local changes since the last sync; must resolve to
+  // 'update' (pull, discard local), 'unlink' (keep local, stop syncing), or
+  // 'cancel' (don't open). Without a handler, a diverged copy opens locally
+  // WITHOUT clobbering — data is never lost silently.
+  function bootMirror(mountEl, fileId, statusEl, opts) {
+    opts = opts || {};
     const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+    const applyMaster = (binding, master) => store.setState(fileId, master)
+      .then(() => store.setState(fileId + '::mirror', Object.assign({}, binding, { syncedAt: Date.now(), syncedHash: hashState(master) })));
     return store.getState(fileId + '::mirror').then((binding) => {
       if (!binding || !binding.s) return null; // not a mirror
       setStatus('Syncing with the original…');
-      return pullMirrorState(binding, 6000).then((state) => {
-        if (state && state.collections) {
-          return store.setState(fileId, state)
-            .then(() => store.setState(fileId + '::mirror', Object.assign({}, binding, { syncedAt: Date.now() })));
-        }
-        setStatus('Offline — showing your last synced copy');
+      return pullMirrorState(binding, 6000).then((master) => {
+        if (!(master && master.collections)) { setStatus('Offline — showing your last synced copy'); return; }
+        return store.getState(fileId).then((local) => {
+          const diverged = binding.syncedHash && hashState(local) !== binding.syncedHash && hashState(local) !== hashState(master);
+          if (!diverged) return applyMaster(binding, master); // clean fast-forward, silent
+          if (!opts.onDiverged) return; // no way to ask → keep local, don't clobber
+          return Promise.resolve(opts.onDiverged(master)).then((choice) => {
+            if (choice === 'update') return applyMaster(binding, master);
+            if (choice === 'unlink') return breakMirror(fileId);
+            return { cancelled: true }; // 'cancel' — leave without opening
+          });
+        });
       }).catch(() => {});
-    }).then(() => boot(mountEl, fileId, statusEl));
+    }).then((r) => (r && r.cancelled) ? r : boot(mountEl, fileId, statusEl));
   }
 
-  GifOS.runtime = { boot, bootClient, bootMirror, pullMirrorState, buildAppHtml, buildFolderHtml, norm };
+  GifOS.runtime = { boot, bootClient, bootMirror, pullMirrorState, breakMirror, buildAppHtml, buildFolderHtml, norm };
 })(typeof window !== 'undefined' ? window : globalThis);

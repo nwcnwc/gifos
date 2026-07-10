@@ -83,6 +83,59 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   }, saved.fileId);
   check('re-opening the mirror caught up to the master (v=42)', after === 42);
 
+  // ---- DIVERGENCE: local changes + a reachable master → warn, and honour the choice ----
+  const coll = (n) => ({ collections: { d: { items: { v: { id: 'v', n } }, seq: 1 } } });
+  const setMaster = (n) => hostPage.evaluate(async (args) => { await GifOS.store.setState(window.__hostFileId, args.s); }, { s: coll(n) });
+  // force divergence: local != syncedHash (bogus) and != master
+  const arm = (localN) => clientPage.evaluate(async (args) => {
+    await GifOS.store.setState(args.fileId, args.local);
+    const b = await GifOS.store.getState(args.fileId + '::mirror');
+    await GifOS.store.setState(args.fileId + '::mirror', Object.assign({}, b, { syncedHash: 'BOGUS' }));
+  }, { fileId: saved.fileId, local: coll(localN) });
+  const openWith = (choice) => clientPage.evaluate(async (args) => {
+    const mount = document.createElement('div'); document.body.appendChild(mount);
+    let asked = false;
+    const r = await GifOS.runtime.bootMirror(mount, args.fileId, null, { onDiverged: () => { asked = true; return args.choice; } });
+    const st = await GifOS.store.getState(args.fileId);
+    const bind = await GifOS.store.getState(args.fileId + '::mirror');
+    const n = st && st.collections && st.collections.d && st.collections.d.items && st.collections.d.items.v ? st.collections.d.items.v.n : null;
+    return { asked, cancelled: !!(r && r.cancelled), n, stillMirror: !!(bind && bind.s) };
+  }, { fileId: saved.fileId, choice });
+
+  await setMaster(200); await arm(7);
+  const upd = await openWith('update');
+  check('diverged mirror warned before overwriting', upd.asked === true);
+  check('choice "update" pulled the master (v=200), stayed a mirror', upd.n === 200 && upd.stillMirror);
+
+  await setMaster(300); await arm(7);
+  const unl = await openWith('unlink');
+  check('choice "unlink" KEPT local changes (v=7)', unl.n === 7);
+  check('choice "unlink" broke the mirror binding', unl.stillMirror === false);
+
+  // re-save a fresh mirror to test cancel (previous one was unlinked)
+  const saved2 = await clientPage.evaluate(async (binding) => {
+    const mount = document.createElement('div'); document.body.appendChild(mount);
+    const ctl = await GifOS.runtime.bootClient(mount, { s: binding.s, k: binding.k, relay: binding.relay }, null, {});
+    for (let i = 0; i < 40 && !ctl.saveMirror; i++) await new Promise(r => setTimeout(r, 100));
+    let r = null; for (let i = 0; i < 40; i++) { try { r = await ctl.saveMirror(); break; } catch (e) { await new Promise(x => setTimeout(x, 150)); } }
+    return r && r.fileId;
+  }, binding);
+  await hostPage.evaluate(async (args) => { await GifOS.store.setState(window.__hostFileId, args.s); }, { s: coll(400) });
+  await clientPage.evaluate(async (args) => {
+    await GifOS.store.setState(args.fileId, args.local);
+    const b = await GifOS.store.getState(args.fileId + '::mirror');
+    await GifOS.store.setState(args.fileId + '::mirror', Object.assign({}, b, { syncedHash: 'BOGUS' }));
+  }, { fileId: saved2, local: coll(7) });
+  const can = await clientPage.evaluate(async (args) => {
+    const mount = document.createElement('div'); document.body.appendChild(mount);
+    const r = await GifOS.runtime.bootMirror(mount, args.fileId, null, { onDiverged: () => args.choice });
+    const st = await GifOS.store.getState(args.fileId);
+    const n = st && st.collections && st.collections.d && st.collections.d.items && st.collections.d.items.v ? st.collections.d.items.v.n : null;
+    return { cancelled: !!(r && r.cancelled), n };
+  }, { fileId: saved2, choice: 'cancel' });
+  check('choice "cancel" aborted the open (no controller)', can.cancelled === true);
+  check('choice "cancel" left local changes untouched (v=7)', can.n === 7);
+
   await browser.close();
   console.log(fail ? ('\n' + fail + ' failed') : '\nAll checks passed');
   process.exit(fail ? 1 : 0);
