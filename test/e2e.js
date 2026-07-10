@@ -679,7 +679,7 @@ async function openApp(page, ctx, folder, label) {
   await wildPage.waitForTimeout(700);
   check('an allowed app reaches the internet through the bridge', (await wildPage.frameLocator('iframe').locator('#out').textContent()) === 'OK:200');
   await wildPage.locator('.perm-row input[data-host="*"]').uncheck();
-  check('unticking Any website drops the unsafe label', (await wildPage.locator('#perms').textContent()) === '🌐 Internet');
+  check('unticking Any website drops the unsafe label', (await wildPage.locator('#perms').textContent()) === 'Internet');
   await wildPage.locator('.perm-box .done').click();
   await wildPage.reload();
   await wildPage.waitForSelector('iframe');
