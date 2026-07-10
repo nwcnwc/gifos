@@ -190,6 +190,7 @@
         // The app's bytes are now here (locally, or over the wire for a client) —
         // only now is there something to Steal, so reveal the button.
         appGifLoaded = true; stealBtn.style.display = ''; showAppGif();
+        if (manifest && manifest.name) recordInviteName(manifest.name); // label this invite in History
         if (!window.GifOS || !GifOS.sign) return;
         const claim = GifOS.sign.readSig(bytes);
         showAppId(manifest, !!claim);
@@ -465,8 +466,30 @@
       // the session id and the join key; legacy links still use s= and k=.
       const joinS = params.get('j') || params.get('s');
       const joinK = params.get('j') || params.get('k');
+      // Remember invite links you visit (client mode), so the desktop's History
+      // button can list them. Shared with the desktop via localStorage; the app
+      // name is filled in once it arrives (see __gifosOnApp → recordInviteName).
+      const INVITE_HIST = 'gifos_invite_history';
+      function recordInvite() {
+        try {
+          let h = JSON.parse(localStorage.getItem(INVITE_HIST) || '[]'); if (!Array.isArray(h)) h = [];
+          const url = location.href;
+          h = h.filter(function (e) { return e && e.url !== url; });
+          h.unshift({ url: url, name: null, ts: Date.now() });
+          localStorage.setItem(INVITE_HIST, JSON.stringify(h.slice(0, 50)));
+        } catch (e) { /* private mode / quota */ }
+      }
+      function recordInviteName(name) {
+        try {
+          const h = JSON.parse(localStorage.getItem(INVITE_HIST) || '[]'); if (!Array.isArray(h)) return;
+          const url = location.href; let changed = false;
+          for (const e of h) { if (e && e.url === url && !e.name) { e.name = name; changed = true; break; } }
+          if (changed) localStorage.setItem(INVITE_HIST, JSON.stringify(h));
+        } catch (e) { /* ignore */ }
+      }
       if (joinS) {
         // Client mode — join a host over the relay. Name first.
+        recordInvite();
         hostBtn.style.display = 'none';
         ensureName().then(function () {
           return GifOS.runtime.bootClient(mount, { s: joinS, k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {

@@ -319,6 +319,9 @@
     const keep = new Set();
     let reused = 0;
     const els = visible.map((it, i) => {
+      // Stash what openItem needs to decide SYNCHRONOUSLY (in the tap gesture) —
+      // an app GIF must open without an await first, or iOS blocks the tab.
+      it._isApp = !!(files[i] && files[i].isApp && files[i].kind === 'gif');
       const key = iconKey(it, files[i], fresh[i], metas[i]);
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
@@ -530,9 +533,9 @@
   }
 
   function updateCrumbs() {
-    if (!currentFolder) { crumbs.textContent = 'Home Screen'; return; }
+    if (!currentFolder) { crumbs.textContent = 'Home'; return; }
     const folder = items.find((i) => i.id === currentFolder);
-    crumbs.innerHTML = '<a id="crumb-root">Home Screen</a> › ' + (folder ? escapeHtml(folder.name) : '…');
+    crumbs.innerHTML = '<a id="crumb-root">Home</a> › ' + (folder ? escapeHtml(folder.name) : '…');
     const rootLink = document.getElementById('crumb-root');
     if (rootLink) rootLink.onclick = () => { currentFolder = null; selectedId = null; render(); };
   }
@@ -691,44 +694,55 @@
   // pair so one gesture opens one tab; a deliberate re-open a moment later still
   // works because the window is short.
   let lastOpen = { id: null, t: 0 };
-  async function openItem(it) {
+  function openItem(it) {
     const now = Date.now();
     if (lastOpen.id === it.id && now - lastOpen.t < 700) return;
     lastOpen = { id: it.id, t: now };
     if (it.kind === 'folder') { currentFolder = it.id; selectedId = null; return render(); }
-    const file = await store.getFile(it.fileId);
-    if (!file) return;
-    if (file.kind === 'gif' && file.isApp) {
+    // Fast path — the common case. An app GIF's URL is known from its fileId, so
+    // open it SYNCHRONOUSLY in the tap gesture. iOS/WebKit blocks window.open()
+    // after any await, which is why double-tap and "Open" did nothing on iPhone.
+    // (render() stashed it._isApp so we don't need to read the file first here.)
+    if (it._isApp) {
       root.open('run.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='), '_blank');
       return;
     }
-    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-    // A whole-desktop backup GIF is a COMPUTER IMAGE. Booting it runs that
-    // computer in its own namespace (a computer inside this computer) and
-    // touches nothing here; replacing this desktop is the destructive path.
-    if (file.kind === 'gif') {
-      const archive = await gif.decode(bytes);
-      const m = archive ? gif.readManifest(archive) : null;
-      if (archive && m && m.type === 'desktop' && archive.files['desktop.json']) {
-        showConfirm('This GIF is a whole computer',
-          '"' + escapeHtml(it.name) + '" holds a whole GifOS computer. <b>Boot it</b> to run that computer in a new tab — ' +
-          'your Home Screen here is untouched. Or <b>replace</b> this Home Screen with it (destructive).',
-          [
-            { label: 'Boot this computer', fn: () => root.open('boot.html#id=' + encodeURIComponent(it.fileId) + nsParam('&from='), '_blank') },
-            { label: 'Replace this Home Screen', danger: true, fn: () => restoreDesktop(archive) },
-          ]);
+    // Non-app files (a plain image, or a whole-computer backup GIF) need the
+    // bytes before we know what to do, so reserve the tab now (in-gesture) and
+    // point it at the resolved URL once we've read the file.
+    const win = root.open('', '_blank');
+    const go = (url) => { if (win && !win.closed) win.location.href = url; else root.open(url, '_blank'); };
+    const bail = () => { try { if (win && !win.closed) win.close(); } catch (e) { /* already gone */ } };
+    store.getFile(it.fileId).then(async (file) => {
+      if (!file) { bail(); return; }
+      if (file.kind === 'gif' && file.isApp) {
+        go('run.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='));
         return;
       }
-    }
-    // Any other plain file (a normal GIF, an image, …) just opens in its own tab.
-    openFileTab(file);
-  }
-
-  function openFileTab(file) {
-    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-    const url = URL.createObjectURL(new Blob([bytes], { type: file.mime || 'application/octet-stream' }));
-    root.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+      const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+      // A whole-desktop backup GIF is a COMPUTER IMAGE. Booting it runs that
+      // computer in its own namespace (a computer inside this computer) and
+      // touches nothing here; replacing this desktop is the destructive path.
+      if (file.kind === 'gif') {
+        const archive = await gif.decode(bytes);
+        const m = archive ? gif.readManifest(archive) : null;
+        if (archive && m && m.type === 'desktop' && archive.files['desktop.json']) {
+          bail(); // this path is a modal (a fresh gesture), not the reserved tab
+          showConfirm('This GIF is a whole computer',
+            '"' + escapeHtml(it.name) + '" holds a whole GifOS computer. <b>Boot it</b> to run that computer in a new tab — ' +
+            'your Home Screen here is untouched. Or <b>replace</b> this Home Screen with it (destructive).',
+            [
+              { label: 'Boot this computer', fn: () => root.open('boot.html#id=' + encodeURIComponent(it.fileId) + nsParam('&from='), '_blank') },
+              { label: 'Replace this Home Screen', danger: true, fn: () => restoreDesktop(archive) },
+            ]);
+          return;
+        }
+      }
+      // Any other plain file (a normal GIF, an image, …) just opens in its own tab.
+      const url = URL.createObjectURL(new Blob([bytes], { type: file.mime || 'application/octet-stream' }));
+      go(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }).catch(bail);
   }
 
   // ---------- import files (shared by OS drag-drop and the ＋ Add picker) -----
@@ -1663,6 +1677,54 @@
   }
 
   addBtn.addEventListener('click', showAddDialog);
+
+  // ---------- invite history ----------
+  // run.html records every invite link you open (as a client) into this shared
+  // localStorage list; the desktop just reads and prunes it. Purely local.
+  const INVITE_HIST = 'gifos_invite_history';
+  function loadInviteHistory() { try { const h = JSON.parse(localStorage.getItem(INVITE_HIST) || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+  function saveInviteHistory(h) { try { localStorage.setItem(INVITE_HIST, JSON.stringify(h)); } catch (e) { /* private mode */ } }
+  function relTime(ts) {
+    const s = Math.max(0, (Date.now() - (ts || 0)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+  function shortInviteUrl(u) { try { const x = new URL(u); return (x.pathname.replace(/^\//, '') || 'run.html') + x.hash; } catch (e) { return u; } }
+  function showHistory() {
+    closeContext();
+    const bg = document.createElement('div'); bg.className = 'modal-bg';
+    const box = document.createElement('div'); box.className = 'modal wide';
+    bg.appendChild(box); document.body.appendChild(bg);
+    bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
+    const paint = () => {
+      const h = loadInviteHistory();
+      const rows = h.length ? h.map((e, i) =>
+        '<div class="hist-row">' +
+          '<a class="hist-open" data-url="' + escapeHtml(e.url || '') + '">' +
+            '<span class="hist-name">' + escapeHtml(e.name || 'Invite') + '</span>' +
+            '<span class="hist-meta">' + escapeHtml(relTime(e.ts) + ' · ' + shortInviteUrl(e.url || '')) + '</span>' +
+          '</a>' +
+          '<button class="hist-del" data-i="' + i + '" title="Remove">✕</button>' +
+        '</div>').join('')
+        : '<p class="add-help">No invites visited yet. Open a friend’s invite link and it will show up here.</p>';
+      box.innerHTML =
+        '<h3>Invite history</h3>' +
+        '<p class="add-help">Sessions you’ve joined. Tap one to rejoin; ✕ removes it. This list lives only in this browser.</p>' +
+        '<div class="hist-list">' + rows + '</div>' +
+        '<div class="modal-actions">' + (h.length ? '<button class="ghost" id="hist-clear">Clear all</button>' : '') + '<button class="ghost" id="hist-close">Close</button></div>';
+      // Tapping a row opens the invite in a new tab — a direct gesture, so it's
+      // allowed on iOS (unlike the deferred app-open, which reserves its tab).
+      box.querySelectorAll('.hist-open').forEach((a) => { a.onclick = () => { const u = a.getAttribute('data-url'); if (u) root.open(u, '_blank'); }; });
+      box.querySelectorAll('.hist-del').forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); const arr = loadInviteHistory(); arr.splice(+b.getAttribute('data-i'), 1); saveInviteHistory(arr); paint(); }; });
+      const clr = box.querySelector('#hist-clear'); if (clr) clr.onclick = () => { saveInviteHistory([]); paint(); };
+      box.querySelector('#hist-close').onclick = () => bg.remove();
+    };
+    paint();
+  }
+  const histBtn = document.getElementById('history-btn');
+  if (histBtn) histBtn.addEventListener('click', showHistory);
 
   // Turn a pasted index.html into a real App GIF on the desktop.
   async function createAppFromHtml(name, html, iconSrc) {

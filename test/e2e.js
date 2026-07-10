@@ -185,7 +185,7 @@ async function openApp(page, ctx, folder, label) {
   await sleep(300);
   const rootNow = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('clicking the hole climbs up to the parent',
-    /Home Screen/.test(await page.locator('#crumbs').textContent()) && rootNow.includes('Connect Four.gif'));
+    /^Home$/.test((await page.locator('#crumbs').textContent()).trim()) && rootNow.includes('Connect Four.gif'));
   // tidy: put Connect Four back in Games for the checks that follow
   await page.evaluate(async () => {
     const its = await GifOS.store.allItems();
@@ -701,6 +701,9 @@ async function openApp(page, ctx, folder, label) {
     context.waitForEvent('page'),
     deskPage.locator('.icon', { hasText: 'photo.gif' }).dblclick(),
   ]);
+  // The reserved tab starts about:blank and navigates to the blob once the file
+  // is read (the iOS-safe open path), so wait for that before asserting.
+  await photoTab.waitForURL(/^blob:/, { timeout: 5000 }).catch(() => {});
   sawModal = await deskPage.locator('.modal-bg').count() > 0;
   check('plain GIF opens in a new tab (no "not supported" modal)', !sawModal && /^blob:/.test(photoTab.url()));
   await photoTab.close();
@@ -895,7 +898,7 @@ async function openApp(page, ctx, folder, label) {
   await backPage.goBack().catch(() => {});
   await sleep(400);
   const crumbsAfterBack = await backPage.locator('#crumbs').textContent();
-  check('Back inside a folder climbs to the Home Screen', /Home Screen/.test(crumbsAfterBack) && !/Games/.test(crumbsAfterBack));
+  check('Back inside a folder climbs to the Home Screen', /^Home$/.test(crumbsAfterBack.trim()) && !/Games/.test(crumbsAfterBack));
   check('...without leaving the desktop', backPage.url().includes('/index.html'));
   await backPage.goBack().catch(() => {});
   await sleep(400);

@@ -240,6 +240,15 @@ body {
   background: var(--surface); color: var(--text); cursor: pointer; font-size: .9rem; }
 .ts-row button:hover { border-color: var(--accent); }
 .ts-row #ts-val { min-width: 3rem; text-align: center; color: var(--muted); }
+.hist-list { max-height: 52vh; overflow-y: auto; margin: .4rem 0 .2rem; }
+.hist-row { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid var(--border); }
+.hist-open { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; cursor: pointer; text-decoration: none; }
+.hist-name { color: var(--text); font-weight: 600; }
+.hist-meta { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Beat the generic `.modal button` (accent-filled) so the row's ✕ stays subtle. */
+.modal .hist-del { flex: 0 0 auto; background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: .4rem; padding: .3rem .55rem; cursor: pointer; font-size: .85rem; }
+.modal .hist-del:hover { border-color: #c22e2e; color: #e0574a; }
 details.adv summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .3rem 0;
   user-select: none; }
 details.adv summary:hover { color: var(--text); }
