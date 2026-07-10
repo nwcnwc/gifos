@@ -1246,7 +1246,7 @@
     // overflow it. The relay is only ever the signalling + fallback path; once
     // peers are connected directly there is no bandwidth ceiling. Fragment
     // strings are built once and replayed to each new peer.
-    const appMsg = { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0 };
+    const appMsg = { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0, keep: opts.keep || null };
     const APP_RELAY_MAX = 700 * 1024; // bytes; base64 of this stays under the relay's 1MB burst
     const APP_P2P_WAIT = 10000;       // give the DataChannel this long before the paced-relay fallback
     const appSmall = appBytes.length <= APP_RELAY_MAX;
@@ -1575,7 +1575,7 @@
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
-            }, { onDisplaced: displaced, heal, exp });
+            }, { onDisplaced: displaced, heal, exp, keep });
             // Expiry only shuts the door to NEW joiners (attachHost enforces exp
             // per join); a light timer just refreshes the host's own status so
             // they know the link went read-only.
@@ -1655,7 +1655,7 @@
     // do). If it doesn't, we never mirror its state — so there's nothing to
     // promote, and the session genuinely ends when the host leaves. `ended` is
     // a terminal stop: the host expired or closed a bounded link.
-    let sessionHeal = false, ended = false, sessionExp = 0;
+    let sessionHeal = false, ended = false, sessionExp = 0, sessionKeep = null;
 
     // The failover mirror re-downloads FULL app state. On every db-change that
     // is O(state) traffic per client — with big records it can drain the whole
@@ -1785,6 +1785,11 @@
       hostIsBack();
       sessionHeal = !!m.heal; // does this link self-heal? governs mirroring
       sessionExp = m.exp || 0; // admission deadline, carried into any takeover
+      sessionKeep = m.keep || null; // lifetime mode — only 'persist' + no exp is eternal
+      // Tell the page whether this is an ETERNAL link, so it can offer a synced
+      // mirror (a bound copy that re-syncs on open) — pointless on a link that
+      // stops admitting people or dies on close.
+      if (hooks.onSession) { try { hooks.onSession({ eternal: sessionKeep === 'persist' && !sessionExp, keep: sessionKeep, exp: sessionExp }); } catch (e) {} }
       if (filesRef || tookOver) { runningStatus(); return; }
       appBytes = gif.b64decode(m.gif);
       gif.decode(appBytes).then((archive) => {
@@ -1927,6 +1932,7 @@
           }, {
             selfPeer: myPeer,
             heal: true, // takeover only reaches here for self-healing links
+            keep: 'persist', // a self-healing link is always a persistent one
             exp: sessionExp, // keep enforcing the original admission window
             onDisplaced: () => {
               setStatus('A newer host holds the session — rejoining as a guest…');
@@ -1962,13 +1968,74 @@
         .then(([b, folderId]) => saveAppToDesktop(b, manifestRef, null, folderId));
     }
 
+    // Save a SYNCED MIRROR: a stolen copy that stays bound to this eternal link.
+    // Every time it's opened it re-pulls the master's latest state (see
+    // bootMirror). It carries the current state as its starting point.
+    function saveMirror() {
+      if (!appBytes || !filesRef || !remoteDb) return Promise.reject(new Error('app not loaded yet'));
+      const clean = {}; let hadState = false;
+      for (const p in filesRef) { if (p.startsWith('.state/')) hadState = true; else clean[p] = filesRef[p]; }
+      const bytes = hadState && gif.repack ? gif.repack(appBytes, clean) : appBytes;
+      return Promise.resolve(lastDump || remoteDb.getFullState()).catch(() => null)
+        .then((state) => ensureStolenFolder().then((folder) => saveAppToDesktop(bytes, manifestRef, state, folder)))
+        .then((fid) => store.setState(fid + '::mirror', { s: params.s, k: params.k, relay: params.relay, syncedAt: Date.now() }).then(() => ({ fileId: fid, name: (manifestRef.name || manifestRef.appId || 'App') })));
+    }
+
     return Promise.resolve({
       save: () => (filesRef && remoteDb ? downloadSnapshot(appBytes, filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
       saveToDesktop,
       steal: (opts) => (filesRef && remoteDb ? stealApp(appBytes, filesRef, manifestRef, remoteDb, stealCtx, opts) : Promise.reject(new Error('app not loaded yet'))),
+      saveMirror,
       becomeHost,
     });
   }
 
-  GifOS.runtime = { boot, bootClient, buildAppHtml, buildFolderHtml, norm };
+  // ---- synced mirrors ------------------------------------------------------
+  // A mirror is a stolen copy bound to an eternal link (saved via the client's
+  // saveMirror()). Opening it first does a quick, HEADLESS pull of the master's
+  // latest state over the relay — no app received, no iframe, just a state dump
+  // — then boots the local copy. Master offline ⇒ resolve null ⇒ open from the
+  // last synced state. v1 is pull-only: local edits are replaced on the next
+  // sync (write-back/merge is a later layer).
+  function pullMirrorState(binding, timeoutMs) {
+    return new Promise((resolve) => {
+      const relay = binding && binding.relay, s = binding && binding.s, k = binding && binding.k;
+      if (!relay || !s || !root.WebSocket) return resolve(null);
+      let done = false, ws = null;
+      const finish = (state) => { if (done) return; done = true; clearTimeout(to); try { ws && ws.close(); } catch (e) {} resolve(state); };
+      const to = setTimeout(() => finish(null), timeoutMs || 6000);
+      const defrag = makeDefrag(null);
+      try { ws = new root.WebSocket(relay.replace(/\/$/, '') + '/s/' + encodeURIComponent(s) + '?role=client&token=' + encodeURIComponent(k)); }
+      catch (e) { return finish(null); }
+      const remoteDb = makeRemoteDb((req) => { try { ws.send(JSON.stringify(req)); } catch (e) {} });
+      ws.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        m = defrag(m, 'host'); if (!m) return; // ignore the (fragmented) app delivery; wait for the dump
+        if (m.t === 'joined') { remoteDb.getFullState().then((st) => finish(st && st.collections ? st : null)).catch(() => finish(null)); }
+        else if (m.t === 'rpc-reply') { remoteDb._reply(m.id, m.ok, m.result); }
+        else if (m.t === 'error' || m.t === 'ended') { finish(null); } // no host / expired / bad token
+      };
+      ws.onerror = () => finish(null);
+      ws.onclose = () => finish(null);
+    });
+  }
+
+  // Boot an app that MIGHT be a mirror: sync first if it is, then boot locally.
+  // Non-mirror icons fall straight through to boot(), so this is a safe drop-in.
+  function bootMirror(mountEl, fileId, statusEl) {
+    const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+    return store.getState(fileId + '::mirror').then((binding) => {
+      if (!binding || !binding.s) return null; // not a mirror
+      setStatus('Syncing with the original…');
+      return pullMirrorState(binding, 6000).then((state) => {
+        if (state && state.collections) {
+          return store.setState(fileId, state)
+            .then(() => store.setState(fileId + '::mirror', Object.assign({}, binding, { syncedAt: Date.now() })));
+        }
+        setStatus('Offline — showing your last synced copy');
+      }).catch(() => {});
+    }).then(() => boot(mountEl, fileId, statusEl));
+  }
+
+  GifOS.runtime = { boot, bootClient, bootMirror, pullMirrorState, buildAppHtml, buildFolderHtml, norm };
 })(typeof window !== 'undefined' ? window : globalThis);
