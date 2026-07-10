@@ -2537,10 +2537,12 @@
       try { files = await GifOS.store.allFiles(); } catch (e) {}
       const apps = (files || []).filter((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
       if (!apps.length) { list.innerHTML = '<small style="color:#667">No apps on this computer yet. Make one with ＋ Add on your Home Screen, then run it in a meeting.</small>'; return; }
+      const label = (f) => (f.name || f.appId || 'App').replace(/\.gif$/i, '');
+      apps.sort((a, b) => label(a).localeCompare(label(b), undefined, { sensitivity: 'base', numeric: true }));
       list.innerHTML = '';
       for (const f of apps) {
         const b = document.createElement('button');
-        b.textContent = (f.name || f.appId || 'App').replace(/\.gif$/i, '');
+        b.textContent = label(f);
         b.onclick = () => { modal.style.display = 'none'; runApp(f.id, b.textContent); };
         list.appendChild(b);
       }
