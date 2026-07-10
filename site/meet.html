@@ -1218,6 +1218,10 @@
       names = names || {};
       for (const pid of list) {
         if (pid === myId) continue;
+        // A peer carrying MY device id is a stale session of my own device — a
+        // second tab, or one the relay hasn't reaped yet — never a real guest.
+        // Drop it instead of drawing a second "me" tile (and don't dial it).
+        if (devOf[pid] && devOf[pid] === deviceId()) { if (peers.has(pid)) dropPeer(pid); continue; }
         let p = peers.get(pid);
         if (!p) {
           if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }

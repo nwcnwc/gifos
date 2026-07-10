@@ -231,6 +231,17 @@ server.on('upgrade', (req, socket) => {
       if (voters.size >= Math.max(2, Math.floor(pop.size / 2) + 1)) { rejectConn('voted-off'); return; }
     }
     conn.isAdmin = isAdmin; conn.dev = dev;
+    // Parity with the Worker: one socket per peer id AND one slot per DEVICE. A
+    // reload reuses its peer id and swaps silently; a NEW tab/session from the
+    // same device gets a fresh peer id but the same device id — evict its ghost
+    // and announce the departure so everyone drops the stale tile.
+    for (const [p, c] of Array.from(sess.clients)) {
+      if (p === peer || (dev && c.dev === dev)) {
+        sess.clients.delete(p); sess.names.delete(p);
+        try { c.close(); } catch (e) {}
+        if (p !== peer) { const s = JSON.stringify({ t: 'peer-leave', peer: p }); for (const cc of sess.clients.values()) cc.send(s); }
+      }
+    }
     const name = (url.searchParams.get('name') || '').slice(0, 40);
     if (name) sess.names.set(peer, name);
     sess.clients.set(peer, conn);

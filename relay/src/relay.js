@@ -235,7 +235,17 @@ export class Session {
         }
         if (voters.size >= Math.max(2, Math.floor(pop.size / 2) + 1)) return reject('voted-off', 4007);
       }
-      for (const ws of occupants) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
+      // One socket per peer id AND one slot per DEVICE. A reload reuses its peer
+      // id (sessionStorage) and swaps cleanly; a NEW tab/session from the same
+      // device gets a FRESH peer id but the SAME device id — without this it
+      // lingers beside you as a ghost the relay can't tell from a real guest,
+      // and a frozen mobile socket may never send a close. Evict any same-device
+      // occupant too; its close broadcasts a peer-leave so everyone drops the
+      // ghost at once. dev is empty in private mode → fall back to peer-id only.
+      for (const ws of occupants) {
+        const a = this.att(ws);
+        if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
+      }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
       server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
