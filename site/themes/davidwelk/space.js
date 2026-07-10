@@ -233,11 +233,11 @@
     '',
     // the ember moon: dark red-brown rock, crater scars, nebula-red ambient
     'vec3 shadeEmber(vec3 n,vec3 rd,vec3 L){',
-    '  float h=fbm(n.xy*8.0+n.z*5.0)*0.7+ridge(n.xy*14.0+n.z*8.0)*0.3;',
+    '  float h=fbm(n.xy*13.0+n.z*8.0)*0.7+ridge(n.xy*22.0+n.z*13.0)*0.3;',
     '  vec3 base=mix(vec3(0.055,0.024,0.014),vec3(0.30,0.13,0.07),h);',
     '  float dl=dot(n,L);float lit=smoothstep(-0.35,0.45,dl);',
     '  vec3 col=base*(0.10+1.0*lit*(0.6+0.4*h));',
-    '  float cr=smoothstep(0.78,0.96,gnoise(n.xy*16.0+n.z*9.0));',
+    '  float cr=smoothstep(0.78,0.96,gnoise(n.xy*24.0+n.z*14.0));',
     '  col*=1.0-0.40*cr;',                                         // crater shadows
     '  col+=base*vec3(0.9,0.25,0.22)*0.45;',                       // lit red by the nebula behind it
     '  float f=pow(1.0-max(dot(n,-rd),0.0),3.0);',
@@ -303,14 +303,16 @@
     '  }else{',
     '    col=sky(rd,L);',
     '    float sd=max(dot(rd,L),0.0);',
-    '    float b=dot(PB-ro,rd);',                            // the horizon\'s glow, seen from the sky side
-    '    if(b>0.0){',
-    '      float en=(length(ro+rd*b-PB)-RB)/RB;',
-    '      float sp=pow(sd,12.0);',
-    '      vec3 gc=mix(vec3(0.16,0.38,0.95),vec3(1.0,0.92,0.78),sp);',
-    '      col+=vec3(1.0,0.45,0.18)*exp(-max(en,0.0)*900.0)*sp*1.6;', // warm refracted sliver
-    '      col+=gc*(exp(-max(en,0.0)*260.0)*0.90+exp(-max(en,0.0)*30.0)*0.15)*(0.25+2.2*sp);',
-    '    }',
+    '    // the horizon\'s glow, seen from the sky side. NO if(b>0) gate: the',
+    '    // glow is still strong at that plane, so a hard gate cut a straight',
+    '    // step across the sky — clamp the approach point and fade wide instead',
+    '    float b=dot(PB-ro,rd);',
+    '    float en=(length(ro+rd*max(b,0.0)-PB)-RB)/RB;',
+    '    float sp=pow(sd,12.0);',
+    '    float bf=smoothstep(-6.0,6.0,b);',
+    '    vec3 gc=mix(vec3(0.16,0.38,0.95),vec3(1.0,0.92,0.78),sp);',
+    '    col+=vec3(1.0,0.45,0.18)*exp(-max(en,0.0)*900.0)*sp*1.6*bf;', // warm refracted sliver
+    '    col+=gc*(exp(-max(en,0.0)*260.0)*0.90+exp(-max(en,0.0)*30.0)*0.15)*(0.25+2.2*sp)*bf;',
     '  }',
     '',
     '  float mask=(id<0)?1.0:0.0;',
@@ -367,15 +369,13 @@
     '  col+=(0.40+0.60*mask)*(vec3(0.45,0.65,1.0)*pow(sd,18.0)*0.30', // wide cool glare
     '            +vec3(0.20,0.40,0.95)*pow(sd,4.0)*0.10);',    // huge blue fill on the left
     '',
-    '  // ---- shooting star (sky only, subtle) ----',
+    '  // ---- shooting star: a brief moving glint, no trail ----',
     '  float slot=floor(t/9.0);float lt=fract(t/9.0);',
     '  vec2 s0=vec2(0.30+0.45*hash21(vec2(slot,1.0)),0.55+0.35*hash21(vec2(slot,2.0)));',
     '  vec2 sdir=normalize(vec2(0.86,-0.5));vec2 head=s0+sdir*lt*1.4;',
     '  vec2 uvS=gl_FragCoord.xy/iResolution.xy;vec2 rel=(uvS-head);rel.x*=iResolution.x/iResolution.y;',
-    '  float al=dot(rel,sdir);float pp=length(rel-sdir*al);',
-    '  float streak=smoothstep(0.0015,0.0,pp)*smoothstep(0.0,-0.15,al);',
     '  float appear=smoothstep(0.0,0.04,lt)*smoothstep(1.0,0.55,lt);',
-    '  col+=vec3(0.9,0.95,1.0)*(streak*0.7+smoothstep(0.024,0.0,length(rel))*1.2)*appear*mask;',
+    '  col+=vec3(0.9,0.95,1.0)*smoothstep(0.020,0.0,length(rel))*1.1*appear*mask;',
     '',
     '  // god-rays + lens bloom, in screen space so they track the drift',
     '  vec3 Lc=rotY(rotX(L,-swb),-swa);',                      // sun back in camera space
