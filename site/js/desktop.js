@@ -1833,7 +1833,7 @@
       buf = new Uint8Array(await r.arrayBuffer());
     } catch (e) {
       // Almost always a CORS block: the host won’t let another page read its file.
-      return { error: 'Couldn’t download that — the site may not allow it (CORS). Download the GIF, then use ＋ Add file(s).' };
+      return { error: 'Couldn’t load that link. Save the GIF to your device, then use ＋ Add file(s).' };
     }
     if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
     let name = '';
