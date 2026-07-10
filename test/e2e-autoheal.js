@@ -48,8 +48,8 @@ const FAST = 'window.GIFOS_CONN={AUTO_TAKEOVER:8000,CAND_LEAD:4000,RANK_STEP:250
   await hostApp.locator('form button').click();
   await sleep(200);
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#share-url').inputValue();
+  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl = await hostRun.locator('#lm-url').inputValue();
 
   // ---------- two clients join and mirror ----------
   async function join(name) {

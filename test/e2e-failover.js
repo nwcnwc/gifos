@@ -44,8 +44,8 @@ async function invite(page, lifetime, resilient) {
   await hostApp.locator('form button').click();
   await sleep(200);
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#share-url').inputValue();
+  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl = await hostRun.locator('#lm-url').inputValue();
 
   // ---------- CLIENT A and B (separate machines) ----------
   async function join(name) {
@@ -63,9 +63,14 @@ async function invite(page, lifetime, resilient) {
   const B = await join('clientB');
   await sleep(800); // let A/B mirror the host state
 
-  // client A: Steal → the app lands on A's desktop, WITHOUT its data
-  // (Steal with data:'current' is the capture-the-data path; takeover keeps data too)
-  await A.page.locator('#save-desktop').click();
+  // client A: Steal → Save in Stolen Apps, No data. The app lands on A's
+  // desktop WITHOUT its data (data:'current' is the capture-the-data path;
+  // takeover keeps data too).
+  await A.page.locator('#steal').click();
+  await A.page.locator('#steal-modal').waitFor({ state: 'visible', timeout: 6000 });
+  await A.page.locator('#steal-modal input[name=dest][value="desktop"]').check();
+  await A.page.locator('#steal-modal input[name=data][value="none"]').check();
+  await A.page.locator('#steal-go').click();
   await sleep(500);
   const aDesk = await A.ctx.newPage();
   await aDesk.goto(BASE + '/index.html');
@@ -149,8 +154,8 @@ async function invite(page, lifetime, resilient) {
   await hostRun3.waitForSelector('iframe');
   await hostRun3.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
   await invite(hostRun3, '__keep');
-  await hostRun3.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl2 = await hostRun3.locator('#share-url').inputValue();
+  await hostRun3.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl2 = await hostRun3.locator('#lm-url').inputValue();
   check('reopening the icon resumes the SAME share link (lock-until-reopen)', shareUrl2 === shareUrl);
 
   await browser.close();
