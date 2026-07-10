@@ -97,6 +97,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await dRun.goto(BASE + '/run.html#id=' + dAppId);
   await dRun.waitForSelector('iframe', { timeout: 10000 });
   check('an app tab shows the Meeting toggle', await dRun.locator('#tomeet').isVisible());
+  // Dismiss the network-permission acknowledgement if it auto-popped over the tab.
+  await dRun.waitForTimeout(500);
+  const ack = dRun.locator('.perm-modal .done');
+  if (await ack.count()) await ack.first().click().catch(() => {});
   await dRun.locator('#tomeet').click();
   await dRun.waitForURL(/meet\.html#app=/, { timeout: 10000 });
   await dRun.waitForSelector('#appmount iframe', { timeout: 20000 });
