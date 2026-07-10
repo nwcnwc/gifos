@@ -507,7 +507,30 @@
         // Standalone / potential host — run a local App GIF.
         const fileId = params.get('id');
         if (!fileId) { status.textContent = 'No app id in URL.'; return; }
-        GifOS.runtime.bootMirror(mount, fileId, status).then(function (c) { controller = c; showAppGif(); });
+        // A synced mirror with local changes warns before it overwrites them.
+        function confirmMirrorOverwrite() {
+          return new Promise(function (resolve) {
+            var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'mirror-modal';
+            bg.innerHTML =
+              '<div class="perm-box">' +
+              '<h3>This copy is a synced mirror</h3>' +
+              '<p class="lead">You’ve made changes here. Opening it pulls the latest from the original and will <b>replace your changes</b>.</p>' +
+              '<div class="perm-btns" style="flex-direction:column;gap:.5rem;align-items:stretch">' +
+              '<button id="mm-update" class="done">Update from the original — discard my changes</button>' +
+              '<button id="mm-unlink" class="ghost">Keep my changes — stop syncing (break the mirror)</button>' +
+              '<button id="mm-cancel" class="ghost">Cancel — don’t open</button>' +
+              '</div></div>';
+            document.body.appendChild(bg);
+            function done(v) { bg.remove(); resolve(v); }
+            bg.querySelector('#mm-update').onclick = function () { done('update'); };
+            bg.querySelector('#mm-unlink').onclick = function () { done('unlink'); };
+            bg.querySelector('#mm-cancel').onclick = function () { done('cancel'); };
+          });
+        }
+        GifOS.runtime.bootMirror(mount, fileId, status, { onDiverged: confirmMirrorOverwrite }).then(function (c) {
+          if (c && c.cancelled) { status.textContent = 'Cancelled — the mirror wasn’t opened.'; try { window.close(); } catch (e) {} location.href = '/'; return; }
+          if (c) { controller = c; showAppGif(); }
+        });
         // Second entry point into a meeting: hand THIS app to the meeting page
         // (same browser, same saved state) with shared audio/video/recording.
         var toMeet = document.getElementById('tomeet');
