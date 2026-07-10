@@ -115,6 +115,12 @@ export default {
     // on URL would replay one target's body for a different target. Forbid
     // caching so distinct targets never collide, whatever the upstream sent.
     out.set('Cache-Control', 'no-store');
+    // Tell the caller where the request actually landed. fetch() follows redirects
+    // server-side (e.g. a directory "…/x" -> "…/x/"), and the browser can't see
+    // that through the proxy — so an app resolving relative links would use the
+    // pre-redirect URL and point them at the wrong directory. resp.url is the
+    // final upstream URL; Access-Control-Expose-Headers:* makes it readable.
+    out.set('x-gifos-final-url', resp.url);
     return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: out });
   },
 };

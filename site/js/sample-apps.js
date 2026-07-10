@@ -1118,9 +1118,16 @@ opens the built-in meeting page when opened in GifOS.</p>
   // else the page's own URL. (Old static Bible sites often set <base>, and
   // getting this wrong is what sends chapter links to the wrong file.)
   function baseFor(doc, url){ var b=doc.querySelector('base[href]'); if(b){ var r=resolve(b.getAttribute('href'), url); if(r) return r; } return url; }
-  // Fetch + parse one page through the CORS proxy.
-  function fetchDoc(url){ return gifos.fetch(url,{proxy:true}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status+' for '+shortLoc(url)); return r.text(); })
-    .then(function(t){ return new DOMParser().parseFromString(t,'text/html'); }); }
+  // Fetch + parse one page through the CORS proxy. Returns { doc, url } where url
+  // is where the request actually LANDED: the proxy follows redirects server-side
+  // (e.g. "nt-outlines" -> "nt-outlines/") and reports the final URL in a header,
+  // so a page's relative links resolve against the right directory. Older proxies
+  // omit it — then we fall back to the requested URL.
+  function fetchDoc(url){ var finalUrl=url;
+    return gifos.fetch(url,{proxy:true}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status+' for '+shortLoc(url));
+      var fin=r.headers&&r.headers['x-gifos-final-url']; if(fin){ var a=resolve(fin, url); if(a) finalUrl=a; }
+      return r.text(); })
+    .then(function(t){ return { doc:new DOMParser().parseFromString(t,'text/html'), url:finalUrl }; }); }
   // Rewrite every <a href> in a doc to an ABSOLUTE url against its base, so that
   // once frames are merged the hrefs still point at the right place.
   function absolutizeAnchors(doc, base){
@@ -1133,19 +1140,20 @@ opens the built-in meeting page when opened in GifOS.</p>
   // (these text sites keep the scripture in a content frame). Returns a body-ish
   // element with everything merged and links already absolute.
   function loadPage(url){
-    return fetchDoc(url).then(function(doc){
-      var base=baseFor(doc, url); absolutizeAnchors(doc, base);
+    return fetchDoc(url).then(function(res){
+      var doc=res.doc, actual=res.url;
+      var base=baseFor(doc, actual); absolutizeAnchors(doc, base);
       var frames=Array.prototype.slice.call(doc.querySelectorAll('frame[src],iframe[src]'));
       var same=frames.filter(function(fr){ var s=resolve(fr.getAttribute('src'), base); try{ return s && new URL(s).hostname===HOST; }catch(e){ return false; } });
-      if(!same.length) return { root: doc.body || doc.documentElement };
+      if(!same.length) return { root: doc.body || doc.documentElement, url: actual };
       return Promise.all(same.map(function(fr){
         var src=resolve(fr.getAttribute('src'), base);
-        return fetchDoc(src).then(function(fdoc){
-          var fbase=baseFor(fdoc, src); absolutizeAnchors(fdoc, fbase);
+        return fetchDoc(src).then(function(fres){
+          var fdoc=fres.doc; var fbase=baseFor(fdoc, fres.url); absolutizeAnchors(fdoc, fbase);
           var holder=document.createElement('div'); holder.innerHTML=(fdoc.body?fdoc.body.innerHTML:'');
           if(fr.parentNode) fr.parentNode.replaceChild(holder, fr); else (doc.body||doc.documentElement).appendChild(holder);
         }).catch(function(){ if(fr.parentNode) fr.parentNode.removeChild(fr); });
-      })).then(function(){ return { root: doc.body || doc.documentElement }; });
+      })).then(function(){ return { root: doc.body || doc.documentElement, url: actual }; });
     });
   }
   // Clean the merged DOM: drop unsafe/non-content nodes, strip handlers, turn
@@ -1158,7 +1166,7 @@ opens the built-in meeting page when opened in GifOS.</p>
       if(tag==='IMG'){ var alt=el.getAttribute('alt')||''; if(el.parentNode) el.parentNode.replaceChild(document.createTextNode(alt), el); return; }
       if(tag==='A'){
         var href=el.getAttribute('href')||''; el.removeAttribute('target'); el.removeAttribute('rel');
-        if(href && href.charAt(0)==='#'){ el.setAttribute('href','#'); return; }
+        if(href && href.charAt(0)==='#'){ if(href.length>1) el.setAttribute('data-anchor', href.slice(1)); el.setAttribute('href','#'); return; }
         var host=''; try{ host=new URL(href).hostname; }catch(e){}
         if(href && host===HOST){ el.setAttribute('data-nav', href); el.setAttribute('href','#'); }
         else { el.removeAttribute('href'); el.className=(el.className+' ext').trim(); el.title='External link — open it in your own browser'; }
@@ -1177,12 +1185,20 @@ opens the built-in meeting page when opened in GifOS.</p>
     buttons(); locEl.textContent=shortLoc(url); setStatus('Loading '+esc(shortLoc(url))+'&hellip;');
     if(!window.gifos||!gifos.fetch){ setStatus('Open this from GifOS to reach the internet.', true); return; }
     var want=url;
-    loadPage(url).then(function(res){ if(curUrl!==want) return; render(res.root); if(db) db.put({id:'last',url:url}); })
+    loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url; render(res.root); if(db) db.put({id:'last',url:curUrl}); })
       .catch(function(e){ if(curUrl!==want) return; setStatus('Couldn&rsquo;t load that page. You may be offline, or this app&rsquo;s internet is switched off (the &ldquo;Internet&rdquo; button up top).<br><br><small>'+esc(e&&e.message||'')+'</small>', true); });
   }
   main.addEventListener('click', function(e){
-    var a=e.target.closest&&e.target.closest('a[data-nav]');
-    if(a){ e.preventDefault(); go(a.getAttribute('data-nav'), true); }
+    var a=e.target.closest&&e.target.closest('a'); if(!a||!main.contains(a)) return;
+    // This app runs in a srcdoc iframe, whose base URL is the HOST page (run.html).
+    // Letting ANY in-doc link follow its href navigates the whole frame to
+    // run.html — a blank app. So intercept every anchor: same-site links navigate
+    // in-app, in-page (#verse) links scroll, everything else is inert.
+    var nav=a.getAttribute('data-nav');
+    if(nav){ e.preventDefault(); go(nav, true); return; }
+    var anc=a.getAttribute('data-anchor');
+    if(anc){ e.preventDefault(); var t=null; try{ t=main.querySelector('[id="'+anc.replace(/["\\\]]/g,'')+'"]'); }catch(_){ } if(t) t.scrollIntoView({block:'start'}); return; }
+    if(a.hasAttribute('href')) e.preventDefault();
   });
   backB.onclick=function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } };
   fwdB.onclick=function(){ if(hi<hist.length-1){ hi++; go(hist[hi], false); buttons(); } };
