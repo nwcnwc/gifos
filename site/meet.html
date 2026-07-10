@@ -464,6 +464,11 @@
     const rung = (n) => LADDER.find((r) => n <= r.max);
 
     const params = new URLSearchParams(location.hash.slice(1));
+    // The real file we're served from (always /meet.html at load — a pretty
+    // /meet/<room> link 404-routes here). We keep this because on prod we rewrite
+    // the address bar to the pretty path, so location.pathname stops being a
+    // reliable base for building meet.html URLs; MEET_PATH always is.
+    const MEET_PATH = location.pathname;
     const grid = document.getElementById('grid');
     const statusEl = document.getElementById('status');
     const share = document.getElementById('share');
@@ -1731,11 +1736,17 @@
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const avPart = av ? '&av=' + av : '';
-      const wantHash = '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
-      if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
-      shareUrl.value = pretty ? location.origin + '/meet/' + room + (av ? '/' + av : '')
-        : location.origin + location.pathname + '#v=' + room + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+      const prettyPath = '/meet/' + room + (av ? '/' + av : '');
+      // Keep the address bar as the SAME link we hand out. On prod that's the
+      // pretty /meet/<room>[/<verifier>] path — a reload of it 404-routes back
+      // through meet.html, so it stays put. Custom relays and local dev have no
+      // /meet routing (and need &relay=), so they keep the meet.html#v=… form.
+      const canonical = pretty ? prettyPath
+        : MEET_PATH + '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
+      if (location.pathname + location.hash !== canonical) history.replaceState(null, '', canonical);
+      shareUrl.value = pretty ? location.origin + prettyPath
+        : location.origin + MEET_PATH + '#v=' + room + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
       recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
@@ -1841,7 +1852,7 @@
     function enterMeeting(hashOrUrl) {
       // Accept a '#…' hash (minted here) or a full URL (a saved entry). Navigate +
       // reload so boot re-runs and — now that a room is chosen — starts the camera.
-      const url = hashOrUrl.charAt(0) === '#' ? (location.pathname + hashOrUrl) : hashOrUrl;
+      const url = hashOrUrl.charAt(0) === '#' ? (MEET_PATH + hashOrUrl) : hashOrUrl;
       location.href = url;
       location.reload();
     }
@@ -1908,9 +1919,15 @@
     // join view-only. The room doesn't care what you bring.
     function bootIntoRoom() {
       return ensureName()
-        .then(() => navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
-        }).then((stream) => { localStream = stream; }, () => { localStream = null; }))
+        .then(() => {
+          // getUserMedia is absent on an insecure context (no HTTPS) — don't let
+          // that crash the boot; join view-only, exactly as for a denied camera.
+          const md = navigator.mediaDevices;
+          const gum = (md && md.getUserMedia)
+            ? md.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+            : Promise.reject(new Error('no media devices'));
+          return gum.then((stream) => { localStream = stream; }, () => { localStream = null; });
+        })
         .then(() => {
           // Join QUIET by default: mic and camera acquired (permission granted,
           // instant to switch on) but disabled until you choose to be seen/heard.
@@ -2747,13 +2764,13 @@
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
       const newLink = pretty
         ? location.origin + '/meet/' + chosen + '/' + V
-        : location.origin + location.pathname + '#v=' + chosen + '&av=' + V + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+        : location.origin + MEET_PATH + '#v=' + chosen + '&av=' + V + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (postToChat && peers.size > 0) {
         const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: 'I moved this meeting to a room I run — follow me:', link: newLink };
         chat.set(m.id, m); dcAll({ k: 'chat', m }); renderChat();
         await new Promise((r) => setTimeout(r, 600)); // let the P2P chat flush before we leave
       }
-      location.replace(location.pathname + '#v=' + chosen + '&av=' + V);
+      location.replace(MEET_PATH + '#v=' + chosen + '&av=' + V);
       location.reload(); // load the new admin room fresh — I arrive as its admin
     }
 
