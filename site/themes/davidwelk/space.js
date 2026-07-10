@@ -81,6 +81,10 @@
     'uniform float uHQ;',                 // 0 = quick preview pass, 1 = full-detail tiles
     'const float T0=8.0;',                // frozen scene clock (all motion lives in pass 2)
     'const float OS=1.12;',               // overscan for the drifting camera
+    // shared geometry: the giant world we skim, and the amber impactor that
+    // is right now ploughing into its cloud deck (sunk 0.15 into the sphere)
+    'const vec3 PBC=vec3(-28.90,-35.87,-13.17);const float RBC=48.47;',
+    'const vec3 P3C=vec3(0.661,-0.528,1.389);const float R3C=0.485;',
     NOISE,
     'float fbm(vec2 p){float v=0.0,a=0.5;mat2 m=mat2(1.6,1.2,-1.2,1.6);',
     '  float n=uHQ>0.5?10.0:4.0;',
@@ -163,6 +167,8 @@
     '  float cl=fbm(wp);',
     '  float fine=fbm(wp*3.6+vec2(13.1,7.4));',                    // small convective puffs on the tops
     '  cl+=(fine-0.49)*0.18;',
+    '  float d3=length(pos-P3C)-R3C;',                             // distance to the impactor\'s hull
+    '  cl+=sin(max(d3,0.0)*34.0)*0.30*exp(-max(d3,0.0)*2.2);',     // shockwaves ripple the deck outward
     '  float cl2=fbm(wp+vec2(0.10,0.22));',                        // resample toward the sun...
     '  float silver=clamp((cl-cl2)*6.0,0.0,1.0);',                 // ...sun-facing cloud edges catch light
     '  float clS=fbm(wp+vec2(0.26,0.30));',
@@ -189,6 +195,17 @@
     '  float cglow=pow(smoothstep(0.62,0.96,fbm(cp*4.2+vec2(9.3,1.1))),2.0)*0.16;',
     '  col+=vec3(1.0,0.70,0.34)*(cdots+cglow)*cont*gapw*0.55;',
     '  col+=surf*vec3(0.10,0.16,0.40)*0.45;',                      // cool ambient (nebula-lit night)
+    '  // ---- the collision: molten contact, scorched ejecta, shock-lit clouds.',
+    '  // The waterline wraps the whole disc from this low angle and reads as',
+    '  // a cocoon — so keep the molten rim only on the camera-facing side of',
+    '  // the crater; the splash hides behind the planet.',
+    '  vec3 upB=normalize(P3C-PBC);',
+    '  vec3 hoff=(pos-P3C)-upB*dot(pos-P3C,upB);',
+    '  vec3 hv=(vec3(0.0,0.0,4.6)-P3C);hv-=upB*dot(hv,upB);',
+    '  float fr=smoothstep(0.10,0.80,dot(normalize(hoff+vec3(1e-4)),normalize(hv)));',
+    '  col=mix(col,vec3(0.16,0.09,0.05),smoothstep(0.35,0.03,max(d3,0.0))*0.45*clouds*fr);', // churned scorched dust
+    '  col+=vec3(1.0,0.30,0.06)*exp(-max(d3,0.0)*7.0)*0.50*fr;',   // heat glow hugging the contact
+    '  col+=vec3(1.0,0.55,0.18)*exp(-abs(d3)*14.0)*1.8*fr;',       // white-hot contact ring
     '  col=mix(col,vec3(0.05,0.10,0.26),smoothstep(3.0,9.0,dist)*0.40);', // aerial haze with distance
     '  float hp=1.0-max(dot(-rd,n),0.0);',                         // horizon proximity (grazing view)
     '  float sp=pow(max(dot(rd,L),0.0),12.0);',
@@ -228,9 +245,10 @@
     '  return col;}',
     '',
     // the amber world: banded burnt-orange rock, impact scars, pale polar
-    // frost. Art direction over physics: it wears its own key light so its
-    // face glows sunlit like the reference.
-    'vec3 shadeAmber(vec3 n,vec3 rd,vec3 L){',
+    // frost — caught mid-collision, its underside fracturing white-hot where
+    // it ploughs into the giant\'s cloud deck. Art direction over physics: it
+    // wears its own key light so its face glows sunlit like the reference.
+    'vec3 shadeAmber(vec3 pos,vec3 n,vec3 rd,vec3 L){',
     '  vec3 rn=rotY(n,T0*0.008+2.0);',
     '  float h=fbm(rn.xy*vec2(3.0,6.0)+rn.z*2.0)*0.6+ridge(rn.xy*7.0+3.0)*0.4;',
     '  float ridg=abs(h-0.5)*2.0;',
@@ -247,6 +265,14 @@
     '  col+=c*vec3(0.05,0.08,0.16)*(1.0-lit)*0.5;',                // blue night ambient from the glare
     '  float f=pow(1.0-max(dot(n,-rd),0.0),3.0);',
     '  col+=mix(vec3(0.20,0.35,0.80),vec3(1.0,0.60,0.30),smoothstep(-0.2,0.6,dl))*f*0.5;',
+    '  // the impact: only the underside — the surface actually ploughing into',
+    '  // the deck — burns; gate by how far the normal tips below the horizon',
+    '  vec3 upB=normalize(P3C-PBC);',
+    '  float dn=dot(n,upB);',
+    '  float heat=smoothstep(0.10,-0.40,dn);',
+    '  float crack=pow(smoothstep(0.50,0.95,ridge(rn.xy*20.0+rn.z*12.0)),2.0);',
+    '  col+=vec3(1.0,0.36,0.07)*heat*(0.30+1.5*crack);',
+    '  col+=vec3(1.0,0.78,0.45)*smoothstep(-0.25,-0.70,dn)*1.3;', // white-hot right at the contact
     '  return col;}',
     '',
     'void main(){',
@@ -255,10 +281,10 @@
     '  vec3 rd=normalize(vec3(uvp,-1.7));',
     '  vec3 L=normalize(vec3(0.05,0.36,-1.7));',      // the rising sun, kissing the limb
     '',
-    '  vec3 PB=vec3(-28.90,-35.87,-13.17);float RB=48.47;',  // the world we skim (horizon cuts the frame)
+    '  vec3 PB=PBC;float RB=RBC;',                           // the world we skim (horizon cuts the frame)
     '  vec3 P1=vec3(-0.0353,0.0,2.6);    float R1=0.176;',   // navy planet, floating over the deck
     '  vec3 P2=vec3(0.659,1.235,-2.4);   float R2=0.1935;',  // ember moon, just above the horizon
-    '  vec3 P3=vec3(0.92,-0.53,1.6);     float R3=0.485;',   // amber world, bottom right, in front of the deck (stays in frame at narrow aspects)
+    '  vec3 P3=P3C;float R3=R3C;',                           // amber world, mid-impact, lower right
     '  vec3 L3=normalize(vec3(-0.45,0.5,0.74));',            // the amber world\'s own key light
     '',
     '  float bT=1e9;int id=-1;vec3 bCe=vec3(0.0);',
@@ -273,7 +299,7 @@
     '    if(id==0)col=shadeBig(pos,n,rd,L,bT);',
     '    else if(id==1)col=shadeNavy(n,rd,L);',
     '    else if(id==2)col=shadeEmber(n,rd,L);',
-    '    else col=shadeAmber(n,rd,L3);',
+    '    else col=shadeAmber(pos,n,rd,L3);',
     '  }else{',
     '    col=sky(rd,L);',
     '    float sd=max(dot(rd,L),0.0);',
@@ -319,6 +345,18 @@
     '  vec4 sm=texture2D(uTex,tc);',
     '  vec3 col=sm.rgb*sm.rgb*4.0;',                           // decode HDR
     '  float mask=sm.a;',                                      // 1 = sky, 0 = a body
+    '',
+    '  // soft bloom: bright light halos over silhouettes like a photograph,',
+    '  // so no bright/dark boundary ever ends in a hard edge',
+    '  vec3 bl=vec3(0.0);',
+    '  for(int i=0;i<8;i++){',
+    '    float a=0.7854*float(i);vec2 o=vec2(cos(a),sin(a));',
+    '    vec3 s1=texture2D(uTex,tc+o*0.020).rgb;bl+=s1*s1;',
+    '    if(i<4){float a2=1.5708*float(i);vec2 o2=vec2(cos(a2),sin(a2));',
+    '      vec3 s2=texture2D(uTex,tc+o2*0.009).rgb;bl+=s2*s2;}',
+    '  }',
+    '  bl*=4.0/12.0;',
+    '  col+=max(bl-vec3(0.85),0.0)*0.40;',
     '',
     '  vec3 rd=normalize(v);',
     '  vec3 L=normalize(vec3(0.05,0.36,-1.7));',
