@@ -2387,6 +2387,7 @@
     // silence), and MediaRecorder writes a .webm that never leaves your
     // machine. Everyone in the meeting sees the ⏺ chip while you record.
     let recRec = null, recTimer = null, recDraw = null, recChunks = [], recStart = 0, recSrcs = new Map(), recDest = null;
+    let recMode = null, recRestartMode = null; // 'tiles' | 'app'; restart target after a stop
     const recBtn = document.getElementById('recbtn');
     function recMixIn(id, stream) {
       if (!recDest || !stream || recSrcs.has(id)) return;
@@ -2407,13 +2408,46 @@
       }
       return list;
     }
-    function startRec() {
+    // Audio mix (app mode): every tile's stream, group-muted people silenced,
+    // joiners folded in live. The tiles composite does the same inline.
+    function pumpRecAudio() {
+      for (const t of recTiles()) {
+        const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
+        const mix = recSrcs.get(t.id);
+        if (mix) mix.gain.gain.value = gMute ? 0 : 1;
+        else if (t.stream) recMixIn(t.id, t.stream);
+      }
+    }
+    const canScreenRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    // mode 'tiles' = on-device grid composite (blur/mute baked in; NO shared app).
+    // mode 'app'  = capture this tab via getDisplayMedia so the app AND tiles are
+    // recorded as shown; audio still comes from the same mix (your mic included,
+    // mute honored) rather than tab audio, so nothing is doubled or missed.
+    async function startRec(mode) {
       if (!ensureAc()) { setStatus('Recording needs audio support.'); return; }
+      recMode = mode;
+      recDest = ac.createMediaStreamDestination();
+      recSrcs = new Map();
+      let videoTrack = null, stopVideo = () => {};
+      if (mode === 'app') {
+        let disp;
+        try {
+          disp = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false, preferCurrentTab: true });
+        } catch (e) {
+          recDest = null; recMode = null;
+          setStatus('Screen share was cancelled — recording not started.');
+          return;
+        }
+        videoTrack = disp.getVideoTracks()[0];
+        stopVideo = () => { for (const t of disp.getTracks()) { try { t.stop(); } catch (e) {} } };
+        // Ending the tab-share from the browser's own bar stops the recording.
+        if (videoTrack) videoTrack.onended = () => { if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} } };
+        pumpRecAudio();
+        recDraw = metroSub(pumpRecAudio);
+      } else {
       const canvas = document.createElement('canvas');
       canvas.width = 1280; canvas.height = 720;
       const ctx = canvas.getContext('2d');
-      recDest = ac.createMediaStreamDestination();
-      recSrcs = new Map();
       const draw = () => {
         const list = recTiles();
         const cols = Math.ceil(Math.sqrt(list.length)), rows = Math.ceil(list.length / cols);
@@ -2458,7 +2492,10 @@
       // worker metronome (~15 fps): recording keeps compositing when the tab
       // is hidden — main-thread intervals clamp to ≥1s in the background
       recDraw = metroSub(draw);
-      const stream = canvas.captureStream(15);
+      videoTrack = canvas.captureStream(15).getVideoTracks()[0];
+      }
+      const stream = new MediaStream();
+      if (videoTrack) stream.addTrack(videoTrack);
       for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
       const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
       recChunks = [];
@@ -2467,8 +2504,9 @@
       recRec.onstop = () => {
         if (typeof recDraw === 'function') recDraw(); // unsubscribe the metronome
         clearInterval(recTimer);
+        stopVideo();
         for (const m of recSrcs.values()) { try { m.src.disconnect(); } catch (e) {} }
-        recSrcs.clear(); recDest = null;
+        recSrcs.clear(); recDest = null; recMode = null;
         const blob = new Blob(recChunks, { type: 'video/webm' });
         recChunks = [];
         const a = document.createElement('a');
@@ -2480,6 +2518,7 @@
         recBtn.textContent = 'Record';
         myStatus.rec = false;
         broadcastStatus();
+        if (recRestartMode) { const m = recRestartMode; recRestartMode = null; startRec(m); }
       };
       recRec.start(1000);
       recStart = Date.now();
@@ -2492,9 +2531,48 @@
       myStatus.rec = true;
       broadcastStatus();
     }
+    // App on stage → offer a clean tiles composite, or capture this tab so the
+    // app rides along. No app → straight to tiles.
+    function showRecChooser() {
+      if (document.getElementById('rec-choose')) return;
+      const bg = document.createElement('div'); bg.className = 'name-modal'; bg.id = 'rec-choose';
+      bg.innerHTML = '<div class="name-box" style="max-width:440px;text-align:left">' +
+        '<h3>Record this meeting</h3>' +
+        '<p style="color:#aab">An app is on stage. Pick what to capture — either way the recording stays on your device.</p>' +
+        '<button id="rc-tiles" class="lob-action">Record the video tiles<small>A clean grid of faces; blur and mute are baked in. The shared app is not included.</small></button>' +
+        '<button id="rc-app" class="lob-action">Record with the app<small>Share this tab so the recording shows the app and the tiles together, exactly as on your screen.</small></button>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:.4rem"><button id="rc-cancel" class="lob-ghost">Cancel</button></div></div>';
+      document.body.appendChild(bg);
+      const close = () => bg.remove();
+      bg.querySelector('#rc-cancel').onclick = close;
+      bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
+      bg.querySelector('#rc-tiles').onclick = () => { close(); startRec('tiles'); };
+      bg.querySelector('#rc-app').onclick = () => { close(); startRec('app'); };
+    }
+    // An app appeared while a TILES recording runs — it won't be captured. (An
+    // app-mode recording already grabs the tab live, so it needs no warning.)
+    function warnRecorderNewApp() {
+      if (!(recRec && recRec.state !== 'inactive')) return;
+      if (recMode !== 'tiles' || !canScreenRecord()) return;
+      if (document.getElementById('rec-warn')) return;
+      const bg = document.createElement('div'); bg.className = 'name-modal'; bg.id = 'rec-warn';
+      bg.innerHTML = '<div class="name-box" style="max-width:420px;text-align:left">' +
+        '<h3>An app is now on stage</h3>' +
+        '<p style="color:#aab">Your recording is capturing the video tiles only, so it won’t include the shared app. To capture it, restart the recording and choose “Record with the app”.</p>' +
+        '<div style="display:flex;gap:.5rem;justify-content:flex-end">' +
+        '<button id="rw-keep" class="lob-ghost">Keep recording tiles</button>' +
+        '<button id="rw-restart">Restart with the app</button></div></div>';
+      document.body.appendChild(bg);
+      bg.querySelector('#rw-keep').onclick = () => bg.remove();
+      bg.querySelector('#rw-restart').onclick = () => {
+        bg.remove(); recRestartMode = 'app'; // onstop restarts in app mode after downloading the partial
+        if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} }
+      };
+    }
     recBtn.onclick = () => {
-      if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} recRec = null; }
-      else startRec();
+      if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} recRec = null; return; }
+      if (findSharedApp() && canScreenRecord()) showRecChooser();
+      else startRec('tiles');
     };
 
     // ---- controls: mic + camera (traffic-light icons), blur (3-way slider) -----
@@ -2821,6 +2899,7 @@
         appKey = sess.sid;
         myStatus.app = { s: sess.sid, k: sess.token, relay: sess.relay, name: name };
         broadcastStatus();
+        warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
     }
     function mountClientApp(app) {
@@ -2848,6 +2927,7 @@
         if (myStatus.app && myStatus.app.s === want.s) return; // I'm the host; already mounted
         clearAppView();
         mountClientApp(want);
+        warnRecorderNewApp(); // someone shared an app — a tiles recording won't capture it
       } else if (!want && appKey && appMode === 'client') {
         clearAppView(); // the sharer stopped or left
       }
@@ -2948,6 +3028,7 @@
       addTranscript: (t) => addTranscriptLine(t),
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
+      recMode: () => recMode,
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
       hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,
