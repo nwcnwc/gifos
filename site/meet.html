@@ -1678,7 +1678,20 @@
       shareUrl.value = pretty ? location.origin + '/meet/' + room + (av ? '/' + av : '')
         : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
+      else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
       openSock();
+    }
+
+    // Meetings joined via a shared link go in the same list the desktop's
+    // "Invites" button reads (run.html records app invites the same way). A
+    // fresh room you create isn't an invite you visited, so it isn't logged.
+    function recordMeetingInvite(name, url) {
+      try {
+        let h = JSON.parse(localStorage.getItem('gifos_invite_history') || '[]'); if (!Array.isArray(h)) h = [];
+        h = h.filter(function (e) { return e && e.url !== url; });
+        h.unshift({ url: url, name: 'Meeting: ' + name, ts: Date.now() });
+        localStorage.setItem('gifos_invite_history', JSON.stringify(h.slice(0, 50)));
+      } catch (e) { /* private mode / quota */ }
     }
 
     // Friendly one-word codes: no lookalike characters, short enough to read aloud.
