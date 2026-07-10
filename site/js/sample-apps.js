@@ -1071,7 +1071,8 @@ opens the built-in meeting page when opened in GifOS.</p>
   nav button.home{background:var(--rlink);color:var(--rbg);border-color:var(--rlink);font-weight:700}
   nav button.chip{font-size:15px;min-width:34px;text-align:center}
   main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--rbg)}
-  .doc{max-width:680px;margin:0 auto;padding:22px 20px 64px;line-height:1.75;font-size:var(--fs);font-family:Georgia,'Times New Roman',serif;color:var(--rtext)}
+  .doc{max-width:680px;margin:0 auto;padding:22px 20px 64px;line-height:1.75;font-size:var(--fs);font-family:Georgia,'Times New Roman',serif;color:var(--rtext);overflow-wrap:anywhere}
+  .doc img,.doc table{max-width:100%}
   .doc h1,.doc h2,.doc h3{font-family:system-ui;color:var(--rlink);line-height:1.25}
   .doc a{color:var(--rlink);text-decoration:none}
   .doc a[data-nav]{border-bottom:1px dotted currentColor;cursor:pointer}
@@ -1150,7 +1151,7 @@ opens the built-in meeting page when opened in GifOS.</p>
   // Clean the merged DOM: drop unsafe/non-content nodes, strip handlers, turn
   // same-site absolute links into in-app navigation, neutralise the rest.
   function sanitize(root){
-    Array.prototype.forEach.call(root.querySelectorAll('script,style,link,meta,noscript,base,object,embed,frame,iframe,frameset,svg'), function(n){ n.remove(); });
+    Array.prototype.forEach.call(root.querySelectorAll('script,style,link,meta,noscript,base,object,embed,frame,iframe,frameset,svg,header,nav,footer'), function(n){ n.remove(); });
     Array.prototype.forEach.call(root.querySelectorAll('*'), function(el){
       for(var i=el.attributes.length-1;i>=0;i--){ if(el.attributes[i].name.slice(0,2).toLowerCase()==='on') el.removeAttribute(el.attributes[i].name); }
       var tag=el.tagName;
