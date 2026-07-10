@@ -71,7 +71,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ada.locator('#inv-adm-go').click();
 
   // Ada lands in the admin room she NAMED, verifier welded on, as admin.
-  await ada.waitForURL(new RegExp('v=' + adminName + '&k=' + adminName + '&av=[a-f0-9]{24}'), { timeout: 30000 });
+  await ada.waitForURL(new RegExp('v=' + adminName + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await ada.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   check('creator switches into the new admin room under the name she chose, as admin',
     (await ada.evaluate(() => window.__gifosVideo.room())) === adminName && (await ada.evaluate(() => window.__gifosVideo.hasAdmin())));
