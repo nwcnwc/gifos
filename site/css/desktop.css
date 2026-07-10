@@ -59,7 +59,10 @@ body {
 /* desktop surface */
 #desktop {
   position: absolute; inset: 40px 0 0 0;
-  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  /* Both axes scroll: an icon dragged far right in landscape must stay reachable
+     after rotating back to portrait (it sits beyond the viewport, so the surface
+     has to scroll to it — same as icons dragged below the fold). */
+  overflow: auto; overscroll-behavior: contain;
 }
 #desktop.dragover::after {
   content: 'Drop files to add them to your Home Screen';
@@ -268,6 +271,9 @@ details.adv h4 { margin-top: .8rem; }
 .modal-actions button.danger { background: #a12626; border-color: #a12626; color: #fff; }
 .modal-actions button.danger:hover { background: #c22e2e; }
 .modal-actions button.ghost { background: none; border-color: var(--border); color: var(--muted); }
+.hist-clearwrap { text-align: center; margin-top: .7rem; }
+.hist-clear-link { color: var(--muted); font-size: .74rem; text-decoration: underline; cursor: pointer; opacity: .75; }
+.hist-clear-link:hover { color: #e0574a; opacity: 1; }
 
 /* empty hint — fixed so it stays visible even though the surface scrolls */
 .hint {

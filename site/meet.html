@@ -271,10 +271,20 @@
     <div class="name-box" style="max-width:420px;text-align:left">
       <h3>Run an app in this meeting</h3>
       <p>Pick one of your apps. It runs live for <b>everyone here</b> — same state, same moves — with the meeting's audio, video and recording around it. Anyone can interact.</p>
-      <div id="app-list" style="max-height:50vh;overflow-y:auto;margin:.4rem 0 1rem"></div>
+      <div id="app-list" style="max-height:38vh;overflow-y:auto;margin:.4rem 0 .8rem"></div>
+      <div id="app-add" style="border-top:1px solid var(--border,#2a2a3f);padding-top:.7rem;margin-bottom:1rem">
+        <p style="margin:.1rem 0 .5rem;font-size:.82rem;color:var(--muted,#8888aa)">Or run a GIF app that isn’t on this computer:</p>
+        <button id="app-file" style="display:block;width:100%;text-align:left;padding:.5rem .7rem;border-radius:.5rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer">＋ Choose a GIF file…</button>
+        <div style="display:flex;gap:.4rem;margin-top:.5rem">
+          <input id="app-url" type="url" placeholder="Paste a GIF app link" style="flex:1;min-width:0;padding:.5rem .6rem;border-radius:.5rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)">
+          <button id="app-url-go" style="padding:.5rem .9rem;border-radius:.5rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer">Run</button>
+        </div>
+        <div id="app-add-err" style="color:#e0574a;font-size:.8rem;margin-top:.45rem;display:none"></div>
+      </div>
       <button id="app-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Cancel</button>
     </div>
   </div>
+  <input type="file" id="app-file-input" accept="image/gif,.gif" style="display:none">
 
   <div id="chatpanel">
     <div id="chathead"><span id="paneltitle">Meeting chat</span> <small style="color:#667;font-weight:400">· private to this meeting, gone when everyone leaves</small>
@@ -2528,9 +2538,54 @@
     };
     document.getElementById('appstop').onclick = stopApp;
     document.getElementById('app-cancel').onclick = () => { document.getElementById('app-modal').style.display = 'none'; };
+    // ---- run a GIF app that isn't on this computer (file or link) ----
+    function showAddErr(msg) { const el = document.getElementById('app-add-err'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? '' : 'none'; }
+    async function importAndRunGif(bytes, rawName) {
+      showAddErr('');
+      const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) { showAddErr('That isn’t a GIF file.'); return; }
+      let archive = null; try { archive = await GifOS.gif.decode(buf); } catch (e) {}
+      const m = archive ? (GifOS.gif.readManifest(archive) || {}) : {};
+      if (!(archive && (m.appId || m.entry))) { showAddErr('That GIF isn’t a runnable app — it has no app inside it.'); return; }
+      const name = (rawName || m.name || m.appId || 'App').replace(/\.gif$/i, '');
+      const fileId = GifOS.store.uid('file');
+      try {
+        await GifOS.store.putFile({ id: fileId, name: name + '.gif', bytes: buf, kind: 'gif', isApp: true, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
+        // Keep it (filed under Stolen Apps, which the desktop creates on load) so
+        // it's not an orphan — same home as an app opened via a /?run= link.
+        await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId, name: name + '.gif', parent: 'sys_stolen', x: 16, y: 16, iconSize: 64 });
+      } catch (e) { showAddErr('Could not save that app on this device.'); return; }
+      document.getElementById('app-modal').style.display = 'none';
+      runApp(fileId, name);
+    }
+    async function fetchGifFromUrl(raw) {
+      let url; try { url = new URL(raw); } catch (e) { return { error: 'That doesn’t look like a web link.' }; }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return { error: 'Only http(s) links work.' };
+      let buf;
+      try { const r = await fetch(url.toString(), { redirect: 'follow' }); if (!r.ok) return { error: 'The link returned an error (' + r.status + ').' }; buf = new Uint8Array(await r.arrayBuffer()); }
+      catch (e) { return { error: 'Couldn’t download that — the site may not allow it (CORS). Download the GIF, then use “Choose a GIF file”.' }; }
+      if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
+      let name = ''; try { name = decodeURIComponent((url.pathname.split('/').pop() || '').split('?')[0]); } catch (e) {}
+      name = (name || 'app').replace(/[^\w.\-]+/g, '_'); if (!/\.gif$/i.test(name)) name += '.gif';
+      return { bytes: buf, name };
+    }
+    document.getElementById('app-file').onclick = () => document.getElementById('app-file-input').click();
+    document.getElementById('app-file-input').onchange = async (e) => {
+      const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+      try { await importAndRunGif(new Uint8Array(await f.arrayBuffer()), f.name); } catch (err) { showAddErr('Could not read that file.'); }
+    };
+    document.getElementById('app-url-go').onclick = async () => {
+      const raw = (document.getElementById('app-url').value || '').trim();
+      if (!raw) { showAddErr('Paste a GIF link first.'); return; }
+      const go = document.getElementById('app-url-go'); go.disabled = true; const was = go.textContent; go.textContent = '…'; showAddErr('');
+      try { const r = await fetchGifFromUrl(raw); if (r.error) { showAddErr(r.error); return; } await importAndRunGif(r.bytes, r.name); }
+      finally { go.disabled = false; go.textContent = was; }
+    };
+    document.getElementById('app-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('app-url-go').click(); } });
     async function openAppPicker() {
       const modal = document.getElementById('app-modal');
       const list = document.getElementById('app-list');
+      showAddErr(''); const urlIn = document.getElementById('app-url'); if (urlIn) urlIn.value = '';
       list.innerHTML = '<small style="color:#667">Loading your apps…</small>';
       modal.style.display = 'flex';
       let files = [];
