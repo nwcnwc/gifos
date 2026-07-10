@@ -1511,6 +1511,20 @@
     };
   }
 
+  // Global UI text size, stored once in localStorage (shared across every GifOS
+  // page on this origin) and applied by scaling the root font-size, which the
+  // rem-based chrome follows. index/run/meet each read it on load and live-update
+  // on the cross-tab `storage` event; this is the same math, for the live tab.
+  function getUiScale() {
+    try { const s = parseFloat(localStorage.getItem('gifos_ui_scale')); return isNaN(s) ? 1 : Math.max(0.7, Math.min(1.6, s)); } catch (e) { return 1; }
+  }
+  function setUiScale(s) {
+    s = Math.max(0.7, Math.min(1.6, Math.round(s * 100) / 100));
+    try { localStorage.setItem('gifos_ui_scale', String(s)); } catch (e) {}
+    document.documentElement.style.fontSize = s === 1 ? '' : (16 * s).toFixed(2) + 'px';
+    return s;
+  }
+
   async function showSettings() {
     closeContext();
     const pinned = pinnedVersion();
@@ -1556,6 +1570,10 @@
         '<button id="set-bg-reset" class="ghost">Reset</button>' +
       '</div>' +
       '<div class="add-sep"></div>' +
+      '<h4>Text size</h4>' +
+      '<p class="add-help">Make GifOS’s own text bigger or smaller everywhere — icon labels, app headers, menus, this window. (Inside an app, use that app’s own controls if it has them.)</p>' +
+      '<div class="ts-row"><button id="ts-minus" class="ghost" title="Smaller">A−</button><span id="ts-val" class="mono"></span><button id="ts-plus" class="ghost" title="Bigger">A+</button><button id="ts-reset" class="ghost">Reset</button></div>' +
+      '<div class="add-sep"></div>' +
       aiSectionHtml() +
       '<div class="add-sep"></div>' +
       apiSectionHtml() +
@@ -1593,6 +1611,14 @@
       inp.click();
     };
     box.querySelector('#set-bg-reset').onclick = () => resetBackground();
+    // Text size: scales the rem-based GifOS chrome via the root font-size, saved
+    // globally so every GifOS page (desktop, app headers, meetings) picks it up.
+    const tsVal = box.querySelector('#ts-val');
+    const paintTs = () => { tsVal.textContent = Math.round(getUiScale() * 100) + '%'; };
+    paintTs();
+    box.querySelector('#ts-plus').onclick = () => { setUiScale(getUiScale() + 0.1); paintTs(); };
+    box.querySelector('#ts-minus').onclick = () => { setUiScale(getUiScale() - 0.1); paintTs(); };
+    box.querySelector('#ts-reset').onclick = () => { setUiScale(1); paintTs(); };
     // Reachability probe: joining a session with no host makes a healthy relay
     // answer { t:'error', 'no host …' } — ANY message back proves it's alive.
     box.querySelector('#set-relay-test').onclick = () => {
