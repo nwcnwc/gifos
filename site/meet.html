@@ -865,6 +865,30 @@
       return () => metroSubs.delete(fn);
     }
 
+    // Canvas blur that works EVERYWHERE. ctx.filter='blur()' is unsupported in
+    // Safari/WebKit (iOS), where it silently no-ops — so the baked-in self-blur
+    // canvas drew the RAW camera and your self-view was never blurry. Detect it
+    // once; where it's missing, approximate the blur by downscaling to a tiny
+    // scratch canvas and scaling back up (bilinear interpolation ≈ blur).
+    const ctxFilterOK = (() => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 12;
+        const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 12, 12);
+        x.filter = 'blur(3px)'; x.fillStyle = '#fff'; x.fillRect(4, 4, 4, 4); x.filter = 'none';
+        return x.getImageData(2, 2, 1, 1).data[0] > 8; // white bled outward → filter applies
+      } catch (e) { return false; }
+    })();
+    const blurScratch = document.createElement('canvas');
+    const blurSctx = blurScratch.getContext('2d');
+    function blurDraw(ctx, src, dx, dy, dw, dh, px, level) {
+      if (ctxFilterOK) { ctx.filter = 'blur(' + px + 'px)'; ctx.drawImage(src, dx, dy, dw, dh); ctx.filter = 'none'; return; }
+      const div = level >= 2 ? 22 : 9; // stronger blur → smaller intermediate
+      const sw = Math.max(6, Math.round(dw / div)), sh = Math.max(6, Math.round(dh / div));
+      blurScratch.width = sw; blurScratch.height = sh;
+      blurSctx.imageSmoothingEnabled = true; blurSctx.drawImage(src, 0, 0, sw, sh);
+      ctx.imageSmoothingEnabled = true; ctx.drawImage(blurScratch, 0, 0, sw, sh, dx, dy, dw, dh);
+    }
+
     let blurPipe = null; // { level, src(video), canvas, ctx, track, unsub, rvfc }
     function stopBlurPipe() {
       if (!blurPipe) return;
@@ -906,8 +930,7 @@
       const paint = () => {
         const w = src.videoWidth || 640, h = src.videoHeight || 480;
         if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
-        ctx.filter = 'blur(' + px + 'px)';
-        try { ctx.drawImage(src, 0, 0, w, h); } catch (e) {}
+        try { blurDraw(ctx, src, 0, 0, w, h, px, level); } catch (e) {}
       };
       // Draw on every DECODED camera frame when the browser supports it (the
       // correct, smooth path on iOS/Safari) — and ALSO on the worker metronome,
@@ -2144,9 +2167,11 @@
           if (!t.st.camOff && v && v.videoWidth) {
             const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
             const dw = v.videoWidth * s, dh = v.videoHeight * s;
-            ctx.filter = bl ? 'blur(' + (bl === 2 ? 22 : 10) + 'px)' : 'none';
-            ctx.drawImage(v, x + (cw - dw) / 2, y + (ch - dh) / 2, dw, dh);
-            ctx.filter = 'none';
+            const dx = x + (cw - dw) / 2, dy = y + (ch - dh) / 2;
+            // Cross-platform: on iOS ctx.filter is a no-op, so a blurred guest
+            // would record UNblurred without this. blurDraw handles both.
+            if (bl) blurDraw(ctx, v, dx, dy, dw, dh, bl === 2 ? 22 : 10, bl);
+            else ctx.drawImage(v, dx, dy, dw, dh);
           } else {
             ctx.fillStyle = '#14141f';
             ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
