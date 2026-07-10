@@ -109,6 +109,12 @@ export default {
     const out = new Headers(resp.headers);
     const c = cors(origin);
     for (const k in c) out.set(k, c[k]);
+    // Every request reaches this Worker at the SAME URL (the proxy origin), with
+    // the real destination in x-gifos-target. If the upstream response is
+    // cacheable (e.g. it carries only Last-Modified), a browser keying its cache
+    // on URL would replay one target's body for a different target. Forbid
+    // caching so distinct targets never collide, whatever the upstream sent.
+    out.set('Cache-Control', 'no-store');
     return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: out });
   },
 };
