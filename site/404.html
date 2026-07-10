@@ -20,13 +20,17 @@
   // Room ids can be as short as ONE character: gifos.app/meet/a is a global
   // public channel anyone in the world can wander into. Group moderation
   // (anyone can mute/blur anyone) keeps the low channels civilized.
-  var m = location.pathname.match(/^\/(?:join|meet|call)\/([a-z0-9]{1,64})(?:\/([a-f0-9]{16,64}))?\/?$/i);
+  var m = location.pathname.match(/^\/(?:join|meet|call)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64}))?\/?$/i);
   if (m) {
     var code = m[1];
-    var av = m[2] ? '&av=' + m[2].toLowerCase() : '';
+    var verifier = m[2] ? m[2].toLowerCase() : '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
     if (/^\/(?:meet|call)\//.test(location.pathname)) {
-      location.replace('/meet.html#v=' + code + '&k=' + code + av + extra);
+      location.replace('/meet.html#v=' + code + '&k=' + code + (verifier ? '&av=' + verifier : '') + extra);
+    } else if (verifier) {
+      // Owned app: the session id is "<room>.<verifier>" and the join token is
+      // the verifier (public). The host SECRET is never in the link.
+      location.replace('/run.html#s=' + code + '.' + verifier + '&k=' + verifier + extra);
     } else {
       location.replace('/run.html#j=' + code + extra);
     }
