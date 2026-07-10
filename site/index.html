@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script>/* Global UI text size (Settings → Text size). Scales rem-based chrome everywhere; applied early to avoid a flash, and live across tabs via the storage event. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.7,Math.min(1.6,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
+<script>/* Global UI text size (Settings → Text size). Scales rem-based chrome everywhere; applied early to avoid a flash, and live across tabs via the storage event. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>GifOS — Your GIF-Powered Computer, in the Browser</title>
 <meta name="description" content="GifOS is a free web OS where every app is a GIF. A persistent Home Screen in your browser — no account, no installs. Build apps with AI, play multiplayer games with one invite link, hold peer-to-peer meetings, and back up your whole computer as a single GIF.">
 <link rel="canonical" href="https://gifos.app/">

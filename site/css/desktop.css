@@ -36,7 +36,9 @@ body {
 
 /* menu bar */
 .menubar {
-  height: 40px; display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
+  /* rem so the bar grows/shrinks with the global text size (2.5rem = 40px at
+     the default 16px root) — keeps the top chrome usable from 20% to 300%. */
+  height: 2.5rem; display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
   background: var(--bar); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border); position: relative; z-index: 5;
 }
@@ -58,7 +60,7 @@ body {
 
 /* desktop surface */
 #desktop {
-  position: absolute; inset: 40px 0 0 0;
+  position: absolute; inset: 2.5rem 0 0 0; /* matches the menubar height (scales with text size) */
   /* Both axes scroll: an icon dragged far right in landscape must stay reachable
      after rotating back to portrait (it sits beyond the viewport, so the surface
      has to scroll to it — same as icons dragged below the fold). */
@@ -66,7 +68,7 @@ body {
 }
 #desktop.dragover::after {
   content: 'Drop files to add them to your Home Screen';
-  position: fixed; inset: calc(40px + 1.2rem) 1.2rem 1.2rem; border: 2px dashed var(--accent); border-radius: 1rem;
+  position: fixed; inset: calc(2.5rem + 1.2rem) 1.2rem 1.2rem; border: 2px dashed var(--accent); border-radius: 1rem;
   display: flex; align-items: center; justify-content: center; color: var(--accent);
   font-size: 1.1rem; background: rgba(123,92,255,.06); pointer-events: none; z-index: 4;
 }
