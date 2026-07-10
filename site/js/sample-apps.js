@@ -1069,6 +1069,8 @@ opens the built-in meeting page when opened in GifOS.</p>
   nav .sp{flex:1}
   nav .grp{display:flex;gap:4px;align-items:center}
   nav button.home{background:var(--rlink);color:var(--rbg);border-color:var(--rlink);font-weight:700}
+  nav button.follow{font-weight:700}
+  nav button.follow.on{background:var(--rlink);color:var(--rbg);border-color:var(--rlink)}
   nav button.chip{font-size:15px;min-width:34px;text-align:center}
   main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--rbg)}
   .doc{max-width:680px;margin:0 auto;padding:22px 20px 64px;line-height:1.75;font-size:var(--fs);font-family:Georgia,'Times New Roman',serif;color:var(--rtext);overflow-wrap:anywhere}
@@ -1101,6 +1103,7 @@ opens the built-in meeting page when opened in GifOS.</p>
   <button id="fwd" title="Forward">&rsaquo;</button>
   <button id="reload" title="Reload">&#8635;</button>
   <button class="home" id="home">Home</button>
+  <button class="follow" id="follow" style="display:none" title="Follow the meeting">Follow</button>
   <span class="sp"></span>
   <span class="grp">
     <button id="smaller" class="chip" title="Smaller text">A&minus;</button>
@@ -1113,13 +1116,51 @@ opens the built-in meeting page when opened in GifOS.</p>
   var HOST='text.recoveryversion.bible', HOME='https://text.recoveryversion.bible/';
   var main=document.getElementById('main'), locEl=document.getElementById('loc');
   var backB=document.getElementById('back'), fwdB=document.getElementById('fwd');
+  var followB=document.getElementById('follow');
   var db=(window.gifos&&gifos.db)?gifos.db('bible'):null;
   var hist=[], hi=-1, curUrl=HOME;
   var prefs={ theme:'night', fs:18 };
+  var me={ id:'', name:'' };
+  // Follow-along (meetings): the app's gifos.db is ONE shared store across
+  // everyone in the room, so the group's current page lives in a single 'nav'
+  // record — whoever turns a page while following writes it and the others jump
+  // there. Follow is ON by default but per-person and in-memory, so anyone can
+  // switch it off to peek elsewhere without moving the group (or being moved).
+  // Reading prefs and each person's last page are keyed per-user so they stay
+  // personal even though the store is shared.
+  var follow=true, shared=false, hbTimer=null, lastNav=null;
   function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
   function applyPrefs(){ document.body.setAttribute('data-read', prefs.theme); document.documentElement.style.setProperty('--fs', prefs.fs+'px');
     document.getElementById('theme').innerHTML = prefs.theme==='night' ? '&#9790;' : '&#9728;'; }
-  function savePrefs(){ if(db) db.put({id:'prefs', theme:prefs.theme, fs:prefs.fs}); }
+  function myName(){ return me.name||'Someone'; }
+  function pk(){ return me.id?('prefs:'+me.id):'prefs'; }   // per-user reading prefs
+  function lk(){ return me.id?('last:'+me.id):'last'; }     // per-user last page
+  function savePrefs(){ if(db) db.put({id:pk(), theme:prefs.theme, fs:prefs.fs}); }
+  // Presence heartbeat: a light 'p:<id>' record so everyone knows who's here
+  // (drives whether the Follow toggle is even shown). Kept fresh while shared.
+  function heartbeat(){ if(db&&me.id) db.put({id:'p:'+me.id, name:myName(), ts:Date.now()}); }
+  function startHeartbeat(){ if(hbTimer||!db||!me.id) return;
+    hbTimer=setInterval(function(){ if(document.visibilityState!=='hidden') heartbeat(); }, 15000);
+    heartbeat(); }  // set the guard BEFORE the first beat so a sync notify can't re-enter
+  // Publish where I am so followers come along. Only called when I'm following.
+  function pushNav(url){ if(db&&me.id) db.put({id:'nav', url:url, by:me.id, byName:myName(), ts:Date.now()}); }
+  function updateFollowUi(){ if(!followB) return;
+    followB.style.display = shared ? '' : 'none';
+    followB.classList.toggle('on', follow);
+    followB.textContent = follow ? 'Following' : 'Follow';
+    followB.title = follow ? 'Following the meeting — tap to browse on your own without moving anyone'
+                           : 'Browsing on your own — tap to follow the meeting again'; }
+  // React to the shared store: who's present, and where the group is reading.
+  function handleSync(rows){ if(!Array.isArray(rows)) return; var now=Date.now(), others=0, navRec=null;
+    for(var i=0;i<rows.length;i++){ var r=rows[i]; if(!r||!r.id) continue;
+      if(r.id==='nav') navRec=r;
+      else if(r.id.slice(0,2)==='p:'&&r.id!=='p:'+me.id&&(now-(r.ts||0))<35000) others++; }
+    lastNav=navRec;
+    var navByOther = !!(navRec&&navRec.by&&navRec.by!==me.id&&navRec.url);
+    shared = others>0 || navByOther;
+    if(shared) startHeartbeat();
+    updateFollowUi();
+    if(follow && navByOther && navRec.url!==curUrl) go(navRec.url, true, true); }
   function setStatus(msg,err){ main.innerHTML='<div class="status'+(err?' err':'')+'">'+msg+'</div>'; }
   function buttons(){ backB.disabled=hi<=0; fwdB.disabled=hi>=hist.length-1; }
   function shortLoc(u){ try{ var x=new URL(u); return (x.pathname+x.search)||'/'; }catch(e){ return u; } }
@@ -1189,13 +1230,15 @@ opens the built-in meeting page when opened in GifOS.</p>
     main.innerHTML='<div class="doc">'+html+'<p class="foot">Text from text.recoveryversion.bible, read through the GifOS CORS proxy &mdash; tap the &ldquo;Internet&rdquo; button up top to see or change that.</p></div>';
     main.scrollTop=0; locEl.textContent=shortLoc(curUrl);
   }
-  function go(url, push){
+  function go(url, push, fromSync){
     curUrl=url;
     if(push){ hist=hist.slice(0,hi+1); hist.push(url); hi=hist.length-1; }
     buttons(); locEl.textContent=shortLoc(url); setStatus('Loading '+esc(shortLoc(url))+'&hellip;');
     if(!window.gifos||!gifos.fetch){ setStatus('Open this from GifOS to reach the internet.', true); return; }
     var want=url;
-    loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url; render(res.root); if(db) db.put({id:'last',url:curUrl}); })
+    loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url; render(res.root);
+        if(db) db.put({id:lk(),url:curUrl});
+        if(!fromSync && follow) pushNav(curUrl); })  // my own move drives the group when following
       .catch(function(e){ if(curUrl!==want) return; setStatus('Couldn&rsquo;t load that page. You may be offline, or this app&rsquo;s internet is switched off (the &ldquo;Internet&rdquo; button up top).<br><br><small>'+esc(e&&e.message||'')+'</small>', true); });
   }
   main.addEventListener('click', function(e){
@@ -1217,11 +1260,31 @@ opens the built-in meeting page when opened in GifOS.</p>
   document.getElementById('bigger').onclick=function(){ prefs.fs=Math.min(30, prefs.fs+2); applyPrefs(); savePrefs(); };
   document.getElementById('smaller').onclick=function(){ prefs.fs=Math.max(14, prefs.fs-2); applyPrefs(); savePrefs(); };
   document.getElementById('theme').onclick=function(){ prefs.theme=prefs.theme==='night'?'day':'night'; applyPrefs(); savePrefs(); };
+  if(followB) followB.onclick=function(){ follow=!follow;
+    // Turning it back on rejoins the group's page; leaving it on republishes
+    // where I am so anyone following me lands here too.
+    if(follow && lastNav && lastNav.url && lastNav.by!==me.id && lastNav.url!==curUrl) go(lastNav.url, true, true);
+    else if(follow) pushNav(curUrl);
+    updateFollowUi(); };
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && shared) heartbeat(); });
+  window.addEventListener('pagehide', function(){ if(db&&me.id){ try{ db.delete('p:'+me.id); }catch(e){} } });
   if(window.gifos&&gifos.onBack) gifos.onBack(function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } });
-  // Restore reading prefs + last page (both saved in this icon), then load.
-  (db?db.get('prefs'):Promise.resolve(null)).then(function(p){ if(p){ if(p.theme) prefs.theme=p.theme; if(p.fs) prefs.fs=p.fs; } applyPrefs(); })
-    .then(function(){ return db?db.get('last'):null; })
-    .then(function(rec){ go(rec&&rec.url&&rec.url.indexOf('https://'+HOST)===0?rec.url:HOME, true); })
+  function firstPage(){ if(!db) return Promise.resolve(HOME);
+    return db.get(lk()).then(function(r){ return (r&&r.url)?r:db.get('last'); })
+      .then(function(r){ var u=r&&r.url; return (u&&u.indexOf('https://'+HOST)===0)?u:HOME; }); }
+  // Learn who I am, restore MY prefs (per-user, one-time fallback to the old
+  // shared key), then either JOIN whoever's already reading or open my own last
+  // page — and from then on stay converged via subscribe().
+  (window.gifos&&gifos.me?gifos.me():Promise.resolve({id:'',name:''})).then(function(u){ me=u||{id:'',name:''}; })
+    .then(function(){ return db?db.get(pk()).then(function(p){ return p||db.get('prefs'); }):null; })
+    .then(function(p){ if(p){ if(p.theme) prefs.theme=p.theme; if(typeof p.fs==='number') prefs.fs=p.fs; } applyPrefs(); })
+    .then(function(){ return db?db.getAll():[]; })
+    .then(function(rows){ heartbeat();
+      var navRec=null; (rows||[]).forEach(function(r){ if(r&&r.id==='nav') navRec=r; });
+      handleSync(rows||[]);
+      if(db&&db.subscribe) db.subscribe(handleSync);
+      if(follow && navRec && navRec.by && navRec.by!==me.id && navRec.url){ go(navRec.url, true, true); return; }
+      return firstPage().then(function(u){ go(u, true); }); })
     .catch(function(){ applyPrefs(); go(HOME, true); });
 </script>`;
 
@@ -1499,7 +1562,7 @@ document.getElementById('f').onsubmit=async e=>{
         app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
         // Reads the Recovery Version through the GifOS CORS proxy — a live demo
         // of gifos.fetch({ proxy:true }) against a real, public, non-CORS site.
-        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, network: ['text.recoveryversion.bible'] } }),
+        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] } }),
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
