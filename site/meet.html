@@ -1344,9 +1344,11 @@
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
       // The session id is the room+verifier COMPOSITE: /room and /room/V are different rooms.
+      // The relay reads the verifier straight off the sid (the dot in roomKey), so we don't
+      // send a separate &av= — one derivation, the same one join uses. See verifierOf on the relay.
       ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + roomToken +
         '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
-        '&dev=' + encodeURIComponent(deviceId()) + (av ? '&av=' + av : '') + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
+        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
       lastVoteSync = null; // a fresh socket re-syncs my standing votes
       ws.onopen = () => { backoff = 500; updateStatus(); };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
