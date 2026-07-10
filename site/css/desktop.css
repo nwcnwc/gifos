@@ -235,6 +235,11 @@ body {
 .bg-row button { padding: .45rem .8rem; border-radius: .45rem; border: 1px solid var(--border);
   background: var(--surface); color: var(--text); cursor: pointer; font-size: .82rem; }
 .bg-row button:hover { border-color: var(--accent); }
+.ts-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.ts-row button { min-width: 2.6rem; padding: .45rem .7rem; border-radius: .45rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: .9rem; }
+.ts-row button:hover { border-color: var(--accent); }
+.ts-row #ts-val { min-width: 3rem; text-align: center; color: var(--muted); }
 details.adv summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .3rem 0;
   user-select: none; }
 details.adv summary:hover { color: var(--text); }
