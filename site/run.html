@@ -489,6 +489,18 @@
         } catch (e) { /* ignore */ }
       }
       if (joinS) {
+        // Keep the address bar as the pretty /join link we hand out (prod, default
+        // relay), instead of the run.html#s=…/#j=… form we load via. buildJoinUrl
+        // is the same function that builds the share link, so the two can't
+        // diverge; it only returns a /join/ path when pretty applies (a reload of
+        // it 404-routes back here). Do this BEFORE recordInvite so History stores
+        // the pretty link too.
+        try {
+          var pj = new URL(GifOS.links.buildJoinUrl('app', joinS, joinK, params.get('relay') || window.GIFOS_RELAY));
+          if (/^\/join\//.test(pj.pathname) && (location.pathname + location.hash) !== pj.pathname) {
+            history.replaceState(null, '', pj.pathname);
+          }
+        } catch (e) { /* leave the address bar as-is */ }
         // Client mode — join a host over the relay. Name first.
         recordInvite();
         hostBtn.style.display = 'none';
