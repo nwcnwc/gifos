@@ -878,15 +878,40 @@
         return x.getImageData(2, 2, 1, 1).data[0] > 8; // white bled outward → filter applies
       } catch (e) { return false; }
     })();
-    const blurScratch = document.createElement('canvas');
-    const blurSctx = blurScratch.getContext('2d');
+    // Two ping-pong scratch canvases for the iOS fallback's progressive scaling.
+    let blurA = document.createElement('canvas'), blurActx = blurA.getContext('2d');
+    let blurB = document.createElement('canvas'), blurBctx = blurB.getContext('2d');
     function blurDraw(ctx, src, dx, dy, dw, dh, px, level) {
       if (ctxFilterOK) { ctx.filter = 'blur(' + px + 'px)'; ctx.drawImage(src, dx, dy, dw, dh); ctx.filter = 'none'; return; }
-      const div = level >= 2 ? 22 : 9; // stronger blur → smaller intermediate
-      const sw = Math.max(6, Math.round(dw / div)), sh = Math.max(6, Math.round(dh / div));
-      blurScratch.width = sw; blurScratch.height = sh;
-      blurSctx.imageSmoothingEnabled = true; blurSctx.drawImage(src, 0, 0, sw, sh);
-      ctx.imageSmoothingEnabled = true; ctx.drawImage(blurScratch, 0, 0, sw, sh, dx, dy, dw, dh);
+      // iOS/WebKit has no ctx.filter. A single big downscale→upscale looks BLOCKY
+      // (like a bad connection). Build a mip pyramid instead: halve the image
+      // repeatedly (each bilinear step averages neighbours ≈ one Gaussian pass)
+      // down to a tiny bottom, then double back up. Because every step is
+      // bilinear and the final stretch expands an already-smooth gradient, the
+      // result reads as a real Gaussian blur, not fat pixels. The bottom width
+      // 'tPx' is the master knob: smaller bottom = stronger AND smoother blur.
+      // Tuned against native blur() so iOS matches (and slightly exceeds) Android
+      // — Min is a clear real blur, Max heavy enough to fully hide a face.
+      const tPx = level >= 2 ? 7 : 12, rPx = 96; // bottom width; resume width for final stretch
+      const asp = dh / dw;
+      const tW = Math.max(2, Math.round(tPx)), tH = Math.max(2, Math.round(tPx * asp));
+      const rW = Math.max(tW, Math.round(rPx)), rH = Math.max(tH, Math.round(rPx * asp));
+      let a = blurA, actx = blurActx, b = blurB, bctx = blurBctx;
+      let w = Math.max(tW, dw >> 1), h = Math.max(tH, dh >> 1);
+      a.width = w; a.height = h; actx.imageSmoothingEnabled = true; actx.drawImage(src, 0, 0, w, h);
+      while (w > tW || h > tH) {                     // halve down to the tiny bottom
+        const nw = Math.max(tW, Math.round(w / 2)), nh = Math.max(tH, Math.round(h / 2));
+        b.width = nw; b.height = nh; bctx.imageSmoothingEnabled = true; bctx.drawImage(a, 0, 0, w, h, 0, 0, nw, nh);
+        const tc = a; a = b; b = tc; const tx = actx; actx = bctx; bctx = tx; // swap ping-pong
+        w = nw; h = nh;
+      }
+      while (w < rW || h < rH) {                     // double back up to the resume width
+        const nw = Math.min(rW, w * 2), nh = Math.min(rH, h * 2);
+        b.width = nw; b.height = nh; bctx.imageSmoothingEnabled = true; bctx.drawImage(a, 0, 0, w, h, 0, 0, nw, nh);
+        const tc = a; a = b; b = tc; const tx = actx; actx = bctx; bctx = tx;
+        w = nw; h = nh;
+      }
+      ctx.imageSmoothingEnabled = true; ctx.drawImage(a, 0, 0, w, h, dx, dy, dw, dh);
     }
 
     let blurPipe = null; // { level, src(video), canvas, ctx, track, unsub, rvfc }
