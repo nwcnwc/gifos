@@ -57,24 +57,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('Ada and Ben are meshed in the plain room', true);
 
   // ---- Ada turns it into an admin room WITH people present ----------------------
+  // An admin room is ALWAYS a different room (its verifier is a password
+  // fingerprint), so the name is free — encouraged. Ada picks a fresh one.
+  const adminName = 'club' + Math.floor(Math.random() * 1e6).toString(36);
   await ada.locator('#invite').click();
   await ada.locator('#inv-mkadm').click();
+  check('the room-name field is prefilled with the current room but editable',
+    (await ada.locator('#inv-adm-room').inputValue()) === room);
   check('with people present, Invite offers to post the link to chat', await ada.locator('#inv-adm-post').isVisible());
   check('the post-to-chat box is ticked by default', await ada.locator('#inv-adm-post').isChecked());
+  await ada.locator('#inv-adm-room').fill(adminName);
   await ada.locator('#inv-adm-pass').fill('backstage-topsecret');
   await ada.locator('#inv-adm-go').click();
 
-  // Ada lands in the admin room — SAME room name, verifier welded on, as admin.
-  await ada.waitForURL(new RegExp('v=' + room + '&k=' + room + '&av=[a-f0-9]{24}'), { timeout: 30000 });
+  // Ada lands in the admin room she NAMED, verifier welded on, as admin.
+  await ada.waitForURL(new RegExp('v=' + adminName + '&k=' + adminName + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await ada.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
-  check('creator switches into the new admin room, same name, as admin',
-    (await ada.evaluate(() => window.__gifosVideo.room())) === room && (await ada.evaluate(() => window.__gifosVideo.hasAdmin())));
+  check('creator switches into the new admin room under the name she chose, as admin',
+    (await ada.evaluate(() => window.__gifosVideo.room())) === adminName && (await ada.evaluate(() => window.__gifosVideo.hasAdmin())));
 
-  // Ben stayed in the OLD plain room and received a follow-me link in chat.
+  // Ben stayed in the OLD plain room and received a follow-me link to the new room.
   await ben.waitForFunction(() => window.__gifosVideo.chatLinks().length >= 1, null, { timeout: 15000 });
   const benLink = (await ben.evaluate(() => window.__gifosVideo.chatLinks()))[0];
-  check('the person left behind gets a follow-me link in the old room\'s chat',
-    /\/meet\/|#v=/.test(benLink || '') && /[a-f0-9]{24}/.test(benLink || ''));
+  check('the person left behind gets a follow-me link to the chosen admin room',
+    (benLink || '').includes(adminName) && /[a-f0-9]{24}/.test(benLink || ''));
   check('the left-behind person is still in the ORIGINAL (plain) room',
     (await ben.evaluate(() => window.__gifosVideo.room())) === room && !(await ben.evaluate(() => window.__gifosVideo.hasAdmin())));
   check('the follow-me chat message reads as an invitation to move',

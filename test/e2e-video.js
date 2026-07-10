@@ -700,17 +700,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     !(await adam.evaluate(() => window.__gifosVideo.hasAdmin())));
   check('a plain room hides the Admin button (nothing for it to do)',
     !(await adam.locator('#admbtn').isVisible()));
-  // Mint the admin room from INVITE now (not a separate Admin button): the room
-  // you're IN becomes admin-controlled — same name, no rename, so you can never
-  // strand yourself in an empty room. Alone here, so no chat hop-link is offered.
-  const chosenRoom = admRoom; // the current room's own name is the salt
+  // Mint the admin room from INVITE now (not a separate Admin button). An admin
+  // room is ALWAYS a different room (its verifier is a password fingerprint), so
+  // you name it whatever you want — the move is handled by the chat follow-me
+  // link. Alone here, so no chat hop-link is offered.
+  const chosenRoom = 'club' + Math.floor(Math.random() * 1e6).toString(36);
   await adam.locator('#invite').click();
   await adam.locator('#inv-mkadm').click();
+  await adam.locator('#inv-adm-room').fill(chosenRoom);
   await adam.locator('#inv-adm-pass').fill('sesame-topsecret');
   await adam.locator('#inv-adm-go').click();
   await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
-  check('turning the room you are in into an admin room lands its creator in it AS admin',
+  check('creating an admin room with any chosen name lands its creator in it AS admin',
     (await adam.evaluate(() => window.__gifosVideo.room())) === chosenRoom);
   const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
   const admHash = 'v=' + chosenRoom + '&k=' + chosenRoom + '&av=' + admV;
