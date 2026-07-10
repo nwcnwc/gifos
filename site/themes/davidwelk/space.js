@@ -1,19 +1,24 @@
 /*
  * space.js — the live wallpaper for the "David Welk" computer (davidwelk.gifos.app).
  *
- * A single full-screen WebGL fragment shader renders a whole cosmos behind the
- * Home Screen: layered parallax starfield, a domain-warped nebula, a faux-3D
- * shaded planet with a day/night terminator and an atmosphere rim, a distant
- * sun with bloom, and the occasional shooting star — all drifting on a slow
- * camera. No dependencies, no external assets: it's math on the GPU.
+ * A single full-screen WebGL fragment shader RAY-TRACES a sunrise seen from
+ * low orbit: the camera skims a giant night-side world whose dark cloud deck
+ * fills the lower-left, its blue atmosphere limb slicing the frame corner to
+ * corner. The sun breaks the horizon right at the limb — white core, cool
+ * wide glare, soft god-rays down the dark side. Above the limb a filamentary
+ * crimson nebula and temperature-coloured stars fill space, home to three
+ * more worlds: a shadowed blue planet floating in the glare, a small ember
+ * moon, and a big sunlit rocky world banded in burnt orange. Everything is
+ * real geometry — spheres intersected per-pixel, fbm cloudscapes, wrapped
+ * terminator lighting, fresnel atmospheres, ACES tone-mapping, a slow
+ * drifting camera, grain. No dependencies — all math.
  *
- * It sits in a fixed canvas at z-index 0 (pointer-events:none), so the menubar
- * and every desktop icon layer cleanly on top. Loaded by this theme's theme.js.
+ * The canvas is fixed at z-index 0 (pointer-events:none), so the menubar and
+ * every desktop icon layer cleanly on top. Loaded by this theme's theme.js.
  *
- * Behaviour guards: honours prefers-reduced-motion (renders one still frame),
- * pauses when the tab is hidden, caps the render buffer for battery/perf, and
- * falls back to a lightweight Canvas2D starfield if WebGL is unavailable — and
- * to the CSS chrome gradient if even that fails.
+ * Guards: honours prefers-reduced-motion (one still frame), pauses when hidden,
+ * caps the render buffer for battery/perf, and falls back to a Canvas2D
+ * starfield (then the CSS chrome gradient) if WebGL is unavailable.
  */
 (function () {
   'use strict';
@@ -36,13 +41,11 @@
       c.setAttribute('aria-hidden', 'true');
       c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:0;' +
         'pointer-events:none;display:block;';
-      // Behind everything: menubar is z-index 5, icons live in #desktop above it.
       document.body.insertBefore(c, document.body.firstChild);
     }
     return c;
   }
 
-  // ---- the scene, as one GLSL fragment shader -----------------------------
   var VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}';
 
   var FRAG = [
@@ -51,143 +54,190 @@
     'uniform float iTime;',
     '',
     'float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}',
-    'float hash31(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}',
-    '',
-    // value noise + fractal brownian motion
     'float vnoise(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);',
     '  float a=hash21(i),b=hash21(i+vec2(1,0)),c=hash21(i+vec2(0,1)),d=hash21(i+vec2(1,1));',
     '  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}',
     'float fbm(vec2 p){float v=0.0,a=0.5;mat2 m=mat2(1.6,1.2,-1.2,1.6);',
-    '  for(int i=0;i<6;i++){v+=a*vnoise(p);p=m*p;a*=0.5;}return v;}',
+    '  for(int i=0;i<5;i++){v+=a*vnoise(p);p=m*p;a*=0.5;}return v;}',
+    'vec3 rotX(vec3 v,float a){float c=cos(a),s=sin(a);return vec3(v.x,c*v.y-s*v.z,s*v.y+c*v.z);}',
+    'vec3 rotY(vec3 v,float a){float c=cos(a),s=sin(a);return vec3(c*v.x+s*v.z,v.y,-s*v.x+c*v.z);}',
     '',
-    // twinkling, parallaxing star layers (bright layers get diffraction spikes)
-    'float starLayer(vec2 uv,float scale,float speed,float thresh,float ray,float t){',
-    '  vec2 gv=uv*scale+vec2(t*speed,t*speed*0.3);',
-    '  vec2 id=floor(gv);vec2 f=fract(gv)-0.5;',
-    '  float n=hash21(id);',
-    '  float on=step(thresh,n);',
-    '  vec2 off=(vec2(hash21(id+1.7),hash21(id+9.1))-0.5)*0.7;',
-    '  vec2 fp=f-off;',
-    '  float d=length(fp);',
-    '  float core=smoothstep(0.05,0.0,d);',
-    '  float glow=smoothstep(0.40,0.0,d)*0.3;',
-    '  float rays=0.0;',
-    '  if(ray>0.0){',
-    '    float rx=smoothstep(0.006,0.0,abs(fp.y))*smoothstep(0.34,0.0,abs(fp.x));',
-    '    float ry=smoothstep(0.006,0.0,abs(fp.x))*smoothstep(0.34,0.0,abs(fp.y));',
-    '    rays=(rx+ry)*ray;',
-    '  }',
-    '  float tw=0.5+0.5*sin(t*2.5+n*40.0);',
-    '  return on*(core+glow+rays)*tw;}',
+    // near-root ray/sphere intersection (-1 on miss)
+    'float iSphere(vec3 ro,vec3 rd,vec3 ce,float ra){',
+    '  vec3 oc=ro-ce;float b=dot(oc,rd);float c=dot(oc,oc)-ra*ra;float h=b*b-c;',
+    '  if(h<0.0)return -1.0;return -b-sqrt(h);}',
     '',
-    'vec3 stars(vec2 uv,float t){',
-    '  float s=0.0;',
-    '  s+=starLayer(uv, 8.0,0.016,0.980,0.6,t)*1.0;',   // sparse, bright, spiked
-    '  s+=starLayer(uv,16.0,0.030,0.986,0.25,t)*0.8;',
-    '  s+=starLayer(uv,30.0,0.048,0.990,0.0,t)*0.6;',
-    '  s+=starLayer(uv,58.0,0.075,0.994,0.0,t)*0.45;',  // dense dust
-    '  vec3 cool=vec3(0.72,0.83,1.0);',
-    '  vec3 warm=vec3(1.0,0.9,0.78);',
-    '  float tint=hash21(floor(uv*18.0));',
-    '  return s*mix(cool,warm,tint);}',
+    'vec3 starColor(float h){vec3 bl=vec3(0.68,0.8,1.0),w=vec3(1.0),y=vec3(1.0,0.92,0.72),r=vec3(1.0,0.72,0.55);',
+    '  vec3 c=mix(bl,w,smoothstep(0.0,0.35,h));c=mix(c,y,smoothstep(0.42,0.72,h));return mix(c,r,smoothstep(0.78,1.0,h));}',
+    'float starDot(vec2 uv,float sc,float th,float t){',
+    '  vec2 g=uv*sc;vec2 id=floor(g);vec2 f=fract(g)-0.5;float n=hash21(id);',
+    '  vec2 off=(vec2(hash21(id+1.7),hash21(id+9.1))-0.5)*0.7;float d=length(f-off);',
+    '  return step(th,n)*smoothstep(0.05,0.0,d)*(0.6+0.4*sin(t*2.0+n*40.0));}',
     '',
-    // colourful nebula via domain-warped fbm — high contrast, dark voids, hot cores
-    'vec3 nebula(vec2 uv,float t){',
-    '  vec2 p=uv*2.3+vec2(t*0.008,-t*0.006);',
-    '  vec2 q=vec2(fbm(p),fbm(p+vec2(3.1,1.7)));',
-    '  vec2 r=vec2(fbm(p+2.2*q+vec2(1.7,9.2)),fbm(p+2.2*q+vec2(8.3,2.8)));',
-    '  float f=fbm(p+3.4*r);',
-    '  float voids=smoothstep(0.22,0.86,fbm(uv*1.05+vec2(4.0,2.0)));', // vast dark gaps
-    '  float density=pow(smoothstep(0.28,0.82,f),1.25)*voids;',
-    '  vec3 violet=vec3(0.20,0.06,0.44);',
-    '  vec3 magenta=vec3(0.66,0.10,0.52);',
-    '  vec3 teal=vec3(0.03,0.30,0.55);',
-    '  vec3 gold=vec3(0.95,0.62,0.35);',
-    '  vec3 col=mix(violet,teal,smoothstep(0.15,0.9,r.x));',
-    '  col=mix(col,magenta,smoothstep(0.35,1.0,q.y));',
-    '  col=mix(col,gold,pow(density,3.0)*0.55);',      // hot cores burn gold-pink
-    '  col+=vec3(0.7,0.5,0.95)*pow(density,2.0)*0.8;',
-    '  return col*density;}',
+    'vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}',
     '',
-    // a distant sun with soft bloom
-    'vec3 sun(vec2 uv,vec2 c,float aspect){',
-    '  vec2 d=(uv-c);d.x*=aspect;',
-    '  float r=length(d);',
-    '  float core=smoothstep(0.06,0.0,r);',
-    '  float bloom=smoothstep(0.6,0.0,r);',
-    '  return vec3(1.0,0.93,0.82)*(core*1.4+bloom*bloom*0.5);}',
+    // ---- the scene: a low orbit over a giant night-side world ------------
+    // camera at RO looks down -z; the big planet is a huge sphere we skim
+    // (altitude ~0.9 over radius ~48), its horizon slicing the frame
+    // diagonally. The sun sits just above the limb. Supporting cast:
+    // NAVY  — a shadowed planet floating over the deck, lit only on its crown
+    // EMBER — a small dark red moon hovering just above the horizon
+    // AMBER — a big sunlit rocky world, banded and cratered
+    '',
+    // space: crimson filament nebula (upper right) over deep blue, + stars
+    'vec3 sky(vec3 rd,float t){',
+    '  vec2 q2=rd.xy/max(abs(rd.z),0.3);',
+    '  vec2 p=q2*5.5+vec2(t*0.006,0.0);',
+    '  vec2 q=vec2(fbm(p),fbm(p+vec2(4.7,2.3)));',
+    '  float f=fbm(p+2.2*q+vec2(0.0,t*0.009));',
+    '  float dens=pow(smoothstep(0.30,0.85,f),1.4);',
+    '  float warm=smoothstep(-0.55,0.50,q2.x*0.55+q2.y*0.62);',   // crimson up-right, blue down-left
+    '  vec3 neb=mix(vec3(0.07,0.14,0.38),vec3(0.60,0.12,0.18),warm)*dens*2.6;',
+    '  vec3 col=vec3(0.012,0.020,0.052)+neb;',
+    '  col+=vec3(1.0,0.36,0.40)*pow(smoothstep(0.52,0.92,f),2.0)*warm*1.2;', // pink-lit filament edges
+    '  vec2 uv=vec2(atan(rd.z,rd.x),asin(clamp(rd.y,-1.0,1.0)))*vec2(0.5,1.0);',
+    '  float s=starDot(uv,90.0,0.90,t)+starDot(uv*2.0+5.0,90.0,0.93,t)*0.7+starDot(uv*4.0+9.0,90.0,0.95,t)*0.5;',
+    '  col+=s*starColor(hash21(floor(uv*90.0)))*(1.0-dens*0.7);',
+    '  return col;}',
+    '',
+    // the giant world under the camera: dark domain-warped cloud deck,
+    // twilight band near the terminator, blue atmosphere hugging the horizon
+    // textured by hit POSITION, not normal — from 0.9 units up, the visible
+    // deck is a tiny patch of the sphere and normals barely vary across it
+    'vec3 shadeBig(vec3 pos,vec3 n,vec3 rd,vec3 L,float t,float dist){',
+    '  vec2 cp=pos.xy*2.2+vec2(-pos.z*1.1,pos.z*0.55)+t*vec2(0.020,0.008);',
+    '  vec2 q=vec2(fbm(cp),fbm(cp+vec2(5.2,1.3)));',
+    '  float cl=fbm(cp+2.4*q+vec2(t*0.012,0.0));',
+    '  float clouds=smoothstep(0.38,0.72,cl);',
+    '  vec3 gap=vec3(0.004,0.009,0.028);',
+    '  vec3 deck=mix(vec3(0.020,0.042,0.10),vec3(0.15,0.24,0.46),smoothstep(0.45,0.92,cl));',
+    '  vec3 surf=mix(gap,deck,clouds);',
+    '  float dl=dot(n,L);',
+    '  float tw=pow(clamp((dl+0.10)/0.25,0.0,1.0),3.0);',          // twilight band by the terminator
+    '  float gs=pow(max(dot(rd,L),0.0),150.0);',                   // flare-scatter, tight around the sun
+    '  vec3 col=surf*(0.30+tw*2.4)+deck*clouds*gs*vec3(1.0,0.85,0.75)*1.6;',
+    '  col+=surf*vec3(0.10,0.16,0.40)*0.45;',                      // cool ambient (nebula-lit night)
+    '  col=mix(col,vec3(0.05,0.10,0.26),smoothstep(3.0,9.0,dist)*0.40);', // aerial haze with distance
+    '  float hp=1.0-max(dot(-rd,n),0.0);',                         // horizon proximity (grazing view)
+    '  float sp=pow(max(dot(rd,L),0.0),12.0);',
+    '  vec3 atm=mix(vec3(0.10,0.30,0.90),vec3(0.92,0.96,1.0),sp);',
+    '  col+=atm*pow(hp,8.0)*(0.35+sp*3.8);',                       // tight horizon line, white-hot at the sun
+    '  col+=atm*pow(hp,3.0)*0.08;',                                // soft high haze
+    '  return col;}',
+    '',
+    // the shadowed navy planet: near-silhouette, sunlit crown, backlit rim
+    'vec3 shadeNavy(vec3 n,vec3 rd,vec3 L){',
+    '  float h=fbm(n.xy*5.0+n.z*3.0);',
+    '  vec3 base=mix(vec3(0.010,0.020,0.050),vec3(0.030,0.060,0.130),h);',
+    '  float dl=dot(n,L);float lit=smoothstep(-0.05,0.50,dl);',
+    '  vec3 col=base*(0.18+1.0*lit);',
+    '  col+=vec3(0.80,0.88,1.0)*pow(max(dl,0.0),1.2)*0.7*(0.6+0.4*h);',
+    '  float f=pow(1.0-max(dot(n,-rd),0.0),3.0);',
+    '  col+=vec3(0.35,0.55,1.0)*f*(0.15+0.6*smoothstep(0.0,0.8,dl));',
+    '  float rim=pow(1.0-max(dot(n,-rd),0.0),4.0);',               // thin sunlit crescent
+    '  col+=vec3(1.0,0.97,0.90)*rim*smoothstep(-0.10,0.35,dl)*2.6;',
+    '  return col;}',
+    '',
+    // the ember moon: dark red-brown rock, soft crescent, nebula-red ambient
+    'vec3 shadeEmber(vec3 n,vec3 rd,vec3 L){',
+    '  float h=fbm(n.xy*8.0+n.z*5.0);',
+    '  vec3 base=mix(vec3(0.055,0.024,0.014),vec3(0.30,0.13,0.07),h);',
+    '  float dl=dot(n,L);float lit=smoothstep(-0.35,0.45,dl);',
+    '  vec3 col=base*(0.10+1.0*lit*(0.6+0.4*h));',
+    '  col+=base*vec3(0.9,0.25,0.22)*0.45;',                       // lit red by the nebula behind it
+    '  float f=pow(1.0-max(dot(n,-rd),0.0),3.0);',
+    '  col+=vec3(1.0,0.55,0.30)*f*0.5*smoothstep(-0.30,0.50,dl);',
+    '  return col;}',
+    '',
+    // the amber world: banded burnt-orange rock. Art direction over physics:
+    // it wears its own key light so its face glows sunlit like the reference.
+    'vec3 shadeAmber(vec3 n,vec3 rd,vec3 L,float t){',
+    '  vec3 rn=rotY(n,t*0.008+2.0);',
+    '  float h=fbm(rn.xy*vec2(3.0,6.0)+rn.z*2.0)*0.65+fbm(rn.xy*12.0+7.0)*0.35;',
+    '  float ridg=abs(h-0.5)*2.0;',
+    '  vec3 c=mix(vec3(0.16,0.060,0.020),vec3(0.72,0.42,0.18),smoothstep(0.25,0.75,h));',
+    '  c=mix(c,vec3(0.95,0.78,0.55),smoothstep(0.75,0.95,h)*0.6);',
+    '  float dl=dot(n,L);float lit=smoothstep(-0.10,0.40,dl);',
+    '  vec3 col=c*(0.06+1.15*lit)*(0.8+0.4*ridg);',
+    '  col+=c*vec3(0.05,0.08,0.16)*(1.0-lit)*0.5;',                // blue night ambient from the glare
+    '  float f=pow(1.0-max(dot(n,-rd),0.0),3.0);',
+    '  col+=mix(vec3(0.20,0.35,0.80),vec3(1.0,0.60,0.30),smoothstep(-0.2,0.6,dl))*f*0.5;',
+    '  return col;}',
     '',
     'void main(){',
-    '  vec2 uv=gl_FragCoord.xy/iResolution.xy;',
-    '  float aspect=iResolution.x/iResolution.y;',
+    '  vec2 uvp=(gl_FragCoord.xy-0.5*iResolution.xy)/iResolution.y;',
     '  float t=iTime;',
-    '  // slow camera drift for parallax / life',
-    '  vec2 cam=vec2(sin(t*0.04)*0.03,cos(t*0.03)*0.02);',
-    '  vec2 suv=uv+cam;',
+    '  vec3 ro=vec3(0.0,0.0,4.6);',
+    '  float swa=sin(t*0.03)*0.030,swb=cos(t*0.025)*0.022;',   // slow camera drift
+    '  vec3 rd=normalize(vec3(uvp,-1.7));',
+    '  rd=rotX(rotY(rd,swa),swb);',
     '',
-    '  vec3 col=vec3(0.01,0.012,0.03);',              // deep space base
-    '  col+=nebula(suv,t)*1.5;',
-    '  col+=stars((suv-0.5)*vec2(aspect,1.0)+0.5,t);',
+    '  vec3 L=normalize(vec3(0.05,0.36,-1.7));',      // the rising sun, kissing the limb
+    '  vec3 Lc=rotY(rotX(L,-swb),-swa);',             // sun back in camera space...
+    '  vec2 sunScr=-1.7*Lc.xy/Lc.z;',                 // ...so the lens bloom tracks the drift
     '',
-    '  vec2 sunPos=vec2(0.18,0.86);',
-    '  col+=sun(suv,sunPos,aspect);',
+    '  vec3 PB=vec3(-28.90,-35.87,-13.17);float RB=48.47;',  // the world we skim (horizon cuts the frame)
+    '  vec3 P1=vec3(-0.0353,0.0,2.6);    float R1=0.176;',   // navy planet, floating over the deck
+    '  vec3 P2=vec3(0.659,1.235,-2.4);   float R2=0.1935;',  // ember moon, just above the horizon
+    '  vec3 P3=vec3(1.2,-0.388,1.6);     float R3=0.485;',   // amber world, bottom right, in front of the deck
+    '  vec3 L3=normalize(vec3(-0.45,0.5,0.74));',            // the amber world\'s own key light
     '',
-    '  // ---- faux-3D planet (bottom-right, large, for scale) ----',
-    '  vec2 pc=vec2(0.86,0.16)+cam*0.5;',            // planet centre
-    '  float pr=0.40;',                              // planet radius (uv-height units)',
-    '  vec2 d=(uv-pc);d.x*=aspect;',
-    '  float rr=length(d)/pr;',
-    '  vec3 lightDir=normalize(vec3((sunPos-pc)*vec2(aspect,1.0),0.65));',
-    '  if(rr<1.0){',
-    '    vec3 n=vec3(d/pr,sqrt(max(0.0,1.0-rr*rr)));',
-    '    // rotate surface coords over time for a spinning globe',
-    '    float rot=t*0.05;',
-    '    vec3 sp=vec3(n.x*cos(rot)-n.z*sin(rot),n.y,n.x*sin(rot)+n.z*cos(rot));',
-    '    float bands=fbm(sp.xy*3.0+vec2(sp.z*2.0,rot));',
-    '    float land=fbm(sp.xy*6.0+10.0);',
-    '    vec3 base=mix(vec3(0.10,0.16,0.34),vec3(0.16,0.38,0.30),smoothstep(0.4,0.7,land));',
-    '    base=mix(base,vec3(0.55,0.45,0.30),smoothstep(0.62,0.8,bands)*0.6);',
-    '    float diff=clamp(dot(n,lightDir),0.0,1.0);',
-    '    float night=smoothstep(0.0,0.25,diff);',
-    '    // city lights on the dark side',
-    '    float cities=step(0.75,fbm(sp.xy*22.0))*(1.0-night);',
-    '    float rim=pow(1.0-n.z,3.0);',
-    '    vec3 atmos=vec3(0.35,0.6,1.0);',
-    '    vec3 pcol=base*(0.04+diff)+atmos*rim*diff*1.05;',
-    '    pcol+=vec3(1.0,0.85,0.5)*cities*0.55;',
-    '    // terminator glow',
-    '    pcol+=atmos*smoothstep(0.16,0.0,abs(diff-0.12))*0.22;',
-    '    col=pcol;',
+    '  float bT=1e9;int id=-1;vec3 bCe=vec3(0.0);',
+    '  float hB=iSphere(ro,rd,PB,RB);if(hB>0.0&&hB<bT){bT=hB;bCe=PB;id=0;}',
+    '  float h1=iSphere(ro,rd,P1,R1);if(h1>0.0&&h1<bT){bT=h1;bCe=P1;id=1;}',
+    '  float h2=iSphere(ro,rd,P2,R2);if(h2>0.0&&h2<bT){bT=h2;bCe=P2;id=2;}',
+    '  float h3=iSphere(ro,rd,P3,R3);if(h3>0.0&&h3<bT){bT=h3;bCe=P3;id=3;}',
+    '',
+    '  vec3 col;',
+    '  if(id>=0){',
+    '    vec3 pos=ro+rd*bT;vec3 n=normalize(pos-bCe);',
+    '    if(id==0)col=shadeBig(pos,n,rd,L,t,bT);',
+    '    else if(id==1)col=shadeNavy(n,rd,L);',
+    '    else if(id==2)col=shadeEmber(n,rd,L);',
+    '    else col=shadeAmber(n,rd,L3,t);',
+    '  }else{',
+    '    col=sky(rd,t);',
+    '    float sd=max(dot(rd,L),0.0);',
+    '    col+=vec3(1.0,0.98,0.92)*pow(sd,20000.0)*3.0;',    // the disc
+    '    col+=vec3(1.0,0.90,0.80)*pow(sd,400.0)*0.85;',     // inner bloom
+    '    col+=vec3(0.45,0.65,1.0)*pow(sd,18.0)*0.30;',      // wide cool glare
+    '    col+=vec3(0.20,0.40,0.95)*pow(sd,4.0)*0.10;',      // huge blue fill on the left
+    '    float b=dot(PB-ro,rd);',                            // the horizon\'s glow, seen from the sky side
+    '    if(b>0.0){',
+    '      float en=(length(ro+rd*b-PB)-RB)/RB;',
+    '      float sp=pow(sd,12.0);',
+    '      vec3 gc=mix(vec3(0.16,0.38,0.95),vec3(1.0,0.92,0.78),sp);',
+    '      col+=gc*(exp(-max(en,0.0)*260.0)*0.90+exp(-max(en,0.0)*30.0)*0.15)*(0.25+2.2*sp);',
+    '    }',
     '  }',
-    '  // atmosphere halo just outside the disc (additive)',
-    '  float halo=smoothstep(1.3,1.0,rr)*smoothstep(0.92,1.02,rr);',
-    '  col+=vec3(0.3,0.55,1.0)*halo*0.8;',
     '',
-    '  // ---- shooting star: a fine streak with a glowing head, fades in/out ----',
-    '  float slot=floor(t/7.0);',
-    '  float lt=fract(t/7.0);',
-    '  vec2 ss0=vec2(0.08+0.5*hash21(vec2(slot,1.0)),0.66+0.28*hash21(vec2(slot,2.0)));',
-    '  vec2 dir=normalize(vec2(0.86,-0.5));',
-    '  vec2 head=ss0+dir*lt*1.4;',
-    '  vec2 rel=(uv-head);rel.x*=aspect;',
-    '  float along=dot(rel,dir);',
-    '  float perp=length(rel-dir*along);',
-    '  float tail=smoothstep(0.0,-0.16,along);',
-    '  float body=smoothstep(0.0016,0.0,perp)*tail;',
-    '  float headGlow=smoothstep(0.026,0.0,length(rel));',
+    '  // ---- shooting star (sky only, subtle) ----',
+    '  float slot=floor(t/9.0);float lt=fract(t/9.0);',
+    '  vec2 s0=vec2(0.30+0.45*hash21(vec2(slot,1.0)),0.55+0.35*hash21(vec2(slot,2.0)));',
+    '  vec2 sdir=normalize(vec2(0.86,-0.5));vec2 head=s0+sdir*lt*1.4;',
+    '  vec2 uvS=gl_FragCoord.xy/iResolution.xy;vec2 rel=(uvS-head);rel.x*=iResolution.x/iResolution.y;',
+    '  float al=dot(rel,sdir);float pp=length(rel-sdir*al);',
+    '  float streak=smoothstep(0.0015,0.0,pp)*smoothstep(0.0,-0.15,al);',
     '  float appear=smoothstep(0.0,0.04,lt)*smoothstep(1.0,0.55,lt);',
-    '  col+=vec3(0.9,0.95,1.0)*(body*0.7+headGlow*1.3)*appear;',
+    '  if(id<0)col+=vec3(0.9,0.95,1.0)*(streak*0.7+smoothstep(0.024,0.0,length(rel))*1.2)*appear;',
     '',
-    '  // keep the icon field readable: gentle central darkening + vignette',
-    '  float vig=smoothstep(1.25,0.35,length((uv-0.5)*vec2(aspect,1.0)));',
-    '  col*=0.55+0.45*vig;',
-    '  col*=1.0-0.25*smoothstep(0.7,0.0,length(uv-vec2(0.42,0.55)));',
+    '  // god-rays + lens bloom, in screen space so they streak across the deck too',
+    '  vec2 sv=uvp-sunScr;float dS=length(sv);',
+    '  float ang=atan(sv.y,sv.x);',
+    '  float rays=0.60+0.40*sin(ang*5.0+fbm(vec2(ang*2.5,t*0.05))*3.0);',
+    '  rays*=smoothstep(0.9,-0.6,sv.x+sv.y);',               // beams sweep down-left
+    '  if(id<0)col+=vec3(0.75,0.85,1.0)*rays*exp(-dS*2.6)*0.28;',
+    '  else col*=1.0+rays*exp(-dS*2.2)*0.7;',                 // beams LIGHT the deck, not wash it
+    '  col+=vec3(1.0,0.95,0.85)*exp(-dS*20.0)*0.55;',        // the flare bleeds over the limb
+    '  col+=vec3(0.40,0.60,1.0)*exp(-dS*5.0)*0.10;',
     '',
-    '  // filmic-ish tonemap + dither to kill banding',
-    '  col=col/(col+vec3(0.85));',
-    '  col=pow(col,vec3(0.9));',
-    '  float dither=(hash21(gl_FragCoord.xy)-0.5)/255.0;',
-    '  gl_FragColor=vec4(col+dither,1.0);',
+    '  // exposure, vignette, ACES tonemap + grain',
+    '  float vig=smoothstep(1.35,0.3,length(uvp));',
+    '  col*=0.66+0.34*vig;',
+    '  col=aces(col*1.10);',
+    '  col=pow(col,vec3(0.95));',
+    '  float g=(hash21(gl_FragCoord.xy+fract(t))-0.5)/220.0;',
+    '  gl_FragColor=vec4(col+g,1.0);',
     '}'
   ].join('\n');
 
@@ -234,10 +284,10 @@
 
     var W = 0, H = 0;
     function resize() {
-      // cap the render buffer so big/hi-dpi screens stay smooth and cool.
       var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       var cw = window.innerWidth, ch = window.innerHeight;
-      var scale = Math.min(1, Math.sqrt(2300000 / (cw * ch * dpr * dpr)));
+      // heavier ray-traced scene: cap the buffer harder so it stays smooth/cool.
+      var scale = Math.min(1, Math.sqrt(1300000 / (cw * ch * dpr * dpr)));
       W = Math.max(1, Math.floor(cw * dpr * scale));
       H = Math.max(1, Math.floor(ch * dpr * scale));
       canvas.width = W; canvas.height = H;
@@ -246,11 +296,8 @@
     resize();
     window.addEventListener('resize', resize);
 
-    var start = performance.now();
-    var last = start;
-    var clock = 0;         // accumulated seconds (pauses when hidden)
-    var raf = 0, running = true;
-
+    var last = performance.now();
+    var clock = 0, raf = 0, running = true;
     function frame(now) {
       raf = 0;
       if (!running) return;
@@ -258,7 +305,7 @@
       last = now;
       if (!reduce) clock += dt;
       gl.uniform2f(uRes, W, H);
-      gl.uniform1f(uTime, clock + 8.0); // offset so the opening frame is pretty
+      gl.uniform1f(uTime, clock + 8.0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (!reduce) raf = requestAnimationFrame(frame);
     }
@@ -268,7 +315,6 @@
       if (document.hidden) { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; }
       else if (!reduce) { running = true; last = performance.now(); if (!raf) raf = requestAnimationFrame(frame); }
     });
-
     canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); running = false; }, false);
     return true;
   }
@@ -286,13 +332,11 @@
       var n = Math.min(520, Math.floor((W * H) / 6000));
       for (var i = 0; i < n; i++) stars.push({
         x: Math.random() * W, y: Math.random() * H,
-        z: 0.3 + Math.random() * 1.7, r: Math.random() * 1.4 + 0.3,
-        p: Math.random() * 6.28
+        z: 0.3 + Math.random() * 1.7, r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28
       });
     }
     resize();
     window.addEventListener('resize', resize);
-
     function blob(x, y, r, col) {
       var g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -304,7 +348,7 @@
       var t = (now - t0) / 1000;
       ctx.fillStyle = '#01030a'; ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'lighter';
-      blob(W * 0.25, H * 0.2, Math.max(W, H) * 0.45, 'rgba(90,40,140,0.20)');
+      blob(W * 0.25, H * 0.2, Math.max(W, H) * 0.45, 'rgba(140,40,80,0.18)');
       blob(W * 0.7, H * 0.6, Math.max(W, H) * 0.5, 'rgba(30,90,150,0.16)');
       for (var i = 0; i < stars.length; i++) {
         var s = stars[i];
@@ -326,13 +370,8 @@
 
   whenBody(function () {
     var canvas = makeCanvas();
-    try {
-      if (startWebGL(canvas)) return;
-    } catch (e) { console.warn('[cosmos] webgl failed:', e); }
-    try {
-      if (startCanvas2D(canvas)) return;
-    } catch (e2) { console.warn('[cosmos] canvas2d failed:', e2); }
-    // Both failed: drop the canvas and let the CSS chrome gradient stand in.
+    try { if (startWebGL(canvas)) return; } catch (e) { console.warn('[cosmos] webgl failed:', e); }
+    try { if (startCanvas2D(canvas)) return; } catch (e2) { console.warn('[cosmos] canvas2d failed:', e2); }
     if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
   });
 })();
