@@ -1713,7 +1713,10 @@
         '<h3>Invite history</h3>' +
         '<p class="add-help">Sessions you’ve joined. Tap one to rejoin; ✕ removes it. This list lives only in this browser.</p>' +
         '<div class="hist-list">' + rows + '</div>' +
-        '<div class="modal-actions">' + (h.length ? '<button class="ghost" id="hist-clear">Clear all</button>' : '') + '<button class="ghost" id="hist-close">Close</button></div>';
+        '<div class="modal-actions"><button class="ghost" id="hist-close">Close</button></div>' +
+        // "Clear all" is demoted to a small link, well clear of Close, so it can't
+        // be fat-fingered — only Close should be an easy target. (It still confirms.)
+        (h.length ? '<div class="hist-clearwrap"><a class="hist-clear-link" id="hist-clear">Clear all invites</a></div>' : '');
       // Tapping a row opens the invite in a new tab — a direct gesture, so it's
       // allowed on iOS (unlike the deferred app-open, which reserves its tab).
       box.querySelectorAll('.hist-open').forEach((a) => { a.onclick = () => { const u = a.getAttribute('data-url'); if (u) root.open(u, '_blank'); }; });
