@@ -121,7 +121,7 @@
     <button id="host" title="Friends join you live with one link">Invite</button>
     <button id="tomeet" title="Turn this into a meeting — add shared audio, video and recording around this app" style="display:none">Meet</button>
     <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
-    <button id="steal" title="Steal a copy of this app — choose where it goes and whether to include the data">Steal</button>
+    <button id="steal" title="Steal a copy of this app — choose where it goes and whether to include the data" style="display:none">Steal</button>
     <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
   </div>
   <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
@@ -187,7 +187,9 @@
         appIdBtn.style.display = '';
       }
       window.__gifosOnApp = function (bytes, manifest) {
-        appGifLoaded = true; showAppGif();
+        // The app's bytes are now here (locally, or over the wire for a client) —
+        // only now is there something to Steal, so reveal the button.
+        appGifLoaded = true; stealBtn.style.display = ''; showAppGif();
         if (!window.GifOS || !GifOS.sign) return;
         const claim = GifOS.sign.readSig(bytes);
         showAppId(manifest, !!claim);
