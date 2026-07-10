@@ -45,6 +45,29 @@ The host delivers the App GIF to each joining client over this channel
 (`{t:'app', gif}`), so a brand-new client needs only the share link — the app
 itself arrives peer-to-peer through the relay.
 
+## Session identity & the host gate
+
+The session id in the URL (`/s/<sid>`) carries its own ownership rule, read by
+one helper — `verifierOf(sid)`: the `[a-f0-9]{16,64}` tail after the **last dot**,
+or empty if there is none. Apps and meetings use it identically, so there is no
+`?av=` (or any other) authority parameter — the verifier only ever travels inside
+the id.
+
+- **Dotless id → anyone-owns.** Any socket may claim the `host`/`mesh` slot; the
+  slot is guarded only by an **epoch** (monotone connection counter — a stale host
+  reconnecting with a lower epoch is bounced), which is what lets a self-healing
+  session promote a new host. No secret, no admin.
+- **`<room>.<verifier>` → owned / admin.** The relay grants authority only to a
+  socket that proves a secret in `adm`: it hashes `adm` with SHA-256 and requires
+  the result to **start with the verifier**. For an app that gates the *host slot*
+  (a link-holder can still join as a guest); for a meeting it grants **admin**
+  (password-only powers: room password, global mute/blur, device bans). The secret
+  itself never reaches the relay in the clear beyond this one proof, and never
+  appears in any link.
+
+The relay **stores none of this** — the verifier is recomputed from the id and the
+proof is checked per connection, so nothing about ownership persists server-side.
+
 ## Local testing
 
 `test/relay-local.js` is a dependency-free Node server that speaks the same

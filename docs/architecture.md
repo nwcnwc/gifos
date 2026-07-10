@@ -442,6 +442,29 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   hardcoded whitelist — a GIF cannot name an arbitrary page.
 - **Join tokens** scope a client to a single server session; the relay
   validates every join against the host's token.
+- **Owned vs anyone-owns — the host gate.** A session id is one of two shapes,
+  and the shape *is* the ownership contract. The relay reads it with a single
+  helper, `verifierOf(sid)` — the hex tail after the **last dot**, or empty if
+  there is no dot — shared byte-for-byte by apps and meetings, so "meet" and
+  "join" derive authority the exact same way (there is no `?av=` query param;
+  the verifier only ever travels *inside* the id).
+  - **Owned** (the default for an app Invite): `sid = "<room>.<verifier>"`. The
+    host mints a random **secret**, never shown to a human and never in the link;
+    the link carries only `verifier = SHA-256(secret)`'s prefix. To hold the host
+    slot the relay demands a proof (`adm`) whose SHA-256 starts with the
+    verifier, so **only the creator's app can host** — a link-holder joins as a
+    guest but can never take over or impersonate the host. `room` is the app's
+    short name (`chess`) for a signed app, or `<name>-anon` for an unsigned one
+    (still owned; `-anon` only flags that authorship isn't vouched for).
+  - **Anyone-owns** (the "Let a friend keep it going" opt-out, and every plain
+    meeting link): a **dotless** id — a random `shortCode` for an app, the bare
+    `<room>` for a meeting. `verifierOf` returns empty, so the relay imposes **no
+    owner**: the host slot is guarded only by the epoch (enabling self-heal), and
+    everyone with the link is equally entitled to host. This is deliberate and
+    labeled, never a default. A meeting's admin form (`<room>.<verifier>`) is the
+    mirror image on the meeting side: same helper, verifier = a PBKDF2 hash of the
+    admin password, admin power = knowing that password (the README's
+    *Admin rooms* note covers the meeting UX).
 - **An invite link is a capability, not a viewer pass.** A joiner's browser
   mirrors the full app dataset to stay in sync, so anyone with the link can
   Download Snapshot a complete copy — and there is no un-sharing what already
@@ -454,11 +477,13 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
     session.
   - **Resilience** (`heal`) — whether a still-connected guest may take over if
     the host drops. Off by default (the session ends with you — safest for
-    private data); on mirrors state to guests to enable self-healing (see
-    Failover). `close` forces it off (a link that dies on close can't be kept
-    alive by another). This is orthogonal to lifetime, so a **1h game can be
-    resilient** — a dead battery doesn't end it, and it still stops admitting
-    strangers after an hour.
+    private data), which mints an **owned** link (above); on mirrors state to
+    guests to enable self-healing (see Failover) and mints the **anyone-owns**
+    shape instead, since a link a *different* browser may keep alive can't also
+    be gated by a secret only yours holds. `close` forces it off (a link that
+    dies on close can't be kept alive by another). This is orthogonal to
+    lifetime, so a **1h game can be resilient** — a dead battery doesn't end it,
+    and it still stops admitting strangers after an hour.
   The host advertises `heal` and `exp` in the per-peer `app` message; guests
   gate mirroring on `heal` and a promoted healer keeps enforcing `exp`. **New
   link** rotates the session id, broadcasting `ended (revoked)` to guests on the
