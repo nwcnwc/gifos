@@ -114,6 +114,7 @@ A theme is more than a colour swap. Each one ships its own **icon pack** — han
 - **`theme.js`** — `GifOS.setTheme({ name, pack, chrome:{ cssVar: value } })`: the name, the palette (CSS-variable chrome), and which pack it draws with. Applied before first paint.
 - **`icons.js`** — the icon pack: `GifOS.iconPacks.register(name, { size, frames, draw(subject, accent), fallback(letter, accent) })` draws each app's animated art (the default apps carry all the way into the theme — open Notes on Watercolor and it's ink-on-cream, on Terminal Zero it's green phosphor). The existing packs (e.g. [`themes/6/icons.js`](site/themes/6/icons.js)) are the reference.
 - **`eggs.js`** *(optional)* — `GifOS.addEggs([{ name, appId, accent, folder, html }])`: bonus apps seeded on this computer only, filed into a folder (Games, Tools, …). See [`themes/0/eggs.js`](site/themes/0/eggs.js) for a worked example.
+- **`wallpaper.js`** *(optional)* — a live background for this computer only: drop the file in and the loader runs it on the desktop (behind the icons). Make it a fixed canvas at `z-index:0; pointer-events:none`, self-guard against duplicate loads, honour `prefers-reduced-motion`, and pause when the tab is hidden. There's no default wallpaper, so this is override-only, and it's never loaded on the meeting/app pages.
 
 Every file is optional — omit one and the default is used. All computers get the same default apps automatically dressed in the theme; you only write what differs.
 
