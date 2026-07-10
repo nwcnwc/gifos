@@ -194,9 +194,9 @@
     '  float sp=pow(max(dot(rd,L),0.0),12.0);',
     '  col+=vec3(1.0,0.42,0.16)*pow(hp,16.0)*sp*2.0;',             // warm refracted sliver at the sun
     '  vec3 atm=mix(vec3(0.10,0.30,0.90),vec3(0.92,0.96,1.0),sp);',
-    '  col+=atm*pow(hp,8.0)*(0.35+sp*3.4);',                       // tight horizon line, white-hot at the sun
-    '  col+=vec3(0.30,0.85,0.45)*pow(hp,5.5)*0.05*(1.0-sp);',      // faint green airglow shell
-    '  col+=atm*pow(hp,3.0)*0.08;',                                // soft high haze
+    '  col+=atm*pow(hp,8.0)*(0.50+sp*3.4);',                       // tight horizon line, white-hot at the sun
+    '  col+=vec3(0.30,0.85,0.45)*pow(hp,5.5)*0.03*(1.0-sp);',      // faint green airglow tint
+    '  col+=atm*pow(hp,3.0)*0.12;',                                // soft high haze
     '  return col;}',
     '',
     // the shadowed navy planet: near-silhouette, sunlit crown with swirling
@@ -258,7 +258,7 @@
     '  vec3 PB=vec3(-28.90,-35.87,-13.17);float RB=48.47;',  // the world we skim (horizon cuts the frame)
     '  vec3 P1=vec3(-0.0353,0.0,2.6);    float R1=0.176;',   // navy planet, floating over the deck
     '  vec3 P2=vec3(0.659,1.235,-2.4);   float R2=0.1935;',  // ember moon, just above the horizon
-    '  vec3 P3=vec3(1.2,-0.388,1.6);     float R3=0.485;',   // amber world, bottom right, in front of the deck
+    '  vec3 P3=vec3(0.92,-0.53,1.6);     float R3=0.485;',   // amber world, bottom right, in front of the deck (stays in frame at narrow aspects)
     '  vec3 L3=normalize(vec3(-0.45,0.5,0.74));',            // the amber world\'s own key light
     '',
     '  float bT=1e9;int id=-1;vec3 bCe=vec3(0.0);',
@@ -284,7 +284,6 @@
     '      vec3 gc=mix(vec3(0.16,0.38,0.95),vec3(1.0,0.92,0.78),sp);',
     '      col+=vec3(1.0,0.45,0.18)*exp(-max(en,0.0)*900.0)*sp*1.6;', // warm refracted sliver
     '      col+=gc*(exp(-max(en,0.0)*260.0)*0.90+exp(-max(en,0.0)*30.0)*0.15)*(0.25+2.2*sp);',
-    '      col+=vec3(0.30,0.85,0.45)*exp(-abs(en-0.016)*380.0)*0.12*(0.25+0.75*(1.0-sp));', // airglow shell
     '    }',
     '  }',
     '',
@@ -325,8 +324,9 @@
     '  vec3 L=normalize(vec3(0.05,0.36,-1.7));',
     '  float sd=max(dot(rd,L),0.0);',
     '  col+=mask*(vec3(1.0,0.98,0.92)*pow(sd,20000.0)*3.0',    // the disc
-    '            +vec3(1.0,0.90,0.80)*pow(sd,400.0)*0.85',     // inner bloom
-    '            +vec3(0.45,0.65,1.0)*pow(sd,18.0)*0.30',      // wide cool glare
+    '            +vec3(1.0,0.90,0.80)*pow(sd,400.0)*0.85);',   // inner bloom
+    '  // the wide glare bleeds across the limb like real scatter — no hard edge',
+    '  col+=(0.40+0.60*mask)*(vec3(0.45,0.65,1.0)*pow(sd,18.0)*0.30', // wide cool glare
     '            +vec3(0.20,0.40,0.95)*pow(sd,4.0)*0.10);',    // huge blue fill on the left
     '',
     '  // ---- shooting star (sky only, subtle) ----',
