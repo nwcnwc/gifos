@@ -1718,7 +1718,11 @@
       // allowed on iOS (unlike the deferred app-open, which reserves its tab).
       box.querySelectorAll('.hist-open').forEach((a) => { a.onclick = () => { const u = a.getAttribute('data-url'); if (u) root.open(u, '_blank'); }; });
       box.querySelectorAll('.hist-del').forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); const arr = loadInviteHistory(); arr.splice(+b.getAttribute('data-i'), 1); saveInviteHistory(arr); paint(); }; });
-      const clr = box.querySelector('#hist-clear'); if (clr) clr.onclick = () => { saveInviteHistory([]); paint(); };
+      const clr = box.querySelector('#hist-clear'); if (clr) clr.onclick = () => {
+        const n = loadInviteHistory().length;
+        showConfirm('Clear invite history?', 'Remove all ' + n + ' saved invite link' + (n === 1 ? '' : 's') + '? This only clears the list on this device — the sessions themselves aren’t affected.',
+          [{ label: 'Clear all', danger: true, fn: () => { saveInviteHistory([]); paint(); } }]);
+      };
       box.querySelector('#hist-close').onclick = () => bg.remove();
     };
     paint();
