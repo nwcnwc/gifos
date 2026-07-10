@@ -313,6 +313,13 @@
       if (!GifOS.sign || !GifOS.sign.readSig(bytes)) return null;
       return getAppMeta(it.fileId, bytes).then((m) => (m && (m.shortName || m.version)) ? m : null).catch(() => null);
     }));
+    // Synced-mirror flag per tile: a copy bound to an eternal link (carries a
+    // <fileId>::mirror binding). Drives the "MIRROR" band across the icon.
+    const mirrors = await Promise.all(visible.map((it, i) => {
+      const f = files[i];
+      if (!f || !f.isApp || f.kind !== 'gif') return false;
+      return Promise.resolve(store.getState(it.fileId + '::mirror')).then((m) => !!(m && m.s)).catch(() => false);
+    }));
     if (seq !== renderSeq) return; // a newer render started — abandon this one
     // Reconcile: reuse the cached node when its key matches, rebuild only what
     // changed, and keep selection in sync on the survivors.
@@ -322,10 +329,10 @@
       // Stash what openItem needs to decide SYNCHRONOUSLY (in the tap gesture) —
       // an app GIF must open without an await first, or iOS blocks the tab.
       it._isApp = !!(files[i] && files[i].isApp && files[i].kind === 'gif');
-      const key = iconKey(it, files[i], fresh[i], metas[i]);
+      const key = iconKey(it, files[i], fresh[i], metas[i]) + (mirrors[i] ? '|mir' : '');
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
-        entry = { el: buildIcon(it, files[i], fresh[i], metas[i]), key, fileId: it.fileId };
+        entry = { el: buildIcon(it, files[i], fresh[i], metas[i], mirrors[i]), key, fileId: it.fileId };
         iconCache.set(it.id, entry);
       } else {
         // Reuse the node, but re-assert its authoritative position/selection —
@@ -400,7 +407,7 @@
     }, { once: true });
     return img;
   }
-  function buildIcon(it, file, fresh, meta) {
+  function buildIcon(it, file, fresh, meta, isMirror) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -460,6 +467,14 @@
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
       }
+    }
+    // Synced mirror: a bold band straight across the middle of the icon so it's
+    // unmistakable at a glance that this copy tracks another computer's master.
+    if (isMirror) {
+      const ribbon = document.createElement('span');
+      ribbon.className = 'mirror-ribbon'; ribbon.textContent = 'MIRROR';
+      ribbon.title = 'Synced mirror — re-syncs to the original every time you open it.';
+      thumb.appendChild(ribbon);
     }
     const label = document.createElement('div');
     label.className = 'label';
