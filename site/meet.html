@@ -245,15 +245,15 @@
   <div id="lobby">
     <div class="lobby-card">
       <h1>Meeting</h1>
-      <button id="lob-open" class="lob-primary">▶&nbsp; Start a meeting<small>Open room · anyone with the link can join</small></button>
-      <button id="lob-admin-btn" class="lob-action">🛡&nbsp; Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
+      <button id="lob-open" class="lob-primary">Start a meeting<small>Open room · anyone with the link can join</small></button>
+      <button id="lob-admin-btn" class="lob-action">Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
       <div id="lob-admin" class="lob-expand" style="display:none">
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
         <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (pick a strong one)" autocomplete="off">
         <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
         <div id="lob-admin-err" class="lob-err"></div>
       </div>
-      <button id="lob-join-btn" class="lob-action">🔗&nbsp; Join a link<small>Paste an invite link or meeting id someone sent you</small></button>
+      <button id="lob-join-btn" class="lob-action">Join a link<small>Paste an invite link or meeting id someone sent you</small></button>
       <div id="lob-join" class="lob-expand" style="display:none">
         <input id="lob-join-in" placeholder="Paste link or meeting id" autocomplete="off">
         <div class="lob-row"><button id="lob-join-cancel" class="lob-ghost">Cancel</button><button id="lob-join-go">Join</button></div>
@@ -348,7 +348,7 @@
       <div id="trlog"><small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small></div>
       <div id="trfoot"><button id="trdl">Download transcript</button></div>
     </div>
-    <div id="cfiles"><h4>📎 Files pinned to this meeting</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
+    <div id="cfiles"><h4>Files pinned to this meeting</h4><div id="cfilelist"><small style="color:#667">No files yet — attach one below.</small></div></div>
     <form id="chatform">
       <button type="button" id="cattach" title="Pin a file to the meeting">📎</button>
       <input type="file" id="cfile-in" multiple style="display:none">
@@ -382,7 +382,7 @@
 
   <div class="name-modal" id="adm-modal" style="display:none">
     <div class="name-box" style="max-width:420px">
-      <h3>🛡 Room admin</h3>
+      <h3>Room admin</h3>
       <p id="adm-hint"></p>
       <div id="adm-setup">
         <input id="adm-pass" type="password" maxlength="64" placeholder="Admin password" autocomplete="off">
@@ -410,7 +410,7 @@
 
   <div class="name-modal" id="closed-modal" style="display:none">
     <div class="closed-box">
-      <h3>🛡 Room closed</h3>
+      <h3>Room closed</h3>
       <p id="closed-msg">This room’s host wasn’t here, so it closed. Reopen the same link when the host is back.</p>
       <button id="closed-reload">Rejoin</button>
     </div>
@@ -749,14 +749,14 @@
       if (!isMe) {
         // Vote-off-the-island button (non-admin rooms only; shown via body.canvote)
         voteBtn = document.createElement('button');
-        voteBtn.className = 'votebtn'; voteBtn.textContent = '✕ Vote off';
+        voteBtn.className = 'votebtn'; voteBtn.textContent = 'Vote off';
         voteBtn.title = 'Vote to remove this person — when a majority of the room agrees they are kicked out. Your vote follows them into every meeting you share.';
         voteBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleVote(id); });
         tile.appendChild(voteBtn);
         modbar = document.createElement('div');
         modbar.className = 'modbar';
         modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>'
-          + '<button class="banbtn" data-adm="ban" title="Ban this person&#39;s device from the room">⛔ Ban</button>';
+          + '<button class="banbtn" data-adm="ban" title="Ban this person&#39;s device from the room">Ban</button>';
         modbar.addEventListener('click', (e) => {
           if (e.target.dataset.adm === 'ban') {
             e.stopPropagation();
@@ -1578,7 +1578,7 @@
     // ---- room password UI: one modal, two moods -------------------------------
     const pwModal = document.getElementById('pw-modal');
     function showPwModal(locked) {
-      document.getElementById('pw-title').textContent = locked ? '🔒 This room is locked' : '🔒 Room password';
+      document.getElementById('pw-title').textContent = locked ? 'This room is locked' : 'Room password';
       document.getElementById('pw-hint').textContent = locked
         ? 'Enter the room password to join the meeting.'
         : 'Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
@@ -1653,7 +1653,7 @@
       // moved to Invite), so there are just two moods: sign in, or manage.
       if (amAdmin) {
         setup.style.display = 'none'; panel.style.display = '';
-        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Admins can lock the room with a password (the key to clear video), mute or blur someone for everyone, and ban devices. Anyone who knows the admin password can tap 🛡 and sign in too.';
+        document.getElementById('adm-hint').textContent = 'You are an admin of this room. Admins can lock the room with a password (the key to clear video), mute or blur someone for everyone, and ban devices. Anyone who knows the admin password can open Admin and sign in too.';
         renderBanned();
       } else {
         setup.style.display = ''; panel.style.display = 'none';
@@ -1789,7 +1789,7 @@
     function lobRow(e, marked) {
       return '<div class="lob-item" data-url="' + esc(e.url) + '">' +
         '<div class="li-main"><span class="li-name">' + esc(e.name || 'Meeting') +
-          (e.av ? '<span class="li-badge">🛡 admin</span>' : '') + '</span>' +
+          (e.av ? '<span class="li-badge">admin</span>' : '') + '</span>' +
           '<span class="li-sub">' + agoLabel(e.ts) + '</span></div>' +
         '<button class="lob-star" data-star="' + esc(e.url) + '" title="' + (marked ? 'Remove bookmark' : 'Save as bookmark') + '">' + (marked ? '★' : '☆') + '</button>' +
       '</div>';
@@ -1974,7 +1974,7 @@
       } else if (m.k === 'chat') {
         if (takeChat(m.m)) {
           renderChat();
-          if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = '💬 Chat (' + unread + ')'; }
+          if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = 'Chat (' + unread + ')'; }
           dcAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
         }
       } else if (m.k === 'fmeta') {
@@ -2147,7 +2147,7 @@
     });
     chatBtn.onclick = () => {
       chatPanel.classList.toggle('open');
-      if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = '💬 Chat'; renderChat(); renderFiles(); }
+      if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = 'Chat'; renderChat(); renderFiles(); }
     };
     document.getElementById('chatclose').onclick = () => chatPanel.classList.remove('open');
 
@@ -2468,9 +2468,9 @@
       recBtn.classList.add('on');
       recTimer = setInterval(() => {
         const sec = ((Date.now() - recStart) / 1000) | 0;
-        recBtn.textContent = '⏹ Stop ' + ((sec / 60) | 0) + ':' + ('0' + sec % 60).slice(-2);
+        recBtn.textContent = 'Stop ' + ((sec / 60) | 0) + ':' + ('0' + sec % 60).slice(-2);
       }, 1000);
-      recBtn.textContent = '⏹ Stop 0:00';
+      recBtn.textContent = 'Stop 0:00';
       myStatus.rec = true;
       broadcastStatus();
     }
