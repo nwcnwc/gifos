@@ -152,6 +152,7 @@
       let controller = null;
       let inviteUrl = null;
       let inviteExp = ''; // human label for the current link's lifetime
+      let sessionEternal = false; // joined an eternal link → a synced mirror is offered
 
       // ---- easter egg: the app's own GIF in the corner is a LIVE snapshot ----
       // It shows the app's artwork, but its bytes are the "Download · with data"
@@ -493,6 +494,7 @@
         hostBtn.style.display = 'none';
         ensureName().then(function () {
           return GifOS.runtime.bootClient(mount, { s: joinS, k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {
+            onSession: function (info) { sessionEternal = !!(info && info.eternal); },
             onHostGone: function (canTakeOver) { if (canTakeOver) { becomeBtn.style.display = ''; becomeBtn.classList.add('urgent'); } },
             onHostBack: function () { becomeBtn.style.display = 'none'; becomeBtn.classList.remove('urgent'); },
             onAutoTakeover: function (r) {
@@ -505,7 +507,7 @@
         // Standalone / potential host — run a local App GIF.
         const fileId = params.get('id');
         if (!fileId) { status.textContent = 'No app id in URL.'; return; }
-        GifOS.runtime.boot(mount, fileId, status).then(function (c) { controller = c; showAppGif(); });
+        GifOS.runtime.bootMirror(mount, fileId, status).then(function (c) { controller = c; showAppGif(); });
         // Second entry point into a meeting: hand THIS app to the meeting page
         // (same browser, same saved state) with shared audio/video/recording.
         var toMeet = document.getElementById('tomeet');
@@ -621,27 +623,48 @@
       // WHETHER it carries the current data.
       function chooseSteal() {
         var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'steal-modal';
+        // On an ETERNAL link there's a third kind of copy: a MIRROR — bound to
+        // this link, it re-syncs to the original each time you open it (a steal
+        // is a frozen fork; a mirror stays live). Offered only when syncing is
+        // possible (a forever link with a master to sync against).
         bg.innerHTML =
           '<div class="perm-box">' +
           '<h3>Steal this app</h3>' +
           '<p class="lead">Where should the copy go?</p>' +
-          '<label class="perm-row"><input type="radio" name="dest" value="desktop" checked><span><span class="host">Save in Stolen Apps</span><span class="desc">A fresh icon lands in your Stolen Apps folder on this computer.</span></span></label>' +
+          (sessionEternal ? '<label class="perm-row"><input type="radio" name="dest" value="mirror" checked><span><span class="host">Keep in sync (mirror)</span><span class="desc">A copy in your Stolen Apps that re-syncs to the original every time you open it.</span></span></label>' : '') +
+          '<label class="perm-row"><input type="radio" name="dest" value="desktop"' + (sessionEternal ? '' : ' checked') + '><span><span class="host">Save a copy</span><span class="desc">A frozen icon in your Stolen Apps — its own thing from now on, no syncing.</span></span></label>' +
           '<label class="perm-row"><input type="radio" name="dest" value="download"><span><span class="host">Download a file</span><span class="desc">Get it as one GIF you can keep or send to anyone.</span></span></label>' +
-          '<p class="lead">What data should ride along?</p>' +
+          '<div id="steal-data"><p class="lead">What data should ride along?</p>' +
           '<label class="perm-row"><input type="radio" name="data" value="none" checked><span><span class="host">No data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
           '<label class="perm-row"><input type="radio" name="data" value="connect"><span><span class="host">Data as it arrived</span><span class="desc">The snapshot from the moment you opened it — instant, nothing re-sent.</span></span></label>' +
-          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries everything currently in the app, live.</span></span></label>' +
-          '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Steal it</button></div>' +
+          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries everything currently in the app, live.</span></span></label></div>' +
+          '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Save it</button></div>' +
           '</div>';
         document.body.appendChild(bg);
         function close() { bg.remove(); }
         bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
         bg.querySelector('#steal-cancel').onclick = close;
+        // A mirror always carries the live state, so the "which data" choice is
+        // irrelevant then — hide it while Mirror is selected.
+        var dataBox = bg.querySelector('#steal-data');
+        function syncDataVis() { var d = (bg.querySelector('input[name=dest]:checked') || {}).value; dataBox.style.display = d === 'mirror' ? 'none' : ''; }
+        Array.prototype.forEach.call(bg.querySelectorAll('input[name=dest]'), function (r) { r.addEventListener('change', syncDataVis); });
+        syncDataVis();
         bg.querySelector('#steal-go').onclick = function () {
-          var toDesktop = (bg.querySelector('input[name=dest]:checked') || {}).value === 'desktop';
-          var data = (bg.querySelector('input[name=data]:checked') || {}).value || 'none';
+          var dest = (bg.querySelector('input[name=dest]:checked') || {}).value;
           close();
-          if (!controller || !controller.steal) return;
+          if (!controller) return;
+          if (dest === 'mirror') {
+            if (!controller.saveMirror) return;
+            controller.saveMirror().then(function () {
+              status.textContent = 'Saved a synced mirror in your Stolen Apps — it’ll catch up to the original each time you open it.';
+              connPop.classList.add('show');
+            }).catch(function (err) { status.textContent = 'Mirror failed: ' + err.message; connPop.classList.add('show'); });
+            return;
+          }
+          var toDesktop = dest === 'desktop';
+          var data = (bg.querySelector('input[name=data]:checked') || {}).value || 'none';
+          if (!controller.steal) return;
           var dataNote = data === 'none' ? '' : data === 'connect' ? ' (with its data) 😏' : ' (with live data) 😏';
           controller.steal({ toDesktop: toDesktop, data: data }).then(function (r) {
             status.textContent = toDesktop
