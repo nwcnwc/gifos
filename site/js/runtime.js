@@ -65,15 +65,22 @@
     return root.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)))
       .then((d) => Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join(''));
   }
-  // App short-name → a URL-safe room label. Dot-free (a dot marks the verifier).
-  function slug(s) { return (String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)) || 'app'; }
+  // App short-name → a URL-safe room label. Dot-free (a dot marks the verifier),
+  // and guaranteed to contain a letter/digit — never empty or all-hyphens, so a
+  // room can never be mistaken for a bare verifier segment.
+  function slug(s) {
+    const out = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+    return /[a-z0-9]/.test(out) ? out : 'app';
+  }
   // gifos.app/join/<code> on production (404.html routes it into run.html);
   // hash form everywhere else (local dev, custom relays, legacy split ids).
   function buildJoinUrl(page, sid, token, relay) {
     const meet = page === 'video' || page === 'meet'; // 'video' kept as a legacy alias
     const onProd = /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
     // Owned app: sid is "<room>.<verifier>" → pretty /join/<room>/<verifier>.
-    const dot = sid.indexOf('.');
+    // lastIndexOf so this can never diverge from the relay's split (which also
+    // takes the verifier after the LAST dot), even if a room ever held a dot.
+    const dot = sid.lastIndexOf('.');
     if (!meet && onProd && dot > 0) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1);
     const pretty = sid === token && onProd;
     if (pretty) return location.origin + (meet ? '/meet/' : '/join/') + sid;

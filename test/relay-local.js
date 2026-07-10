@@ -63,6 +63,16 @@ class Conn {
   close() { try { this.frame(0x8, Buffer.alloc(0)); this.socket.end(); } catch (e) {} }
 }
 
+// A session id "<room>.<verifier>" carries its verifier after the LAST dot
+// (hex, 16–64 chars). One derivation for BOTH the app host gate and the
+// meeting admin check — mirrors the Worker's verifierOf.
+function verifierOf(sid) {
+  const dot = String(sid || '').lastIndexOf('.');
+  if (dot <= 0) return '';
+  const v = sid.slice(dot + 1);
+  return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
+}
+
 // ---- session hub (mirrors the Durable Object) ----
 const sessions = new Map(); // id -> { host, token, meshToken, clients:Map, names:Map }
 function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, meshToken: null, clients: new Map(), names: new Map() }); return sessions.get(id); }
@@ -178,11 +188,10 @@ server.on('upgrade', (req, socket) => {
     // Owned-app gate (mirrors the Worker): a sid "<room>.<verifier>" gates the
     // host slot by a secret whose SHA-256 begins with the verifier — only the
     // creator (who holds the secret) may host; guests join but can't take over.
-    const vdot = parts[1].lastIndexOf('.');
-    if (vdot > 0) {
-      const verifier = parts[1].slice(vdot + 1);
+    const verifier = verifierOf(parts[1]);
+    if (verifier) {
       const adm = url.searchParams.get('adm') || '';
-      const proven = adm && /^[a-f0-9]+$/i.test(verifier) && crypto.createHash('sha256').update(adm).digest('hex').slice(0, verifier.length) === verifier;
+      const proven = adm && crypto.createHash('sha256').update(adm).digest('hex').slice(0, verifier.length) === verifier;
       if (!proven) { rejectConn('this app link is owned — only its creator can host it'); return; }
     }
     // Epoch-guarded host slot (mirrors the Worker): a takeover claims epoch+1;
@@ -214,7 +223,7 @@ server.on('upgrade', (req, socket) => {
     // part of the ROOM IDENTITY (the &av= every occupant's URL carries — a
     // room without it can never have an admin). Admin = presenting a key K
     // whose SHA-256 equals the room's verifier.
-    const av = (url.searchParams.get('av') || '').slice(0, 64);
+    const av = verifierOf(parts[1]); // verifier from the session id, not a query param
     const admK = (url.searchParams.get('adm') || '').slice(0, 128);
     const admOffer = admK ? crypto.createHash('sha256').update(admK).digest('hex') : null;
     if (sess.clients.size === 0) {
