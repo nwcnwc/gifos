@@ -698,16 +698,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await adam.locator('#syschip').count()) === 0);
   check('a plain room has no admin and can never have one',
     !(await adam.evaluate(() => window.__gifosVideo.hasAdmin())));
-  // Mint the admin room: creator CHOOSES its name (the salt), so (name,
-  // password) alone define the room — verifier welded into the address.
-  const chosenRoom = 'club' + Math.floor(Math.random() * 1e6).toString(36);
-  await adam.locator('#admbtn').click();
-  await adam.locator('#adm-room').fill(chosenRoom);
-  await adam.locator('#adm-pass').fill('sesame-topsecret');
-  await adam.locator('#adm-enable').click();
+  check('a plain room hides the Admin button (nothing for it to do)',
+    !(await adam.locator('#admbtn').isVisible()));
+  // Mint the admin room from INVITE now (not a separate Admin button): the room
+  // you're IN becomes admin-controlled — same name, no rename, so you can never
+  // strand yourself in an empty room. Alone here, so no chat hop-link is offered.
+  const chosenRoom = admRoom; // the current room's own name is the salt
+  await adam.locator('#invite').click();
+  await adam.locator('#inv-mkadm').click();
+  await adam.locator('#inv-adm-pass').fill('sesame-topsecret');
+  await adam.locator('#inv-adm-go').click();
   await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
-  check('minting an admin room with a CHOSEN name lands its creator in it AS admin',
+  check('turning the room you are in into an admin room lands its creator in it AS admin',
     (await adam.evaluate(() => window.__gifosVideo.room())) === chosenRoom);
   const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
   const admHash = 'v=' + chosenRoom + '&k=' + chosenRoom + '&av=' + admV;
@@ -870,11 +873,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostCtx = await newUser('Host');
   const fanCtx = await newUser('Fan');
   const hostRoom = 'live' + Math.floor(Math.random() * 1e6).toString(36);
-  const host = await openRoom(hostCtx, 'host', plainHash);
-  await host.locator('#admbtn').click();
-  await host.locator('#adm-room').fill(hostRoom);
-  await host.locator('#adm-pass').fill('greenroom-topsecret');
-  await host.locator('#adm-enable').click();
+  const host = await openRoom(hostCtx, 'host', 'v=' + hostRoom + '&k=' + hostRoom);
+  await host.locator('#invite').click();
+  await host.locator('#inv-mkadm').click();
+  await host.locator('#inv-adm-pass').fill('greenroom-topsecret');
+  await host.locator('#inv-adm-go').click();
   await host.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
   const hostV = await host.evaluate(() => window.__gifosVideo.verifier());
   const hostHash = 'v=' + hostRoom + '&k=' + hostRoom + '&av=' + hostV;
