@@ -566,20 +566,24 @@
   const GRID = { origin: 12, pitch: computePitch(), rowPitch: Math.max(computePitch(), 104) };
   surface.style.setProperty('--cell', GRID.pitch + 'px');
   surface.style.setProperty('--row', GRID.rowPitch + 'px');
-  const gridCols = () => Math.max(1, Math.floor((surface.clientWidth - 20) / GRID.pitch));
-  function cellOf(x, y, cols) {
+  // Grid cell for a SURFACE-space position. Columns are unbounded to the right,
+  // exactly like rows are unbounded downward: the surface scrolls both ways, so
+  // an icon can live past the viewport's right edge (e.g. placed wide in
+  // landscape, then viewed in portrait) and still map to its TRUE column — never
+  // clamped back into the visible width, which used to collapse far icons onto
+  // the last column and make drags snap to random spots after a rotation.
+  function cellOf(x, y) {
     return {
-      col: Math.min(cols - 1, Math.max(0, Math.round(((x || GRID.origin) - GRID.origin) / GRID.pitch))),
+      col: Math.max(0, Math.round(((x || GRID.origin) - GRID.origin) / GRID.pitch)),
       row: Math.max(0, Math.round(((y || GRID.origin) - GRID.origin) / GRID.rowPitch)),
     };
   }
   // Nearest empty cell to (px,py) among siblings in `parent`, ring-searching outward.
   function nearestFreeCell(px, py, parent, excludeId) {
-    const cols = gridCols();
-    const target = cellOf(px, py, cols);
+    const target = cellOf(px, py);
     const taken = new Set(items
       .filter((i) => (i.parent || null) === (parent || null) && i.id !== excludeId)
-      .map((i) => { const c = cellOf(i.x, i.y, cols); return c.col + ',' + c.row; }));
+      .map((i) => { const c = cellOf(i.x, i.y); return c.col + ',' + c.row; }));
     if (parent) taken.add('0,0'); // the up-hole owns the corner cell inside folders
     for (let r = 0; r < 200; r++) {
       let best = null, bestD = Infinity;
@@ -587,7 +591,7 @@
         for (let dr = -r; dr <= r; dr++) {
           if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue; // ring perimeter only
           const col = target.col + dc, row = target.row + dr;
-          if (col < 0 || col >= cols || row < 0) continue;
+          if (col < 0 || row < 0) continue; // columns unbounded to the right, like rows down
           const d = dc * dc + dr * dr;
           if (d < bestD && !taken.has(col + ',' + row)) { bestD = d; best = { col, row }; }
         }
@@ -609,7 +613,7 @@
       e.preventDefault();                                 // no native image drag / text select
       selectedId = it.id;
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
-      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop };
+      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop, sl: surface.scrollLeft };
       moved = false;
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ }
       if (e.pointerType !== 'mouse') {
@@ -623,12 +627,16 @@
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearLp(); }
       if (moved) {
-        // Dragging near the edges scrolls the endless surface along.
+        // Dragging near the edges scrolls the endless surface along — both axes,
+        // so you can carry an icon out to a far column or row that's off-screen.
         const r = surface.getBoundingClientRect();
         if (e.clientY > r.bottom - 48) surface.scrollTop += 14;
         else if (e.clientY < r.top + 48 && surface.scrollTop > 0) surface.scrollTop -= 14;
-        const sd = surface.scrollTop - down.st; // keep the icon under the finger while scrolled
-        el.style.left = Math.max(0, down.ox + dx) + 'px';
+        if (e.clientX > r.right - 48) surface.scrollLeft += 14;
+        else if (e.clientX < r.left + 48 && surface.scrollLeft > 0) surface.scrollLeft -= 14;
+        const sd = surface.scrollTop - down.st;   // keep the icon under the finger while scrolled
+        const sld = surface.scrollLeft - down.sl;
+        el.style.left = Math.max(0, down.ox + dx + sld) + 'px';
         el.style.top = Math.max(0, down.oy + dy + sd) + 'px';
         highlightDropTarget(e, it);
       }
