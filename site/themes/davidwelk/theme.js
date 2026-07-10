@@ -1,8 +1,9 @@
 /* Theme: David Welk — a deep-space showcase computer (davidwelk.gifos.app).
-   Near-black cosmos chrome with star-blue / nebula-violet accents. The Home
-   Screen floats over a live WebGL wallpaper (space.js): a parallax starfield,
-   a domain-warped nebula, a shaded planet and a drifting camera. Chrome lands
-   here (pre-paint, no flash); the wallpaper is layered in behind the icons. */
+   Near-black cosmos chrome with star-blue / nebula-crimson accents. The Home
+   Screen floats over a live WebGL wallpaper (space.js): a sunrise from low
+   orbit — a night-side cloud deck below, a crimson nebula above, three more
+   worlds in between, and a drifting camera. Chrome lands here (pre-paint,
+   no flash); the wallpaper is layered in behind the icons. */
 GifOS.setTheme({
   name: 'David Welk',
   pack: 'aurora',
@@ -14,7 +15,7 @@ GifOS.setTheme({
     text: '#eaf0ff',
     muted: '#8fa0d0',
     accent: '#5aa0ff',
-    accent2: '#c86bff',
+    accent2: '#ff6b7d',
     glow: 'rgba(90,160,255,.40)',
     bar: 'rgba(5,9,24,.62)',
     label: '#eaf0ff',
