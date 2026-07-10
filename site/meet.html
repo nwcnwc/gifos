@@ -1721,6 +1721,9 @@
 
     function joinRoom() {
       room = params.get('v') || shortCode();
+      // Legacy read only: a meeting has no separate join token — the link IS the
+      // capability, so the token is always the room id. Old links still carry a
+      // redundant &k=<room>; we honor it but no longer emit it (v is enough).
       roomToken = params.get('k') || room;
       // The admin verifier is PART OF THE ROOM'S IDENTITY: with it this is an
       // admin-managed room, without it an anarchic one — two different rooms.
@@ -1730,11 +1733,11 @@
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const avPart = av ? '&av=' + av : '';
-      const wantHash = '#v=' + room + '&k=' + roomToken + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
+      const wantHash = '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
       const pretty = room === roomToken && /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
       shareUrl.value = pretty ? location.origin + '/meet/' + room + (av ? '/' + av : '')
-        : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+        : location.origin + location.pathname + '#v=' + room + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
       recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
@@ -1858,7 +1861,7 @@
     function wireLobby() {
       const lob = document.getElementById('lobby');
       const toggle = (id) => { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? '' : 'none'; };
-      document.getElementById('lob-open').onclick = () => { const c = shortCode(); enterMeeting('#v=' + c + '&k=' + c); };
+      document.getElementById('lob-open').onclick = () => { enterMeeting('#v=' + shortCode()); };
       document.getElementById('lob-admin-btn').onclick = () => { toggle('lob-admin'); document.getElementById('lob-join').style.display = 'none'; const n = document.getElementById('lob-admin-name'); if (document.getElementById('lob-admin').style.display !== 'none') n.focus(); };
       document.getElementById('lob-admin-cancel').onclick = () => { document.getElementById('lob-admin').style.display = 'none'; };
       document.getElementById('lob-admin-go').onclick = async () => {
@@ -1872,7 +1875,7 @@
           const K = await deriveAdminKey(chosen, pass);
           const V = (await sha256hex(K)).slice(0, 24);
           try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
-          enterMeeting('#v=' + chosen + '&k=' + chosen + '&av=' + V);
+          enterMeeting('#v=' + chosen + '&av=' + V);
         } catch (e) { err.textContent = 'Could not create the room. Try again.'; go.disabled = false; go.textContent = 'Create & enter'; }
       };
       document.getElementById('lob-join-btn').onclick = () => { toggle('lob-join'); document.getElementById('lob-admin').style.display = 'none'; const i = document.getElementById('lob-join-in'); if (document.getElementById('lob-join').style.display !== 'none') i.focus(); };
@@ -1881,7 +1884,7 @@
         const err = document.getElementById('lob-join-err');
         const p = parseMeetInput(document.getElementById('lob-join-in').value);
         if (!p) { err.textContent = 'Couldn’t read that — paste a meeting link or its id.'; return; }
-        enterMeeting('#v=' + p.room + '&k=' + p.room + (p.av ? '&av=' + p.av : '') + (p.relay ? '&relay=' + encodeURIComponent(p.relay) : ''));
+        enterMeeting('#v=' + p.room + (p.av ? '&av=' + p.av : '') + (p.relay ? '&relay=' + encodeURIComponent(p.relay) : ''));
       };
       document.getElementById('lob-join-go').onclick = doJoin;
       document.getElementById('lob-join-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
@@ -2746,13 +2749,13 @@
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
       const newLink = pretty
         ? location.origin + '/meet/' + chosen + '/' + V
-        : location.origin + location.pathname + '#v=' + chosen + '&k=' + chosen + '&av=' + V + (relay ? '&relay=' + encodeURIComponent(relay) : '');
+        : location.origin + location.pathname + '#v=' + chosen + '&av=' + V + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (postToChat && peers.size > 0) {
         const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: 'I moved this meeting to a room I run — follow me:', link: newLink };
         chat.set(m.id, m); dcAll({ k: 'chat', m }); renderChat();
         await new Promise((r) => setTimeout(r, 600)); // let the P2P chat flush before we leave
       }
-      location.replace(location.pathname + '#v=' + chosen + '&k=' + chosen + '&av=' + V);
+      location.replace(location.pathname + '#v=' + chosen + '&av=' + V);
       location.reload(); // load the new admin room fresh — I arrive as its admin
     }
 

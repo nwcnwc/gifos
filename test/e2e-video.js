@@ -48,10 +48,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aPage.locator('#lob-open').click();
   await aPage.waitForFunction(() => {
     const el = document.getElementById('share-url');
-    return el && el.value && /#v=.*&k=.*&relay=/.test(el.value);
+    return el && el.value && /#v=.*&relay=/.test(el.value);
   }, null, { timeout: 10000 });
   const link = await aPage.locator('#share-url').inputValue();
-  check('creator produced a meeting invite link', /#v=.*&k=.*&relay=/.test(link));
+  check('creator produced a meeting invite link', /#v=.*&relay=/.test(link));
   const q1 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('alone → top quality rung (720p)', q1 === '720p');
 
@@ -714,12 +714,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.locator('#inv-adm-room').fill(chosenRoom);
   await adam.locator('#inv-adm-pass').fill('sesame-topsecret');
   await adam.locator('#inv-adm-go').click();
-  await adam.waitForURL(new RegExp('v=' + chosenRoom + '&k=' + chosenRoom + '&av=[a-f0-9]{24}'), { timeout: 30000 });
+  await adam.waitForURL(new RegExp('v=' + chosenRoom + '&av=[a-f0-9]{24}'), { timeout: 30000 });
   await adam.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   check('creating an admin room with any chosen name lands its creator in it AS admin',
     (await adam.evaluate(() => window.__gifosVideo.room())) === chosenRoom);
   const admV = await adam.evaluate(() => window.__gifosVideo.verifier());
-  const admHash = 'v=' + chosenRoom + '&k=' + chosenRoom + '&av=' + admV;
+  const admHash = 'v=' + chosenRoom + '&av=' + admV;
   check('the room link carries only the verifier — never the password',
     /^[a-f0-9]{24}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
   // The whole point: (name, password) reconstruct the SAME room from scratch.

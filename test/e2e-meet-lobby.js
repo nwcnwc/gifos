@@ -52,7 +52,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await p2.locator('#lob-admin-name').fill(adminName);
   await p2.locator('#lob-admin-pass').fill('greenroom-topsecret');
   await p2.locator('#lob-admin-go').click();
-  await p2.waitForURL(new RegExp('v=' + adminName + '&k=' + adminName + '&av=[a-f0-9]{24}'), { timeout: 20000 });
+  await p2.waitForURL(new RegExp('v=' + adminName + '&av=[a-f0-9]{24}'), { timeout: 20000 });
   await p2.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   check('"Start a room you run" mints a NAMED admin room, you as admin',
     (await p2.evaluate(() => window.__gifosVideo.room())) === adminName);

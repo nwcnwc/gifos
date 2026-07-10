@@ -26,7 +26,9 @@
     var verifier = m[2] ? m[2].toLowerCase() : '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
     if (/^\/(?:meet|call)\//.test(location.pathname)) {
-      location.replace('/meet.html#v=' + code + '&k=' + code + (verifier ? '&av=' + verifier : '') + extra);
+      // A meeting has no separate join token — the room id IS the capability, so
+      // no &k= (the app branch below still needs it: an owned app's token differs).
+      location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '') + extra);
     } else if (verifier) {
       // Owned app: the session id is "<room>.<verifier>" and the join token is
       // the verifier (public). The host SECRET is never in the link.
