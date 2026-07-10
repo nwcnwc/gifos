@@ -16,9 +16,14 @@
  *     themes/7/theme.js themes/7/icons.js        ← override for 7.gifos.app
  *
  * A theme folder holds (all optional; omit one and the base file is used):
- *   theme.js  — calls GifOS.setTheme({ name, pack, chrome:{cssVar:value} })
- *   icons.js  — the icon-art pack (registers with GifOS.iconPacks)
- *   eggs.js   — bonus seed apps for THIS computer only: GifOS.addEggs([...])
+ *   theme.js      — calls GifOS.setTheme({ name, pack, chrome:{cssVar:value} })
+ *   icons.js      — the icon-art pack (registers with GifOS.iconPacks)
+ *   eggs.js       — bonus seed apps for THIS computer only: GifOS.addEggs([...])
+ *   wallpaper.js  — a live background (e.g. a WebGL canvas) for THIS computer.
+ *                   Drop the file in and the cascade loads it — no per-theme
+ *                   injection. It should self-guard duplicates, honour
+ *                   prefers-reduced-motion, pause when hidden, and sit behind the
+ *                   icons (a fixed canvas at z-index 0, pointer-events:none).
  *
  * All themes seed the SAME default apps (from sample-apps.js), automatically
  * dressed in the theme — icons.js draws their animated icons in-style and the
@@ -27,9 +32,11 @@
  *
  * Loading is a parser-blocking base-then-override document.write, so chrome
  * lands BEFORE first paint (no flash) and a missing override file just 404s and
- * leaves the base in place. icons.js + eggs.js are only pulled on the pages that
- * render/seed icons (the desktop), never on the meeting/app pages where art is
- * baked into GIFs already.
+ * leaves the base in place. icons.js + eggs.js + wallpaper.js are only pulled on
+ * the DESKTOP, never on the meeting/app pages (art is baked into GIFs there, and
+ * a wallpaper behind an occluded call would just burn battery). wallpaper.js is
+ * also OVERRIDE-only — there is no default wallpaper, so the base themes/ folder
+ * is never asked for one.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -84,6 +91,9 @@
       if (wantIcons) {
         d.write('<scr' + 'ipt src="/' + dirs[i] + '/icons.js"></scr' + 'ipt>');
         d.write('<scr' + 'ipt src="/' + dirs[i] + '/eggs.js"></scr' + 'ipt>');
+        // A live background is a per-computer thing (no default), so only an
+        // override folder is asked for one — and only on the desktop.
+        if (dirs[i] !== 'themes') d.write('<scr' + 'ipt src="/' + dirs[i] + '/wallpaper.js"></scr' + 'ipt>');
       }
     }
   }
