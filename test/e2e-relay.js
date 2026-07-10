@@ -53,8 +53,8 @@ async function invite(page, lifetime, resilient) {
 
   // go multiplayer
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#share-url').inputValue();
+  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl = await hostRun.locator('#lm-url').inputValue();
   check('host produced a short-code share URL', /#j=[a-z2-9]{10}&relay=/.test(shareUrl));
 
   // ---------- CLIENT (separate context = separate machine) ----------

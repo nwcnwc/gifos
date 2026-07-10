@@ -15,18 +15,22 @@ function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + na
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function openModal(page) {
-  await page.locator('#host').click();
+  // Invite opens the create window. If a link-ready modal is already up (after
+  // a previous create), its "New link" button is what re-opens the window.
+  if (await page.locator('#link-modal').count()) await page.locator('#lm-new').click();
+  else await page.locator('#host').click();
   await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
 }
 async function pick(page, value, prev, resilient) {
   await page.locator('#invite-modal input[name=lt][value="' + value + '"]').check();
   if (resilient) await page.locator('#invite-modal input[name=res][value="keep"]').check();
   await page.locator('#inv-go').click();
+  // The minted link lands in the link-ready modal (#lm-url), not a header bar.
   await page.waitForFunction((old) => {
-    const el = document.getElementById('share-url');
+    const el = document.getElementById('lm-url');
     return el && el.value && el.value.length > 0 && el.value !== old;
   }, prev || '', { timeout: 8000 });
-  return page.locator('#share-url').inputValue();
+  return page.locator('#lm-url').inputValue();
 }
 
 async function openGuestbook(ctx) {
@@ -68,8 +72,8 @@ async function openGuestbook(ctx) {
   // Pick the ephemeral default. A fresh short code, share panel shows lifetime.
   const ephUrl = await pick(hostRun, 'close');
   check('ephemeral link is a valid short-code URL', /#j=[a-z2-9]{10}&relay=/.test(ephUrl));
-  check('share panel states the link is open-only and ends if you drop',
-    /while this app is open/i.test(await hostRun.locator('#share-exp').textContent()));
+  check('link modal states the link is open-only and ends if you drop',
+    /while this app is open/i.test(await hostRun.locator('#link-modal .linkexp').textContent()));
 
   // ============ 2) ephemeral link → no mirror → no Take Over ============
   const adaCtx = await browser.newContext();
@@ -133,9 +137,9 @@ async function openGuestbook(ctx) {
   await bob.frameLocator('iframe').locator('#list', { timeout: 10000 }).first().waitFor();
   check('Bob joined the first link', true);
 
-  // Host mints a new link — this revokes url1.
-  await host2.locator('#newlink').click();
-  await host2.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
+  // Host mints a new link — this revokes url1. "New link" lives in the
+  // link-ready modal now; openModal clicks it and waits for the create window.
+  await openModal(host2);
   const url2 = await pick(host2, 'forever', url1);
   check('rotating produced a different link', url2 && url2 !== url1);
 

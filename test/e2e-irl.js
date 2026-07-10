@@ -44,8 +44,9 @@ async function invite(page, lifetime, resilient) {
   check('wolves lobby gates start below 4 players', await host.locator('#start').isDisabled());
 
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#share-url').inputValue();
+  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
+  const shareUrl = await hostRun.locator('#lm-url').inputValue();
+  await hostRun.locator('#lm-close').click().catch(() => {});
 
   // ---------- three friends join from their own phones ----------
   const phones = [{ page: hostRun, app: host, name: 'Host' }];
@@ -121,8 +122,9 @@ async function invite(page, lifetime, resilient) {
   const sbHost = sbRun.frameLocator('iframe');
   await sbHost.locator('#start').waitFor({ timeout: 10000 });
   await invite(sbRun, 'forever', true);
-  await sbRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value; }, null, { timeout: 8000 });
-  const sbUrl = await sbRun.locator('#share-url').inputValue();
+  await sbRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
+  const sbUrl = await sbRun.locator('#lm-url').inputValue();
+  await sbRun.locator('#lm-close').click().catch(() => {});
   const sbPhones = [{ app: sbHost, page: sbRun }];
   for (const name of ['Eve', 'Fox']) {
     const ctx = await browser.newContext();

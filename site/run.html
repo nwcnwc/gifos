@@ -90,12 +90,10 @@
               box-shadow: 0 12px 40px rgba(0,0,0,.5); line-height: 1.4; }
   .conn-pop.show { display: block; }
   #mount { flex: 1; min-height: 0; }
-  .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
-           background: var(--surface, #12121c); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .8rem; }
-  .share.show { display: flex; }
-  .share input { flex: 1; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
-                 background: var(--bg, #0a0a0f); color: var(--accent, #7b5cff); font-family: ui-monospace, monospace; font-size: .78rem; }
-  .share .hint { color: var(--muted, #8888aa); }
+  .linkrow { display: flex; gap: .5rem; align-items: center; margin: .2rem 0 .6rem; }
+  .linkrow input { flex: 1; min-width: 0; padding: .5rem .6rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+                   background: var(--bg, #0a0a0f); color: var(--accent, #7b5cff); font-family: ui-monospace, monospace; font-size: .82rem; }
+  .linkexp { color: var(--muted, #8888aa); font-size: .8rem; margin: 0 0 .2rem; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
@@ -121,13 +119,6 @@
     <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
   </div>
   <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
-  <div class="share" id="share">
-    <span class="hint">Send this link to friends — opening it brings them right in:</span>
-    <input id="share-url" readonly>
-    <button id="copy">Copy</button>
-    <button id="newlink" title="Kill this link and make a new one">New link</button>
-    <span class="hint" id="share-exp"></span>
-  </div>
   <div id="mount"></div>
 
   <script>
@@ -152,12 +143,9 @@
       const hostBtn = document.getElementById('host');
       const stealBtn = document.getElementById('steal');
       const becomeBtn = document.getElementById('become-host');
-      const share = document.getElementById('share');
-      const shareUrl = document.getElementById('share-url');
       let controller = null;
       let inviteUrl = null;
-
-      function showShare(url) { shareUrl.value = url; share.classList.add('show'); }
+      let inviteExp = ''; // human label for the current link's lifetime
 
       // ---- easter egg: the app's own GIF in the corner is a LIVE snapshot ----
       // It shows the app's artwork, but its bytes are the "Download · with data"
@@ -372,12 +360,42 @@
       };
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).
-      function shareLink(url) {
-        showShare(url); // keep the link visible/copyable behind the sheet
+      // The invite link lives in a small modal (Copy · New link), shown right
+      // after "Create link" — no persistent sub-header eating the app's space.
+      function linkReadyModal(url, expLabel) {
+        var old = document.getElementById('link-modal'); if (old) old.remove();
+        var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'link-modal';
+        bg.innerHTML =
+          '<div class="perm-box">' +
+          '<h3>Invite link ready</h3>' +
+          '<p class="lead">Send this to friends — opening it brings them right in.</p>' +
+          '<div class="linkrow"><input id="lm-url" readonly><button id="lm-copy" class="done">Copy</button></div>' +
+          (expLabel ? '<p class="linkexp">' + escapeText(expLabel) + '</p>' : '') +
+          '<div class="perm-btns"><button id="lm-new" class="ghost">New link</button><button id="lm-close" class="done">Done</button></div>' +
+          '</div>';
+        document.body.appendChild(bg);
+        var input = bg.querySelector('#lm-url'); input.value = url;
+        function close() { bg.remove(); }
+        bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+        bg.querySelector('#lm-close').onclick = close;
+        bg.querySelector('#lm-copy').onclick = function () {
+          input.select(); try { document.execCommand('copy'); } catch (e) {}
+          if (navigator.clipboard) navigator.clipboard.writeText(url).catch(function () {});
+          bg.querySelector('#lm-copy').textContent = 'Copied ✓';
+        };
+        bg.querySelector('#lm-new').onclick = function () {
+          close(); if (!controller || !controller.becomeHost) return;
+          chooseInvite(true).then(function (choice) { if (!choice) return; inviteUrl = null; goLive(choice); });
+        };
+      }
+      function shareLink(url, expLabel) {
+        // Native share sheet on phones; the modal is the copyable fallback and
+        // stays put if the user dismisses the sheet.
         if (navigator.share) {
           navigator.share({ title: 'Join me on GifOS', text: 'Tap this link and you’re in:', url: url })
-            .catch(function (err) { /* user closed the sheet — the copy row remains */ });
+            .catch(function (err) { /* user closed the sheet — the modal remains */ });
         }
+        linkReadyModal(url, expLabel);
       }
 
       // ---- compact connection pill (colors, not sentences) ----
@@ -536,9 +554,9 @@
           return controller.becomeHost(choice.resume ? {} : { lifetime: choice.lifetime, resilient: choice.resilient });
         }).then(function (r) {
           inviteUrl = r.shareUrl;
+          inviteExp = lifeLabel(r.keep, r.exp, r.heal);
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
-          document.getElementById('share-exp').textContent = lifeLabel(r.keep, r.exp, r.heal);
-          shareLink(inviteUrl);
+          shareLink(inviteUrl, inviteExp);
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
           status.textContent = 'Could not create the invite: ' + err.message;
@@ -546,17 +564,11 @@
         });
       }
       hostBtn.addEventListener('click', function () {
-        if (inviteUrl) { shareLink(inviteUrl); return; } // already live — share again
+        // Invite ALWAYS opens the explain-and-create window. If a session is
+        // already live it offers "Keep my current link" (which just re-shows it),
+        // so this one entry point covers first-share, re-share and rotate.
         if (!controller || !controller.becomeHost) return;
         chooseInvite().then(function (choice) { if (choice) goLive(choice); });
-      });
-      document.getElementById('newlink').addEventListener('click', function () {
-        if (!controller || !controller.becomeHost) return;
-        chooseInvite(true).then(function (choice) {
-          if (!choice) return;
-          inviteUrl = null; // rotating always mints a fresh link, killing the old
-          goLive(choice);
-        });
       });
       becomeBtn.addEventListener('click', function () {
         if (!controller) return;
@@ -564,7 +576,8 @@
         controller.becomeHost().then(function (r) {
           becomeBtn.style.display = 'none';
           inviteUrl = r.shareUrl;
-          showShare(r.shareUrl);
+          inviteExp = lifeLabel(r.keep, r.exp, r.heal);
+          shareLink(r.shareUrl, inviteExp);
           if (r.save) controller = Object.assign({}, controller, { save: r.save });
         }).catch(function (err) {
           becomeBtn.disabled = false; becomeBtn.textContent = 'Take Over';
@@ -608,10 +621,6 @@
         };
       }
       stealBtn.addEventListener('click', chooseSteal);
-      document.getElementById('copy').addEventListener('click', function () {
-        shareUrl.select(); try { document.execCommand('copy'); } catch (e) {}
-        if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(function () {});
-      });
     })();
   </script>
 </body>

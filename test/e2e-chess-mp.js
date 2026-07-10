@@ -62,6 +62,7 @@ async function clickMove(frame, orient, uci) {
   const [aRun] = await Promise.all([aCtx.waitForEvent('page'), aDesk.locator('.icon', { hasText: 'Chess Grandmaster.gif' }).dblclick()]);
   aRun.on('pageerror', (e) => console.log('  [Alice app err]', e.message));
   const aFrame = await enterFriend(aRun);
+  await aFrame.locator('#fStatus', { hasText: /Waiting for another/i }).waitFor({ timeout: 5000 }).catch(() => {});
   check('host sees "waiting for another player"', /Waiting for another/i.test(await aFrame.evaluate(() => document.getElementById('fStatus').textContent)));
 
   // Invite with forever + keep-alive (resilient), grab the link
@@ -70,8 +71,9 @@ async function clickMove(frame, orient, uci) {
   await aRun.locator('input[name=lt][value="forever"]').check().catch(() => {});
   await aRun.locator('input[name=res][value="keep"]').check().catch(() => {});
   await aRun.locator('#inv-go').click();
-  await aRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value; }, null, { timeout: 8000 });
-  const shareUrl = await aRun.locator('#share-url').inputValue();
+  await aRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
+  const shareUrl = await aRun.locator('#lm-url').inputValue();
+  await aRun.locator('#lm-close').click().catch(() => {}); // dismiss the link modal so host controls stay clickable
 
   // ---- Bob joins from the link ----
   const bCtx = await browser.newContext(); await bCtx.addInitScript(setup('Bob'));

@@ -47,8 +47,8 @@ const dropSockets = (page) => page.evaluate(() => {
   await hostRun.waitForSelector('iframe');
   await hostRun.frameLocator('iframe').locator('#msg').waitFor({ timeout: 8000 });
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('share-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#share-url').inputValue();
+  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value.length > 0; }, null, { timeout: 8000 });
+  const shareUrl = await hostRun.locator('#lm-url').inputValue();
 
   // ---------- relay-only client joins (no WebRTC → the socket IS the session) ----------
   const cCtx = await browser.newContext();
