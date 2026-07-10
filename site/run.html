@@ -28,9 +28,14 @@
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
                 background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem;
                 white-space: nowrap; }
-  @media (max-width: 600px) {
-    .bar { gap: .35rem; padding: .45rem .55rem; }
-    .bar button { padding: .3rem .55rem; font-size: .72rem; }
+  /* Compact the bar on small phones — narrow (portrait) OR short (landscape),
+     since a landscape phone is wide but only ~320-430px tall and every header
+     row counts. */
+  @media (max-width: 600px), (max-height: 500px) {
+    .bar { gap: .3rem; padding: .3rem .5rem; }
+    .bar button { padding: .28rem .5rem; font-size: .72rem; }
+    .bar .title { font-size: .95rem; }
+    .appgif { width: 1.15rem; height: 1.15rem; }
   }
   .bar button:hover { border-color: var(--accent, #7b5cff); }
   .bar button.urgent { border-color: var(--accent2, #ff5caa); box-shadow: 0 0 14px rgba(255,92,170,.35); }

@@ -1056,7 +1056,7 @@ opens the built-in meeting page when opened in GifOS.</p>
 <style>
   :root{--fs:18px}
   *{box-sizing:border-box}
-  body{margin:0;font:16px system-ui;display:flex;flex-direction:column;height:100vh;transition:background .2s,color .2s}
+  body{margin:0;font:16px system-ui;display:flex;flex-direction:column;height:100vh;height:100dvh;transition:background .2s,color .2s}
   body[data-read="night"]{--rbg:#15120d;--rtext:#eae2d2;--rmuted:#a79e8b;--rlink:#d9b458;--rchrome:#1c1811;--rborder:#352d22;--rrule:#3a3226}
   body[data-read="day"]{--rbg:#f6efdf;--rtext:#2c2620;--rmuted:#7a7060;--rlink:#8a571a;--rchrome:#efe6cf;--rborder:#ddd0b2;--rrule:#e2d6b8}
   body{background:var(--rbg);color:var(--rtext)}
@@ -1073,6 +1073,16 @@ opens the built-in meeting page when opened in GifOS.</p>
   main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--rbg)}
   .doc{max-width:680px;margin:0 auto;padding:22px 20px 64px;line-height:1.75;font-size:var(--fs);font-family:Georgia,'Times New Roman',serif;color:var(--rtext);overflow-wrap:anywhere}
   .doc img,.doc table{max-width:100%}
+  /* Phones: narrow (portrait) OR short (landscape). Slim the two header rows and
+     buttons so the actual scripture gets the screen, not the chrome. */
+  @media (max-width:480px),(max-height:520px){
+    header{padding:6px 12px}
+    header .ttl{font-size:13px}
+    nav{padding:5px 10px;gap:5px}
+    nav button{padding:5px 9px;font-size:13px}
+    nav button.chip{min-width:30px}
+    .doc{padding:14px 16px 44px;line-height:1.6}
+  }
   .doc h1,.doc h2,.doc h3{font-family:system-ui;color:var(--rlink);line-height:1.25}
   .doc a{color:var(--rlink);text-decoration:none}
   .doc a[data-nav]{border-bottom:1px dotted currentColor;cursor:pointer}
