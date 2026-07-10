@@ -44,6 +44,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aPage.waitForURL(/meet\.html/, { timeout: 8000 });
   check('Meeting icon routes to the trusted system page', /meet\.html/.test(aPage.url()));
 
+  // A cold open lands on the lobby now — start an open meeting to get a room.
+  await aPage.locator('#lob-open').click();
   await aPage.waitForFunction(() => {
     const el = document.getElementById('share-url');
     return el && el.value && /#v=.*&k=.*&relay=/.test(el.value);
@@ -544,6 +546,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hubPage = await hubCtx.newPage();
   hubPage.on('console', (m) => { if (m.type() === 'error') console.log('  [hub]', m.text()); });
   await hubPage.goto(BASE + '/meet.html');
+  await hubPage.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await hubPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const islandLink = await hubPage.locator('#share-url').inputValue();
   const cIsleCtx = await newUser('RightIsle');
@@ -629,6 +632,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rexPage = await rexCtx.newPage();
   rexPage.on('console', (m) => { if (m.type() === 'error') console.log('  [rex]', m.text()); });
   await rexPage.goto(BASE + '/meet.html');
+  await rexPage.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await rexPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const meshLink = await rexPage.locator('#share-url').inputValue();
   const samCtx = await newUser('Sam'); await samCtx.addInitScript({ content: dynBlock });
