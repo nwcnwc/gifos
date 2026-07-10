@@ -1315,7 +1315,7 @@
       return params.get('relay') || u || window.GIFOS_RELAY || null;
     }
 
-    let room = null, roomToken = null, backoff = 500, reopenTimer = null;
+    let room = null, backoff = 500, reopenTimer = null;
     let roomPw = '', pwBlocked = false;
 
     // ---- admin rooms -----------------------------------------------------------
@@ -1409,7 +1409,7 @@
       // The session id is the room+verifier COMPOSITE: /room and /room/V are different rooms.
       // The relay reads the verifier straight off the sid (the dot in roomKey), so we don't
       // send a separate &av= — one derivation, the same one join uses. See verifierOf on the relay.
-      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + roomToken +
+      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + room +
         '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
         '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
       lastVoteSync = null; // a fresh socket re-syncs my standing votes
@@ -1721,10 +1721,8 @@
 
     function joinRoom() {
       room = params.get('v') || shortCode();
-      // Legacy read only: a meeting has no separate join token — the link IS the
-      // capability, so the token is always the room id. Old links still carry a
-      // redundant &k=<room>; we honor it but no longer emit it (v is enough).
-      roomToken = params.get('k') || room;
+      // A meeting has no separate join token — the link IS the capability, so the
+      // room id is the whole identity. There is no &k= at all.
       // The admin verifier is PART OF THE ROOM'S IDENTITY: with it this is an
       // admin-managed room, without it an anarchic one — two different rooms.
       av = (/^[a-f0-9]{16,64}$/.exec((params.get('av') || '').toLowerCase()) || [null])[0];
@@ -1735,7 +1733,7 @@
       const avPart = av ? '&av=' + av : '';
       const wantHash = '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.hash !== wantHash) history.replaceState(null, '', location.pathname + wantHash);
-      const pretty = room === roomToken && /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
+      const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
       shareUrl.value = pretty ? location.origin + '/meet/' + room + (av ? '/' + av : '')
         : location.origin + location.pathname + '#v=' + room + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link

@@ -694,7 +694,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
   };
-  const plainHash = 'v=' + admRoom + '&k=' + admRoom;
+  const plainHash = 'v=' + admRoom;
   const adamCtx = await newUser('Adam');
   const bethCtx = await newUser('Beth');
   const adam = await openRoom(adamCtx, 'adam', plainHash);
@@ -879,14 +879,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hostCtx = await newUser('Host');
   const fanCtx = await newUser('Fan');
   const hostRoom = 'live' + Math.floor(Math.random() * 1e6).toString(36);
-  const host = await openRoom(hostCtx, 'host', 'v=' + hostRoom + '&k=' + hostRoom);
+  const host = await openRoom(hostCtx, 'host', 'v=' + hostRoom);
   await host.locator('#invite').click();
   await host.locator('#inv-mkadm').click();
   await host.locator('#inv-adm-pass').fill('greenroom-topsecret');
   await host.locator('#inv-adm-go').click();
   await host.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
   const hostV = await host.evaluate(() => window.__gifosVideo.verifier());
-  const hostHash = 'v=' + hostRoom + '&k=' + hostRoom + '&av=' + hostV;
+  const hostHash = 'v=' + hostRoom + '&av=' + hostV;
   const fan = await openRoom(fanCtx, 'fan', hostHash);
   await fan.waitForFunction(() => window.__gifosVideo.adminsHere().length > 0, null, { timeout: 12000 });
   check('with the host present, a guest sees no closing countdown',
@@ -907,7 +907,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // MAJORITY of the connected devices (min 2). Three people; two vote off the
   // third (majority of 3 = 2).
   const voteRoom = 'vote' + Math.floor(Math.random() * 1e6).toString(36);
-  const vHash = 'v=' + voteRoom + '&k=' + voteRoom;
+  const vHash = 'v=' + voteRoom;
   const patCtx = await newUser('Pat'), quinnCtx = await newUser('Quinn'), vicCtx = await newUser('Vic');
   const pat = await openRoom(patCtx, 'pat', vHash);
   const quinn = await openRoom(quinnCtx, 'quinn', vHash);
@@ -936,7 +936,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // a DIFFERENT plain room and the vote is already there — nothing stored on
   // any server, no list handed around, just each person's own memory.
   const room2 = 'vote' + Math.floor(Math.random() * 1e6).toString(36);
-  const v2Hash = 'v=' + room2 + '&k=' + room2;
+  const v2Hash = 'v=' + room2;
   const pat2 = await openRoom(patCtx, 'pat-b', v2Hash);   // carries the vote
   const vicB = await openRoom(vicCtx, 'vic-b', v2Hash);
   await pat2.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });

@@ -27,7 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return ctx;
   };
   const room = 'inv' + Math.floor(Math.random() * 1e6).toString(36);
-  const plainHash = 'v=' + room + '&k=' + room;
+  const plainHash = 'v=' + room;
   const open = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
