@@ -43,6 +43,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const aMeet = await aCtx.newPage();
   aMeet.on('pageerror', (e) => console.log('  [a meet pageerror]', e.message));
   await aMeet.goto(BASE + '/meet.html');
+  await aMeet.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
   check('meeting page loaded the app runtime', await aMeet.evaluate(() => !!(window.GifOS && window.GifOS.runtime)));
   check('meeting bar shows the Run-app control', await aMeet.locator('#appbtn').isVisible());

@@ -208,10 +208,64 @@
   #adm-banned .brow { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid var(--surface, #1c1c2b); }
   #adm-banned .brow button { padding: .15rem .5rem; font-size: .72rem; border-radius: .35rem;
                              border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
+  /* ---- the front-door lobby (cold open only) ---- */
+  #lobby { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto;
+           background: var(--bg, #0a0a0f); padding: 2rem 1rem; }
+  #lobby.show { display: flex; align-items: flex-start; justify-content: center; }
+  .lobby-card { width: 100%; max-width: 440px; margin: auto; }
+  .lobby-card h1 { font-size: 1.6rem; margin: .2rem 0 1.1rem; text-align: center; }
+  .lob-primary, .lob-action { display: block; width: 100%; text-align: left; border-radius: .7rem;
+    padding: .85rem 1rem; margin-bottom: .6rem; border: 1px solid var(--border, #2a2a3f);
+    background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: 1rem; line-height: 1.25; }
+  .lob-primary { background: var(--accent, #4f7fff); border-color: transparent; color: #fff; font-weight: 600; }
+  .lob-primary small, .lob-action small { display: block; font-size: .78rem; opacity: .78; font-weight: 400; margin-top: .15rem; }
+  .lob-expand { border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; padding: .8rem; margin: -.2rem 0 .6rem; background: rgba(255,255,255,.02); }
+  .lob-expand input { width: 100%; box-sizing: border-box; margin-bottom: .5rem; padding: .5rem .6rem;
+    border-radius: .45rem; border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); }
+  .lob-row { display: flex; justify-content: flex-end; gap: .5rem; }
+  .lob-row button { padding: .45rem .9rem; }
+  .lob-ghost { background: var(--surface, #1c1c2b); border: 1px solid var(--border, #2a2a3f); color: var(--text, #e0e0f0); }
+  .lob-err { color: #ff8a8a; font-size: .82rem; margin-top: .35rem; min-height: 1em; }
+  .lob-sep { border-top: 1px solid var(--border, #2a2a3f); margin: 1rem 0 .7rem; }
+  .lob-hist-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; opacity: .55; margin-bottom: .4rem; }
+  .lob-item { display: flex; align-items: center; gap: .6rem; padding: .5rem .55rem; border-radius: .5rem; cursor: pointer; }
+  .lob-item:hover { background: var(--surface, #1c1c2b); }
+  .lob-item .li-main { flex: 1; min-width: 0; }
+  .lob-item .li-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lob-item .li-sub { display: block; font-size: .74rem; opacity: .55; }
+  .lob-item .li-badge { font-size: .66rem; opacity: .8; border: 1px solid var(--border, #2a2a3f); border-radius: 1rem; padding: 0 .4rem; margin-left: .3rem; }
+  .lob-star { background: none; border: none; cursor: pointer; font-size: 1.15rem; color: #cdb84a; padding: .15rem .25rem; line-height: 1; }
+  .lob-empty { opacity: .5; font-size: .88rem; text-align: center; padding: .8rem 0; }
+  .lob-namebar { text-align: center; margin-top: 1.1rem; font-size: .85rem; opacity: .78; }
+  .lob-link { background: none; border: none; color: var(--accent, #6f9bff); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
 </style>
 <script src="js/gifos-themes.js"></script>
 </head>
 <body>
+  <div id="lobby">
+    <div class="lobby-card">
+      <h1>Meeting</h1>
+      <button id="lob-open" class="lob-primary">▶&nbsp; Start a meeting<small>Open room · anyone with the link can join</small></button>
+      <button id="lob-admin-btn" class="lob-action">🛡&nbsp; Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
+      <div id="lob-admin" class="lob-expand" style="display:none">
+        <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
+        <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (pick a strong one)" autocomplete="off">
+        <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
+        <div id="lob-admin-err" class="lob-err"></div>
+      </div>
+      <button id="lob-join-btn" class="lob-action">🔗&nbsp; Join a link<small>Paste an invite link or meeting id someone sent you</small></button>
+      <div id="lob-join" class="lob-expand" style="display:none">
+        <input id="lob-join-in" placeholder="Paste link or meeting id" autocomplete="off">
+        <div class="lob-row"><button id="lob-join-cancel" class="lob-ghost">Cancel</button><button id="lob-join-go">Join</button></div>
+        <div id="lob-join-err" class="lob-err"></div>
+      </div>
+      <div class="lob-sep"></div>
+      <div class="lob-hist-h">Recent &amp; saved</div>
+      <div id="lob-list"></div>
+      <div id="lob-empty" class="lob-empty">Meetings you start or join will show up here.</div>
+      <div class="lob-namebar">You'll join as <b id="lob-name">…</b> · <button id="lob-rename" class="lob-link">change</button></div>
+    </div>
+  </div>
   <div class="bar collapsed">
     <button id="bartoggle" class="bartoggle" aria-expanded="false" aria-label="Show meeting controls" title="Show meeting controls">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1683,6 +1737,7 @@
         : location.origin + location.pathname + '#v=' + room + '&k=' + roomToken + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
+      recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
       openSock();
     }
 
@@ -1708,24 +1763,167 @@
       return s;
     }
 
+    // ---- the front-door lobby --------------------------------------------------
+    // A COLD open (the desktop icon → bare meet.html, no room and no app hand-off
+    // in the URL) is a person who hasn't said what they came to do — so ask,
+    // and start NO camera until they pick. Any link (#v=) or an app's Meeting
+    // toggle (#app=) already states the intent and skips straight in.
+    const MEET_HIST = 'gifos_meet_history', MEET_MARKS = 'gifos_meet_bookmarks';
+    function loadList(key) { try { const a = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function saveList(key, a) { try { localStorage.setItem(key, JSON.stringify(a)); } catch (e) {} }
+    function recordMeetHistory(name, url, avv) {
+      if (!url) return;
+      let h = loadList(MEET_HIST).filter((e) => e && e.url !== url);
+      h.unshift({ url: url, name: name, av: avv || '', ts: Date.now() });
+      saveList(MEET_HIST, h.slice(0, 30));
+    }
+    function agoLabel(ts) {
+      const s = Math.max(1, Math.floor((Date.now() - (ts || 0)) / 1000));
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+      const d = Math.floor(h / 24); if (d < 7) return d + 'd ago';
+      const w = Math.floor(d / 7); if (w < 5) return w + 'w ago';
+      return Math.floor(d / 30) + 'mo ago';
+    }
+    function lobRow(e, marked) {
+      return '<div class="lob-item" data-url="' + esc(e.url) + '">' +
+        '<div class="li-main"><span class="li-name">' + esc(e.name || 'Meeting') +
+          (e.av ? '<span class="li-badge">🛡 admin</span>' : '') + '</span>' +
+          '<span class="li-sub">' + agoLabel(e.ts) + '</span></div>' +
+        '<button class="lob-star" data-star="' + esc(e.url) + '" title="' + (marked ? 'Remove bookmark' : 'Save as bookmark') + '">' + (marked ? '★' : '☆') + '</button>' +
+      '</div>';
+    }
+    function renderLobbyList() {
+      const marks = loadList(MEET_MARKS);
+      const markSet = new Set(marks.map((m) => m.url));
+      const recents = loadList(MEET_HIST).filter((e) => e && e.url && !markSet.has(e.url));
+      const html = marks.map((m) => lobRow(m, true)).join('') + recents.map((e) => lobRow(e, false)).join('');
+      document.getElementById('lob-list').innerHTML = html;
+      document.getElementById('lob-empty').style.display = html ? 'none' : '';
+    }
+    function toggleBookmark(url) {
+      let marks = loadList(MEET_MARKS);
+      if (marks.some((m) => m.url === url)) marks = marks.filter((m) => m.url !== url);
+      else {
+        const src = loadList(MEET_HIST).find((e) => e.url === url) || loadList(MEET_MARKS).find((e) => e.url === url) || { url, name: 'Meeting', av: '', ts: Date.now() };
+        marks.unshift(src);
+      }
+      saveList(MEET_MARKS, marks);
+      renderLobbyList();
+    }
+    // Turn a pasted invite (full URL, /meet path, or a bare id / id.verifier) into
+    // {room, av, relay}. Accepts what a human would actually paste.
+    function parseMeetInput(s) {
+      s = (s || '').trim();
+      if (!s) return null;
+      let room = '', av = '', relay = '';
+      if (/[:/#?]/.test(s)) {
+        let u = null; try { u = new URL(s, location.origin); } catch (e) { u = null; }
+        if (u) {
+          const pm = u.pathname.match(/\/(?:meet|call|join)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64}))?/i);
+          if (pm) { room = pm[1]; av = (pm[2] || '').toLowerCase(); }
+          const hp = new URLSearchParams((u.hash || '').replace(/^#/, ''));
+          if (hp.get('v')) room = hp.get('v');
+          if (hp.get('av')) av = (hp.get('av') || '').toLowerCase();
+          if (hp.get('relay')) relay = hp.get('relay');
+        }
+      }
+      if (!room) {
+        const m = s.match(/^([a-z0-9-]{1,64})(?:[\/.]([a-f0-9]{16,64}))?$/i);
+        if (m) { room = m[1].toLowerCase(); av = (m[2] || '').toLowerCase(); }
+      }
+      if (!room || !/^[a-z0-9-]{1,64}$/i.test(room)) return null;
+      if (av && !/^[a-f0-9]{16,64}$/.test(av)) av = '';
+      return { room: room.toLowerCase(), av, relay };
+    }
+    function enterMeeting(hashOrUrl) {
+      // Accept a '#…' hash (minted here) or a full URL (a saved entry). Navigate +
+      // reload so boot re-runs and — now that a room is chosen — starts the camera.
+      const url = hashOrUrl.charAt(0) === '#' ? (location.pathname + hashOrUrl) : hashOrUrl;
+      location.href = url;
+      location.reload();
+    }
+    function renameFlow() {
+      const cur = (GifOS.store.identity().name) || '';
+      const bg = document.createElement('div'); bg.className = 'name-modal';
+      bg.innerHTML = '<div class="name-box"><h3>Your screen name</h3><p>Other people on the meeting see this.</p>' +
+        '<input id="nm2" maxlength="40" autocomplete="off"><button id="nm2ok">Save</button></div>';
+      document.body.appendChild(bg);
+      const input = bg.querySelector('#nm2'); input.value = cur; input.focus();
+      const done = () => { const v = input.value.trim(); if (v) GifOS.store.setName(v); bg.remove(); document.getElementById('lob-name').textContent = myName(); };
+      bg.querySelector('#nm2ok').onclick = done;
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+    }
+    function wireLobby() {
+      const lob = document.getElementById('lobby');
+      const toggle = (id) => { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? '' : 'none'; };
+      document.getElementById('lob-open').onclick = () => { const c = shortCode(); enterMeeting('#v=' + c + '&k=' + c); };
+      document.getElementById('lob-admin-btn').onclick = () => { toggle('lob-admin'); document.getElementById('lob-join').style.display = 'none'; const n = document.getElementById('lob-admin-name'); if (document.getElementById('lob-admin').style.display !== 'none') n.focus(); };
+      document.getElementById('lob-admin-cancel').onclick = () => { document.getElementById('lob-admin').style.display = 'none'; };
+      document.getElementById('lob-admin-go').onclick = async () => {
+        const err = document.getElementById('lob-admin-err');
+        const chosen = slugRoom(document.getElementById('lob-admin-name').value, '');
+        const pass = (document.getElementById('lob-admin-pass').value || '').trim();
+        if (!chosen) { err.textContent = 'Give your room a name.'; return; }
+        if (!pass) { err.textContent = 'Set an admin password — it’s the key to your room.'; return; }
+        const go = document.getElementById('lob-admin-go'); go.disabled = true; go.textContent = 'Creating…';
+        try {
+          const K = await deriveAdminKey(chosen, pass);
+          const V = (await sha256hex(K)).slice(0, 24);
+          try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
+          enterMeeting('#v=' + chosen + '&k=' + chosen + '&av=' + V);
+        } catch (e) { err.textContent = 'Could not create the room. Try again.'; go.disabled = false; go.textContent = 'Create & enter'; }
+      };
+      document.getElementById('lob-join-btn').onclick = () => { toggle('lob-join'); document.getElementById('lob-admin').style.display = 'none'; const i = document.getElementById('lob-join-in'); if (document.getElementById('lob-join').style.display !== 'none') i.focus(); };
+      document.getElementById('lob-join-cancel').onclick = () => { document.getElementById('lob-join').style.display = 'none'; };
+      const doJoin = () => {
+        const err = document.getElementById('lob-join-err');
+        const p = parseMeetInput(document.getElementById('lob-join-in').value);
+        if (!p) { err.textContent = 'Couldn’t read that — paste a meeting link or its id.'; return; }
+        enterMeeting('#v=' + p.room + '&k=' + p.room + (p.av ? '&av=' + p.av : '') + (p.relay ? '&relay=' + encodeURIComponent(p.relay) : ''));
+      };
+      document.getElementById('lob-join-go').onclick = doJoin;
+      document.getElementById('lob-join-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
+      document.getElementById('lob-admin-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('lob-admin-go').click(); });
+      document.getElementById('lob-rename').onclick = renameFlow;
+      document.getElementById('lob-list').addEventListener('click', (e) => {
+        const star = e.target.closest('[data-star]');
+        if (star) { e.stopPropagation(); toggleBookmark(star.getAttribute('data-star')); return; }
+        const item = e.target.closest('.lob-item');
+        if (item) enterMeeting(item.getAttribute('data-url'));
+      });
+    }
+    function showLobby() {
+      document.title = 'Meeting — GifOS';
+      document.getElementById('lob-name').textContent = myName();
+      renderLobbyList();
+      wireLobby();
+      document.getElementById('lobby').classList.add('show');
+    }
+
     // ---- boot ------------------------------------------------------------------
     // Camera trouble must never lock anyone out of the room: no permission →
     // join view-only. The room doesn't care what you bring.
-    ensureName()
-      .then(() => navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
-      }).then((stream) => { localStream = stream; }, () => { localStream = null; }))
-      .then(() => {
-        // Join QUIET by default: mic and camera acquired (permission granted,
-        // instant to switch on) but disabled until you choose to be seen/heard.
-        if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
-        meTile = makeTile('me', myName() + ' (you)', true);
-        if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
-        else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
-        updateTile('me');
-        joinRoom();
-        updateStatus();
-      });
+    function bootIntoRoom() {
+      return ensureName()
+        .then(() => navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
+        }).then((stream) => { localStream = stream; }, () => { localStream = null; }))
+        .then(() => {
+          // Join QUIET by default: mic and camera acquired (permission granted,
+          // instant to switch on) but disabled until you choose to be seen/heard.
+          if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
+          meTile = makeTile('me', myName() + ' (you)', true);
+          if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
+          else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
+          updateTile('me');
+          joinRoom();
+          updateStatus();
+        });
+    }
+    if (!params.get('v') && !params.get('app')) showLobby();
+    else bootIntoRoom();
 
     // ---- chat + pinned files: pure P2P over DataChannels ----------------------
     // No server ever sees a byte of this. State lives only in the open tabs of
