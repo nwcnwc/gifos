@@ -45,6 +45,9 @@
   .iconbtn.off .slash { display: inline; }
   .iconbtn.locked { opacity: .5; cursor: not-allowed; }
   .iconbtn.locked:hover { border-color: #ff5c5c; }
+  /* Size the mic/cam glyphs in em so they FOLLOW the UI text size — the fixed
+     20px SVG stayed huge when everything else shrank (e.g. iPhone at 70%). */
+  .iconbtn svg { width: 1.2em; height: 1.2em; }
   /* Blur as a 3-segment slider: Max — Min — None. None grays out when clear
      video isn't allowed (no password, a global blur on you, no admin present). */
   .blurctl { display: inline-flex; align-items: center; gap: .4rem; }
@@ -57,6 +60,19 @@
      tapped segment and reads as a phantom second selection. */
   @media (hover: hover) and (pointer: fine) { .segwrap .seg:hover { background: var(--border, #26263a); } }
   .segwrap .seg.sel { background: #3a2d6a; color: #fff; }
+  /* Conserve toolbar space on phones — narrow (portrait) OR short (landscape),
+     where every wrapped row costs the meeting real estate. Tighter paddings,
+     smaller text, and the "Blur" word drops (the segmented slider is clear). */
+  @media (max-width: 600px), (max-height: 500px) {
+    .bar { gap: .3rem; padding: .3rem .5rem; }
+    .bar button { padding: .28rem .5rem; font-size: .72rem; }
+    .bar .title { font-size: .95rem; }
+    .iconbtn { padding: .22rem .38rem; }
+    .blurctl { gap: .25rem; }
+    .blurlbl { display: none; }
+    .segwrap .seg { padding: .28rem .45rem; font-size: .68rem; }
+    .bartoggle { width: 26px; height: 26px; }
+  }
   .share { display: none; align-items: center; gap: .5rem; padding: .5rem .9rem;
            background: var(--surface, #12121c); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .8rem; }
   .share.show { display: flex; }
