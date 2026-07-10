@@ -2480,8 +2480,9 @@
           '<div id="inv-adm-collapsed"><p style="color:#aab;margin-bottom:.5rem">Want a room <b>you</b> run — a password, global mute/blur, and the power to ban a troublemaker?</p>' +
             '<button id="inv-mkadm" style="' + surfaceBtn + '">Create a room you control →</button></div>' +
           '<div id="inv-adm-open" style="display:none">' +
-            '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This makes a <b>new, separate room</b> with its own link. ' +
-              (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically — leave the box ticked to drop the new link into this room\'s chat so they can follow you.' : 'You\'ll switch to it now.') + '</div>' +
+            '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This always makes a <b>new, separate room</b> that you run — so <b>name it anything you like</b>. ' +
+              (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically, so leave the box ticked to drop the new link into this room\'s chat and they can follow you over.' : 'You\'ll switch to it now.') + '</div>' +
+            '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
             '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (pick a strong one)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             (others ? '<label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer;margin-bottom:.7rem;font-size:.9rem"><input type="checkbox" id="inv-adm-post" checked style="margin-top:.2rem"><span>Post the new link to this room\'s chat so the ' + others + ' ' + ppl + ' here can follow me over.</span></label>' : '') +
             '<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="inv-adm-back" style="' + surfaceBtn + '">Back</button><button id="inv-adm-go">Create &amp; switch</button></div>' +
@@ -2511,22 +2512,33 @@
       };
       const go = document.getElementById('inv-adm-go');
       if (go) go.onclick = async () => {
+        const name = (document.getElementById('inv-adm-room').value || '');
         const pass = (document.getElementById('inv-adm-pass').value || '').trim();
+        const chosen = slugRoom(name, room);
+        if (!chosen) { document.getElementById('inv-adm-room').focus(); return; }
         if (!pass) { document.getElementById('inv-adm-pass').focus(); return; }
         const post = !!(document.getElementById('inv-adm-post') && document.getElementById('inv-adm-post').checked);
         go.disabled = true; go.textContent = 'Creating…';
         invModal.style.display = 'none';
-        await createAdminRoom(pass, post);
+        await createAdminRoom(chosen, pass, post);
       };
       invModal.style.display = 'flex';
     }
     invModal.addEventListener('click', (e) => { if (e.target === invModal) invModal.style.display = 'none'; });
 
-    async function createAdminRoom(pass, postToChat) {
-      // The room you're IN becomes the admin room — same name, no editable field,
-      // so you can never accidentally rename yourself into an empty room. The
-      // (name, password) pair alone reconstruct it anywhere, forever.
-      const chosen = room;
+    // An admin room's session id is "<name>.<verifier>" — the verifier is a
+    // password fingerprint, so an admin room is ALWAYS a different room from the
+    // plain one no matter what it's called. The move (and any stranding) is
+    // unavoidable and already handled by the chat follow-me link — so the name is
+    // free: encourage any name. Sanitize to a URL-safe, dot-free label (a dot
+    // marks the verifier) and keep the SAME string for the salt and the URL so
+    // sign-in re-derives the same room later.
+    function slugRoom(s, fallback) {
+      const out = String(s || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+      return out || fallback || 'room';
+    }
+
+    async function createAdminRoom(chosen, pass, postToChat) {
       setStatus('🛡 Creating your room… (takes a few seconds)');
       const K = await deriveAdminKey(chosen, pass);
       const V = (await sha256hex(K)).slice(0, 24); // 96-bit public verifier — short link, still preimage-safe
