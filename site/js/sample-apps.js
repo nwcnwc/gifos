@@ -1132,7 +1132,13 @@ opens the built-in meeting page when opened in GifOS.</p>
   // Reading prefs and each person's last page are keyed per-user so they stay
   // personal even though the store is shared.
   var follow=true, shared=false, hbTimer=null, lastNav=null;
+  // Scroll is remembered per person AND shared with followers — as a FRACTION of
+  // the page (0..1) so it lines up even when readers use different text sizes.
+  var pendingFrac=null, applyingScroll=false, scrollSaveT=null, scrollPushT=null, lastFrac=-1;
   function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+  function scrollFrac(){ var m=main.scrollHeight-main.clientHeight; return m>0?(main.scrollTop/m):0; }
+  function applyFrac(f){ var m=main.scrollHeight-main.clientHeight; main.scrollTop=Math.max(0,Math.min(m,(f||0)*m)); }
+  function saveLast(){ if(db) db.put({id:lk(), url:curUrl, scroll:scrollFrac()}); }  // my last page + where I was on it
   function applyPrefs(){ document.body.setAttribute('data-read', prefs.theme); document.documentElement.style.setProperty('--fs', prefs.fs+'px');
     document.getElementById('theme').innerHTML = prefs.theme==='night' ? '&#9790;' : '&#9728;'; }
   function myName(){ return me.name||'Someone'; }
@@ -1146,7 +1152,7 @@ opens the built-in meeting page when opened in GifOS.</p>
     hbTimer=setInterval(function(){ if(document.visibilityState!=='hidden') heartbeat(); }, 15000);
     heartbeat(); }  // set the guard BEFORE the first beat so a sync notify can't re-enter
   // Publish where I am so followers come along. Only called when I'm following.
-  function pushNav(url){ if(db&&me.id) db.put({id:'nav', url:url, by:me.id, byName:myName(), ts:Date.now()}); }
+  function pushNav(url, frac){ if(db&&me.id) db.put({id:'nav', url:url, scroll:(frac==null?scrollFrac():frac), by:me.id, byName:myName(), ts:Date.now()}); }
   function updateFollowUi(){ if(!followB) return;
     followB.style.display = shared ? '' : 'none';
     followB.classList.toggle('on', follow);
@@ -1163,7 +1169,13 @@ opens the built-in meeting page when opened in GifOS.</p>
     shared = others>0 || navByOther;
     if(shared) startHeartbeat();
     updateFollowUi();
-    if(follow && navByOther && navRec.url!==curUrl) go(navRec.url, true, true); }
+    if(follow && navByOther){
+      if(navRec.url!==curUrl) go(navRec.url, true, true, navRec.scroll);
+      else if(typeof navRec.scroll==='number' && Math.abs(navRec.scroll-scrollFrac())>0.008){
+        applyingScroll=true; applyFrac(navRec.scroll); lastFrac=navRec.scroll;
+        setTimeout(function(){ applyingScroll=false; }, 90);
+      }
+    } }
   function setStatus(msg,err){ main.innerHTML='<div class="status'+(err?' err':'')+'">'+msg+'</div>'; }
   function buttons(){ backB.disabled=hi<=0; fwdB.disabled=hi>=hist.length-1; }
   function shortLoc(u){ try{ var x=new URL(u); return (x.pathname+x.search)||'/'; }catch(e){ return u; } }
@@ -1231,17 +1243,23 @@ opens the built-in meeting page when opened in GifOS.</p>
   function render(root){
     var html=sanitize(root);
     main.innerHTML='<div class="doc">'+html+'<p class="foot">Text from text.recoveryversion.bible, read through the GifOS CORS proxy &mdash; tap the &ldquo;Internet&rdquo; button up top to see or change that.</p></div>';
-    main.scrollTop=0; locEl.textContent=shortLoc(curUrl);
+    // Land where the reader (or the meeting) last was on this page, not the top.
+    // Re-apply on the next frame: right after innerHTML the new layout isn't
+    // flushed yet, so a bare scrollTop set clamps against the old (short) height.
+    var f=pendingFrac!=null?pendingFrac:0; pendingFrac=null;
+    applyingScroll=true; applyFrac(f);
+    requestAnimationFrame(function(){ applyFrac(f); setTimeout(function(){ applyingScroll=false; }, 60); });
+    locEl.textContent=shortLoc(curUrl);
   }
-  function go(url, push, fromSync){
+  function go(url, push, fromSync, frac){
     curUrl=url;
     if(push){ hist=hist.slice(0,hi+1); hist.push(url); hi=hist.length-1; }
     buttons(); locEl.textContent=shortLoc(url); setStatus('Loading '+esc(shortLoc(url))+'&hellip;');
     if(!window.gifos||!gifos.fetch){ setStatus('Open this from GifOS to reach the internet.', true); return; }
-    var want=url;
-    loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url; render(res.root);
-        if(db) db.put({id:lk(),url:curUrl});
-        if(!fromSync && follow) pushNav(curUrl); })  // my own move drives the group when following
+    var want=url, target=(frac==null?0:frac);
+    loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url;
+        pendingFrac=target; render(res.root); lastFrac=target; saveLast();
+        if(!fromSync && follow) pushNav(curUrl, target); })  // my own move drives the group when following
       .catch(function(e){ if(curUrl!==want) return; setStatus('Couldn&rsquo;t load that page. You may be offline, or this app&rsquo;s internet is switched off (the &ldquo;Internet&rdquo; button up top).<br><br><small>'+esc(e&&e.message||'')+'</small>', true); });
   }
   main.addEventListener('click', function(e){
@@ -1256,6 +1274,15 @@ opens the built-in meeting page when opened in GifOS.</p>
     if(anc){ e.preventDefault(); var t=null; try{ t=main.querySelector('[id="'+anc.replace(/["\\\]]/g,'')+'"]'); }catch(_){ } if(t) t.scrollIntoView({block:'start'}); return; }
     if(a.hasAttribute('href')) e.preventDefault();
   });
+  // Remember where I am on the page, and — while following in a meeting — carry
+  // the group along with my scroll too. Debounced, and muted whenever we're the
+  // ones moving the scrollbar (applyingScroll) so followers don't echo forever.
+  main.addEventListener('scroll', function(){
+    if(applyingScroll) return;
+    clearTimeout(scrollSaveT); scrollSaveT=setTimeout(saveLast, 500);
+    if(follow && shared){ clearTimeout(scrollPushT); scrollPushT=setTimeout(function(){
+      var f=scrollFrac(); if(Math.abs(f-lastFrac)<0.01) return; lastFrac=f; pushNav(curUrl, f); }, 300); }
+  }, {passive:true});
   backB.onclick=function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } };
   fwdB.onclick=function(){ if(hi<hist.length-1){ hi++; go(hist[hi], false); buttons(); } };
   document.getElementById('reload').onclick=function(){ go(curUrl, false); };
@@ -1266,15 +1293,17 @@ opens the built-in meeting page when opened in GifOS.</p>
   if(followB) followB.onclick=function(){ follow=!follow;
     // Turning it back on rejoins the group's page; leaving it on republishes
     // where I am so anyone following me lands here too.
-    if(follow && lastNav && lastNav.url && lastNav.by!==me.id && lastNav.url!==curUrl) go(lastNav.url, true, true);
+    if(follow && lastNav && lastNav.url && lastNav.by!==me.id && lastNav.url!==curUrl) go(lastNav.url, true, true, lastNav.scroll);
+    else if(follow && lastNav && lastNav.url===curUrl && lastNav.by!==me.id && typeof lastNav.scroll==='number'){
+      applyingScroll=true; applyFrac(lastNav.scroll); lastFrac=lastNav.scroll; setTimeout(function(){ applyingScroll=false; }, 90); }
     else if(follow) pushNav(curUrl);
     updateFollowUi(); };
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && shared) heartbeat(); });
   window.addEventListener('pagehide', function(){ if(db&&me.id){ try{ db.delete('p:'+me.id); }catch(e){} } });
   if(window.gifos&&gifos.onBack) gifos.onBack(function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } });
-  function firstPage(){ if(!db) return Promise.resolve(HOME);
+  function firstPage(){ if(!db) return Promise.resolve({url:HOME});
     return db.get(lk()).then(function(r){ return (r&&r.url)?r:db.get('last'); })
-      .then(function(r){ var u=r&&r.url; return (u&&u.indexOf('https://'+HOST)===0)?u:HOME; }); }
+      .then(function(r){ var u=r&&r.url; return (u&&u.indexOf('https://'+HOST)===0)?{url:u, scroll:r.scroll}:{url:HOME}; }); }
   // Learn who I am, restore MY prefs (per-user, one-time fallback to the old
   // shared key), then either JOIN whoever's already reading or open my own last
   // page — and from then on stay converged via subscribe().
@@ -1286,8 +1315,8 @@ opens the built-in meeting page when opened in GifOS.</p>
       var navRec=null; (rows||[]).forEach(function(r){ if(r&&r.id==='nav') navRec=r; });
       handleSync(rows||[]);
       if(db&&db.subscribe) db.subscribe(handleSync);
-      if(follow && navRec && navRec.by && navRec.by!==me.id && navRec.url){ go(navRec.url, true, true); return; }
-      return firstPage().then(function(u){ go(u, true); }); })
+      if(follow && navRec && navRec.by && navRec.by!==me.id && navRec.url){ go(navRec.url, true, true, navRec.scroll); return; }
+      return firstPage().then(function(o){ go(o.url, true, false, o.scroll); }); })
     .catch(function(){ applyPrefs(); go(HOME, true); });
 </script>`;
 
