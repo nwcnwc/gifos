@@ -201,6 +201,15 @@ clients; a lost reply causes duplicate writes on reconnect.
 - **Replay is idempotent**: the host remembers each peer's recent `put` op-ids and
   resends the prior reply instead of re-applying, so a reconnect can't mint a
   duplicate record.
+- **The relay is honest-but-curious-proof for content.** Clients derive the
+  session id, join token, and password proof from the link secret by SHA-256
+  ("derive, don't send" — `site/js/gifos-net.js`) and seal every content frame
+  with an AES-GCM key derived from the same secret, so a logging or subpoenaed
+  relay holds only routing metadata and ciphertext. This does **not** defend
+  against an *actively malicious* relay (which could MITM WebRTC signaling
+  regardless); the link itself remains the capability — anyone who ever held it
+  can derive the key, and bans/rotation do not re-key (rotating the LINK does:
+  a new link is a new secret and a new key).
 - A client that joins a hostile app **still crosses boundary A and B** — it runs
   the received app sandboxed and gets the same network acknowledgement — so a
   malicious host can't do more to a client than any other app author could.

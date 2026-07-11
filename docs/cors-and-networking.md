@@ -193,6 +193,13 @@ The Meeting system app (`meet.html`) is the proof of the guard:
   outlives everyone in it (an empty room revives on the next join). The
   unguessable room code is the capability. Nobody's departure — including the
   creator's — can close a meeting link.
+- **The relay never learns the room code, the password, or a byte of content**
+  ("derive, don't send" — `site/js/gifos-net.js`). The session id it routes on
+  and the token it equality-checks are SHA-256 derivations of the room code;
+  the password gate compares room-salted password *proofs*; and every content
+  frame — signaling gossip, chat, file chunks — is sealed with an AES-GCM key
+  derived from the same code and sent nowhere. Anyone holding the link derives
+  the key offline, so there is no key exchange to fail.
 - Every participant holds one `RTCPeerConnection` per other participant. For
   each pair, exactly one side initiates, chosen by peer-id order — the same
   deterministic rule for joins, rejoins, and reloads, so there is no glare.
@@ -206,8 +213,12 @@ The Meeting system app (`meet.html`) is the proof of the guard:
   when a direct route forms (ICE restarts never stop trying), when the
   relayer or target leaves, and a phone volunteers at most 4 forwarded
   streams. Chat, pinned files, and tombstones take the same trip by
-  gossip re-broadcast (dedupe by id stops loops). Media still never
-  touches infrastructure — the bridge is a friend's browser.
+  gossip re-broadcast (dedupe by id stops loops) — and chat-class frames
+  (chat, transcripts, file metas/tombstones, the union-merge sync) additionally
+  fall back to **sealed envelopes over the relay** for a pair with no
+  DataChannel at all, so a fully P2P-blocked participant still converses.
+  File BODIES never do (P0/P1 only — the budget guard stands). Media still
+  never touches infrastructure — the bridge is a friend's browser.
 - **Self-healing**: the relay socket auto-reconnects with backoff (kicked
   instantly on visibility/online); a degraded pair is re-offered with an ICE
   restart by its initiator; a roster-absent peer keeps its tile through a

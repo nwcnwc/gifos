@@ -41,30 +41,14 @@
   }
 
   // ---- friendly invite links ------------------------------------------------
-  // One short code is both the session id and the join key — the link IS the
-  // capability either way, so splitting them bought nothing but length. The
-  // alphabet drops lookalikes (0/O, 1/l/i) so codes survive being read aloud.
-  const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
-  function shortCode(len) {
-    const n = len || 10; // 31^10 ≈ 2^49 — plenty for ephemeral, unlisted rooms
-    const buf = new Uint8Array(n);
-    (root.crypto || {}).getRandomValues ? root.crypto.getRandomValues(buf) : buf.forEach((_, i) => (buf[i] = i * 7));
-    let s = '';
-    for (let i = 0; i < n; i++) s += CODE_ALPHABET[buf[i] % CODE_ALPHABET.length];
-    return s;
-  }
-  // High-entropy random hex — the OWNED-app host secret (never shown to a human,
-  // never in the link; only its SHA-256 prefix, the verifier, travels).
-  function randHex(bytes) {
-    const b = new Uint8Array(bytes || 24);
-    if ((root.crypto || {}).getRandomValues) root.crypto.getRandomValues(b); else for (let i = 0; i < b.length; i++) b[i] = (i * 137 + 11) & 255;
-    return Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
-  }
-  function sha256hex(s) {
-    if (!(root.crypto && root.crypto.subtle)) return Promise.resolve('');
-    return root.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)))
-      .then((d) => Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join(''));
-  }
+  // One short code is the whole capability — but the relay only ever sees
+  // SHA-256 DERIVATIONS of it (session id, join token); the end-to-end key
+  // derives from the same code and is sent nowhere. See gifos-net.js
+  // ("derive, don't send"). Ids/hashes come from the shared net fabric.
+  const net = GifOS.net;
+  const shortCode = net.shortCode;
+  const randHex = net.randHex;
+  const sha256hex = net.sha256hex;
   // App short-name → a URL-safe room label. Dot-free (a dot marks the verifier),
   // and guaranteed to contain a letter/digit — never empty or all-hyphens, so a
   // room can never be mistaken for a bare verifier segment.
@@ -72,21 +56,31 @@
     const out = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
     return /[a-z0-9]/.test(out) ? out : 'app';
   }
-  // gifos.app/join/<code> on production (404.html routes it into run.html);
-  // hash form everywhere else (local dev, custom relays, legacy split ids).
-  function buildJoinUrl(page, sid, token, relay) {
+  // The link carries the SECRET (lsec); the relay-facing sid/token derive from
+  // it at connect time and never appear anywhere. Two app-link shapes:
+  //   self-healing — lsec IS the whole link:  /join/<lsec>            (#j=<lsec>)
+  //   owned — "<room>.<verifier>" sid + lsec: /join/<room>/<verifier>/<lsec>
+  //                                           (#s=<room>.<verifier>&k=<lsec>)
+  // The owned sid itself holds no secret (the verifier is a public hash of the
+  // HOST secret, which is a different key than lsec and never in any link).
+  // gifos.app pretty paths route through 404.html; hash form everywhere else
+  // (local dev, custom relays).
+  function buildJoinUrl(page, sid, lsec, relay) {
     const meet = page === 'video' || page === 'meet'; // 'video' kept as a legacy alias
     const onProd = /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
-    // Owned app: sid is "<room>.<verifier>" → pretty /join/<room>/<verifier>.
+    if (meet) {
+      return onProd ? location.origin + '/meet/' + sid
+        : location.origin + '/meet.html#v=' + sid + '&relay=' + encodeURIComponent(relay);
+    }
     // lastIndexOf so this can never diverge from the relay's split (which also
     // takes the verifier after the LAST dot), even if a room ever held a dot.
-    const dot = sid.lastIndexOf('.');
-    if (!meet && onProd && dot > 0) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1);
-    const pretty = sid === token && onProd;
-    if (pretty) return location.origin + (meet ? '/meet/' : '/join/') + sid;
-    const base = location.origin + (meet ? '/meet.html' : '/run.html');
-    const pair = meet ? 'v=' + sid + '&k=' + token : (sid === token ? 'j=' + sid : 's=' + sid + '&k=' + token);
-    return base + '#' + pair + '&relay=' + encodeURIComponent(relay);
+    const dot = String(sid || '').lastIndexOf('.');
+    if (dot > 0) {
+      if (onProd) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1) + '/' + lsec;
+      return location.origin + '/run.html#s=' + sid + '&k=' + lsec + '&relay=' + encodeURIComponent(relay);
+    }
+    if (onProd) return location.origin + '/join/' + lsec;
+    return location.origin + '/run.html#j=' + lsec + '&relay=' + encodeURIComponent(relay);
   }
   GifOS.links = { shortCode, buildJoinUrl };
 
@@ -1097,156 +1091,31 @@
     try { root.dispatchEvent(new CustomEvent('gifos-conn', { detail })); } catch (e) { /* non-DOM */ }
   }
 
-  // A WebSocket that heals itself: exponential-backoff reconnect (instant on
-  // tab-visible/online — the "glanced at another app" case), an outbound queue
-  // while down, and a stable facade so callers wire handlers exactly once.
-  function steadySocket(makeUrl) {
-    const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now() };
-    let ws = null, closed = false, attempt = 0, timer = null;
-    const queue = [];
-    const setState = (st) => {
-      if (s.state === st) return;
-      s.state = st;
-      if (st === 'up') s.downSince = null;
-      else if (!s.downSince) s.downSince = Date.now();
-      if (s.onstate) s.onstate(st);
-    };
-    function connect() {
-      if (closed) return;
-      let sock;
-      try { sock = new WebSocket(makeUrl()); } catch (e) { schedule(); return; }
-      ws = sock;
-      sock.onopen = () => {
-        if (closed || ws !== sock) return;
-        attempt = 0;
-        setState('up');
-        for (const frame of queue.splice(0)) { try { sock.send(frame); } catch (e) { /* re-dropped */ } }
-        if (s.onopen) s.onopen();
-      };
-      sock.onmessage = (ev) => { if (ws === sock && s.onmessage) s.onmessage(ev); };
-      sock.onclose = () => { if (ws === sock) { ws = null; setState('down'); schedule(); } };
-      sock.onerror = () => { try { sock.close(); } catch (e) { /* already dead */ } };
-    }
-    function schedule() {
-      if (closed || timer) return;
-      const delay = Math.min(5000, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
-      timer = setTimeout(() => { timer = null; connect(); }, delay);
-    }
-    const kick = () => {
-      if (closed || (ws && ws.readyState <= 1)) return;
-      if (timer) { clearTimeout(timer); timer = null; }
-      attempt = 0;
-      connect();
-    };
-    if (root.addEventListener) { root.addEventListener('online', kick); root.addEventListener('pageshow', kick); }
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
-      document.addEventListener('resume', kick); // Page Lifecycle: tab just unfroze
-    }
-    s.send = (data) => {
-      if (ws && ws.readyState === 1) { try { ws.send(data); return; } catch (e) { /* fell through to queue */ } }
-      queue.push(data);
-      if (queue.length > 500) queue.shift();
-      kick();
-    };
-    s.close = () => { closed = true; if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
-    s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
-    connect();
-    (root.__gifosConns = root.__gifosConns || []).push(s);
-    return s;
-  }
-
-  // ---- WebRTC ---------------------------------------------------------------
-  // The relay is the signaling channel (introductions: SDP offers/answers and
-  // ICE candidates). Once a DataChannel opens, session traffic flows directly
-  // browser-to-browser; the relay socket stays as automatic fallback for peers
-  // whose networks block hole punching. No TURN server: the relay IS plan B.
-  const ICE_SERVERS = [
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:stun.l.google.com:19302' },
-  ];
-  const hasP2P = () => typeof root.RTCPeerConnection === 'function';
-
-  // Browsers FREEZE hidden tabs after a few minutes (Chrome's Page Lifecycle),
-  // suspending ALL JS — fatal for a live session: the host tab carries the
-  // authoritative DB, so a frozen host hangs every client until refocused.
-  // Holding a Web Lock is the documented opt-out from freezing (and costs
-  // nothing), so any page with a live multiplayer session — host or client —
-  // holds one for its lifetime; it releases automatically when the tab closes.
-  // A phone that suspends the whole browser is beyond any page's control:
-  // that path stays covered by reconnect, host-back re-sync, and Take Over.
-  let sessionLockHeld = false;
-  function holdSessionLock() {
-    if (sessionLockHeld) return;
-    sessionLockHeld = true;
-    try {
-      if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request)
-        navigator.locks.request('gifos-live-session', () => new Promise(() => {}));
-    } catch (e) { /* unsupported — the reconnect machinery still covers recovery */ }
-  }
-
-  // ---- transport fragmentation ---------------------------------------------
-  // Every transport has a per-MESSAGE ceiling (browsers cap a DataChannel
-  // message around 256KB; the relay hard-drops anything over its burst), so
-  // any session message bigger than FRAG_PART is split into {t:'frag'}
-  // envelopes and reassembled on the other side. This lifts the per-record
-  // ceiling for apps — a big gifos.db record just works — without touching
-  // the relay's BANDWIDTH budget, which still applies to total bytes: bulk
-  // data flows freely on the P2P path and stays throttled on the relay, by
-  // design. Fragments carry their index, so mixed arrival order across a
-  // healing transport is fine; incomplete messages are swept after 30s.
-  const FRAG_PART = 100 * 1024; // chars per piece — envelope stays well under DC limits
-  const FRAG_MAX_PARTS = 256;   // ~25MB reassembled max — lets a heavy app (e.g. a bundled
-                                // WASM engine) ride the P2P DataChannel; still refuses absurd claims
-  let fragSeq = 0;
-  // emit(pieceObj, pieceStr) is called once for small messages (the original)
-  // or once per fragment — the caller picks which form its transport wants.
-  const sendChunked = (msg, emit) => {
-    const str = JSON.stringify(msg);
-    if (str.length <= FRAG_PART) return emit(msg, str);
-    const fid = 'f' + (++fragSeq) + '.' + Math.floor(Math.random() * 1e9).toString(36);
-    const n = Math.ceil(str.length / FRAG_PART);
-    if (root.__fragDebug) console.error('[frag out] ' + fid + ' n=' + n + ' len=' + str.length);
-    for (let i = 0; i < n; i++) {
-      const piece = { t: 'frag', fid, i, n, p: str.slice(i * FRAG_PART, (i + 1) * FRAG_PART) };
-      emit(piece, JSON.stringify(piece));
-    }
-  };
-  // Stateful filter: feed every parsed inbound message with its sender key;
-  // frag pieces buffer and return null until the last one completes the
-  // original message. Non-frag messages pass straight through.
-  const makeDefrag = (onProgress) => {
-    const bufs = new Map(); // sender|fid -> { parts, got, n, at }
-    return (m, sender) => {
-      if (!m || m.t !== 'frag') return m;
-      const n = m.n | 0, i = m.i | 0;
-      if (typeof m.p !== 'string' || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
-      const key = sender + '|' + m.fid;
-      let b = bufs.get(key);
-      if (!b) {
-        for (const [k, v] of bufs) if (Date.now() - v.at > 30000) bufs.delete(k); // sweep stale partials
-        if (bufs.size >= 8) return null; // bounded memory even from a hostile sender
-        b = { parts: new Array(n), got: 0, n, at: Date.now() };
-        bufs.set(key, b);
-      }
-      if (b.n !== n || b.parts[i] !== undefined) { bufs.delete(key); return null; } // inconsistent sender
-      b.parts[i] = m.p; b.got++;
-      if (onProgress) { try { onProgress(m.fid, b.got, b.n); } catch (e) {} }
-      if (root.__fragDebug) console.error('[defrag] ' + key + ' ' + b.got + '/' + b.n);
-      if (b.got < b.n) return null;
-      bufs.delete(key);
-      try { return JSON.parse(b.parts.join('')); } catch (e) { if (root.__fragDebug) console.error('[defrag] PARSE FAIL ' + key); return null; }
-    };
-  };
+  // ---- shared transport fabric (gifos-net.js) --------------------------------
+  // The self-healing relay socket, WebRTC availability, the session Web Lock,
+  // and the fragmentation layer all live in GifOS.net now — one implementation
+  // for app sessions AND meetings. The relay is the signaling channel; once a
+  // DataChannel opens, session traffic flows directly browser-to-browser, with
+  // a friend-hop (P1) and the relay (P2) as the fallback rungs. No TURN server.
+  const steadySocket = net.steadySocket;
+  const ICE_SERVERS = net.ICE_SERVERS;
+  const hasP2P = net.hasP2P;
+  const holdSessionLock = net.holdSessionLock;
+  const sendChunked = net.sendChunked;
+  const makeDefrag = net.makeDefrag;
 
   // ---- host-side wiring (shared by original host and failover host) --------
   // Returns { sendToAll, stats } so the caller can push db-change events over
-  // whichever transport each peer ended up on (channel if open, else relay).
+  // whichever transport each peer ended up on (channel if open, else a friend,
+  // else relay). opts.key is the session's E2E key: EVERY content frame the
+  // host sends or accepts is sealed with it, on every path — the relay and any
+  // forwarding friend only ever carry ciphertext.
   // opts.selfPeer: during a client takeover our old client seat may linger for
   // a moment — ignore its peer-join echo. opts.onDisplaced: a higher-epoch host
   // claimed the session (we were away and it healed without us); stop serving.
   function attachHost(ws, db, appBytes, onStats, opts) {
     opts = opts || {};
+    const key = opts.key;
     holdSessionLock(); // friends now depend on THIS tab staying runnable
     // peer -> { pc, channel, away } — `away` is a timestamp while the peer's
     // relay socket is down. Phones drop sockets constantly; an away peer keeps
@@ -1254,13 +1123,32 @@
     // same peer id slots straight back in with a fresh P2P offer.
     const peers = new Map();
     const defrag = makeDefrag();
-
-    const relayTo = (peer, msg) => sendChunked(msg, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })));
-    const sendTo = (peer, msg) => {
-      const p = peers.get(peer);
-      if (p && p.channel && p.channel.readyState === 'open') sendChunked(msg, (piece, str) => p.channel.send(str));
-      else relayTo(peer, msg);
+    // seal()/open() are async — chains keep frames in send/receive order.
+    const tx = net.makeChain();
+    const rxq = new Map(); // peer -> inbound chain
+    const rxChain = (peer) => { let c = rxq.get(peer); if (!c) { c = net.makeChain(); rxq.set(peer, c); } return c; };
+    // P1 routes: peer -> { via, at }, learned from inbound {t:'fwd'} frames. A
+    // guest we can't reach directly is reachable back through the friend that
+    // just carried its frames to us.
+    const routes = new Map();
+    const openRoute = (peer) => {
+      const r = routes.get(peer);
+      if (!r || Date.now() - r.at > 120000) return null;
+      const vp = peers.get(r.via);
+      return (vp && vp.channel && vp.channel.readyState === 'open') ? vp.channel : null;
     };
+
+    const relayTo = (peer, msg) => tx(() => net.seal(key, msg).then((env) =>
+      sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })))));
+    // The path ladder for session traffic: P0 direct channel → P1 friend hop →
+    // P2 relay. The app never knows which rung carried its bytes.
+    const sendTo = (peer, msg) => tx(() => net.seal(key, msg).then((env) => {
+      const p = peers.get(peer);
+      if (p && p.channel && p.channel.readyState === 'open') return sendChunked(env, (piece, str) => p.channel.send(str));
+      const via = openRoute(peer);
+      if (via) return sendChunked(env, (piece) => via.send(JSON.stringify(net.fwdWrap('host', peer, piece))));
+      sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })));
+    }));
     const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
 
     // App delivery. A SMALL app goes over the relay the instant a peer joins —
@@ -1268,42 +1156,56 @@
     // HEAVY app (e.g. one bundling a WASM engine) is far past the relay's
     // per-message cap, so it rides the P2P DataChannel instead: sent once the
     // channel opens, and paced to the channel's send buffer so we never
-    // overflow it. The relay is only ever the signalling + fallback path; once
-    // peers are connected directly there is no bandwidth ceiling. Fragment
-    // strings are built once and replayed to each new peer.
+    // overflow it. A guest with no direct channel but a friend (P1) gets the
+    // frames forwarded through that friend's browser; the paced relay drip is
+    // the last rung. Ciphertext fragments are built once, replayed to each peer.
     const appMsg = { t: 'app', gif: gif.b64encode(appBytes), heal: !!opts.heal, exp: opts.exp || 0, keep: opts.keep || null };
-    const APP_RELAY_MAX = 700 * 1024; // bytes; base64 of this stays under the relay's 1MB burst
+    const APP_RELAY_MAX = 700 * 1024; // bytes; sealed base64 of this stays under the relay's 1MB burst
     const APP_P2P_WAIT = 10000;       // give the DataChannel this long before the paced-relay fallback
     const appSmall = appBytes.length <= APP_RELAY_MAX;
-    // Fragment the heavy app ONCE; keep both the object (to relay-wrap) and the
-    // string (to DataChannel-send).
-    const appFrags = appSmall ? null : (function () { const a = []; sendChunked(appMsg, (o, s) => a.push({ o: o, s: s })); return a; })();
-    const pumpApp = (ch) => { // over the direct channel: fast, paced only to the send buffer
+    const appFragsP = appSmall ? null : net.seal(key, appMsg).then((env) => {
+      const a = []; sendChunked(env, (o, s) => a.push({ o: o, s: s })); return a;
+    });
+    const pumpApp = (ch, frags) => { // over the direct channel: fast, paced only to the send buffer
       let i = 0; const HIGH = 4 * 1024 * 1024;
       (function pump() {
-        try { while (i < appFrags.length && ch.readyState === 'open' && ch.bufferedAmount < HIGH) ch.send(appFrags[i++].s); } catch (e) { return; }
-        if (i < appFrags.length && ch.readyState === 'open') setTimeout(pump, 50);
+        try { while (i < frags.length && ch.readyState === 'open' && ch.bufferedAmount < HIGH) ch.send(frags[i++].s); } catch (e) { return; }
+        if (i < frags.length && ch.readyState === 'open') setTimeout(pump, 50);
       })();
     };
-    // Last resort for a peer that never gets a direct channel (symmetric NAT, no
+    // P1: pump the app THROUGH a friend's browser. Gentler high-water mark —
+    // the friend re-forwards every frame on its own channel to the target.
+    const pumpAppFwd = (via, peer, frags) => {
+      let i = 0; const HIGH = 1024 * 1024;
+      (function pump() {
+        try { while (i < frags.length && via.readyState === 'open' && via.bufferedAmount < HIGH) via.send(JSON.stringify(net.fwdWrap('host', peer, frags[i++].o))); } catch (e) { return; }
+        if (i < frags.length && via.readyState === 'open') setTimeout(pump, 80);
+      })();
+    };
+    // Last resort for a peer with no channel and no friend (symmetric NAT, no
     // TURN): drip the app over the RELAY, paced under its ~48KB/s refill so
     // nothing is dropped. Slow (minutes for a big app) but it arrives.
-    const relayPaced = (peer) => {
+    const relayPaced = (peer, frags) => {
       let i = 0; const BURST = 8; // ~800KB up front fits the relay's one-time burst
       (function drip() {
         const q = peers.get(peer); if (!q || !q.appSending) return; // peer gone or superseded
         const target = i < BURST ? BURST : i + 1;
-        try { while (i < appFrags.length && i < target) { ws.send(JSON.stringify({ t: 'to', to: peer, msg: appFrags[i].o })); i++; } } catch (e) {}
-        if (i < appFrags.length) setTimeout(drip, 2300); // one 100KB piece / 2.3s ≈ 43KB/s, under the refill
+        try { while (i < frags.length && i < target) { ws.send(JSON.stringify({ t: 'to', to: peer, msg: frags[i].o })); i++; } } catch (e) {}
+        if (i < frags.length) setTimeout(drip, 2300); // one 100KB piece / 2.3s ≈ 43KB/s, under the refill
       })();
     };
-    // Deliver the heavy app to a peer once, over the best transport available:
-    // the direct channel if it's open, else a paced relay drip.
+    // Deliver the heavy app to a peer once, over the best rung available now.
     const deliverApp = (peer, ch) => {
       const p = peers.get(peer); if (!p || p.appSending) return;
       p.appSending = true; p.needsApp = false;
       if (p.appTimer) { clearTimeout(p.appTimer); p.appTimer = 0; }
-      if (ch && ch.readyState === 'open') pumpApp(ch); else relayPaced(peer);
+      appFragsP.then((frags) => {
+        const q = peers.get(peer); if (!q) return;
+        if (ch && ch.readyState === 'open') return pumpApp(ch, frags);
+        const via = openRoute(peer);
+        if (via) return pumpAppFwd(via, peer, frags);
+        relayPaced(peer, frags);
+      });
     };
     const stats = () => {
       let p2p = 0;
@@ -1363,6 +1265,39 @@
         .catch((err) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) }));
     };
 
+    // One dispatch for guest->host session messages, whatever path they took.
+    const hostDispatch = (peer, m) => {
+      if (m.t === 'rpc') handleRpc(peer, m);
+      else if (m.t === 'need-app') {
+        // The guest still has no app — the relay may have shed the first copy
+        // (over-budget frames drop by design), or they found a friend (P1) to
+        // carry it. Re-serve down the ladder: sendTo picks the open channel
+        // first (no relay budget), then a friend route, then the relay again
+        // after its refill.
+        const p = peers.get(peer);
+        if (!p) return;
+        if (appSmall) sendTo(peer, appMsg);
+        else if (!p.appSending) deliverApp(peer, p.channel && p.channel.readyState === 'open' ? p.channel : null);
+      } else if (m.t === 'sig') {
+        const p = peers.get(peer);
+        if (p && p.pc) {
+          if (m.sdp) p.pc.setRemoteDescription(m.sdp).catch(() => {});
+          else if (m.ice) p.pc.addIceCandidate(m.ice).catch(() => {});
+        }
+      }
+    };
+    // {t:'fwd', src, to:'host', p} — a friend carried src's frames to us (over
+    // their channel, or over the relay if that's all they had). Learn the
+    // reverse route, then process the piece exactly as if it came direct. The
+    // piece is ciphertext: the friend could read none of it.
+    const handleFwd = (viaPeer, f) => {
+      if (f.to !== 'host' || f.src === 'host' || !peers.has(f.src)) return;
+      routes.set(f.src, { via: viaPeer, at: Date.now() });
+      const inner = defrag(f.p, 'fwd|' + f.src);
+      if (!inner) return;
+      rxChain(f.src)(() => net.open(key, inner).then((mm) => { if (mm) hostDispatch(f.src, mm); }));
+    };
+
     function offerP2P(peer) {
       if (!hasP2P()) return;
       const entry = peers.get(peer);
@@ -1378,8 +1313,9 @@
       channel.onclose = () => { if (entry.channel === channel) { entry.channel = null; notify(); } };
       channel.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (net.isFwd(m)) { handleFwd(peer, m); return; }
         m = defrag(m, peer); if (!m) return;
-        if (m.t === 'rpc') handleRpc(peer, m);
+        rxChain(peer)(() => net.open(key, m).then((mm) => { if (mm) hostDispatch(peer, mm); }));
       };
       pc.onicecandidate = (e) => { if (e.candidate) relayTo(peer, { t: 'sig', ice: e.candidate }); };
       // A dead DataChannel with a live relay link = renegotiate P2P from scratch.
@@ -1417,7 +1353,7 @@
         // resend keeps reconnect storms inside the relay's bandwidth budget.
         // Small apps go straight over the relay; a heavy app waits for the peer's
         // DataChannel (set needsApp) and is handed over on channel.onopen — with
-        // a paced-relay fallback if that never happens (no direct route).
+        // a friend hop or a paced-relay drip if that never happens.
         if (!known) {
           if (appSmall) relayTo(m.peer, appMsg);
           else { const p = peers.get(m.peer); p.needsApp = true; p.appTimer = setTimeout(() => { if (p.needsApp && !p.appSending) deliverApp(m.peer, null); }, APP_P2P_WAIT); }
@@ -1432,23 +1368,20 @@
         }
         notify();
       } else if (m.t === 'from' && m.msg) {
+        if (net.isFwd(m.msg)) { handleFwd(m.from, m.msg); return; }
         const inner = defrag(m.msg, m.from);
         if (!inner) return;
-        if (inner.t === 'rpc') handleRpc(m.from, inner);
-        else if (inner.t === 'sig') {
-          const p = peers.get(m.from);
-          if (p && p.pc) {
-            if (inner.sdp) p.pc.setRemoteDescription(inner.sdp).catch(() => {});
-            else if (inner.ice) p.pc.addIceCandidate(inner.ice).catch(() => {});
-          }
-        }
+        rxChain(m.from)(() => net.open(key, inner).then((mm) => { if (mm) hostDispatch(m.from, mm); }));
       }
     };
     // Our own relay socket healed: tell clients we're back and wake their
     // views; the relay re-sends peer-joins, which re-offers P2P per peer.
     ws.onopen = () => {
-      ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'host-back' } }));
-      ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
+      tx(() => Promise.all([net.seal(key, { t: 'host-back' }), net.seal(key, { t: 'db-change', collection: '*' })])
+        .then(([back, wake]) => {
+          ws.send(JSON.stringify({ t: 'bcast', msg: back }));
+          ws.send(JSON.stringify({ t: 'bcast', msg: wake }));
+        }));
       notify();
     };
     ws.onstate = () => notify();
@@ -1547,7 +1480,9 @@
       function endSession(reason) {
         const gone = liveHost; liveHost = null;
         if (!gone) return Promise.resolve();
-        try { gone.ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'ended', reason } })); } catch (e) { /* socket gone */ }
+        net.seal(gone.key, { t: 'ended', reason })
+          .then((env) => gone.ws.send(JSON.stringify({ t: 'bcast', msg: env })))
+          .catch(() => { /* socket gone */ });
         // Let the 'ended' frame flush before dropping the socket.
         setTimeout(() => retire(gone), 200);
         announceConn({ mode: 'local' });
@@ -1561,33 +1496,37 @@
         if (!relay) return Promise.reject(new Error('No relay configured (set window.GIFOS_RELAY).'));
         return store.getState(fileId + '::session').then((sess) => {
           const now = Date.now();
-          const valid = sess && sess.keep === 'persist' && (!sess.exp || now < sess.exp);
+          const valid = sess && sess.lsec && sess.keep === 'persist' && (!sess.exp || now < sess.exp);
           // Resolve this session's identity — minting a fresh link when asked.
-          // DEFAULT is an OWNED link: the host slot is gated by a secret only
-          // this app holds (never shown, never in the link). Its sid is
+          // Every link carries a LINK SECRET (lsec): the relay-facing token and
+          // the E2E key derive from it; the relay never sees it. DEFAULT is an
+          // OWNED link: the host slot is additionally gated by a HOST secret
+          // only this app holds (never shown, never in the link). Its sid is
           // "<room>.<verifier>" where room labels the app and verifier =
-          // SHA-256(secret). Only 'resilient' (a friend may keep it going) opts
-          // OUT into an anyone-owns, self-healing, secret-less link.
+          // SHA-256(host secret). Only 'resilient' (a friend may keep it going)
+          // opts OUT into an anyone-owns, self-healing link whose sid derives
+          // from lsec too.
           const resolveMint = () => {
             if (opts.lifetime || !valid) {
               const spec = opts.lifetime ? lifetimeToSpec(opts.lifetime, now) : { keep: 'close', exp: 0 };
               const wantHeal = spec.keep === 'persist' && !!opts.resilient;
-              if (wantHeal) return Promise.resolve({ sid: shortCode(), token: null, epoch: 0, keep: spec.keep, exp: spec.exp, heal: true, av: null, sec: null });
+              const lsec = shortCode();
+              if (wantHeal) return net.deriveJoin(lsec).then((d) => ({ sid: d.sid, lsec, epoch: 0, keep: spec.keep, exp: spec.exp, heal: true, av: null, sec: null }));
               const signed = !!(GifOS.sign && GifOS.sign.readSig && GifOS.sign.readSig(appBytes));
               const shortName = manifest.shortName || manifest.name || manifest.appId || 'app';
               const room = slug(signed ? shortName : shortName + '-anon');
               const sec = randHex(24);
               return sha256hex(sec).then((h) => {
                 const av = h.slice(0, 24);
-                return { sid: room + '.' + av, token: av, epoch: 0, keep: spec.keep, exp: spec.exp, heal: false, av: av, sec: sec };
+                return { sid: room + '.' + av, lsec, epoch: 0, keep: spec.keep, exp: spec.exp, heal: false, av: av, sec: sec };
               });
             }
             // Resume the stored link (owned or not) exactly as it was.
-            return Promise.resolve({ sid: sess.sid, token: sess.token, epoch: sess.epoch || 0, keep: sess.keep, exp: sess.exp || 0, heal: !!sess.heal, av: sess.av || null, sec: sess.sec || null });
+            return Promise.resolve({ sid: sess.sid, lsec: sess.lsec, epoch: sess.epoch || 0, keep: sess.keep, exp: sess.exp || 0, heal: !!sess.heal, av: sess.av || null, sec: sess.sec || null });
           };
-          return resolveMint().then((m) => {
-          const sid = m.sid, token = m.token || m.sid, epoch = m.epoch, keep = m.keep, exp = m.exp, heal = m.heal, av = m.av, sec = m.sec;
-          const joinUrl = buildJoinUrl('app', sid, token, relay);
+          return resolveMint().then((m) => net.deriveJoin(m.lsec).then((d) => {
+          const sid = m.sid, lsec = m.lsec, token = d.tok, key = d.key, epoch = m.epoch, keep = m.keep, exp = m.exp, heal = m.heal, av = m.av, sec = m.sec;
+          const joinUrl = buildJoinUrl('app', sid, lsec, relay);
           // If the session healed itself while we were dead, our epoch is stale
           // and the relay bounces us — the newest state lives with the promoted
           // host, so rejoin our own session as a guest instead of clobbering it.
@@ -1603,7 +1542,9 @@
           // cut off (so they don't sit "waiting for host"), then retire it.
           const prior = liveHost; liveHost = null;
           if (prior) {
-            try { prior.ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'ended', reason: 'revoked' } })); } catch (e) { /* socket gone */ }
+            net.seal(prior.key, { t: 'ended', reason: 'revoked' })
+              .then((env) => prior.ws.send(JSON.stringify({ t: 'bcast', msg: env })))
+              .catch(() => { /* socket gone */ });
             setTimeout(() => retire(prior), 200);
           }
           return openHostSocket(relay, sid, token, epoch, identity().id, sec).then((ws) => {
@@ -1611,24 +1552,26 @@
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
-            }, { onDisplaced: displaced, heal, exp, keep });
+            }, { onDisplaced: displaced, heal, exp, keep, key });
             // Expiry only shuts the door to NEW joiners (attachHost enforces exp
             // per join); a light timer just refreshes the host's own status so
             // they know the link went read-only.
             const timer = exp ? setTimeout(() => { if (liveHost) setStatus('Link no longer admits new people (open Invite for a new one). Everyone here stays.'); }, Math.max(0, exp - now)) : null;
-            liveHost = { ws, timer, stop: hostApi.stop };
+            liveHost = { ws, timer, stop: hostApi.stop, key };
             announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
             setStatus('Live — send your invite link so friends can join');
             // Wake any clients that were locked out while we were away.
-            ws.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
-            return store.setState(fileId + '::session', { sid, token, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
+            net.seal(key, { t: 'db-change', collection: '*' })
+              .then((env) => ws.send(JSON.stringify({ t: 'bcast', msg: env })))
+              .catch(() => { /* socket will re-wake them on onopen */ });
+            return store.setState(fileId + '::session', { sid, lsec, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
               shareUrl: joinUrl, keep, exp, heal, owned: !!av,
             }));
           }).catch((err) => {
             if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
             throw err;
           });
-          }); // resolveMint().then
+          })); // resolveMint().then(deriveJoin…)
         });
       }
 
@@ -1678,12 +1621,22 @@
     const narrate = (title, sub) => { showLoader(); setStatus(title); loadSub(sub); };
     const idle = { save: () => Promise.resolve(null), saveToDesktop: () => Promise.reject(new Error('app not loaded yet')), becomeHost: () => Promise.reject(new Error('host still alive')) };
     if (!params.relay) { setStatus('No relay in join link.'); return Promise.resolve(idle); }
-    holdSessionLock(); // a frozen client tab would silently miss the session too
-    let myPeer = null; // relay-assigned id; reused on reconnect so the host keeps our seat
-    const ws = steadySocket(() => params.relay.replace(/\/$/, '') + '/s/' + params.s +
-      '?role=client&token=' + params.k + (myPeer ? '&peer=' + myPeer : ''));
+    // Session state — declared OUTSIDE the derivation wrapper below because the
+    // loader/status closures above capture some of it (filesRef).
     let iframe = null, remoteDb = null, filesRef = null, manifestRef = null;
     let appBytes = null, lastDump = null, hostGone = false, hostGoneAt = null, tookOver = false;
+    // The LINK SECRET is the whole capability: #j=<code> (self-healing — the
+    // session id derives from it too) or #s=<sid>&k=<code> (owned). The relay
+    // token and the end-to-end key derive from it HERE; the relay never sees
+    // the secret itself ("derive, don't send" — gifos-net.js).
+    const lsec = params.j || params.k || '';
+    return net.deriveJoin(lsec).then((drv) => {
+    const sid = params.j ? drv.sid : params.s;
+    const tok = drv.tok, key = drv.key;
+    holdSessionLock(); // a frozen client tab would silently miss the session too
+    let myPeer = null; // relay-assigned id; reused on reconnect so the host keeps our seat
+    const ws = steadySocket(() => params.relay.replace(/\/$/, '') + '/s/' + sid +
+      '?role=client&token=' + tok + (myPeer ? '&peer=' + myPeer : ''));
     // Cache the state captured at connect time + memoize the connect-snapshot
     // bytes, so "steal with data at connect" is instant and re-transports nothing.
     const stealCtx = { connectState: null, cache: { bytes: null } };
@@ -1709,9 +1662,11 @@
       remoteDb.getFullState().then((s) => { lastDump = s; }).catch(() => {});
     };
 
-    // Transport ladder: DataChannel when open, relay WebSocket otherwise.
-    // The app never knows which one carried its request. Oversized payloads
-    // fragment transparently (see sendChunked); the host defrags per peer.
+    // Transport ladder: DataChannel when open (P0), a friend's forwarding
+    // browser when one is reachable (P1), the relay WebSocket otherwise (P2).
+    // The app never knows which rung carried its request. Payloads are SEALED
+    // (ciphertext on every rung), then fragment transparently (sendChunked);
+    // the host defrags and opens per peer.
     const defrag = makeDefrag((fid, got, n) => {
       if (filesRef || tookOver) return; // app already mounted — later big records aren't the app
       showLoader(); loadTitle('Receiving the app…'); loadFrac(got / n);
@@ -1719,10 +1674,22 @@
         ? 'No direct route found — coming over the relay. This can take a few minutes…'
         : 'Direct connection · ' + Math.round(got / n * 100) + '%');
     });
-    const transportSend = (payload) => {
-      if (channel && channel.readyState === 'open') sendChunked(payload, (piece, str) => channel.send(str));
-      else sendChunked(payload, (piece, str) => ws.send(str));
+    const tx = net.makeChain();  // outbound seal order
+    const rx = net.makeChain();  // inbound open order
+    const meshFriendDc = () => {
+      for (const e of cmesh.values()) if (e.dc && e.dc.readyState === 'open') return e.dc;
+      return null;
     };
+    const transportSend = (payload) => tx(() => net.seal(key, payload).then((env) => {
+      if (channel && channel.readyState === 'open') return sendChunked(env, (piece, str) => channel.send(str));
+      const fdc = myPeer && meshFriendDc();
+      if (fdc) return sendChunked(env, (piece) => fdc.send(JSON.stringify(net.fwdWrap(myPeer, 'host', piece))));
+      sendChunked(env, (piece, str) => ws.send(str));
+    }));
+    // Session traffic that must ride the RELAY specifically (WebRTC bootstrap
+    // signaling) — sealed like everything else.
+    const sealedToRelay = (payload) => tx(() => net.seal(key, payload).then((env) =>
+      sendChunked(env, (piece, str) => ws.send(str))));
     const runningStatus = () => setStatus(channel && channel.readyState === 'open'
       ? 'Connected · a direct line to the host'
       : 'Connected · via GifOS');
@@ -1754,6 +1721,87 @@
       const i = order.findIndex((e) => e[1] === myPeer);
       return i < 0 ? 99 : i;
     };
+
+    // ---- small-group client mesh: the P1 fabric ------------------------------
+    // In a small session every guest also opens a DataChannel to every other
+    // guest (deterministic initiator — larger peer id offers, so no glare).
+    // These links are the FRIEND-HOP rung: a guest whose path to the host is
+    // relay-only hands its sealed frames to a friend who forwards them, and
+    // the host's replies (and even the app GIF) come back the same way. The
+    // forwarding friend carries ciphertext it cannot read. Signaling rides
+    // sealed {t:'csig'} envelopes over the relay's peer routing.
+    const cmesh = new Map(); // pid -> { pc, dc, pendingIce }
+    const MESH_MAX = 8;      // p2p2p is a small-group tool; big sessions stay hub-and-spoke
+    // Sealed guest↔guest envelope over the relay ({t:'peer'} routing).
+    const peerSend = (pid, payload) => tx(() => net.seal(key, payload).then((env) =>
+      ws.send(JSON.stringify({ t: 'peer', to: pid, msg: env }))));
+    // Frames a friend carried to me (from the host — the only sender today).
+    const acceptFwd = (m) => {
+      if (m.src !== 'host') return;
+      const inner = defrag(m.p, 'fwd|host');
+      if (!inner) return;
+      rx(() => net.open(key, inner).then((mm) => { if (mm) { appVia = 'p2p'; dispatch(mm); } }));
+    };
+    function wireCDc(e, dc) {
+      e.dc = dc;
+      dc.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (err) { return; }
+        if (!net.isFwd(m)) return; // the client mesh carries fwd frames only
+        if (m.to === 'host') {
+          // Friend duty: haul this frame the rest of the way to the host —
+          // over our own channel if we have one, over the relay otherwise.
+          if (channel && channel.readyState === 'open') { try { channel.send(ev.data); } catch (err) {} }
+          else ws.send(ev.data);
+        } else if (m.to === myPeer) acceptFwd(m);
+        // anything else would be a second hop — not this fabric's job
+      };
+    }
+    function openCPeer(pid, remoteSdp) {
+      let e = cmesh.get(pid);
+      if (remoteSdp && e && e.pc) { try { e.pc.close(); } catch (err) {} e = null; } // a fresh offer replaces
+      if (!e) { e = { pc: null, dc: null, pendingIce: [] }; cmesh.set(pid, e); }
+      const pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
+      e.pc = pc;
+      pc.onicecandidate = (ev) => { if (ev.candidate) peerSend(pid, { t: 'csig', ice: ev.candidate }); };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' && cmesh.get(pid) === e) { try { pc.close(); } catch (err) {} cmesh.delete(pid); }
+      };
+      pc.ondatachannel = (ev) => wireCDc(e, ev.channel);
+      if (!remoteSdp) {
+        wireCDc(e, pc.createDataChannel('gifos-p1'));
+        pc.createOffer().then((o) => pc.setLocalDescription(o))
+          .then(() => peerSend(pid, { t: 'csig', sdp: pc.localDescription }))
+          .catch(() => { /* no mesh link — P2 still stands */ });
+      } else {
+        pc.setRemoteDescription(remoteSdp)
+          .then(() => { for (const c of e.pendingIce.splice(0)) pc.addIceCandidate(c).catch(() => {}); })
+          .then(() => pc.createAnswer())
+          .then((a) => pc.setLocalDescription(a))
+          .then(() => peerSend(pid, { t: 'csig', sdp: pc.localDescription }))
+          .catch(() => { /* no mesh link — P2 still stands */ });
+      }
+      return e;
+    }
+    function onCSig(from, msg) {
+      const e = cmesh.get(from);
+      if (msg.sdp && msg.sdp.type === 'offer') openCPeer(from, msg.sdp);
+      else if (msg.sdp && e && e.pc) e.pc.setRemoteDescription(msg.sdp).catch(() => {});
+      else if (msg.ice) {
+        if (e && e.pc && e.pc.remoteDescription) e.pc.addIceCandidate(msg.ice).catch(() => {});
+        else if (e) e.pendingIce.push(msg.ice);
+      }
+    }
+    function ensureMesh() {
+      if (!hasP2P() || tookOver || ended || !myPeer) return;
+      if (rosterPeers.length > MESH_MAX) return;
+      for (const pid of rosterPeers) {
+        if (pid === myPeer || cmesh.has(pid)) continue;
+        if (myPeer > pid) openCPeer(pid, null);
+      }
+      for (const pid of Array.from(cmesh.keys())) {
+        if (!rosterPeers.includes(pid)) { const e = cmesh.get(pid); try { e.pc && e.pc.close(); } catch (err) {} cmesh.delete(pid); }
+      }
+    }
     const connGrade = () => {
       if (tookOver) return 'up';
       if (channel && channel.readyState === 'open') return 'up';
@@ -1765,8 +1813,17 @@
       if (tookOver) return;
       announceConn({ mode: 'client', grade: connGrade(), via: (channel && channel.readyState === 'open') ? 'p2p' : 'relay', hostAway: hostGone });
     };
+    let meshTick = 0, lastNeedApp = Date.now() - 6000; // first ask ~4s in — normal delivery beats it
     const escalator = setInterval(() => {
       if (tookOver || ended) { clearInterval(escalator); return; }
+      if (++meshTick % 5 === 0) ensureMesh(); // keep the P1 fabric matched to the roster
+      // Still no app? Ask for it — deliveries are droppable (the relay sheds
+      // over-budget frames by design), so the CLIENT owns the retry. The ask
+      // rides the ladder (channel → friend → relay) and repeats until fed.
+      if (!filesRef && myPeer && !hostGone && Date.now() - lastNeedApp > 10000) {
+        lastNeedApp = Date.now();
+        transportSend({ t: 'need-app' });
+      }
       const g = connGrade();
       // The Take Over hint appears once the host has been away a few seconds…
       if (hostGone && !takeoverHinted && hostGoneAt && Date.now() - hostGoneAt > CONN.TAKEOVER_HINT) {
@@ -1788,7 +1845,7 @@
         if (!candSent && down > CONN.AUTO_TAKEOVER - CONN.CAND_LEAD) {
           candSent = true;
           cands.set(myPeer, mirrorLast);
-          for (const p of rosterPeers) if (p !== myPeer) ws.send(JSON.stringify({ t: 'peer', to: p, msg: { t: 'cand', at: mirrorLast } }));
+          for (const p of rosterPeers) if (p !== myPeer) peerSend(p, { t: 'cand', at: mirrorLast });
         }
         if (candSent && down > CONN.AUTO_TAKEOVER + candRank() * CONN.RANK_STEP) {
           autoClaiming = true;
@@ -1882,18 +1939,31 @@
       if (msg.sdp && msg.sdp.type === 'offer') {
         if (pc) { try { pc.close(); } catch (e) { /* stale */ } pc = null; channel = null; }
         pc = new root.RTCPeerConnection({ iceServers: ICE_SERVERS });
-        pc.onicecandidate = (e) => { if (e.candidate) ws.send(JSON.stringify({ t: 'sig', ice: e.candidate })); };
+        pc.onicecandidate = (e) => { if (e.candidate) sealedToRelay({ t: 'sig', ice: e.candidate }); };
         if (!filesRef) loadSub('Found your friend — opening a direct route…');
         pc.ondatachannel = (e) => {
           const ch = e.channel;
           ch.onopen = () => { channel = ch; root.__gifosTransport = 'p2p'; if (!filesRef) loadSub('Direct connection ready — receiving the app…'); if (!hostGone && !tookOver) runningStatus(); };
           ch.onclose = () => { if (channel === ch) { channel = null; root.__gifosTransport = 'relay'; if (!hostGone && !tookOver) runningStatus(); } };
-          ch.onmessage = (ev2) => { appVia = 'p2p'; let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; } mm = defrag(mm, 'host'); if (mm) dispatch(mm); };
+          ch.onmessage = (ev2) => {
+            let mm; try { mm = JSON.parse(ev2.data); } catch (er) { return; }
+            if (net.isFwd(mm)) {
+              // Friend duty: the host asked us to carry this frame to a guest
+              // we can reach over the client mesh. Ciphertext in, ciphertext out.
+              if (mm.to !== myPeer && mm.src === 'host') {
+                const e2 = cmesh.get(mm.to);
+                if (e2 && e2.dc && e2.dc.readyState === 'open') { try { e2.dc.send(ev2.data); } catch (er) {} }
+              } else if (mm.to === myPeer) acceptFwd(mm);
+              return;
+            }
+            mm = defrag(mm, 'host'); if (!mm) return;
+            rx(() => net.open(key, mm).then((inner) => { if (inner) { appVia = 'p2p'; dispatch(inner); } }));
+          };
         };
         pc.setRemoteDescription(msg.sdp)
           .then(() => pc.createAnswer())
           .then((answer) => pc.setLocalDescription(answer))
-          .then(() => ws.send(JSON.stringify({ t: 'sig', sdp: pc.localDescription })))
+          .then(() => sealedToRelay({ t: 'sig', sdp: pc.localDescription }))
           .catch(() => { /* negotiation failed — relay path continues */ });
       } else if (msg.ice && pc) {
         pc.addIceCandidate(msg.ice).catch(() => {});
@@ -1912,10 +1982,8 @@
     };
     ws.onstate = () => announceClient();
     ws.onmessage = (ev) => {
-      appVia = 'relay';
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-      m = defrag(m, 'host'); if (!m) return; // fragmented app delivery / replies reassemble here
-      if (m.t === 'joined') { myPeer = m.peer; if (!filesRef) narrate('Connected', 'Getting the game ready…'); }
+      if (m.t === 'joined') { myPeer = m.peer; ensureMesh(); if (!filesRef) narrate('Connected', 'Getting the game ready…'); }
       else if (m.t === 'error') {
         if (/token/i.test(m.error || '')) { ws.close(); setStatus('Cannot join: ' + m.error); }
         else if (/no host/i.test(m.error || '')) {
@@ -1925,18 +1993,32 @@
           setStatus('Waiting for the host to open the app…');
         } else setStatus('Cannot join: ' + m.error);
       }
-      else if (m.t === 'sig') onSignal(m);
-      else if (m.t === 'roster') { rosterPeers = m.peers || []; if (m.epoch != null) hostEpoch = m.epoch; }
-      else if (m.t === 'peer' && m.msg && m.msg.t === 'cand') { cands.set(m.from, +m.msg.at || 0); }
+      else if (m.t === 'roster') { rosterPeers = m.peers || []; if (m.epoch != null) hostEpoch = m.epoch; ensureMesh(); }
+      else if (m.t === 'peer' && m.msg) {
+        // Sealed guest↔guest gossip: election candidacies + P1 mesh signaling.
+        const from = m.from;
+        rx(() => net.open(key, m.msg).then((inner) => {
+          if (!inner) return;
+          if (inner.t === 'cand') cands.set(from, +inner.at || 0);
+          else if (inner.t === 'csig') onCSig(from, inner);
+        }));
+      }
       else if (m.t === 'host-gone') {
         // No alarm yet: the host's phone probably just blinked. The escalator
         // raises the Take Over hint after a few seconds and red only at LOST.
         hostGone = true; hostGoneAt = Date.now();
         announceClient();
-      } else if (m.t === 'app') {
-        receiveApp(m);
       } else {
-        dispatch(m);
+        // Host session traffic: (possibly fragmented) ciphertext. Everything
+        // the host says — the app itself, replies, change events, signaling —
+        // arrives sealed and is opened in order.
+        appVia = 'relay';
+        const piece = defrag(m, 'host'); if (!piece) return;
+        rx(() => net.open(key, piece).then((inner) => {
+          if (!inner) return;
+          if (inner.t === 'sig') onSignal(inner);
+          else dispatch(inner);
+        }));
       }
     };
 
@@ -1951,7 +2033,7 @@
       // BEFORE tearing down our client seat — losing the race (host-taken)
       // must leave us a working guest, not an orphan.
       return saveAppToDesktop(appBytes, manifestRef, lastDump).then((fileId) =>
-        openHostSocket(params.relay, params.s, params.k, claimEpoch, myPeer).then((ws2) => {
+        openHostSocket(params.relay, sid, tok, claimEpoch, myPeer).then((ws2) => {
           try { ws.onclose = null; ws.close(); } catch (e) { /* already closed */ }
           if (pc) { try { pc.close(); } catch (e) { /* dead host */ } pc = null; channel = null; }
           tookOver = true;
@@ -1971,9 +2053,10 @@
             heal: true, // takeover only reaches here for self-healing links
             keep: 'persist', // a self-healing link is always a persistent one
             exp: sessionExp, // keep enforcing the original admission window
+            key, // the session key travels with the session — same link, same key
             onDisplaced: () => {
               setStatus('A newer host holds the session — rejoining as a guest…');
-              location.replace(buildJoinUrl('app', params.s, params.k, params.relay));
+              location.replace(buildJoinUrl('app', sid, lsec, params.relay));
               location.reload(); // hash-only change — force the client-mode reboot
             },
           });
@@ -1983,11 +2066,13 @@
           const fresh = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(fresh);
           iframe = fresh;
           takeoverPolicy.load().then(() => mountApp(fresh, filesRef, manifestRef, db, appBytes, takeoverPolicy));
-          ws2.send(JSON.stringify({ t: 'bcast', msg: { t: 'db-change', collection: '*' } }));
+          net.seal(key, { t: 'db-change', collection: '*' })
+            .then((env) => ws2.send(JSON.stringify({ t: 'bcast', msg: env })))
+            .catch(() => { /* onopen re-wakes them */ });
           setStatus(opts.auto ? 'The host vanished — you took over automatically · the session continues'
             : 'Live (you took over) · the session continues');
-          return store.setState(fileId + '::session', { sid: params.s, token: params.k, relay: params.relay, epoch: claimEpoch })
-            .then(() => ({ shareUrl: buildJoinUrl('app', params.s, params.k, params.relay), save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
+          return store.setState(fileId + '::session', { sid, lsec, relay: params.relay, epoch: claimEpoch })
+            .then(() => ({ shareUrl: buildJoinUrl('app', sid, lsec, params.relay), save: () => downloadSnapshot(appBytes, filesRef, manifestRef, db) }));
         })
       );
     }
@@ -2020,17 +2105,18 @@
         // syncedHash records the state we last agreed with the master on, so a
         // later open can tell whether YOU changed this copy (divergence) vs the
         // copy simply being behind the master.
-        .then((fid) => store.setState(fid + '::mirror', { s: params.s, k: params.k, relay: params.relay, syncedAt: Date.now(), syncedHash: hashState(seedState) })
+        .then((fid) => store.setState(fid + '::mirror', { s: sid, k: lsec, relay: params.relay, syncedAt: Date.now(), syncedHash: hashState(seedState) })
           .then(() => ({ fileId: fid, name: (manifestRef.name || manifestRef.appId || 'App') })));
     }
 
-    return Promise.resolve({
+    return {
       save: () => (filesRef && remoteDb ? downloadSnapshot(appBytes, filesRef, manifestRef, remoteDb) : Promise.resolve(null)),
       saveToDesktop,
       steal: (opts) => (filesRef && remoteDb ? stealApp(appBytes, filesRef, manifestRef, remoteDb, stealCtx, opts) : Promise.reject(new Error('app not loaded yet'))),
       saveMirror,
       becomeHost,
-    });
+    };
+    }); // deriveJoin(lsec) — everything above runs with sid/tok/key resolved
   }
 
   // ---- synced mirrors ------------------------------------------------------
@@ -2042,24 +2128,34 @@
   // sync (write-back/merge is a later layer).
   function pullMirrorState(binding, timeoutMs) {
     return new Promise((resolve) => {
-      const relay = binding && binding.relay, s = binding && binding.s, k = binding && binding.k;
-      if (!relay || !s || !root.WebSocket) return resolve(null);
+      const relay = binding && binding.relay, s = binding && binding.s, lsec = binding && binding.k;
+      if (!relay || !s || !lsec || !root.WebSocket) return resolve(null);
       let done = false, ws = null;
       const finish = (state) => { if (done) return; done = true; clearTimeout(to); try { ws && ws.close(); } catch (e) {} resolve(state); };
       const to = setTimeout(() => finish(null), timeoutMs || 6000);
       const defrag = makeDefrag(null);
-      try { ws = new root.WebSocket(relay.replace(/\/$/, '') + '/s/' + encodeURIComponent(s) + '?role=client&token=' + encodeURIComponent(k)); }
-      catch (e) { return finish(null); }
-      const remoteDb = makeRemoteDb((req) => { try { ws.send(JSON.stringify(req)); } catch (e) {} });
-      ws.onmessage = (ev) => {
-        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        m = defrag(m, 'host'); if (!m) return; // ignore the (fragmented) app delivery; wait for the dump
-        if (m.t === 'joined') { remoteDb.getFullState().then((st) => finish(st && st.collections ? st : null)).catch(() => finish(null)); }
-        else if (m.t === 'rpc-reply') { remoteDb._reply(m.id, m.ok, m.result); }
-        else if (m.t === 'error' || m.t === 'ended') { finish(null); } // no host / expired / bad token
-      };
-      ws.onerror = () => finish(null);
-      ws.onclose = () => finish(null);
+      // The binding stores the LINK secret; token and key derive fresh here.
+      net.deriveJoin(lsec).then((d) => {
+        if (done) return;
+        const key = d.key, tx = net.makeChain(), rx = net.makeChain();
+        try { ws = new root.WebSocket(relay.replace(/\/$/, '') + '/s/' + encodeURIComponent(s) + '?role=client&token=' + d.tok); }
+        catch (e) { return finish(null); }
+        const remoteDb = makeRemoteDb((req) => tx(() => net.seal(key, req).then((env) =>
+          net.sendChunked(env, (piece, str) => { try { ws.send(str); } catch (e) {} }))));
+        ws.onmessage = (ev) => {
+          let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+          if (m.t === 'joined') { remoteDb.getFullState().then((st) => finish(st && st.collections ? st : null)).catch(() => finish(null)); return; }
+          if (m.t === 'error') { finish(null); return; } // no host / expired / bad token
+          const piece = defrag(m, 'host'); if (!piece) return; // app delivery reassembles, replies too
+          rx(() => net.open(key, piece).then((inner) => {
+            if (!inner) return;
+            if (inner.t === 'rpc-reply') remoteDb._reply(inner.id, inner.ok, inner.result);
+            else if (inner.t === 'ended') finish(null);
+          }));
+        };
+        ws.onerror = () => finish(null);
+        ws.onclose = () => finish(null);
+      });
     });
   }
 

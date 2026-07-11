@@ -510,20 +510,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---------- honest tiles: a peer no P2P route can reach gets SAID, not silence ----------
   // Simulate a corporate-firewall peer: their ICE candidates never leave (or
   // arrive), so no media pair can ever form — exactly a UDP-blocked network.
+  // (Frames are sealed now, so the fault injects at the signaling layer via
+  // the page's __gifosBlockIce hook instead of sniffing WebSocket strings.)
   const fwCtx = await newUser('Cubicle');
-  await fwCtx.addInitScript({ content: `
-    const OW = window.WebSocket;
-    window.WebSocket = function (u, p) {
-      const ws = p ? new OW(u, p) : new OW(u);
-      const send0 = ws.send.bind(ws);
-      ws.send = (d) => { if (typeof d === 'string' && d.includes('"kind":"ice"')) return; return send0(d); };
-      let userOnMsg = null;
-      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
-      ws.addEventListener('message', (e) => { if (typeof e.data === 'string' && e.data.includes('"kind":"ice"')) return; if (userOnMsg) userOnMsg(e); });
-      return ws;
-    };
-    window.WebSocket.prototype = OW.prototype;
-  ` });
+  await fwCtx.addInitScript({ content: 'window.__gifosBlockIce = ["*"];' });
   const fwPage = await fwCtx.newPage();
   await fwPage.goto(link);
   await fwPage.waitForSelector('#pw-modal', { state: 'visible', timeout: 15000 });
@@ -555,20 +545,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await cIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
   const cPeerId = await cIslePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
   const bIsleCtx = await newUser('LeftIsle');
-  await bIsleCtx.addInitScript({ content: `
-    const BLOCK = ${JSON.stringify(cPeerId)};
-    const OW = window.WebSocket;
-    window.WebSocket = function (u, p) {
-      const ws = p ? new OW(u, p) : new OW(u);
-      const send0 = ws.send.bind(ws);
-      ws.send = (d) => { if (typeof d === 'string' && d.includes('"kind":"ice"') && d.includes(BLOCK)) return; return send0(d); };
-      let userOnMsg = null;
-      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
-      ws.addEventListener('message', (e) => { if (typeof e.data === 'string' && e.data.includes('"kind":"ice"') && e.data.includes(BLOCK)) return; if (userOnMsg) userOnMsg(e); });
-      return ws;
-    };
-    window.WebSocket.prototype = OW.prototype;
-  ` });
+  // B's ICE to/from C specifically is dropped via the signaling-layer hook.
+  await bIsleCtx.addInitScript({ content: 'window.__gifosBlockIce = [' + JSON.stringify(cPeerId) + '];' });
   const bIslePage = await bIsleCtx.newPage();
   bIslePage.on('console', (m) => { if (m.type() === 'error') console.log('  [leftisle]', m.text()); });
   await bIslePage.goto(islandLink);
@@ -613,21 +591,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // three phones fully meshed; Sam↔Tia's transport is killed AND their ICE is
   // blocked from then on (a network change that never heals). The hub must take
   // over — and Sam's tile for Tia must show TIA's forwarded stream, provably.
-  const dynBlock = `
-    window.__iceBlock = [];
-    const OW = window.WebSocket;
-    window.WebSocket = function (u, p) {
-      const ws = p ? new OW(u, p) : new OW(u);
-      const send0 = ws.send.bind(ws);
-      const blocked = (d) => typeof d === 'string' && d.includes('"kind":"ice"') && window.__iceBlock.some((b) => d.includes(b));
-      ws.send = (d) => { if (blocked(d)) return; return send0(d); };
-      let userOnMsg = null;
-      Object.defineProperty(ws, 'onmessage', { set (f) { userOnMsg = f; }, get () { return userOnMsg; } });
-      ws.addEventListener('message', (e) => { if (blocked(e.data)) return; if (userOnMsg) userOnMsg(e); });
-      return ws;
-    };
-    window.WebSocket.prototype = OW.prototype;
-  `;
+  // Frames are sealed, so the dynamic per-peer ICE block also injects at the
+  // signaling layer: __gifosBlockIce is read live, so a mid-call push "breaks
+  // the network" between two peers from that moment on.
+  const dynBlock = 'window.__gifosBlockIce = [];';
   const rexCtx = await newUser('Rex');
   const rexPage = await rexCtx.newPage();
   rexPage.on('console', (m) => { if (m.type() === 'error') console.log('  [rex]', m.text()); });
@@ -650,8 +617,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const samPid = await samPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
   const tiaPid = await tiaPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
   // the network breaks between Sam and Tia, permanently, mid-call
-  await samPage.evaluate((pid) => { window.__iceBlock.push(pid); window.__gifosVideo._failPeer(pid); }, tiaPid);
-  await tiaPage.evaluate((pid) => { window.__iceBlock.push(pid); window.__gifosVideo._failPeer(pid); }, samPid);
+  await samPage.evaluate((pid) => { window.__gifosBlockIce.push(pid); window.__gifosVideo._failPeer(pid); }, tiaPid);
+  await tiaPage.evaluate((pid) => { window.__gifosBlockIce.push(pid); window.__gifosVideo._failPeer(pid); }, samPid);
   await samPage.waitForFunction((pid) => {
     const via = window.__gifosVideo.relayedVia(pid);
     const shown = window.__gifosVideo.tileSid(pid);

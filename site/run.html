@@ -139,6 +139,7 @@
   <script src="js/gifos-gif.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
+  <script src="js/gifos-net.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
   <script>
@@ -463,8 +464,10 @@
         });
       }
 
-      // Short invite links (gifos.app/join/<code>) carry ONE code that is both
-      // the session id and the join key; legacy links still use s= and k=.
+      // Short invite links (gifos.app/join/<code>) carry ONE code — the LINK
+      // SECRET. The relay-facing session id and token are derived from it by
+      // the runtime; owned links carry a public s=<room>.<verifier> plus their
+      // own k=<secret>. The relay never sees a secret either way.
       const joinS = params.get('j') || params.get('s');
       const joinK = params.get('j') || params.get('k');
       // Remember invite links you visit (client mode), so the desktop's History
@@ -505,7 +508,7 @@
         recordInvite();
         hostBtn.style.display = 'none';
         ensureName().then(function () {
-          return GifOS.runtime.bootClient(mount, { s: joinS, k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {
+          return GifOS.runtime.bootClient(mount, { s: params.get('s'), j: params.get('j'), k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {
             onSession: function (info) { sessionEternal = !!(info && info.eternal); },
             onHostGone: function (canTakeOver) { if (canTakeOver) { becomeBtn.style.display = ''; becomeBtn.classList.add('urgent'); } },
             onHostBack: function () { becomeBtn.style.display = 'none'; becomeBtn.classList.remove('urgent'); },

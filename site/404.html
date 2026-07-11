@@ -7,11 +7,13 @@
 <script>
 /*
  * 404.html — the pretty-link router. GitHub Pages serves this for any path it
- * doesn't know, which is exactly how gifos.app/join/<code> (an app session)
- * and gifos.app/meet/<code> (a meeting) work on a fully static site: the
- * code becomes the session id AND the join key on the relay, no server state
- * anywhere. /call/<code> stays a permanent alias for /meet/<code> so links
- * shared before the rename keep working. Anything unrecognized just goes home.
+ * doesn't know, which is exactly how gifos.app/join/… (an app session) and
+ * gifos.app/meet/… (a meeting) work on a fully static site — no server state
+ * anywhere. The code in a link is a SECRET CAPABILITY: the client derives the
+ * relay-facing session id, token, and end-to-end key from it (see
+ * gifos-net.js "derive, don't send"); the relay never sees the code itself.
+ * /call/<code> stays a permanent alias for /meet/<code> so links shared
+ * before the rename keep working. Anything unrecognized just goes home.
  */
 (function () {
   // /meet/<room>/<verifier> is an ADMIN-MANAGED room — a DIFFERENT room from
@@ -20,21 +22,28 @@
   // Room ids can be as short as ONE character: gifos.app/meet/a is a global
   // public channel anyone in the world can wander into. Group moderation
   // (anyone can mute/blur anyone) keeps the low channels civilized.
-  var m = location.pathname.match(/^\/(?:join|meet|call)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64}))?\/?$/i);
+  //
+  // App links: /join/<code> is a self-healing session (the code is the whole
+  // capability); /join/<room>/<verifier>/<code> is an OWNED app — the public
+  // room.verifier names the session (only the creator's app can host it), and
+  // the trailing code is the guests' join-and-decrypt secret.
+  var m = location.pathname.match(/^\/(?:join|meet|call)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64})(?:\/([a-z0-9]{1,64}))?)?\/?$/i);
   if (m) {
     var code = m[1];
     var verifier = m[2] ? m[2].toLowerCase() : '';
+    var lsec = m[3] || '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
     if (/^\/(?:meet|call)\//.test(location.pathname)) {
       // A meeting has no separate join token — the room id IS the capability, so
-      // no &k= (the app branch below still needs it: an owned app's token differs).
+      // no &k= (the app branch below still needs it: an owned app carries one).
       location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '') + extra);
-    } else if (verifier) {
-      // Owned app: the session id is "<room>.<verifier>" and the join token is
-      // the verifier (public). The host SECRET is never in the link.
-      location.replace('/run.html#s=' + code + '.' + verifier + '&k=' + verifier + extra);
-    } else {
+    } else if (verifier && lsec) {
+      location.replace('/run.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
+    } else if (!verifier) {
       location.replace('/run.html#j=' + code + extra);
+    } else {
+      location.replace('/'); // an owned link without its secret opens nothing
+      return;
     }
     return;
   }

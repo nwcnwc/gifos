@@ -34,7 +34,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const ctl = await GifOS.runtime.boot(mount, fileId, null); window.__ctl = ctl;
     await ctl.becomeHost({ lifetime: 'forever' });
     const s = await GifOS.store.getState(fileId + '::session');
-    return { s: s.sid, k: s.token, relay: s.relay, keep: s.keep, exp: s.exp };
+    return { s: s.sid, k: s.lsec, relay: s.relay, keep: s.keep, exp: s.exp };
   }, b64);
   check('host minted an eternal (forever) link', binding.keep === 'persist' && !binding.exp);
   await sleep(500);
