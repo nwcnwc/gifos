@@ -1545,9 +1545,17 @@
         for (const e of st.hq.slice(0, 20)) {
           if (!e || !e.i || e.i === myId) continue;
           if (UP.on && (e.l || 0) !== (st.leaf || 0)) {
-            // not leaf-authoritative — a level-2 mate may still speak for a
-            // FOREIGN branch (never for mine: my branch's truth comes from below)
-            if (!(UP2.on && st.branch && (e.b || 0) === st.branch && st.branch !== UP.num)) continue;
+            // Not leaf-authoritative. Two more voices carry weight:
+            //  - a FOREIGN-branch level-2 speaker, for its own branch
+            //    (never for mine: my branch's truth comes from below);
+            //  - my own branch's level-2 attendee (st.bl marks one), for
+            //    OTHER branches — it is my branch's window to the world.
+            //    Only non-attendees listen to the window (attendees take
+            //    foreign truth from the level-2 space alone), so window
+            //    entries can't circulate between attendees and echo.
+            const foreignSpeaker = UP2.on && st.branch && (e.b || 0) === st.branch && st.branch !== UP.num;
+            const myWindow = !UP2.on && st.branch === UP.num && st.bl && (e.b || 0) && (e.b || 0) !== UP.num;
+            if (!foreignSpeaker && !myWindow) continue;
           }
           handSeen.set(String(e.i), { t: +e.t || 0, name: String(e.n || '…').slice(0, 40), leaf: e.l || 0, branch: e.b || 0, seen: Date.now() });
         }
