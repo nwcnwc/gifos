@@ -540,8 +540,69 @@
     // attributed to who did it. Latest change wins (timestamped).
     // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
     // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false };
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
+
+    // ================= ROWS (docs/rows.md) =================
+    // The scale-free structure: rows hold people, row 0 is the stage (born
+    // empty), the stadium is every row that isn't yours. Everything here is
+    // PURE, DERIVED BOOKKEEPING — computed on demand from the shared roster
+    // by the same arithmetic on every phone, so there is nothing to sync and
+    // nothing to invalidate. Structure emerges from GIFOS_SCALE constants;
+    // no code below ever asks "is this room big?".
+    const SCALE = net.SCALE;
+    // Capability score for deacon election: uplink + cores + memory + power,
+    // folded into ONE coarse bucket so jitter can't flap an election. Measured
+    // once at boot (plus one async bump if we learn we're on wall power).
+    (function measureCap() {
+      let s = 0;
+      try { s += Math.min(8, navigator.hardwareConcurrency || 2); } catch (e) {}
+      try { s += Math.min(8, navigator.deviceMemory || 2); } catch (e) {}
+      try { const c = navigator.connection; if (c && c.downlink) s += Math.min(10, c.downlink); } catch (e) {}
+      myStatus.cap = Math.max(1, Math.round(s / 3));
+      try {
+        if (navigator.getBattery) navigator.getBattery().then((b) => {
+          if (b && b.charging) myStatus.cap += 2; // plugged-in beats a 5% phone
+        }).catch(() => {});
+      } catch (e) {}
+    })();
+    const capOf = (id) => {
+      if (id === myId) return myStatus.cap || 0;
+      const st = statusOf.get(id);
+      return (st && st.cap) || 0;
+    };
+    // Deterministic row map: stage members first (row 0 — filled by the stage
+    // machinery; empty until someone steps up), everyone else first-fit in
+    // sorted-id order, C per row. Every client computes the identical map
+    // from the identical roster — no coordinator, no gossip, no state.
+    const stageIds = () => []; // row-0 membership (the stage tasks fill this in)
+    function computeRows() {
+      const onStage = new Set(stageIds());
+      const ids = [myId, ...peers.keys()].filter((id) => id && !onStage.has(id)).sort();
+      const rows = [stageIds()];
+      for (const id of ids) {
+        if (rows.length === 1 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
+        else rows[rows.length - 1].push(id);
+      }
+      if (rows.length === 1) rows.push([]); // every room automatically has 2 rows
+      return rows;
+    }
+    const rowIndexOf = (id) => {
+      const rows = computeRows();
+      for (let i = 0; i < rows.length; i++) if (rows[i].includes(id)) return i;
+      return -1;
+    };
+    const myRowIndex = () => rowIndexOf(myId);
+    const rowMates = () => { const rows = computeRows(); const i = myRowIndex(); return i < 0 ? [] : rows[i].filter((id) => id !== myId); };
+    // Deacon: capability-weighted, deterministic (score, then peer id) — the
+    // same election discipline as the initiator rule and host takeover. The
+    // full ranking IS the backup list; a dead deacon's successor is simply
+    // the next name every phone already agrees on.
+    function deaconRanking(rowIds) {
+      return rowIds.slice().sort((a, b) => (capOf(b) - capOf(a)) || (a < b ? -1 : 1));
+    }
+    const deaconOf = (rowIds) => deaconRanking(rowIds)[0] || null;
+    const amDeacon = () => { const rows = computeRows(); const i = myRowIndex(); return i > 0 && deaconOf(rows[i]) === myId; };
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
     // Admin "blur all guests": a room-wide level applied to every NON-admin,
@@ -3300,6 +3361,13 @@
       appIsHost: () => appMode === 'host',
       runAppForTest: (fileId, name) => runApp(fileId, name),
       stopAppForTest: () => stopApp(),
+      // rows bookkeeping (docs/rows.md)
+      rows: () => computeRows(),
+      myRow: () => myRowIndex(),
+      rowDeacons: () => { const rows = computeRows(); return rows.map((r) => deaconOf(r)); },
+      amDeacon: () => amDeacon(),
+      capOf: (id) => capOf(id),
+      scale: () => Object.assign({}, SCALE),
       appWinner: () => { const w = findSharedApp(); return w ? w.s : null; },
       appSharerName: () => { const w = findSharedApp(); return w ? (w.byName || null) : null; },
       appHidden: () => appHiddenSid,
