@@ -35,12 +35,13 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   // ---- an owned app join → /join/<room>/<verifier> -----------------------------
   const room = 'chess' + Math.floor(Math.random() * 1e6).toString(36);
   const ver = 'abc123def456abc123def456'; // any 24-hex — checking URL shaping only
+  const lsec = 'kqmvtwxyz2'; // the link secret rides as the third segment
   const p2 = await ctx.newPage();
   p2.on('pageerror', () => {});
-  await p2.goto(base + '/run.html#s=' + room + '.' + ver + '&k=' + ver);
+  await p2.goto(base + '/run.html#s=' + room + '.' + ver + '&k=' + lsec);
   await p2.waitForFunction(() => location.pathname.startsWith('/join/'), null, { timeout: 10000 });
-  check('an owned join rewrites the bar to /join/<room>/<verifier>',
-    (await p2.evaluate(() => location.pathname)) === '/join/' + room + '/' + ver);
+  check('an owned join rewrites the bar to /join/<room>/<verifier>/<secret>',
+    (await p2.evaluate(() => location.pathname)) === '/join/' + room + '/' + ver + '/' + lsec);
 
   // ---- local dev keeps the hash form (no /join routing there) -------------------
   const p3 = await ctx.newPage();

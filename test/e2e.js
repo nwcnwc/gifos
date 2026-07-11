@@ -751,7 +751,7 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await called.goto(BASE + '/meet/wkm4tr7q2x');
-  await called.waitForURL(/meet\.html#v=wkm4tr7q2x&k=wkm4tr7q2x/, { timeout: 5000 });
+  await called.waitForURL(/meet\.html#v=wkm4tr7q2x$/, { timeout: 5000 });
   check('/meet/<code> routes into the meeting page with the code', true);
   await called.close();
   const admRouted = await context.newPage();
@@ -759,10 +759,10 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await admRouted.goto(BASE + '/meet/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
-  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&k=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
+  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
   check('/meet/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
   await admRouted.goto(BASE + '/meet/a');
-  await admRouted.waitForURL(/meet\.html#v=a&k=a/, { timeout: 5000 });
+  await admRouted.waitForURL(/meet\.html#v=a$/, { timeout: 5000 });
   check('single-character rooms route (the low channels are open to the world)', true);
   await admRouted.close();
 

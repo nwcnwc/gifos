@@ -262,19 +262,23 @@ trusted meeting page), so the sandbox guarantees are unchanged.
 
 ### The shareable launch URL
 
-When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries everything the relay needs to bootstrap a client:
+When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries a **link secret** — and everything the relay needs is a one-way derivation of it ("derive, don't send", `site/js/gifos-net.js`):
 
 ```
-https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
+https://gifos.app/run.html#j=<code>&relay=<relay-url>                       (self-healing)
+https://gifos.app/run.html#s=<room>.<verifier>&k=<code>&relay=<relay-url>   (owned)
 ```
 
-- `s` — the server session to connect to (a Durable Object instance on the relay).
-- `k` — a join token the relay checks against the host's token before admitting the client.
+- `j` / `k` — the **link secret**. The client derives from it: the session id (self-healing links), the join token the relay equality-checks, and the **end-to-end AES-GCM key** that seals every content frame. The secret itself never reaches the relay in any form.
+- `s` (owned links) — the public session id `"<room>.<verifier>"`; the verifier is a hash of the *host* secret (a different key), so the id carries no secret at all.
 - `relay` — which relay hosts the session (normally `wss://relay.gifos.app`).
 
+The relay routes on derived ids and compares derived tokens — it can gate and route exactly as before while **everything it carries between host and guests is ciphertext**. Anyone holding the link derives the key offline, so late joiners and P2P-blocked peers need no key exchange — precisely the situations where the relay path matters.
+
 The app GIF itself is **delivered by the host browser** over the session on
-join — the relay never stores it, and the bandwidth guard's burst allowance
-(1 MB) exists precisely to let this one-time delivery through.
+join (sealed like everything else) — the relay never stores it, and the
+bandwidth guard's burst allowance (1 MB) exists precisely to let this one-time
+delivery through.
 
 ### The `?run=` link — open any app GIF by URL
 
@@ -441,7 +445,10 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   multiplayer, network allowlist). System-app routing (`manifest.system`) is a
   hardcoded whitelist — a GIF cannot name an arbitrary page.
 - **Join tokens** scope a client to a single server session; the relay
-  validates every join against the host's token.
+  validates every join against the host's token. Both sides present a SHA-256
+  **derivation** of the link secret, never the secret — and the same secret
+  derives the session's end-to-end key, so every content frame the relay (or a
+  forwarding friend) carries is AES-GCM ciphertext.
 - **Owned vs anyone-owns — the host gate.** A session id is one of two shapes,
   and the shape *is* the ownership contract. The relay reads it with a single
   helper, `verifierOf(sid)` — the hex tail after the **last dot**, or empty if
@@ -507,8 +514,12 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   (`FRAG_MAX_PARTS`), and the client receives the app over whichever transport
   delivered it (the same `receiveApp` path serves relay and DataChannel). If the
   DataChannel never opens within `APP_P2P_WAIT` (symmetric NAT, and there's no
-  TURN), the host falls back to **dripping the app over the relay paced under its
-  ~48 KB/s refill** (`relayPaced`) so nothing is dropped — slow (minutes for a
+  TURN), the host first tries a **friend hop** — in small sessions guests keep
+  DataChannels to each other (the P1 fabric), and a guest the host can't reach
+  directly asks for the app *through* a friend, whose browser forwards the
+  sealed frames it cannot read — and only then falls back to **dripping the app
+  over the relay paced under its ~48 KB/s refill** (`relayPaced`) so nothing is
+  dropped — slow (minutes for a
   big app) but it still arrives. Throughout, the joiner isn't a blank page: a
   loader in the mount area narrates the stage ("Connecting…", "opening a direct
   route…", "Receiving the app…") and shows a **live percent** bar driven by the

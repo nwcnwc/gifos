@@ -419,6 +419,7 @@
   <script src="js/gifos-gif.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
+  <script src="js/gifos-net.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
   <script>
@@ -448,10 +449,8 @@
    *    being locked out
    */
   (function () {
-    const ICE_SERVERS = [
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:stun.l.google.com:19302' },
-    ];
+    const net = GifOS.net; // the shared transport fabric (also under runtime.js)
+    const ICE_SERVERS = net.ICE_SERVERS;
     // Quality ladder: total participants → per-link video constraints. With a
     // mesh, upload cost grows with (n-1) links, so both resolution and each
     // link's bitrate step down to keep total upstream roughly flat.
@@ -535,7 +534,7 @@
     let lastVoteSync = null;
     let voteTally = {}, voteNeed = 0;  // relay's live tally, keyed by DEVICE id
     function syncVotes() {
-      if (hasAdminRoom() || !ws || ws.readyState !== 1) return;
+      if (hasAdminRoom() || !ws || ws.state !== 'up') return;
       const present = new Set(Object.values(devOf));
       const relevant = Array.from(myVoteoffs).filter((d) => present.has(d)).sort();
       const sig = relevant.join(',');
@@ -560,7 +559,7 @@
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
-    setInterval(() => { if (peers.size && ws && ws.readyState === 1) broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, 4000);
+    setInterval(() => { if (peers.size && ws && ws.state === 'up') broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, 4000);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
     // thing we say is an honest "away", and the first thing back is "here".
@@ -766,9 +765,9 @@
           if (e.target.dataset.adm === 'ban') {
             e.stopPropagation();
             const dev = devOf[id];
-            if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, ws && ws.readyState);
+            if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, ws && ws.state);
             if (!amAdmin || !dev) return;
-            if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName() }));
+            if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName() }));
             return;
           }
           const f = e.target.dataset.mod;
@@ -1104,7 +1103,7 @@
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
       const q = rung(n);
-      const link = ws && ws.readyState === 1 ? '' : ' · reconnecting to the room…';
+      const link = ws && ws.state === 'up' ? '' : ' · reconnecting to the room…';
       let extra = '';
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
@@ -1116,7 +1115,31 @@
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
-    const sendSig = (to, msg) => ws && ws.send(JSON.stringify({ t: 'peer', to, msg }));
+    // EVERY content frame — signaling gossip over the relay AND everything on
+    // the DataChannels — is SEALED with the room key (derived from the room
+    // code; the relay never sees the code, only hashes of it — gifos-net.js).
+    // Chains keep the async crypto from ever reordering a sender's frames;
+    // the shared defrag reassembles fragmented ciphertext from either path.
+    const txm = net.makeChain(), rxm = net.makeChain();
+    const meshDefrag = net.makeDefrag(null);
+    // TEST HOOK (fault injection): a page may pre-declare peers whose ICE is
+    // dropped both ways (window.__gifosBlockIce = ['*'|peerId…]) — simulates a
+    // firewalled pair. Sealing hid ICE from the e2e suite's old WS-sniffing
+    // trick, so the fault now injects at the signaling layer itself.
+    const iceBlocked = (pid) => { const b = window.__gifosBlockIce; return !!b && (b.includes('*') || b.includes(pid)); };
+    const sendSig = (to, msg) => {
+      if (!ws) return;
+      if (msg && msg.kind === 'ice' && iceBlocked(to)) return;
+      txm(() => net.seal(roomE2E, msg).then((env) =>
+        net.sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'peer', to, msg: piece })))));
+    };
+    // Sealed frame over this pair's DataChannel (chat, files, relay control).
+    const dcSend = (p, msg) => {
+      if (!p || !p.dc || p.dc.readyState !== 'open') return;
+      const dc = p.dc;
+      txm(() => net.seal(roomE2E, msg).then((env) =>
+        net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
+    };
     const myName = () => GifOS.store.identity().name || 'Guest';
 
     // Exactly ONE side initiates each pairing, chosen by peer-id order — the
@@ -1196,6 +1219,7 @@
     function dropPeer(peerId) {
       const p = peers.get(peerId);
       if (!p) return;
+      clearTimeout(p.hiLate);
       try { p.pc.close(); } catch (e) {}
       p.tile.remove();
       peers.delete(peerId);
@@ -1264,6 +1288,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .catch(() => {});
       } else if (msg.kind === 'ice') {
+        if (iceBlocked(from)) return; // fault injection — see iceBlocked above
         const p = peers.get(from);
         if (!p) return;
         if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
@@ -1304,6 +1329,15 @@
           // Newcomers can't trust gossip for moderation in admin rooms — an
           // admin hands them the table over the relay's stamped path.
           if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
+          // A newcomer still channel-less after a grace gets the union-merge
+          // 'hi' over the RELAY (sealed) — chat and history converge even for
+          // a fully P2P-blocked participant. Smaller slices: relay budget.
+          const late = p;
+          late.hiLate = setTimeout(() => {
+            if (peers.get(pid) === late && !(late.dc && late.dc.readyState === 'open')) {
+              sendSig(pid, { k: 'hi', chats: Array.from(chat.values()).slice(-200), trs: Array.from(trs.values()).slice(-100), metas: fileMetas(), tombs: tombObj() });
+            }
+          }, 8000);
         }
         p.absentSince = 0;
         if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
@@ -1320,8 +1354,13 @@
       return params.get('relay') || u || window.GIFOS_RELAY || null;
     }
 
-    let room = null, backoff = 500, reopenTimer = null;
+    let room = null;
     let roomPw = '', pwBlocked = false;
+    // Derived relay identity + room key — "derive, don't send" (gifos-net.js):
+    // the relay routes on sessId and equality-checks sessTok/pwProof, all
+    // one-way hashes of the room code (+ password); roomE2E seals every
+    // content frame and exists only in occupants' browsers.
+    let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
 
     // ---- admin rooms -----------------------------------------------------------
     // The admin verifier V is part of the ROOM'S IDENTITY: /meet/<room>/<V>
@@ -1344,10 +1383,7 @@
     let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
     let ipsOf = {};                          // peer -> network address (from the relay roster)
     const hasAdminRoom = () => !!av;
-    async function sha256hex(s) {
-      const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
-      return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    }
+    const sha256hex = net.sha256hex;
     // Deriving K from the password is deliberately EXPENSIVE (PBKDF2): V is
     // public in every room link, so cheap hashing would invite offline
     // dictionary attacks on weak admin passwords.
@@ -1408,25 +1444,24 @@
       return id;
     }
 
+    // The relay-facing URL: sessId is the DERIVED session id (the verifier is
+    // re-appended after the hash so the relay's verifierOf still reads it off
+    // the tail); sessTok and pwProof are derivations too. The relay never sees
+    // the room code or the password. makeUrl re-evaluates on every reconnect,
+    // so a changed password proof or a fresh admin key rides the next attempt.
+    function buildWsUrl() {
+      return relayUrl().replace(/\/$/, '') + '/s/' + sessId + '?role=mesh&token=' + sessTok +
+        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(pwProof) +
+        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+    }
     function openSock() {
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
-      // The session id is the room+verifier COMPOSITE: /room and /room/V are different rooms.
-      // The relay reads the verifier straight off the sid (the dot in roomKey), so we don't
-      // send a separate &av= — one derivation, the same one join uses. See verifierOf on the relay.
-      ws = new WebSocket(relay.replace(/\/$/, '') + '/s/' + roomKey() + '?role=mesh&token=' + room +
-        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(roomPw) +
-        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : ''));
+      if (ws) { try { ws.close(); } catch (e) {} } // a terminal state or credential change replaces the socket
+      ws = net.steadySocket(buildWsUrl); // self-healing: backoff + visibility/online kicks live in the fabric
       lastVoteSync = null; // a fresh socket re-syncs my standing votes
-      ws.onopen = () => { backoff = 500; updateStatus(); };
-      ws.onerror = () => { try { ws.close(); } catch (e) {} };
-      ws.onclose = () => {
-        if (leaving || pwBlocked || bannedOut) return; // pw prompt / ban owns the reconnect now
-        updateStatus(); // live P2P links stay up; we quietly rejoin the room
-        clearTimeout(reopenTimer);
-        backoff = Math.min(5000, backoff * 2);
-        reopenTimer = setTimeout(openSock, backoff + Math.random() * 250);
-      };
+      ws.onopen = () => { lastVoteSync = null; updateStatus(); };
+      ws.onstate = () => updateStatus(); // live P2P links stay up; we quietly rejoin the room
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'joined') { myId = m.peer; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
@@ -1454,7 +1489,20 @@
           reactRoomState();
           adminWatch(); // start/cancel the host-absence countdown on every roster change
         }
-        else if (m.t === 'peer') onSignal(m.from, m.msg, m.adm);
+        else if (m.t === 'peer' && m.msg) {
+          // Sealed gossip: signaling (offers/answers/ice/status/mod) AND
+          // chat-class frames that had to ride the relay because no
+          // DataChannel exists for that pair. The relay's admin stamp rides
+          // the OUTER envelope, so it survives sealing.
+          const from = m.from, adm = m.adm;
+          const piece = meshDefrag(m.msg, from);
+          if (!piece) return;
+          rxm(() => net.open(roomE2E, piece).then((inner) => {
+            if (!inner) return;
+            if (inner.kind) onSignal(from, inner, adm);
+            else if (inner.k) onRemote(from, inner);
+          }));
+        }
         else if (m.t === 'ban') {
           // A ban is not just signaling: sever the banned device's live P2P
           // links too (media otherwise outlives the relay socket by design).
@@ -1470,33 +1518,22 @@
         else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
         else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
         else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
-        else if (m.t === 'pw') {
-          // someone in the room changed the password — every attached session
-          // adopts it so reconnects and reloads keep working seamlessly
-          const cleared = !m.pw && roomPw;
-          storePw(m.pw);
-          const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
-          renderFiles();
-          setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
-            : '🔓 Password removed' + (m.by ? ' by ' + m.by : '') + ' — the room is blurred again' + (purged ? ' and shared files were cleared' : ''));
-          reactRoomState(); // the password is the key to clear video
-        }
+        // (The relay still broadcasts {t:'pw'} with the new PROOF on setpw, but
+        // the plaintext the room needs travels in a SEALED {k:'pwinfo'} frame —
+        // see onDc — so the relay-side broadcast carries nothing to act on.)
         else if (m.t === 'error') {
-          if (/password required/.test(m.error || '')) { pwBlocked = true; clearTimeout(reopenTimer); showPwModal(true); }
-          else if (/voted-off/.test(m.error || '')) { bannedOut = true; clearTimeout(reopenTimer); setStatus('⛔ The people in this room have voted not to let this device in.'); }
-          else if (/banned/.test(m.error || '')) { bannedOut = true; clearTimeout(reopenTimer); setStatus('⛔ This device was banned from the room by its admin.'); }
+          // Terminal doors: close the steady socket so it stops knocking; the
+          // pw modal (or nothing, for bans) owns any reconnect from here.
+          if (/password required/.test(m.error || '')) { pwBlocked = true; try { ws.close(); } catch (e) {} showPwModal(true); }
+          else if (/voted-off/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ The people in this room have voted not to let this device in.'); }
+          else if (/banned/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ This device was banned from the room by its admin.'); }
           else setStatus('Relay: ' + m.error);
         }
       };
     }
-    function kickSock() {
-      if (leaving || !room) return;
-      if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
-      clearTimeout(reopenTimer);
-      openSock();
-    }
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { kickSock(); reviveCamera(); } });
-    window.addEventListener('online', kickSock);
+    // The steady socket kicks itself on visibility/online; only the camera
+    // still needs a manual revive when the tab comes back.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reviveCamera(); });
 
     // The sweeper heals what it can and buries what's really gone:
     //  - absent + link down past grace → tile removed
@@ -1533,7 +1570,7 @@
           if (cands.length) {
             p.relayAskAt = now;
             const rp = peers.get(cands[0]);
-            if (rp && rp.dc && rp.dc.readyState === 'open') { try { rp.dc.send(JSON.stringify({ k: 'relay-req', target: pid })); } catch (e) {} }
+            if (rp) dcSend(rp, { k: 'relay-req', target: pid });
           }
         }
         // Be honest about a pair that can't form: present in the room but no
@@ -1615,8 +1652,8 @@
         pwBlocked = false;
         pwModal.style.display = 'none';
         setStatus('Trying the password…');
-        clearTimeout(reopenTimer);
-        openSock(); // wrong password → the relay bounces us right back here
+        // The relay only ever sees the PROOF of this password, never the text.
+        net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; openSock(); }); // wrong password → bounced right back here
       } else {
         // Clearing the password opens the room — warn that it also deletes any
         // shared files, then purge them for everyone.
@@ -1626,7 +1663,15 @@
           purgeAllFiles(true);
         }
         storePw(v);
-        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'setpw', pw: v, by: myName() }));
+        net.meetPwProof(room, av, roomPw).then((pr) => {
+          pwProof = pr;
+          // Two messages, two audiences: the relay's door gate gets the PROOF
+          // (it only ever compares equality); the room's occupants get the
+          // plaintext SEALED ({k:'pwinfo'}), so each can store it and derive
+          // their own proof for reconnects.
+          if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: pr, by: myName() }));
+          sendAll({ k: 'pwinfo', pw: v, by: myName() });
+        });
         renderFiles(); // reflect the new password state (files allowed / the lock note)
         pwModal.style.display = 'none';
       }
@@ -1646,7 +1691,7 @@
         const nm = document.createElement('span'); nm.style.flex = '1';
         nm.textContent = (b.n || 'unnamed') + ' · ' + b.d;
         const btn = document.createElement('button'); btn.textContent = 'Unban';
-        btn.onclick = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName() })); };
+        btn.onclick = () => { if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName() })); };
         row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
       }
     }
@@ -1683,9 +1728,7 @@
       try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
       admModal.style.display = 'none';
       setStatus('🛡 Signing in as admin…');
-      try { ws && ws.close(); } catch (e) {} // reconnect presents the key
-      clearTimeout(reopenTimer);
-      openSock();
+      openSock(); // replaces the socket; the fresh connect presents the key
     };
     // ---- who is on this meeting (names + addresses) -------------------------------
     // P2P meetings are direct connections: everyone can already learn everyone's
@@ -1750,7 +1793,12 @@
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
       recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
-      openSock();
+      // Derive the relay-facing identity + the room key from the room code
+      // ("derive, don't send"), then connect. The relay never sees the code.
+      Promise.all([net.deriveMeet(room, av), net.meetPwProof(room, av, roomPw)]).then(([d, pr]) => {
+        sessId = d.sid; sessTok = d.tok; roomE2E = d.key; pwProof = pr;
+        openSock();
+      });
     }
 
     // Meetings joined via a shared link go in the same list the desktop's
@@ -1765,15 +1813,9 @@
       } catch (e) { /* private mode / quota */ }
     }
 
-    // Friendly one-word codes: no lookalike characters, short enough to read aloud.
-    function shortCode() {
-      const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
-      const buf = new Uint8Array(10);
-      crypto.getRandomValues(buf);
-      let s = '';
-      for (let i = 0; i < buf.length; i++) s += alphabet[buf[i] % alphabet.length];
-      return s;
-    }
+    // Friendly one-word codes: no lookalike characters, short enough to read
+    // aloud — the shared alphabet from the net fabric.
+    const shortCode = () => net.shortCode();
 
     // ---- the front-door lobby --------------------------------------------------
     // A COLD open (the desktop icon → bare meet.html, no room and no app hand-off
@@ -1961,9 +2003,22 @@
     const b64ofPart = (part) => { let s = ''; for (let i = 0; i < part.length; i += 8192) s += String.fromCharCode.apply(null, part.subarray(i, i + 8192)); return btoa(s); };
     const partOfB64 = (b) => { const s = atob(b); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
 
-    function dcAll(msg) {
-      const s = JSON.stringify(msg);
-      for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') { try { p.dc.send(s); } catch (e) {} }
+    // Chat-class fan-out: P0 the pair's DataChannel, P2 a sealed envelope over
+    // the relay's peer routing for anyone we have no channel to — so chat,
+    // transcripts, file METAS and tombstones reach even a fully P2P-blocked
+    // participant. File BODIES never do this (P0/P1 only, by budget policy).
+    function sendAll(msg) {
+      for (const [pid, p] of peers) {
+        if (p.dc && p.dc.readyState === 'open') dcSend(p, msg);
+        else sendSig(pid, msg);
+      }
+    }
+    // Chat-class frames that arrived over the RELAY (no DataChannel for this
+    // pair). Same dispatch as the DC path; anything that needs a channel to
+    // answer (file 'want'/'fc') is skipped by the null-dc guards in onDc.
+    function onRemote(from, m) {
+      const p = peers.get(from);
+      onDc(p || { id: from, dc: null }, null, m);
     }
     function fileMetas() {
       return Array.from(files.values()).map((f) => ({ id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at }));
@@ -1973,11 +2028,12 @@
     function wireDc(p, dc) {
       p.dc = dc;
       dc.onopen = () => {
-        try { dc.send(JSON.stringify({ k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() })); } catch (e) {}
+        dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
       };
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        onDc(p, dc, m);
+        m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
+        rxm(() => net.open(roomE2E, m).then((inner) => { if (inner && inner.k) onDc(p, dc, inner); }));
       };
     }
     function onDc(p, dc, m) {
@@ -1987,20 +2043,20 @@
         (m.trs || []).forEach((l) => { if (takeTr(l)) trNew = true; });
         if (trNew) renderTranscript();
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
-        (m.metas || []).forEach((meta) => takeMeta(meta, dc));
+        (m.metas || []).forEach((meta) => takeMeta(meta, p));
         renderChat(); renderFiles();
       } else if (m.k === 'chat') {
         if (takeChat(m.m)) {
           renderChat();
           if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = 'Chat (' + unread + ')'; }
-          dcAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
+          sendAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
         }
       } else if (m.k === 'fmeta') {
-        if (takeMeta(m.f, dc)) { renderFiles(); dcAll({ k: 'fmeta', f: m.f }); }
+        if (takeMeta(m.f, p)) { renderFiles(); sendAll({ k: 'fmeta', f: m.f }); }
       } else if (m.k === 'want') {
         const f = files.get(m.id);
-        if (f && f.bytes) sendFileOver(dc, m.id);
-        else if (f) (f.wanters = f.wanters || []).push(dc); // send once our own copy lands
+        if (f && f.bytes) sendFileOver(p, m.id);
+        else if (f) (f.wanters = f.wanters || []).push(p); // send once our own copy lands
       } else if (m.k === 'fc') {
         const f = files.get(m.id);
         if (!f || f.bytes || tombs.has(m.id)) return;
@@ -2015,12 +2071,12 @@
           for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
         }
       } else if (m.k === 'fdel') {
-        if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); dcAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
+        if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); sendAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
       } else if (m.k === 'tr') {
         if (takeTr(m.m)) {
           renderTranscript();
           showCaption(m.m.byId, m.m.text);
-          dcAll({ k: 'tr', m: m.m }); // gossip onward, like chat
+          sendAll({ k: 'tr', m: m.m }); // gossip onward, like chat
         }
       } else if (m.k === 'relay-req') {
         startRelayJob(p, String(m.target || ''));
@@ -2035,14 +2091,27 @@
         stopRelayJob(String(m.target || ''), p.id, false);
       } else if (m.k === 'relay-end') {
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
+      } else if (m.k === 'pwinfo') {
+        // The room's password changed — the PLAINTEXT arrives only inside this
+        // sealed frame, never through the relay in the clear. Adopt it and
+        // re-derive our proof so reconnects keep working.
+        const cleared = !m.pw && roomPw;
+        storePw(m.pw || '');
+        net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; });
+        const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
+        renderFiles();
+        setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
+          : '🔓 Password removed' + (m.by ? ' by ' + m.by : '') + ' — the room is blurred again' + (purged ? ' and shared files were cleared' : ''));
+        reactRoomState(); // the password is the key to clear video
       } else if (m.k === 'roffer') {
+        if (!p.pc) return; // relay-only pseudo-peer — media relay needs a channel pair
         p.pc.setRemoteDescription(m.sdp)
           .then(() => p.pc.createAnswer())
           .then((a) => p.pc.setLocalDescription(a))
-          .then(() => dc.send(JSON.stringify({ k: 'ranswer', sdp: p.pc.localDescription })))
+          .then(() => dcSend(p, { k: 'ranswer', sdp: p.pc.localDescription }))
           .catch(() => {});
       } else if (m.k === 'ranswer') {
-        p.pc.setRemoteDescription(m.sdp).catch(() => {});
+        if (p.pc) p.pc.setRemoteDescription(m.sdp).catch(() => {});
       }
     }
     function takeChat(m) {
@@ -2067,29 +2136,37 @@
       for (const id of ids) {
         const t = { by: myName(), at: Date.now() };
         takeTomb(id, t);
-        if (announce) dcAll({ k: 'fdel', id, by: t.by, at: t.at });
+        if (announce) sendAll({ k: 'fdel', id, by: t.by, at: t.at });
       }
       renderFiles();
       return ids.length;
     }
-    function takeMeta(meta, dc) {
-      if (!meta || !meta.id || files.has(meta.id) || tombs.has(meta.id)) return false;
+    function takeMeta(meta, p) {
+      if (!meta || !meta.id || tombs.has(meta.id)) return false;
+      const known = files.get(meta.id);
+      if (known) {
+        // Already listed but still body-less: this (re-)gossiped source may
+        // have a working channel the first announcer didn't — ask them too.
+        // Duplicate serves are harmless (chunks dedupe by seq).
+        if (!known.bytes) dcSend(p, { k: 'want', id: meta.id });
+        return false;
+      }
       if (meta.size > MAX_FILE) return false;
       files.set(meta.id, { id: meta.id, name: String(meta.name || 'file').slice(0, 120), size: meta.size | 0, mime: meta.mime, by: meta.by, at: meta.at, bytes: null });
-      try { dc.send(JSON.stringify({ k: 'want', id: meta.id })); } catch (e) {}
+      dcSend(p, { k: 'want', id: meta.id }); // dcSend no-ops without a channel; a later source re-asks (above)
       return true;
     }
-    function sendFileOver(dc, id) {
+    function sendFileOver(p, id) {
       const f = files.get(id);
       if (!f || !f.bytes) return;
       const CH = 32768, total = Math.max(1, Math.ceil(f.bytes.length / CH));
       let seq = 0;
       (function pump() {
         while (seq < total) {
-          if (dc.readyState !== 'open') return;
-          if (dc.bufferedAmount > (1 << 20)) { setTimeout(pump, 60); return; } // backpressure
+          if (!p.dc || p.dc.readyState !== 'open') return;
+          if (p.dc.bufferedAmount > (1 << 20)) { setTimeout(pump, 60); return; } // backpressure (seal lag makes it approximate)
           const part = f.bytes.subarray(seq * CH, (seq + 1) * CH);
-          try { dc.send(JSON.stringify({ k: 'fc', id, seq, total, b: b64ofPart(part) })); } catch (e) { return; }
+          dcSend(p, { k: 'fc', id, seq, total, b: b64ofPart(part) });
           seq++;
         }
       })();
@@ -2129,7 +2206,7 @@
       } else if (del) {
         const t = { by: myName(), at: Date.now() };
         takeTomb(del, t);
-        dcAll({ k: 'fdel', id: del, by: t.by, at: t.at });
+        sendAll({ k: 'fdel', id: del, by: t.by, at: t.at });
         renderFiles();
       }
     });
@@ -2140,7 +2217,7 @@
       if (!text) return;
       const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text };
       chat.set(m.id, m);
-      dcAll({ k: 'chat', m });
+      sendAll({ k: 'chat', m });
       inp.value = '';
       renderChat();
     });
@@ -2156,7 +2233,7 @@
         reader.onload = () => {
           const f = { id: uid('f'), name: file.name, size: file.size, mime: file.type, by: myName(), at: Date.now(), bytes: new Uint8Array(reader.result) };
           files.set(f.id, f);
-          dcAll({ k: 'fmeta', f: { id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at } });
+          sendAll({ k: 'fmeta', f: { id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at } });
           renderFiles();
         };
         reader.readAsArrayBuffer(file);
@@ -2214,27 +2291,27 @@
       }
       const viaP = peers.get(r.via);
       if (notifyVia && viaP && viaP.dc && viaP.dc.readyState === 'open') {
-        try { viaP.dc.send(JSON.stringify({ k: 'relay-stop', target })); } catch (e) {}
+        dcSend(viaP, { k: 'relay-stop', target });
       }
     }
     function renegotiate(p) { // relayer-only re-offer, carried over the DataChannel
       if (!p.dc || p.dc.readyState !== 'open') return;
       p.pc.createOffer().then((o) => p.pc.setLocalDescription(o))
-        .then(() => p.dc.send(JSON.stringify({ k: 'roffer', sdp: p.pc.localDescription })))
+        .then(() => dcSend(p, { k: 'roffer', sdp: p.pc.localDescription }))
         .catch(() => {});
     }
     function startRelayJob(reqP, target) {
       const key = target + '>' + reqP.id;
       if (relayJobs.has(key)) return;
       const tp = peers.get(target);
-      const refuse = () => { try { reqP.dc.send(JSON.stringify({ k: 'relay-no', target })); } catch (e) {} };
+      const refuse = () => dcSend(reqP, { k: 'relay-no', target });
       if (!tp || !tp.connected || !tp.stream || !reqP.connected || relayJobs.size >= MAX_RELAY_JOBS) { refuse(); return; }
       const container = new MediaStream();
       const senders = [];
       for (const tr of tp.stream.getTracks()) { try { senders.push(reqP.pc.addTrack(tr, container)); } catch (e) {} }
       if (!senders.length) { refuse(); return; }
       relayJobs.set(key, { senders, requester: reqP.id, target });
-      try { reqP.dc.send(JSON.stringify({ k: 'relay-stream', target, streamId: container.id })); } catch (e) {}
+      dcSend(reqP, { k: 'relay-stream', target, streamId: container.id });
       renegotiate(reqP);
     }
     function stopRelayJob(target, requesterPid, notify) {
@@ -2246,7 +2323,7 @@
       if (!rp) return;
       for (const sd of job.senders) { try { rp.pc.removeTrack(sd); } catch (e) {} }
       renegotiate(rp);
-      if (notify && rp.dc && rp.dc.readyState === 'open') { try { rp.dc.send(JSON.stringify({ k: 'relay-end', target })); } catch (e) {} }
+      if (notify) dcSend(rp, { k: 'relay-end', target });
     }
     function endRelayRolesFor(pid) { // pid left or its pc died — as relayer AND receiver
       for (const key of Array.from(relayJobs.keys())) {
@@ -2300,7 +2377,7 @@
       if (!text) return;
       const m = { id: uid('t'), byId: myId, by: myName(), at: Date.now(), text: text.slice(0, 400) };
       trs.set(m.id, m);
-      dcAll({ k: 'tr', m });
+      sendAll({ k: 'tr', m });
       renderTranscript();
       showCaption(myId, m.text);
     }
@@ -2845,7 +2922,7 @@
         : location.origin + MEET_PATH + '#v=' + chosen + '&av=' + V + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (postToChat && peers.size > 0) {
         const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: 'I moved this meeting to a room I run — follow me:', link: newLink };
-        chat.set(m.id, m); dcAll({ k: 'chat', m }); renderChat();
+        chat.set(m.id, m); sendAll({ k: 'chat', m }); renderChat();
         await new Promise((r) => setTimeout(r, 600)); // let the P2P chat flush before we leave
       }
       location.replace(MEET_PATH + '#v=' + chosen + '&av=' + V);
@@ -2897,7 +2974,7 @@
         const sess = await GifOS.store.getState(fileId + '::session');
         if (!sess || !sess.sid) throw new Error('app session did not start');
         appKey = sess.sid;
-        myStatus.app = { s: sess.sid, k: sess.token, relay: sess.relay, name: name };
+        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name };
         broadcastStatus();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }

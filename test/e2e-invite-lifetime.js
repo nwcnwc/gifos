@@ -71,7 +71,7 @@ async function openGuestbook(ctx) {
 
   // Pick the ephemeral default. A fresh short code, share panel shows lifetime.
   const ephUrl = await pick(hostRun, 'close');
-  check('ephemeral link is a valid short-code URL', /#j=[a-z2-9]{10}&relay=/.test(ephUrl));
+  check('ephemeral link is a valid owned URL (verifier + link secret)', /#s=[a-z0-9-]+\.[a-f0-9]{24}&k=[a-z2-9]{10}&relay=/.test(ephUrl));
   check('link modal states the link is open-only and ends if you drop',
     /while this app is open/i.test(await hostRun.locator('#link-modal .linkexp').textContent()));
 

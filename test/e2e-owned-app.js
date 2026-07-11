@@ -26,15 +26,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const ctl = await GifOS.runtime.boot(mount, fileId, null);
     const r = await ctl.becomeHost(opts);
     const sess = await GifOS.store.getState(fileId + '::session');
-    return { shareUrl: r.shareUrl, owned: r.owned, heal: r.heal, sid: sess.sid, token: sess.token, av: sess.av || null, hasSecret: !!sess.sec };
+    return { shareUrl: r.shareUrl, owned: r.owned, heal: r.heal, sid: sess.sid, lsec: sess.lsec || null, av: sess.av || null, hasSecret: !!sess.sec };
   }, { lifetime: 'forever' });
 
   check('default forever link is OWNED (owned:true)', host.owned === true);
   check('owned sid is "<room>.<verifier>" (has a dot)', typeof host.sid === 'string' && host.sid.indexOf('.') > 0);
   check('unsigned app → room ends with "-anon"', /^sync-test-anon\./.test(host.sid));
-  check('verifier is the join token (public), sid = room + . + av', host.token === host.av && host.sid === ('sync-test-anon.' + host.av));
+  check('link secret minted; relay token DERIVES from it (never equals the verifier)', /^[a-z2-9]{10}$/.test(host.lsec || '') && host.lsec !== host.av && host.sid === ('sync-test-anon.' + host.av));
   check('host holds a secret (never in the link)', host.hasSecret === true);
-  check('pretty link is /join/<room>/<verifier>', /\/join\/sync-test-anon\/[a-f0-9]{24}$/.test(host.shareUrl) || /run\.html#s=/.test(host.shareUrl));
+  check('pretty link is /join/<room>/<verifier>/<secret>', new RegExp('/join/sync-test-anon/[a-f0-9]{24}/' + host.lsec + '$').test(host.shareUrl) || /run\.html#s=.*&k=/.test(host.shareUrl));
   check('the secret does NOT appear in the share link', host.shareUrl.indexOf('sec') === -1);
 
   // resilient → anyone-owns self-healing → dotless sid

@@ -45,6 +45,14 @@ The host delivers the App GIF to each joining client over this channel
 (`{t:'app', gif}`), so a brand-new client needs only the share link — the app
 itself arrives peer-to-peer through the relay.
 
+**The relay only ever carries ciphertext and derivations.** Clients follow a
+"derive, don't send" scheme (`site/js/gifos-net.js`): the session id in the
+path and the `token`/`pw` query params are SHA-256 derivations of the link
+secret (and password), compared for equality server-side; the content of every
+routed frame (`msg` payloads) is AES-GCM sealed with a key derived from the
+same secret and never sent. The relay's routing and gating code is unchanged —
+it just knows strictly less.
+
 ## Session identity & the host gate
 
 The session id in the URL (`/s/<sid>`) carries its own ownership rule, read by
