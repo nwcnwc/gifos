@@ -8,7 +8,7 @@
    inject here. */
 GifOS.setTheme({
   name: 'Orrery',
-  pack: 'aurora',
+  pack: 'orrery',
   chrome: {
     bg: '#04030a',
     bgglow: '#241405',
