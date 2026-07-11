@@ -3496,7 +3496,11 @@
       }
       // FOLD OF FOLDS: a level-2 delegate paints its whole parent space into
       // one branch stream and swaps it with FOREIGN-branch level-2 mates.
-      const aud2 = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid) && !rosterIds.includes(pid)) : [];
+      // Same-parent-space mates see my branch natively (numerics) — everyone
+      // else in the level-2 space gets the fold, INCLUDING a leaf mate whose
+      // delegation landed in a sibling branch: it cannot see my parent
+      // space's world any other way. (Leaf-mate filters keep being wrong.)
+      const aud2 = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid)) : [];
       // ONE voice per branch: every phone in my parent space derives the same
       // announcer (first populated space-row's deacon) — two same-branch
       // delegates racing the same 'b:' key would churn every receiver.
