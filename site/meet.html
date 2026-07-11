@@ -1267,7 +1267,7 @@
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' on the meeting · ' + q.label) + link + extra;
+        : n + ' on the meeting · ' + q.label) + (rowNum > 1 ? ' · row ' + rowNum : '') + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -1577,6 +1577,20 @@
     // one-way hashes of the room code (+ password); roomE2E seals every
     // content frame and exists only in occupants' browsers.
     let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
+    // Which leaf row this device sits in (1-based; row 1 is path '' — exactly
+    // today's session). The walk bumps it until a row seats us.
+    let rowNum = 1, walking = false;
+    const rowPathOf = (n) => (n <= 1 ? '' : 'r' + n);
+    function walkOn() {
+      if (walking) return; // one step at a time — late rosters must not double-bump
+      walking = true;
+      rowNum++;
+      for (const pid of Array.from(peers.keys())) dropPeer(pid); // old row's links die with the walk
+      net.deriveMeetSess(room, av, rowPathOf(rowNum)).then((d) => {
+        sessId = d.sid; sessTok = d.tok;
+        openSock();
+      });
+    }
 
     // ---- admin rooms -----------------------------------------------------------
     // The admin verifier V is part of the ROOM'S IDENTITY: /meet/<room>/<V>
@@ -1680,8 +1694,14 @@
       ws.onstate = () => updateStatus(); // live P2P links stay up; we quietly rejoin the room
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') { myId = m.peer; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
+        if (m.t === 'joined') { myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
         else if (m.t === 'roster') {
+          // MULTI-SESSION WALK (docs/rows.md): the roster answers "is this
+          // row full". Seats are the first C² peers in relay join order
+          // (a session holds C local rows of C); landing past them means
+          // this row filled before I arrived — walk to the next one. Join
+          // order is shared state, so racing walkers resolve identically.
+          if (myId && (m.peers || []).indexOf(myId) >= SCALE.C * SCALE.C) { walkOn(); return; }
           admins = m.admins || []; roomBan = m.ban || [];
           ipsOf = m.ips || ipsOf;
           // MERGE device mappings (don't replace): a peer inside its absence
@@ -1740,6 +1760,8 @@
         else if (m.t === 'error') {
           // Terminal doors: close the steady socket so it stops knocking; the
           // pw modal (or nothing, for bans) owns any reconnect from here.
+          // A relay-full session (64-socket DO cap) is a WALK signal, not a door.
+          if (/session is full/.test(m.error || '')) { walkOn(); return; }
           if (/password required/.test(m.error || '')) { pwBlocked = true; try { ws.close(); } catch (e) {} showPwModal(true); }
           else if (/voted-off/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ The people in this room have voted not to let this device in.'); }
           else if (/banned/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ This device was banned from the room by its admin.'); }
@@ -3884,6 +3906,8 @@
         .sort((a, b) => a.row - b.row),
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
+      // multi-session rows
+      rowNum: () => rowNum,
       // stage + buses
       stageIds: () => stageIds(),
       onStage: () => stageIds().includes(myId),
