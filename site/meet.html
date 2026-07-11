@@ -1695,9 +1695,15 @@
           if (iInitiate(pid)) { p.lastKick = now + Math.random() * 1500; sendOffer(pid); }
           continue;
         }
-        if (!p.absentSince && iInitiate(pid) && (st === 'failed' || st === 'disconnected') && now - p.lastKick > 6000) {
+        // 'failed'/'disconnected' heal with an ICE restart — and a pc STUCK in
+        // 'new' means our offer was dropped on arrival (the receiver's roster
+        // hadn't caught up, so its row-discipline guard refused us): re-offer
+        // until both sides' arithmetic agrees. Deterministic rows guarantee
+        // convergence; the 6s throttle keeps it polite.
+        if (!p.absentSince && iInitiate(pid) && !p.connected
+            && (st === 'failed' || st === 'disconnected' || st === 'new') && now - p.lastKick > 6000) {
           p.lastKick = now + Math.random() * 1500;
-          sendOffer(pid, true);
+          sendOffer(pid, st !== 'new');
         }
         // Direct route recovered → drop any friend-relay for this peer.
         if (p.connected && relayVia.has(pid)) stopRelayFor(pid, true);
@@ -2176,8 +2182,14 @@
     // transcripts, file METAS and tombstones reach even a fully P2P-blocked
     // participant. File BODIES never do this (P0/P1 only, by budget policy).
     function sendAll(msg) {
-      for (const [pid, p] of peers) {
-        if (p.dc && p.dc.readyState === 'open') dcSend(p, msg);
+      // Chat-class frames span the DIRECTORY, not the media set: a row
+      // boundary must never cut a conversation. In-row pairs ride their
+      // DataChannel; everyone else gets the sealed relay envelope. (History
+      // sync ('hi') stays in-row for now; deacon folds will carry it in the
+      // multi-level phase.)
+      for (const pid of gossipIds()) {
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, msg);
         else sendSig(pid, msg);
       }
     }
