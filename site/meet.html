@@ -707,6 +707,7 @@
       // hand queue folds the same way: delegates alone re-assert it upward
       // and downward; members contribute through their own st.hand.
       myStatus.tot = assertedTotal() || 0;
+      myStatus.seen = UP.on ? Math.max(assertedTotal() || 0, seenAsserted() || 0) : 0;
       myStatus.branch = UP.on ? UP.num : 0;
       myStatus.bcnt = UP2.on ? knownBranchCnt() : 0;
       myStatus.hq = UP.on ? handQueue().slice(0, 20) : undefined;
@@ -745,11 +746,25 @@
       if (UP.on) return knownBranchCnt();
       return 0;
     }
-    function seenTotal() { // freshest total anyone I gossip with carries
+    function seenAsserted() { // freshest ASSERTION anyone I gossip with carries
       let best = 0;
       for (const pid of allGossipIds()) {
         const st = statusOf.get(pid);
         if (st && st.tot && Date.now() - (st.at || 0) < 15000) best = Math.max(best, st.tot);
+      }
+      return best;
+    }
+    function seenTotal() { // display: assertions, plus delegates' RELAYED views
+      // st.seen is a delegate's display-only relay, itself derived ONLY from
+      // assertions (never from another seen) — so a stale number can't chase
+      // its own tail; it expires with the assertion that fed it. This is how
+      // a member whose delegate isn't a level-2 attendee still hears the
+      // room total: attendee ASSERTS in the parent space → its space mates
+      // RELAY (seen) into their leaves → members display it.
+      let best = seenAsserted();
+      for (const pid of gossipIds()) {
+        const st = statusOf.get(pid);
+        if (st && st.seen && Date.now() - (st.at || 0) < 15000) best = Math.max(best, st.seen);
       }
       return best;
     }
@@ -3495,7 +3510,10 @@
       //    (its own branch fold already carries everything else).
       const carrying = amDeacon() && mine > 0;
       const leafMembers = carrying ? rows[mine].filter((id) => id !== myId) : [];
-      const uRowTargets = (UP.on && amSpaceDeacon(UP)) ? spaceRowMates(UP).filter((id) => !rosterIds.includes(id)) : [];
+      // NOTE: no leaf-mate filter here — a parent-space row mate can be a
+      // leaf mate WITHOUT being a local-row member, and would fall through
+      // both forwarding nets. The target Set dedupes any true overlap.
+      const uRowTargets = (UP.on && amSpaceDeacon(UP)) ? spaceRowMates(UP) : [];
       const fwdPlan = []; // { row, c, targets }
       for (const [row, c] of compOf) {
         if (!c.stream) continue;
@@ -4558,7 +4576,7 @@
       pcState: (pid) => { const p = peers.get(pid); if (!p || !p.pc) return null; return { sig: p.pc.signalingState, conn: p.pc.connectionState,
         tx: p.pc.getTransceivers().map((t) => (t.mid || '?') + ':' + (t.sender && t.sender.track ? t.sender.track.kind : '-') + ':' + t.direction + ':' + (t.currentDirection || '?')) }; },
       stadium: () => Array.from(compOf.entries())
-        .map(([row, c]) => ({ row, via: c.via, ids: (c.ids || []).slice(), names: (c.names || []).slice(), live: !!c.stream }))
+        .map(([row, c]) => ({ row, via: c.via, ids: (c.ids || []).slice(), names: (c.names || []).slice(), rws: (c.rws || []).slice(), cnt: c.cnt || 0, live: !!c.stream }))
         .sort((a, b) => a.row - b.row),
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
