@@ -1570,7 +1570,7 @@
     // run by the sweeper: cap gossip settling can move a deacon election, and
     // the link set must follow without waiting for the next roster.
     function ensureLink(pid, name) {
-      if (!linkTo(pid)) { if (peers.has(pid)) dropPeer(pid); return; }
+      if (!linkTo(pid)) return; // the sweeper retires unwanted links, with grace
       let p = peers.get(pid);
       if (!p) {
         if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
@@ -1710,7 +1710,7 @@
       if (!UP.on) return;
       UP.on = false;
       try { UP.ws && UP.ws.close(); } catch (e) {}
-      UP.ws = null;
+      UP.ws = null; UP.idle = 0;
       upRosterIds = []; upNames = {};
       for (const [pid, p] of Array.from(peers)) if (p.headless) dropPeer(pid);
     }
@@ -1730,7 +1730,15 @@
     function reconcileUp() {
       const want = roomIsMulti() && (amDeacon() || !!myStatus.stg);
       if (want && !UP.on) openUpSock();
-      if (!want && UP.on) closeUp();
+      // HYSTERESIS: elections flap while cap gossip settles, and tearing an
+      // uplink down (socket, links, DCs, folds) to rebuild it two seconds
+      // later is the single most expensive churn in the tree. Losing a
+      // delegation lingers 15s before it closes anything — a flip-back costs
+      // nothing (same socket, same links, same fold stream, same sigs).
+      if (!want && UP.on) {
+        if (!UP.idle) UP.idle = Date.now();
+        if (Date.now() - UP.idle > 15000) closeUp();
+      } else UP.idle = 0;
       if (!UP.on) return;
       // Link my up-mates (full mesh in the parent space — the depth-2 regime;
       // the recursion rows the parent space too). Headless unless staged.
@@ -1964,7 +1972,13 @@
         if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
       }
       for (const [pid, p] of Array.from(peers)) {
-        if (!linkTo(pid)) { dropPeer(pid); continue; }
+        // A link the arithmetic no longer wants gets the same 15s grace as
+        // uplinks and folds: elections flap while gossip settles, and an ICE
+        // rebuild two seconds after a needless drop is pure lost time.
+        if (!linkTo(pid)) {
+          if (!p.unlinkedSince) p.unlinkedSince = now;
+          if (now - p.unlinkedSince > 15000) { dropPeer(pid); continue; }
+        } else p.unlinkedSince = 0;
         const st = p.pc.connectionState;
         if (p.absentSince && !p.connected && now - p.absentSince > ABSENT_GRACE) { dropPeer(pid); continue; }
         // A pc that lands in 'closed' can't be ICE-restarted — rebuild the
@@ -2963,7 +2977,7 @@
       for (const m of compPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
       compPipe.srcs.clear();
       compPipe.on = false; compPipe.row = -1; compPipe.stream = null; compPipe.dest = null;
-      compPipe.canvas = null; compPipe.ctx = null; compPipe.unsub = null;
+      compPipe.canvas = null; compPipe.ctx = null; compPipe.unsub = null; compPipe.idle = 0;
     }
     // Whoever changed their senders re-offers — perfect negotiation resolves
     // the glare (see renegotiate). The old one-side-offers discipline starved
@@ -3044,7 +3058,14 @@
       // here, or the parent space holds other sessions' delegates.
       const fold = amDeacon() && (populated > 1 || (UP.on && upGossipIds().length > 0));
       if (fold && !compPipe.on) startComp();
-      if (!fold && compPipe.on) stopComp(kicks);
+      // Same hysteresis as the uplink: a compositor that stops loses its
+      // stream identity, and every consumer pays a full re-announce and
+      // re-negotiation when it returns. Losing the fold lingers 15s — a
+      // flap-back reuses the same stream, so nothing downstream even notices.
+      if (!fold && compPipe.on) {
+        if (!compPipe.idle) compPipe.idle = Date.now();
+        if (Date.now() - compPipe.idle > 15000) stopComp(kicks);
+      } else compPipe.idle = 0;
       // STAGE, seen from the parent space: an up-mate gossiping stg (who is
       // not a leaf-mate — those are row 0 right here) becomes a row-0 entry
       // keyed by who they are, claimed from their OWN announced stream.

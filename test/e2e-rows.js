@@ -54,8 +54,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('C=2: exactly two deacons (one per populated row)', deaconFlags.filter(Boolean).length === 2);
 
   // Media links match the arithmetic: everyone links their row mate; deacons
-  // additionally link the other deacon. Give ICE a moment.
-  await sleep(8000);
+  // additionally link the other deacon. Give ICE a moment — and outlast the
+  // 15s unlink grace, so join-churn leftovers are gone before exact counts.
+  await sleep(20000);
   const linkCounts = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.liveLinks())));
   const expected = deaconFlags.map((d) => (d ? 2 : 1));
   check('C=2: live link counts match row arithmetic (mate, +deacon mesh for deacons) — got [' + linkCounts + '] want [' + expected + ']',
