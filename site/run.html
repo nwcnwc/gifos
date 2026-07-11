@@ -147,6 +147,7 @@
   <script src="js/gifos-net.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
+  <script src="js/gifos-perms.js"></script>
   <script>
     (function () {
       const params = new URLSearchParams(location.hash.slice(1));
@@ -226,177 +227,15 @@
         sigBtn.onclick = function () { alert(sigBtn.title); };
       };
 
-      // ---- network permissions: acknowledge what the app can reach ----
-      // The runtime hands us this app's network policy (the hosts its manifest
-      // asks to reach, plus the user's saved allow/deny choices). A self-
-      // contained GIF declares none, so this never fires for it. When it does,
-      // we surface a tab chip and pop a plain-language acknowledgement at launch
-      // with a checkbox per host — unticking one revokes it (which may break the
-      // app, and that's fine). '*' means "any website", which we flag as unsafe.
-      const permsBtn = document.getElementById('perms');
-      function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-      const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device' };
-      const CAP_DESC = {
-        wasm: 'Lets the app run a compiled (WebAssembly) engine — like a chess engine or a codec — in a background worker on your device, so it can do heavy computation fast without freezing. It still cannot reach the internet: the engine runs entirely offline, sealed inside this app.',
-        microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
-        camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
-        motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
-        ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
-        api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
-        agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
-      };
-      const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
-      const AI_ROLE_LABELS = { smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };
-      // AI types the app names under capabilities.ai (array). true/absent = generic.
-      const aiRoles = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.ai; return Array.isArray(a) ? a.filter(function (r) { return AI_ROLE_LABELS[r]; }) : []; };
-      window.__gifosPermissions = function (policy, manifest) {
-        const caps = Object.keys(CAP_LABELS).filter(function (k) {
-          return k === 'api' ? apiNames(manifest).length : (manifest && manifest.capabilities && manifest.capabilities[k]);
-        });
-        const hasNet = !!(policy && policy.hasNetwork());
-        if (!hasNet && !caps.length) { permsBtn.style.display = 'none'; return; }
-        const capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
-        const sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',');
-        function capAcked() { try { return localStorage.getItem(capSig) === sig; } catch (e) { return false; } }
-        function ackCaps() { try { localStorage.setItem(capSig, sig); } catch (e) {} }
-        function paintChip() {
-          const unsafe = hasNet && policy.unsafe();
-          permsBtn.style.display = '';
-          permsBtn.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
-          permsBtn.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : 'Abilities');
-          permsBtn.title = unsafe
-            ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
-            : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'
-              : 'What this app can do on your device. Tap to review.');
-        }
-        // Per-app capability opt-out. A capability the manifest declares can be
-        // switched off by the user, per app — persisted as a list of vetoed cap
-        // names under gifos_capoff_<appId>, which the runtime's brokers honour.
-        const capOffKey = 'gifos_capoff_' + ((manifest && manifest.appId) || 'app');
-        function capOff() { try { const v = JSON.parse(localStorage.getItem(capOffKey) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
-        function capEnabled(k) { return capOff().indexOf(k) < 0; }
-        function setCapEnabled(k, on) {
-          try { const s = capOff().filter(function (x) { return x !== k; }); if (!on) s.push(k); localStorage.setItem(capOffKey, JSON.stringify(s)); } catch (e) {}
-        }
-        // One checkbox row per declared capability — unchecking turns it off.
-        function capRow(k, title, desc) {
-          return '<label class="perm-row"><input type="checkbox" data-cap="' + escapeText(k) + '"' + (capEnabled(k) ? ' checked' : '') + '>' +
-            '<span><span class="host">' + title + '</span>' +
-            '<br><span class="desc">' + desc + ' Uncheck to turn this off for this app.</span></span></label>';
-        }
-        function capBlock() {
-          if (!caps.length) return '';
-          return caps.map(function (k) {
-            if (k === 'api') {
-              const names = apiNames(manifest).map(function (n) { return escapeText(n.charAt(0).toUpperCase() + n.slice(1)); });
-              return capRow('api', 'Use your ' + names.join(', ') + ' account' + (names.length > 1 ? 's' : ''), CAP_DESC.api);
-            }
-            if (k === 'ai') {
-              const roles = aiRoles(manifest);
-              const which = roles.length
-                ? ' <span class="host" style="font-weight:400">— ' + roles.map(function (r) { return escapeText(AI_ROLE_LABELS[r]); }).join(', ') + '</span>'
-                : '';
-              return capRow('ai', CAP_LABELS.ai + which, CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : ''));
-            }
-            return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
-          }).join('');
-        }
-        function openModal() {
-          const bg = document.createElement('div'); bg.className = 'perm-modal';
-          const appName = (manifest && manifest.name) || 'This app';
-          const rows = (hasNet ? policy.list() : []).map(function (e) {
-            const any = e.host === '*';
-            const desc = any
-              ? 'Lets the app reach any website, so it could send whatever it sees to anyone.'
-              : 'Lets the app send and receive data with this one website.';
-            return '<label class="perm-row' + (any ? ' any' : '') + '">' +
-              '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
-              '<span><span class="host">' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
-              '<br><span class="desc">' + desc + ' Uncheck to block it.</span></span></label>';
-          }).join('');
-          const unsafeNote = (hasNet && policy.unsafe())
-            ? '<div class="warn"><b>Careful.</b> This one wants to reach <b>any</b> website, so it could quietly send what it sees to a stranger. ' +
-              'Only leave this on for something you really trust — otherwise uncheck it below.</div>'
-            : '';
-          const netBlock = hasNet ? unsafeNote + rows : '';
-          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' would like to…</h3>' +
-            capBlock() + netBlock +
-            '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s tab.</p>' +
-            '<button class="done">Sounds good</button></div>';
-          document.body.appendChild(bg);
-          bg.addEventListener('change', function (ev) {
-            const cb = ev.target; if (!cb || cb.type !== 'checkbox') return;
-            const cap = cb.getAttribute('data-cap');
-            if (cap) { setCapEnabled(cap, cb.checked); return; } // takes effect on the next brokered call (mic/camera/AI/API/agent)
-            Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
-            paintChip();
-          });
-          // Closing the panel acknowledges THIS set of asks — we won't auto-open
-          // again until the app changes what it wants.
-          function close() { if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {}); ackCaps(); bg.remove(); }
-          bg.querySelector('.done').onclick = close;
-          bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
-        }
-        function proceed() {
-          paintChip();
-          permsBtn.onclick = openModal;
-          // Prompt once — first run, or again only if the app changed what it asks
-          // for (new hosts, or new device/AI abilities). Otherwise the chip stays.
-          if ((hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
-        }
-
-        // ---- REQUIRED capabilities gate --------------------------------------
-        // Capabilities are OPTIONAL by default — the app runs and the user can
-        // look around. An app may instead mark some as REQUIRED
-        // (manifest.requires: ["ai","deepgram",…]); a required capability that
-        // isn't set up leaves the app unable to do its job, so we block until the
-        // user configures it. We can only check settings-backed capabilities here
-        // (an AI model, or a named third-party account); device permissions
-        // (microphone/camera/motion) and network are granted at use, so listing
-        // them as required is accepted but never blocks.
-        const requires = (manifest && Array.isArray(manifest.requires)) ? manifest.requires : [];
-        function lsCfg(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; } }
-        function aiConfigured() { const c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
-        function aiRoleConfigured(role) { const c = lsCfg('gifos_ai_config')[role]; return !!(c && c.url); }
-        function apiConfigured(name) { const c = lsCfg('gifos_api_config')[name]; return !!(c && c.url); }
-        function titleCase(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
-        function missingRequired() {
-          const out = [];
-          requires.forEach(function (r) {
-            if (r === 'ai') { if (!aiConfigured()) out.push({ what: 'an AI model', where: 'Settings → AI models' }); }
-            else if (AI_ROLE_LABELS[r]) { if (!aiRoleConfigured(r)) out.push({ what: 'the ' + AI_ROLE_LABELS[r] + ' model', where: 'Settings → AI models' }); }
-            else if (r === 'microphone' || r === 'camera' || r === 'motion' || r === 'network') { /* granted at use — nothing to pre-configure */ }
-            else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', where: 'Settings → Third-party APIs' });
-          });
-          return out;
-        }
-        function showRequiredGate(missing) {
-          const old = document.getElementById('req-gate'); if (old) old.remove();
-          const bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'req-gate';
-          const appName = (manifest && manifest.name) || 'This app';
-          const rows = missing.map(function (m) {
-            return '<div class="perm-row"><span><span class="host">Set up ' + escapeText(m.what) + '</span>' +
-              '<br><span class="desc">On your GifOS Home Screen, open <b>' + escapeText(m.where) + '</b>.</span></span></div>';
-          }).join('');
-          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' needs setup to run</h3>' +
-            '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app never sees them.</p>' +
-            rows +
-            '<div class="perm-btns"><button class="ghost" id="req-leave">Close</button><button class="done" id="req-recheck">I’ve set it up</button></div></div>';
-          document.body.appendChild(bg);
-          function recheck() {
-            if (!missingRequired().length) { document.removeEventListener('visibilitychange', onVis); bg.remove(); proceed(); }
-            else { bg.querySelector('#req-recheck').textContent = 'Still not set up — check Settings, then tap again'; }
-          }
-          function onVis() { if (!document.hidden) recheck(); } // auto-recheck when they return from Settings
-          bg.querySelector('#req-recheck').onclick = recheck;
-          bg.querySelector('#req-leave').onclick = function () { try { window.close(); } catch (e) {} if (!window.closed) { if (history.length > 1) history.back(); else location.href = '/'; } };
-          document.addEventListener('visibilitychange', onVis);
-        }
-
-        const missingReq = missingRequired();
-        if (missingReq.length) showRequiredGate(missingReq);
-        else proceed();
-      };
+      // ---- app abilities / network acknowledgement + opt-out ----
+      // The shared module (js/gifos-perms.js) owns the whole UI so the tab and
+      // the in-meeting header behave identically. It wires window.__gifosPermissions
+      // to our header chip; the runtime calls it on every app mount. Closing the
+      // REQUIRED-setup gate here means "leave" — close the tab (or go back).
+      GifOS.perms.attach(document.getElementById('perms'), {
+        onLeave: function () { try { window.close(); } catch (e) {} if (!window.closed) { if (history.length > 1) history.back(); else location.href = '/'; } }
+      });
+      function escapeText(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
       // Straight to the platform's native share sheet; the copy row is only
       // the fallback for browsers without one (and share-sheet failures).
       // The invite link lives in a small modal (Copy · New link), shown right
