@@ -1681,6 +1681,7 @@
           sendAll({ k: 'pwinfo', pw: v, by: myName() });
         });
         renderFiles(); // reflect the new password state (files allowed / the lock note)
+        reactRoomState(); // the password is the key to clear video — re-derive MY tiles now, not on the next heartbeat
         pwModal.style.display = 'none';
       }
     };
