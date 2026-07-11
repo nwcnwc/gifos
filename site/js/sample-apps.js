@@ -275,13 +275,15 @@
   input{flex:1;padding:10px 12px;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit}
   button{padding:10px 16px;border:0;border-radius:8px;background:var(--accent,#5cdcb4);color:var(--onaccent,#04231b);font-weight:700;cursor:pointer}
   #att{background:var(--surface,#1c1c2b);padding:10px 12px}
+  #ai{background:var(--surface,#1c1c2b);padding:10px 12px}
+  #ai:disabled{opacity:.6;cursor:default}
   .quick{display:flex;gap:4px;padding:0 18px 8px}
   .quick button{background:var(--surface,#1c1c2b);font-size:18px;padding:6px 10px}
 </style>
 <header>Chat</header>
 <div id="log"></div>
 <div class="quick" id="quick"></div>
-<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (press Invite to chat with friends)" autocomplete="off"><button>Send</button></form>
+<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (press Invite to chat with friends)" autocomplete="off"><button type="button" id="ai" title="Draft a reply with YOUR AI — it fills the box for you to review and edit; it never sends">✨</button><button>Send</button></form>
 <script>
   const db=gifos.db('messages'), fdb=gifos.db('files'), log=document.getElementById('log');
   // Attachments ride gifos.db. The runtime fragments oversized messages, but
@@ -362,6 +364,42 @@
     const t=document.getElementById('t'); if(!t.value.trim()) return;
     sendText(t.value.trim()); t.value='';
   };
+  // ---- AI draft: write a reply with MY OWN AI, but never send it ----
+  // A deliberate demo of GifOS's per-person key model: this runs entirely in
+  // THIS browser and uses the AI model + key I set up in Settings — not the
+  // host's, not anyone else's. Everyone in a shared chat drafts with their own.
+  // It only FILLS the box; I review, edit, and press Send myself.
+  const aiBtn=document.getElementById('ai');
+  if(aiBtn){
+    if(!(window.gifos&&gifos.ai)) aiBtn.style.display='none';
+    else aiBtn.onclick=async function(){
+      const t=document.getElementById('t'); const PH=t.getAttribute('placeholder');
+      aiBtn.disabled=true; const glyph=aiBtn.textContent; aiBtn.textContent='…';
+      try{
+        // Recent conversation as chat turns: others are 'user' (named so the
+        // model can follow a group thread), my own past lines are 'assistant'.
+        const convo=(last||[]).filter(function(m){return m.kind!=='file'&&m.text;}).slice(-16)
+          .map(function(m){ return m.uid===me.id
+            ? {role:'assistant',content:String(m.text)}
+            : {role:'user',content:(m.by?m.by+': ':'')+String(m.text)}; });
+        const messages=[{role:'system',content:'You are helping '+(me.name||'me')+' write their next message in a casual chat. Read the conversation and draft a short, natural reply in their voice — usually one or two sentences. If someone asked something, answer it. No greetings unless they fit, no quotation marks, no preamble or explanation: output ONLY the message text.'}].concat(convo);
+        if(!convo.length) messages.push({role:'user',content:'(The chat is empty. Write a friendly one-line opener to get it started.)'});
+        // Prefer a cheap/fast model for a throwaway draft; fall back to whatever I configured.
+        let model='cheapest';
+        try{ const mm=await gifos.ai.models(); const av=(mm&&mm.available)||[];
+          model = av.indexOf('cheapest')>=0?'cheapest':(av.indexOf('smartest')>=0?'smartest':'cheapest'); }catch(_){ }
+        const r=await gifos.ai.chat({model:model,messages:messages,maxTokens:160,temperature:0.7,hint:'Draft a chat reply'});
+        const text=String((r&&r.text)||'').trim().replace(/^["']+|["']+$/g,'').trim();
+        if(text){ t.value=text; t.focus(); try{ t.setSelectionRange(t.value.length,t.value.length); }catch(_){ } }
+        else { t.setAttribute('placeholder','The AI returned nothing — try again.'); setTimeout(function(){ t.setAttribute('placeholder',PH); },4000); }
+      }catch(err){
+        // A missing model pops the runtime's own Settings prompt (NOT_CONFIGURED);
+        // anything else we surface briefly in the placeholder, then restore it.
+        const msg=String(err&&err.message||err);
+        if(!/NOT_CONFIGURED/.test(msg)){ t.setAttribute('placeholder','AI draft failed: '+msg.slice(0,60)); setTimeout(function(){ t.setAttribute('placeholder',PH); },5000); }
+      }finally{ aiBtn.disabled=false; aiBtn.textContent=glyph; }
+    };
+  }
   // ---- attachments ----
   const fi=document.getElementById('fi'), attBtn=document.getElementById('att');
   attBtn.onclick=function(){ fi.click(); };
@@ -1605,7 +1643,9 @@ document.getElementById('f').onsubmit=async e=>{
       ] },
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
-        app('Chat', 'chat', [92, 220, 180], CHAT_HTML),
+        // The "✨ AI draft" button uses YOUR OWN AI model/key (from Settings),
+        // brokered locally per person — declares ai so the runtime allows it.
+        app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] } }),
       ] },
       // Party games where the phone just facilitates — dealing secrets,
       // keeping time, counting votes — and the action happens in person.
