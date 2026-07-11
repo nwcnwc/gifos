@@ -16,9 +16,13 @@ Two local servers, then run suites individually:
 python3 -m http.server 8099 -d site     # the static site
 node test/relay-local.js                # local relay on ws://127.0.0.1:8790
 node test/fake-ai.js                    # only for e2e-caps / AI suites (port 8791)
+node test/fake-keyapi.js                # only for e2e-api (port 8792)
+node test/fake-cors-proxy.js            # only for e2e-api (port 8793)
 
 node test/e2e-relay.js                  # any test/e2e-*.js runs standalone
 ```
+
+Note: e2e-fetch-bridge spawns its OWN server on 8791 — kill fake-ai first.
 
 Playwright + Chromium paths are hardcoded in the tests (already installed).
 If suites start timing out on page-opens for no reason, kill leftover
