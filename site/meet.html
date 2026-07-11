@@ -3319,8 +3319,11 @@
       const populated = rows.filter((r, i) => i > 0 && r.length).length;
       const kicks = new Map(); // pid -> 'mesh' | 'fwd'
       // FOLD exactly when someone is watching: another populated row exists
-      // here, or the parent space holds other sessions' delegates.
-      const fold = amDeacon() && (populated > 1 || (UP.on && upGossipIds().length > 0));
+      // here, the parent space holds other sessions' delegates — or my OWN
+      // branch pipe needs me (a lone leaf in a lone parent space still feeds
+      // the fold of folds it announces one level up).
+      const fold = amDeacon() && (populated > 1 || (UP.on && upGossipIds().length > 0)
+        || (UP2.on && up2GossipIds().length > 0));
       if (fold && !compPipe.on) startComp();
       // Same hysteresis as the uplink: a compositor that stops loses its
       // stream identity, and every consumer pays a full re-announce and
