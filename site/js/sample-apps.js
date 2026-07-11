@@ -17,7 +17,9 @@
   li{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #eee;border-radius:8px;margin-bottom:8px}
   li span{flex:1;cursor:pointer}
   li.done span{text-decoration:line-through;color:#aaa}
-  li button{background:#eee;color:#900;padding:4px 8px}
+  li button{background:none;border:none;color:#999;cursor:pointer;padding:4px 6px;line-height:0}
+  li button:hover{color:#c22}
+  li button svg{pointer-events:none}
   .empty{color:#999;padding:0 18px}
   .hint{color:#bbb;font-size:12px;padding:0 18px 10px}
 </style>
@@ -31,10 +33,11 @@
   let notes = [];
   if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' }; });
   const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'; // the standard GifOS row-delete glyph
   function render(items){
     notes = items;
     list.innerHTML = items.length
-      ? items.map(n => '<li'+(n.done?' class="done"':'')+'><span data-t="'+n.id+'">'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'">Delete</button></li>').join('')
+      ? items.map(n => '<li'+(n.done?' class="done"':'')+'><span data-t="'+n.id+'">'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'" title="Delete">' + DEL + '</button></li>').join('')
       : '<div class="empty">No notes yet. Your notes persist in this GIF icon.</div>';
   }
   db.subscribe(render);
