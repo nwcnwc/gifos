@@ -47,6 +47,8 @@ whole-computer backup, a multiplayer state dump). Record writes are single
 IndexedDB transactions — the seq counter is read-and-bumped inside the same
 transaction — so two tabs of the same app can't clobber each other.
 
+Sharing rides on top of this store as **collection visibility** (see the manifest `data` field under App GIFs). The host is the authoritative store; a guest's `gifos.db` is a hybrid — writes to a *shared* collection forward to the host, writes to a *private* one stay in an in-tab map — and the host filters every read/steal/state-dump by each record's effective visibility (its `_vis` override, else the collection default, else `private`). So a "multiplayer state dump" carries only what the host chose to share; a guest can be refused but never routes around the host.
+
 The store is a **namespace factory**: the default desktop binds to the `gifos` database, and every **booted computer image** gets its own `gifos_vm_<fileId>` database with the identical schema — a whole computer per namespace (see "Computer Images"). Because storage is local and unsynced, GifOS never needs an identity system. The "account" is the browser profile (a screen name in `localStorage` is used to attribute multiplayer moves).
 
 ## Layer 2 — App GIFs
@@ -108,13 +110,20 @@ app.gif
     "db": true,
     "multiplayer": true,
     "network": ["api.openai.com"]
-  }
+  },
+  "data": {
+    "board": { "visibility": "read-write" },
+    "prefs": { "visibility": "private" }
+  },
+  "lead": [{ "collection": "nav", "id": "nav" }]
 }
 ```
 
 - `name` / `shortName` / `version` — **display identity**. `name` is the full title (the tile's label). `shortName` is a compact label (≤ ~14 chars, e.g. `"Chess"` for `"Chess Grandmaster"`) and `version` a short string (`"1.0"`, `"2.3"`). GifOS renders `shortName` + `version` together as an **identity pill** — "Chess v1.0", styled like the `SYSTEM` marker — on the app's desktop tile *and* in its runtime header, **but only when the app is signed**. An unsigned GIF can claim any name, so GifOS never shows an identity pill for one; the pill's presence means "this signed author declares this is Chess v1.0."
 - `capabilities.db` — the app wants the runtime database library.
 - `capabilities.multiplayer` — the app can host/join sessions over the relay.
+- `data` — **collection visibility, the sharing axis**. Privacy-first: an invite shares *nothing* unless the manifest declares it, so `data` maps each shared collection to a `{ "visibility": <level> }` default. Three levels: **`read-write`** (guests see *and* write it — collaborative state; an **undeclared** collection is not shared, so multiplayer silently breaks without this), **`read-only`** (guests see it, only the host writes — broadcast state like a shared cursor), and **`private`** (never leaves the owner's tab — each participant keeps their *own* copy: personal prefs, a private library; this is the **default** for any collection you don't list). Enforcement is **host-side and absolute**: the host filters `private` records out of every guest read/steal, refuses guest writes to anything not `read-write`, and strips any guest-supplied visibility — a DOM-tampered guest can be *refused* but never *override*. A single record overrides its collection default via a reserved `_vis` field, set only through `db.setVisibility(id, level)` (owner-only; refused on a guest) — this is how "make this item visible" (a private library item opted into `read-only`) and live leadership work. On a guest, a `private` collection is a hybrid: writes stay in an in-tab map (never sent), reads merge that map with whatever the host opted in.
+- `lead` (optional) — records the host's **communal ⇄ leading** toggle controls, e.g. `[{ "collection": "nav", "id": "nav" }]` for a shared reading cursor. Leadership is *not* a separate mechanism: flipping the toggle just restamps those records' `_vis` between `read-write` (anyone leads) and `read-only` (only the host leads) in the authoritative store, which broadcasts a change so guests' writes start being refused. "Follow or not" on the receiving side stays a client-side, unenforceable UX choice.
 - `capabilities.network` — external API hosts the app may call through the fetch bridge (see the networking doc).
 - `capabilities.microphone` / `capabilities.camera` — **brokered capture**. A sandboxed app can't hold the live camera/mic (opaque origin), so instead it calls `gifos.recordAudio()` / `gifos.recordVideo()` / `gifos.takePhoto()`; the **runtime** (trusted `gifos.app` origin) records a clip behind a visible, unfakeable indicator it owns and returns only the bytes. The app never touches the live device — stronger than a raw grant.
 - `capabilities.motion` — delegates the `gyroscope`/`accelerometer` allow-policy to the app frame (the events fire inside it). `gifos.motion(cb)` handles the iOS permission gesture. No camera, no location.

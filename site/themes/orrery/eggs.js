@@ -89,6 +89,8 @@ GifOS.addEggs([{
     + "x.fillStyle='#7fd0ff';x.beginPath();x.arc(0,-1,3.2,0,7);x.fill();x.restore();}"
     + "reset(true);requestAnimationFrame(loop);"
     + "</script></body></html>",
+  // Your best landing is your own — private, kept with the app.
+  manifest: { data: { lander: { visibility: 'private' } } },
 }, {
   // ---- Alien Translator -------------------------------------------------------
   name: 'Alien Translator',
@@ -148,4 +150,6 @@ GifOS.addEggs([{
     + "var lg=document.getElementById('legend'),h='<b>Key:</b> ';for(var i=0;i<A.length;i++)h+=\"<span>\"+glyph(A[i])+A[i]+'</span>';lg.innerHTML=h;"
     + "render();"
     + "</script></body></html>",
+  // Saved transmissions are your own — private, kept with the app.
+  manifest: { data: { aliens: { visibility: 'private' } } },
 }]);

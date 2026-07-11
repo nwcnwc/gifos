@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const boot0 = await (await newCtx()).newPage();
   await boot0.goto(BASE + '/run.html');
   const b64 = await boot0.evaluate(async () => {
-    const bytes = await GifOS.gif.encode({ 'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'synctest', name: 'Sync Test', entry: 'index.html' }), 'index.html': '<!doctype html><h1>sync test</h1>' }, {});
+    const bytes = await GifOS.gif.encode({ 'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'synctest', name: 'Sync Test', entry: 'index.html', data: { d: { visibility: 'read-write' } } }), 'index.html': '<!doctype html><h1>sync test</h1>' }, {});
     let s = ''; const u = new Uint8Array(bytes); for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s);
   });
 

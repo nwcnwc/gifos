@@ -11,5 +11,10 @@
     "microphone": true,
     "ai": ["smartest", "cheapest", "image"],
     "api": ["deepgram"]
+  },
+  "data": {
+    "takes": { "visibility": "private" },
+    "reviews": { "visibility": "private" },
+    "benchmarks": { "visibility": "private" }
   }
 }

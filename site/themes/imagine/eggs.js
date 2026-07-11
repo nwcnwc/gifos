@@ -35,4 +35,6 @@ GifOS.addEggs([{
     + "if(db)await db.put({text,at:Date.now()});else o.textContent='Saved (local only): '+text;"
     + "};"
     + "</script></body></html>",
+  // Your prompt sketches are yours — private, kept in this tab / your own GIF.
+  manifest: { data: { prompts: { visibility: 'private' } } },
 }]);

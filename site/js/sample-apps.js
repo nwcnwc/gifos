@@ -1163,55 +1163,70 @@ opens the built-in meeting page when opened in GifOS.</p>
   var main=document.getElementById('main'), locEl=document.getElementById('loc');
   var backB=document.getElementById('back'), fwdB=document.getElementById('fwd');
   var followB=document.getElementById('follow');
-  var db=(window.gifos&&gifos.db)?gifos.db('bible'):null;
+  // Three stores, three visibilities (declared in the manifest):
+  //   nav      — the shared reading position (read-write, and leadable so the
+  //              host can switch to "only I lead").
+  //   presence — light heartbeats so everyone knows who's here (read-write).
+  //   prefs    — MY theme, font size and last page (private: each reader keeps
+  //              their own copy; it never leaves their tab).
+  var hasDb=!!(window.gifos&&gifos.db);
+  var navDb=hasDb?gifos.db('nav'):null, presDb=hasDb?gifos.db('presence'):null, prefsDb=hasDb?gifos.db('prefs'):null;
   var hist=[], hi=-1, curUrl=HOME;
   var prefs={ theme:'night', fs:18 };
   var me={ id:'', name:'' };
-  // Follow-along (meetings): the app's gifos.db is ONE shared store across
-  // everyone in the room, so the group's current page lives in a single 'nav'
-  // record — whoever turns a page while following writes it and the others jump
-  // there. Follow is ON by default but per-person and in-memory, so anyone can
-  // switch it off to peek elsewhere without moving the group (or being moved).
-  // Reading prefs and each person's last page are keyed per-user so they stay
-  // personal even though the store is shared.
-  var follow=true, shared=false, hbTimer=null, lastNav=null;
+  // Follow-along (meetings): the group's current page lives in a single 'nav'
+  // record in the SHARED (read-write) nav store — whoever turns a page while
+  // following writes it and the others jump there. Follow is ON by default but
+  // per-person and in-memory, so anyone can switch it off to peek elsewhere
+  // without moving the group (or being moved). Reading prefs and last page live
+  // in the PRIVATE prefs store, so they stay personal and never sync.
+  var follow=true, shared=false, hbTimer=null, lastNav=null, othersHere=0;
   // Scroll is remembered per person AND shared with followers — as a FRACTION of
   // the page (0..1) so it lines up even when readers use different text sizes.
   var pendingFrac=null, applyingScroll=false, scrollSaveT=null, scrollPushT=null, lastFrac=-1;
   function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
   function scrollFrac(){ var m=main.scrollHeight-main.clientHeight; return m>0?(main.scrollTop/m):0; }
   function applyFrac(f){ var m=main.scrollHeight-main.clientHeight; main.scrollTop=Math.max(0,Math.min(m,(f||0)*m)); }
-  function saveLast(){ if(db) db.put({id:lk(), url:curUrl, scroll:scrollFrac()}); }  // my last page + where I was on it
+  function saveLast(){ if(prefsDb) prefsDb.put({id:'last', url:curUrl, scroll:scrollFrac()}); }  // my last page + where I was on it (private)
   function applyPrefs(){ document.body.setAttribute('data-read', prefs.theme); document.documentElement.style.setProperty('--fs', prefs.fs+'px');
     document.getElementById('theme').innerHTML = prefs.theme==='night' ? '&#9790;' : '&#9728;'; }
   function myName(){ return me.name||'Someone'; }
-  function pk(){ return me.id?('prefs:'+me.id):'prefs'; }   // per-user reading prefs
-  function lk(){ return me.id?('last:'+me.id):'last'; }     // per-user last page
-  function savePrefs(){ if(db) db.put({id:pk(), theme:prefs.theme, fs:prefs.fs}); }
+  function savePrefs(){ if(prefsDb) prefsDb.put({id:'prefs', theme:prefs.theme, fs:prefs.fs}); }  // my own, never shared
   // Presence heartbeat: a light 'p:<id>' record so everyone knows who's here
   // (drives whether the Follow toggle is even shown). Kept fresh while shared.
-  function heartbeat(){ if(db&&me.id) db.put({id:'p:'+me.id, name:myName(), ts:Date.now()}); }
-  function startHeartbeat(){ if(hbTimer||!db||!me.id) return;
+  function heartbeat(){ if(presDb&&me.id) presDb.put({id:'p:'+me.id, name:myName(), ts:Date.now()}); }
+  function startHeartbeat(){ if(hbTimer||!presDb||!me.id) return;
     hbTimer=setInterval(function(){ if(document.visibilityState!=='hidden') heartbeat(); }, 15000);
     heartbeat(); }  // set the guard BEFORE the first beat so a sync notify can't re-enter
   // Publish where I am so followers come along. Only called when I'm following.
-  function pushNav(url, frac){ if(db&&me.id) Promise.resolve(db.put({id:'nav', url:url, scroll:(frac==null?scrollFrac():frac), by:me.id, byName:myName(), ts:Date.now()})).catch(function(){ /* a led room: the reader drives; I just browse alone */ }); }
+  // The put is REFUSED when the host is leading (nav went read-only) — then I
+  // just browse on my own; the reader drives everyone.
+  function pushNav(url, frac){ if(navDb&&me.id) Promise.resolve(navDb.put({id:'nav', url:url, scroll:(frac==null?scrollFrac():frac), by:me.id, byName:myName(), ts:Date.now()})).catch(function(){ /* led room: the reader drives; I browse alone */ }); }
   function updateFollowUi(){ if(!followB) return;
     followB.style.display = shared ? '' : 'none';
     followB.classList.toggle('on', follow);
     followB.textContent = follow ? 'Following' : 'Follow';
     followB.title = follow ? 'Following the meeting — tap to browse on your own without moving anyone'
                            : 'Browsing on your own — tap to follow the meeting again'; }
-  // React to the shared store: who's present, and where the group is reading.
-  function handleSync(rows){ if(!Array.isArray(rows)) return; var now=Date.now(), others=0, navRec=null;
-    for(var i=0;i<rows.length;i++){ var r=rows[i]; if(!r||!r.id) continue;
-      if(r.id==='nav') navRec=r;
-      else if(r.id.slice(0,2)==='p:'&&r.id!=='p:'+me.id&&(now-(r.ts||0))<35000) others++; }
-    lastNav=navRec;
-    var navByOther = !!(navRec&&navRec.by&&navRec.by!==me.id&&navRec.url);
-    shared = others>0 || navByOther;
+  // Shared-state (and whether the Follow toggle even shows) depends on BOTH
+  // who's present and whether someone else is driving nav — recomputed on any
+  // change to either collection.
+  function recompute(){
+    var navByOther = !!(lastNav && lastNav.by && lastNav.by!==me.id && lastNav.url);
+    shared = othersHere>0 || navByOther;
     if(shared) startHeartbeat();
     updateFollowUi();
+    return navByOther; }
+  // Presence collection changed: recount who's here (fresh 'p:<id>' beats).
+  function onPresence(rows){ if(!Array.isArray(rows)) return; var now=Date.now(), others=0;
+    for(var i=0;i<rows.length;i++){ var r=rows[i]; if(!r||!r.id) continue;
+      if(r.id.slice(0,2)==='p:'&&r.id!=='p:'+me.id&&(now-(r.ts||0))<35000) others++; }
+    othersHere=others; recompute(); }
+  // Nav collection changed: where is the group reading, and do I follow there?
+  function handleSync(rows){ if(!Array.isArray(rows)) return; var navRec=null;
+    for(var i=0;i<rows.length;i++){ var r=rows[i]; if(r&&r.id==='nav'){ navRec=r; break; } }
+    lastNav=navRec;
+    var navByOther=recompute();
     if(follow && navByOther){
       if(navRec.url!==curUrl) go(navRec.url, true, true, navRec.scroll);
       else if(typeof navRec.scroll==='number' && Math.abs(navRec.scroll-scrollFrac())>0.008){
@@ -1345,22 +1360,24 @@ opens the built-in meeting page when opened in GifOS.</p>
       applyingScroll=true; applyFrac(lastNav.scroll); lastFrac=lastNav.scroll; setTimeout(function(){ applyingScroll=false; }, 90); }
     updateFollowUi(); };
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && shared) heartbeat(); });
-  window.addEventListener('pagehide', function(){ if(db&&me.id){ try{ db.delete('p:'+me.id); }catch(e){} } });
+  window.addEventListener('pagehide', function(){ if(presDb&&me.id){ try{ presDb.delete('p:'+me.id); }catch(e){} } });
   if(window.gifos&&gifos.onBack) gifos.onBack(function(){ if(hi>0){ hi--; go(hist[hi], false); buttons(); } });
-  function firstPage(){ if(!db) return Promise.resolve({url:HOME});
-    return db.get(lk()).then(function(r){ return (r&&r.url)?r:db.get('last'); })
+  function firstPage(){ if(!prefsDb) return Promise.resolve({url:HOME});
+    return prefsDb.get('last')
       .then(function(r){ var u=r&&r.url; return (u&&u.indexOf('https://'+HOST)===0)?{url:u, scroll:r.scroll}:{url:HOME}; }); }
-  // Learn who I am, restore MY prefs (per-user, one-time fallback to the old
-  // shared key), then either JOIN whoever's already reading or open my own last
-  // page — and from then on stay converged via subscribe().
+  // Learn who I am, restore MY (private) prefs, then either JOIN whoever's
+  // already reading or open my own last page — and from then on stay converged
+  // via subscribe() on the two shared collections (nav + presence).
   (window.gifos&&gifos.me?gifos.me():Promise.resolve({id:'',name:''})).then(function(u){ me=u||{id:'',name:''}; })
-    .then(function(){ return db?db.get(pk()).then(function(p){ return p||db.get('prefs'); }):null; })
+    .then(function(){ return prefsDb?prefsDb.get('prefs'):null; })
     .then(function(p){ if(p){ if(p.theme) prefs.theme=p.theme; if(typeof p.fs==='number') prefs.fs=p.fs; } applyPrefs(); })
-    .then(function(){ return db?db.getAll():[]; })
-    .then(function(rows){ heartbeat();
-      var navRec=null; (rows||[]).forEach(function(r){ if(r&&r.id==='nav') navRec=r; });
-      handleSync(rows||[]);
-      if(db&&db.subscribe) db.subscribe(handleSync);
+    .then(function(){ return navDb?navDb.getAll():[]; })
+    .then(function(navRows){ heartbeat();
+      var navRec=null; (navRows||[]).forEach(function(r){ if(r&&r.id==='nav') navRec=r; });
+      lastNav=navRec;
+      if(presDb&&presDb.subscribe) presDb.subscribe(onPresence);
+      if(navDb&&navDb.subscribe) navDb.subscribe(handleSync);
+      recompute();
       if(follow && navRec && navRec.by && navRec.by!==me.id && navRec.url){ go(navRec.url, true, true, navRec.scroll); return; }
       return firstPage().then(function(o){ go(o.url, true, false, o.scroll); }); })
     .catch(function(){ applyPrefs(); go(HOME, true); });
@@ -1564,6 +1581,7 @@ document.getElementById('f').onsubmit=async e=>{
   .card:active{transform:scale(.97)}
   .thumb{position:relative;aspect-ratio:1/1;background:#0c0c14 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:34px}
   .thumb .kind{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);border-radius:6px;padding:1px 6px;font-size:11px}
+  .thumb .shared{position:absolute;top:6px;right:6px;background:color-mix(in srgb,var(--accent,#ff7850) 88%,#000);color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700}
   .thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;text-shadow:0 2px 8px #000;color:#fff}
   .meta{padding:8px 10px}
   .meta .nm{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1609,6 +1627,7 @@ document.getElementById('f').onsubmit=async e=>{
     <input type="text" id="mname" placeholder="Name">
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
+    <div class="row" id="visrow" style="display:none"><button class="btn ghost" id="mvis">👁 Make visible</button><span class="sub" id="vishint">Private — only you can see it.</span></div>
     <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
   </div>
 </div></div>
@@ -1616,7 +1635,11 @@ document.getElementById('f').onsubmit=async e=>{
 <script>
   var media = gifos.db('media'), blobs = gifos.db('blobs');
   var MAX = 25 * 1024 * 1024;
-  var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null;
+  var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null, owner = false;
+  // Only the library's owner (the host) can change what's shared. A guest view
+  // sees the host's opted-in items plus its own private captures, read-only.
+  if (window.gifos && gifos.info) gifos.info().then(function(i){ owner = !!(i && i.owner); if(cur) syncVisRow(); }).catch(function(){});
+  function isVisible(m){ return !!(m && (m._vis==='read-only' || m._vis==='read-write')); }
   var grid = document.getElementById('grid'), gEmpty = document.getElementById('empty');
   function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
   var toastT; function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); }, 2600); }
@@ -1670,7 +1693,8 @@ document.getElementById('f').onsubmit=async e=>{
     grid.innerHTML = list.map(function(m){
       var bg = m.thumb ? 'style="background-image:url('+m.thumb+')"' : '';
       var face = m.thumb ? (m.type!=='image'?'<div class="play">▶</div>':'') : ('<span>'+(KIND[m.type]||'📄')+'</span>');
-      return '<div class="card" data-id="'+m.id+'"><div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+face+'</div>'+
+      var shared = isVisible(m) ? '<span class="shared" title="Visible to invited guests">👁</span>' : '';
+      return '<div class="card" data-id="'+m.id+'"><div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+shared+face+'</div>'+
         '<div class="meta"><div class="nm">'+esc(m.name)+'</div><span class="cat">'+esc(m.category||'Unsorted')+'</span></div></div>';
     }).join('');
   }
@@ -1692,8 +1716,32 @@ document.getElementById('f').onsubmit=async e=>{
     document.getElementById('mname').value = m.name||'';
     document.getElementById('mcat').value = m.category||'';
     document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
+    syncVisRow();
     document.getElementById('modal').style.display='flex';
   }
+  // The visibility control — owner only. Reflects the current item's state and
+  // lets the owner flip it. Marking visible opts the record AND its blob into
+  // read-only, so an invited guest can see (and steal) exactly that one item.
+  function syncVisRow(){
+    var row=document.getElementById('visrow'); if(!row) return;
+    if(!owner || !cur){ row.style.display='none'; return; }
+    row.style.display='flex';
+    var vis=isVisible(cur);
+    document.getElementById('mvis').textContent = vis ? '🔒 Make private' : '👁 Make visible';
+    document.getElementById('vishint').textContent = vis
+      ? 'Visible — invited guests can see and steal this item.'
+      : 'Private — only you can see it.';
+  }
+  document.getElementById('mvis').onclick=async function(){
+    if(!cur||!owner) return;
+    var makeVis=!isVisible(cur), level=makeVis?'read-only':'private';
+    try{
+      await media.setVisibility(cur.id, level);
+      try{ await blobs.setVisibility(cur.id, level); }catch(e){}
+      cur._vis=level; syncVisRow(); render();
+      toast(makeVis?'Now visible to invited guests':'Now private');
+    }catch(e){ toast('Could not change visibility'); }
+  };
   function closeModal(){
     var st=document.getElementById('stage'); st.innerHTML=''; // stops playback
     if(curUrl){ URL.revokeObjectURL(curUrl); curUrl=null; } cur=null;
@@ -1710,7 +1758,8 @@ document.getElementById('f').onsubmit=async e=>{
   };
   document.getElementById('mdel').onclick=async function(){
     if(!cur) return; var id=cur.id; closeModal();
-    await media.delete(id); try{ await blobs.delete(id); }catch(e){}
+    try{ await media.delete(id); try{ await blobs.delete(id); }catch(e){} }
+    catch(e){ toast('You can only remove your own items.'); }  // a guest can't delete the host's shared media
   };
 
   // ---- add: file picker + drag/drop ----
@@ -1863,49 +1912,67 @@ document.getElementById('f').onsubmit=async e=>{
       .then((preview) => gif.encode(a.files, { accent: a.accent, preview }))
       .then((bytes) => ({ name: a.name, appId: a.appId, accent: a.accent, bytes }));
 
+    // Collection visibility (the sharing axis). An UNDECLARED collection is
+    // private, so every app that means to share state must say so:
+    //   RW   — read-write: guests see AND edit it (collaboration).
+    //   RO   — read-only: guests see it, only the host writes (broadcast).
+    //   PRIV — private: never leaves the owner's tab; each participant keeps
+    //          their own copy (personal prefs, a guest's own library).
+    const RW = { visibility: 'read-write' };
+    const RO = { visibility: 'read-only' };
+    const PRIV = { visibility: 'private' };
+
     const groups = [
       { name: 'Games', apps: [
-        app('Tic-Tac-Toe', 'tictactoe', [92, 255, 123], TICTACTOE_HTML),
-        app('Connect Four', 'connect4', [255, 180, 60], CONNECT_FOUR_HTML),
-        app('Minesweeper', 'minesweeper', [255, 210, 60], MINESWEEPER_HTML),
+        app('Tic-Tac-Toe', 'tictactoe', [92, 255, 123], TICTACTOE_HTML, { data: { game: RW } }),
+        app('Connect Four', 'connect4', [255, 180, 60], CONNECT_FOUR_HTML, { data: { game: RW } }),
+        app('Minesweeper', 'minesweeper', [255, 210, 60], MINESWEEPER_HTML, { data: { mine: RW } }),
         // Declares Smartest text so the in-board "Hint" button can ask the
         // computer's AI for a move — the app feeds it a clean FEN + the exact
         // legal-move list (from its own generator) so the model picks among
         // real moves, never a hallucinated one. Key stays in the runtime.
-        app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML, { capabilities: { db: true, multiplayer: true, network: [], ai: ['smartest'] } }),
+        app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML, { capabilities: { db: true, multiplayer: true, network: [], ai: ['smartest'] }, data: { chess: RW } }),
       ] },
       { name: 'Studio', apps: [
-        app('Paint', 'paint', [255, 92, 170], PAINT_HTML),
+        app('Paint', 'paint', [255, 92, 170], PAINT_HTML, { data: { canvas: RW } }),
       ] },
       { name: 'Tools', apps: [
-        app('Notes', 'notes', [123, 92, 255], NOTES_HTML),
+        app('Notes', 'notes', [123, 92, 255], NOTES_HTML, { data: { notes: RW } }),
         app('Calculator', 'calc', [92, 200, 255], CALCULATOR_HTML),
         app('Stopwatch', 'timer', [255, 120, 120], TIMER_HTML),
         // The one app that reaches out: it declares exactly the site it needs,
         // so opening it demonstrates the network acknowledgement on a real app.
-        app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
+        app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] }, data: { fortunes: RW } }),
         // Reads the Recovery Version through the GifOS CORS proxy — a live demo
         // of gifos.fetch({ proxy:true }) against a real, public, non-CORS site.
-        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] }, ledRecords: ['nav'] }),
+        // Three collections, three visibilities: the shared reading position
+        // (nav, read-write and leadable so the host can "only I lead"), who's
+        // here (presence, read-write heartbeats), and each reader's OWN theme +
+        // font size + last page (prefs, private — never leaves their tab).
+        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] },
+          data: { nav: RW, presence: RW, prefs: PRIV }, lead: [{ collection: 'nav', id: 'nav' }] }),
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
         app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: true, network: [] } }),
       ] },
       { name: 'Social', apps: [
-        app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML),
+        app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML, { data: { entries: RW } }),
         // The "✨ AI draft" button uses YOUR OWN AI model/key (from Settings),
         // brokered locally per person — declares ai so the runtime allows it.
-        app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] } }),
+        app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] }, data: { messages: RW, files: RW } }),
       ] },
       // Party games where the phone just facilitates — dealing secrets,
       // keeping time, counting votes — and the action happens in person.
       // Top level: everyone joins from their own phone via Invite. The
       // pass-the-phone versions live in a "Single Phone" subfolder.
       { name: 'IRL Games',
-        apps: (GifOS.irl ? GifOS.irl.netApps : []).map((g) => app(g.name, g.appId, g.accent, g.html)),
+        // Each own-phone game shares one heartbeat collection ('party'): the
+        // game doc + everyone's player docs, all read-write. (The Single Phone
+        // versions run on one device, so they need no shared visibility.)
+        apps: (GifOS.irl ? GifOS.irl.netApps : []).map((g) => app(g.name, g.appId, g.accent, g.html, Object.assign({ data: { party: RW } }, g.manifest))),
         sub: [{ name: 'Single Phone',
-          apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html)) }] },
+          apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html, g.manifest)) }] },
     ];
     // Easter eggs: a themed computer (gifos-themes.js) can seed extra apps
     // that exist only on that digit — filed into a named folder, or loose.
@@ -1920,13 +1987,19 @@ document.getElementById('f').onsubmit=async e=>{
     // pinned top-right by the seeder, not buried in a folder).
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
-      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
+      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { data: { welcome: PRIV } }), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
     }, {
       // A personal media library, on the Home Screen next to Welcome. Declares
       // microphone + camera so you can capture straight in (honours the per-app
       // Abilities opt-out); the app hand-authors its theming, so 'vars' mode.
       name: 'My Media.gif', appId: 'mymedia', accent: [255, 120, 80],
-      files: { 'manifest.json': manifest('mymedia', 'My Media', [255, 120, 80], { capabilities: { db: true, microphone: true, camera: true } }),
+      files: { 'manifest.json': manifest('mymedia', 'My Media', [255, 120, 80], { capabilities: { db: true, microphone: true, camera: true },
+               // Your library is PRIVATE by default — nothing rides along an
+               // invite. Per item, you "make visible" (setVisibility → read-only)
+               // so an invited guest can see and steal that ONE item; the blob
+               // bytes are opted in the same way. Guests keep their own captures
+               // private (they can't promote what isn't the host's to share).
+               data: { media: PRIV, blobs: PRIV } }),
                'index.html': themeHtml(MYMEDIA_HTML, 'vars') },
     }, {
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],

@@ -110,11 +110,11 @@ async function openBible(b, port) {
     // Scroll roughly two-thirds down the tall page.
     await fr.locator('#main').evaluate((m) => { m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) * 0.66); });
     await sleep(700); // let the 500ms saveLast debounce fire
-    // Records live under collections.bible.items keyed by their id; the last page
-    // is stored per-user as last:<uid> and now carries a scroll fraction.
+    // My last page lives in the PRIVATE 'prefs' collection under id 'last', and
+    // carries a scroll fraction (private = kept on my own device, never shared).
     const savedFrac = await page.evaluate((fid) => GifOS.store.getState(fid).then((s) => {
-      const items = s && s.collections && s.collections.bible && s.collections.bible.items; if (!items) return null;
-      const k = Object.keys(items).find((k) => k.indexOf('last') === 0); const rec = k && items[k];
+      const items = s && s.collections && s.collections.prefs && s.collections.prefs.items; if (!items) return null;
+      const rec = items['last'];
       return rec && typeof rec.scroll === 'number' ? rec.scroll : null;
     }), id);
     check('scroll position is remembered on the last-page record', savedFrac != null && savedFrac > 0.3, 'frac=' + savedFrac);
@@ -147,7 +147,8 @@ async function openBible(b, port) {
     await sleep(300);
     const before = await fr.locator('#main').evaluate((m) => m.scrollTop);
     // A peer scrolls the shared page to ~0.7 down (a DIFFERENT `by`, so we follow).
-    await fr.locator('#main').evaluate((m) => window.gifos.db('bible').put({
+    // The group's position lives in the shared 'nav' collection now.
+    await fr.locator('#main').evaluate((m) => window.gifos.db('nav').put({
       id: 'nav', url: 'https://text.recoveryversion.bible/psalms.htm', scroll: 0.7,
       by: 'user_PEER', byName: 'Leader', ts: 1783746900000,
     }));
@@ -160,7 +161,7 @@ async function openBible(b, port) {
     // Turn Follow OFF, peer moves again — the reader must NOT be dragged along.
     await fr.locator('#follow').click().catch(() => {});
     const held = await fr.locator('#main').evaluate((m) => m.scrollTop);
-    await fr.locator('#main').evaluate((m) => window.gifos.db('bible').put({
+    await fr.locator('#main').evaluate((m) => window.gifos.db('nav').put({
       id: 'nav', url: 'https://text.recoveryversion.bible/psalms.htm', scroll: 0.1,
       by: 'user_PEER', byName: 'Leader', ts: 1783746901000,
     }));
@@ -176,14 +177,14 @@ async function openBible(b, port) {
   // (you catch up to them, not the reverse) when there's no newer peer to join.
   {
     const { ctx, fr } = await openBible(b, port);
-    const readNav = () => fr.locator('#main').evaluate(() => window.gifos.db('bible').getAll()
+    const readNav = () => fr.locator('#main').evaluate(() => window.gifos.db('nav').getAll()
       .then((rows) => { const n = (rows || []).find((r) => r && r.id === 'nav'); return n ? { scroll: n.scroll, by: n.by } : null; }));
     await fr.locator('.doc a[data-nav]').filter({ hasText: 'Psalms' }).first().click();
     await fr.locator('.doc:has-text("VERSE_200")').first().waitFor({ timeout: 10000 }).catch(() => {});
     await sleep(300);
     // A peer is merely PRESENT (so the Follow toggle shows), but is NOT leading —
     // the only 'nav' in the store is mine, written as I read (I'm the leader).
-    await fr.locator('#main').evaluate(() => window.gifos.db('bible').put({ id: 'p:user_PEER', name: 'Bob', ts: Date.now() }));
+    await fr.locator('#main').evaluate(() => window.gifos.db('presence').put({ id: 'p:user_PEER', name: 'Bob', ts: Date.now() }));
     await fr.locator('#main').evaluate((m) => { m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) * 0.3); });
     await sleep(700); // scroll-push writes nav {by: me, ~0.3}
     const navBefore = await readNav();
