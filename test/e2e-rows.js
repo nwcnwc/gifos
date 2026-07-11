@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const browser = await chromium.launch({
     executablePath: CHROME,
-    args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+    args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
   });
   const mk = async (name, scale) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
@@ -60,6 +60,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('C=2: live link counts match row arithmetic (mate, +deacon mesh for deacons) — got [' + linkCounts + '] want [' + expected + ']',
     JSON.stringify(linkCounts) === JSON.stringify(expected));
 
+  // Composites (fold up, forward down): every phone sees the OTHER row as ONE
+  // live folded tile — deacons via the mesh, members via their deacon's
+  // forward. `live` means the announced streamId was claimed; videoWidth>0
+  // means composite frames are actually decoding.
+  let stadOk = true;
+  for (const p of pages) {
+    const got = await p.waitForFunction(() => {
+      const v = window.__gifosVideo;
+      const s = v.stadium();
+      return v.stadiumShown() && s.length === 1 && s[0].live && v.stadiumVideoLive(s[0].row);
+    }, null, { timeout: 25000 }).then(() => true).catch(() => false);
+    if (!got) stadOk = false;
+  }
+  check('C=2: every phone shows ONE live stadium tile with frames flowing (the other row, folded)', stadOk);
+  const manifestOk = await Promise.all(pages.map((p) => p.evaluate(() => {
+    const v = window.__gifosVideo;
+    const rows = v.rows(), mine = v.myRow();
+    const other = rows.findIndex((r, ri) => ri > 0 && ri !== mine && r.length);
+    const s = v.stadium()[0];
+    return !!s && s.row === other
+      && JSON.stringify(s.ids.slice().sort()) === JSON.stringify(rows[other].slice().sort());
+  })));
+  check('C=2: the stadium manifest attributes exactly the folded row\'s members', manifestOk.every(Boolean));
+  const compFlags = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.compActive())));
+  check('C=2: compositors run exactly on the deacons — fold where you lead', JSON.stringify(compFlags) === JSON.stringify(deaconFlags));
+
   // Gossip spans the DIRECTORY: chat from row 1 must reach row 2 even though
   // no media link crosses the row boundary.
   const senderIdx = 0;
@@ -84,6 +110,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('after a deacon dies: deacons re-agreed everywhere', await agree(alive, (p) => p.evaluate(() => JSON.stringify(window.__gifosVideo.rowDeacons()))));
   const aliveDeacons = await Promise.all(alive.map((p) => p.evaluate(() => window.__gifosVideo.amDeacon())));
   check('every populated row has a live deacon again', aliveDeacons.filter(Boolean).length === JSON.parse(await rowsOf(alive[0])).filter((r, i) => i > 0 && r.length).length);
+  // …and the STADIUM re-folds: three survivors at C=2 still make two populated
+  // rows, so a fresh fold must come back live on every remaining phone.
+  let healOk = true;
+  for (const p of alive) {
+    const got = await p.waitForFunction(() => {
+      const v = window.__gifosVideo;
+      const s = v.stadium();
+      return s.length === 1 && s[0].live;
+    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (!got) healOk = false;
+  }
+  check('after a deacon dies: the stadium re-folds and comes back live everywhere', healOk);
   for (const p of alive) await p.close();
 
   // ================= K=∞ identity: default constants, 3 people ==============
@@ -97,6 +135,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     JSON.stringify(links2) === JSON.stringify([2, 2, 2]));
   const rows2 = JSON.parse(await rowsOf(pages2[0]));
   check('K=∞ identity: single populated row, stage born empty', rows2.length === 2 && rows2[0].length === 0 && rows2[1].length === 3);
+  const identComp = await Promise.all(pages2.map((p) => p.evaluate(() => {
+    const v = window.__gifosVideo;
+    return !v.compActive() && v.stadium().length === 0 && !v.stadiumShown() && v.compFwdJobs() === 0;
+  })));
+  check('K=∞ identity: no compositor, no stadium, no forwarding — a small room does NONE of this', identComp.every(Boolean));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
