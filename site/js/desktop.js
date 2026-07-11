@@ -1212,6 +1212,8 @@
   }
 
   const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // The one standard row-delete glyph (see button.row-del in desktop.css).
+  const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
   // ---------- storage ----------
   // Persistent storage is requested automatically at boot — normal people
@@ -1433,7 +1435,7 @@
     return '<div class="ai-row api-row" data-row="' + idx + '">' +
       '<div class="ai-head"><input class="api-f api-name" data-row="' + idx + '" data-f="name" placeholder="short name — e.g. deepgram" value="' + escapeHtml(name || '') + '">' +
       '<button class="ai-test api-test" data-row="' + idx + '">Test &amp; save</button>' +
-      '<button class="api-del" data-row="' + idx + '" title="Remove this API">✕</button></div>' +
+      '<button class="api-del row-del" data-row="' + idx + '" title="Remove this API">' + DEL_ICON + '</button></div>' +
       '<input class="api-f" data-row="' + idx + '" data-f="url" placeholder="Base URL — e.g. https://api.deepgram.com" value="' + escapeHtml(c.url || '') + '">' +
       '<div class="ai-2"><select class="api-f api-auth" data-row="' + idx + '" data-f="authType">' + opts + '</select>' +
       '<input class="api-f api-authname" data-row="' + idx + '" data-f="authName" placeholder="header / param name"' + (needName ? '' : ' style="display:none"') + ' value="' + escapeHtml(c.authName || '') + '"></div>' +
@@ -1729,12 +1731,12 @@
             '<span class="hist-name">' + escapeHtml(e.name || 'Invite') + '</span>' +
             '<span class="hist-meta">' + escapeHtml(relTime(e.ts) + ' · ' + shortInviteUrl(e.url || '')) + '</span>' +
           '</a>' +
-          '<button class="hist-del" data-i="' + i + '" title="Remove">✕</button>' +
+          '<button class="hist-del row-del" data-i="' + i + '" title="Remove">' + DEL_ICON + '</button>' +
         '</div>').join('')
         : '<p class="add-help">No invites visited yet. Open a friend’s invite link and it will show up here.</p>';
       box.innerHTML =
         '<h3>Invite history</h3>' +
-        '<p class="add-help">Sessions you’ve joined. Tap one to rejoin; ✕ removes it. This list lives only in this browser.</p>' +
+        '<p class="add-help">Sessions you’ve joined. Tap one to rejoin; the trash button removes it. This list lives only in this browser.</p>' +
         '<div class="hist-list">' + rows + '</div>' +
         '<div class="modal-actions"><button class="ghost" id="hist-close">Close</button></div>' +
         // "Clear all" is demoted to a small link, well clear of Close, so it can't

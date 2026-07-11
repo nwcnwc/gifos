@@ -263,9 +263,6 @@ body {
 .hist-name { color: var(--text); font-weight: 600; }
 .hist-meta { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Beat the generic `.modal button` (accent-filled) so the row's ✕ stays subtle. */
-.modal .hist-del { flex: 0 0 auto; background: none; border: 1px solid var(--border); color: var(--muted);
-  border-radius: .4rem; padding: .3rem .55rem; cursor: pointer; font-size: .85rem; }
-.modal .hist-del:hover { border-color: #c22e2e; color: #e0574a; }
 details.adv summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .3rem 0;
   user-select: none; }
 details.adv summary:hover { color: var(--text); }
@@ -309,8 +306,6 @@ details.adv h4 { margin-top: .8rem; }
 
 /* Settings → Third-party APIs (reuses .ai-row chrome) */
 .modal.wide .api-name { flex: 1; min-width: 0; margin-bottom: 0; padding: .3rem .5rem; font-size: .88rem; font-weight: 600; }
-.api-del { padding: .28rem .55rem; border-radius: .4rem; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: .78rem; }
-.api-del:hover { color: var(--text); border-color: var(--muted); }
 .modal.wide .api-row select { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
 .modal.wide .api-row .ai-2 { align-items: stretch; }
@@ -320,3 +315,10 @@ details.adv h4 { margin-top: .8rem; }
 .api-adv summary { cursor: pointer; color: var(--muted); font-size: .78rem; padding: .1rem 0; user-select: none; }
 .modal.wide .api-row .api-adv .api-proxy-url { margin: .35rem 0 0; font-size: .82rem; }
 .modal.wide .api-row .api-status { min-height: 1rem; font-size: .78rem; margin-bottom: 0; }
+
+/* THE standard row-delete control — same class and trash glyph everywhere in
+   GifOS (settings/invite rows here; lobby + pinned files in meet.html).
+   Borderless, inherits the row's muted color, danger-red on hover. */
+button.row-del { flex: 0 0 auto; background: none; border: none; color: var(--muted); cursor: pointer; padding: .2rem .3rem; line-height: 0; border-radius: .35rem; }
+button.row-del:hover { color: #e0574a; }
+button.row-del svg { display: block; pointer-events: none; }

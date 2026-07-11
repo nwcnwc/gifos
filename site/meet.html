@@ -235,8 +235,12 @@
   .lob-item .li-sub { display: block; font-size: .74rem; opacity: .55; }
   .lob-item .li-badge { font-size: .66rem; opacity: .8; border: 1px solid var(--border, #2a2a3f); border-radius: 1rem; padding: 0 .4rem; margin-left: .3rem; }
   .lob-star { background: none; border: none; cursor: pointer; font-size: 1.15rem; color: #cdb84a; padding: .15rem .25rem; line-height: 1; }
-  .lob-del { background: none; border: none; cursor: pointer; font-size: 1rem; opacity: .45; padding: .15rem .3rem; line-height: 1; }
-  .lob-del:hover { opacity: 1; }
+  /* THE standard row-delete control — same class and trash glyph everywhere
+     in GifOS (lobby rows, pinned files, desktop settings/invites). Borderless,
+     inherits the row's muted color, danger-red on hover. */
+  button.row-del { background: none; border: none; color: var(--muted, #8888aa); cursor: pointer; padding: .2rem .3rem; line-height: 0; border-radius: .35rem; flex: 0 0 auto; }
+  button.row-del:hover { color: #ff5c5c; }
+  button.row-del svg { display: block; pointer-events: none; }
   .lob-empty { opacity: .5; font-size: .88rem; text-align: center; padding: .8rem 0; }
   .lob-namebar { text-align: center; margin-top: 1.1rem; font-size: .85rem; opacity: .78; }
   .lob-link { background: none; border: none; color: var(--accent, #6f9bff); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
@@ -480,6 +484,8 @@
     let statusHoldUntil = 0;
     const setStatus = (m) => { statusEl.textContent = m; statusHoldUntil = Date.now() + 4000; };
     const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    // The one standard row-delete glyph (see button.row-del in the styles).
+    const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
     let ws = null, myId = null, localStream = null, meTile = null, leaving = false;
     const peers = new Map(); // peerId -> { pc, tile, video, name, connected, absentSince, lastKick }
@@ -1848,7 +1854,7 @@
         '<div class="li-main"><span class="li-name">' + esc(e.name || 'Meeting') +
           (e.av ? '<span class="li-badge">admin</span>' : '') + '</span>' +
           '<span class="li-sub">' + agoLabel(e.ts) + '</span></div>' +
-        '<button class="lob-del" data-del="' + esc(e.url) + '" title="Remove from this list">🗑</button>' +
+        '<button class="row-del" data-del="' + esc(e.url) + '" title="Remove from this list">' + DEL_ICON + '</button>' +
       '</div>';
     }
     function renderLobbyList() {
@@ -2212,7 +2218,7 @@
       el.innerHTML = fs.length ? fs.map((f) =>
         '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
         + (f.bytes ? '<button data-dl="' + esc(f.id) + '">⬇</button>' : '<small>receiving…</small>')
-        + '<button data-del="' + esc(f.id) + '" title="Unpin for everyone">🗑</button></div>').join('')
+        + '<button class="row-del" data-del="' + esc(f.id) + '" title="Unpin for everyone">' + DEL_ICON + '</button></div>').join('')
         : '<small style="color:#667">No files yet — attach one below.</small>';
     }
     document.getElementById('cfilelist').addEventListener('click', (e) => {
