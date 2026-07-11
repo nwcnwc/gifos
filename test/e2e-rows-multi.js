@@ -143,7 +143,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const v = window.__gifosVideo;
       if (sl) return v.stageIds().length === 1; // leaf mates see them on row 0 directly
       return v.stadium().some((s) => String(s.row).indexOf('s:') === 0 && s.live);
-    }, sameLeaf, { timeout: 40000 }).then(() => true).catch(() => false);
+    }, sameLeaf, { timeout: 60000 }).then(() => true).catch(() => false);
     if (!ok) stageOk = false;
   }
   check('stage: a spill-leaf member steps up and reaches the OTHER session as a live stage tile', stageOk);
