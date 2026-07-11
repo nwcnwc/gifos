@@ -89,6 +89,18 @@
   #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto;
           grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
           grid-auto-rows: max-content; align-content: safe center; }
+  /* The STADIUM (docs/rows.md): every row that isn't yours, folded to one
+     composite tile each — a horizontally scrolling strip above your own row's
+     grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
+  #stadium { display: none; flex: 0 0 auto; gap: 6px; padding: 8px 8px 0; overflow-x: auto; overflow-y: hidden; }
+  #stadium.on { display: flex; }
+  .rowtile { position: relative; flex: 0 0 auto; width: 176px; aspect-ratio: 16 / 9;
+    background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
+    border-radius: .6rem; overflow: hidden; }
+  .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
+    font-size: .65rem; color: var(--text, #e0e0f0); background: rgba(10,10,15,.7);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* App-in-meeting: the shared app fills the stage; participant tiles shrink to
      a scrolling filmstrip along the bottom so everyone stays visible. */
   #apppane { display: none; flex-direction: column; flex: 1; min-height: 0; }
@@ -342,6 +354,7 @@
     </div>
     <div id="appmount"></div>
   </div>
+  <div id="stadium"></div>
   <div id="grid"></div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
@@ -1170,8 +1183,12 @@
         }
       }
       if (!vt) return;
+      // Skip AUX senders: tracks we carry on someone ELSE's behalf (friend-relay
+      // jobs, row composites, forwarded folds). Only MY OWN outbound video is
+      // ever swapped for the blur pipe — a blur toggle must never overwrite the
+      // stream a deacon or relayer is forwarding.
       for (const p of peers.values()) for (const s of p.pc.getSenders()) {
-        if (s.track && s.track.kind === 'video' && s.track !== vt) s.replaceTrack(vt).catch(() => {});
+        if (s.track && s.track.kind === 'video' && s.track !== vt && !auxSenders.has(s)) s.replaceTrack(vt).catch(() => {});
       }
       adapt(); // re-apply bitrate/resolution to the (possibly new) sender track
     }
@@ -1274,6 +1291,10 @@
     // claimed streams survive; only the transport is replaced.
     function newPcFor(p) {
       try { p.pc && p.pc.close(); } catch (e) {}
+      // A rebuilt transport starts with NO senders: forget every composite role
+      // this pair carried (folds sent, folds forwarded, folds displayed via
+      // them) — the sweeper's reconcile re-derives and re-adds them cleanly.
+      if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
       if (localStream) {
@@ -1293,6 +1314,7 @@
         if (p.incoming.length > 8) p.incoming.shift(); // dead renegotiation leftovers
         claimOwnStream(p);     // proven-own media → their tile
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
+        claimCompStreams();    // explicitly mapped row composites → stadium tiles
       };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -1327,6 +1349,7 @@
       connsOf.delete(peerId);
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
+      endCompRolesFor(peerId);
       if (focusId === peerId) focusId = null;
       layout();
       adapt();
@@ -1735,6 +1758,7 @@
         }
         if (p.noRoute && peerAway(pid)) { p.noRoute = false; updateTile(pid); }
       }
+      reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
       updateStatus();
     }, 2000);
 
@@ -2271,6 +2295,18 @@
         stopRelayJob(String(m.target || ''), p.id, false);
       } else if (m.k === 'relay-end') {
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
+      } else if (m.k === 'comp-own' || m.k === 'comp-stream') {
+        // A row composite announced: comp-own rides the deacon mesh (the row's
+        // own deacon speaking for its fold), comp-stream is my deacon handing
+        // another row's fold down to me. Re-sent every sweep — idempotent.
+        takeComp(m.row | 0, p.id, m);
+      } else if (m.k === 'comp-end') {
+        if ((compOf.get(m.row | 0) || {}).via === p.id) dropComp(m.row | 0);
+      } else if (m.k === 'rkick') {
+        // A composite peer added tracks and needs the pair's initiator (me) to
+        // re-offer so its tracks ride the answer. Never re-offer from the
+        // non-initiating side — that would glare with the sender's own kick.
+        if (p.pc && iInitiate(p.id)) renegotiate(p);
       } else if (m.k === 'pwinfo') {
         // The room's password changed — the PLAINTEXT arrives only inside this
         // sealed frame, never through the relay in the clear. Adopt it and
@@ -2439,6 +2475,9 @@
     const relayRefusal = new Map(); // target -> { viaPid: refusedAt }
     const connsOf = new Map();      // pid -> [connected pids] (gossiped)
     const MAX_RELAY_JOBS = 4;       // a phone volunteers only so much upload
+    // Senders that carry OTHER people's media (relay jobs, composites, forwarded
+    // folds) — refreshOutbound must never replaceTrack these with my camera.
+    const auxSenders = new Set();
 
     function claimRelayStreams() {
       for (const [target, r] of relayVia) {
@@ -2490,6 +2529,7 @@
       const senders = [];
       for (const tr of tp.stream.getTracks()) { try { senders.push(reqP.pc.addTrack(tr, container)); } catch (e) {} }
       if (!senders.length) { refuse(); return; }
+      for (const sd of senders) auxSenders.add(sd);
       relayJobs.set(key, { senders, requester: reqP.id, target });
       dcSend(reqP, { k: 'relay-stream', target, streamId: container.id });
       renegotiate(reqP);
@@ -2499,6 +2539,7 @@
       const job = relayJobs.get(key);
       if (!job) return;
       relayJobs.delete(key);
+      for (const sd of job.senders) auxSenders.delete(sd);
       const rp = peers.get(requesterPid);
       if (!rp) return;
       for (const sd of job.senders) { try { rp.pc.removeTrack(sd); } catch (e) {} }
@@ -2513,6 +2554,298 @@
       }
       if (relayVia.has(pid)) stopRelayFor(pid, true);
       for (const [target, r] of Array.from(relayVia)) if (r.via === pid) stopRelayFor(target, false);
+    }
+
+    // ========== ROW COMPOSITES: fold up, forward down (docs/rows.md) ==========
+    // The deacon does double duty. COMPOSITOR: it folds its row into ONE
+    // outbound stream — everyone's video pasted into a down-pixeled grid on a
+    // canvas (captureStream, the blur pipe's primitive), everyone's audio
+    // summed through WebAudio (the recorder's primitive). FORWARDER: it swaps
+    // folds with the other rows' deacons over the deacon mesh and carries what
+    // it receives down to its row members — the volunteer-relay track
+    // machinery doing at every scale what it does today for one blocked pair.
+    // Nothing here asks "is this room big?": a compositor runs exactly when
+    // another populated row exists to watch it, so a one-row room does none of
+    // this — today's meeting, by arithmetic.
+    const stadiumEl = document.getElementById('stadium');
+    // What I DISPLAY of the stadium: rowIndex -> { via, streamId, ids, names,
+    // stream|null }. `via` is who delivers it — that row's own deacon (I'm a
+    // deacon on the mesh) or MY deacon (forwarded down to me). Stream identity
+    // stays EXPLICIT: a composite is claimed by announced streamId, exactly
+    // like relay-stream — never "first stream wins".
+    const compOf = new Map();
+    const compPipe = { on: false, row: -1, canvas: null, ctx: null, stream: null, dest: null, srcs: new Map(), unsub: null };
+    const compSent = new Map(); // fellow-deacon pid -> { senders, sig, row } (my fold, on the mesh)
+    const fwdComp = new Map();  // row + '>' + memberPid -> { senders, sig, member, row } (folds I carry down)
+
+    function compMixIn(id, stream) {
+      if (!compPipe.dest || !stream || compPipe.srcs.has(id)) return;
+      const track = stream.getAudioTracks()[0];
+      if (!track) return;
+      try {
+        const src = ac.createMediaStreamSource(new MediaStream([track]));
+        const gain = ac.createGain();
+        src.connect(gain); gain.connect(compPipe.dest);
+        compPipe.srcs.set(id, { src, gain });
+      } catch (e) {}
+    }
+    function drawComp() {
+      if (!compPipe.on) return;
+      const rows = computeRows();
+      const mine = myRowIndex();
+      const rowIds = mine >= 0 ? rows[mine] : [];
+      const canvas = compPipe.canvas, ctx = compPipe.ctx;
+      const cols = Math.max(1, Math.ceil(Math.sqrt(rowIds.length))), rws = Math.max(1, Math.ceil(rowIds.length / cols));
+      const cw = canvas.width / cols, ch = canvas.height / rws;
+      ctx.filter = 'none';
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      rowIds.forEach((id, i) => {
+        const isMe = id === myId;
+        const p = isMe ? null : peers.get(id);
+        const st = (isMe ? myStatus : statusOf.get(id)) || {};
+        const name = isMe ? myName() : (p && p.name) || rosterNames[id] || '…';
+        const stream = isMe ? localStream : p && p.video.srcObject;
+        const v = isMe ? (meTile && meTile.video) : p && p.video;
+        const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
+        // Consent SURVIVES the fold: the same receiver-side blur/mute the tiles
+        // enforce is baked into the composite pixels/samples. (My own feed is
+        // already the pre-blurred outbound — WYSIWYG, never re-blurred.)
+        const bl = isMe ? 0 : blurLevelFor(id);
+        const gMute = modOf(id).mute && modOf(id).mute.on;
+        const mix = compPipe.srcs.get(id);
+        if (mix) mix.gain.gain.value = gMute ? 0 : 1;
+        else if (stream) compMixIn(id, stream);
+        if (!st.camOff && v && v.videoWidth) {
+          const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
+          const dw = v.videoWidth * s, dh = v.videoHeight * s;
+          const dx = x + (cw - dw) / 2, dy = y + (ch - dh) / 2;
+          if (bl) blurDraw(ctx, v, dx, dy, dw, dh, bl === 2 ? 22 : 10, bl);
+          else ctx.drawImage(v, dx, dy, dw, dh);
+        } else {
+          ctx.fillStyle = '#14141f';
+          ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
+          ctx.fillStyle = '#3a3a55';
+          ctx.font = 'bold ' + (ch * .4 | 0) + 'px system-ui';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText((name || '•')[0].toUpperCase(), x + cw / 2, y + ch / 2);
+        }
+      });
+    }
+    function startComp() {
+      if (compPipe.on) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = SCALE.COMP_W; canvas.height = SCALE.COMP_H;
+      compPipe.canvas = canvas;
+      compPipe.ctx = canvas.getContext('2d');
+      compPipe.stream = new MediaStream();
+      const vt = canvas.captureStream(SCALE.COMP_FPS).getVideoTracks()[0];
+      if (vt) compPipe.stream.addTrack(vt);
+      if (ensureAc()) {
+        compPipe.dest = ac.createMediaStreamDestination();
+        for (const tr of compPipe.dest.stream.getAudioTracks()) compPipe.stream.addTrack(tr);
+      }
+      compPipe.on = true;
+      drawComp();
+      // worker metronome: the fold keeps painting when the tab is hidden —
+      // a backgrounded deacon must not freeze its whole row for the stadium
+      compPipe.unsub = metroSub(drawComp);
+    }
+    function stopComp(kicks) {
+      if (!compPipe.on) return;
+      if (compPipe.unsub) compPipe.unsub();
+      for (const [pid, cur] of Array.from(compSent)) {
+        for (const sd of cur.senders) auxSenders.delete(sd);
+        const p = peers.get(pid);
+        if (p) {
+          for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
+          dcSend(p, { k: 'comp-end', row: cur.row });
+          if (kicks) kicks.add(pid);
+        }
+      }
+      compSent.clear();
+      if (compPipe.stream) for (const tr of compPipe.stream.getTracks()) { try { tr.stop(); } catch (e) {} }
+      for (const m of compPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
+      compPipe.srcs.clear();
+      compPipe.on = false; compPipe.row = -1; compPipe.stream = null; compPipe.dest = null;
+      compPipe.canvas = null; compPipe.ctx = null; compPipe.unsub = null;
+    }
+    // Renegotiation discipline. Deacon→member forwarding re-offers over the
+    // DataChannel like the relay machinery (only the carrier re-offers there).
+    // On a deacon↔deacon edge BOTH sides add a fold, so only the pair's
+    // INITIATOR ever re-offers; the other side asks with 'rkick', and its
+    // freshly added tracks ride the answer (transceiver reuse) — no glare.
+    function compKick(pid) {
+      const p = peers.get(pid);
+      if (!p || !p.dc || p.dc.readyState !== 'open') return;
+      if (iInitiate(pid)) renegotiate(p);
+      else dcSend(p, { k: 'rkick' });
+    }
+    function claimCompStreams() {
+      let changed = false;
+      for (const c of compOf.values()) {
+        if (c.stream) continue;
+        const viaP = peers.get(c.via);
+        if (!viaP || !viaP.incoming) continue;
+        // exact-id mapping only — and never the carrier's own announced feed
+        const found = viaP.incoming.find((st) => st.id === c.streamId && st.id !== viaP.ownSid);
+        if (!found) continue;
+        c.stream = found;
+        changed = true;
+      }
+      if (changed) renderStadium();
+    }
+    function takeComp(row, via, m) {
+      if (!(row > 0) || via === myId) return;
+      const ids = Array.isArray(m.ids) ? m.ids.slice(0, SCALE.C).map(String) : [];
+      const names = Array.isArray(m.names) ? m.names.slice(0, SCALE.C).map((n) => String(n || '').slice(0, 40)) : [];
+      const cur = compOf.get(row);
+      if (cur && cur.via === via && cur.streamId === m.streamId) {
+        cur.ids = ids; cur.names = names;  // manifest refresh on the same stream
+        renderStadium();
+        return;
+      }
+      compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, stream: null });
+      claimCompStreams();
+      renderStadium();
+    }
+    function dropComp(row) {
+      if (!compOf.delete(row)) return;
+      renderStadium();
+    }
+    function endCompRolesFor(pid) { // pid left or its pc died — every composite role
+      const cur = compSent.get(pid);
+      if (cur) { for (const sd of cur.senders) auxSenders.delete(sd); compSent.delete(pid); }
+      for (const [key, job] of Array.from(fwdComp)) {
+        if (job.member !== pid) continue;
+        for (const sd of job.senders) auxSenders.delete(sd);
+        fwdComp.delete(key);
+      }
+      for (const [row, c] of Array.from(compOf)) if (c.via === pid) dropComp(row);
+    }
+    // The driver, on the sweeper's beat. All of it is idempotent arithmetic
+    // over computeRows(): roles are re-derived, announcements re-sent (the
+    // heartbeat idiom — a mapping dropped during a transient row disagreement
+    // heals on the next pass), stale jobs torn down.
+    function reconcileComp() {
+      if (!myId) return;
+      const rows = computeRows();
+      const mine = myRowIndex();
+      const populated = rows.filter((r, i) => i > 0 && r.length).length;
+      const kicks = new Set();
+      // FOLD exactly when someone is watching: another populated row exists.
+      const fold = amDeacon() && populated > 1;
+      if (fold && !compPipe.on) startComp();
+      if (!fold && compPipe.on) stopComp(kicks);
+      if (compPipe.on) {
+        compPipe.row = mine;
+        const man = { ids: rows[mine].slice(), names: rows[mine].map((id) => id === myId ? myName() : ((peers.get(id) || {}).name || rosterNames[id] || '…')) };
+        // sig tracks the STREAM identity only — manifest changes ride the
+        // idempotent re-announce, never a removeTrack/addTrack churn.
+        const sig = compPipe.stream.id + '|' + mine;
+        const announce = { k: 'comp-own', row: mine, streamId: compPipe.stream.id, ids: man.ids, names: man.names };
+        const fellows = new Set();
+        rows.forEach((r, i) => { if (i > 0 && i !== mine && r.length) { const d = deaconOf(r); if (d && d !== myId) fellows.add(d); } });
+        for (const pid of fellows) {
+          const p = peers.get(pid);
+          if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
+          const cur = compSent.get(pid);
+          if (cur && cur.sig === sig) { dcSend(p, announce); continue; } // idempotent re-announce
+          if (cur) for (const sd of cur.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
+          const senders = [];
+          for (const tr of compPipe.stream.getTracks()) { try { senders.push(p.pc.addTrack(tr, compPipe.stream)); } catch (e) {} }
+          for (const sd of senders) auxSenders.add(sd);
+          compSent.set(pid, { senders, sig, row: mine });
+          dcSend(p, announce);
+          kicks.add(pid);
+        }
+        for (const [pid, cur] of Array.from(compSent)) {
+          if (fellows.has(pid) && peers.has(pid)) continue;
+          for (const sd of cur.senders) auxSenders.delete(sd);
+          const p = peers.get(pid);
+          if (p) {
+            for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
+            dcSend(p, { k: 'comp-end', row: cur.row });
+            kicks.add(pid);
+          }
+          compSent.delete(pid);
+        }
+      }
+      // PRUNE what I display: a composite is only ever delivered by the row's
+      // own deacon (mesh) or by MY deacon (forwarded). Anything else — spoofed,
+      // stale after a re-election, or my own row — dies here within a beat.
+      for (const [row, c] of Array.from(compOf)) {
+        const r = rows[row];
+        const expectVia = amDeacon()
+          ? (r && r.length ? deaconOf(r) : null)
+          : (mine > 0 ? deaconOf(rows[mine]) : null);
+        if (!r || !r.length || row === mine || c.via !== expectVia || !peers.has(c.via)) dropComp(row);
+      }
+      // FORWARD DOWN: as deacon, every fold I hold rides down to every member.
+      const carrying = amDeacon() && mine > 0;
+      if (carrying) {
+        const members = rows[mine].filter((id) => id !== myId);
+        for (const [row, c] of compOf) {
+          if (!c.stream) continue;
+          const sig = c.stream.id;
+          for (const mid of members) {
+            const p = peers.get(mid);
+            if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
+            const key = row + '>' + mid;
+            const job = fwdComp.get(key);
+            if (job && job.sig === sig) { dcSend(p, { k: 'comp-stream', row, streamId: job.streamId, ids: c.ids, names: c.names }); continue; }
+            if (job) for (const sd of job.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
+            const container = new MediaStream();
+            const senders = [];
+            for (const tr of c.stream.getTracks()) { try { senders.push(p.pc.addTrack(tr, container)); } catch (e) {} }
+            for (const sd of senders) auxSenders.add(sd);
+            fwdComp.set(key, { senders, sig, member: mid, row, streamId: container.id });
+            dcSend(p, { k: 'comp-stream', row, streamId: container.id, ids: c.ids, names: c.names });
+            kicks.add(mid);
+          }
+        }
+      }
+      for (const [key, job] of Array.from(fwdComp)) {
+        const still = carrying && rows[mine].includes(job.member) && compOf.has(job.row) && compOf.get(job.row).stream;
+        if (still) continue;
+        for (const sd of job.senders) auxSenders.delete(sd);
+        const p = peers.get(job.member);
+        if (p) {
+          for (const sd of job.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
+          dcSend(p, { k: 'comp-end', row: job.row });
+          kicks.add(job.member);
+        }
+        fwdComp.delete(key);
+      }
+      for (const pid of kicks) compKick(pid);
+    }
+    // The STADIUM strip: one small tile per folded row, labeled with who is in
+    // it (the layout manifest — attribution survives the fold). Hidden when
+    // empty: a one-row room shows exactly today's screen.
+    function renderStadium() {
+      for (const el of Array.from(stadiumEl.children)) if (!compOf.has(+el.dataset.row)) el.remove();
+      for (const [row, c] of compOf) {
+        let el = stadiumEl.querySelector('[data-row="' + row + '"]');
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'rowtile';
+          el.dataset.row = row;
+          const v = document.createElement('video');
+          v.autoplay = true; v.playsInline = true;
+          const lb = document.createElement('div');
+          lb.className = 'rlabel';
+          el.appendChild(v); el.appendChild(lb);
+          stadiumEl.appendChild(el);
+        }
+        el.style.order = row;
+        const v = el.querySelector('video');
+        if (c.stream && v.srcObject !== c.stream) {
+          v.srcObject = c.stream;
+          const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+        }
+        el.querySelector('.rlabel').textContent = 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
+      }
+      stadiumEl.classList.toggle('on', compOf.size > 0);
     }
 
     // ---- hand raise: float to the top in the order hands went up --------------
@@ -3423,6 +3756,15 @@
       amDeacon: () => amDeacon(),
       capOf: (id) => capOf(id),
       scale: () => Object.assign({}, SCALE),
+      // composites (fold up, forward down)
+      compActive: () => !!compPipe.on,
+      compSentTo: () => Array.from(compSent.keys()),
+      compFwdJobs: () => fwdComp.size,
+      stadium: () => Array.from(compOf.entries())
+        .map(([row, c]) => ({ row, via: c.via, ids: (c.ids || []).slice(), names: (c.names || []).slice(), live: !!c.stream }))
+        .sort((a, b) => a.row - b.row),
+      stadiumShown: () => stadiumEl.classList.contains('on'),
+      stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
       appWinner: () => { const w = findSharedApp(); return w ? w.s : null; },
       appSharerName: () => { const w = findSharedApp(); return w ? (w.byName || null) : null; },
       appHidden: () => appHiddenSid,
