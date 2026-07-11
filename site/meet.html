@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GifOS">
+<script src="/js/sw-register.js" defer></script>
 <script>/* Global UI text size (Settings → Text size). Scales the meeting chrome; applied early, live across tabs. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>Meeting — GifOS</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%B9%3C/text%3E%3C/svg%3E">
