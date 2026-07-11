@@ -1754,6 +1754,20 @@
         if (p.headless && !upRosterIds.includes(pid) && !p.absentSince) p.absentSince = Date.now();
       }
       syncUpCam();
+      // ANTI-ENTROPY across the bridge: a chat line sent while a delegate
+      // edge was still forming would otherwise be lost to the other leaf
+      // forever (send-once + forward-on-first-sight has no second chance).
+      // Every ~8s each delegate union-merges recent history over its up
+      // edges; dedupe-by-id absorbs the repetition — the same discipline
+      // that already heals one session's history on DC open.
+      if (!UP.hiTick) UP.hiTick = 0;
+      if (++UP.hiTick % 4 === 0) {
+        const hi = { k: 'hi', chats: Array.from(chat.values()).slice(-50), trs: Array.from(trs.values()).slice(-30), metas: fileMetas(), tombs: tombObj() };
+        for (const pid of upGossipIds()) {
+          const p = peers.get(pid);
+          if (p && p.dc && p.dc.readyState === 'open') dcSend(p, hi);
+        }
+      }
     }
     // The stage's OWN feed rides its uplink edges: stepping up adds my cam
     // tracks onto every headless pc IN PLACE (a rebuild would strand the far
@@ -2516,9 +2530,13 @@
     }
     function onDc(p, dc, m) {
       if (m.k === 'hi') {
-        (m.chats || []).forEach(takeChat);
+        // Union-merge — and GOSSIP ONWARD whatever was news: a delegate
+        // learning a missed line over the bridge hands it down its own leaf.
+        const freshChats = [];
+        (m.chats || []).forEach((c) => { if (takeChat(c)) freshChats.push(c); });
+        for (const c of freshChats) sendAll({ k: 'chat', m: c });
         let trNew = false;
-        (m.trs || []).forEach((l) => { if (takeTr(l)) trNew = true; });
+        (m.trs || []).forEach((l) => { if (takeTr(l)) { trNew = true; sendAll({ k: 'tr', m: l }); } });
         if (trNew) renderTranscript();
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
         (m.metas || []).forEach((meta) => takeMeta(meta, p));
