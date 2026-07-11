@@ -105,6 +105,7 @@
      eye line. The three-bus mix panel is a personal knob rack (receiver-side
      volume only — as ungovernable as any volume knob). */
   .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
+  .rowtile.stagetile { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
   #mixpanel { position: fixed; right: 12px; bottom: 64px; z-index: 40; display: flex; flex-direction: column;
     gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
     border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
@@ -689,13 +690,39 @@
     const mySid = () => (localStream ? localStream.id : null);
     function broadcastStatus() {
       myStatus.at = Date.now(); // timestamped: out-of-order gossip can't roll me back
+      // Tree bookkeeping rides the same heartbeat: which leaf I sit in, how
+      // many people my leaf holds, and (from delegates) the room total they
+      // can see from the parent space — presence counting by aggregation.
+      myStatus.leaf = rowNum;
+      myStatus.cnt = Math.max(1, rosterIds.length);
+      myStatus.tot = knownTotal() || 0; // stale totals must die when the tree shrinks
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
       const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable };
-      for (const pid of gossipIds()) sendSig(pid, payload);
+      for (const pid of allGossipIds()) sendSig(pid, payload);
       updateTile('me');
+    }
+    // What the tree can currently see of the room's size. A delegate sums the
+    // leaf counts visible in the parent space (one per leaf, freshest wins);
+    // everyone else adopts the largest total a leaf-mate delegate reported.
+    function knownTotal() {
+      if (UP.on) {
+        const perLeaf = new Map([[rowNum, rosterIds.length || 1]]);
+        for (const pid of upGossipIds()) {
+          const st = statusOf.get(pid);
+          if (st && st.leaf && st.cnt && st.leaf !== rowNum) perLeaf.set(st.leaf, Math.max(perLeaf.get(st.leaf) || 0, st.cnt));
+        }
+        let sum = 0; for (const c of perLeaf.values()) sum += c;
+        return sum;
+      }
+      let best = 0;
+      for (const pid of gossipIds()) {
+        const st = statusOf.get(pid);
+        if (st && st.tot && Date.now() - (st.at || 0) < 15000) best = Math.max(best, st.tot);
+      }
+      return best;
     }
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
@@ -873,7 +900,7 @@
     }
 
     // ---- tiles ---------------------------------------------------------------
-    function makeTile(id, name, isMe) {
+    function makeTile(id, name, isMe, headless) {
       const tile = document.createElement('div');
       tile.className = 'tile' + (isMe ? ' me' : '');
       tile.dataset.peer = id;
@@ -924,7 +951,10 @@
         tile.appendChild(modbar);
         tile.addEventListener('click', () => tile.classList.toggle('menu')); // tap = menu on phones
       }
-      grid.appendChild(tile);
+      // Headless (uplink-only) peers keep the full tile machinery — video
+      // element, meters, chips — but never enter the grid: a fellow delegate
+      // is plumbing, not a face on your wall.
+      if (!headless) grid.appendChild(tile);
       return { tile, video, label, avatar, chips, cap, modbar, voteBtn };
     }
 
@@ -1234,9 +1264,16 @@
     }
 
     // ---- adaptive quality ----------------------------------------------------
-    function participantCount() { return Math.max(1 + peers.size, rosterIds.includes(myId) ? rosterIds.length : 1 + rosterIds.length); }
+    // The COUNT is the room (leaf, or the aggregated total once the tree
+    // reports one); the QUALITY rung keys off my live link degree — per-node
+    // load is what rows bound, and in a one-session room the two are equal.
+    function leafCount() { return Math.max(1 + peers.size, rosterIds.includes(myId) ? rosterIds.length : 1 + rosterIds.length); }
+    function participantCount() {
+      const tot = (typeof knownTotal === 'function' && ws) ? (myStatus.tot || 0) : 0;
+      return Math.max(leafCount(), tot);
+    }
     function adapt() {
-      const n = participantCount();
+      const n = Math.max(2, 1 + peers.size);
       const q = rung(n);
       const track = localStream && localStream.getVideoTracks()[0];
       if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
@@ -1296,11 +1333,15 @@
       return msg;
     };
     const sendSig = (to, msg) => {
-      if (!ws) return;
+      // Route on membership: leaf mates via the leaf socket, everyone else
+      // via the uplink (a pid in both rosters rides the leaf — deterministic,
+      // so both halves of a handshake take the same path).
+      const sock = rosterIds.includes(to) || !UP.on ? ws : (upRosterIds.includes(to) ? UP.ws : ws);
+      if (!sock) return;
       msg = sigSansIce(to, msg);
       if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
-        net.sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'peer', to, msg: piece })))));
+        net.sendChunked(env, (piece) => { try { sock.send(JSON.stringify({ t: 'peer', to, msg: piece })); } catch (e) {} })));
     };
     // Sealed frame over this pair's DataChannel (chat, files, relay control).
     const dcSend = (p, msg) => {
@@ -1350,12 +1391,16 @@
       if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
-      if (localStream) {
+      // Uplink edges carry no personal camera — folds and forwards only —
+      // UNLESS I am staged: the stage's own feed is exactly what the parent
+      // space exists to carry (row 0, encoded once, subscribed by all).
+      const carryCam = !p.headless || !!myStatus.stg;
+      if (localStream && carryCam) {
         for (const track of localStream.getAudioTracks()) pc.addTrack(track, localStream);
         // Send the blur-canvas track when any blur applies — never the raw camera.
         const vt = sentVideoTrack();
         if (vt) pc.addTrack(vt, localStream);
-      } else { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
+      } else if (!localStream) { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
       // chat + pinned files travel on a DataChannel — browser to browser only
       if (iInitiate(p.id)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
@@ -1379,11 +1424,11 @@
       };
       return pc;
     }
-    function makePeer(peerId, name) {
+    function makePeer(peerId, name, headless) {
       if (peers.has(peerId)) return peers.get(peerId);
-      const t = makeTile(peerId, name, false);
+      const t = makeTile(peerId, name, false, headless);
       const p = { id: peerId, pc: null, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar, voteBtn: t.voteBtn,
-        name, connected: false, pendingIce: [], absentSince: 0, lastKick: 0, lastHeard: Date.now(), incoming: [] };
+        name, headless: !!headless, connected: false, pendingIce: [], absentSince: 0, lastKick: 0, lastHeard: Date.now(), incoming: [] };
       peers.set(peerId, p);
       newPcFor(p);
       adapt();
@@ -1508,6 +1553,9 @@
     // deacons (the fold/forward edges). At default constants a small room is
     // one row, so this set is EVERYONE — today's mesh, by arithmetic.
     function linkTo(pid) {
+      // Parent-space mates are always linkable (full mesh in the depth-2
+      // regime — the recursion rows the parent space too, docs/rows.md).
+      if (UP.on && upRosterIds.includes(pid) && !rosterIds.includes(pid)) return true;
       const rows = computeRows();
       const mine = myRowIndex();
       if (rows[0].includes(pid) || mine === 0) return true; // the stage sees and is seen by all… of its links
@@ -1540,6 +1588,9 @@
         }, 8000);
       }
       p.absentSince = 0;
+      // A peer first met upstairs (headless plumbing) who later walks into MY
+      // leaf becomes a face: same record, same link — the tile just lands.
+      if (p.headless && rosterIds.includes(pid)) { p.headless = false; grid.appendChild(p.tile); }
       if (name && p.name !== name) { p.name = name; p.label.textContent = name; }
     }
     function reconcile(list, names) {
@@ -1558,6 +1609,9 @@
         ensureLink(pid, names[pid] || rosterNames[pid] || null);
       }
       for (const [pid, p] of peers) {
+        // Uplink-only peers live by the PARENT roster, not this one — the
+        // leaf's roster must never bury a fellow delegate.
+        if (upRosterIds.includes(pid) && !list.includes(pid)) continue;
         if (!list.includes(pid) && !p.absentSince) p.absentSince = Date.now();
       }
       for (const pid of Object.keys(rosterNames)) if (!list.includes(pid)) delete rosterNames[pid];
@@ -1590,6 +1644,107 @@
         sessId = d.sid; sessTok = d.tok;
         openSock();
       });
+    }
+
+    // ================= THE UPLINK (docs/rows.md, phases 2–3) =================
+    // A session's delegates (its local-row deacons) and its staged members
+    // open ONE extra socket into the parent space ('u'), and are simply
+    // members there: gossip status, link mates, swap folds. The same peer id
+    // is presented everywhere, so a person is ONE entry in peers/statusOf no
+    // matter how many sessions carry them. Up links are HEADLESS by default —
+    // no tile, no camera attached — folds and stage streams ride them via the
+    // existing composite machinery. In a room that never outgrew row 1 the
+    // uplink never opens: today's meeting, by arithmetic.
+    const UP = { on: false, ws: null, sessId: null, sessTok: null, defrag: net.makeDefrag(null) };
+    let upRosterIds = [], upNames = {};
+    const upGossipIds = () => upRosterIds.filter((id) => id !== myId);
+    // Every id I gossip with, each exactly once (leaf wins the route).
+    const allGossipIds = () => [...new Set([...gossipIds(), ...upGossipIds()])];
+    const roomIsMulti = () => rowNum > 1 || rosterIds.length >= SCALE.C * SCALE.C
+      || (UP.on && upRosterIds.some((id) => id !== myId));
+    function buildUpUrl() {
+      return relayUrl().replace(/\/$/, '') + '/s/' + UP.sessId + '?role=mesh&token=' + UP.sessTok +
+        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(pwProof) +
+        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+    }
+    function openUpSock() {
+      if (UP.on || !relayUrl()) return;
+      UP.on = true;
+      net.deriveMeetSess(room, av, 'u').then((d) => {
+        if (!UP.on) return; // closed while deriving
+        UP.sessId = d.sid; UP.sessTok = d.tok;
+        UP.ws = net.steadySocket(buildUpUrl);
+        UP.ws.onmessage = (ev) => {
+          let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+          if (m.t === 'roster') {
+            upRosterIds = m.peers || []; upNames = m.names || {};
+            Object.assign(devOf, m.devs || {});
+          } else if (m.t === 'peer' && m.msg) {
+            const piece = UP.defrag(m.msg, 'up|' + m.from);
+            if (!piece) return;
+            rxm(() => net.open(roomE2E, piece).then((inner) => {
+              if (!inner) return;
+              if (inner.kind) onSignal(m.from, inner, m.adm);
+              else if (inner.k) onRemote(m.from, inner);
+            }));
+          }
+          // 'session is full' up here means the depth-2 regime is outgrown —
+          // the recursion (fold of folds) walks parent spaces; see rows.md.
+        };
+      });
+    }
+    function closeUp() {
+      if (!UP.on) return;
+      UP.on = false;
+      try { UP.ws && UP.ws.close(); } catch (e) {}
+      UP.ws = null;
+      upRosterIds = []; upNames = {};
+      for (const [pid, p] of Array.from(peers)) if (p.headless) dropPeer(pid);
+    }
+    // Open exactly when this session's structure says someone upstairs might
+    // need us: I lead a local row (delegate) or I am staged — and the room is
+    // actually multi-session (row 1 filled, or I'm past it, or the parent
+    // space already has others). Close only when the need is provably gone.
+    function reconcileUp() {
+      const want = roomIsMulti() && (amDeacon() || !!myStatus.stg);
+      if (want && !UP.on) openUpSock();
+      if (!want && UP.on) closeUp();
+      if (!UP.on) return;
+      // Link my up-mates (full mesh in the parent space — the depth-2 regime;
+      // the recursion rows the parent space too). Headless unless staged.
+      for (const pid of upGossipIds()) {
+        if (devOf[pid] && devOf[pid] === deviceId()) continue;
+        if (!peers.has(pid) && !rosterIds.includes(pid)) {
+          const p = makePeer(pid, upNames[pid] || null, true);
+          if (iInitiate(pid)) { p.lastKick = Date.now() + Math.random() * 1500; sendOffer(pid); }
+        }
+      }
+      // An up-mate who left the parent space (and isn't a leaf-mate) is gone.
+      for (const [pid, p] of peers) {
+        if (p.headless && !upRosterIds.includes(pid) && !p.absentSince) p.absentSince = Date.now();
+      }
+      syncUpCam();
+    }
+    // The stage's OWN feed rides its uplink edges: stepping up adds my cam
+    // tracks onto every headless pc IN PLACE (a rebuild would strand the far
+    // side's m-lines), stepping down removes them — renegotiated glare-free.
+    function syncUpCam() {
+      const want = !!myStatus.stg;
+      if (!localStream) return;
+      const mineTracks = new Set([...localStream.getTracks(), blurPipe && blurPipe.track].filter(Boolean));
+      for (const [pid, p] of peers) {
+        if (!p.headless || !p.pc) continue;
+        const camSenders = p.pc.getSenders().filter((s) => s.track && !auxSenders.has(s) && mineTracks.has(s.track));
+        if (want && !camSenders.length) {
+          for (const track of localStream.getAudioTracks()) { try { p.pc.addTrack(track, localStream); } catch (e) {} }
+          const vt = sentVideoTrack();
+          if (vt) { try { p.pc.addTrack(vt, localStream); } catch (e) {} }
+          compKick(pid, 'mesh');
+        } else if (!want && camSenders.length) {
+          for (const s of camSenders) { try { p.pc.removeTrack(s); } catch (e) {} }
+          compKick(pid, 'mesh');
+        }
+      }
     }
 
     // ---- admin rooms -----------------------------------------------------------
@@ -1834,6 +1989,7 @@
         }
         if (p.noRoute && peerAway(pid)) { p.noRoute = false; updateTile(pid); }
       }
+      reconcileUp();   // delegates + stage double-home into the parent space
       reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
@@ -2284,12 +2440,13 @@
     // transcripts, file METAS and tombstones reach even a fully P2P-blocked
     // participant. File BODIES never do this (P0/P1 only, by budget policy).
     function sendAll(msg) {
-      // Chat-class frames span the DIRECTORY, not the media set: a row
-      // boundary must never cut a conversation. In-row pairs ride their
-      // DataChannel; everyone else gets the sealed relay envelope. (History
-      // sync ('hi') stays in-row for now; deacon folds will carry it in the
-      // multi-level phase.)
-      for (const pid of gossipIds()) {
+      // Chat-class frames span every directory I can see — my leaf AND the
+      // parent space when I'm uplinked. Delegates re-send what's new on the
+      // other side (forward-on-first-sight in the handlers), and dedupe-by-id
+      // makes the tree loop-proof: a frame crosses each edge at most once
+      // usefully. In-reach pairs ride their DataChannel; everyone else gets
+      // the sealed relay envelope on whichever socket reaches them.
+      for (const pid of allGossipIds()) {
         const p = peers.get(pid);
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, msg);
         else sendSig(pid, msg);
@@ -2376,10 +2533,11 @@
       } else if (m.k === 'comp-own' || m.k === 'comp-stream') {
         // A row composite announced: comp-own rides the deacon mesh (the row's
         // own deacon speaking for its fold), comp-stream is my deacon handing
-        // another row's fold down to me. Re-sent every sweep — idempotent.
-        takeComp(m.row | 0, p.id, m);
+        // another row's fold — or the stage — down to me. Idempotent, re-sent
+        // every sweep. Keys pass RAW: numbers for folds, 's:<pid>' for stage.
+        takeComp(m.row, p.id, m);
       } else if (m.k === 'comp-end') {
-        if ((compOf.get(m.row | 0) || {}).via === p.id) dropComp(m.row | 0);
+        if ((compOf.get(m.row) || {}).via === p.id) dropComp(m.row);
       } else if (m.k === 'rkick') {
         // A composite peer added tracks and needs the pair's initiator (me) to
         // re-offer so its tracks ride the answer. Never re-offer from the
@@ -2767,16 +2925,21 @@
         if (c.stream) continue;
         const viaP = peers.get(c.via);
         if (!viaP || !viaP.incoming) continue;
-        // exact-id mapping only — and never the carrier's own announced feed
-        const found = viaP.incoming.find((st) => st.id === c.streamId && st.id !== viaP.ownSid);
+        // exact-id mapping only — and never the carrier's own announced feed,
+        // EXCEPT a stage entry, where the carrier's own feed IS the payload
+        const found = viaP.incoming.find((st) => st.id === c.streamId && (c.own || st.id !== viaP.ownSid));
         if (!found) continue;
         c.stream = found;
         changed = true;
       }
       if (changed) renderStadium();
     }
+    const compLog = []; // last N composite events — the fold's flight recorder
+    const clog = (ev) => { compLog.push(Date.now() % 100000 + ' ' + ev); if (compLog.length > 60) compLog.shift(); };
     function takeComp(row, via, m) {
-      if (!(row > 0) || via === myId) return;
+      // fold keys are GLOBAL row numbers; stage keys are 's:<pid>' strings
+      clog('take ' + row + ' via ' + String(via).slice(0, 6));
+      if (!(isStageKey(row) || (typeof row === 'number' && row > 0)) || via === myId) return;
       const ids = Array.isArray(m.ids) ? m.ids.slice(0, SCALE.C).map(String) : [];
       const names = Array.isArray(m.names) ? m.names.slice(0, SCALE.C).map((n) => String(n || '').slice(0, 40)) : [];
       const cur = compOf.get(row);
@@ -2791,6 +2954,7 @@
     }
     function dropComp(row) {
       if (!compOf.delete(row)) return;
+      clog('drop ' + row);
       renderStadium();
     }
     function endCompRolesFor(pid) { // pid left or its pc died — every composite role
@@ -2807,25 +2971,54 @@
     // over computeRows(): roles are re-derived, announcements re-sent (the
     // heartbeat idiom — a mapping dropped during a transient row disagreement
     // heals on the next pass), stale jobs torn down.
+    // Local row index ↔ GLOBAL row number: leaves are numbered by the walk,
+    // rows inside them by the arithmetic — row 5 means the same row on every
+    // phone in the room, whichever session it watches from.
+    const gRowOf = (localIdx) => (rowNum - 1) * SCALE.C + localIdx;
+    const isStageKey = (row) => typeof row === 'string' && row.indexOf('s:') === 0;
     function reconcileComp() {
       if (!myId) return;
       const rows = computeRows();
       const mine = myRowIndex();
       const populated = rows.filter((r, i) => i > 0 && r.length).length;
       const kicks = new Map(); // pid -> 'mesh' | 'fwd'
-      // FOLD exactly when someone is watching: another populated row exists.
-      const fold = amDeacon() && populated > 1;
+      // FOLD exactly when someone is watching: another populated row exists
+      // here, or the parent space holds other sessions' delegates.
+      const fold = amDeacon() && (populated > 1 || (UP.on && upGossipIds().length > 0));
       if (fold && !compPipe.on) startComp();
       if (!fold && compPipe.on) stopComp(kicks);
+      // STAGE, seen from the parent space: an up-mate gossiping stg (who is
+      // not a leaf-mate — those are row 0 right here) becomes a row-0 entry
+      // keyed by who they are, claimed from their OWN announced stream.
+      if (UP.on) {
+        for (const pid of upGossipIds()) {
+          const key = 's:' + pid;
+          const st = statusOf.get(pid) || {};
+          const p = peers.get(pid);
+          if (st.stg && !rosterIds.includes(pid) && p && p.ownSid) {
+            const cur = compOf.get(key);
+            if (!cur || cur.streamId !== p.ownSid) {
+              compOf.set(key, { via: pid, streamId: p.ownSid, own: true, ids: [pid], names: [p.name || upNames[pid] || '…'], stream: null });
+              claimCompStreams();
+              renderStadium();
+            }
+          }
+        }
+      }
       if (compPipe.on) {
-        compPipe.row = mine;
+        const g = gRowOf(mine);
+        compPipe.row = g;
         const man = { ids: rows[mine].slice(), names: rows[mine].map((id) => id === myId ? myName() : ((peers.get(id) || {}).name || rosterNames[id] || '…')) };
         // sig tracks the STREAM identity only — manifest changes ride the
         // idempotent re-announce, never a removeTrack/addTrack churn.
-        const sig = compPipe.stream.id + '|' + mine;
-        const announce = { k: 'comp-own', row: mine, streamId: compPipe.stream.id, ids: man.ids, names: man.names };
+        const sig = compPipe.stream.id + '|' + g;
+        const announce = { k: 'comp-own', row: g, streamId: compPipe.stream.id, ids: man.ids, names: man.names };
+        // My fold's audience: the other local rows' deacons (the in-leaf
+        // mesh), plus everyone in the parent space (the depth-2 regime; the
+        // recursion rows that audience too).
         const fellows = new Set();
         rows.forEach((r, i) => { if (i > 0 && i !== mine && r.length) { const d = deaconOf(r); if (d && d !== myId) fellows.add(d); } });
+        if (UP.on) for (const pid of upGossipIds()) fellows.add(pid);
         for (const pid of fellows) {
           const p = peers.get(pid);
           if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
@@ -2835,7 +3028,7 @@
           const senders = [];
           for (const tr of compPipe.stream.getTracks()) { try { senders.push(p.pc.addTrack(tr, compPipe.stream)); } catch (e) {} }
           for (const sd of senders) auxSenders.add(sd);
-          compSent.set(pid, { senders, sig, row: mine });
+          compSent.set(pid, { senders, sig, row: compPipe.row });
           dcSend(p, announce);
           kicks.set(pid, 'mesh');
         }
@@ -2851,15 +3044,43 @@
           compSent.delete(pid);
         }
       }
-      // PRUNE what I display: a composite is only ever delivered by the row's
-      // own deacon (mesh) or by MY deacon (forwarded). Anything else — spoofed,
-      // stale after a re-election, or my own row — dies here within a beat.
+      // PRUNE what I display. In-leaf folds must come from that row's deacon
+      // (or MY deacon, forwarded); foreign folds from a live up-mate (or MY
+      // deacon); stage entries from the staged person themselves (or MY
+      // deacon). Anything else — spoofed, stale after a re-election, my own
+      // row — dies here within a beat and re-announces heal what should live.
+      const myDeacon = mine > 0 ? deaconOf(rows[mine]) : null;
       for (const [row, c] of Array.from(compOf)) {
-        const r = rows[row];
-        const expectVia = amDeacon()
-          ? (r && r.length ? deaconOf(r) : null)
-          : (mine > 0 ? deaconOf(rows[mine]) : null);
-        if (!r || !r.length || row === mine || c.via !== expectVia || !peers.has(c.via)) dropComp(row);
+        let ok = false;
+        if (isStageKey(row)) {
+          const pid = row.slice(2);
+          if (rosterIds.includes(pid)) ok = false; // a leaf-mate on stage is row 0 right here
+          else if (UP.on && upRosterIds.includes(pid)) ok = c.via === pid && !!(statusOf.get(pid) || {}).stg && peers.has(pid);
+          else ok = !!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon();
+        } else {
+          const li = typeof row === 'number' ? row - (rowNum - 1) * SCALE.C : -1;
+          if (li >= 1 && li < rows.length) {
+            const r = rows[li];
+            const expectVia = amDeacon() ? (r && r.length ? deaconOf(r) : null) : myDeacon;
+            ok = r && r.length && li !== mine && c.via === expectVia && peers.has(c.via);
+          } else if (typeof row === 'number' && row > 0) {
+            ok = UP.on ? (upRosterIds.includes(c.via) && peers.has(c.via))
+              : (!!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon());
+          }
+        }
+        if (!ok) { dropComp(row); continue; }
+        // A mapping that stays STREAMLESS means a renegotiation was lost in
+        // an interleave (both ends adding tracks at once). The RECEIVER owns
+        // the retry: kick the pair every few seconds until the tracks land.
+        if (!c.stream) {
+          const vp = peers.get(c.via);
+          c.since = c.since || Date.now();
+          if (vp && vp.connected && vp.dc && vp.dc.readyState === 'open'
+              && Date.now() - c.since > 5000 && Date.now() - (c.kickAt || 0) > 5000) {
+            c.kickAt = Date.now();
+            compKick(c.via, 'mesh');
+          }
+        } else c.since = 0;
       }
       // FORWARD DOWN: as deacon, every fold I hold rides down to every member.
       const carrying = amDeacon() && mine > 0;
@@ -2903,13 +3124,15 @@
     // it (the layout manifest — attribution survives the fold). Hidden when
     // empty: a one-row room shows exactly today's screen.
     function renderStadium() {
-      for (const el of Array.from(stadiumEl.children)) if (!compOf.has(+el.dataset.row)) el.remove();
+      const have = new Set(Array.from(compOf.keys()).map(String));
+      for (const el of Array.from(stadiumEl.children)) if (!have.has(el.dataset.row)) el.remove();
       for (const [row, c] of compOf) {
-        let el = stadiumEl.querySelector('[data-row="' + row + '"]');
+        const stage = isStageKey(row);
+        let el = stadiumEl.querySelector('[data-row="' + String(row) + '"]');
         if (!el) {
           el = document.createElement('div');
-          el.className = 'rowtile';
-          el.dataset.row = row;
+          el.className = 'rowtile' + (stage ? ' stagetile' : '');
+          el.dataset.row = String(row);
           const v = document.createElement('video');
           v.autoplay = true; v.playsInline = true;
           const lb = document.createElement('div');
@@ -2917,13 +3140,15 @@
           el.appendChild(v); el.appendChild(lb);
           stadiumEl.appendChild(el);
         }
-        el.style.order = row;
+        el.style.order = stage ? -1 : row; // the stage leads the strip
         const v = el.querySelector('video');
         if (c.stream && v.srcObject !== c.stream) {
           v.srcObject = c.stream;
           const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
         }
-        el.querySelector('.rlabel').textContent = 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
+        el.querySelector('.rlabel').textContent = stage
+          ? '🎙 ' + (c.names || []).join(', ') + ' — on stage'
+          : 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
       }
       stadiumEl.classList.toggle('on', compOf.size > 0);
       applyBuses(); // fresh stadium tiles pick up the Crowd fader immediately
@@ -2983,7 +3208,10 @@
         // stage nor my row — deacon-mesh partners, forwarded folds — is crowd
         p.video.volume = stg.has(pid) ? mix.stage : mates.has(pid) ? mix.row : mix.stadium;
       }
-      for (const el of stadiumEl.querySelectorAll('video')) el.volume = mix.stadium;
+      // strip tiles: forwarded stage entries are Stage, folds are Crowd
+      for (const el of stadiumEl.querySelectorAll('.rowtile video')) {
+        el.volume = el.closest('.stagetile') ? mix.stage : mix.stadium;
+      }
     }
     const mixPanel = document.getElementById('mixpanel');
     document.getElementById('mixbtn').onclick = () => {
@@ -3701,7 +3929,7 @@
     function stopRoomApp(ad) {
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
-      for (const pid of gossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
+      for (const pid of allGossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
       setStatus('🧩 You stopped the shared app for everyone here.');
       reconcileApp();
     }
@@ -3901,6 +4129,9 @@
       compActive: () => !!compPipe.on,
       compSentTo: () => Array.from(compSent.keys()),
       compFwdJobs: () => fwdComp.size,
+      compFwdKeys: () => Array.from(fwdComp.keys()).map(String),
+      compLog: () => compLog.slice(-40),
+      compSentKeys: () => Array.from(compSent.keys()),
       stadium: () => Array.from(compOf.entries())
         .map(([row, c]) => ({ row, via: c.via, ids: (c.ids || []).slice(), names: (c.names || []).slice(), live: !!c.stream }))
         .sort((a, b) => a.row - b.row),
@@ -3908,6 +4139,9 @@
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
       // multi-session rows
       rowNum: () => rowNum,
+      upOn: () => UP.on,
+      upRoster: () => upRosterIds.slice(),
+      totalCount: () => myStatus.tot || 0,
       // stage + buses
       stageIds: () => stageIds(),
       onStage: () => stageIds().includes(myId),
