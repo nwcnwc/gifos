@@ -101,6 +101,15 @@
   .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
     font-size: .65rem; color: var(--text, #e0e0f0); background: rgba(10,10,15,.7);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* On stage: the tile floats first and wears the accent — the whole room's
+     eye line. The three-bus mix panel is a personal knob rack (receiver-side
+     volume only — as ungovernable as any volume knob). */
+  .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
+  #mixpanel { position: fixed; right: 12px; bottom: 64px; z-index: 40; display: flex; flex-direction: column;
+    gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
+    border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
+  #mixpanel label { display: flex; align-items: center; justify-content: space-between; gap: .6rem; color: var(--text, #e0e0f0); }
+  #mixpanel input[type=range] { width: 120px; }
   /* App-in-meeting: the shared app fills the stage; participant tiles shrink to
      a scrolling filmstrip along the bottom so everyone stays visible. */
   #apppane { display: none; flex-direction: column; flex: 1; min-height: 0; }
@@ -330,6 +339,8 @@
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="admbtn" title="Room admin controls">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
+    <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
+    <button id="mixbtn" title="Your personal sound mix: the stage, your row, and the crowd">Mix</button>
     <button id="chatbtn" title="Chat and share files — stays between the people on this meeting, never on a server">Chat</button>
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
@@ -356,6 +367,12 @@
   </div>
   <div id="stadium"></div>
   <div id="grid"></div>
+  <div id="mixpanel" style="display:none">
+    <b>Sound mix</b>
+    <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
+    <label>My row <input type="range" id="mix-row" min="0" max="100" value="100"></label>
+    <label>Crowd <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
+  </div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
   <div class="name-modal" id="app-modal" style="display:none">
@@ -588,7 +605,25 @@
     // machinery; empty until someone steps up), everyone else first-fit in
     // sorted-id order, C per row. Every client computes the identical map
     // from the identical roster — no coordinator, no gossip, no state.
-    const stageIds = () => []; // row-0 membership (the stage tasks fill this in)
+    //
+    // THE STAGE is pure derived bookkeeping too: stepping up just gossips a
+    // timestamp (myStatus.stg) and every phone computes the same row 0 —
+    // seats in step-up order, capped at C, and in admin rooms filtered to
+    // admins + grantees (the same moderation-table grant that gates apps; an
+    // admin revoking it pulls the person off stage everywhere by arithmetic).
+    // A DOM hacker can set their own flag, but every RECEIVER runs this
+    // filter — the open/admin room principle, unchanged.
+    const canStage = (id) => !hasAdminRoom() || admins.includes(id) || !!(modOf(id).app && modOf(id).app.on);
+    const stageIds = () => {
+      const stgOf = (id) => (id === myId ? (myStatus.stg || 0) : ((statusOf.get(id) || {}).stg || 0));
+      const out = [];
+      for (const id of new Set([myId, ...rosterIds])) {
+        if (!id) continue;
+        const t = stgOf(id);
+        if (t && canStage(id)) out.push([id, t]);
+      }
+      return out.sort((a, b) => (a[1] - b[1]) || (a[0] < b[0] ? -1 : 1)).slice(0, SCALE.C).map((x) => x[0]);
+    };
     // The room DIRECTORY: everyone on the roster, whether or not we hold a
     // media link to them. Gossip (status, moderation, chat fallback) spans the
     // directory over the relay; MEDIA spans only the row (docs/rows.md).
@@ -907,6 +942,7 @@
       if (!isMe && peerAway(id)) chips.push('<span>⏾ stepped away — screen off or in another app; waiting for them</span>');
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
       else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
+      if (stageIds().includes(isMe ? myId : id)) chips.push('<span>🎙 on stage</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
@@ -958,12 +994,16 @@
       for (const pid of peers.keys()) collect(pid, statusOf.get(pid));
       hands.sort((a, b) => a[1] - b[1]);
       const rank = new Map(hands.map((h, i) => [h[0], i]));
+      const stg = stageIds(); // row 0 floats first, in step-up order
       const apply = (id, t) => {
         const focused = focusId === id;
         t.tile.classList.toggle('focus', focused);
         const mb = t.tile.querySelector('.maxbtn');
         if (mb) { mb.textContent = focused ? '⤡' : '⤢'; mb.title = focused ? 'Back to the grid' : 'Make this the focus feed'; }
+        const si = stg.indexOf(id === 'me' ? myId : id);
+        t.tile.classList.toggle('onstage', si >= 0);
         let o = rank.has(id) ? -5000 + rank.get(id) : 0;
+        if (si >= 0) o = -60000 + si;             // the stage outranks raised hands
         if (id !== 'me' && t.noRoute) o = 100000; // unreachable → gracefully sink to the bottom
         if (focused) o = -100000;                 // …unless you chose to focus them anyway
         t.tile.style.order = o;
@@ -1773,6 +1813,8 @@
         if (p.noRoute && peerAway(pid)) { p.noRoute = false; updateTile(pid); }
       }
       reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
+      applyBuses();    // bus membership follows the same arithmetic
+      paintStage();    // remote grants/roster moves can change my stage rights
       updateStatus();
     }, 2000);
 
@@ -2862,6 +2904,7 @@
         el.querySelector('.rlabel').textContent = 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
       }
       stadiumEl.classList.toggle('on', compOf.size > 0);
+      applyBuses(); // fresh stadium tiles pick up the Crowd fader immediately
     }
 
     // ---- hand raise: float to the top in the order hands went up --------------
@@ -2873,6 +2916,66 @@
       broadcastStatus();
       layout();
     };
+
+    // ---- the stage: step up / step down (docs/rows.md governance table) -------
+    // Open room: anyone, while seats remain — attributed, like everything.
+    // Admin room: admins + grantees (the same grant that gates apps). Stepping
+    // down is everyone's right, always. The button only VOICES the rule; the
+    // enforcement lives in every receiver's stageIds() filter.
+    const stageBtn = document.getElementById('stagebtn');
+    function paintStage() {
+      const on = !!myStatus.stg && stageIds().includes(myId);
+      stageBtn.classList.toggle('on', on);
+      stageBtn.textContent = on ? 'Step down' : 'Stage';
+      stageBtn.style.display = (!hasAdminRoom() || amAdmin || (modOf(myId).app && modOf(myId).app.on) || myStatus.stg) ? '' : 'none';
+    }
+    function setStage(on) {
+      myStatus.stg = on ? Date.now() : 0;
+      paintStage();
+      broadcastStatus();
+      refreshAllTiles();
+      applyBuses();
+    }
+    stageBtn.onclick = () => {
+      if (myStatus.stg) { setStage(false); return; }
+      if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can take the stage here.'); return; }
+      if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
+      setStage(true);
+    };
+
+    // ---- audio: three buses, receiver-side (docs/rows.md) ---------------------
+    // Stage / Row / Stadium are a grouping by LINK CLASS, not a sender tag:
+    // your three faders are your own volume knobs, as ungovernable as any.
+    // Degenerate by arithmetic: in a one-row room nothing is on stage and
+    // nothing is folded, so only "My row" moves anything — the faders exist
+    // at every size and start meaning something when the room grows.
+    const MIX_KEY = 'gifos_mix';
+    const mix = Object.assign({ stage: 1, row: 1, stadium: 1 }, (() => {
+      try { return JSON.parse(localStorage.getItem(MIX_KEY) || '{}'); } catch (e) { return {}; }
+    })());
+    function applyBuses() {
+      const stg = new Set(stageIds());
+      const mates = new Set(rowMates());
+      for (const [pid, p] of peers) {
+        // stage first (a staged row mate is Stage); everything that is neither
+        // stage nor my row — deacon-mesh partners, forwarded folds — is crowd
+        p.video.volume = stg.has(pid) ? mix.stage : mates.has(pid) ? mix.row : mix.stadium;
+      }
+      for (const el of stadiumEl.querySelectorAll('video')) el.volume = mix.stadium;
+    }
+    const mixPanel = document.getElementById('mixpanel');
+    document.getElementById('mixbtn').onclick = () => {
+      mixPanel.style.display = mixPanel.style.display === 'none' ? 'flex' : 'none';
+    };
+    for (const bus of ['stage', 'row', 'stadium']) {
+      const inp = document.getElementById('mix-' + bus);
+      inp.value = Math.round(mix[bus] * 100);
+      inp.addEventListener('input', () => {
+        mix[bus] = Math.max(0, Math.min(1, inp.value / 100));
+        try { localStorage.setItem(MIX_KEY, JSON.stringify(mix)); } catch (e) {}
+        applyBuses();
+      });
+    }
 
     // ---- live transcript: each phone transcribes ITS OWN speaker -------------
     // The browser's speech engine hears only this device's microphone; final
@@ -3781,6 +3884,15 @@
         .sort((a, b) => a.row - b.row),
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
+      // stage + buses
+      stageIds: () => stageIds(),
+      onStage: () => stageIds().includes(myId),
+      setStageForTest: (on) => setStage(!!on),
+      canStageNow: () => canStage(myId),
+      mix: () => Object.assign({}, mix),
+      setMix: (bus, v) => { mix[bus] = v; applyBuses(); },
+      tileVolume: (pid) => { const p = peers.get(pid); return p ? p.video.volume : null; },
+      stadiumVolume: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return el ? el.volume : null; },
       appWinner: () => { const w = findSharedApp(); return w ? w.s : null; },
       appSharerName: () => { const w = findSharedApp(); return w ? (w.byName || null) : null; },
       appHidden: () => appHiddenSid,
