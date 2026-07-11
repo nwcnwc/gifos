@@ -101,6 +101,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('chat: a line from leaf 1 reaches every phone in every leaf (delegate bridge, deduped)', chatOk);
 
+  // ---- the hand queue folds up the tree ------------------------------------
+  const statesH = await Promise.all(pages.map(st));
+  const hIdx = statesH.findIndex((s) => s.row === 2);
+  await pages[hIdx].evaluate(() => window.__gifosVideo.raiseHand(true));
+  let hqOk = true;
+  for (const p of pages) {
+    const ok = await p.waitForFunction(() => window.__gifosVideo.handQueue().length === 1 && window.__gifosVideo.handqShown(), null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (!ok) hqOk = false;
+  }
+  check('hands: a raise in the spill leaf reaches every phone as ONE ordered queue', hqOk);
+  await pages[hIdx].evaluate(() => window.__gifosVideo.raiseHand(false));
+  let hqClear = true;
+  for (const p of pages) {
+    const ok = await p.waitForFunction(() => window.__gifosVideo.handQueue().length === 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (!ok) hqClear = false;
+  }
+  check('hands: lowering clears the queue everywhere (entries expire unless re-asserted)', hqClear);
+
+  // ---- zoom = pick your depth (a folded row grows on tap) ------------------
+  const zoomOk = await pages[0].evaluate(() => {
+    const v = window.__gifosVideo;
+    const s = v.stadium()[0];
+    if (!s) return false;
+    const grew = v.zoomRow(s.row);
+    const back = !v.zoomRow(s.row);
+    return grew && back;
+  });
+  check('zoom: a stadium tile grows on tap and hands the space back on the next', zoomOk);
+
   // ---- the stage crosses sessions -----------------------------------------
   const states2 = await Promise.all(pages.map(st)); // fresh: lingers have settled
   const spillIdx = states2.findIndex((s) => s.row === 2 && !s.up); // a plain member of leaf 2

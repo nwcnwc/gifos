@@ -106,6 +106,12 @@
      volume only — as ungovernable as any volume knob). */
   .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
   .rowtile.stagetile { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
+  /* Zoom = pick your depth: a tapped stadium tile grows to a readable size
+     (and back). The global hand queue reads as one ordered line. */
+  .rowtile.zoom { width: min(560px, 72vw); }
+  #handq { display: none; padding: 6px 10px 0; font-size: .8rem; color: var(--text, #e0e0f0); }
+  #handq.on { display: block; }
+  #handq b { color: var(--accent, #b9a5ff); }
   #mixpanel { position: fixed; right: 12px; bottom: 64px; z-index: 40; display: flex; flex-direction: column;
     gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
     border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
@@ -366,6 +372,7 @@
     </div>
     <div id="appmount"></div>
   </div>
+  <div id="handq"></div>
   <div id="stadium"></div>
   <div id="grid"></div>
   <div id="mixpanel" style="display:none">
@@ -696,8 +703,11 @@
       myStatus.leaf = rowNum;
       myStatus.cnt = Math.max(1, rosterIds.length);
       // ONLY delegates assert a room total — a member re-broadcasting an
-      // adopted tot would echo a stale number back and forth forever.
+      // adopted tot would echo a stale number back and forth forever. The
+      // hand queue folds the same way: delegates alone re-assert it upward
+      // and downward; members contribute through their own st.hand.
       myStatus.tot = UP.on ? (knownTotal() || 0) : 0;
+      myStatus.hq = UP.on ? handQueue().slice(0, 20) : undefined;
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
@@ -1476,7 +1486,40 @@
       const cur = statusOf.get(from);
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
       statusOf.set(from, st);
+      // THE HAND QUEUE folds up the tree: a delegate's status carries the
+      // ordered hands it can see; receivers absorb them with a freshness
+      // stamp (an entry not re-asserted for 12s was lowered somewhere).
+      // Echo-safety: entries carry their ORIGIN leaf, and a fellow delegate
+      // only absorbs what the sender is authoritative for (its own leaf) —
+      // otherwise two foreign delegates would refresh a lowered hand between
+      // themselves forever. Members absorb everything; they never re-gossip.
+      if (Array.isArray(st.hq)) {
+        for (const e of st.hq.slice(0, 20)) {
+          if (!e || !e.i || e.i === myId) continue;
+          if (UP.on && (e.l || 0) !== (st.leaf || 0)) continue;
+          handSeen.set(String(e.i), { t: +e.t || 0, name: String(e.n || '…').slice(0, 40), leaf: e.l || 0, seen: Date.now() });
+        }
+      }
       return true;
+    }
+    // One global, ordered hand-raise queue (docs/rows.md): local hands are
+    // ground truth for my leaf; everything beyond arrives folded through
+    // delegates and expires unless re-asserted. Every phone derives the same
+    // order — raise time, then id — however deep the room grows.
+    const handSeen = new Map(); // pid -> { t, name, leaf, seen } (foreign hands)
+    function handQueue() {
+      const q = new Map();
+      const now = Date.now();
+      for (const [pid, h] of handSeen) if (now - h.seen < 12000) q.set(pid, { i: pid, t: h.t, n: h.name, l: h.leaf });
+      for (const pid of rosterIds) {
+        if (pid === myId) continue;
+        const st = statusOf.get(pid) || {};
+        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…', l: rowNum });
+        else q.delete(pid); // leaf truth beats a stale fold
+      }
+      if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName(), l: rowNum });
+      else q.delete(myId);
+      return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
     }
     function learn(from, msg, p, adm) {
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
@@ -2046,8 +2089,17 @@
       reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
+      renderHandq();   // the room-wide hand queue, freshest fold wins
       updateStatus();
     }, 2000);
+    const handqEl = document.getElementById('handq');
+    function renderHandq() {
+      const q = handQueue();
+      handqEl.classList.toggle('on', q.length > 0);
+      if (!q.length) { handqEl.textContent = ''; return; }
+      const names = q.slice(0, 8).map((e, i) => (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)));
+      handqEl.innerHTML = '✋ ' + q.length + ' waiting: ' + names.join(', ') + (q.length > 8 ? ', +' + (q.length - 8) : '');
+    }
 
     // If the tab was backgrounded long enough for the OS to kill the camera,
     // grab it again and swap the fresh tracks into every live link.
@@ -3254,6 +3306,9 @@
           const lb = document.createElement('div');
           lb.className = 'rlabel';
           el.appendChild(v); el.appendChild(lb);
+          // zoom = pick your depth: tap a folded row to grow it, tap again to
+          // hand the space back to the strip
+          el.addEventListener('click', () => el.classList.toggle('zoom'));
           stadiumEl.appendChild(el);
         }
         el.style.order = stage ? -1 : row; // the stage leads the strip
@@ -4260,6 +4315,10 @@
       upOn: () => UP.on,
       upRoster: () => upRosterIds.slice(),
       totalCount: () => myStatus.tot || 0,
+      handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
+      handqShown: () => handqEl.classList.contains('on'),
+      raiseHand: (on) => { myStatus.hand = on ? Date.now() : null; broadcastStatus(); layout(); },
+      zoomRow: (row) => { const el = stadiumEl.querySelector('[data-row="' + String(row) + '"]'); if (el) el.classList.toggle('zoom'); return !!el && el.classList.contains('zoom'); },
       // stage + buses
       stageIds: () => stageIds(),
       onStage: () => stageIds().includes(myId),
