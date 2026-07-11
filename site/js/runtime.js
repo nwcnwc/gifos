@@ -643,6 +643,17 @@
   const capEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const CAP_FOR = { audio: 'microphone', video: 'camera', photo: 'camera' };
   const hasCap = (manifest, cap) => !!(manifest && manifest.capabilities && manifest.capabilities[cap]);
+  // A capability the manifest declares can still be turned OFF by the user, per
+  // app, from run.html's Abilities panel — stored as a list of vetoed cap names
+  // under gifos_capoff_<appId>. The brokers below honour it, so unchecking "Use
+  // your AI" (or mic/camera/API/agent) actually stops the app from using it.
+  function capOff(manifest) {
+    try { const id = (manifest && manifest.appId) || 'app';
+      const v = JSON.parse(root.localStorage.getItem('gifos_capoff_' + id) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  const capDisabled = (manifest, cap) => capOff(manifest).indexOf(cap) >= 0;
+  const CAP_OFF_MSG = (what) => 'You turned ' + what + ' off for this app. Turn it back on in the Abilities panel (the chip at the top of the app’s tab).';
   function captureOverlay(label, kind, onStop) {
     const doc = root.document;
     const bg = doc.createElement('div');
@@ -677,6 +688,7 @@
     const kind = d.media === 'video' ? 'video' : d.media === 'photo' ? 'photo' : 'audio';
     const cap = CAP_FOR[kind];
     if (!hasCap(manifest, cap)) return Promise.reject(new Error('This app did not declare the "' + cap + '" capability.'));
+    if (capDisabled(manifest, cap)) return Promise.reject(new Error(CAP_OFF_MSG(cap === 'microphone' ? 'the microphone' : 'the camera')));
     const nav = root.navigator;
     if (!(nav && nav.mediaDevices && nav.mediaDevices.getUserMedia)) return Promise.reject(new Error('No ' + cap + ' available here.'));
     const wantVideo = kind !== 'audio';
@@ -751,6 +763,7 @@
   function bufToB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
   function brokerAI(manifest, d) {
     if (!hasCap(manifest, 'ai')) return Promise.reject(new Error('This app did not declare the "ai" capability.'));
+    if (capDisabled(manifest, 'ai')) return Promise.reject(new Error(CAP_OFF_MSG('AI')));
     const cfg = aiConfig();
     if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && cfg[k].url) });
     const role = d.op === 'chat' ? (d.model === 'smartest' ? 'smartest' : 'cheapest') : d.op;
@@ -885,6 +898,7 @@
   function brokerApi(manifest, d) {
     const name = d.name;
     if (!name || !apiAllowed(manifest, name)) return Promise.reject(new Error('This app did not declare the "' + name + '" third-party API in its manifest.'));
+    if (capDisabled(manifest, 'api')) return Promise.reject(new Error(CAP_OFF_MSG('your third-party accounts')));
     const c = apiConfig()[name];
     if (!c || !c.url) { showSystemSetup({ kind: 'api', name: name, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:' + name)); }
     let baseOrigin;
@@ -943,6 +957,7 @@
   // KEY never enters the sandbox. Gated by the `agent` capability.
   function brokerAgentChat(manifest, d) {
     if (!hasCap(manifest, 'agent')) return Promise.reject(new Error('This app did not declare the "agent" capability.'));
+    if (capDisabled(manifest, 'agent')) return Promise.reject(new Error(CAP_OFF_MSG('the AI assistant')));
     const c = aiConfig().smartest;
     if (!c || !c.url) { showSystemSetup({ kind: 'ai', role: 'smartest' }); return Promise.reject(new Error('NOT_CONFIGURED:ai:smartest')); }
     const url = aiEndpoint(c, 'chat');
@@ -1048,7 +1063,7 @@
     // Motion sensors are delegated to the sandbox via the iframe allow-policy
     // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
     // those are captured by the trusted parent and handed back as clips.
-    if (hasCap(manifest, 'motion')) { try { iframe.setAttribute('allow', 'gyroscope; accelerometer; magnetometer'); } catch (e) {} }
+    if (hasCap(manifest, 'motion') && !capDisabled(manifest, 'motion')) { try { iframe.setAttribute('allow', 'gyroscope; accelerometer; magnetometer'); } catch (e) {} }
     iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
   }
