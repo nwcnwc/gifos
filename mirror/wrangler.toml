@@ -54,3 +54,7 @@ zone_name = "gifos.app"
 [[routes]]
 pattern = "davidwelk.gifos.app/*"
 zone_name = "gifos.app"
+# Named computer: Orrery — a live moving solar system (WebGL)
+[[routes]]
+pattern = "orrery.gifos.app/*"
+zone_name = "gifos.app"
