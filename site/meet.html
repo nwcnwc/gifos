@@ -4567,6 +4567,11 @@
       upOn: () => UP.on,
       upNum: () => UP.num,
       up2On: () => UP2.on,
+      deepState: () => {
+        const aud2x = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid) && !rosterIds.includes(pid)) : [];
+        const ds = spaceRows(UP).filter((r, i) => i > 0 && r.length).map((r) => deaconOf(r)).filter(Boolean).sort();
+        return { up2: UP2.on, aud2: aud2x.map((x) => String(x).slice(0, 6)), ann: String(ds[0] || '').slice(0, 6), me: String(myId || '').slice(0, 6), upN: UP.roster.length, up2N: UP2.roster.length, bOn: bPipe.on };
+      },
       up2Roster: () => UP2.roster.slice(),
       branchActive: () => !!bPipe.on,
       upRoster: () => UP.roster.slice(),
