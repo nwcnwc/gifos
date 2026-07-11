@@ -1152,7 +1152,7 @@ opens the built-in meeting page when opened in GifOS.</p>
     hbTimer=setInterval(function(){ if(document.visibilityState!=='hidden') heartbeat(); }, 15000);
     heartbeat(); }  // set the guard BEFORE the first beat so a sync notify can't re-enter
   // Publish where I am so followers come along. Only called when I'm following.
-  function pushNav(url, frac){ if(db&&me.id) db.put({id:'nav', url:url, scroll:(frac==null?scrollFrac():frac), by:me.id, byName:myName(), ts:Date.now()}); }
+  function pushNav(url, frac){ if(db&&me.id) Promise.resolve(db.put({id:'nav', url:url, scroll:(frac==null?scrollFrac():frac), by:me.id, byName:myName(), ts:Date.now()})).catch(function(){ /* a led room: the reader drives; I just browse alone */ }); }
   function updateFollowUi(){ if(!followB) return;
     followB.style.display = shared ? '' : 'none';
     followB.classList.toggle('on', follow);
@@ -1597,7 +1597,7 @@ document.getElementById('f').onsubmit=async e=>{
         app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] } }),
         // Reads the Recovery Version through the GifOS CORS proxy — a live demo
         // of gifos.fetch({ proxy:true }) against a real, public, non-CORS site.
-        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] } }),
+        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] }, ledRecords: ['nav'] }),
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),

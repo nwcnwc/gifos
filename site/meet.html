@@ -204,6 +204,9 @@
   body.admroom.notadmin .modbar { display: none !important; }
   .modbar .banbtn { display: none; }
   body.amadmin .modbar .banbtn { display: inline-block; }
+  /* The app grant only means something in an admin room, from an admin. */
+  .modbar .grantbtn { display: none; }
+  body.admroom.amadmin .modbar .grantbtn { display: inline-block; }
   #adm-banned { max-height: 150px; overflow-y: auto; margin: .5rem 0; text-align: left; font-size: .8rem; }
   #adm-banned .brow { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid var(--surface, #1c1c2b); }
   #adm-banned .brow button { padding: .15rem .5rem; font-size: .72rem; border-radius: .35rem;
@@ -320,6 +323,8 @@
     <div id="appbar">
       <span id="appname">App</span>
       <span id="appwho"></span>
+      <button id="applead" style="display:none"></button>
+      <button id="apphide" style="display:none" title="Hide this app on my screen only — the meeting keeps sharing it">Hide</button>
       <button id="appstop" title="Stop sharing this app with the meeting">Stop app</button>
     </div>
     <div id="appmount"></div>
@@ -600,7 +605,7 @@
       let changed = false;
       for (const target in incoming || {}) {
         const mine = modTable[target] = modTable[target] || {};
-        for (const field of ['mute', 'blur', 'cam']) {
+        for (const field of ['mute', 'blur', 'cam', 'app']) {
           const inc = incoming[target][field];
           if (!inc) continue;
           // The TARGET cannot lift a restriction the group put on them —
@@ -613,6 +618,9 @@
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
+      // The 'app' right only exists in admin rooms (open rooms let everyone
+      // run apps already), and only admins hand it out.
+      if (field === 'app' && (!hasAdminRoom() || !amAdmin)) return;
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
@@ -768,6 +776,7 @@
         modbar = document.createElement('div');
         modbar.className = 'modbar';
         modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>'
+          + '<button class="grantbtn" data-mod="app" title="Let this person run and lead apps in your room"></button>'
           + '<button class="banbtn" data-adm="ban" title="Ban this person&#39;s device from the room">Ban</button>';
         modbar.addEventListener('click', (e) => {
           if (e.target.dataset.adm === 'ban') {
@@ -817,6 +826,7 @@
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (gCam) chips.push('<span class="warn">📷 video off for everyone by ' + esc(mod.cam.by) + '</span>');
       else if (st.camOff) chips.push('<span>📷 camera off</span>');
+      if (hasAdminRoom() && mod.app && mod.app.on && !admins.includes(id)) chips.push('<span>🧩 may run apps — allowed by ' + esc(mod.app.by) + '</span>');
       // vote-off progress (non-admin rooms): show how close a tile is to removal
       const dv = devOf[id];
       if (!isMe && voteNeed && dv && voteTally[dv]) chips.push('<span class="warn">🗳 ' + voteTally[dv] + '/' + voteNeed + ' to remove</span>');
@@ -834,6 +844,7 @@
         if (t.modbar) {
           t.modbar.children[0].textContent = gMute ? 'Unmute for everyone' : 'Mute for everyone';
           t.modbar.children[1].textContent = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
+          t.modbar.children[2].textContent = (mod.app && mod.app.on) ? 'Revoke app rights' : 'Allow apps';
         }
       } else if (gMute && localStream) {
         // the group muted ME: cut the source too, not just everyone's speakers
@@ -1315,6 +1326,18 @@
         if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
       } else if (msg.kind === 'mod') {
         if (!hasAdminRoom() || adm) mergeMod(msg.mod);
+      } else if (msg.kind === 'appstop') {
+        // Someone stopped the room's app. Open room: anyone's word counts
+        // (anarchy, attributed). Admin room: only a relay-stamped admin
+        // envelope counts — gossip can't fake the authority.
+        if (hasAdminRoom() && !adm) return;
+        const sid = String(msg.s || ''); if (!sid) return;
+        // Clamp the clock so a hostile 'at' can't tombstone all future re-shares.
+        const at = Math.min(+msg.at || Date.now(), Date.now() + 60000);
+        const cur = appStops.get(sid);
+        if (!cur || at > cur.at) appStops.set(sid, { at, by: String(msg.by || '').slice(0, 40) });
+        if (appKey === sid && !(myStatus.app && myStatus.app.s === sid)) setStatus('🧩 ' + esc(msg.by || 'Someone') + ' stopped the shared app.');
+        reconcileApp();
       }
     }
 
@@ -2974,10 +2997,38 @@
     // join info rides the SAME status heartbeat that keeps the room converged,
     // so late joiners pick it up automatically. This is the second entry point
     // to the exact same place as an app tab's "Meeting" toggle.
+    //
+    // GOVERNANCE (the room principle: anarchy is unavoidable in open rooms —
+    // so DOM hackers get no edge over the honest buttons — and complete
+    // control in admin rooms):
+    //   run    open: anyone · admin: admins + people they granted ('app' mod)
+    //   winner ONE app, deterministically: newest authorized ad (ts, then
+    //          peer-id) that isn't tombstoned — the room can never split
+    //   stop   open: anyone, attributed + reversible (sharer just re-shares)
+    //          admin: sharer or a relay-stamped admin
+    //   hide   everyone, always — personal opt-out, commandeers nobody
+    //   lead   the sharer's toggle over the app's manifest-declared ledRecords,
+    //          enforced in the SHARER'S OWN runtime (host-authoritative — the
+    //          one place no remote DOM hack can reach). Open rooms default
+    //          communal; admin rooms default leading.
     const appMountEl = document.getElementById('appmount');
-    let appMode = null;   // 'host' | 'client' | null
-    let appKey = null;    // sid of the app session currently mounted here
-    myStatus.app = null;  // { s, k, relay, name } when THIS phone is sharing an app
+    let appMode = null;      // 'host' | 'client' | null
+    let appKey = null;       // sid of the app session currently mounted here
+    let appHiddenSid = null; // personal opt-out: this sid stays off MY stage only
+    let appLeadSet = null, appLeadOn = false, appLeadable = false; // sharer's led-records switch
+    myStatus.app = null;     // { s, k, relay, name, ts, byName } while THIS phone shares
+    // Room-wide stop tombstones: sid -> { at, by }. An ad older than its stop
+    // is dead everywhere; a deliberate re-share (fresh ts) walks right back in.
+    const appStops = new Map();
+
+    // Who may put an app on this room's stage?
+    function appAllowed(pid) {
+      if (!hasAdminRoom()) return true;
+      if (admins.includes(pid)) return true;
+      const g = modTable[pid] && modTable[pid].app;
+      return !!(g && g.on);
+    }
+    const canIRunApp = () => !!myId && appAllowed(myId);
 
     function showAppPane(name, who) {
       document.body.classList.add('has-app');
@@ -2991,56 +3042,161 @@
     }
     async function runApp(fileId, name) {
       if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
+      if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
       try {
         const rec = await GifOS.store.getFile(fileId);
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
         showAppPane(name, '· you are hosting it for the meeting');
         const ctl = await GifOS.runtime.boot(appMountEl, fileId, null);
-        if (ctl && ctl.becomeHost) await ctl.becomeHost({ lifetime: 'forever', resilient: true });
+        // Admin rooms: the sharer LEADS by default (their runtime fences the
+        // app's led records). Open rooms: communal by default — today's warmth.
+        const lead = hasAdminRoom();
+        const r = (ctl && ctl.becomeHost) ? await ctl.becomeHost({ lifetime: 'forever', resilient: true, lead }) : null;
         const sess = await GifOS.store.getState(fileId + '::session');
         if (!sess || !sess.sid) throw new Error('app session did not start');
         appKey = sess.sid;
-        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name };
+        appLeadSet = (r && r.setLead) || null;
+        appLeadable = !!(r && r.ledCount);
+        appLeadOn = lead && appLeadable;
+        if (appLeadSet) appLeadSet(appLeadOn);
+        appHiddenSid = null;
+        // ts outbids any standing tombstone for this sid — a re-share is a
+        // deliberate act and must win even against a skewed stopper's clock.
+        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name,
+          ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
         broadcastStatus();
+        reconcileApp();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
     }
     function mountClientApp(app) {
       appMode = 'client'; appKey = app.s;
-      showAppPane(app.name, '· shared with the meeting');
+      showAppPane(app.name, '· shared with the meeting' + (app.byName ? ' by ' + app.byName : ''));
       try { GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {}); }
       catch (e) { clearAppView(); }
     }
-    function stopApp() {
-      const wasHost = appMode === 'host';
+    function stopApp() { // withdraw MY OWN share
+      const wasHost = appMode === 'host' || !!myStatus.app;
       myStatus.app = null;
+      appLeadSet = null; appLeadable = false; appLeadOn = false;
       clearAppView();
       if (wasHost) broadcastStatus(); // tell the room the shared app is gone
+      reconcileApp(); // someone else's share may be waiting underneath
     }
+    // Stop the ROOM's app (not mine): open rooms — anyone, attributed, and
+    // reversible (the sharer can just re-share); admin rooms — admins only,
+    // verified receiver-side via the relay's adm stamp.
+    function stopRoomApp(ad) {
+      const at = Date.now();
+      appStops.set(ad.s, { at, by: myName() });
+      for (const pid of peers.keys()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
+      setStatus('🧩 You stopped the shared app for everyone here.');
+      reconcileApp();
+    }
+    // ONE app wins everywhere, deterministically: the newest AUTHORIZED ad
+    // (timestamp, then peer id) that isn't tombstoned. Every phone computes
+    // this identically, so the room can never split between two shares.
     function findSharedApp() {
-      if (myStatus.app) return myStatus.app;
-      for (const st of statusOf.values()) if (st && st.app && st.app.s) return st.app;
-      return null;
+      let best = null, bestPid = '';
+      const consider = (pid, ad) => {
+        if (!ad || !ad.s || !appAllowed(pid)) return;
+        const stop = appStops.get(ad.s);
+        if (stop && (ad.ts || 0) <= stop.at) return;
+        if (!best || (ad.ts || 0) > (best.ts || 0) || ((ad.ts || 0) === (best.ts || 0) && String(pid) < bestPid)) { best = ad; bestPid = String(pid); }
+      };
+      if (myStatus.app && myId) consider(myId, myStatus.app);
+      for (const [pid, st] of statusOf) if (st && st.app) consider(pid, st.app);
+      return best;
     }
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
     // every status tick and on peer departure, so it self-heals like the mesh.
     function reconcileApp() {
       const want = findSharedApp();
+      // My own share lost the deterministic race, was stopped for the room, or
+      // my authority was revoked — withdraw the ad instead of fighting.
+      if (myStatus.app && (!want || want.s !== myStatus.app.s)) {
+        const mine = myStatus.app;
+        myStatus.app = null;
+        appLeadSet = null; appLeadable = false; appLeadOn = false;
+        if (appKey === mine.s) clearAppView();
+        broadcastStatus();
+        const stop = appStops.get(mine.s);
+        setStatus(want ? '🧩 ' + esc(want.byName || 'Someone') + ' shared a newer app — yours left the stage.'
+          : (stop ? '🧩 ' + esc(stop.by || 'Someone') + ' stopped your shared app.' : '🧩 Your app left the stage.'));
+      }
+      if (want && want.s === appHiddenSid) { // personally hidden — stage stays clear for ME only
+        if (appKey === want.s) clearAppView();
+        updateAppButtons(want);
+        return;
+      }
       if (want && want.s !== appKey) {
-        if (myStatus.app && myStatus.app.s === want.s) return; // I'm the host; already mounted
+        if (myStatus.app && myStatus.app.s === want.s) { updateAppButtons(want); return; } // I'm the host; already mounted
         clearAppView();
         mountClientApp(want);
         warnRecorderNewApp(); // someone shared an app — a tiles recording won't capture it
       } else if (!want && appKey && appMode === 'client') {
-        clearAppView(); // the sharer stopped or left
+        clearAppView(); // the sharer stopped or left, or their authority went
       }
+      updateAppButtons(want);
+    }
+    // Keep the app buttons honest about what a tap will do.
+    function updateAppButtons(want) {
+      const isMine = !!(myStatus.app && appKey === myStatus.app.s);
+      const btn = document.getElementById('appbtn');
+      if (want && want.s === appHiddenSid && !isMine) {
+        btn.textContent = 'Show app';
+        btn.title = 'An app is shared here (' + (want.name || 'App') + ') — you hid it. Tap to bring it back.';
+      } else {
+        btn.textContent = 'Run app';
+        btn.title = canIRunApp() ? 'Run an app inside this meeting — everyone here shares and interacts with it live'
+          : 'Only this room\u2019s admins — or people they allow — can run an app here';
+      }
+      const hideB = document.getElementById('apphide');
+      hideB.style.display = (appKey && !isMine) ? '' : 'none';
+      const stopB = document.getElementById('appstop');
+      stopB.style.display = (isMine || !hasAdminRoom() || amAdmin) ? '' : 'none';
+      stopB.textContent = isMine ? 'Stop app' : 'Stop for everyone';
+      stopB.title = isMine ? 'Stop sharing this app with the meeting'
+        : (hasAdminRoom() ? 'Admin: stop this app for the whole room'
+          : 'Stop this app for the whole room — everyone sees it was you, and the sharer can re-share');
+      const leadB = document.getElementById('applead');
+      leadB.style.display = (isMine && appLeadable) ? '' : 'none';
+      leadB.textContent = appLeadOn ? '👑 Leading' : 'Communal';
+      leadB.title = appLeadOn
+        ? 'You lead this app — only your page-turns move the room. Tap for communal control.'
+        : 'Communal — anyone here can drive the shared app\u2019s controls. Tap to lead.';
     }
     document.getElementById('appbtn').onclick = () => {
+      const want = findSharedApp();
+      if (want && want.s === appHiddenSid && (!myStatus.app || myStatus.app.s !== want.s)) {
+        appHiddenSid = null; reconcileApp(); return; // Show app (un-hide)
+      }
       if (myStatus.app) { stopApp(); return; } // toggle my own share off
+      if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
       openAppPicker();
     };
-    document.getElementById('appstop').onclick = stopApp;
+    document.getElementById('appstop').onclick = () => {
+      if (myStatus.app && appKey === myStatus.app.s) { stopApp(); return; }
+      const want = findSharedApp();
+      if (!want) return;
+      if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room\u2019s admins can stop the shared app.'); return; }
+      stopRoomApp(want);
+    };
+    document.getElementById('apphide').onclick = () => {
+      if (!appKey || (myStatus.app && appKey === myStatus.app.s)) return;
+      appHiddenSid = appKey;
+      setStatus('🧩 App hidden on your screen only — the meeting still shares it. \u201CShow app\u201D brings it back.');
+      reconcileApp();
+    };
+    document.getElementById('applead').onclick = () => {
+      if (!(myStatus.app && appLeadSet)) return;
+      appLeadOn = !appLeadOn;
+      appLeadSet(appLeadOn);
+      updateAppButtons(findSharedApp());
+      setStatus(appLeadOn ? '🧩 You lead the app — only your changes to its shared controls stick.'
+        : '🧩 Communal control — anyone here can drive the shared app.');
+    };
     document.getElementById('app-cancel').onclick = () => { document.getElementById('app-modal').style.display = 'none'; };
     // ---- run a GIF app that isn't on this computer (file or link) ----
     function showAddErr(msg) { const el = document.getElementById('app-add-err'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? '' : 'none'; }
@@ -3123,6 +3279,13 @@
       appIsHost: () => appMode === 'host',
       runAppForTest: (fileId, name) => runApp(fileId, name),
       stopAppForTest: () => stopApp(),
+      appWinner: () => { const w = findSharedApp(); return w ? w.s : null; },
+      appSharerName: () => { const w = findSharedApp(); return w ? (w.byName || null) : null; },
+      appHidden: () => appHiddenSid,
+      appLeading: () => appLeadOn,
+      canRunApp: () => canIRunApp(),
+      grantApp: (pid, on) => setMod(pid, 'app', !!on),
+      stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
       room: () => room,
       roomPw: () => roomPw,

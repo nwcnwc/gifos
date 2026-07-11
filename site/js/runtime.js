@@ -1123,6 +1123,9 @@
     // same peer id slots straight back in with a fresh P2P offer.
     const peers = new Map();
     const defrag = makeDefrag();
+    // Which record ids are "led" and whether the leader fence is up right now
+    // (toggleable mid-session via the returned setLead — communal ⇄ leading).
+    const led = { on: !!(opts.led && opts.led.on), ids: (opts.led && opts.led.ids) || new Set() };
     // seal()/open() are async — chains keep frames in send/receive order.
     const tx = net.makeChain();
     const rxq = new Map(); // peer -> inbound chain
@@ -1249,6 +1252,19 @@
       while (m.size > 128) m.delete(m.keys().next().value);
     };
     const handleRpc = (peer, req) => {
+      // LED RECORDS — the host-side write fence for broadcast-style app state
+      // (manifest.ledRecords, e.g. the Bible Browser's shared 'nav' cursor).
+      // While the leader toggle is ON, remote writes to those record ids are
+      // refused; the leader's own writes are local and never pass through
+      // here. Enforced HERE because the host is authoritative by construction
+      // — no remote client, DOM-hacked or otherwise, can route around it.
+      if (led.on && led.ids.size && (req.op === 'put' || req.op === 'delete')) {
+        const recId = req.op === 'put' ? (req.value && req.value.id) : req.key;
+        if (recId && led.ids.has(recId)) {
+          sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: 'led: the leader drives this control' });
+          return;
+        }
+      }
       if (req.op === 'put') {
         const seen = putSeen.get(peer);
         if (seen && seen.has(req.id)) { sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: seen.get(req.id) }); return; }
@@ -1386,7 +1402,7 @@
     };
     ws.onstate = () => notify();
 
-    return { sendToAll, stats, stop: () => clearInterval(sweeper) };
+    return { sendToAll, stats, stop: () => clearInterval(sweeper), setLead: (on) => { led.on = !!on; } };
   }
 
   function openHostSocket(relay, sid, token, epoch, hostid, adm) {
@@ -1552,7 +1568,8 @@
               root.__gifosHostStats = s;
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
-            }, { onDisplaced: displaced, heal, exp, keep, key });
+            }, { onDisplaced: displaced, heal, exp, keep, key,
+              led: { on: !!opts.lead, ids: new Set(Array.isArray(manifest.ledRecords) ? manifest.ledRecords : []) } });
             // Expiry only shuts the door to NEW joiners (attachHost enforces exp
             // per join); a light timer just refreshes the host's own status so
             // they know the link went read-only.
@@ -1566,6 +1583,11 @@
               .catch(() => { /* socket will re-wake them on onopen */ });
             return store.setState(fileId + '::session', { sid, lsec, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
               shareUrl: joinUrl, keep, exp, heal, owned: !!av,
+              // Led-records controls for the page chrome: how many record ids
+              // this app declares as leadable, and the live communal⇄leading
+              // switch (the fence itself lives in the host runtime).
+              ledCount: Array.isArray(manifest.ledRecords) ? manifest.ledRecords.length : 0,
+              setLead: hostApi.setLead,
             }));
           }).catch((err) => {
             if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
@@ -2054,6 +2076,10 @@
             keep: 'persist', // a self-healing link is always a persistent one
             exp: sessionExp, // keep enforcing the original admission window
             key, // the session key travels with the session — same link, same key
+            // After a failover the leader is gone — the healed session opens
+            // COMMUNAL (fence down); the ids ride along so a new leader could
+            // raise it again.
+            led: { on: false, ids: new Set(Array.isArray(manifestRef.ledRecords) ? manifestRef.ledRecords : []) },
             onDisplaced: () => {
               setStatus('A newer host holds the session — rejoining as a guest…');
               location.replace(buildJoinUrl('app', sid, lsec, params.relay));
