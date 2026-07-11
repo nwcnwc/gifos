@@ -235,6 +235,8 @@
   .lob-item .li-sub { display: block; font-size: .74rem; opacity: .55; }
   .lob-item .li-badge { font-size: .66rem; opacity: .8; border: 1px solid var(--border, #2a2a3f); border-radius: 1rem; padding: 0 .4rem; margin-left: .3rem; }
   .lob-star { background: none; border: none; cursor: pointer; font-size: 1.15rem; color: #cdb84a; padding: .15rem .25rem; line-height: 1; }
+  .lob-del { background: none; border: none; cursor: pointer; font-size: 1rem; opacity: .45; padding: .15rem .3rem; line-height: 1; }
+  .lob-del:hover { opacity: 1; }
   .lob-empty { opacity: .5; font-size: .88rem; text-align: center; padding: .8rem 0; }
   .lob-namebar { text-align: center; margin-top: 1.1rem; font-size: .85rem; opacity: .78; }
   .lob-link { background: none; border: none; color: var(--accent, #6f9bff); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
@@ -1842,10 +1844,11 @@
     }
     function lobRow(e, marked) {
       return '<div class="lob-item" data-url="' + esc(e.url) + '">' +
+        '<button class="lob-star" data-star="' + esc(e.url) + '" title="' + (marked ? 'Remove bookmark' : 'Save as bookmark') + '">' + (marked ? '★' : '☆') + '</button>' +
         '<div class="li-main"><span class="li-name">' + esc(e.name || 'Meeting') +
           (e.av ? '<span class="li-badge">admin</span>' : '') + '</span>' +
           '<span class="li-sub">' + agoLabel(e.ts) + '</span></div>' +
-        '<button class="lob-star" data-star="' + esc(e.url) + '" title="' + (marked ? 'Remove bookmark' : 'Save as bookmark') + '">' + (marked ? '★' : '☆') + '</button>' +
+        '<button class="lob-del" data-del="' + esc(e.url) + '" title="Remove from this list">🗑</button>' +
       '</div>';
     }
     function renderLobbyList() {
@@ -1892,11 +1895,19 @@
       return { room: room.toLowerCase(), av, relay };
     }
     function enterMeeting(hashOrUrl) {
-      // Accept a '#…' hash (minted here) or a full URL (a saved entry). Navigate +
-      // reload so boot re-runs and — now that a room is chosen — starts the camera.
+      // Accept a '#…' hash (minted here) or a full URL (a saved entry). A
+      // hash-only change never re-runs boot on its own, so it needs an explicit
+      // reload — but ONLY then: reloading while navigating to a DIFFERENT path
+      // (a saved pretty /meet/<room> link) races the navigation and cancels it,
+      // which left the Recent list dead on production.
       const url = hashOrUrl.charAt(0) === '#' ? (MEET_PATH + hashOrUrl) : hashOrUrl;
+      let samePage = false;
+      try {
+        const to = new URL(url, location.href);
+        samePage = to.origin === location.origin && to.pathname === location.pathname && to.search === location.search;
+      } catch (e) { /* unparsable — treat as a normal navigation */ }
       location.href = url;
-      location.reload();
+      if (samePage) location.reload();
     }
     function renameFlow() {
       const cur = (GifOS.store.identity().name) || '';
@@ -1944,6 +1955,15 @@
       document.getElementById('lob-list').addEventListener('click', (e) => {
         const star = e.target.closest('[data-star]');
         if (star) { e.stopPropagation(); toggleBookmark(star.getAttribute('data-star')); return; }
+        const del = e.target.closest('[data-del]');
+        if (del) {
+          e.stopPropagation();
+          const url = del.getAttribute('data-del');
+          saveList(MEET_HIST, loadList(MEET_HIST).filter((x) => !x || x.url !== url));
+          saveList(MEET_MARKS, loadList(MEET_MARKS).filter((x) => !x || x.url !== url));
+          renderLobbyList();
+          return;
+        }
         const item = e.target.closest('.lob-item');
         if (item) enterMeeting(item.getAttribute('data-url'));
       });
