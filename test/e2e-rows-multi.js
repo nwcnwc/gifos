@@ -64,9 +64,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('presence: participants() is 6 on every phone, whichever leaf it sits in', countOk);
 
-  // ---- delegates double-home: exactly the local-row deacons hold uplinks --
-  const ups = states.filter((s) => s.up).length;
-  check('uplinks: exactly the three local-row deacons double-home (2 from the full leaf, 1 from the spill)', ups === 3);
+  // ---- delegates double-home: EVENTUALLY exactly the local-row deacons hold
+  // uplinks. (Teardown hysteresis keeps a flapped ex-delegate's socket warm
+  // for 15s by design, so exactness is an eventual property, polled.)
+  let upsOk = false;
+  for (let t = 0; t < 25 && !upsOk; t++) {
+    await sleep(2000);
+    const flags = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.upOn())));
+    upsOk = flags.filter(Boolean).length === 3;
+  }
+  check('uplinks: exactly the three local-row deacons double-home (2 from the full leaf, 1 from the spill)', upsOk);
 
   // ---- the stadium spans sessions: every phone sees every row but its own,
   // live — leaf 1's two rows and leaf 2's one, folded and forwarded.
@@ -95,13 +102,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('chat: a line from leaf 1 reaches every phone in every leaf (delegate bridge, deduped)', chatOk);
 
   // ---- the stage crosses sessions -----------------------------------------
-  const spillIdx = states.findIndex((s, i) => s.row === 2 && !states[i].up); // a plain member of leaf 2
-  const stagePage = pages[spillIdx >= 0 ? spillIdx : states.findIndex((s) => s.row === 2)];
+  const states2 = await Promise.all(pages.map(st)); // fresh: lingers have settled
+  const spillIdx = states2.findIndex((s) => s.row === 2 && !s.up); // a plain member of leaf 2
+  const stagePage = pages[spillIdx >= 0 ? spillIdx : states2.findIndex((s) => s.row === 2)];
   await stagePage.evaluate(() => window.__gifosVideo.setStageForTest(true));
   let stageOk = true;
   for (const [i, p] of pages.entries()) {
     if (p === stagePage) continue;
-    const sameLeaf = states[i].row === 2;
+    const sameLeaf = states2[i].row === 2;
     const ok = await p.waitForFunction((sl) => {
       const v = window.__gifosVideo;
       if (sl) return v.stageIds().length === 1; // leaf mates see them on row 0 directly
@@ -123,7 +131,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- a delegate dies: its leaf re-elects, the new delegate double-homes,
   // and the stadium heals across sessions.
-  const deadIdx = states.findIndex((s) => s.row === 1 && s.up);
+  const states3 = await Promise.all(pages.map(st)); // fresh again: pick a REAL current delegate
+  const deadIdx = states3.findIndex((s) => s.row === 1 && s.up);
   await pages[deadIdx].close();
   const alive = pages.filter((_, i) => i !== deadIdx);
   let healOk = true;
