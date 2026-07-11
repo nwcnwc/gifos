@@ -3084,7 +3084,12 @@
           }
         }
       }
-      if (compPipe.on) {
+      // A lingering pipe (fold=false, hysteresis) stays WARM but SILENT: its
+      // senders stay in place for a cheap flap-back, but it must not announce
+      // a row it no longer leads — that would replace the real deacon's
+      // mapping on every receiver, get pruned, and churn until the linger
+      // expires. Announcing is the arithmetic deacon's voice alone.
+      if (compPipe.on && fold) {
         const g = gRowOf(mine);
         compPipe.row = g;
         const man = { ids: rows[mine].slice(), names: rows[mine].map((id) => id === myId ? myName() : ((peers.get(id) || {}).name || rosterNames[id] || '…')) };
