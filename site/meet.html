@@ -2660,7 +2660,7 @@
         if (p) {
           for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
           dcSend(p, { k: 'comp-end', row: cur.row });
-          if (kicks) kicks.add(pid);
+          if (kicks) kicks.set(pid, 'mesh');
         }
       }
       compSent.clear();
@@ -2670,15 +2670,17 @@
       compPipe.on = false; compPipe.row = -1; compPipe.stream = null; compPipe.dest = null;
       compPipe.canvas = null; compPipe.ctx = null; compPipe.unsub = null;
     }
-    // Renegotiation discipline. Deacon→member forwarding re-offers over the
-    // DataChannel like the relay machinery (only the carrier re-offers there).
-    // On a deacon↔deacon edge BOTH sides add a fold, so only the pair's
-    // INITIATOR ever re-offers; the other side asks with 'rkick', and its
-    // freshly added tracks ride the answer (transceiver reuse) — no glare.
-    function compKick(pid) {
+    // Renegotiation discipline, per edge KIND. 'fwd' (carrier→member): the
+    // CARRIER re-offers over the DataChannel, like the relay machinery — a
+    // member's own offer would carry no m-lines for tracks it doesn't know
+    // about, and members never DC-re-offer, so there is no glare. 'mesh'
+    // (deacon↔deacon): BOTH sides add a fold, so only the pair's INITIATOR
+    // ever re-offers; the other side asks with 'rkick', and its freshly added
+    // tracks ride the answer (transceiver reuse) — no glare.
+    function compKick(pid, kind) {
       const p = peers.get(pid);
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
-      if (iInitiate(pid)) renegotiate(p);
+      if (kind === 'fwd' || iInitiate(pid)) renegotiate(p);
       else dcSend(p, { k: 'rkick' });
     }
     function claimCompStreams() {
@@ -2732,7 +2734,7 @@
       const rows = computeRows();
       const mine = myRowIndex();
       const populated = rows.filter((r, i) => i > 0 && r.length).length;
-      const kicks = new Set();
+      const kicks = new Map(); // pid -> 'mesh' | 'fwd'
       // FOLD exactly when someone is watching: another populated row exists.
       const fold = amDeacon() && populated > 1;
       if (fold && !compPipe.on) startComp();
@@ -2757,7 +2759,7 @@
           for (const sd of senders) auxSenders.add(sd);
           compSent.set(pid, { senders, sig, row: mine });
           dcSend(p, announce);
-          kicks.add(pid);
+          kicks.set(pid, 'mesh');
         }
         for (const [pid, cur] of Array.from(compSent)) {
           if (fellows.has(pid) && peers.has(pid)) continue;
@@ -2766,7 +2768,7 @@
           if (p) {
             for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
             dcSend(p, { k: 'comp-end', row: cur.row });
-            kicks.add(pid);
+            kicks.set(pid, 'mesh');
           }
           compSent.delete(pid);
         }
@@ -2801,7 +2803,7 @@
             for (const sd of senders) auxSenders.add(sd);
             fwdComp.set(key, { senders, sig, member: mid, row, streamId: container.id });
             dcSend(p, { k: 'comp-stream', row, streamId: container.id, ids: c.ids, names: c.names });
-            kicks.add(mid);
+            kicks.set(mid, 'fwd');
           }
         }
       }
@@ -2813,11 +2815,11 @@
         if (p) {
           for (const sd of job.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
           dcSend(p, { k: 'comp-end', row: job.row });
-          kicks.add(job.member);
+          kicks.set(job.member, 'fwd');
         }
         fwdComp.delete(key);
       }
-      for (const pid of kicks) compKick(pid);
+      for (const [pid, kind] of kicks) compKick(pid, kind);
     }
     // The STADIUM strip: one small tile per folded row, labeled with who is in
     // it (the layout manifest — attribution survives the fold). Hidden when
