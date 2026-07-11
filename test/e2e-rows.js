@@ -86,6 +86,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const compFlags = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.compActive())));
   check('C=2: compositors run exactly on the deacons — fold where you lead', JSON.stringify(compFlags) === JSON.stringify(deaconFlags));
 
+  // The STAGE is just a row at the top: one step-up gossips one timestamp and
+  // every phone derives the same row 0; the whole room links the staged
+  // member; the folds exclude them; stepping down re-packs to today's shape.
+  await pages[0].evaluate(() => window.__gifosVideo.setStageForTest(true));
+  let stageOk = true;
+  for (const p of pages) {
+    const got = await p.waitForFunction(() => {
+      const v = window.__gifosVideo;
+      return v.stageIds().length === 1 && v.rows()[0].length === 1;
+    }, null, { timeout: 25000 }).then(() => true).catch(() => false);
+    if (!got) stageOk = false;
+  }
+  check('stage: one step-up puts the SAME person on row 0 of every phone',
+    stageOk && await agree(pages, (p) => p.evaluate(() => JSON.stringify(window.__gifosVideo.stageIds()))));
+  const stageLinked = await pages[0].waitForFunction(() => window.__gifosVideo.liveLinks() >= 3, null, { timeout: 25000 }).then(() => true).catch(() => false);
+  check('stage: the whole room links the staged member (row 0 subscribed by all)', stageLinked);
+  const stagedMarked = await pages[1].waitForFunction(() => !!document.querySelector('.tile.onstage'), null, { timeout: 15000 }).then(() => true).catch(() => false);
+  check('stage: the staged tile floats first, marked, on other phones', stagedMarked);
+
+  // Buses: the Crowd fader silences exactly the stadium tiles — the stage
+  // (and your row) stay at full volume. Receiver-side, one phone's own knob.
+  const busReady = await pages[1].waitForFunction(() => window.__gifosVideo.stadium().length >= 1, null, { timeout: 25000 }).then(() => true).catch(() => false);
+  const busOk = busReady && await pages[1].evaluate(() => {
+    const v = window.__gifosVideo;
+    v.setMix('stadium', 0);
+    const stadZero = v.stadium().every((s) => v.stadiumVolume(s.row) === 0);
+    const stagedId = v.stageIds()[0];
+    return stadZero && v.tileVolume(stagedId) === 1;
+  });
+  check('buses: the Crowd fader zeroes exactly the stadium — the stage stays at full volume', busOk);
+  await pages[1].evaluate(() => window.__gifosVideo.setMix('stadium', 1));
+
+  await pages[0].evaluate(() => window.__gifosVideo.setStageForTest(false));
+  let downOk = true;
+  for (const p of pages) {
+    const got = await p.waitForFunction(() => {
+      const v = window.__gifosVideo;
+      const rows = v.rows();
+      return v.stageIds().length === 0 && rows.length === 3 && rows[0].length === 0 && rows[1].length === 2 && rows[2].length === 2;
+    }, null, { timeout: 25000 }).then(() => true).catch(() => false);
+    if (!got) downOk = false;
+  }
+  check('stage: stepping down re-packs every phone to the original two rows', downOk);
+
   // Gossip spans the DIRECTORY: chat from row 1 must reach row 2 even though
   // no media link crosses the row boundary.
   const senderIdx = 0;
