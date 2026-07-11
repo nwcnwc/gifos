@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2c1f66"/>
+      <stop offset="1" stop-color="#0a0a14"/>
+    </linearGradient>
+    <linearGradient id="iri" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8f6bff"/>
+      <stop offset="0.5" stop-color="#4dd6ff"/>
+      <stop offset="1" stop-color="#ff5cc8"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- maskable-safe: art stays within the central 80% -->
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect width="512" height="256" rx="116" fill="url(#sheen)"/>
+  <!-- a stacked pair of GIF frames -->
+  <rect x="150" y="150" width="228" height="176" rx="26" fill="#140f2a" stroke="url(#iri)" stroke-width="9" opacity="0.55" transform="translate(20,-16)"/>
+  <rect x="150" y="176" width="228" height="176" rx="26" fill="#191333" stroke="url(#iri)" stroke-width="10"/>
+  <!-- play glyph = it animates -->
+  <path d="M244 226 L316 264 L244 302 Z" fill="url(#iri)"/>
+  <!-- iridescent sparkle -->
+  <g transform="translate(356,196)">
+    <path d="M0 -26 C4 -8 8 -4 26 0 C8 4 4 8 0 26 C-4 8 -8 4 -26 0 C-8 -4 -4 -8 0 -26 Z" fill="#ffffff"/>
+    <path d="M0 -15 C2 -5 5 -2 15 0 C5 2 2 5 0 15 C-2 5 -5 2 -15 0 C-5 -2 -2 -5 0 -15 Z" fill="#4dd6ff"/>
+  </g>
+</svg>
