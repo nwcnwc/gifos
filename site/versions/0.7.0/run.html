@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>/* Global UI text size (Settings → Text size). Scales the app-header chrome; app CONTENT is sandboxed and unaffected. Applied early; live across tabs. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
+<title>GifOS — Running…</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0);
+         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  /* Labels never stack into word-towers: buttons keep to one line and the bar
+     scrolls sideways on narrow phones instead of pushing the layout around. */
+  .bar { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem;
+         background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f);
+         overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .bar::-webkit-scrollbar { display: none; }
+  .bar > * { flex: 0 0 auto; }
+  /* the app's own GIF, upper-left. Looks like a tidy app icon; its bytes are a
+     live snapshot, so a right-click "Save image as…" grabs a working copy. */
+  .appgif { width: 1.4rem; height: 1.4rem; border-radius: .3rem; object-fit: cover;
+            image-rendering: auto; display: block; }
+  .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
+         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
+  .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+                background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem;
+                white-space: nowrap; }
+  /* Compact the bar on small phones — narrow (portrait) OR short (landscape),
+     since a landscape phone is wide but only ~320-430px tall and every header
+     row counts. */
+  @media (max-width: 600px), (max-height: 500px) {
+    .bar { gap: .3rem; padding: .3rem .5rem; }
+    .bar button { padding: .28rem .5rem; font-size: .72rem; }
+    .bar .title { font-size: .95rem; }
+    .appgif { width: 1.15rem; height: 1.15rem; }
+  }
+  .bar button:hover { border-color: var(--accent, #7b5cff); }
+  .bar button.urgent { border-color: var(--accent2, #ff5caa); box-shadow: 0 0 14px rgba(255,92,170,.35); }
+  .sig { display: inline-flex; align-items: center; gap: .3rem; }
+  /* Status text blends its hue toward the theme's own text colour, so the
+     word stays vivid on dark computers and darkens enough to read on the
+     light ones — the saturated border keeps the semantic colour legible. */
+  .sig.ok  { border-color: #34c759; color: color-mix(in srgb, #34c759 60%, var(--text, #e0e0f0)); }
+  .sig.bad { border-color: #ff5c5c; color: color-mix(in srgb, #ff5c5c 60%, var(--text, #e0e0f0)); }
+  .sig.unk { border-color: var(--muted, #8888aa); color: var(--muted, #b0b0c8); }
+  /* Identity pill: the signed app's own short name + version. Only shown when
+     the app is signed — an unsigned GIF could claim any name, so we don't. */
+  .appid { display: inline-flex; align-items: center; gap: .3rem; max-width: 12rem;
+    color: var(--text, #e0e0f0);
+    border-color: color-mix(in srgb, #7b5cff 45%, var(--border, #33334d));
+    background: color-mix(in srgb, #7b5cff 10%, transparent); }
+  .appid .ver { font-weight: 800; color: color-mix(in srgb, #2ba6e0 65%, var(--text, #1a1a2a)); }
+  .appid .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  /* Network-permission chip: calm blue for a named allowlist, loud red-orange
+     when the app can reach ANY site. Click to review/revoke what it can reach. */
+  .perms { display: inline-flex; align-items: center; gap: .3rem; }
+  .perms.ok     { border-color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
+  .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
+  .perm-modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .perm-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
+    padding: 1.4rem 1.5rem; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .perm-box h3 { margin-bottom: .5rem; font-size: 1.1rem; }
+  .perm-box .lead { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; margin-bottom: 1rem; }
+  .perm-box .warn { background: #2a1710; border: 1px solid #ff8a3d; color: #ffcbab;
+    border-radius: .5rem; padding: .6rem .75rem; font-size: .82rem; line-height: 1.5; margin-bottom: 1rem; }
+  .perm-row { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .2rem;
+    border-top: 1px solid #22222f; }
+  .perm-row input { margin-top: .2rem; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #4a9eff; }
+  .perm-row .host { display: block; font-weight: 600; word-break: break-word; }
+  .perm-row.any .host { color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); }
+  .perm-row .desc { display: block; margin-top: .15rem; color: var(--muted, #8888aa); font-size: .8rem; line-height: 1.35; }
+  .perm-box .foot { color: var(--muted, #6a6a86); font-size: .75rem; line-height: 1.5; margin: 1rem 0 1.1rem; }
+  .perm-box .done { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
+    background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
+  .perm-btns { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1.1rem; }
+  .perm-box .ghost { padding: .5rem 1.1rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+    background: transparent; color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
+  .perm-row .host { cursor: pointer; }
+  /* Compact connection pill: a dot + one calm word (client), or per-status
+     counts (host). The verbose sentence lives in a click-to-open popover so
+     long status text can never wrap across the screen. */
+  .conn { display: flex; align-items: center; gap: .4rem; margin-left: auto; padding: .3rem .75rem;
+          border-radius: 1rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0);
+          cursor: pointer; font-size: .78rem; white-space: nowrap; }
+  .cdot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+  .cseg { display: inline-flex; align-items: center; gap: .3rem; padding: .05rem .5rem;
+          border: 1px solid; border-radius: 1rem; font-size: .75rem; }
+  .conn-pop { display: none; position: absolute; right: .9rem; top: 3rem; z-index: 30;
+              max-width: min(420px, 90vw); background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
+              border-radius: .6rem; padding: .6rem .8rem; font-size: .8rem; color: var(--muted, #8888aa);
+              box-shadow: 0 12px 40px rgba(0,0,0,.5); line-height: 1.4; }
+  .conn-pop.show { display: block; }
+  #mount { flex: 1; min-height: 0; }
+  .linkrow { display: flex; gap: .5rem; align-items: center; margin: .2rem 0 .6rem; }
+  .linkrow input { flex: 1; min-width: 0; padding: .5rem .6rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+                   background: var(--bg, #0a0a0f); color: var(--accent, #7b5cff); font-family: ui-monospace, monospace; font-size: .82rem; }
+  .linkexp { color: var(--muted, #8888aa); font-size: .8rem; margin: 0 0 .2rem; }
+  .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; }
+  .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center; }
+  .name-box h3 { margin-bottom: .5rem; }
+  .name-box p { color: var(--muted, #8888aa); font-size: .85rem; margin-bottom: 1rem; }
+  .name-box input { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
+    border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
+  .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; }
+</style>
+<script src="js/gifos-themes.js"></script>
+</head>
+<body>
+  <div class="bar">
+    <img id="appgif" class="appgif" alt="" style="display:none">
+    <a class="title" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
+    <button class="appid" id="appid" title="This app's name and version" style="display:none"></button>
+    <button class="sig" id="sig" title="Who signed this app" style="display:none"></button>
+    <button class="perms" id="perms" title="What this app can reach on the internet" style="display:none"></button>
+    <button id="host" title="Friends join you live with one link">Invite</button>
+    <button id="tomeet" title="Turn this into a meeting — add shared audio, video and recording around this app" style="display:none">Meet</button>
+    <button id="become-host" title="Keep this session going from your copy" style="display:none">Take Over</button>
+    <button id="steal" title="Steal a copy of this app — choose where it goes and whether to include the data" style="display:none">Steal</button>
+    <button class="conn" id="conn" title="Connection status — tap for details" style="display:none"></button>
+  </div>
+  <div class="conn-pop show" id="conn-pop"><span id="status">Loading…</span></div>
+  <div id="mount"></div>
+
+  <script>
+    // Bind to the right computer BEFORE the store loads: apps opened from a
+    // booted computer image (boot.html) carry their namespace in the URL so
+    // their files and saved state resolve inside that image, not the host.
+    (function () {
+      var db = new URLSearchParams(location.hash.slice(1)).get('db');
+      if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+    })();
+  </script>
+  <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-sign.js"></script>
+  <script src="js/gifos-store.js"></script>
+  <script src="js/gifos-net.js"></script>
+  <script src="js/relay-config.js"></script>
+  <script src="js/runtime.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const mount = document.getElementById('mount');
+      const status = document.getElementById('status');
+      const hostBtn = document.getElementById('host');
+      const stealBtn = document.getElementById('steal');
+      const becomeBtn = document.getElementById('become-host');
+      let controller = null;
+      let inviteUrl = null;
+      let inviteExp = ''; // human label for the current link's lifetime
+      let sessionEternal = false; // joined an eternal link → a synced mirror is offered
+
+      // ---- easter egg: the app's own GIF in the corner is a LIVE snapshot ----
+      // It shows the app's artwork, but its bytes are the "Download · with data"
+      // snapshot (same steal() path) — so right-clicking it and using the
+      // browser's own "Save image as…" downloads a working snapshot of the app
+      // as it was loaded. No button, no hint: just the icon sitting there.
+      let appGifLoaded = false, appGifDone = false;
+      function showAppGif() {
+        if (appGifDone || !appGifLoaded || !controller || !controller.steal) return;
+        appGifDone = true;
+        controller.steal({ data: 'connect', bytesOnly: true }).then(function (r) {
+          if (!r || !r.bytes) { appGifDone = false; return; }
+          const img = document.getElementById('appgif');
+          img.src = URL.createObjectURL(new Blob([r.bytes], { type: 'image/gif' }));
+          img.style.display = '';
+        }).catch(function () { appGifDone = false; });
+      }
+
+      // ---- provenance badge: verify the running app's signature ----
+      const sigBtn = document.getElementById('sig');
+      const appIdBtn = document.getElementById('appid');
+      // The identity pill: short name + version, shown ONLY for signed apps —
+      // an unsigned GIF could claim any name, so we don't vouch for one.
+      function showAppId(manifest, signed) {
+        if (!appIdBtn) return;
+        const nm = (manifest && (manifest.shortName || manifest.name) || '').toString().trim();
+        const ver = (manifest && manifest.version || '').toString().trim();
+        if (!signed || (!nm && !ver)) { appIdBtn.style.display = 'none'; return; }
+        appIdBtn.innerHTML = '';
+        if (nm) { const s = document.createElement('span'); s.className = 'nm'; s.textContent = nm.length > 22 ? nm.slice(0, 21) + '…' : nm; appIdBtn.appendChild(s); }
+        if (ver) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = 'v' + ver; appIdBtn.appendChild(s); }
+        appIdBtn.title = (nm ? nm + ' ' : '') + (ver ? 'version ' + ver : '') + ' — the app’s own declared name and version, shown because this app is signed.';
+        appIdBtn.style.display = '';
+      }
+      window.__gifosOnApp = function (bytes, manifest) {
+        // The app's bytes are now here (locally, or over the wire for a client) —
+        // only now is there something to Steal, so reveal the button.
+        appGifLoaded = true; stealBtn.style.display = ''; showAppGif();
+        if (manifest && manifest.name) recordInviteName(manifest.name); // label this invite in History
+        if (!window.GifOS || !GifOS.sign) return;
+        const claim = GifOS.sign.readSig(bytes);
+        showAppId(manifest, !!claim);
+        if (!claim) { sigBtn.style.display = 'none'; return; }
+        sigBtn.style.display = ''; sigBtn.className = 'sig unk';
+        sigBtn.textContent = '🛡 checking…';
+        GifOS.sign.verify(bytes).then(function (v) {
+          if (v.status === 'valid') { sigBtn.className = 'sig ok'; sigBtn.textContent = '✓ ' + v.id;
+            sigBtn.title = 'Signed by ' + v.id + (v.ts ? ' on ' + v.ts : '') + (v.type === 'email' ? ' (PGP)' : '') + ' — contents unchanged since signing. Proves authorship, not safety.'; }
+          else if (v.status === 'tampered') { sigBtn.className = 'sig bad'; sigBtn.textContent = '⚠ Tampered';
+            sigBtn.title = 'Claims to be signed by ' + (v.id || '?') + ' but the contents changed after signing — do not trust the source.'; }
+          else if (v.status === 'unverified') { sigBtn.className = 'sig unk'; sigBtn.textContent = '🛡 ' + (v.id || 'signed');
+            sigBtn.title = 'Signed by ' + (v.id || '?') + ', but the key could not be checked right now (' + (v.detail || 'offline') + ').'; }
+          else { sigBtn.style.display = 'none'; }
+        });
+        sigBtn.onclick = function () { alert(sigBtn.title); };
+      };
+
+      // ---- network permissions: acknowledge what the app can reach ----
+      // The runtime hands us this app's network policy (the hosts its manifest
+      // asks to reach, plus the user's saved allow/deny choices). A self-
+      // contained GIF declares none, so this never fires for it. When it does,
+      // we surface a tab chip and pop a plain-language acknowledgement at launch
+      // with a checkbox per host — unticking one revokes it (which may break the
+      // app, and that's fine). '*' means "any website", which we flag as unsafe.
+      const permsBtn = document.getElementById('perms');
+      function escapeText(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+      const CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device' };
+      const CAP_DESC = {
+        wasm: 'Lets the app run a compiled (WebAssembly) engine — like a chess engine or a codec — in a background worker on your device, so it can do heavy computation fast without freezing. It still cannot reach the internet: the engine runs entirely offline, sealed inside this app.',
+        microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
+        camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
+        motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
+        ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
+        api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
+        agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
+      };
+      const apiNames = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
+      const AI_ROLE_LABELS = { smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };
+      // AI types the app names under capabilities.ai (array). true/absent = generic.
+      const aiRoles = function (manifest) { const a = manifest && manifest.capabilities && manifest.capabilities.ai; return Array.isArray(a) ? a.filter(function (r) { return AI_ROLE_LABELS[r]; }) : []; };
+      window.__gifosPermissions = function (policy, manifest) {
+        const caps = Object.keys(CAP_LABELS).filter(function (k) {
+          return k === 'api' ? apiNames(manifest).length : (manifest && manifest.capabilities && manifest.capabilities[k]);
+        });
+        const hasNet = !!(policy && policy.hasNetwork());
+        if (!hasNet && !caps.length) { permsBtn.style.display = 'none'; return; }
+        const capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
+        const sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',');
+        function capAcked() { try { return localStorage.getItem(capSig) === sig; } catch (e) { return false; } }
+        function ackCaps() { try { localStorage.setItem(capSig, sig); } catch (e) {} }
+        function paintChip() {
+          const unsafe = hasNet && policy.unsafe();
+          permsBtn.style.display = '';
+          permsBtn.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
+          permsBtn.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : 'Abilities');
+          permsBtn.title = unsafe
+            ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
+            : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'
+              : 'What this app can do on your device. Tap to review.');
+        }
+        function capBlock() {
+          if (!caps.length) return '';
+          return caps.map(function (k) {
+            if (k === 'api') {
+              return apiNames(manifest).map(function (n) {
+                return '<div class="perm-row"><span><span class="host">Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
+                  '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
+              }).join('');
+            }
+            if (k === 'ai') {
+              const roles = aiRoles(manifest);
+              const which = roles.length
+                ? ' <span class="host" style="font-weight:400">— ' + roles.map(function (r) { return escapeText(AI_ROLE_LABELS[r]); }).join(', ') + '</span>'
+                : '';
+              return '<div class="perm-row"><span><span class="host">' + CAP_LABELS.ai + which + '</span>' +
+                '<br><span class="desc">' + CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : '') + '</span></span></div>';
+            }
+            return '<div class="perm-row"><span><span class="host">' + CAP_LABELS[k] + '</span>' +
+              '<br><span class="desc">' + CAP_DESC[k] + '</span></span></div>';
+          }).join('');
+        }
+        function openModal() {
+          const bg = document.createElement('div'); bg.className = 'perm-modal';
+          const appName = (manifest && manifest.name) || 'This app';
+          const rows = (hasNet ? policy.list() : []).map(function (e) {
+            const any = e.host === '*';
+            const desc = any
+              ? 'Lets the app reach any website, so it could send whatever it sees to anyone.'
+              : 'Lets the app send and receive data with this one website.';
+            return '<label class="perm-row' + (any ? ' any' : '') + '">' +
+              '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
+              '<span><span class="host">' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +
+              '<br><span class="desc">' + desc + ' Uncheck to block it.</span></span></label>';
+          }).join('');
+          const unsafeNote = (hasNet && policy.unsafe())
+            ? '<div class="warn"><b>Careful.</b> This one wants to reach <b>any</b> website, so it could quietly send what it sees to a stranger. ' +
+              'Only leave this on for something you really trust — otherwise uncheck it below.</div>'
+            : '';
+          const netBlock = hasNet ? unsafeNote + rows : '';
+          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' would like to…</h3>' +
+            capBlock() + netBlock +
+            '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s tab.</p>' +
+            '<button class="done">Sounds good</button></div>';
+          document.body.appendChild(bg);
+          bg.addEventListener('change', function (ev) {
+            const cb = ev.target; if (!cb || cb.type !== 'checkbox') return;
+            Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
+            paintChip();
+          });
+          // Closing the panel acknowledges THIS set of asks — we won't auto-open
+          // again until the app changes what it wants.
+          function close() { if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {}); ackCaps(); bg.remove(); }
+          bg.querySelector('.done').onclick = close;
+          bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
+        }
+        function proceed() {
+          paintChip();
+          permsBtn.onclick = openModal;
+          // Prompt once — first run, or again only if the app changed what it asks
+          // for (new hosts, or new device/AI abilities). Otherwise the chip stays.
+          if ((hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
+        }
+
+        // ---- REQUIRED capabilities gate --------------------------------------
+        // Capabilities are OPTIONAL by default — the app runs and the user can
+        // look around. An app may instead mark some as REQUIRED
+        // (manifest.requires: ["ai","deepgram",…]); a required capability that
+        // isn't set up leaves the app unable to do its job, so we block until the
+        // user configures it. We can only check settings-backed capabilities here
+        // (an AI model, or a named third-party account); device permissions
+        // (microphone/camera/motion) and network are granted at use, so listing
+        // them as required is accepted but never blocks.
+        const requires = (manifest && Array.isArray(manifest.requires)) ? manifest.requires : [];
+        function lsCfg(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; } }
+        function aiConfigured() { const c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
+        function aiRoleConfigured(role) { const c = lsCfg('gifos_ai_config')[role]; return !!(c && c.url); }
+        function apiConfigured(name) { const c = lsCfg('gifos_api_config')[name]; return !!(c && c.url); }
+        function titleCase(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+        function missingRequired() {
+          const out = [];
+          requires.forEach(function (r) {
+            if (r === 'ai') { if (!aiConfigured()) out.push({ what: 'an AI model', where: 'Settings → AI models' }); }
+            else if (AI_ROLE_LABELS[r]) { if (!aiRoleConfigured(r)) out.push({ what: 'the ' + AI_ROLE_LABELS[r] + ' model', where: 'Settings → AI models' }); }
+            else if (r === 'microphone' || r === 'camera' || r === 'motion' || r === 'network') { /* granted at use — nothing to pre-configure */ }
+            else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', where: 'Settings → Third-party APIs' });
+          });
+          return out;
+        }
+        function showRequiredGate(missing) {
+          const old = document.getElementById('req-gate'); if (old) old.remove();
+          const bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'req-gate';
+          const appName = (manifest && manifest.name) || 'This app';
+          const rows = missing.map(function (m) {
+            return '<div class="perm-row"><span><span class="host">Set up ' + escapeText(m.what) + '</span>' +
+              '<br><span class="desc">On your GifOS Home Screen, open <b>' + escapeText(m.where) + '</b>.</span></span></div>';
+          }).join('');
+          bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' needs setup to run</h3>' +
+            '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app never sees them.</p>' +
+            rows +
+            '<div class="perm-btns"><button class="ghost" id="req-leave">Close</button><button class="done" id="req-recheck">I’ve set it up</button></div></div>';
+          document.body.appendChild(bg);
+          function recheck() {
+            if (!missingRequired().length) { document.removeEventListener('visibilitychange', onVis); bg.remove(); proceed(); }
+            else { bg.querySelector('#req-recheck').textContent = 'Still not set up — check Settings, then tap again'; }
+          }
+          function onVis() { if (!document.hidden) recheck(); } // auto-recheck when they return from Settings
+          bg.querySelector('#req-recheck').onclick = recheck;
+          bg.querySelector('#req-leave').onclick = function () { try { window.close(); } catch (e) {} if (!window.closed) { if (history.length > 1) history.back(); else location.href = '/'; } };
+          document.addEventListener('visibilitychange', onVis);
+        }
+
+        const missingReq = missingRequired();
+        if (missingReq.length) showRequiredGate(missingReq);
+        else proceed();
+      };
+      // Straight to the platform's native share sheet; the copy row is only
+      // the fallback for browsers without one (and share-sheet failures).
+      // The invite link lives in a small modal (Copy · New link), shown right
+      // after "Create link" — no persistent sub-header eating the app's space.
+      function linkReadyModal(url, expLabel) {
+        var old = document.getElementById('link-modal'); if (old) old.remove();
+        var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'link-modal';
+        bg.innerHTML =
+          '<div class="perm-box">' +
+          '<h3>Invite link ready</h3>' +
+          '<p class="lead">Send this to friends — opening it brings them right in.</p>' +
+          '<div class="linkrow"><input id="lm-url" readonly><button id="lm-copy" class="done">Copy</button></div>' +
+          (expLabel ? '<p class="linkexp">' + escapeText(expLabel) + '</p>' : '') +
+          '<div class="perm-btns"><button id="lm-new" class="ghost">New link</button><button id="lm-close" class="done">Done</button></div>' +
+          '</div>';
+        document.body.appendChild(bg);
+        var input = bg.querySelector('#lm-url'); input.value = url;
+        function close() { bg.remove(); }
+        bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+        bg.querySelector('#lm-close').onclick = close;
+        bg.querySelector('#lm-copy').onclick = function () {
+          input.select(); try { document.execCommand('copy'); } catch (e) {}
+          if (navigator.clipboard) navigator.clipboard.writeText(url).catch(function () {});
+          bg.querySelector('#lm-copy').textContent = 'Copied ✓';
+        };
+        bg.querySelector('#lm-new').onclick = function () {
+          close(); if (!controller || !controller.becomeHost) return;
+          chooseInvite(true).then(function (choice) { if (!choice) return; inviteUrl = null; goLive(choice); });
+        };
+      }
+      function shareLink(url, expLabel) {
+        // Native share sheet on phones; the modal is the copyable fallback and
+        // stays put if the user dismisses the sheet.
+        if (navigator.share) {
+          navigator.share({ title: 'Join me on GifOS', text: 'Tap this link and you’re in:', url: url })
+            .catch(function (err) { /* user closed the sheet — the modal remains */ });
+        }
+        linkReadyModal(url, expLabel);
+      }
+
+      // ---- compact connection pill (colors, not sentences) ----
+      // Boot messages stay visible until the first structured state arrives;
+      // after that the popover is tap-to-open from the pill.
+      const connBtn = document.getElementById('conn');
+      const connPop = document.getElementById('conn-pop');
+      connBtn.addEventListener('click', function () { connPop.classList.toggle('show'); });
+      const COLOR = { up: '#34c759', soft: '#8fe6a1', warn: '#ffcc44', lost: '#ff5c5c' };
+      const WORD = { up: 'Connected', soft: 'Connected', warn: 'Reconnecting…', lost: 'Disconnected' };
+      const dot = (c) => '<span class="cdot" style="background:' + c + '"></span>';
+      const seg = (c, n) => '<span class="cseg" style="border-color:' + c + '">' + dot(c) + n + '</span>';
+      let firstConn = true;
+      window.addEventListener('gifos-conn', function (e) {
+        const d = e.detail || {};
+        if (firstConn) { firstConn = false; connPop.classList.remove('show'); connBtn.style.display = ''; }
+        if (d.mode === 'local') { connBtn.innerHTML = dot('#8888aa') + '<span>Local</span>'; return; }
+        if (d.mode === 'client') {
+          connBtn.innerHTML = dot(COLOR[d.grade] || COLOR.warn) + '<span>' + (WORD[d.grade] || '…') + '</span>';
+          return;
+        }
+        // host: one small counter per connection state (only non-empty ones)
+        const c = d.counts || { up: 0, soft: 0, warn: 0 };
+        let html = '';
+        if (d.self && d.self !== 'up') html += dot(COLOR[d.self] || COLOR.warn); // our own relay link is blinking
+        if (!d.total) html += dot(COLOR[d.self === 'up' ? 'up' : (d.self || 'up')]) + '<span>Live</span>';
+        else {
+          if (c.up) html += seg(COLOR.up, c.up);
+          if (c.soft) html += seg(COLOR.soft, c.soft);
+          if (c.warn) html += seg(COLOR.warn, c.warn);
+        }
+        connBtn.innerHTML = html;
+      });
+
+      // Ask for a screen name before joining/hosting a multiplayer session, so
+      // apps can attribute moves and messages. Skipping generates a Guest name.
+      function ensureName() {
+        return new Promise(function (resolve) {
+          const me = GifOS.store.identity();
+          if (me.name) { resolve(me); return; }
+          const bg = document.createElement('div'); bg.className = 'name-modal';
+          bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
+            '<p>Other players will see this name.</p>' +
+            '<input id="nm" maxlength="40" placeholder="Your name" autocomplete="off">' +
+            '<button id="nmok">Continue</button></div>';
+          document.body.appendChild(bg);
+          const input = bg.querySelector('#nm'); input.focus();
+          function done() {
+            let v = input.value.trim();
+            if (!v) v = 'Guest ' + (1000 + Math.floor(Math.random() * 9000));
+            GifOS.store.setName(v); bg.remove(); resolve(GifOS.store.identity());
+          }
+          bg.querySelector('#nmok').onclick = done;
+          input.addEventListener('keydown', function (e) { if (e.key === 'Enter') done(); });
+        });
+      }
+
+      // Short invite links (gifos.app/join/<code>) carry ONE code — the LINK
+      // SECRET. The relay-facing session id and token are derived from it by
+      // the runtime; owned links carry a public s=<room>.<verifier> plus their
+      // own k=<secret>. The relay never sees a secret either way.
+      const joinS = params.get('j') || params.get('s');
+      const joinK = params.get('j') || params.get('k');
+      // Remember invite links you visit (client mode), so the desktop's History
+      // button can list them. Shared with the desktop via localStorage; the app
+      // name is filled in once it arrives (see __gifosOnApp → recordInviteName).
+      const INVITE_HIST = 'gifos_invite_history';
+      function recordInvite() {
+        try {
+          let h = JSON.parse(localStorage.getItem(INVITE_HIST) || '[]'); if (!Array.isArray(h)) h = [];
+          const url = location.href;
+          h = h.filter(function (e) { return e && e.url !== url; });
+          h.unshift({ url: url, name: null, ts: Date.now() });
+          localStorage.setItem(INVITE_HIST, JSON.stringify(h.slice(0, 50)));
+        } catch (e) { /* private mode / quota */ }
+      }
+      function recordInviteName(name) {
+        try {
+          const h = JSON.parse(localStorage.getItem(INVITE_HIST) || '[]'); if (!Array.isArray(h)) return;
+          const url = location.href; let changed = false;
+          for (const e of h) { if (e && e.url === url && !e.name) { e.name = name; changed = true; break; } }
+          if (changed) localStorage.setItem(INVITE_HIST, JSON.stringify(h));
+        } catch (e) { /* ignore */ }
+      }
+      if (joinS) {
+        // Keep the address bar as the pretty /join link we hand out (prod, default
+        // relay), instead of the run.html#s=…/#j=… form we load via. buildJoinUrl
+        // is the same function that builds the share link, so the two can't
+        // diverge; it only returns a /join/ path when pretty applies (a reload of
+        // it 404-routes back here). Do this BEFORE recordInvite so History stores
+        // the pretty link too.
+        try {
+          var pj = new URL(GifOS.links.buildJoinUrl('app', joinS, joinK, params.get('relay') || window.GIFOS_RELAY));
+          if (/^\/join\//.test(pj.pathname) && (location.pathname + location.hash) !== pj.pathname) {
+            history.replaceState(null, '', pj.pathname);
+          }
+        } catch (e) { /* leave the address bar as-is */ }
+        // Client mode — join a host over the relay. Name first.
+        recordInvite();
+        hostBtn.style.display = 'none';
+        ensureName().then(function () {
+          return GifOS.runtime.bootClient(mount, { s: params.get('s'), j: params.get('j'), k: joinK, relay: params.get('relay') || window.GIFOS_RELAY }, status, {
+            onSession: function (info) { sessionEternal = !!(info && info.eternal); },
+            onHostGone: function (canTakeOver) { if (canTakeOver) { becomeBtn.style.display = ''; becomeBtn.classList.add('urgent'); } },
+            onHostBack: function () { becomeBtn.style.display = 'none'; becomeBtn.classList.remove('urgent'); },
+            onAutoTakeover: function (r) {
+              becomeBtn.style.display = 'none'; becomeBtn.classList.remove('urgent');
+              if (r) { inviteUrl = r.shareUrl; if (r.save) controller = Object.assign({}, controller, { save: r.save }); }
+            },
+          });
+        }).then(function (c) { controller = c; showAppGif(); });
+      } else {
+        // Standalone / potential host — run a local App GIF.
+        const fileId = params.get('id');
+        if (!fileId) { status.textContent = 'No app id in URL.'; return; }
+        // A synced mirror with local changes warns before it overwrites them.
+        function confirmMirrorOverwrite() {
+          return new Promise(function (resolve) {
+            var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'mirror-modal';
+            bg.innerHTML =
+              '<div class="perm-box">' +
+              '<h3>This copy is a synced mirror</h3>' +
+              '<p class="lead">You’ve made changes here. Opening it pulls the latest from the original and will <b>replace your changes</b>.</p>' +
+              '<div class="perm-btns" style="flex-direction:column;gap:.5rem;align-items:stretch">' +
+              '<button id="mm-update" class="done">Update from the original — discard my changes</button>' +
+              '<button id="mm-unlink" class="ghost">Keep my changes — stop syncing (break the mirror)</button>' +
+              '<button id="mm-cancel" class="ghost">Cancel — don’t open</button>' +
+              '</div></div>';
+            document.body.appendChild(bg);
+            function done(v) { bg.remove(); resolve(v); }
+            bg.querySelector('#mm-update').onclick = function () { done('update'); };
+            bg.querySelector('#mm-unlink').onclick = function () { done('unlink'); };
+            bg.querySelector('#mm-cancel').onclick = function () { done('cancel'); };
+          });
+        }
+        GifOS.runtime.bootMirror(mount, fileId, status, { onDiverged: confirmMirrorOverwrite }).then(function (c) {
+          if (c && c.cancelled) { status.textContent = 'Cancelled — the mirror wasn’t opened.'; try { window.close(); } catch (e) {} location.href = '/'; return; }
+          if (c) { controller = c; showAppGif(); }
+        });
+        // Second entry point into a meeting: hand THIS app to the meeting page
+        // (same browser, same saved state) with shared audio/video/recording.
+        var toMeet = document.getElementById('tomeet');
+        toMeet.style.display = '';
+        toMeet.addEventListener('click', function () {
+          location.href = 'meet.html#app=' + encodeURIComponent(fileId);
+        });
+      }
+
+      // An invite link is a capability (join live AND copy this app's whole
+      // dataset). Two independent dials: how long it admits new people, and
+      // whether a friend may keep it going if the host drops.
+      function lifeLabel(keep, exp, heal) {
+        var life = keep === 'close' ? 'Admits people only while this app is open.'
+          : !exp ? 'Admits people forever.'
+          : (function () { var m = Math.max(1, Math.round((exp - Date.now()) / 60000)); return 'Stops admitting new people in ~' + (m >= 60 ? Math.round(m / 60) + 'h' : m + 'm') + ' (those here stay).'; })();
+        return life + (heal ? ' A friend can keep it going if you drop.' : ' Ends if you drop off.');
+      }
+      function expNote(info) {
+        if (info.keep === 'close') return 'Open now; ends on close.';
+        if (!info.exp) return 'Admits people forever.';
+        var mins = Math.max(1, Math.round((info.exp - Date.now()) / 60000));
+        return 'Admits new people ~' + (mins >= 60 ? Math.round(mins / 60) + 'h' : mins + 'm') + ' more.';
+      }
+      // Modal: warn what a link grants, then choose its lifetime + resilience.
+      function chooseInvite(forceNew) {
+        var probe = (!forceNew && controller && controller.sessionInfo) ? controller.sessionInfo() : Promise.resolve({ active: false });
+        return probe.then(function (info) {
+          return new Promise(function (resolve) {
+            var bg = document.createElement('div');
+            bg.className = 'perm-modal'; bg.id = 'invite-modal';
+            bg.innerHTML =
+              '<div class="perm-box">' +
+              '<h3>Share this app</h3>' +
+              '<div class="warn">Your invite link works <b>only while you have this app open</b>. Anyone who has it can join live <b>and download a full copy of everything in this app</b> — and you can’t un-share what they’ve already seen. Only invite people you trust with this data.</div>' +
+              '<p class="lead">How long should the link let <i>new</i> people join?</p>' +
+              (info.active ? '<label class="perm-row"><input type="radio" name="lt" value="__keep" checked><span><span class="host">Keep my current link</span><span class="desc">' + expNote(info) + '</span></span></label>' : '') +
+              '<label class="perm-row"><input type="radio" name="lt" value="close"' + (info.active ? '' : ' checked') + '><span><span class="host">While the app is open</span><span class="desc">A fresh link each time; closing the app retires it for good.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="1h"><span><span class="host">1 hour</span><span class="desc">Then no new joiners — people already in keep going.</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="24h"><span><span class="host">24 hours</span></span></label>' +
+              '<label class="perm-row"><input type="radio" name="lt" value="forever"><span><span class="host">Forever</span></span></label>' +
+              '<p class="lead" id="res-q">If you drop off (close the tab, lose battery)…</p>' +
+              '<label class="perm-row" id="res-end"><input type="radio" name="res" value="end" checked><span><span class="host">Only I can host it</span><span class="desc">Your app keeps a secret only it holds, so no one else can take over and impersonate it — the session stops for everyone when you drop. Safest for private data.</span></span></label>' +
+              '<label class="perm-row" id="res-keep"><input type="radio" name="res" value="keep"><span><span class="host">Let a friend keep it going</span><span class="desc">A still-connected friend can take over hosting and keep serving your data — but so can anyone with the link. Best for shared, casual apps and games.</span></span></label>' +
+              '<div class="perm-btns"><button id="inv-cancel" class="ghost">Cancel</button><button id="inv-go" class="done">Create link</button></div>' +
+              '</div>';
+            document.body.appendChild(bg);
+            // "While the app is open" can't also be kept alive by someone else —
+            // grey the resilience dial and force "End" whenever it's selected.
+            function syncRes() {
+              var lt = (bg.querySelector('input[name=lt]:checked') || {}).value;
+              var lock = (lt === 'close' || lt === '__keep');
+              bg.querySelector('#res-q').style.opacity = lock ? '.4' : '';
+              ['res-end', 'res-keep'].forEach(function (id) {
+                var row = bg.querySelector('#' + id); row.style.opacity = lock ? '.4' : '';
+                row.querySelector('input').disabled = lock;
+              });
+              if (lock) bg.querySelector('#res-end input').checked = true;
+            }
+            Array.prototype.forEach.call(bg.querySelectorAll('input[name=lt]'), function (el) { el.addEventListener('change', syncRes); });
+            syncRes();
+            function close(v) { bg.remove(); resolve(v); }
+            bg.querySelector('#inv-cancel').onclick = function () { close(null); };
+            bg.addEventListener('click', function (e) { if (e.target === bg) close(null); });
+            bg.querySelector('#inv-go').onclick = function () {
+              var sel = bg.querySelector('input[name=lt]:checked');
+              var v = sel ? sel.value : 'close';
+              var resilient = (bg.querySelector('input[name=res]:checked') || {}).value === 'keep';
+              close(v === '__keep' ? { resume: true } : { lifetime: v, resilient: resilient });
+            };
+          });
+        });
+      }
+      function goLive(choice) {
+        hostBtn.disabled = true; hostBtn.textContent = 'Connecting…';
+        return ensureName().then(function () {
+          return controller.becomeHost(choice.resume ? {} : { lifetime: choice.lifetime, resilient: choice.resilient });
+        }).then(function (r) {
+          inviteUrl = r.shareUrl;
+          inviteExp = lifeLabel(r.keep, r.exp, r.heal);
+          hostBtn.disabled = false; hostBtn.textContent = 'Invite';
+          shareLink(inviteUrl, inviteExp);
+        }).catch(function (err) {
+          hostBtn.disabled = false; hostBtn.textContent = 'Invite';
+          status.textContent = 'Could not create the invite: ' + err.message;
+          connPop.classList.add('show'); // errors deserve to be seen
+        });
+      }
+      hostBtn.addEventListener('click', function () {
+        // Invite ALWAYS opens the explain-and-create window. If a session is
+        // already live it offers "Keep my current link" (which just re-shows it),
+        // so this one entry point covers first-share, re-share and rotate.
+        if (!controller || !controller.becomeHost) return;
+        chooseInvite().then(function (choice) { if (choice) goLive(choice); });
+      });
+      becomeBtn.addEventListener('click', function () {
+        if (!controller) return;
+        becomeBtn.disabled = true; becomeBtn.textContent = 'Taking over…';
+        controller.becomeHost().then(function (r) {
+          becomeBtn.style.display = 'none';
+          inviteUrl = r.shareUrl;
+          inviteExp = lifeLabel(r.keep, r.exp, r.heal);
+          shareLink(r.shareUrl, inviteExp);
+          if (r.save) controller = Object.assign({}, controller, { save: r.save });
+        }).catch(function (err) {
+          becomeBtn.disabled = false; becomeBtn.textContent = 'Take Over';
+          status.textContent = 'Could not take over: ' + err.message;
+          connPop.classList.add('show');
+        });
+      });
+      // One "Steal" button → a small modal with two choices: WHERE the copy
+      // goes (this computer's Stolen Apps chest, or a downloaded file) and
+      // WHETHER it carries the current data.
+      function chooseSteal() {
+        var bg = document.createElement('div'); bg.className = 'perm-modal'; bg.id = 'steal-modal';
+        // On an ETERNAL link there's a third kind of copy: a MIRROR — bound to
+        // this link, it re-syncs to the original each time you open it (a steal
+        // is a frozen fork; a mirror stays live). Offered only when syncing is
+        // possible (a forever link with a master to sync against).
+        bg.innerHTML =
+          '<div class="perm-box">' +
+          '<h3>Steal this app</h3>' +
+          '<p class="lead">Where should the copy go?</p>' +
+          (sessionEternal ? '<label class="perm-row"><input type="radio" name="dest" value="mirror" checked><span><span class="host">Keep in sync (mirror)</span><span class="desc">A copy in your Stolen Apps that re-syncs to the original every time you open it.</span></span></label>' : '') +
+          '<label class="perm-row"><input type="radio" name="dest" value="desktop"' + (sessionEternal ? '' : ' checked') + '><span><span class="host">Save a copy</span><span class="desc">A frozen icon in your Stolen Apps — its own thing from now on, no syncing.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="dest" value="download"><span><span class="host">Download a file</span><span class="desc">Get it as one GIF you can keep or send to anyone.</span></span></label>' +
+          '<div id="steal-data"><p class="lead">What data should ride along?</p>' +
+          '<label class="perm-row"><input type="radio" name="data" value="none" checked><span><span class="host">No data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="connect"><span><span class="host">Data as it arrived</span><span class="desc">The snapshot from the moment you opened it — instant, nothing re-sent.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries everything currently in the app, live.</span></span></label></div>' +
+          '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Save it</button></div>' +
+          '</div>';
+        document.body.appendChild(bg);
+        function close() { bg.remove(); }
+        bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+        bg.querySelector('#steal-cancel').onclick = close;
+        // A mirror always carries the live state, so the "which data" choice is
+        // irrelevant then — hide it while Mirror is selected.
+        var dataBox = bg.querySelector('#steal-data');
+        function syncDataVis() { var d = (bg.querySelector('input[name=dest]:checked') || {}).value; dataBox.style.display = d === 'mirror' ? 'none' : ''; }
+        Array.prototype.forEach.call(bg.querySelectorAll('input[name=dest]'), function (r) { r.addEventListener('change', syncDataVis); });
+        syncDataVis();
+        bg.querySelector('#steal-go').onclick = function () {
+          var dest = (bg.querySelector('input[name=dest]:checked') || {}).value;
+          close();
+          if (!controller) return;
+          if (dest === 'mirror') {
+            if (!controller.saveMirror) return;
+            controller.saveMirror().then(function () {
+              status.textContent = 'Saved a synced mirror in your Stolen Apps — it’ll catch up to the original each time you open it.';
+              connPop.classList.add('show');
+            }).catch(function (err) { status.textContent = 'Mirror failed: ' + err.message; connPop.classList.add('show'); });
+            return;
+          }
+          var toDesktop = dest === 'desktop';
+          var data = (bg.querySelector('input[name=data]:checked') || {}).value || 'none';
+          if (!controller.steal) return;
+          var dataNote = data === 'none' ? '' : data === 'connect' ? ' (with its data) 😏' : ' (with live data) 😏';
+          controller.steal({ toDesktop: toDesktop, data: data }).then(function (r) {
+            status.textContent = toDesktop
+              ? ('Stolen into your Stolen Apps' + (dataNote || ' 😏'))
+              : ('Downloaded: ' + (r && r.name ? r.name : 'app.gif'));
+            connPop.classList.add('show');
+          }).catch(function (err) { status.textContent = 'Steal failed: ' + err.message; connPop.classList.add('show'); });
+        };
+      }
+      stealBtn.addEventListener('click', chooseSteal);
+    })();
+  </script>
+</body>
+</html>
