@@ -576,9 +576,14 @@
     // sorted-id order, C per row. Every client computes the identical map
     // from the identical roster — no coordinator, no gossip, no state.
     const stageIds = () => []; // row-0 membership (the stage tasks fill this in)
+    // The room DIRECTORY: everyone on the roster, whether or not we hold a
+    // media link to them. Gossip (status, moderation, chat fallback) spans the
+    // directory over the relay; MEDIA spans only the row (docs/rows.md).
+    let rosterIds = [], rosterNames = {};
+    const gossipIds = () => rosterIds.filter((id) => id !== myId);
     function computeRows() {
       const onStage = new Set(stageIds());
-      const ids = [myId, ...peers.keys()].filter((id) => id && !onStage.has(id)).sort();
+      const ids = [...new Set([myId, ...rosterIds])].filter((id) => id && !onStage.has(id)).sort();
       const rows = [stageIds()];
       for (const id of ids) {
         if (rows.length === 1 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
@@ -641,7 +646,7 @@
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
       const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable };
-      for (const pid of peers.keys()) sendSig(pid, payload);
+      for (const pid of gossipIds()) sendSig(pid, payload);
       updateTile('me');
     }
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
@@ -699,7 +704,7 @@
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
-      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
       refreshAllTiles();
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
@@ -1172,7 +1177,7 @@
     }
 
     // ---- adaptive quality ----------------------------------------------------
-    function participantCount() { return 1 + peers.size; }
+    function participantCount() { return Math.max(1 + peers.size, rosterIds.includes(myId) ? rosterIds.length : 1 + rosterIds.length); }
     function adapt() {
       const n = participantCount();
       const q = rung(n);
@@ -1366,6 +1371,7 @@
     function onSignal(from, msg, adm) {
       if (!msg || !msg.kind) return;
       if (msg.kind === 'offer') {
+        if (!linkTo(from)) return; // outside my row's link set — rows settle, they retry
         const p = makePeer(from, msg.name);
         learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
@@ -1420,37 +1426,64 @@
     // link (initiated by whichever side the id-order rule picks); absent peers
     // start a grace clock instead of being dropped on the spot — a locked
     // phone rejoining in ten seconds keeps its tile and its meeting.
+    // Do I hold a LIVE MEDIA LINK to this peer? My row mates, everyone on
+    // the stage (row 0), and — when I'm my row's deacon — the other rows'
+    // deacons (the fold/forward edges). At default constants a small room is
+    // one row, so this set is EVERYONE — today's mesh, by arithmetic.
+    function linkTo(pid) {
+      const rows = computeRows();
+      const mine = myRowIndex();
+      if (rows[0].includes(pid) || mine === 0) return true; // the stage sees and is seen by all… of its links
+      const theirs = rowIndexOf(pid);
+      if (theirs === mine) return true;
+      if (theirs <= 0) return theirs === 0; // stage members are always linked
+      if (amDeacon() && deaconOf(rows[theirs]) === pid) return true; // deacon mesh
+      return false;
+    }
+    // Establish or retire ONE peer's media link per the row arithmetic. Also
+    // run by the sweeper: cap gossip settling can move a deacon election, and
+    // the link set must follow without waiting for the next roster.
+    function ensureLink(pid, name) {
+      if (!linkTo(pid)) { if (peers.has(pid)) dropPeer(pid); return; }
+      let p = peers.get(pid);
+      if (!p) {
+        if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
+        else p = makePeer(pid, name); // their offer is on its way
+        // Newcomers can't trust gossip for moderation in admin rooms — an
+        // admin hands them the table over the relay's stamped path.
+        if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
+        // A newcomer still channel-less after a grace gets the union-merge
+        // 'hi' over the RELAY (sealed) — chat and history converge even for
+        // a fully P2P-blocked participant. Smaller slices: relay budget.
+        const late = p;
+        late.hiLate = setTimeout(() => {
+          if (peers.get(pid) === late && !(late.dc && late.dc.readyState === 'open')) {
+            sendSig(pid, { k: 'hi', chats: Array.from(chat.values()).slice(-200), trs: Array.from(trs.values()).slice(-100), metas: fileMetas(), tombs: tombObj() });
+          }
+        }, 8000);
+      }
+      p.absentSince = 0;
+      if (name && p.name !== name) { p.name = name; p.label.textContent = name; }
+    }
     function reconcile(list, names) {
       names = names || {};
+      rosterIds = list.slice();
+      rosterNames = Object.assign({}, rosterNames, names);
       for (const pid of list) {
         if (pid === myId) continue;
         // A peer carrying MY device id is a stale session of my own device — a
         // second tab, or one the relay hasn't reaped yet — never a real guest.
         // Drop it instead of drawing a second "me" tile (and don't dial it).
         if (devOf[pid] && devOf[pid] === deviceId()) { if (peers.has(pid)) dropPeer(pid); continue; }
-        let p = peers.get(pid);
-        if (!p) {
-          if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
-          else p = makePeer(pid, names[pid] || null); // their offer is on its way
-          // Newcomers can't trust gossip for moderation in admin rooms — an
-          // admin hands them the table over the relay's stamped path.
-          if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
-          // A newcomer still channel-less after a grace gets the union-merge
-          // 'hi' over the RELAY (sealed) — chat and history converge even for
-          // a fully P2P-blocked participant. Smaller slices: relay budget.
-          const late = p;
-          late.hiLate = setTimeout(() => {
-            if (peers.get(pid) === late && !(late.dc && late.dc.readyState === 'open')) {
-              sendSig(pid, { k: 'hi', chats: Array.from(chat.values()).slice(-200), trs: Array.from(trs.values()).slice(-100), metas: fileMetas(), tombs: tombObj() });
-            }
-          }, 8000);
-        }
-        p.absentSince = 0;
-        if (names[pid] && p.name !== names[pid]) { p.name = names[pid]; p.label.textContent = names[pid]; }
+        // Media is ROW-SCOPED: someone outside my link set stays in the
+        // directory (gossip reaches them over the relay; the stadium fold will
+        // show them) but gets no pc and no tile here.
+        ensureLink(pid, names[pid] || rosterNames[pid] || null);
       }
       for (const [pid, p] of peers) {
         if (!list.includes(pid) && !p.absentSince) p.absentSince = Date.now();
       }
+      for (const pid of Object.keys(rosterNames)) if (!list.includes(pid)) delete rosterNames[pid];
       updateStatus();
     }
 
@@ -1646,7 +1679,13 @@
     //  - present + link down → the initiator side re-offers with an ICE restart
     setInterval(() => {
       const now = Date.now();
+      // Elections settle as cap gossip arrives — follow the arithmetic.
+      for (const pid of rosterIds) {
+        if (pid === myId || (devOf[pid] && devOf[pid] === deviceId())) continue;
+        if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
+      }
       for (const [pid, p] of Array.from(peers)) {
+        if (!linkTo(pid)) { dropPeer(pid); continue; }
         const st = p.pc.connectionState;
         if (p.absentSince && !p.connected && now - p.absentSince > ABSENT_GRACE) { dropPeer(pid); continue; }
         // A pc that lands in 'closed' can't be ICE-restarted — rebuild the
@@ -1844,7 +1883,11 @@
     const whoModal = document.getElementById('who-modal');
     function whoRows() {
       const rows = [{ pid: myId || '', name: myName() + ' (you)' }];
-      for (const [pid, p] of peers) rows.push({ pid, name: p.name || '…' });
+      for (const pid of rosterIds) {
+        if (pid === myId) continue;
+        const p = peers.get(pid);
+        rows.push({ pid, name: (p && p.name) || rosterNames[pid] || '…' });
+      }
       return rows.map((r) => ({ name: r.name, ip: ipsOf[r.pid] || 'address unknown', dev: devOf[r.pid] || '', pid: r.pid }));
     }
     function showWhoModal() {
@@ -2903,7 +2946,7 @@
         mine.blur = { on, by: myName(), byId: myId, at: now };
         changed = true;
       }
-      if (changed) for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      if (changed) for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
       refreshAllTiles(); updateBlurAllBtn();
       setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
@@ -2929,7 +2972,7 @@
         const mine = modTable[pid] = modTable[pid] || {};
         mine.cam = { on, by: myName(), byId: myId, at: now };
       }
-      for (const pid of peers.keys()) sendSig(pid, { kind: 'mod', mod: modTable });
+      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
       refreshAllTiles(); updateCamAllBtn();
       setStatus(on ? 'Turned every guest\'s video off.' : 'Guests may turn their video back on.');
     };
@@ -3172,7 +3215,7 @@
     function stopRoomApp(ad) {
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
-      for (const pid of peers.keys()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
+      for (const pid of gossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
       setStatus('🧩 You stopped the shared app for everyone here.');
       reconcileApp();
     }
