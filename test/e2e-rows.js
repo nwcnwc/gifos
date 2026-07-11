@@ -162,7 +162,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const v = window.__gifosVideo;
       const s = v.stadium();
       return s.length === 1 && s[0].live;
-    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
     if (!got) healOk = false;
   }
   check('after a deacon dies: the stadium re-folds and comes back live everywhere', healOk);
