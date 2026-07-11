@@ -277,6 +277,23 @@
     return (job) => { q = q.then(job).catch(() => {}); return q; };
   }
 
+  // ---- the scale constants (docs/rows.md) ------------------------------------
+  // Structure emerges from THESE NUMBERS, never from code that asks "is this
+  // room big?" (per-node invariants, no global modes). Tests and rehearsals
+  // override via window.GIFOS_SCALE — the same idiom as GIFOS_CONN — so ten
+  // browsers at C=2 exercise a four-level tree: the K-sweep doctrine. The
+  // small case must equal today's behavior by ARITHMETIC (empty sets,
+  // degenerate folds), never by branching.
+  const SCALE = Object.assign({
+    C: 8,             // row capacity — people per row (grows with rehearsals)
+    K: 8,             // live A/V link budget per device
+    F: 16,            // fold fanout — child rows per deacon at one level
+    COMP_W: 480,      // composite frame budget: width…
+    COMP_H: 270,      // …height…
+    COMP_FPS: 12,     // …and rate. One composite per edge, each way, forever.
+    HB: 4000,         // status heartbeat ms
+  }, root.GIFOS_SCALE || {});
+
   // ---- P1: single-hop forwarding through a friend -----------------------------
   // {t:'fwd', src, to, p} — p is ONE piece (a sealed envelope, or one {t:'frag'}
   // fragment of one). The forwarder relays pieces verbatim and statelessly:
@@ -295,5 +312,6 @@
     deriveJoin, deriveMeet, meetPwProof,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
+    SCALE,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
