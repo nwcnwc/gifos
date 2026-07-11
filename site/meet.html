@@ -2578,10 +2578,10 @@
       } else if (m.k === 'comp-end') {
         if ((compOf.get(m.row) || {}).via === p.id) dropComp(m.row);
       } else if (m.k === 'rkick') {
-        // A composite peer added tracks and needs the pair's initiator (me) to
-        // re-offer so its tracks ride the answer. Never re-offer from the
-        // non-initiating side — that would glare with the sender's own kick.
-        if (p.pc && iInitiate(p.id)) renegotiate(p);
+        // The far side has a streamless mapping from me: if any of my sender
+        // m-lines toward them never negotiated (rolled back in a glare),
+        // re-offer so they exist on the wire. No-op when all is settled.
+        if (p.pc && hasPendingTx(p)) renegotiate(p);
       } else if (m.k === 'pwinfo') {
         // The room's password changed — the PLAINTEXT arrives only inside this
         // sealed frame, never through the relay in the clear. Adopt it and
@@ -2599,22 +2599,28 @@
         // Glare: if I have my own offer in flight and I'm the IMPOLITE side
         // (the pair's initiator), their offer loses — they'll roll back and
         // answer mine, then re-offer. The polite side falls through: spec'd
-        // setRemoteDescription(offer) implicitly rolls back its local offer.
-        if (p.pc.signalingState === 'have-local-offer' && iInitiate(p.id)) return;
+        // setRemoteDescription(offer) implicitly rolls back its local offer —
+        // and MUST re-offer afterwards, or its rolled-back m-lines are
+        // orphaned forever (the browser's negotiationneeded would refire
+        // here; our hand-rolled offers need the explicit flag).
+        if (p.pc.signalingState === 'have-local-offer') {
+          if (iInitiate(p.id)) return;
+          p.renegAgain = true; // polite rollback: my changes go again after I answer
+        }
         p.pc.setRemoteDescription(m.sdp)
           .then(() => p.pc.createAnswer())
           .then((a) => p.pc.setLocalDescription(a))
           .then(() => {
             dcSend(p, { k: 'ranswer', sdp: p.pc.localDescription });
             if (typeof clog === 'function') clog('ranswer→' + String(p.id).slice(0, 6));
-            if (p.renegAgain) { p.renegAgain = false; renegotiate(p); } // rolled-back changes go again
+            if (p.renegAgain || hasPendingTx(p)) { p.renegAgain = false; renegotiate(p); }
           })
           .catch((e) => { if (typeof clog === 'function') clog('roffer-APPLY-FAIL ' + String(p.id).slice(0, 6) + ' ' + (p.pc && p.pc.signalingState) + ' ' + (e && e.name)); });
       } else if (m.k === 'ranswer') {
         if (p.pc) p.pc.setRemoteDescription(m.sdp)
           .then(() => {
             if (typeof clog === 'function') clog('ranswer←' + String(p.id).slice(0, 6));
-            if (p.renegAgain) { p.renegAgain = false; renegotiate(p); }
+            if (p.renegAgain || hasPendingTx(p)) { p.renegAgain = false; renegotiate(p); }
           })
           .catch((e) => { if (typeof clog === 'function') clog('ranswer-FAIL ' + String(p.id).slice(0, 6) + ' ' + (p.pc && p.pc.signalingState) + ' ' + (e && e.name)); });
       }
@@ -2985,8 +2991,18 @@
     function compKick(pid) {
       const p = peers.get(pid);
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
+      // A streamless mapping usually means the SENDER's m-lines never made
+      // it into a negotiation (rolled back, or raced). My own offer can't
+      // carry their m-lines — ask them to re-offer too.
+      dcSend(p, { k: 'rkick' });
       renegotiate(p);
     }
+    // Any transceiver with a live sender track but no mid was rolled back or
+    // raced out of its negotiation — it needs another offer to exist on the
+    // wire. The re-offer checks after every settled negotiation.
+    const hasPendingTx = (p) => {
+      try { return p.pc.getTransceivers().some((t) => !t.mid && t.sender && t.sender.track); } catch (e) { return false; }
+    };
     function claimCompStreams() {
       let changed = false;
       for (const c of compOf.values()) {
