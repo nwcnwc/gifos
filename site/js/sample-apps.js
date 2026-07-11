@@ -1535,6 +1535,218 @@ document.getElementById('f').onsubmit=async e=>{
       : themeVars(ui) + out;
   }
 
+  // My Media — a personal library for images, audio and video with built-in
+  // players. Metadata (name, type, category, a small thumbnail) lives in the
+  // subscribed 'media' collection; the raw bytes live per-item in 'blobs',
+  // fetched only when you open something (so the grid stays light). Add from
+  // files, or capture straight in with the brokered camera/mic. All local.
+  const MYMEDIA_HTML = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);font:15px system-ui,sans-serif;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f)}
+  header h1{font-size:1.05rem;margin:0;flex:1;color:var(--accent,#ff7850)}
+  header h1 small{display:block;font-weight:400;font-size:.68rem;color:var(--muted,#8888aa)}
+  button{font:inherit;cursor:pointer;border-radius:9px}
+  .btn{padding:8px 12px;border:0;background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
+  .btn.ghost{background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
+  #cap{display:flex;gap:6px}
+  #cap button{padding:8px 10px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font-size:16px}
+  #bar{display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-bottom:1px solid var(--border,#2a2a3f)}
+  .seg{display:inline-flex;border:1px solid var(--border,#2a2a3f);border-radius:9px;overflow:hidden}
+  .seg button{padding:6px 12px;border:0;background:transparent;color:var(--muted,#8888aa);font-size:.85rem}
+  .seg button.on{background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
+  select{font:inherit;padding:6px 10px;border-radius:9px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
+  #count{margin-left:auto;color:var(--muted,#8888aa);font-size:.8rem}
+  #grid{flex:1;overflow-y:auto;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;align-content:start}
+  .card{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .1s}
+  .card:active{transform:scale(.97)}
+  .thumb{position:relative;aspect-ratio:1/1;background:#0c0c14 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:34px}
+  .thumb .kind{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);border-radius:6px;padding:1px 6px;font-size:11px}
+  .thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;text-shadow:0 2px 8px #000;color:#fff}
+  .meta{padding:8px 10px}
+  .meta .nm{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .cat{display:inline-block;margin-top:4px;font-size:.68rem;color:var(--accent,#ff7850);background:color-mix(in srgb,var(--accent,#ff7850) 16%,transparent);border-radius:5px;padding:1px 6px}
+  #empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted,#8888aa);padding:2rem}
+  #empty .big{font-size:44px;margin-bottom:.5rem}
+  #drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent,#ff7850) 22%,rgba(0,0,0,.6));font-size:1.2rem;font-weight:700;color:#fff;z-index:20;border:4px dashed #fff}
+  #modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:30;padding:16px}
+  .box{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:14px;max-width:640px;width:100%;max-height:92vh;overflow:auto}
+  .stage{background:#000;display:flex;align-items:center;justify-content:center;min-height:200px;max-height:60vh}
+  .stage img,.stage video{max-width:100%;max-height:60vh;display:block}
+  .stage audio{width:90%;margin:2rem 5%}
+  .info{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .info .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .info input[type=text]{flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#2a2a3f);background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);font:inherit}
+  .info .sub{color:var(--muted,#8888aa);font-size:.78rem}
+  .danger{background:#3a1717;color:#ff9a9a;border:1px solid #5a2626;padding:8px 12px}
+  #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:40;max-width:88%}
+  #toast.on{opacity:1}
+</style></head><body>
+<header>
+  <h1>My Media<small>Your images, audio &amp; video — stored on this device</small></h1>
+  <span id="cap"></span>
+  <button class="btn" id="add">＋ Add</button>
+</header>
+<div id="bar">
+  <span class="seg" id="types">
+    <button data-t="all" class="on">All</button>
+    <button data-t="image">🖼</button>
+    <button data-t="audio">🎵</button>
+    <button data-t="video">🎬</button>
+  </span>
+  <select id="cat"><option value="all">All categories</option></select>
+  <span id="count"></span>
+</div>
+<div id="grid"></div>
+<div id="empty"><div class="big">🎞️</div><div><b>No media yet</b></div><div class="sub" style="margin-top:.4rem">Tap <b>＋ Add</b> to import photos, audio or video — or drop files anywhere.</div></div>
+<input type="file" id="fi" accept="image/*,audio/*,video/*" multiple hidden>
+<div id="drop">Drop to add to your library</div>
+<div id="modal"><div class="box">
+  <div class="stage" id="stage"></div>
+  <div class="info">
+    <input type="text" id="mname" placeholder="Name">
+    <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
+    <datalist id="cats"></datalist>
+    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+  </div>
+</div></div>
+<div id="toast"></div>
+<script>
+  var media = gifos.db('media'), blobs = gifos.db('blobs');
+  var MAX = 25 * 1024 * 1024;
+  var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null;
+  var grid = document.getElementById('grid'), gEmpty = document.getElementById('empty');
+  function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
+  var toastT; function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); }, 2600); }
+  var KIND={ image:'🖼', audio:'🎵', video:'🎬' };
+  function fmtSize(n){ n=+n||0; return n>=1e6?(n/1e6).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':n+' B'; }
+
+  // ---- thumbnails: a small jpeg baked at import so the grid never loads blobs ----
+  function downscale(src, w, h){ if(!w||!h) return '';
+    var max=280, sc=Math.min(1, max/Math.max(w,h));
+    var c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w*sc)); c.height=Math.max(1,Math.round(h*sc));
+    try{ c.getContext('2d').drawImage(src,0,0,c.width,c.height); return c.toDataURL('image/jpeg',0.7); }catch(e){ return ''; } }
+  function makeThumb(blob, type){ return new Promise(function(res){
+    var url=URL.createObjectURL(blob);
+    if(type==='image'){ var img=new Image(); img.onload=function(){ res(downscale(img,img.naturalWidth,img.naturalHeight)); URL.revokeObjectURL(url); }; img.onerror=function(){ URL.revokeObjectURL(url); res(''); }; img.src=url; return; }
+    if(type==='video'){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; var done=false;
+      function fin(){ if(done) return; done=true; res(downscale(v,v.videoWidth,v.videoHeight)); URL.revokeObjectURL(url); }
+      v.onloadeddata=function(){ try{ v.currentTime=Math.min(0.4,(v.duration||1)/3); }catch(e){ fin(); } };
+      v.onseeked=fin; v.onerror=function(){ URL.revokeObjectURL(url); res(''); }; setTimeout(fin,2500); v.src=url; return; }
+    URL.revokeObjectURL(url); res(''); // audio: icon only
+  }); }
+
+  function typeOf(mime){ mime=String(mime||''); return mime.indexOf('image/')===0?'image':mime.indexOf('audio/')===0?'audio':mime.indexOf('video/')===0?'video':''; }
+  async function store(bytes, mime, name, category){
+    var type=typeOf(mime); if(!type){ toast('Only images, audio and video can be added.'); return; }
+    if(bytes.length>MAX){ toast((name||'That file')+' is too big (max 25 MB).'); return; }
+    var id='m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+    var thumb=''; try{ thumb=await makeThumb(new Blob([bytes],{type:mime}), type); }catch(e){}
+    await blobs.put({ id:id, bytes:bytes });
+    await media.put({ id:id, name:name||type, type:type, mime:mime, category:(category||'Unsorted'), size:bytes.length, at:Date.now(), thumb:thumb });
+  }
+  async function importFile(file){
+    try{ var buf=new Uint8Array(await file.arrayBuffer()); await store(buf, file.type||'', file.name||'file', 'Unsorted'); }
+    catch(e){ toast('Could not read ' + (file&&file.name||'file')); }
+  }
+
+  // ---- library ----
+  function categories(){ var s={}; items.forEach(function(m){ if(m.category) s[m.category]=1; }); return Object.keys(s).sort(); }
+  function refreshCats(){
+    var sel=document.getElementById('cat'), cur=sel.value; sel.innerHTML='<option value="all">All categories</option>';
+    categories().forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+    if(fCat!=='all' && categories().indexOf(fCat)<0) fCat='all'; sel.value=fCat;
+    var dl=document.getElementById('cats'); dl.innerHTML=''; categories().forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
+  }
+  function render(){
+    refreshCats();
+    var list=items.filter(function(m){ return (fType==='all'||m.type===fType) && (fCat==='all'||m.category===fCat); })
+      .sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    document.getElementById('count').textContent = items.length ? (list.length+' of '+items.length) : '';
+    gEmpty.style.display = items.length ? 'none' : 'flex';
+    grid.style.display = items.length ? 'grid' : 'none';
+    grid.innerHTML = list.map(function(m){
+      var bg = m.thumb ? 'style="background-image:url('+m.thumb+')"' : '';
+      var face = m.thumb ? (m.type!=='image'?'<div class="play">▶</div>':'') : ('<span>'+(KIND[m.type]||'📄')+'</span>');
+      return '<div class="card" data-id="'+m.id+'"><div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+face+'</div>'+
+        '<div class="meta"><div class="nm">'+esc(m.name)+'</div><span class="cat">'+esc(m.category||'Unsorted')+'</span></div></div>';
+    }).join('');
+  }
+  media.subscribe(function(rows){ items=(rows||[]).filter(function(r){ return r&&r.id&&r.type; }); render(); });
+
+  // ---- open one: fetch its blob, pick the right player ----
+  grid.addEventListener('click', function(e){ var c=e.target.closest?e.target.closest('.card'):null; if(c) openItem(c.getAttribute('data-id')); });
+  async function openItem(id){
+    var m=items.filter(function(x){ return x.id===id; })[0]; if(!m) return;
+    var rec=await blobs.get(id);
+    if(!rec||!rec.bytes){ toast('The file for this item is missing.'); return; }
+    var bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+    if(curUrl){ URL.revokeObjectURL(curUrl); curUrl=null; }
+    curUrl = URL.createObjectURL(new Blob([bytes], { type:m.mime||'' })); cur=m;
+    var stage=document.getElementById('stage');
+    stage.innerHTML = m.type==='image' ? '<img src="'+curUrl+'" alt="'+esc(m.name)+'">'
+      : m.type==='audio' ? '<audio src="'+curUrl+'" controls autoplay></audio>'
+      : '<video src="'+curUrl+'" controls autoplay playsinline></video>';
+    document.getElementById('mname').value = m.name||'';
+    document.getElementById('mcat').value = m.category||'';
+    document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
+    document.getElementById('modal').style.display='flex';
+  }
+  function closeModal(){
+    var st=document.getElementById('stage'); st.innerHTML=''; // stops playback
+    if(curUrl){ URL.revokeObjectURL(curUrl); curUrl=null; } cur=null;
+    document.getElementById('modal').style.display='none';
+  }
+  document.getElementById('mclose').onclick=closeModal;
+  document.getElementById('modal').addEventListener('click', function(e){ if(e.target.id==='modal') closeModal(); });
+  document.getElementById('msave').onclick=async function(){
+    if(!cur) return;
+    var name=document.getElementById('mname').value.trim()||cur.name;
+    var cat=document.getElementById('mcat').value.trim()||'Unsorted';
+    await media.put(Object.assign({}, cur, { name:name, category:cat }));
+    toast('Saved'); cur.name=name; cur.category=cat;
+  };
+  document.getElementById('mdel').onclick=async function(){
+    if(!cur) return; var id=cur.id; closeModal();
+    await media.delete(id); try{ await blobs.delete(id); }catch(e){}
+  };
+
+  // ---- add: file picker + drag/drop ----
+  document.getElementById('add').onclick=function(){ document.getElementById('fi').click(); };
+  document.getElementById('fi').onchange=function(e){ var fs=e.target.files||[]; for(var i=0;i<fs.length;i++) importFile(fs[i]); e.target.value=''; };
+  var dz=document.getElementById('drop'), dc=0;
+  window.addEventListener('dragenter', function(e){ e.preventDefault(); dc++; dz.style.display='flex'; });
+  window.addEventListener('dragover', function(e){ e.preventDefault(); });
+  window.addEventListener('dragleave', function(e){ e.preventDefault(); if(--dc<=0){ dc=0; dz.style.display='none'; } });
+  window.addEventListener('drop', function(e){ e.preventDefault(); dc=0; dz.style.display='none'; var fs=(e.dataTransfer&&e.dataTransfer.files)||[]; for(var i=0;i<fs.length;i++) importFile(fs[i]); });
+
+  // ---- capture straight in (brokered camera/mic; honours the Abilities opt-out) ----
+  var cap=document.getElementById('cap');
+  function capBtn(glyph, title, fn){ var b=document.createElement('button'); b.textContent=glyph; b.title=title; b.onclick=fn; cap.appendChild(b); }
+  async function capture(kind){
+    try{
+      var clip = kind==='photo' ? await gifos.takePhoto() : kind==='audio' ? await gifos.recordAudio() : await gifos.recordVideo();
+      if(!clip||!clip.bytes) return;
+      var bytes=new Uint8Array(clip.bytes);
+      var mime=clip.mime||(kind==='photo'?'image/jpeg':kind==='audio'?'audio/webm':'video/webm');
+      var label=(kind==='photo'?'Photo':kind==='audio'?'Recording':'Clip')+' · '+new Date().toLocaleString();
+      await store(bytes, mime, label, 'Captured');
+    }catch(err){ var m=String(err&&err.message||err); if(!/cancel/i.test(m)) toast(m.slice(0,90)); }
+  }
+  if(window.gifos && gifos.takePhoto){
+    capBtn('📷','Take a photo', function(){ capture('photo'); });
+    capBtn('🎙','Record audio', function(){ capture('audio'); });
+    capBtn('🎬','Record a video clip', function(){ capture('video'); });
+  }
+
+  // ---- filters ----
+  document.getElementById('types').addEventListener('click', function(e){ var b=e.target.closest?e.target.closest('button[data-t]'):null; if(!b) return;
+    fType=b.getAttribute('data-t'); Array.prototype.forEach.call(this.children, function(c){ c.classList.toggle('on', c===b); }); render(); });
+  document.getElementById('cat').onchange=function(){ fCat=this.value; render(); };
+</script></body></html>`;
+
   function build() {
     const gif = GifOS.gif;
     // Apps that hand-author their theming with CSS variables take 'vars' —
@@ -1607,10 +1819,44 @@ document.getElementById('f').onsubmit=async e=>{
       const frames = []; for (let f = 0; f < N; f++) frames.push(painter(f));
       return GifOS.icons.rasterize(frames, S, 12);
     }
+    // My Media gets a bespoke tile (independent of the computer's icon pack, so
+    // it always reads as a media library): a photo card — sky, sun, hills — with
+    // a play badge that pulses. Drawn straight to canvas via the rasterizer.
+    function mediaIcon(accent) {
+      const N = 14, S = 72;
+      const ac = 'rgb(' + accent.map((v) => Math.max(0, Math.min(255, v | 0))).join(',') + ')';
+      const rr = (ctx, x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+      const painter = (f) => (ctx, s) => {
+        const t = (1 - Math.cos((2 * Math.PI * f) / N)) / 2; // 0→1→0
+        ctx.clearRect(0, 0, s, s);
+        const cx = s * 0.5, cy = s * 0.47, w = s * 0.66, h = s * 0.5, x = cx - w / 2, y = cy - h / 2, r = s * 0.07;
+        // contact shadow + card
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; rr(ctx, x + s * 0.02, y + s * 0.05, w, h, r); ctx.fill();
+        ctx.fillStyle = '#fff'; rr(ctx, x, y, w, h, r); ctx.fill();
+        // photo scene, clipped to the card
+        ctx.save(); rr(ctx, x + s * 0.03, y + s * 0.03, w - s * 0.06, h - s * 0.06, r * 0.7); ctx.clip();
+        const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, '#8ec9ff'); g.addColorStop(1, '#e6f3ff');
+        ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = '#ffd23c'; ctx.beginPath(); ctx.arc(x + w * 0.72, y + h * 0.28, s * 0.055, 0, 7); ctx.fill();
+        ctx.fillStyle = '#57a06a'; ctx.beginPath();
+        ctx.moveTo(x, y + h); ctx.lineTo(x + w * 0.34, y + h * 0.42); ctx.lineTo(x + w * 0.52, y + h * 0.7);
+        ctx.lineTo(x + w * 0.7, y + h * 0.36); ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // play badge, bottom-right, pulsing
+        const bx = x + w, by = y + h, br = s * 0.15 * (0.92 + 0.12 * t);
+        ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.arc(bx, by + 2, br, 0, 7); ctx.fill();
+        ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(bx, by, br, 0, 7); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath();
+        ctx.moveTo(bx - br * 0.28, by - br * 0.42); ctx.lineTo(bx + br * 0.46, by); ctx.lineTo(bx - br * 0.28, by + br * 0.42); ctx.closePath(); ctx.fill();
+      };
+      const frames = []; for (let f = 0; f < N; f++) frames.push(painter(f));
+      return GifOS.icons.rasterize(frames, S, 11);
+    }
     // Each app gets its own hand-designed animated artwork (gifos-icons.js),
     // rasterized into the GIF. Fall back to the plain animated tile if the
     // icons module isn't present (e.g. non-browser).
     const iconFor = (a) => a.appId === 'bible' && GifOS.icons ? bibleIcon()
+      : a.appId === 'mymedia' && GifOS.icons ? mediaIcon(a.accent)
       : (GifOS.icons ? GifOS.icons.renderApp(a.appId, a.accent) : null);
     const enc = (a) => Promise.resolve(iconFor(a))
       .catch(() => null)
@@ -1675,6 +1921,13 @@ document.getElementById('f').onsubmit=async e=>{
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
       files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255]), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
+    }, {
+      // A personal media library, on the Home Screen next to Welcome. Declares
+      // microphone + camera so you can capture straight in (honours the per-app
+      // Abilities opt-out); the app hand-authors its theming, so 'vars' mode.
+      name: 'My Media.gif', appId: 'mymedia', accent: [255, 120, 80],
+      files: { 'manifest.json': manifest('mymedia', 'My Media', [255, 120, 80], { capabilities: { db: true, microphone: true, camera: true } }),
+               'index.html': themeHtml(MYMEDIA_HTML, 'vars') },
     }, {
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
       files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
