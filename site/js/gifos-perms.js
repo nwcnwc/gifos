@@ -132,7 +132,7 @@
         bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' would like to…</h3>' +
           capBlock() + netBlock +
           '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
-          '<button class="done">Sounds good</button></div>';
+          '<button class="done">Confirm &amp; Save</button></div>';
         doc.body.appendChild(bg);
         bg.addEventListener('change', function (ev) {
           var cb = ev.target; if (!cb || cb.type !== 'checkbox') return;

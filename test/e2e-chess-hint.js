@@ -34,7 +34,7 @@ const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' } });
   // the abilities acknowledgement now lists the AI ability
   const ackTxt = await app.locator('.perm-box', { hasText: 'would like to' }).textContent().catch(() => '');
   check('the abilities sheet lists the AI ability', /Use your AI|Smartest/i.test(ackTxt), ackTxt.slice(0, 60));
-  await app.locator('.perm-box .done', { hasText: 'Sounds good' }).click().catch(() => app.locator('.perm-modal .done').click().catch(() => {}));
+  await app.locator('.perm-box .done', { hasText: 'Confirm' }).click().catch(() => app.locator('.perm-modal .done').click().catch(() => {}));
 
   const frame = app.frames().find((f) => f !== app.mainFrame());
   await frame.waitForSelector('#view', { timeout: 6000 });
