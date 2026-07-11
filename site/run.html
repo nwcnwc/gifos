@@ -447,7 +447,7 @@
             bg.innerHTML =
               '<div class="perm-box">' +
               '<h3>Share this app</h3>' +
-              '<div class="warn">Your invite link works <b>only while you have this app open</b>. Anyone who has it can join live <b>and download a full copy of everything in this app</b> — and you can’t un-share what they’ve already seen. Only invite people you trust with this data.</div>' +
+              '<div class="warn">Your invite link works <b>only while you have this app open</b>. Anyone who has it can join live <b>and download a copy of the data this app shares</b> (private data stays on your device) — and you can’t un-share what they’ve already seen. Only invite people you trust with this data.</div>' +
               '<p class="lead">How long should the link let <i>new</i> people join?</p>' +
               (info.active ? '<label class="perm-row"><input type="radio" name="lt" value="__keep" checked><span><span class="host">Keep my current link</span><span class="desc">' + expNote(info) + '</span></span></label>' : '') +
               '<label class="perm-row"><input type="radio" name="lt" value="close"' + (info.active ? '' : ' checked') + '><span><span class="host">While the app is open</span><span class="desc">A fresh link each time; closing the app retires it for good.</span></span></label>' +
@@ -541,8 +541,8 @@
           '<label class="perm-row"><input type="radio" name="dest" value="download"><span><span class="host">Download a file</span><span class="desc">Get it as one GIF you can keep or send to anyone.</span></span></label>' +
           '<div id="steal-data"><p class="lead">What data should ride along?</p>' +
           '<label class="perm-row"><input type="radio" name="data" value="none" checked><span><span class="host">No data</span><span class="desc">A clean, empty copy — just the app.</span></span></label>' +
-          '<label class="perm-row"><input type="radio" name="data" value="connect"><span><span class="host">Data as it arrived</span><span class="desc">The snapshot from the moment you opened it — instant, nothing re-sent.</span></span></label>' +
-          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries everything currently in the app, live.</span></span></label></div>' +
+          '<label class="perm-row"><input type="radio" name="data" value="connect"><span><span class="host">Data as it arrived</span><span class="desc">The snapshot of what was shared with you, from the moment you opened it — instant, nothing re-sent.</span></span></label>' +
+          '<label class="perm-row"><input type="radio" name="data" value="current"><span><span class="host">Data as it is now</span><span class="desc">Carries the shared data currently in the app, live. (Private data never leaves the owner’s device.)</span></span></label></div>' +
           '<div class="perm-btns"><button id="steal-cancel" class="ghost">Cancel</button><button id="steal-go" class="done">Save it</button></div>' +
           '</div>';
         document.body.appendChild(bg);

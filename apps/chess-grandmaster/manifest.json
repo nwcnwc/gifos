@@ -10,5 +10,10 @@
     "db": true,
     "wasm": true,
     "multiplayer": true
+  },
+  "data": {
+    "chess-gm": { "visibility": "private" },
+    "cgm-mp": { "visibility": "read-write" },
+    "cgm-pres": { "visibility": "read-write" }
   }
 }

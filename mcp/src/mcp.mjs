@@ -45,9 +45,22 @@ The entry point is index.html; multi-file apps are fully supported:
      await db.put({ id, ...fields });     // add/update; omit id to auto-assign
      await db.get(id); await db.getAll(); await db.delete(id);
      db.subscribe(items => render(items)); // fires immediately and on every change
-   Everything in gifos.db() saves into the app's own icon AND syncs live to
-   all players when the app goes multiplayer. Keep all state there and render
-   from subscribe() — that makes the app multiplayer-ready for free.
+   Everything in gifos.db() saves into the app's own icon. Keep all state there,
+   render from subscribe(), and DECLARE VISIBILITY (next) to make it sync.
+   VISIBILITY — privacy-first, so an invite shares NOTHING you don't declare.
+   In the manifest, "data" maps each shared collection to a visibility default:
+     "data": { "board": { "visibility": "read-write" }, "prefs": { "visibility": "private" } }
+     • read-write — guests see AND edit it. THIS is what multiplayer needs; an
+       UNDECLARED collection does NOT sync (it defaults to private).
+     • read-only  — guests see it, only the host writes (broadcast state).
+     • private    — never leaves the owner's tab; each participant keeps their
+       OWN copy (personal prefs, a private library). The default.
+   Split personal state (prefs) into a PRIVATE collection and shared state into
+   read-write/read-only ones — never mix them in one collection. The HOST is the
+   authority (enforcement is host-side; a guest is refused, never overrides). To
+   flip one record at runtime, the owner calls db.setVisibility(id, level) —
+   e.g. "make this item visible", or a leader toggling a shared cursor read-only.
+   Read a record's current level from its reserved _vis field.
    HONESTY: there is NO cloud and NO automatic cross-device sync. Data lives
    on the user's device, inside the app's GIF in that browser. It reaches
    other devices exactly two ways: live, while people are connected through
@@ -319,8 +332,8 @@ const TOOLS = [
   },
   {
     name: 'validate_app',
-    description: 'Static checks on GifOS app HTML: external resource loads (blocked by the sandbox), forbidden storage APIs, missing gifos.db usage. Run before pack_app.',
-    inputSchema: { type: 'object', required: ['html'], properties: { html: { type: 'string' } } },
+    description: 'Static checks on GifOS app HTML: external resource loads (blocked by the sandbox), forbidden storage APIs, missing gifos.db usage, and (if the manifest JSON is passed) collections used but not declared in "data" — which silently will not sync. Run before pack_app.',
+    inputSchema: { type: 'object', required: ['html'], properties: { html: { type: 'string' }, manifest: { type: 'string', description: 'The app manifest.json (optional) — enables the visibility check.' } } },
   },
 ];
 
@@ -340,6 +353,19 @@ async function callTool(name, args) {
     if (/\bindexedDB\b/.test(html)) problems.push('Uses indexedDB — disabled in the sandbox; use gifos.db() instead.');
     if (/@import|url\(\s*["']?https?:/i.test(html)) problems.push('CSS loads a remote resource — inline everything.');
     if (!/gifos\.db\(/.test(html)) problems.push('Note: no gifos.db() usage found — the app will not persist anything or sync in multiplayer.');
+    // Visibility cross-check: any collection the HTML opens but the manifest
+    // does not declare in "data" defaults to private — it will NOT sync. (A
+    // deliberately-private collection is fine; this only flags the silent case.)
+    if (args.manifest) {
+      let man = null; try { man = JSON.parse(String(args.manifest)); } catch (e) { problems.push('manifest.json is not valid JSON — could not check visibility.'); }
+      if (man) {
+        const used = new Set(); let m; const re = /gifos\.db\(\s*["'`]([^"'`]+)["'`]\s*\)/g;
+        while ((m = re.exec(html))) used.add(m[1]);
+        const declared = (man.data && typeof man.data === 'object') ? man.data : {};
+        const undeclared = [...used].filter((c) => !declared[c]);
+        if (undeclared.length) problems.push('These collections are used but NOT declared in manifest "data", so they default to PRIVATE and will not sync to invited guests: ' + undeclared.join(', ') + '. Declare each shared one, e.g. "data": { "' + undeclared[0] + '": { "visibility": "read-write" } } (or leave it out on purpose if it is meant to stay private/per-person).');
+      }
+    }
     const text = problems.length
       ? 'Issues found:\n- ' + problems.join('\n- ')
       : 'Looks good — no sandbox violations detected. Ready for pack_app.';

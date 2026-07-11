@@ -136,6 +136,10 @@
           get:    function(id){   return rpc({type:'db',op:'get',collection:collection,key:id}); },
           getAll: function(){     return rpc({type:'db',op:'getAll',collection:collection}); },
           delete: function(id){   return rpc({type:'db',op:'delete',collection:collection,key:id}); },
+          // Set one record's visibility: 'private' | 'read-only' | 'read-write'.
+          // Owner-only — the host runs it; on a guest it is refused. Use it to
+          // "make visible" (opt a private item in) or to flip who may write.
+          setVisibility: function(id, level){ return rpc({type:'db',op:'setVisibility',collection:collection,key:id,value:level}); },
           subscribe: function(cb){ (subs[collection]=subs[collection]||[]).push(cb);
             rpc({type:'db',op:'getAll',collection:collection}).then(cb); }
         }; },
@@ -532,6 +536,39 @@
   function emptyState() { return { collections: {} }; }
   function isEmptyState(s) { return !s || !s.collections || Object.keys(s.collections).length === 0; }
 
+  // ---- VISIBILITY: the sharing axis ----------------------------------------
+  // Every collection declares a default in the manifest ("data": { coll: {
+  // visibility: 'read-write' } }); a single record can override it with the
+  // reserved `_vis` field (set ONLY by the host, via setVisibility). Three
+  // levels, from tightest to loosest:
+  //   private     — never leaves the owner's tab. Each participant keeps their
+  //                 OWN copy (font size, scratch state); the host never mirrors
+  //                 it to guests and a guest's copy dies with the tab.
+  //   read-only   — guests SEE it, but only the host writes (broadcast state).
+  //   read-write  — guests see AND write it (communal collaboration).
+  // An UNDECLARED collection is 'private' — privacy-first: inviting someone in
+  // shares nothing you didn't opt into. Enforcement lives entirely on the host
+  // (see handleRpc): a compromised guest can be rejected but never override.
+  const VIS = { 'private': true, 'read-only': true, 'read-write': true };
+  function collVis(data, collection) {
+    const d = data && data[collection];
+    const v = d && d.visibility;
+    return VIS[v] ? v : 'private';
+  }
+  function visOf(data, collection, record) {
+    const rv = record && record._vis;
+    if (VIS[rv]) return rv;
+    return collVis(data, collection);
+  }
+  // Records the host's communal⇄leading toggle controls, declared in the
+  // manifest as `lead: [{ collection, id }, ...]` — e.g. Bible's shared nav
+  // cursor. Leading them just flips their visibility read-write ⇄ read-only.
+  function leadTargetsOf(manifest) {
+    const l = manifest && manifest.lead;
+    if (!Array.isArray(l)) return [];
+    return l.map((t) => (t && t.collection && t.id) ? { collection: t.collection, id: t.id } : null).filter(Boolean);
+  }
+
   // Local: authoritative store persisted with the icon; cross-tab via BroadcastChannel.
   // A record sanitized against prototype pollution: a malicious/careless value
   // carrying "__proto__"/"constructor"/"prototype" keys can't reach Object's
@@ -555,6 +592,7 @@
     // A per-record app's full state, assembled on demand from its rows.
     const full = () => store.getState(fileId).then((s) => (s && s.collections ? s : emptyState()));
     return {
+      owner: true, // this is the app's authoritative local store — its owner
       load: full,
       import: (s) => store.setState(fileId, s),
       getFullState: full,
@@ -568,27 +606,98 @@
         if (op === 'getAll') return store.appGetAll(fileId, collection);
         if (op === 'put') return store.appAdd(fileId, collection, safeRecord(value)).then((rec) => { notify(collection); return rec; });
         if (op === 'delete') return store.appDelete(fileId, collection, key).then(() => { notify(collection); return true; });
+        // setVisibility(collection, id, level) — stamp one record's per-record
+        // visibility override (`_vis`). Owner-only: the host runs this against
+        // its authoritative store; guests can't (their op is rejected upstream).
+        // This is also how leadership flips live (read-write ⇄ read-only) and
+        // how My Media opts an item in ('private' → 'read-only', "make visible").
+        if (op === 'setVisibility') {
+          if (!VIS[value]) return Promise.reject(new Error('bad visibility level'));
+          return store.appGet(fileId, collection, key).then((rec) => {
+            if (!rec) return null;
+            const next = safeRecord(rec); next._vis = value;
+            return store.appAdd(fileId, collection, next).then((r) => { notify(collection); return r; });
+          });
+        }
         return Promise.resolve(null);
       },
     };
   }
 
-  // Remote: forwards every op to the host browser over the relay. Requests are
+  // Remote (guest): a HYBRID db. Ops on a collection the manifest declares
+  // 'private' NEVER leave this tab — they live in an in-memory Map, so a guest's
+  // font size / scratch state stays personal and dies with the tab (the host
+  // never sees it, and it can't leak to other guests). Ops on any SHARED
+  // collection ('read-only' / 'read-write') forward to the host, which is the
+  // sole authority on what the guest may read or write. Forwarded requests are
   // remembered until answered so they can be REPLAYED after a host blip —
   // at-least-once on reconnect beats an app hung on a promise forever.
-  function makeRemoteDb(send) {
+  //   opts.manifest     — for the collection-default visibility lookup
+  //   opts.onLocalChange — notify our own iframe after a private-collection write
+  function makeRemoteDb(send, opts) {
+    opts = opts || {};
+    const data = (opts.manifest && opts.manifest.data) || {};
+    const onLocalChange = typeof opts.onLocalChange === 'function' ? opts.onLocalChange : function () {};
     let seq = 1; const pending = new Map();
     let hostDown = false;
+    // Per-collection in-tab store for private collections: coll -> Map(id -> rec).
+    const localCols = new Map();
+    let localSeq = 1;
+    const localOf = (coll) => { let m = localCols.get(coll); if (!m) { m = new Map(); localCols.set(coll, m); } return m; };
+    const isPrivate = (coll) => collVis(data, coll) === 'private';
+
+    const forward = (op, collection, key, value) => {
+      if (hostDown) return Promise.reject(new Error('host offline'));
+      return new Promise((res, rej) => {
+        const id = 'q' + (seq++);
+        const req = { t: 'rpc', id, op, collection, key, value };
+        pending.set(id, { res, rej, req });
+        send(req);
+      });
+    };
+    const putLocal = (collection, value) => {
+      const m = localOf(collection);
+      const rec = safeRecord(value);
+      if (rec.id == null) rec.id = collection + '_local_' + (localSeq++);
+      delete rec._vis; // private is a collection fact here; no per-record override in-tab
+      m.set(rec.id, rec);
+      onLocalChange(collection);
+      return Promise.resolve(rec);
+    };
     const db = {
       op(op, collection, key, value) {
-        if (hostDown) return Promise.reject(new Error('host offline'));
-        return new Promise((res, rej) => {
-          const id = 'q' + (seq++);
-          const req = { t: 'rpc', id, op, collection, key, value };
-          pending.set(id, { res, rej, req });
-          send(req);
-        });
+        // 'dump' is a whole-computer read (steal/mirror) — always the host's
+        // authoritative, visibility-filtered copy; local private state is
+        // per-tab and deliberately not part of a stolen snapshot. setVisibility
+        // is the host's alone: forward it (a guest gets refused).
+        if (op === 'dump' || op === 'setVisibility') return forward(op, collection, key, value);
+        const priv = collection && isPrivate(collection);
+        const m = collection ? localOf(collection) : null;
+        if (op === 'get') {
+          if (m && m.has(key)) return Promise.resolve(m.get(key));
+          return forward(op, collection, key, value); // a shared record, or a host-visible one
+        }
+        if (op === 'getAll') {
+          // A shared collection is the host's to answer. A PRIVATE one is mine —
+          // but the host may have opted a few of ITS records in (read-only), so
+          // I merge my own in-tab items with whatever it shares, and tolerate a
+          // down host so my own copy is always readable.
+          if (!priv) return forward(op, collection, key, value);
+          return forward(op, collection, key, value).catch(() => []).then((rows) => {
+            const out = Array.isArray(rows) ? rows.slice() : [];
+            const seen = new Set(out.map((r) => r && r.id));
+            for (const rec of m.values()) if (!seen.has(rec.id)) out.push(rec);
+            return out;
+          });
+        }
+        if (op === 'put') return priv ? putLocal(collection, value) : forward(op, collection, key, value);
+        if (op === 'delete') {
+          if (m && m.has(key)) { m.delete(key); onLocalChange(collection); return Promise.resolve(true); }
+          return forward(op, collection, key, value); // a shared record — the host decides
+        }
+        return Promise.resolve(null);
       },
+      owner: false, // a guest view — visibility is the host's to change
       getFullState() { return db.op('dump'); },
       _reply(id, ok, result) { const p = pending.get(id); if (!p) return; pending.delete(id); ok ? p.res(result) : p.rej(new Error(result)); },
       _replay() { for (const p of pending.values()) { try { send(p.req); } catch (e) { /* still down */ } } },
@@ -1046,7 +1155,9 @@
       else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', role: d.role, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'agentChat') brokerAgentChat(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
-      else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version } });
+      // owner = this app runs on its OWNER's computer (host / local), so it may
+      // change visibility (setVisibility). A guest view is not the owner.
+      else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, owner: !!(db && db.owner) } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
       else if (d.type === 'storage') {
@@ -1138,9 +1249,14 @@
     // same peer id slots straight back in with a fresh P2P offer.
     const peers = new Map();
     const defrag = makeDefrag();
-    // Which record ids are "led" and whether the leader fence is up right now
-    // (toggleable mid-session via the returned setLead — communal ⇄ leading).
-    const led = { on: !!(opts.led && opts.led.on), ids: (opts.led && opts.led.ids) || new Set() };
+    // The visibility map (manifest.data: collection -> { visibility }) drives
+    // every host-side sharing decision — reads hide `private`, writes require
+    // `read-write`. Leadership is not a separate fence any more: `lead` names
+    // the records the chrome's communal⇄leading toggle flips between
+    // read-write (anyone leads) and read-only (only the host leads), by
+    // stamping their per-record `_vis` through the authoritative store.
+    const vis = opts.vis || {};
+    const leadTargets = Array.isArray(opts.lead) ? opts.lead : [];
     // seal()/open() are async — chains keep frames in send/receive order.
     const tx = net.makeChain();
     const rxq = new Map(); // peer -> inbound chain
@@ -1266,35 +1382,91 @@
       m.set(id, reply);
       while (m.size > 128) m.delete(m.keys().next().value);
     };
+    const reply = (peer, req, ok, result) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok, result });
+    const fail = (peer, req, err) => reply(peer, req, false, String((err && err.message) || err));
+    // VISIBILITY ENFORCEMENT — the host is authoritative by construction, so
+    // this is the ONE place sharing is decided. A guest (however its DOM was
+    // tampered with) can be REFUSED here but can never route around it:
+    //   reads  — `private` records are stripped from get/getAll/dump, so a
+    //            guest (or a stealing/mirroring copy) only ever sees what the
+    //            host chose to share.
+    //   writes — allowed only when the TARGET's effective visibility (its
+    //            stored `_vis`, else the collection default) is 'read-write';
+    //            read-only and private targets are refused.
+    //   _vis   — guests never author visibility: a guest-supplied `_vis` is
+    //            stripped on put, and setVisibility from a guest is refused.
     const handleRpc = (peer, req) => {
-      // LED RECORDS — the host-side write fence for broadcast-style app state
-      // (manifest.ledRecords, e.g. the Bible Browser's shared 'nav' cursor).
-      // While the leader toggle is ON, remote writes to those record ids are
-      // refused; the leader's own writes are local and never pass through
-      // here. Enforced HERE because the host is authoritative by construction
-      // — no remote client, DOM-hacked or otherwise, can route around it.
-      if (led.on && led.ids.size && (req.op === 'put' || req.op === 'delete')) {
-        const recId = req.op === 'put' ? (req.value && req.value.id) : req.key;
-        if (recId && led.ids.has(recId)) {
-          sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: 'led: the leader drives this control' });
-          return;
+      // Owner-only: only the host may (re)stamp a record's visibility.
+      if (req.op === 'setVisibility') { reply(peer, req, false, 'visibility is set by the host'); return; }
+
+      if (req.op === 'getAll') {
+        db.op('getAll', req.collection)
+          .then((rows) => reply(peer, req, true, (rows || []).filter((r) => visOf(vis, req.collection, r) !== 'private')))
+          .catch((err) => fail(peer, req, err));
+        return;
+      }
+      if (req.op === 'get') {
+        db.op('get', req.collection, req.key)
+          .then((r) => reply(peer, req, true, (r && visOf(vis, req.collection, r) !== 'private') ? r : null))
+          .catch((err) => fail(peer, req, err));
+        return;
+      }
+      if (req.op === 'dump') {
+        db.op('dump')
+          .then((s) => reply(peer, req, true, filterStateForGuest(s)))
+          .catch((err) => fail(peer, req, err));
+        return;
+      }
+      if (req.op === 'put' || req.op === 'delete') {
+        // Idempotency for a replayed put (see rememberPut) — answer without
+        // re-writing, BEFORE the visibility check (the record is already ours).
+        if (req.op === 'put') {
+          const seen = putSeen.get(peer);
+          if (seen && seen.has(req.id)) { reply(peer, req, true, seen.get(req.id)); return; }
         }
+        const targetId = req.op === 'put' ? (req.value && req.value.id) : req.key;
+        const storedP = (targetId != null) ? db.op('get', req.collection, targetId) : Promise.resolve(null);
+        storedP.then((stored) => {
+          // A NEW record inherits the collection default; an EXISTING one keeps
+          // whatever it currently is (its _vis override or the default).
+          const eff = stored ? visOf(vis, req.collection, stored) : collVis(vis, req.collection);
+          if (eff !== 'read-write') { reply(peer, req, false, 'read-only: the host controls this'); return; }
+          let value = req.value;
+          if (req.op === 'put' && value && typeof value === 'object') {
+            value = safeRecord(value); delete value._vis; // host is the sole author of visibility
+            if (stored && VIS[stored._vis]) value._vis = stored._vis; // don't wipe an existing override
+          }
+          db.op(req.op, req.collection, req.key, value)
+            .then((result) => {
+              // A put's result is the stored record — the client already HAS
+              // those bytes (it just sent them). Echo only the assigned id;
+              // anything else wastes the relay budget (a 300KB put would reply
+              // with 300KB).
+              const slim = (req.op === 'put' && result && typeof result === 'object') ? { id: result.id } : result;
+              if (req.op === 'put') rememberPut(peer, req.id, slim);
+              reply(peer, req, true, slim);
+            })
+            .catch((err) => fail(peer, req, err));
+        }).catch((err) => fail(peer, req, err));
+        return;
       }
-      if (req.op === 'put') {
-        const seen = putSeen.get(peer);
-        if (seen && seen.has(req.id)) { sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: seen.get(req.id) }); return; }
-      }
-      db.op(req.op, req.collection, req.key, req.value)
-        .then((result) => {
-          // A put's result is the stored record — the client already HAS those
-          // bytes (it just sent them). Echo only the assigned id; anything else
-          // wastes the relay budget (a 300KB put would reply with 300KB).
-          const slim = (req.op === 'put' && result && typeof result === 'object') ? { id: result.id } : result;
-          if (req.op === 'put') rememberPut(peer, req.id, slim);
-          sendTo(peer, { t: 'rpc-reply', id: req.id, ok: true, result: slim });
-        })
-        .catch((err) => sendTo(peer, { t: 'rpc-reply', id: req.id, ok: false, result: String(err.message || err) }));
+      reply(peer, req, false, 'unsupported op');
     };
+    // Strip every collection's `private` records from a full-state dump (the
+    // assembled { collections: { name: { items: {id:rec}, seq } } } shape) so a
+    // stealing/mirroring guest only ever carries what the host chose to share.
+    function filterStateForGuest(s) {
+      if (!s || !s.collections) return s;
+      const cols = {};
+      for (const name of Object.keys(s.collections)) {
+        const c = s.collections[name] || {};
+        const items = c.items || {};
+        const kept = {};
+        for (const id of Object.keys(items)) if (visOf(vis, name, items[id]) !== 'private') kept[id] = items[id];
+        cols[name] = Object.assign({}, c, { items: kept });
+      }
+      return Object.assign({}, s, { collections: cols });
+    }
 
     // One dispatch for guest->host session messages, whatever path they took.
     const hostDispatch = (peer, m) => {
@@ -1417,7 +1589,14 @@
     };
     ws.onstate = () => notify();
 
-    return { sendToAll, stats, stop: () => clearInterval(sweeper), setLead: (on) => { led.on = !!on; } };
+    // Leadership toggle: flip every declared lead target between read-write
+    // (anyone leads) and read-only (only the host leads) by restamping its
+    // per-record `_vis` in the authoritative store — which broadcasts a
+    // db-change, so guests immediately see the lock and their writes start
+    // being refused by handleRpc. No separate fence: it's all visibility.
+    const setLead = (on) => Promise.all(leadTargets.map((t) =>
+      db.op('setVisibility', t.collection, t.id, on ? 'read-only' : 'read-write').catch(() => {})));
+    return { sendToAll, stats, stop: () => clearInterval(sweeper), setLead };
   }
 
   function openHostSocket(relay, sid, token, epoch, hostid, adm) {
@@ -1584,7 +1763,7 @@
               announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
               setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
             }, { onDisplaced: displaced, heal, exp, keep, key,
-              led: { on: !!opts.lead, ids: new Set(Array.isArray(manifest.ledRecords) ? manifest.ledRecords : []) } });
+              vis: manifest.data || {}, lead: leadTargetsOf(manifest) });
             // Expiry only shuts the door to NEW joiners (attachHost enforces exp
             // per join); a light timer just refreshes the host's own status so
             // they know the link went read-only.
@@ -1598,10 +1777,10 @@
               .catch(() => { /* socket will re-wake them on onopen */ });
             return store.setState(fileId + '::session', { sid, lsec, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
               shareUrl: joinUrl, keep, exp, heal, owned: !!av,
-              // Led-records controls for the page chrome: how many record ids
-              // this app declares as leadable, and the live communal⇄leading
-              // switch (the fence itself lives in the host runtime).
-              ledCount: Array.isArray(manifest.ledRecords) ? manifest.ledRecords.length : 0,
+              // Leadership controls for the page chrome: how many records this
+              // app declares as leadable, and the live communal⇄leading switch
+              // (which flips their visibility read-write⇄read-only host-side).
+              leadCount: leadTargetsOf(manifest).length,
               setLead: hostApi.setLead,
             }));
           }).catch((err) => {
@@ -1928,7 +2107,8 @@
         if (!archive) { setStatus('Bad app from host.'); return; }
         filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: 'App' };
         document.title = (manifestRef.name || 'App') + ' — GifOS (client)';
-        remoteDb = makeRemoteDb(transportSend);
+        remoteDb = makeRemoteDb(transportSend, { manifest: manifestRef,
+          onLocalChange: (collection) => { if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*'); } });
         iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
         // Client-run: the veto is session-only (no local icon to persist under).
         mountApp(iframe, filesRef, manifestRef, remoteDb, appBytes, makeNetPolicy(null, manifestRef));
@@ -2091,16 +2271,18 @@
             keep: 'persist', // a self-healing link is always a persistent one
             exp: sessionExp, // keep enforcing the original admission window
             key, // the session key travels with the session — same link, same key
-            // After a failover the leader is gone — the healed session opens
-            // COMMUNAL (fence down); the ids ride along so a new leader could
-            // raise it again.
-            led: { on: false, ids: new Set(Array.isArray(manifestRef.ledRecords) ? manifestRef.ledRecords : []) },
+            // After a failover the old leader is gone — the healed session opens
+            // COMMUNAL (see setLead(false) below); the lead targets ride along so
+            // the new host can raise it again. Visibility otherwise lives in the
+            // app's records (their _vis) and its manifest, as before.
+            vis: manifestRef.data || {}, lead: leadTargetsOf(manifestRef),
             onDisplaced: () => {
               setStatus('A newer host holds the session — rejoining as a guest…');
               location.replace(buildJoinUrl('app', sid, lsec, params.relay));
               location.reload(); // hash-only change — force the client-mode reboot
             },
           });
+          if (hostApi && leadTargetsOf(manifestRef).length) hostApi.setLead(false); // drop any inherited leadership lock
           // Remount the app against the local DB and wake the other clients.
           // We now own a desktop icon, so the veto persists under its fileId.
           const takeoverPolicy = makeNetPolicy(fileId, manifestRef);

@@ -56,7 +56,8 @@ If you can run Python and attach files, you don't need the connector:
        return gif_bytes[:end] + block + b"\x3b"
 
    manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App",
-       "entry": "index.html", "capabilities": {"db": True, "multiplayer": True}})
+       "entry": "index.html", "capabilities": {"db": True, "multiplayer": True},
+       "data": {"items": {"visibility": "read-write"}}})  # REQUIRED to sync; see 2a
    open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(),
        {"manifest.json": manifest, "index.html": HTML}))
 
@@ -81,8 +82,22 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
      const db = gifos.db('items');
      await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
      db.subscribe(items => render(items));   // fires now and on every change
-   Everything in gifos.db() persists inside the app's icon AND syncs to all
-   players in multiplayer. Render from subscribe() = multiplayer for free.
+   Everything in gifos.db() persists inside the app's icon. Render from
+   subscribe() and declare visibility (below) = multiplayer for free.
+2a. VISIBILITY — privacy-first: an invite shares NOTHING unless you declare it,
+   so you MUST list each shared collection in the manifest under "data":
+   { "<collection>": { "visibility": "<level>" } }. Levels:
+     - "read-write" guests see AND edit (collaborative state — this is what
+       multiplayer needs; an UNDECLARED collection does NOT sync).
+     - "read-only"  guests see, only the host writes (broadcast state).
+     - "private"    never leaves the owner's tab; each participant keeps their
+       OWN copy (personal prefs, a private library). This is the DEFAULT.
+   Split personal state (prefs) into a PRIVATE collection and shared state into
+   read-write/read-only ones; never mix them. The HOST is the authority —
+   enforcement is host-side, so a guest is refused, never able to override. Flip
+   one record at runtime (owner-only) with db.setVisibility(id, level): "make
+   this item visible", or a leader toggling a shared cursor read-only ("only I
+   lead"). A record's current level is its reserved _vis field.
    HONESTY: there is NO cloud and NO automatic cross-device sync. Data
    lives on the user's device, inside the app's GIF in that browser. It
    reaches other devices exactly two ways: live, while people are
