@@ -231,6 +231,18 @@
     return Promise.all([dsHash('meet-sid', base), dsHash('meet-tok', base), aesKey('meet-e2e', base)])
       .then(([sid, tok, key]) => ({ sid: sid.slice(0, 20) + (av ? '.' + av : ''), tok: tok.slice(0, 24), key }));
   }
+  // Multi-session rows (docs/rows.md): each row lives in its OWN relay
+  // session so no single DO ever holds more than a row's worth of sockets.
+  // Path '' IS deriveMeet — a room that fits in one row never changes
+  // identity. Deeper paths mix INTO the hash (never appended after the
+  // last dot, where the relay reads the admin verifier off the sid tail).
+  // The E2E key is deliberately NOT per-path: one room, one key.
+  function deriveMeetSess(roomCode, av, path) {
+    if (!path) return deriveMeet(roomCode, av);
+    const base = roomCode + '|' + (av || '') + '|' + path;
+    return Promise.all([dsHash('meet-sid', base), dsHash('meet-tok', base)])
+      .then(([sid, tok]) => ({ sid: sid.slice(0, 20) + (av ? '.' + av : ''), tok: tok.slice(0, 24) }));
+  }
   // The room password never reaches the relay either: the relay only ever
   // compares occupants' PROOFS for equality. Room-salted so equal passwords
   // in different rooms leave different proofs.
@@ -309,7 +321,7 @@
     steadySocket,
     FRAG_PART, sendChunked, makeDefrag,
     shortCode, randHex, sha256hex,
-    deriveJoin, deriveMeet, meetPwProof,
+    deriveJoin, deriveMeet, deriveMeetSess, meetPwProof,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
     SCALE,
