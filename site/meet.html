@@ -3005,11 +3005,10 @@
       compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, stream: null });
       claimCompStreams();
       renderStadium();
-      // Fresh mapping, no stream yet → the tracks are probably one lost
-      // negotiation away. Kick fast once; the sweeper's steady retry backs
-      // this up if the fast one also gets lost.
-      const c = compOf.get(row);
-      if (c && !c.stream) setTimeout(() => { const cur = compOf.get(row); if (cur === c && !cur.stream) compKick(via); }, 800);
+      // A fresh streamless mapping is NORMAL — the sender's own offer is
+      // usually still in flight. No eager kick here: kicking into that
+      // window just buys a glare-rollback round on every edge. The sweep's
+      // patient retry below covers the genuinely lost interleaves.
     }
     function dropComp(row) {
       if (!compOf.delete(row)) return;
@@ -3134,7 +3133,7 @@
           const vp = peers.get(c.via);
           c.since = c.since || Date.now();
           if (vp && vp.connected && vp.dc && vp.dc.readyState === 'open'
-              && Date.now() - c.since > 3000 && Date.now() - (c.kickAt || 0) > 4000) {
+              && Date.now() - c.since > 5000 && Date.now() - (c.kickAt || 0) > 5000) {
             c.kickAt = Date.now();
             compKick(c.via);
           }
