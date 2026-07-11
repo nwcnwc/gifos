@@ -67,14 +67,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---- the stadium at depth: own-branch rows individually (there may be
   // none — a lone-row branch sees everything else as branches), foreign
   // branches as one live folded tile each.
-  check('stadium: every phone holds its branch\'s rows AND a live folded tile per foreign branch',
-    await allWait(() => {
-      const v = window.__gifosVideo;
-      const got = v.stadium();
-      const numerics = got.filter((s) => typeof s.row === 'number');
-      const branches = got.filter((s) => String(s.row).indexOf('b:') === 0);
-      return numerics.every((s) => s.live) && branches.length >= 1 && branches.every((s) => s.live);
-    }, null, 120000));
+  const stadiumOk = await allWait(() => {
+    const v = window.__gifosVideo;
+    const got = v.stadium();
+    const numerics = got.filter((s) => typeof s.row === 'number');
+    const branches = got.filter((s) => String(s.row).indexOf('b:') === 0);
+    return numerics.every((s) => s.live) && branches.length >= 1 && branches.every((s) => s.live);
+  }, null, 120000);
+  check('stadium: every phone holds its branch\'s rows AND a live folded tile per foreign branch', stadiumOk);
+  if (!stadiumOk) { // autopsy: which phone, which hop
+    for (const [i, p] of pages.entries()) {
+      console.log('  [autopsy] ' + names[i], JSON.stringify(await p.evaluate(() => {
+        const v = window.__gifosVideo;
+        return { row: v.rowNum(), up: v.upOn(), upN: v.upNum(), up2: v.up2On(), b: v.branchActive(),
+          stad: v.stadium().map((s) => String(s.row) + (s.live ? '+' : '-') + '@' + String(s.via).slice(0, 6)),
+          deep: v.deepState(), fwd: v.compFwdKeys(), log: v.compLog().slice(-6) };
+      })));
+    }
+  }
 
   // ---- one chat across three sessions and two branches ---------------------
   await pages[0].locator('#chatbtn').click();
