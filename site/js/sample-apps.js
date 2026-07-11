@@ -1291,12 +1291,15 @@ opens the built-in meeting page when opened in GifOS.</p>
   document.getElementById('smaller').onclick=function(){ prefs.fs=Math.max(14, prefs.fs-2); applyPrefs(); savePrefs(); };
   document.getElementById('theme').onclick=function(){ prefs.theme=prefs.theme==='night'?'day':'night'; applyPrefs(); savePrefs(); };
   if(followB) followB.onclick=function(){ follow=!follow;
-    // Turning it back on rejoins the group's page; leaving it on republishes
-    // where I am so anyone following me lands here too.
+    // Turning follow ON is a JOIN, never a broadcast: pull ME to wherever the
+    // group is now — jump to another person's page, or match their scroll on the
+    // same page. If there's no one else's spot to join (e.g. I was the last to
+    // move), just start following quietly; the next person to turn a page leads.
+    // We must NOT publish my own position here, or switching follow back on would
+    // yank everyone to me instead of me catching up to them.
     if(follow && lastNav && lastNav.url && lastNav.by!==me.id && lastNav.url!==curUrl) go(lastNav.url, true, true, lastNav.scroll);
     else if(follow && lastNav && lastNav.url===curUrl && lastNav.by!==me.id && typeof lastNav.scroll==='number'){
       applyingScroll=true; applyFrac(lastNav.scroll); lastFrac=lastNav.scroll; setTimeout(function(){ applyingScroll=false; }, 90); }
-    else if(follow) pushNav(curUrl);
     updateFollowUi(); };
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && shared) heartbeat(); });
   window.addEventListener('pagehide', function(){ if(db&&me.id){ try{ db.delete('p:'+me.id); }catch(e){} } });

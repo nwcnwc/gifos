@@ -680,6 +680,37 @@
     return { defs: D.join(''), art, shadowRx: 42 };
   };
 
+  // Rocket Lander (egg) — a rocket easing down onto a lit pad on a tractor beam.
+  ART.lander = (a, f) => {
+    const base = toHex(candy(a));
+    const D = []; const push = (d) => D.push(d);
+    const drop = [0, 1.5, 3, 3.5, 2, 0.5][f];
+    const art =
+      beam(64, 40, 4, 96, 20, base, f)
+      + "<g transform='translate(0," + drop + ")'>" + rocket(push, 64, 56, 22, base, f) + '</g>'
+      // landing pad
+      + "<rect x='40' y='96' width='48' height='6' rx='2' fill='" + shade(base, -20) + "'/>"
+      + "<rect x='40' y='94' width='48' height='3' rx='1.5' fill='" + base + "' filter='url(#fglow)'/>"
+      + "<rect x='40' y='90' width='4' height='6' fill='#ffd23c'/><rect x='84' y='90' width='4' height='6' fill='#ffd23c'/>"
+      + star(24, 34, 0.7, f, 2, base) + star(104, 40, 0.6, f, 4, '#fff');
+    return { defs: D.join(''), art, shadowRx: 34 };
+  };
+
+  // Alien Translator (egg) — a big-eyed green alien beside a glowing glyph.
+  ART.aliens = (a, f) => {
+    const base = toHex(candy(a));
+    const D = []; const push = (d) => D.push(d);
+    const gl = [0.5, 0.8, 1, 0.85, 0.6, 0.45][f];
+    const art =
+      alien(push, 50, 62, 26, f)
+      // a transmitted glyph
+      + "<g transform='translate(96,58)' opacity='" + gl + "'>"
+      + "<path d='M-8 -12 Q4 -4 -6 4 Q6 8 -2 16' fill='none' stroke='" + base + "' stroke-width='3' stroke-linecap='round' filter='url(#fglow)'/>"
+      + "<circle cx='4' cy='-8' r='2' fill='" + base + "'/></g>"
+      + star(24, 34, 0.7, f, 1, base) + star(104, 96, 0.6, f, 4, base);
+    return { defs: D.join(''), art, shadowRx: 40 };
+  };
+
   // ---- themed fallback: a glowing saucer tile with the app's initial ---------
   function fallbackArt(letter, a, f) {
     const base = toHex(candy(a));

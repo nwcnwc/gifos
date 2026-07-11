@@ -170,6 +170,37 @@ async function openBible(b, port) {
     await ctx.close();
   }
 
+  // Bug 5 — turning Follow back ON is a JOIN, never a broadcast. Turning it on
+  // used to publish YOUR OWN position over the shared 'nav' record, yanking
+  // everyone else to you. It must instead leave the group's position untouched
+  // (you catch up to them, not the reverse) when there's no newer peer to join.
+  {
+    const { ctx, fr } = await openBible(b, port);
+    const readNav = () => fr.locator('#main').evaluate(() => window.gifos.db('bible').getAll()
+      .then((rows) => { const n = (rows || []).find((r) => r && r.id === 'nav'); return n ? { scroll: n.scroll, by: n.by } : null; }));
+    await fr.locator('.doc a[data-nav]').filter({ hasText: 'Psalms' }).first().click();
+    await fr.locator('.doc:has-text("VERSE_200")').first().waitFor({ timeout: 10000 }).catch(() => {});
+    await sleep(300);
+    // A peer is merely PRESENT (so the Follow toggle shows), but is NOT leading —
+    // the only 'nav' in the store is mine, written as I read (I'm the leader).
+    await fr.locator('#main').evaluate(() => window.gifos.db('bible').put({ id: 'p:user_PEER', name: 'Bob', ts: Date.now() }));
+    await fr.locator('#main').evaluate((m) => { m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) * 0.3); });
+    await sleep(700); // scroll-push writes nav {by: me, ~0.3}
+    const navBefore = await readNav();
+    // Browse away on my own with Follow OFF (no push happens while off).
+    await fr.locator('#follow').click().catch(() => {});
+    await fr.locator('#main').evaluate((m) => { m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) * 0.6); });
+    await sleep(600);
+    // Turn Follow back ON — the bug republished my 0.6 over the shared record.
+    await fr.locator('#follow').click().catch(() => {});
+    await sleep(500);
+    const navAfter = await readNav();
+    check('turning Follow on does not overwrite the group position with mine',
+      !!navBefore && !!navAfter && Math.abs(navAfter.scroll - navBefore.scroll) < 0.03,
+      'before=' + JSON.stringify(navBefore) + ' after=' + JSON.stringify(navAfter));
+    await ctx.close();
+  }
+
   await b.close();
   srv.close();
   console.log(fail ? ('\n' + fail + ' FAIL') : '\nALL PASS');
