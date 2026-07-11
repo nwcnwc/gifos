@@ -51,7 +51,7 @@ async function install(page, { appId, name, caps, label, x }) {
   app.on('pageerror', (e) => console.log('  [app pageerror]', e.message));
   await app.waitForSelector('iframe', { timeout: 8000 });
   check('the acknowledgement lists the agent ability', /operate this app/i.test(await app.locator('.perm-box', { hasText: 'would like to' }).textContent().catch(() => '')));
-  await app.locator('.perm-box .done', { hasText: 'Sounds good' }).click().catch(() => app.locator('.perm-modal .done').click().catch(() => {}));
+  await app.locator('.perm-box .done', { hasText: 'Confirm' }).click().catch(() => app.locator('.perm-modal .done').click().catch(() => {}));
   const fr = app.frameLocator('iframe');
   await fr.locator('input[placeholder*="agent"]').waitFor({ timeout: 6000 });
   check('the agent bar is injected into the app iframe', (await fr.locator('input[placeholder*="agent"]').count()) === 1);
