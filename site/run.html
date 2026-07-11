@@ -204,6 +204,16 @@
         if (!claim) { sigBtn.style.display = 'none'; return; }
         sigBtn.style.display = ''; sigBtn.className = 'sig unk';
         sigBtn.textContent = '🛡 checking…';
+        // Verifying fetches the author's key over the network (their domain's
+        // gifos.key, or keys.openpgp.org). Offline that can't succeed — skip it
+        // so we don't fire a doomed cross-origin request in airplane mode, and
+        // just show the unverified badge.
+        if (navigator.onLine === false) {
+          sigBtn.textContent = '🛡 ' + (claim.id || 'signed');
+          sigBtn.title = 'Signed by ' + (claim.id || '?') + ', but the key can’t be checked offline.';
+          sigBtn.onclick = function () { alert(sigBtn.title); };
+          return;
+        }
         GifOS.sign.verify(bytes).then(function (v) {
           if (v.status === 'valid') { sigBtn.className = 'sig ok'; sigBtn.textContent = '✓ ' + v.id;
             sigBtn.title = 'Signed by ' + v.id + (v.ts ? ' on ' + v.ts : '') + (v.type === 'email' ? ' (PGP)' : '') + ' — contents unchanged since signing. Proves authorship, not safety.'; }
