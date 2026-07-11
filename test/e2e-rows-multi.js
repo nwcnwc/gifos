@@ -35,7 +35,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const names = ['Ada', 'Ben', 'Cyd', 'Dot', 'Eli', 'Fay'];
   const pages = [];
   for (const n of names) {
-    const p = await mk(n, { C: 2 });
+    // C=2 forces the structure; the tiny fold budget keeps 12 CI browsers on
+    // one CPU from turning shared-core contention into fake protocol flakes —
+    // production phones each own their compositor.
+    const p = await mk(n, { C: 2, COMP_W: 160, COMP_H: 90, COMP_FPS: 4 });
     await p.goto(BASE + '/meet.html#v=' + room);
     pages.push(p);
     await sleep(500); // stagger: the walk's join-order seating is under test, not its races

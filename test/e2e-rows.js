@@ -41,7 +41,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const room = 'ksweep' + Math.floor(Math.random() * 1e9).toString(36);
   const names = ['Ada', 'Ben', 'Cyd', 'Dot'];
   const pages = [];
-  for (const n of names) { const p = await mk(n, { C: 2 }); await p.goto(BASE + '/meet.html#v=' + room); pages.push(p); }
+  // tiny fold budget: structure under test, not pixel throughput on a shared CI core
+  for (const n of names) { const p = await mk(n, { C: 2, COMP_W: 160, COMP_H: 90, COMP_FPS: 4 }); await p.goto(BASE + '/meet.html#v=' + room); pages.push(p); }
   for (const p of pages) await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 4, null, { timeout: 30000 });
   await sleep(6000); // cap gossip + elections settle
 
