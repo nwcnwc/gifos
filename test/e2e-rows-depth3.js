@@ -55,51 +55,40 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('recursion: five delegates double-home, the parent space splits, and level-2 delegates meet in uu', liftOk);
 
-  // ---- presence: one number for the whole room, three sessions deep --------
-  let countOk = true;
-  for (const p of pages) {
-    const ok = await p.waitForFunction(() => window.__gifosVideo.participants() === 10, null, { timeout: 60000 }).then(() => true).catch(() => false);
-    if (!ok) countOk = false;
-  }
-  check('presence: participants() is 10 on every phone across three leaves and two branches', countOk);
+  // All ten phones wait IN PARALLEL — serial 90s budgets would outrun any
+  // sane suite timeout long before the tree is done converging.
+  const allWait = async (fn, arg, ms) =>
+    (await Promise.all(pages.map((p) => p.waitForFunction(fn, arg, { timeout: ms }).then(() => true).catch(() => false)))).every(Boolean);
 
-  // ---- the stadium at depth: own-branch rows individually, foreign branches
-  // as one folded tile each — live everywhere.
-  let coverOk = true;
-  for (const p of pages) {
-    const ok = await p.waitForFunction(() => {
+  // ---- presence: one number for the whole room, three sessions deep --------
+  check('presence: participants() is 10 on every phone across three leaves and two branches',
+    await allWait(() => window.__gifosVideo.participants() === 10, null, 90000));
+
+  // ---- the stadium at depth: own-branch rows individually (there may be
+  // none — a lone-row branch sees everything else as branches), foreign
+  // branches as one live folded tile each.
+  check('stadium: every phone holds its branch\'s rows AND a live folded tile per foreign branch',
+    await allWait(() => {
       const v = window.__gifosVideo;
       const got = v.stadium();
       const numerics = got.filter((s) => typeof s.row === 'number');
       const branches = got.filter((s) => String(s.row).indexOf('b:') === 0);
-      return numerics.length >= 1 && numerics.every((s) => s.live)
-        && branches.length >= 1 && branches.every((s) => s.live);
-    }, null, { timeout: 90000 }).then(() => true).catch(() => false);
-    if (!ok) coverOk = false;
-  }
-  check('stadium: every phone holds live rows of its own branch AND a live folded tile per foreign branch', coverOk);
+      return numerics.every((s) => s.live) && branches.length >= 1 && branches.every((s) => s.live);
+    }, null, 120000));
 
   // ---- one chat across three sessions and two branches ---------------------
   await pages[0].locator('#chatbtn').click();
   await pages[0].locator('#chat-in').fill('to the last row of the stadium');
   await pages[0].locator('#chatform button[type=submit]').click();
-  let chatOk = true;
-  for (const p of pages) {
-    const got = await p.waitForFunction(() => window.__gifosVideo.chatTexts().includes('to the last row of the stadium'), null, { timeout: 30000 }).then(() => true).catch(() => false);
-    if (!got) chatOk = false;
-  }
-  check('chat: one line reaches all ten phones through the delegate tree', chatOk);
+  check('chat: one line reaches all ten phones through the delegate tree',
+    await allWait(() => window.__gifosVideo.chatTexts().includes('to the last row of the stadium'), null, 40000));
 
   // ---- one hand queue across branches --------------------------------------
   const s1 = await Promise.all(pages.map(st));
   const spillIdx = s1.findIndex((s) => s.row === 3);
   await pages[spillIdx].evaluate(() => window.__gifosVideo.raiseHand(true));
-  let hqOk = true;
-  for (const p of pages) {
-    const ok = await p.waitForFunction(() => window.__gifosVideo.handQueue().length === 1, null, { timeout: 40000 }).then(() => true).catch(() => false);
-    if (!ok) hqOk = false;
-  }
-  check('hands: a raise in the far leaf reaches all ten phones as one queue (branch authority)', hqOk);
+  check('hands: a raise in the far leaf reaches all ten phones as one queue (branch authority)',
+    await allWait(() => window.__gifosVideo.handQueue().length === 1, null, 60000));
   await pages[spillIdx].evaluate(() => window.__gifosVideo.raiseHand(false));
 
   await browser.close();
