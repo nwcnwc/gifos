@@ -709,7 +709,7 @@
       myStatus.tot = assertedTotal() || 0;
       myStatus.seen = UP.on ? Math.max(assertedTotal() || 0, seenAsserted() || 0) : 0;
       myStatus.branch = UP.on ? UP.num : 0;
-      myStatus.bcnt = UP2.on ? knownBranchCnt() : 0;
+      myStatus.bl = UP2.on ? Object.fromEntries(knownBranchLeafs()) : undefined;
       myStatus.hq = UP.on ? handQueue().slice(0, 20) : undefined;
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
@@ -724,23 +724,34 @@
     // counts, a room sum of branch sums) — what it DISPLAYS may absorb any
     // fresher total gossip carried down. Assertions never absorb, so a stale
     // number can never circulate; it just expires.
-    function knownBranchCnt() { // the people my parent space carries
-      const perLeaf = new Map([[rowNum, rosterIds.length || 1]]);
+    function knownBranchLeafs() { // leafNum -> cnt, as my parent space sees it
+      const per = new Map([[rowNum, rosterIds.length || 1]]);
       for (const pid of upGossipIds()) {
         const st = statusOf.get(pid);
-        if (st && st.leaf && st.cnt && st.leaf !== rowNum) perLeaf.set(st.leaf, Math.max(perLeaf.get(st.leaf) || 0, st.cnt));
+        if (st && st.leaf && st.cnt) per.set(st.leaf, Math.max(per.get(st.leaf) || 0, st.cnt));
       }
-      let sum = 0; for (const c of perLeaf.values()) sum += c;
+      return per;
+    }
+    function knownBranchCnt() {
+      let sum = 0; for (const c of knownBranchLeafs().values()) sum += c;
       return sum;
     }
     function assertedTotal() {
-      if (UP2.on) { // I see sibling branches: sum per-branch, freshest wins
-        const perBranch = new Map([[UP.num, knownBranchCnt()]]);
+      if (UP2.on) {
+        // Union LEAF-KEYED maps across attendees, then sum — a leaf whose
+        // delegates split across sibling parent sessions would be counted
+        // in two branch scalars, but it can't be counted twice under its
+        // own key. Double-count impossible by construction.
+        const merged = knownBranchLeafs();
         for (const pid of up2GossipIds()) {
           const st = statusOf.get(pid);
-          if (st && st.branch && st.bcnt && st.branch !== UP.num) perBranch.set(st.branch, Math.max(perBranch.get(st.branch) || 0, st.bcnt));
+          if (!st || !st.bl || Date.now() - (st.at || 0) > 15000) continue;
+          for (const k of Object.keys(st.bl)) {
+            const leaf = +k, cnt = st.bl[k] | 0;
+            if (leaf > 0 && cnt > 0) merged.set(leaf, Math.max(merged.get(leaf) || 0, cnt));
+          }
         }
-        let sum = 0; for (const c of perBranch.values()) sum += c;
+        let sum = 0; for (const c of merged.values()) sum += c;
         return sum;
       }
       if (UP.on) return knownBranchCnt();
@@ -1887,6 +1898,23 @@
           if (Date.now() - UP2.idle > 15000) closeSpace(UP2);
         } else UP2.idle = 0;
       } else if (UP2.on) closeSpace(UP2);
+      // RETREAT: unlike leaves, delegate spaces SHRINK (membership is
+      // derived) — a delegate bumped to a sibling session during transient
+      // crowding must walk back when it stays lonely, or it is exiled with
+      // its announcements reaching nobody. 20s of just-me in a walked-to
+      // session → re-knock from the first (the seat rule re-bounces if the
+      // space is genuinely full).
+      for (const U of [UP, UP2]) {
+        if (!U.on || U.num <= 1) { U.lonely = 0; continue; }
+        if (U.roster.some((id) => id !== myId)) { U.lonely = 0; continue; }
+        U.lonely = U.lonely || Date.now();
+        if (Date.now() - U.lonely > 20000) {
+          U.lonely = 0; U.num = 1; U.walking = false;
+          U.on = false; try { U.ws && U.ws.close(); } catch (e) {}
+          U.ws = null; U.roster = []; U.names = {};
+          openSpace(U);
+        }
+      }
       // Link my space mates at every level (full mesh within a space session
       // — each is bounded at C² occupants). Headless unless staged.
       for (const U of [UP, UP2]) {
