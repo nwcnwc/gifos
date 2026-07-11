@@ -355,7 +355,7 @@
     p.state='sending'; paint();
     db.put({id:p.id,by:p.by,uid:p.uid,text:p.text,t:p.t}).then(function(){ p.state='sent'; paint(); },function(){ p.state='failed'; paint(); });
   });
-  ['👍','❤️','😂','','😮','🔥'].forEach(function(e){
+  ['👍','❤️','😂','🎉','😮','🔥'].forEach(function(e){
     const b=document.createElement('button'); b.type='button'; b.textContent=e;
     b.onclick=function(){ sendText(e); };
     document.getElementById('quick').appendChild(b);
@@ -396,7 +396,12 @@
         // A missing model pops the runtime's own Settings prompt (NOT_CONFIGURED);
         // anything else we surface briefly in the placeholder, then restore it.
         const msg=String(err&&err.message||err);
-        if(!/NOT_CONFIGURED/.test(msg)){ t.setAttribute('placeholder','AI draft failed: '+msg.slice(0,60)); setTimeout(function(){ t.setAttribute('placeholder',PH); },5000); }
+        if(!/NOT_CONFIGURED/.test(msg)){
+          // A user opt-out (Abilities panel) comes back as a plain sentence — show it
+          // as-is; anything else gets the generic prefix.
+          const friendly=/turned .*off|Abilities panel/i.test(msg)?msg:('AI draft failed: '+msg.slice(0,60));
+          t.setAttribute('placeholder',friendly.slice(0,90)); setTimeout(function(){ t.setAttribute('placeholder',PH); },5000);
+        }
       }finally{ aiBtn.disabled=false; aiBtn.textContent=glyph; }
     };
   }

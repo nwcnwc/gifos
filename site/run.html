@@ -269,25 +269,36 @@
             : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'
               : 'What this app can do on your device. Tap to review.');
         }
+        // Per-app capability opt-out. A capability the manifest declares can be
+        // switched off by the user, per app — persisted as a list of vetoed cap
+        // names under gifos_capoff_<appId>, which the runtime's brokers honour.
+        const capOffKey = 'gifos_capoff_' + ((manifest && manifest.appId) || 'app');
+        function capOff() { try { const v = JSON.parse(localStorage.getItem(capOffKey) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+        function capEnabled(k) { return capOff().indexOf(k) < 0; }
+        function setCapEnabled(k, on) {
+          try { const s = capOff().filter(function (x) { return x !== k; }); if (!on) s.push(k); localStorage.setItem(capOffKey, JSON.stringify(s)); } catch (e) {}
+        }
+        // One checkbox row per declared capability — unchecking turns it off.
+        function capRow(k, title, desc) {
+          return '<label class="perm-row"><input type="checkbox" data-cap="' + escapeText(k) + '"' + (capEnabled(k) ? ' checked' : '') + '>' +
+            '<span><span class="host">' + title + '</span>' +
+            '<br><span class="desc">' + desc + ' Uncheck to turn this off for this app.</span></span></label>';
+        }
         function capBlock() {
           if (!caps.length) return '';
           return caps.map(function (k) {
             if (k === 'api') {
-              return apiNames(manifest).map(function (n) {
-                return '<div class="perm-row"><span><span class="host">Use your ' + escapeText(n.charAt(0).toUpperCase() + n.slice(1)) + ' account</span>' +
-                  '<br><span class="desc">' + CAP_DESC.api + '</span></span></div>';
-              }).join('');
+              const names = apiNames(manifest).map(function (n) { return escapeText(n.charAt(0).toUpperCase() + n.slice(1)); });
+              return capRow('api', 'Use your ' + names.join(', ') + ' account' + (names.length > 1 ? 's' : ''), CAP_DESC.api);
             }
             if (k === 'ai') {
               const roles = aiRoles(manifest);
               const which = roles.length
                 ? ' <span class="host" style="font-weight:400">— ' + roles.map(function (r) { return escapeText(AI_ROLE_LABELS[r]); }).join(', ') + '</span>'
                 : '';
-              return '<div class="perm-row"><span><span class="host">' + CAP_LABELS.ai + which + '</span>' +
-                '<br><span class="desc">' + CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : '') + '</span></span></div>';
+              return capRow('ai', CAP_LABELS.ai + which, CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : ''));
             }
-            return '<div class="perm-row"><span><span class="host">' + CAP_LABELS[k] + '</span>' +
-              '<br><span class="desc">' + CAP_DESC[k] + '</span></span></div>';
+            return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
           }).join('');
         }
         function openModal() {
@@ -315,6 +326,8 @@
           document.body.appendChild(bg);
           bg.addEventListener('change', function (ev) {
             const cb = ev.target; if (!cb || cb.type !== 'checkbox') return;
+            const cap = cb.getAttribute('data-cap');
+            if (cap) { setCapEnabled(cap, cb.checked); return; } // takes effect on the next brokered call (mic/camera/AI/API/agent)
             Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
             paintChip();
           });
