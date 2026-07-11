@@ -1243,9 +1243,22 @@
     // firewalled pair. Sealing hid ICE from the e2e suite's old WS-sniffing
     // trick, so the fault now injects at the signaling layer itself.
     const iceBlocked = (pid) => { const b = window.__gifosBlockIce; return !!b && (b.includes('*') || b.includes(pid)); };
+    // A blocked pair must see NO candidates at all: a re-offer minted after
+    // gathering finished carries every candidate INLINE in the SDP, which
+    // would tunnel right around the dropped trickle messages — so blocked
+    // offers/answers are stripped of a=candidate lines on both ends too.
+    const sdpSansIce = (sdp) => sdp && sdp.sdp
+      ? { type: sdp.type, sdp: sdp.sdp.replace(/a=candidate:[^\r\n]*\r?\n/g, '') } : sdp;
+    const sigSansIce = (pid, msg) => {
+      if (!msg || !iceBlocked(pid)) return msg;
+      if (msg.kind === 'ice') return null;
+      if ((msg.kind === 'offer' || msg.kind === 'answer') && msg.sdp) return Object.assign({}, msg, { sdp: sdpSansIce(msg.sdp) });
+      return msg;
+    };
     const sendSig = (to, msg) => {
       if (!ws) return;
-      if (msg && msg.kind === 'ice' && iceBlocked(to)) return;
+      msg = sigSansIce(to, msg);
+      if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
         net.sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'peer', to, msg: piece })))));
     };
@@ -1393,6 +1406,8 @@
 
     function onSignal(from, msg, adm) {
       if (!msg || !msg.kind) return;
+      msg = sigSansIce(from, msg); // fault injection: a blocked pair yields nothing
+      if (!msg) return;
       if (msg.kind === 'offer') {
         if (!linkTo(from)) return; // outside my row's link set — rows settle, they retry
         const p = makePeer(from, msg.name);
@@ -1411,7 +1426,6 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .catch(() => {});
       } else if (msg.kind === 'ice') {
-        if (iceBlocked(from)) return; // fault injection — see iceBlocked above
         const p = peers.get(from);
         if (!p) return;
         if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
