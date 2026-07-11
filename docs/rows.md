@@ -52,14 +52,62 @@ message counts, no compositor working, no forwarding hop taken.
 
 Phase map (each phase keeps every earlier suite green):
 
-1. **In-session rows** (this branch): rows partition one relay session
+1. **In-session rows** (done): rows partition one relay session
    (≤ relay cap). Deacons, composites, stage, buses — everything below —
    fully real at K=1 with ten browsers.
-2. **Multi-session rows**: a row = its own relay session
-   (sid = `H(secret|row|n)`); deacons double-home into the parent row's
-   session. Same code; the "roster" a client reads becomes its row + parents.
-3. **Recursive fold** (depth > 2), zoom-by-depth UI, hand-raise queue
+2. **Multi-session rows**: a row = its own relay session; deacons
+   double-home into a parent session. Same code; the "roster" a client
+   reads becomes its row + the sessions it delegates into.
+3. **Recursive fold** (depth > 2), zoom-by-depth, hand-raise queue
    folding, presence counting for the record.
+
+## Multi-session rows (phases 2–3): the self-similar session
+
+**Naming.** A session is addressed by a *path*. Path `''` is the first row
+and equals today's derived sid exactly — a room that fits in one row never
+changes identity. Leaf rows walk `r2, r3, …`; the first parent space is
+`u` (walking `u, u2, …`); its parent space is `uu`, and so on. The path
+mixes INTO the sid hash (`deriveMeetSess`) — it must never ride after the
+last dot, where the relay reads the admin verifier. One room key seals
+every session of the room; the pw proof is room-wide too.
+
+**The join walk.** A joiner tries leaf paths in order: connect, read the
+roster; if the row already holds `C` primaries and none of them is you,
+disconnect and try the next (gallop + binary search once rooms are big).
+The relay needs NO new state: its roster message already answers "is this
+row full", and holes left by departures are refilled by later walkers.
+
+**The uplink is the recursion.** Every session runs the SAME arithmetic on
+its own roster: rows → deacons → folds. A session's deacon (delegate)
+opens ONE extra socket into the session space one level up, walks it
+first-fit like any joiner, and does there exactly what a member does in a
+leaf: gossips status, links row 0 and its row, folds, forwards. When a
+parent space outgrows `C`, its sessions elect delegates who walk the next
+space up — depth is emergent, fanout is `C` at every level, and there is
+no "top" anybody has to know about.
+
+**Row 0 anchors at `u`.** Stepping onto the stage double-homes you into
+the first parent session (no walk — the tree's fixed anchor), while you
+keep your leaf seat. In a one-row room the stg flag gossips in-leaf and
+row 0 is exactly phase 1 — the parent presence is invisible. The one rule
+at every level: *row 0 is either here or arrives from upstairs; a
+delegate forwards it downstairs* — verbatim tracks where possible (the
+stage is encoded once), folds elsewhere.
+
+**Gossip bridges, media folds.** Chat-class frames (chat, transcripts,
+file metas/tombstones, app ads/stops) hop the tree through delegates:
+forward-on-first-sight, deduped by id — the discipline that already made
+same-room gossip idempotent makes tree gossip loop-proof. File BODIES stay
+in-row (budget policy, unchanged). Presence counts and the hand queue ride
+status gossip: each delegate reports its subtree upward (`cnt`, top hands)
+and carries the room total (`tot`) and the merged queue back down.
+
+**What stays honest.** Stream identity remains explicit (announced sids +
+manifests) across every hop. Admin stamps are relay-scoped, so moderation
+is per-session in a multi-session room for now — an admin can sit in any
+row; room-wide admin gossip is future work, and the governance table's
+receiver-side filters (stage, apps) hold at every level because they run
+on gossip, not stamps.
 
 ## Deacons — fold up, forward down
 
