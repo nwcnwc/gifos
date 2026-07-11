@@ -260,6 +260,26 @@ The media mesh and the app's data channels are independent peer connections
 over the one relay room; the app never touches the camera (that stays with the
 trusted meeting page), so the sandbox guarantees are unchanged.
 
+**Who runs the stage** follows the room principle — anarchy is unavoidable in
+open rooms (so DOM hackers gain nothing over the honest buttons), complete
+control in admin rooms:
+
+- *Open rooms*: anyone runs an app; ONE app wins everywhere by a deterministic
+  rule (newest ad by timestamp, peer-id tiebreak) so the room can never split;
+  anyone may stop it for the room (attributed, and reversible — the sharer can
+  re-share past the stop tombstone). *Admin rooms*: only admins — or guests an
+  admin granted the `app` right to (a stamped moderation-table entry, revocable
+  live) — may share, and stops are honored only from relay-stamped admin
+  envelopes. Everyone, everywhere, always has a personal **Hide** (opt-out on
+  their own screen only).
+- **Led records**: an app's manifest may declare `ledRecords` — record ids
+  (like the Bible Browser's shared `nav` cursor) that only the sharer may
+  write while their **Leading** toggle is on. The fence lives in the sharer's
+  own host runtime — the one place no remote client, DOM-hacked or otherwise,
+  can reach — and defaults communal in open rooms, leading in admin rooms.
+  This is the embryo of broadcast-mode replication (single writer, unlimited
+  readers) that giant rooms will build on.
+
 ### The shareable launch URL
 
 When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries a **link secret** — and everything the relay needs is a one-way derivation of it ("derive, don't send", `site/js/gifos-net.js`):
