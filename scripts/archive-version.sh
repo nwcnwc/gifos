@@ -17,7 +17,7 @@ if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwri
 
 mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
-cp "$SITE/index.html" "$SITE/run.html" "$SITE/video.html" "$SITE/boot.html" "$DEST/"
+cp "$SITE/index.html" "$SITE/run.html" "$SITE/meet.html" "$SITE/boot.html" "$DEST/"
 cp "$SITE/sign.html" "$SITE/about.html" "$DEST/" 2>/dev/null || true
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
 
@@ -34,4 +34,4 @@ cat > "$SITE/version.json" <<EOF
 EOF
 
 echo "Archived site/versions/$V and updated version.json."
-echo "Next: set window.GIFOS_VERSION = '$V' in site/index.html, then commit + push."
+echo "Next: set window.GIFOS_VERSION = '$V' in site/index.html AND site/boot.html (and in the fresh copies under versions/$V/), then commit + push."

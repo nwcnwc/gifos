@@ -1,0 +1,322 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f; --surface: #14141f; --border: #2a2a3f; --text: #e0e0f0;
+  --muted: #8888aa; --accent: #7b5cff; --accent2: #ff5caa; --glow: rgba(123,92,255,.35);
+  /* theme-overridable chrome details (gifos-themes.js) */
+  --bgglow: #1a1330; --bar: rgba(20,20,31,.75); --label: var(--text);
+  --labelshadow: rgba(0,0,0,.85);
+}
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: radial-gradient(1200px 800px at 70% -10%, var(--bgglow), var(--bg));
+  color: var(--text); overflow: hidden; user-select: none;
+}
+
+/* update bar */
+.update-bar {
+  display: flex; align-items: center; gap: .6rem; padding: .4rem 1rem;
+  background: linear-gradient(135deg, rgba(123,92,255,.25), rgba(255,92,170,.25));
+  border-bottom: 1px solid var(--accent); font-size: .82rem; position: relative; z-index: 6;
+}
+.update-bar button {
+  padding: .25rem .8rem; border-radius: .4rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; font-size: .78rem;
+}
+.update-bar .dismiss { margin-left: auto; background: none; border: 0; color: var(--muted); padding: .25rem .5rem; }
+
+/* version list in Settings */
+.vlist { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .3rem; }
+.vrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .45rem .7rem; border: 1px solid var(--border); border-radius: .5rem; font-size: .85rem; }
+.vbtn { padding: .3rem .7rem; border-radius: .4rem; border: 1px solid var(--accent);
+  background: none; color: var(--accent); cursor: pointer; font-size: .78rem; }
+.vbtn:hover { background: rgba(123,92,255,.15); }
+.vtag { color: var(--muted); font-size: .78rem; }
+
+/* menu bar */
+.menubar {
+  /* rem so the bar grows/shrinks with the global text size (2.5rem = 40px at
+     the default 16px root) — keeps the top chrome usable from 20% to 300%. */
+  height: 2.5rem; display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
+  background: var(--bar); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border); position: relative; z-index: 5;
+}
+.menubar .brand { font-weight: 800; background: linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand-btn { display: flex; align-items: center; gap: .3rem; background: none; border: 0;
+  padding: .3rem .55rem; border-radius: .4rem; cursor: pointer; font-size: 1rem; }
+.brand-btn:hover { background: rgba(255,255,255,.07); }
+.brand-btn .caret { color: var(--muted); font-size: .7rem; }
+.pill { font-variant-numeric: tabular-nums; color: var(--muted) !important; }
+.menubar .crumbs { color: var(--muted); font-size: .85rem; }
+.menubar .crumbs a { color: var(--accent); cursor: pointer; }
+.menubar .spacer { flex: 1; }
+.menubar button {
+  padding: .3rem .8rem; border-radius: .4rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: .8rem;
+}
+.menubar button:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--glow); }
+
+/* desktop surface */
+#desktop {
+  position: absolute; inset: 2.5rem 0 0 0; /* matches the menubar height (scales with text size) */
+  /* Both axes scroll: an icon dragged far right in landscape must stay reachable
+     after rotating back to portrait (it sits beyond the viewport, so the surface
+     has to scroll to it — same as icons dragged below the fold). */
+  overflow: auto; overscroll-behavior: contain;
+}
+#desktop.dragover::after {
+  content: 'Drop files to add them to your Home Screen';
+  position: fixed; inset: calc(2.5rem + 1.2rem) 1.2rem 1.2rem; border: 2px dashed var(--accent); border-radius: 1rem;
+  display: flex; align-items: center; justify-content: center; color: var(--accent);
+  font-size: 1.1rem; background: rgba(123,92,255,.06); pointer-events: none; z-index: 4;
+}
+/* soft always-there reminder that the whole surface is a drop zone */
+.drop-hint {
+  position: fixed; bottom: .7rem; left: 50%; transform: translateX(-50%);
+  color: var(--muted); opacity: .4; font-size: .74rem; pointer-events: none; z-index: 3;
+  white-space: nowrap;
+}
+@media (pointer: coarse) { .drop-hint { display: none !important; } } /* no OS drag on phones */
+
+/* icons — cell width follows the desktop's grid pitch (--cell, set by JS) so
+   at least 5 icons fit across on phones without wasted whitespace */
+.icon {
+  position: absolute; width: calc(var(--cell, 104px) - 8px); display: flex; flex-direction: column; align-items: center;
+  gap: .35rem; padding: .4rem .1rem; border-radius: .6rem; cursor: pointer; text-align: center;
+  touch-action: none; /* touch drags move the icon, not the page */
+}
+.icon:hover { background: rgba(255,255,255,.05); }
+.icon.selected { background: rgba(123,92,255,.18); outline: 1px solid var(--accent); }
+/* Icons are transparent sticker GIFs — no box, no border: they float on the
+   wallpaper with a soft drop shadow and a happy little hover pop. */
+.icon .thumb {
+  width: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
+  height: min(var(--isize, 64px), calc(var(--cell, 104px) - 16px));
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--isize, 64px) * .62);
+}
+.icon .thumb img {
+  width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45));
+  transition: transform .16s ease;
+}
+.icon:hover .thumb img { transform: translateY(-3px) scale(1.07); }
+.icon:active .thumb img { transform: translateY(0) scale(.96); }
+
+/* the up-hole: the corner cell inside a folder is a hole back to the parent —
+   click to climb out, or drop an icon in to send it up a level */
+.icon.uphole { cursor: pointer; }
+.uphole .hole {
+  width: calc(var(--isize, 64px) * .84); height: calc(var(--isize, 64px) * .84);
+  border: 2.5px dashed var(--muted); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--isize, 64px) * .42); color: var(--muted);
+  background: radial-gradient(circle at 50% 42%, rgba(0, 0, 0, .5), rgba(0, 0, 0, .12));
+  transition: transform .15s ease, border-color .15s, color .15s;
+}
+.uphole:hover .hole, .uphole.drop-target .hole {
+  border-color: var(--accent); color: var(--accent); transform: scale(1.08);
+}
+.uphole .label { color: var(--muted); }
+.icon .label {
+  font-size: .78rem; max-width: calc(var(--cell, 104px) - 12px); word-break: break-word; line-height: 1.15;
+  max-height: 2.4em; overflow: hidden;
+  /* readable on ANY wallpaper the user picks (light or photo) */
+  color: var(--label);
+  text-shadow: 0 1px 2px var(--labelshadow), 0 0 6px var(--labelshadow);
+}
+.icon .label input {
+  font: inherit; width: 88px; text-align: center; border: 1px solid var(--accent);
+  border-radius: .3rem; background: var(--surface); color: var(--text);
+}
+.icon.drop-target .thumb { outline: 2px solid var(--accent2); }
+
+/* provenance shield on signed GIFs (bottom-right of the thumbnail) */
+.icon .thumb { position: relative; }
+.sig-badge {
+  position: absolute; right: -3px; bottom: -3px; width: 1.05rem; height: 1.05rem;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  font-size: .68rem; font-weight: 800; color: #fff; border: 2px solid var(--bg);
+  line-height: 1; pointer-events: none;
+}
+.sig-badge.sig-ok  { background: #34c759; }
+.sig-badge.sig-bad { background: #ff5c5c; }
+.sig-badge.sig-unk { background: #8888aa; }
+
+/* "NEW" tag on apps that hold no data yet (bottom-left — opposite the shield) */
+.new-badge {
+  position: absolute; left: -4px; bottom: -4px; pointer-events: none;
+  font-size: .5rem; font-weight: 800; letter-spacing: .06em; line-height: 1;
+  padding: .16rem .3rem; border-radius: .3rem; color: #fff; border: 2px solid var(--bg);
+  background: var(--accent, #7b5cff);
+}
+
+/* SYSTEM tag on trusted system-app launchers (Meeting): honest signage
+   that this icon opens a first-party page with camera/mic/WebRTC access. */
+.sysbadge {
+  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
+  font-size: .5rem; font-weight: 800; letter-spacing: .1em; line-height: 1;
+  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  text-transform: uppercase;
+  /* Solid violet: the "elevated system launcher" marker. White on saturated
+     purple reads on any wallpaper and is unmistakable next to the id pill. */
+  background: #7b5cff; color: #fff; border: 1px solid #9d86ff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.32); text-shadow: 0 1px 1px rgba(0,0,0,.3);
+}
+
+/* "MIRROR" band straight across the middle of a synced-mirror icon — a bright
+   cyan ribbon (its own colour, distinct from NEW/SYSTEM/identity) that reads at
+   a glance as "this copy tracks a master elsewhere". */
+.mirror-ribbon {
+  position: absolute; left: -6px; right: -6px; top: 50%; transform: translateY(-50%) rotate(-8deg);
+  text-align: center; font-size: .5rem; font-weight: 800; letter-spacing: .14em; line-height: 1;
+  text-transform: uppercase; padding: .16rem 0; pointer-events: none;
+  color: #04252b; background: #22d3ee; /* dark ink on bright cyan */
+  border-top: 1px solid rgba(255,255,255,.5); border-bottom: 1px solid rgba(0,0,0,.35);
+  box-shadow: 0 2px 6px rgba(0,0,0,.45);
+}
+
+/* Identity pill on a SIGNED app's tile: its own declared short name + version.
+   Same top-center placement as SYSTEM, but a DIFFERENT family — deep navy with
+   a cyan version — so provenance never reads as "system privilege". Only signed
+   tiles get one (see desktop.js render). */
+.idbadge {
+  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
+  max-width: calc(var(--isize, 64px) + 26px); box-sizing: border-box;
+  font-size: .5rem; font-weight: 700; letter-spacing: .01em; line-height: 1;
+  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #0e1526; color: #e4ebf8; border: 1px solid #3b4d6b;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+.idbadge .ver { color: #57ccff; font-weight: 800; }
+
+/* context menu */
+.ctx {
+  position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border);
+  border-radius: .5rem; padding: .3rem; min-width: 150px; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.ctx button {
+  display: block; width: 100%; text-align: left; padding: .45rem .7rem; border: 0; border-radius: .35rem;
+  background: none; color: var(--text); cursor: pointer; font-size: .85rem;
+}
+.ctx button:hover { background: rgba(123,92,255,.2); }
+.ctx .sep { height: 1px; background: var(--border); margin: .3rem .2rem; }
+.ctx button.danger { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+
+/* modal */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: .8rem;
+  padding: 1.6rem; text-align: center;
+  /* Never wider or taller than the phone screen; scroll a tall body instead of
+     spilling off-screen. .modal.wide overrides these for the settings sheet. */
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+}
+.modal h3 { margin-bottom: .6rem; }
+.modal p { color: var(--muted); font-size: .9rem; margin-bottom: 1.2rem; line-height: 1.45; }
+.modal p a { color: var(--accent); }
+.modal button {
+  padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer;
+}
+.modal.wide { max-width: 560px; width: 92vw; max-height: 86vh; overflow-y: auto; text-align: left; }
+.modal.wide h3 { text-align: center; }
+.modal.wide h4 { margin: .2rem 0 .5rem; font-size: .95rem; }
+.add-actions { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.add-actions button { flex: 1; padding: .6rem; border-radius: .5rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; }
+.add-actions button:hover { border-color: var(--accent); }
+.add-url-row { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.add-url-row input { flex: 1; min-width: 0; margin: 0; }
+.add-url-row button { padding: .6rem 1rem; border-radius: .5rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; }
+.add-url-row button:disabled { opacity: .55; cursor: default; }
+.add-sep { height: 1px; background: var(--border); margin: 1rem 0; }
+.add-help { color: var(--muted); font-size: .82rem; line-height: 1.4; margin-bottom: .6rem; }
+.add-help.bad { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+
+/* settings: background picker row + collapsed Advanced section */
+.bg-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.modal.wide .bg-row input[type="color"], .bg-row input[type="color"] {
+  width: 3.2rem; min-width: 3.2rem; flex: 0 0 auto; height: 2.2rem; padding: .15rem;
+  border: 1px solid var(--border); border-radius: .4rem; background: var(--surface); cursor: pointer; }
+.bg-row button { padding: .45rem .8rem; border-radius: .45rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: .82rem; }
+.bg-row button:hover { border-color: var(--accent); }
+.ts-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.ts-row button { min-width: 2.6rem; padding: .45rem .7rem; border-radius: .45rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: .9rem; }
+.ts-row button:hover { border-color: var(--accent); }
+.ts-row #ts-val { min-width: 3rem; text-align: center; color: var(--muted); }
+.hist-list { max-height: 52vh; overflow-y: auto; margin: .4rem 0 .2rem; }
+.hist-row { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid var(--border); }
+.hist-open { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; cursor: pointer; text-decoration: none; }
+.hist-name { color: var(--text); font-weight: 600; }
+.hist-meta { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Beat the generic `.modal button` (accent-filled) so the row's ✕ stays subtle. */
+.modal .hist-del { flex: 0 0 auto; background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: .4rem; padding: .3rem .55rem; cursor: pointer; font-size: .85rem; }
+.modal .hist-del:hover { border-color: #c22e2e; color: #e0574a; }
+details.adv summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .3rem 0;
+  user-select: none; }
+details.adv summary:hover { color: var(--text); }
+details.adv[open] summary { color: var(--text); margin-bottom: .4rem; }
+details.adv h4 { margin-top: .8rem; }
+.modal.wide textarea, .modal.wide input {
+  width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; margin-bottom: .5rem;
+}
+.modal.wide textarea { resize: vertical; }
+.modal.wide textarea.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; color: var(--muted); }
+.modal.wide .widebtn { width: 100%; padding: .55rem; border-radius: .5rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; margin-bottom: .3rem; }
+#ad-create { background: var(--accent); border: 1px solid var(--accent); color: var(--onaccent, #fff); }
+.modal-actions { display: flex; flex-direction: column; gap: .5rem; }
+.modal-actions button { width: 100%; }
+.modal-actions button.danger { background: #a12626; border-color: #a12626; color: #fff; }
+.modal-actions button.danger:hover { background: #c22e2e; }
+.modal-actions button.ghost { background: none; border-color: var(--border); color: var(--muted); }
+.hist-clearwrap { text-align: center; margin-top: .7rem; }
+.hist-clear-link { color: var(--muted); font-size: .74rem; text-decoration: underline; cursor: pointer; opacity: .75; }
+.hist-clear-link:hover { color: #e0574a; opacity: 1; }
+
+/* empty hint — fixed so it stays visible even though the surface scrolls */
+.hint {
+  position: fixed; bottom: 2.4rem; left: 50%; transform: translateX(-50%);
+  color: var(--muted); font-size: .8rem; pointer-events: none; z-index: 3;
+}
+
+/* Settings → AI models */
+.ai-row { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem .6rem; margin-bottom: .55rem; }
+.ai-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.ai-head b { flex: 1; font-size: .9rem; }
+.ai-test { padding: .28rem .8rem; border-radius: .4rem; border: 1px solid var(--accent); background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; font-size: .78rem; }
+.ai-status { font-size: .78rem; color: var(--muted); min-width: 3rem; }
+.ai-status.ok { color: color-mix(in srgb, #34c759 60%, var(--text)); }
+.ai-status.bad { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+.ai-2 { display: flex; gap: .4rem; }
+.modal.wide .ai-row input { margin-bottom: .4rem; }
+.modal.wide .ai-row .ai-2 input { margin-bottom: 0; }
+
+/* Settings → Third-party APIs (reuses .ai-row chrome) */
+.modal.wide .api-name { flex: 1; min-width: 0; margin-bottom: 0; padding: .3rem .5rem; font-size: .88rem; font-weight: 600; }
+.api-del { padding: .28rem .55rem; border-radius: .4rem; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: .78rem; }
+.api-del:hover { color: var(--text); border-color: var(--muted); }
+.modal.wide .api-row select { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+.modal.wide .api-row .ai-2 { align-items: stretch; }
+.modal.wide .api-row .ai-2 select { flex: 1; }
+.modal.wide .api-row .ai-2 .api-authname { flex: 1; }
+.api-adv { margin-bottom: .4rem; }
+.api-adv summary { cursor: pointer; color: var(--muted); font-size: .78rem; padding: .1rem 0; user-select: none; }
+.modal.wide .api-row .api-adv .api-proxy-url { margin: .35rem 0 0; font-size: .82rem; }
+.modal.wide .api-row .api-status { min-height: 1rem; font-size: .78rem; margin-bottom: 0; }
