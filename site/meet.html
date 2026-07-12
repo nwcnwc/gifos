@@ -144,6 +144,12 @@
     gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
     border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
   #mixpanel label { display: flex; align-items: center; justify-content: space-between; gap: .6rem; color: var(--text, #e0e0f0); }
+  #timingrow { display: flex; gap: .35rem; }
+  #timingrow button { flex: 1; padding: .3rem .4rem; border-radius: .45rem; font-size: .72rem; cursor: pointer;
+    background: none; border: 1px solid var(--border, #2a2a3f); color: var(--muted, #8a8aa8); }
+  #timingrow button.on { border-color: var(--accent, #7b5cff); color: var(--text, #e0e0f0); background: rgba(123,92,255,.14); }
+  #timingrow button:disabled { cursor: default; opacity: .55; }
+  #timingrow button:disabled.on { opacity: 1; border-color: #b9a5ff; color: #d5c8ff; background: #1d1633; }
   #mixpanel input[type=range] { width: 120px; }
   /* App-in-meeting: the shared app fills the stage; participant tiles shrink to
      a scrolling filmstrip along the bottom so everyone stays visible. */
@@ -429,6 +435,12 @@
     <label>My row <input type="range" id="mix-row" min="0" max="100" value="100"></label>
     <label id="mixlab-section">My section <input type="range" id="mix-section" min="0" max="100" value="100"></label>
     <label id="mixlab-stadium">The stadium <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
+    <b>Timing</b>
+    <div id="timingrow">
+      <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
+      <button data-timing="chat" title="Snappiest replies — your ears align to your own links only; across the room, timing may stagger">Conversation</button>
+      <button data-timing="song" disabled title="Active while someone leads a song (tap 🎵 to lead) — deep cathedral tiers + the leader's music-grade mic">Song</button>
+    </div>
   </div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
@@ -4051,6 +4063,20 @@
       SONG_FAR: 840,    // section/stadium units — the far bank of the congregation
       CK_EVERY: 5000, APPLY_EVERY: 3000,
     };
+    // Timing is a PERSONAL, receiver-side setting (your ears, your knob — like
+    // the faders), three moods:
+    //   unison (default) — everyone hears everyone at the same synced instant:
+    //     the near-field target is the ROOM's slowest gossiped need (capped),
+    //     so reactions, responsive readings and spontaneous song land together
+    //     across the whole room, not just within each listener's ears.
+    //   chat — snappiest replies: the target derives from MY links only;
+    //     coherent locally, possibly staggered across listeners.
+    //   song — not a knob: entered by a leader's 🎵, it overrides both with
+    //     the deep cathedral tiers below.
+    const TIMING_KEY = 'gifos_timing';
+    let timing = 'unison';
+    try { const t = localStorage.getItem(TIMING_KEY); if (t === 'chat' || t === 'unison') timing = t; } catch (e) {}
+    let gdOverride = 0; // test hook: pretend this device needs a slower grid
     const clk = new Map(); // pid -> { rtt, off, n } — the best (min-rtt) sample, slowly decayed
     function clockSample(pid, t0, t1, t2) {
       const rtt = Math.max(0, t2 - t0), off = t1 - (t0 + t2) / 2;
@@ -4088,14 +4114,28 @@
       const stg = new Set(stageIds());
       const mates = new Set(rowMates());
       const rttOf = (pid) => { const c = clk.get(pid); return c && c.n ? c.rtt : 200; }; // no sample yet → assume mid-pack
-      let rowD = 0; // talk tier: slowest near-field mate (that voice can't arrive sooner anyway), capped
+      // My near-field NEED: the slowest voice I have to wait for anyway.
+      // Gossiped (uncapped) so unison rooms can meet their slowest ear.
+      let rowD = 0;
       for (const pid of peers.keys()) if (stg.has(pid) || mates.has(pid)) rowD = Math.max(rowD, rttOf(pid) / 2 + GRID.JB_BASE);
-      rowD = Math.min(GRID.TALK_ROW, Math.ceil(rowD));
+      myStatus.gd = Math.ceil(gdOverride || rowD);
+      // UNISON widens the target from MY need to the ROOM's: the max of every
+      // near-field member's gossiped need — so all of us land each voice at the
+      // same synced instant. CHAT keeps just my own. Both capped: one terrible
+      // link slows itself, never the whole pew.
+      let nearD = rowD;
+      if (timing === 'unison') {
+        for (const pid of peers.keys()) if (stg.has(pid) || mates.has(pid)) {
+          const st = statusOf.get(pid);
+          if (st && st.gd) nearD = Math.max(nearD, st.gd);
+        }
+      }
+      nearD = Math.min(GRID.TALK_ROW, Math.ceil(nearD));
       gridApplied.clear();
       for (const [pid, p] of peers) {
         const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row' : rosterIds.includes(pid) ? 'section' : 'stadium';
         const D = sing ? (bus === 'stage' ? GRID.SONG_STAGE : bus === 'row' ? GRID.SONG_ROW : GRID.SONG_FAR)
-          : (bus === 'stage' || bus === 'row') ? rowD : 0; // talk: far units play natural — they're a murmur, not a conversation
+          : (bus === 'stage' || bus === 'row') ? nearD : 0; // far units play natural — they're a murmur, not a conversation
         const jbt = D > 0 ? Math.max(0, Math.round(D - rttOf(pid) / 2 - GRID.JB_BASE)) : 0;
         let set = false;
         try {
@@ -4129,10 +4169,30 @@
           setStatus('🎵 The song ended.');
         }
         paintSing();
+        paintTiming(); // the Song pill lights while a song runs
         applyGrid(); // retune the tiers now, not on the next tick
       }
     }
     setInterval(() => { reactSing(); applyGrid(); }, GRID.APPLY_EVERY);
+
+    // The Timing pills (in the mix panel): Unison | Conversation, with Song
+    // shown as the live third state while a leader has the room singing.
+    const timingRow = document.getElementById('timingrow');
+    function paintTiming() {
+      const sing = roomSingOn();
+      for (const btn of timingRow.querySelectorAll('button')) {
+        btn.classList.toggle('on', sing ? btn.dataset.timing === 'song' : btn.dataset.timing === timing);
+      }
+    }
+    timingRow.addEventListener('click', (e) => {
+      const t = e.target && e.target.dataset ? e.target.dataset.timing : null;
+      if (t !== 'chat' && t !== 'unison') return; // Song is not a knob — tap 🎵 to lead
+      timing = t;
+      try { localStorage.setItem(TIMING_KEY, t); } catch (e2) {}
+      paintTiming();
+      applyGrid();
+    });
+    paintTiming();
 
     const singBtn = document.getElementById('singbtn');
     function paintSing() {
@@ -5130,13 +5190,15 @@
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC)
-      grid: () => ({ // the alignment engine's live state: clocks, tiers, sing, mic
-        sing: roomSingOn(), mic: micMode,
+      grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
+        sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
         clocks: Object.fromEntries(Array.from(clk, ([pid, c]) => [pid, { rtt: Math.round(c.rtt), off: Math.round(c.off), n: c.n }])),
         targets: Object.fromEntries(Array.from(gridApplied, ([pid, g]) => [pid, g])),
         mixNow: Object.assign({}, mix),
       }),
       singForTest: (on) => { if (!!on !== !!myStatus.sing) singBtn.onclick(); },
+      timingForTest: (t) => { const b = timingRow.querySelector('[data-timing="' + t + '"]'); if (b) b.click(); },
+      gdForTest: (v) => { gdOverride = +v || 0; applyGrid(); broadcastStatus(); },
       // app-in-meeting
       appActive: () => !!appKey,
       appName: () => document.getElementById('appname').textContent,
