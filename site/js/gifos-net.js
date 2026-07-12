@@ -135,7 +135,14 @@
   // arrival order across a healing transport is fine; incomplete messages are
   // swept after 30s.
   const FRAG_PART = 100 * 1024; // chars per piece — envelope stays well under DC limits
-  const FRAG_MAX_PARTS = 256;   // ~25MB reassembled max — a heavy app rides P2P; refuses absurd claims
+  // Reassembly cap. Sized to the app-DATA ceiling (a single db record can be ~25MB
+  // — My Media's per-item max), and that record is DOUBLE base64'd on the wire: the
+  // binary-safe db serializer tags a Uint8Array as { $bin: base64 } (×1.33), then
+  // seal() base64s the ciphertext (×1.33) → ~1.78× the raw bytes. So a 25MB blob
+  // becomes ~45MB of fragments; 512×100KB = ~51MB carries it with margin (a smaller
+  // cap silently drops a big shared video mid-transfer). Still bounds a bad peer's
+  // claim, and incomplete messages are swept after 30s.
+  const FRAG_MAX_PARTS = 512;
   let fragSeq = 0;
   // emit(pieceObj, pieceStr) is called once for small messages (the original)
   // or once per fragment — the caller picks which form its transport wants.
