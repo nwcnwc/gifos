@@ -45,31 +45,39 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await m.goto(BASE + '/meet.html#v=recroom' + Math.floor(Math.random() * 1e6).toString(36));
   await m.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 12000 });
 
-  // ---- 1. No app on stage → Record goes straight to tiles, no chooser ----------
+  // ---- 1. Record always opens the options popup (scope + quality) --------------
   await m.locator('#recbtn').click();
-  await m.waitForFunction(() => window.__gifosVideo.recording(), null, { timeout: 8000 });
-  check('with no app, Record starts immediately (no chooser)',
-    (await m.locator('#rec-choose').count()) === 0 && (await m.evaluate(() => window.__gifosVideo.recMode())) === 'tiles');
+  await m.waitForSelector('#rec-options', { timeout: 8000 });
+  check('Record opens the options popup', true);
+  check('with no app on stage, the popup omits the with-app scope',
+    (await m.locator('#rec-options input[value=app]').count()) === 0);
+  // "Everything I see" records the received tiers regardless of who is on stage
+  await m.locator('#rec-options input[value=all]').check();
+  await m.locator('#ro-start').click();
+  await m.waitForFunction(() => window.__gifosVideo.recording() && window.__gifosVideo.recMode() === 'all', null, { timeout: 8000 });
+  check('starting records "Everything I see" (scope = all)', true);
+  check('audio matches the sound mix by default', await m.evaluate(() => window.__gifosVideo.recMatchMix() === true));
+  check('at least my own tile is a live record source', await m.evaluate(() => window.__gifosVideo.recSourceCount().row >= 1));
 
-  // ---- 2. Share an app mid-recording → the tiles recorder is warned ------------
+  // ---- 2. Share an app mid-recording → the canvas recorder is warned -----------
   await m.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Shared App'), appId);
   await m.waitForSelector('#appmount iframe', { timeout: 15000 });
   await m.waitForSelector('#rec-warn', { timeout: 8000 });
-  check('sharing an app during a tiles recording warns you to restart', true);
-  await m.locator('#rw-keep').click(); // keep tiles for now
-  await m.locator('#recbtn').click(); // stop the tiles recording
+  check('sharing an app during a canvas recording warns you to restart', true);
+  await m.locator('#rw-keep').click(); // keep the tiles recording
+  await m.locator('#recbtn').click(); // stop
   await m.waitForFunction(() => !window.__gifosVideo.recording(), null, { timeout: 8000 });
 
-  // ---- 3. App on stage → Record offers the choice; pick "with the app" ---------
+  // ---- 3. App on stage → the popup offers the with-app scope -------------------
   check('the app is still on stage', await m.evaluate(() => window.__gifosVideo.appActive()));
   await m.locator('#recbtn').click();
-  await m.waitForSelector('#rec-choose', { timeout: 8000 });
-  check('with an app on stage, Record offers a choice', true);
-  check('the chooser offers both tiles-only and record-with-app',
-    (await m.locator('#rc-tiles').isVisible()) && (await m.locator('#rc-app').isVisible()));
-  await m.locator('#rc-app').click();
+  await m.waitForSelector('#rec-options', { timeout: 8000 });
+  check('with an app on stage, the popup offers the with-app scope',
+    (await m.locator('#rec-options input[value=app]').count()) === 1);
+  await m.locator('#rec-options input[value=app]').check();
+  await m.locator('#ro-start').click();
   await m.waitForFunction(() => window.__gifosVideo.recording() && window.__gifosVideo.recMode() === 'app', null, { timeout: 10000 });
-  check('"Record with the app" starts an app-mode (tab-capture) recording', true);
+  check('"With the shared app" starts an app-mode (tab-capture) recording', true);
   await m.locator('#recbtn').click(); // stop
   await m.waitForFunction(() => !window.__gifosVideo.recording(), null, { timeout: 8000 });
   check('stopping ends the recording cleanly', true);
