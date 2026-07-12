@@ -633,6 +633,14 @@
           and run on friendly anarchy.</li>
         </ul>
 
+        <h4>Stepping away</h4>
+        <p>Flip to another tab or app and you <b>stay in the meeting</b>: you keep hearing
+        everyone, everyone keeps hearing you, and your tile politely shows “away” so
+        nobody wonders. Your camera pauses while you're gone — phones switch cameras off
+        for hidden apps to save battery — and comes back the moment you return. On
+        phones, the ongoing-call controls (mute, hang up) appear with your device's own
+        media controls.</p>
+
         <h4>Your privacy</h4>
         <p>Video and audio go <b>straight between people</b>, never through a server. Because
         of that, everyone on a call can see everyone's network address — nobody here is
@@ -1254,7 +1262,11 @@
       if (bl && !isMe) t.video.classList.add('blur' + bl);
       if (t.voteBtn) t.voteBtn.classList.toggle('voted', !!(dv && myVoteoffs.has(dv)));
       if (!isMe) {
-        t.video.muted = !!gMute;               // group mute is enforced on MY device
+        // Group mute is enforced on MY device — via the tile's COMPANION audio
+        // (busVolume): the <video> itself stays picture-only, so a hidden tab
+        // never silences the meeting by pausing it.
+        t.video._gmute = !!gMute;
+        if (t.video._aud) t.video._aud.muted = !!gMute;
         if (t.modbar) {
           t.modbar.children[0].textContent = gMute ? 'Unmute for everyone' : 'Mute for everyone';
           t.modbar.children[1].textContent = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
@@ -4023,6 +4035,22 @@
     // orders the feed (in-section rows vs deck/deck-mate). Both are degenerate
     // by arithmetic: a one-row room has no section members, a one-section room
     // no stadium members — their faders simply don't show.
+    // Audio playout is SPLIT from the video tiles. Mobile browsers PAUSE hidden
+    // <video> elements — flipping to another tab used to silence the whole
+    // meeting — but audio-only playback keeps going in the background, like
+    // music. So every sounding tile feeds a companion Audio element carrying
+    // the same stream; the tile's <video> is muted and carries only the
+    // picture, and the faders drive the companions. (Elements, not WebAudio:
+    // element playout is what the phone's echo canceller uses as its
+    // reference, and what background-audio policy exempts.)
+    function busVolume(el, vol) {
+      if (!el.srcObject) { if (el._aud) el._aud.srcObject = null; el.volume = vol; return; }
+      if (!el._aud) { el._aud = new Audio(); el._aud.autoplay = true; }
+      el.muted = true; // the <video> is picture-only, always — sound lives in the companion
+      if (el._aud.srcObject !== el.srcObject) { el._aud.srcObject = el.srcObject; el._aud.play().catch(() => {}); }
+      el._aud.volume = vol;
+      el._aud.muted = !!el._gmute; // group mute rides the same pipe as the faders
+    }
     function applyBuses() {
       const stg = new Set(stageIds());
       const mates = new Set(rowMates());
@@ -4033,20 +4061,20 @@
         // a space mate (another section entirely) is The stadium.
         const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row'
           : rosterIds.includes(pid) ? 'section' : 'stadium';
-        p.video.volume = mix[bus];
+        busVolume(p.video, mix[bus]);
         if (bus === 'section') hasSection = true;
         if (bus === 'stadium') hasStadium = true;
       }
       // feed tiles: forwarded stage entries are Stage; a fold of one of my own
       // section's rows is My section; deck folds and other sections' rows are
       // The stadium — the same predicate that orders the feed.
-      for (const el of stagefeedEl.querySelectorAll('.rowtile video')) el.volume = mix.stage;
+      for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
       const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C;
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
         const key = el.dataset.row, num = Number(key);
         const inSection = !isDeckKey(key) && Number.isFinite(num) && num > lo && num <= hi;
-        v.volume = inSection ? mix.section : mix.stadium;
+        busVolume(v, inSection ? mix.section : mix.stadium);
         if (inSection) hasSection = true; else hasStadium = true;
       }
       // Progressive disclosure: reveal a bus's fader only once it has members.
@@ -4205,7 +4233,11 @@
         applyGrid(); // retune the tiers now, not on the next tick
       }
     }
-    setInterval(() => { reactSing(); applyGrid(); }, GRID.APPLY_EVERY);
+    setInterval(() => {
+      reactSing(); applyGrid();
+      applyBuses(); // buses too: a swapped stream re-feeds its companion audio within a tick
+      if (typeof updateMediaSession === 'function') updateMediaSession(); // keep the OS call card's count fresh
+    }, GRID.APPLY_EVERY);
 
     // The Timing pills (in the mix panel): Conversation | Unison | 🎵 Song.
     // Song doubles as the way to LEAD one — singing is loved but rare, so it
@@ -4693,6 +4725,7 @@
       paintControls();
       syncSpeech(); // CC pauses while muted, resumes on unmute
       broadcastStatus();
+      updateMediaSession();
     };
     camBtn.onclick = () => {
       if (!localStream) return;
@@ -4707,7 +4740,38 @@
       refreshOutbound(); // camera on while blurring → start the blur canvas
       broadcastStatus();
       reactRoomState();  // camera on/off changes your consent
+      updateMediaSession();
     };
+
+    // ---- stay in the meeting when the tab is hidden ---------------------------
+    // Registering as a CALL with the OS (Media Session) is the other half of
+    // surviving a tab flip: the phone shows mic/hang-up controls (lock screen
+    // included), the browser keeps the tab prioritized instead of freezing it,
+    // and Chrome can auto picture-in-picture the call on a tab switch. Split
+    // audio playout (busVolume above) keeps the SOUND alive; this keeps the
+    // SESSION alive and controllable. Every call is wrapped: browsers support
+    // different slices of this API and all of it is progressive enhancement.
+    function updateMediaSession() {
+      const ms = navigator.mediaSession; if (!ms) return;
+      try { ms.metadata = new MediaMetadata({ title: 'GifOS Meeting', artist: participantCount() + ' here' }); } catch (e) {}
+      try { ms.setMicrophoneActive(!myStatus.muted); } catch (e) {}
+      try { ms.setCameraActive(!myStatus.camOff); } catch (e) {}
+      try { ms.playbackState = 'playing'; } catch (e) {}
+    }
+    (function wireMediaSession() {
+      const ms = navigator.mediaSession; if (!ms || !ms.setActionHandler) return;
+      const wire = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* action unsupported here */ } };
+      wire('togglemicrophone', () => micBtn.onclick());
+      wire('togglecamera', () => camBtn.onclick());
+      wire('hangup', () => { try { ws && ws.close(); } catch (e) {} location.replace('index.html'); });
+      // Chrome auto-enters picture-in-picture for call sites that handle this —
+      // flip away and the stage follows you as a floating tile.
+      wire('enterpictureinpicture', async () => {
+        const v = document.querySelector('.tile.onstage video, .tile:not(.me) video, .tile video');
+        if (v && v.requestPictureInPicture) { try { await v.requestPictureInPicture(); } catch (e) { /* denied — fine */ } }
+      });
+      updateMediaSession();
+    })();
     // The blur slider: pick Max / Min / None directly. It records YOUR choice;
     // whether a tile actually goes clear is the room rule's meeting — when your
     // None can't show yet, the status line says exactly why.
