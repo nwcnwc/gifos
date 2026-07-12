@@ -9,7 +9,15 @@
  * triangle, cross, diamond) that hops to a new spot every few seconds,
  * so the stadium visibly LIVES without costing encode bandwidth between
  * changes. Bots also drop a random sentence into the meeting chat now and
- * then, so chat gossip gets exercised across sections and decks.
+ * then, so chat gossip gets exercised across sections and decks — and SPEAK
+ * actual phrases over their mics (pre-rendered espeak clips in
+ * swarm-voices.js, played into the fake mic's WebAudio destination), so the
+ * audio buses and fold summing carry real voices, not just silence.
+ *
+ * Bots switch their own camera and mic on after joining (GifOS joins quiet
+ * by default) and set their blur choice to None. TIP: give the room a
+ * password — it's the key to clear video, so the mosaic shows sharp colors
+ * AND no bot burns CPU on the sender-side blur canvas.
  *
  * Run one shard per home computer, then join from your phone and feel it:
  *
@@ -29,8 +37,10 @@
  *   --relay <ws://>  custom relay (default: the site's production relay)
  *   --ramp <ms>      delay between joins (default 400 — be kind to the walk)
  *   --fps <n>        bot camera fps (default 5; mostly-static content anyway)
- *   --chat <secs>    one random bot per shard speaks every this-many seconds
+ *   --chat <secs>    one random bot per shard chats every this-many seconds
  *                    (default 20; 0 turns chat off)
+ *   --speak <secs>   each bot says a spoken phrase roughly this often
+ *                    (default 45, jittered ±50%; 0 turns voices off)
  *
  * Every ~20s each shard prints a one-line census: how many bots are up and
  * which sections they landed in. Ctrl-C tears the shard down.
@@ -47,10 +57,17 @@ const RELAY = args.relay || '';
 const RAMP = Math.max(0, parseInt(args.ramp || '400', 10));
 const FPS = Math.max(1, parseInt(args.fps || '5', 10));
 const CHAT = Math.max(0, parseFloat(args.chat === undefined ? '20' : args.chat));
+const SPEAK = Math.max(0, parseFloat(args.speak === undefined ? '45' : args.speak));
 
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('playwright not found — run: npm i playwright && npx playwright install chromium'); process.exit(1); }
+
+// Pre-rendered spoken phrases (ogg/vorbis base64) — optional: without the
+// file the bots simply stay silent between heartbeats.
+let VOICES = [];
+try { VOICES = require(require('path').join(__dirname, 'swarm-voices.js')); }
+catch (e) { if (SPEAK) console.log('[swarm] swarm-voices.js not found — bots will be mute'); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,13 +116,48 @@ const fakeCam = (idx, fps) => `
       const stream = c.captureStream(${fps});
       try {
         const ac = new (window.AudioContext || window.webkitAudioContext)();
-        const dst = ac.createMediaStreamDestination(); // silence, valid opus
+        const dst = ac.createMediaStreamDestination(); // silence between phrases, valid opus
         for (const t of dst.stream.getAudioTracks()) stream.addTrack(t);
+        // Speak actual phrases: decode a pre-rendered clip on first use, then
+        // fire it into the mic destination on a jittered timer. Decode is
+        // once per clip; playback is a BufferSource — CPU stays negligible.
+        const CLIPS = window.__swarmClips || [], SP = window.__swarmSpeakMs || 0;
+        if (CLIPS.length && SP) {
+          const bufs = {};
+          const say = async () => {
+            try {
+              if (ac.state === 'suspended') ac.resume();
+              const i = (Math.random() * CLIPS.length) | 0;
+              if (!bufs[i]) {
+                const raw = Uint8Array.from(atob(CLIPS[i]), (ch) => ch.charCodeAt(0));
+                bufs[i] = await ac.decodeAudioData(raw.buffer);
+              }
+              const s = ac.createBufferSource(); s.buffer = bufs[i]; s.connect(dst); s.start();
+            } catch (e) {}
+          };
+          const loop = () => setTimeout(() => { say(); loop(); }, SP * (0.5 + Math.random()));
+          loop();
+        }
       } catch (e) {}
       return stream;
     };
     navigator.mediaDevices.getUserMedia = mk;           // meet.html's camera
     navigator.mediaDevices.getDisplayMedia = mk;        // just in case
+    // GifOS joins QUIET (camera+mic acquired but disabled) — a bot switches
+    // its own on through the real buttons, and picks blur None (with a room
+    // password that means clear video and NO sender-side blur canvas).
+    window.addEventListener('load', () => {
+      let blurSet = false;
+      const iv = setInterval(() => {
+        const cam = document.getElementById('cam'), mic = document.getElementById('mic');
+        const none = document.getElementById('blur-none');
+        if (!cam || !mic || !window.__gifosVideo) return;
+        if (none && !blurSet) { none.click(); blurSet = true; }
+        if (cam.classList.contains('off')) cam.click();   // no-op until the fake camera lands
+        if (mic.classList.contains('off')) mic.click();
+        if (!cam.classList.contains('off') && !mic.classList.contains('off')) clearInterval(iv);
+      }, 2000);
+    });
   })();
 `;
 
@@ -136,6 +188,9 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   // locked room's gate is exercised for real, no UI driving needed.
   const roomKey = ROOM + (AV ? '.' + AV : '');
   const pwSeed = PASS ? 'localStorage.setItem(' + JSON.stringify('gifos_vpw_' + roomKey) + ',' + JSON.stringify(PASS) + ');' : '';
+  const voiceSeed = (SPEAK && VOICES.length)
+    ? 'window.__swarmClips=' + JSON.stringify(VOICES.map((v) => v.ogg)) + ';window.__swarmSpeakMs=' + Math.round(SPEAK * 1000) + ';'
+    : '';
   console.log('[swarm] shard: bots ' + OFFSET + '…' + (OFFSET + N - 1) + ' → ' + BASE + ' room "' + ROOM + '"'
     + (AV ? ' (admin room)' : '') + (PASS ? ' [password]' : ''));
   for (let i = 0; i < N; i++) {
@@ -143,7 +198,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } }); // a phone
     await ctx.addInitScript({ content:
       (RELAY ? 'localStorage.setItem(\'gifos_relay\',' + JSON.stringify(RELAY) + ');' : '') +
-      pwSeed +
+      pwSeed + voiceSeed +
       "localStorage.setItem('gifos_name','Bot-" + idx + "');" +
       "localStorage.setItem('gifos_meet_bar','0');" +
       fakeCam(idx, FPS) });
