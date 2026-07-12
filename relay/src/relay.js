@@ -15,8 +15,10 @@
  * CONNECTION — the relay persists nothing, ever. A room's token and password
  * are therefore properties of its CURRENT OCCUPANTS: the first arrival to an
  * empty room re-establishes them from their own session, and everyone after
- * that must match the people already inside. Per-socket rate meters are
- * in-memory and simply start fresh after a wake.
+ * that must match the people already inside — except that in an ADMIN room
+ * only an admin may (re)establish the password lock, so a non-admin winning
+ * the post-eviction race can neither seize nor unlock it. Per-socket rate
+ * meters are in-memory and simply start fresh after a wake.
  *
  * BANDWIDTH GUARD — the relay is for CONTROL traffic only (DB ops, WebRTC
  * signaling). It hard-caps message size and per-connection throughput so
@@ -241,8 +243,11 @@ export class Session {
       // Host-less ROOM: every participant is equal and the room lives at its
       // URL forever. Its token and password are whatever the CURRENT
       // occupants carry in their attachments — the first person to arrive at
-      // an empty room re-establishes both from their own session, and
-      // everyone after them has to match. No storage anywhere.
+      // an empty room re-establishes them from their own session, and
+      // everyone after them has to match. No storage anywhere. (Exception,
+      // enforced below: in an ADMIN room only an admin may re-establish the
+      // password lock — a non-admin first-arriver can neither seize nor
+      // unlock it after an eviction.)
       //
       // ADMIN rooms: the verifier V is part of the ROOM'S IDENTITY (the
       // /call/<room>/<V> link everyone shares — the session id is the
