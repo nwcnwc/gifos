@@ -21,14 +21,16 @@ cp "$SITE/index.html" "$SITE/run.html" "$SITE/meet.html" "$SITE/boot.html" "$DES
 cp "$SITE/sign.html" "$SITE/about.html" "$DEST/" 2>/dev/null || true
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
 
-# Rebuild version.json: newest first, current = the new version.
+# Rebuild version.json: newest first, current = the new version. minData tracks
+# the OLDEST build still shipped under /versions/ (they get pruned over time).
 mapfile -t VERSIONS < <(ls -1 "$SITE/versions" | sort -rV)
 LIST=$(printf '"%s",' "${VERSIONS[@]}"); LIST="[${LIST%,}]"
+MINDATA="${VERSIONS[${#VERSIONS[@]}-1]:-$V}"
 cat > "$SITE/version.json" <<EOF
 {
   "current": "$V",
   "versions": $LIST,
-  "minData": "0.5.0",
+  "minData": "$MINDATA",
   "note": "Data migrations are additive-only and the App-GIF window.gifos API is a stable, add-only contract, so any archived build under /versions/ can safely read the current desktop."
 }
 EOF

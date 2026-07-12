@@ -763,26 +763,61 @@
   }
   const capDisabled = (manifest, cap) => capOff(manifest).indexOf(cap) >= 0;
   const CAP_OFF_MSG = (what) => 'You turned ' + what + ' off for this app. Turn it back on in the Abilities panel (the chip at the top of the app’s tab).';
-  function captureOverlay(label, kind, onStop) {
+  // The capture indicator the runtime owns (an app can never fake or hide it).
+  // For camera kinds it now shows a LIVE preview of exactly what's being
+  // recorded, with a flip button to switch front/back camera. opts: { onStop,
+  // onFlip, onCancel }. Returns handles the broker uses to feed it the stream
+  // and (on a flip) restart the timer.
+  function captureOverlay(label, kind, opts) {
+    opts = opts || {};
     const doc = root.document;
+    const withPreview = kind !== 'audio';
     const bg = doc.createElement('div');
     bg.setAttribute('data-gifos-capture', '1');
-    bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);font:15px system-ui;color:#fff';
+    bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);font:15px system-ui;color:#fff;padding:16px;box-sizing:border-box';
     const box = doc.createElement('div');
-    box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:20px 22px;max-width:320px;text-align:center';
-    box.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#ff5c5c;margin:2px auto 12px"></div>'
-      + '<div style="font-weight:800;margin:8px 0 4px">GifOS is capturing ' + (kind === 'photo' ? 'a photo' : kind) + '</div>'
-      + '<div style="color:#c8c8dc;font-size:13px;margin-bottom:12px">for <b>' + capEsc(label) + '</b> — it receives only this clip, never your live ' + (kind === 'audio' ? 'mic' : 'camera') + '.</div>'
-      + '<div id="gc-t" style="font-variant-numeric:tabular-nums;font-weight:700;margin-bottom:12px">0:00</div>'
-      + '<button id="gc-stop" style="padding:9px 20px;border:0;border-radius:9px;background:#ff5c5c;color:#fff;font:inherit;font-weight:700;cursor:pointer">' + (kind === 'photo' ? 'Cancel' : 'Stop &amp; use') + '</button>';
+    box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:16px 18px;max-width:' + (withPreview ? '380px' : '320px') + ';width:100%;text-align:center;box-sizing:border-box';
+    const noun = kind === 'photo' ? 'a photo' : kind;
+    const dev = kind === 'audio' ? 'mic' : 'camera';
+    box.innerHTML =
+      (withPreview
+        ? '<div style="position:relative;margin-bottom:12px">'
+          + '<video id="gc-prev" autoplay playsinline muted style="width:100%;max-height:44vh;border-radius:10px;background:#000;display:block"></video>'
+          + (opts.onFlip ? '<button id="gc-flip" title="Switch camera" style="position:absolute;top:8px;right:8px;width:40px;height:40px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px;line-height:40px;cursor:pointer">🔄</button>' : '')
+          + '</div>'
+        : '<div style="width:14px;height:14px;border-radius:50%;background:#ff5c5c;margin:2px auto 12px"></div>')
+      + '<div style="display:flex;align-items:center;justify-content:center;gap:7px;font-weight:800;margin:2px 0 4px">'
+      + (withPreview ? '<span style="width:11px;height:11px;border-radius:50%;background:#ff5c5c;display:inline-block"></span>' : '')
+      + '<span>GifOS is capturing ' + noun + '</span></div>'
+      + '<div style="color:#c8c8dc;font-size:13px;margin-bottom:10px">for <b>' + capEsc(label) + '</b> — it receives only this clip, never your live ' + dev + '.</div>'
+      + (kind === 'photo' ? '' : '<div id="gc-t" style="font-variant-numeric:tabular-nums;font-weight:700;margin-bottom:12px">0:00</div>')
+      + '<div style="display:flex;gap:8px;justify-content:center">'
+      + '<button id="gc-stop" style="padding:9px 20px;border:0;border-radius:9px;background:#ff5c5c;color:#fff;font:inherit;font-weight:700;cursor:pointer">' + (kind === 'photo' ? '📸 Capture' : 'Stop &amp; use') + '</button>'
+      + (opts.onCancel ? '<button id="gc-cancel" style="padding:9px 16px;border:1px solid #3a3a48;border-radius:9px;background:transparent;color:#c8c8dc;font:inherit;cursor:pointer">Cancel</button>' : '')
+      + '</div>';
     bg.appendChild(box); doc.body.appendChild(bg);
-    const t0 = Date.now(), tEl = box.querySelector('#gc-t');
+    let t0 = Date.now(); const tEl = box.querySelector('#gc-t');
     const iv = kind === 'photo' ? null : setInterval(() => {
       const s = Math.floor((Date.now() - t0) / 1000);
-      tEl.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      if (tEl) tEl.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     }, 250);
-    box.querySelector('#gc-stop').onclick = onStop;
-    return { close: () => { if (iv) clearInterval(iv); try { bg.remove(); } catch (e) {} } };
+    if (opts.onStop) box.querySelector('#gc-stop').onclick = opts.onStop;
+    const flipBtn = box.querySelector('#gc-flip'); if (flipBtn && opts.onFlip) flipBtn.onclick = opts.onFlip;
+    const cancelBtn = box.querySelector('#gc-cancel'); if (cancelBtn && opts.onCancel) cancelBtn.onclick = opts.onCancel;
+    const prev = box.querySelector('#gc-prev');
+    return {
+      close: () => { if (iv) clearInterval(iv); try { bg.remove(); } catch (e) {} },
+      preview: prev,
+      resetTimer: () => { t0 = Date.now(); },
+      // Feed the live stream to the preview; mirror ONLY the selfie (front) view
+      // so it reads naturally, while the recorded frames stay unmirrored.
+      setStream: (stream, facing) => {
+        if (!prev) return;
+        try { prev.srcObject = stream; } catch (e) {}
+        prev.style.transform = facing === 'environment' ? 'none' : 'scaleX(-1)';
+        const p = prev.play && prev.play(); if (p && p.catch) p.catch(() => {});
+      },
+    };
   }
   function pickCaptureMime(kind) {
     const MR = root.MediaRecorder;
@@ -804,51 +839,82 @@
     const wantAudio = kind === 'audio' || (kind === 'video' && d.audio !== false);
     const maxMs = Math.min(Math.max(1, d.maxSeconds || 15), 120) * 1000;
     const label = manifest.name || manifest.appId || 'an app';
-    return nav.mediaDevices.getUserMedia({ audio: wantAudio, video: wantVideo ? { facingMode: d.facing || 'user' } : false })
-      .then((stream) => new Promise((resolve, reject) => {
-        let done = false, ov = null, autoT = null, rec = null, vidEl = null;
-        const cleanup = () => {
-          if (autoT) clearTimeout(autoT);
-          try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
-          if (ov) ov.close();
-          if (vidEl) { try { vidEl.remove(); } catch (e) {} }
-        };
+    // Which way the camera faces. `facingMode` is a soft constraint, so on a
+    // one-camera device flipping just re-picks the same camera (never errors).
+    let facing = d.facing === 'environment' ? 'environment' : 'user';
+    const acquire = (f) => nav.mediaDevices.getUserMedia({ audio: wantAudio, video: wantVideo ? { facingMode: f } : false });
+    return acquire(facing)
+      .then((stream0) => new Promise((resolve, reject) => {
+        let done = false, ov = null, autoT = null, rec = null, stream = stream0, chunks = [], startMs = 0, flipping = false;
+        const stopTracks = (s) => { try { (s || stream).getTracks().forEach((t) => t.stop()); } catch (e) {} };
+        const cleanup = () => { if (autoT) clearTimeout(autoT); stopTracks(); if (ov) ov.close(); };
+        // ---- PHOTO: live preview, tap to capture, flip to switch camera ----
         if (kind === 'photo') {
-          vidEl = root.document.createElement('video');
-          vidEl.autoplay = true; vidEl.playsInline = true; vidEl.muted = true;
-          vidEl.style.cssText = 'position:fixed;left:-9999px;width:2px;height:2px';
-          vidEl.srcObject = stream; root.document.body.appendChild(vidEl);
           const snap = () => {
             if (done) return; done = true;
-            const w = vidEl.videoWidth || 640, h = vidEl.videoHeight || 480;
+            const v = ov && ov.preview; const w = (v && v.videoWidth) || 640, h = (v && v.videoHeight) || 480;
             const c = root.document.createElement('canvas'); c.width = w; c.height = h;
-            try { c.getContext('2d').drawImage(vidEl, 0, 0, w, h); } catch (e) {}
+            try { if (v) c.getContext('2d').drawImage(v, 0, 0, w, h); } catch (e) {}
             c.toBlob((blob) => {
               cleanup();
               if (!blob) return reject(new Error('Could not capture a frame.'));
               blob.arrayBuffer().then((buf) => resolve({ bytes: buf, mime: 'image/jpeg', width: w, height: h }));
             }, 'image/jpeg', 0.9);
           };
-          ov = captureOverlay(label, 'photo', () => { if (!done) { done = true; cleanup(); reject(new Error('Capture cancelled.')); } });
-          vidEl.onloadeddata = () => setTimeout(snap, 250);
-          autoT = setTimeout(snap, 4000);
+          const flipPhoto = () => {
+            if (done || flipping) return; flipping = true;
+            facing = facing === 'user' ? 'environment' : 'user';
+            const prev = stream;
+            acquire(facing).then((s) => { stopTracks(prev); stream = s; if (ov) ov.setStream(s, facing); flipping = false; })
+              .catch(() => { flipping = false; });
+          };
+          ov = captureOverlay(label, 'photo', {
+            onStop: () => { if (!done && !flipping) snap(); },
+            onFlip: flipPhoto,
+            onCancel: () => { if (!done) { done = true; cleanup(); reject(new Error('Capture cancelled.')); } },
+          });
+          ov.setStream(stream, facing);
+          autoT = setTimeout(() => { if (!done) snap(); }, 60000); // safety: never hang forever
           return;
         }
+
+        // ---- AUDIO / VIDEO recording ----
         const mime = pickCaptureMime(kind);
-        try { rec = new root.MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
-        catch (e) { try { rec = new root.MediaRecorder(stream); } catch (e2) { cleanup(); return reject(new Error('Recording is not supported here.')); } }
-        const chunks = [], startMs = Date.now();
-        rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
-        rec.onstop = () => {
-          const durationMs = Date.now() - startMs;
-          cleanup();
-          const blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || (kind === 'video' ? 'video/webm' : 'audio/webm') });
-          blob.arrayBuffer().then((buf) => resolve({ bytes: buf, mime: blob.type, durationMs }));
+        const startRecorder = () => {
+          try { rec = new root.MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+          catch (e) { try { rec = new root.MediaRecorder(stream); } catch (e2) { cleanup(); return reject(new Error('Recording is not supported here.')); } }
+          chunks = []; startMs = Date.now();
+          rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+          rec.onstop = () => {
+            if (flipping) return; // a flip stopped it only to swap cameras — the restart continues
+            const durationMs = Date.now() - startMs;
+            cleanup();
+            const blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || (kind === 'video' ? 'video/webm' : 'audio/webm') });
+            blob.arrayBuffer().then((buf) => resolve({ bytes: buf, mime: blob.type, durationMs }));
+          };
+          try { rec.start(); } catch (e) { cleanup(); return reject(new Error('Recording failed to start.')); }
         };
-        const stop = () => { if (done) return; done = true; try { rec.stop(); } catch (e) { cleanup(); reject(new Error('Recording failed.')); } };
-        ov = captureOverlay(label, kind, stop);
+        const stop = () => { if (done || flipping) return; done = true; try { rec.stop(); } catch (e) { cleanup(); reject(new Error('Recording failed.')); } };
+        // Flip mid-recording (video only): stop this recorder, re-acquire the
+        // other camera and restart a fresh clip. Old chunks are dropped — a flip
+        // means "record from the other camera instead."
+        const flipVideo = () => {
+          if (done || flipping || kind !== 'video') return;
+          flipping = true;
+          facing = facing === 'user' ? 'environment' : 'user';
+          const prevStream = stream;
+          try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e) {}
+          acquire(facing).then((s) => {
+            stopTracks(prevStream); stream = s;
+            if (ov) { ov.setStream(s, facing); ov.resetTimer(); }
+            if (autoT) clearTimeout(autoT); autoT = setTimeout(stop, maxMs);
+            flipping = false; startRecorder();
+          }).catch(() => { flipping = false; if (!done) { done = true; cleanup(); reject(new Error('Could not switch camera.')); } });
+        };
+        ov = captureOverlay(label, kind, { onStop: stop, onFlip: kind === 'video' ? flipVideo : null });
+        if (kind === 'video') ov.setStream(stream, facing);
         autoT = setTimeout(stop, maxMs);
-        try { rec.start(); } catch (e) { cleanup(); reject(new Error('Recording failed to start.')); }
+        startRecorder();
       }))
       .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the ' + cap + ' was denied.' : (err && err.message) || String(err)); });
   }

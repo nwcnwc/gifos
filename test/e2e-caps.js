@@ -66,9 +66,10 @@ const AI_CFG = JSON.stringify({
       '  try { var m = await gifos.ai.models(); document.getElementById("models").textContent = "models:" + (m.available||[]).sort().join(","); } catch(e){ document.getElementById("models").textContent = "ERR:"+e.message; }' +
       '  try { var c = await gifos.ai.chat({ model:"cheapest", prompt:"hi" }); document.getElementById("chat").textContent = "chat:" + c.text; } catch(e){ document.getElementById("chat").textContent = "ERR:"+e.message; }' +
       '  try { var a = await gifos.recordAudio({ maxSeconds: 1 }); document.getElementById("rec").textContent = "rec:" + (a.bytes ? a.bytes.byteLength : -1) + ":" + a.mime; } catch(e){ document.getElementById("rec").textContent = "ERR:"+e.message; }' +
+      '  window.__vid = function(){ return gifos.recordVideo({ maxSeconds: 30 }).then(function(v){ document.getElementById("rec").textContent = "vid:" + (v.bytes?v.bytes.byteLength:-1) + ":" + v.mime; }, function(e){ document.getElementById("rec").textContent = "VERR:"+e.message; }); };' +
       '})();<\/script>';
     const bytes = await GifOS.gif.encode({
-      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'captest', name: 'CapTest', entry: 'index.html', capabilities: { db: true, ai: true, microphone: true, motion: true } }),
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'captest', name: 'CapTest', entry: 'index.html', capabilities: { db: true, ai: true, microphone: true, camera: true, motion: true } }),
       'index.html': html,
     });
     const fid = GifOS.store.uid('file');
@@ -99,6 +100,24 @@ const AI_CFG = JSON.stringify({
   await fr.locator('#rec').filter({ hasText: /rec:/ }).waitFor({ timeout: 12000 });
   const rec = await fr.locator('#rec').textContent();
   check('gifos.recordAudio() hands back a real audio clip', /^rec:\d+:audio\//.test(rec) && +(rec.split(':')[1]) > 0, rec);
+
+  // ---- video capture: the overlay shows a LIVE preview + a flip button ----
+  await fr.locator('body').evaluate(() => { window.__vid(); });   // start recordVideo (fire-and-forget; resolves on Stop)
+  await app.waitForSelector('#gc-prev', { timeout: 8000 }).catch(async () => {
+    console.log('  (no preview; #rec="' + (await fr.locator('#rec').textContent().catch(() => '')) + '")');
+  });
+  check('video capture shows a LIVE preview of what is being recorded',
+    await app.locator('#gc-prev').count() === 1 &&
+    await app.locator('#gc-prev').evaluate((v) => !!(v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks().length)));
+  check('video capture offers a camera-flip button', await app.locator('#gc-flip').count() === 1);
+  await app.locator('#gc-flip').click();                     // flip front/back
+  await sleep(400);
+  check('after flipping, the preview still has a live video track',
+    await app.locator('#gc-prev').evaluate((v) => !!(v.srcObject && v.srcObject.getVideoTracks().length)));
+  await app.locator('#gc-stop').click();                     // Stop & use
+  await fr.locator('#rec').filter({ hasText: /vid:/ }).waitFor({ timeout: 12000 });
+  const vid = await fr.locator('#rec').textContent();
+  check('gifos.recordVideo() hands back a real video clip', /^vid:\d+:video\//.test(vid) && +(vid.split(':')[1]) > 0, vid);
 
   await app.close();
   await browser.close();
