@@ -254,6 +254,17 @@
   .name-box input { width: 100%; padding: .55rem .7rem; border-radius: .5rem;
     border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); font: inherit; margin-bottom: .8rem; }
   .name-box button { padding: .5rem 1.4rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff); background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; }
+  /* Help: a longer, scrollable panel — same modal chrome, room to breathe. */
+  .help-box { width: 92vw; }
+  .help-scroll { max-height: 70vh; overflow-y: auto; padding-right: .4rem; }
+  .help-box h4 { margin: 1.1rem 0 .35rem; font-size: .98rem; color: var(--text, #e0e0f0); }
+  .help-box p { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; margin-bottom: .5rem; }
+  .help-box .help-lead { color: var(--text, #e0e0f0); font-size: .92rem; }
+  .help-box .help-note { font-style: italic; }
+  .help-list { list-style: none; margin: 0 0 .5rem; padding: 0; }
+  .help-list li { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; padding: .18rem 0 .18rem .9rem; position: relative; }
+  .help-list li::before { content: '·'; position: absolute; left: .1rem; color: var(--accent, #7b5cff); font-weight: 700; }
+  .help-box b { color: var(--text, #e0e0f0); }
   /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
      their privileged actions anyway — this is honest UI, not the enforcement). */
   body.admroom.notadmin .modbar { display: none !important; }
@@ -367,6 +378,7 @@
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
     <button id="mixbtn" title="Your personal sound mix: the stage, your row, your section, and the far stadium">Mix</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
+    <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, and the dream">Help</button>
     <span class="status" id="status">Starting camera…</span>
     <div class="admcount" id="admcount" style="display:none"></div>
     </div>
@@ -485,6 +497,86 @@
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.8rem">
         <button id="who-dl">Download this list</button>
         <button id="who-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="name-modal" id="help-modal" style="display:none">
+    <div class="name-box help-box" style="max-width:600px;text-align:left">
+      <h3 style="text-align:center">How this meeting works</h3>
+      <div class="help-scroll">
+        <p class="help-lead">This meeting has <b>no size limit</b>. Two people or two
+        million, it runs the same. The dream it is built for: the <b>whole Earth in
+        one meeting at once</b> — everyone able to speak, everyone sharing one live
+        room. It scales by folding the crowd into itself, so your phone only ever
+        talks to a handful of neighbors no matter how vast the room grows.</p>
+
+        <h4>The stadium — how a giant room is arranged</h4>
+        <p>Picture a stadium. You don't meet a million faces; you meet the few around you,
+        and the rest is a living backdrop.</p>
+        <ul class="help-list">
+          <li><b>Seat</b> — one person.</li>
+          <li><b>Stage</b> — the front. Whoever steps up here is seen and heard first
+          by <i>everyone</i> in the whole stadium (the reader, a speaker, a shared app).</li>
+          <li><b>Row</b> — the handful of people right next to you. This is your real
+          conversation — you're directly connected to them.</li>
+          <li><b>Section</b> — the rows near you. You see them as a live mosaic, not as
+          a wall of individual faces.</li>
+          <li><b>The stadium</b> — everyone beyond your section, folded down into a
+          shimmering backdrop and a single summed roar. A million-voice “Amen” reaches
+          you as one sound.</li>
+          <li><b>Deacon</b> — each row quietly elects one phone to gather its row into a
+          single tidy tile and pass it along. It happens automatically; you never manage it.</li>
+        </ul>
+        <p class="help-note">Nobody has to know how big the room is. Each phone follows the
+        same simple rules, and the structure just grows — the way a crowd naturally forms
+        rows and sections without anyone directing traffic.</p>
+
+        <h4>The screen — one endless scroll</h4>
+        <p>Top to bottom: the <b>stage</b> up top, then <b>your row</b>, then the
+        <b>stadium</b> mosaic. Just keep scrolling to wander out into the crowd.
+        <b>Tap any folded tile to zoom</b> it larger; tap again to fold it back.</p>
+
+        <h4>The sound mix — four faders that grow in</h4>
+        <p>Tap <b>Mix</b> for your own private sound board (it only changes what
+        <i>you</i> hear — like your own volume knob). Faders appear as the room gets big enough
+        to need them:</p>
+        <ul class="help-list">
+          <li><b>Stage</b> — the front of the room.</li>
+          <li><b>My row</b> — the people right beside you.</li>
+          <li><b>My section</b> — the near-field murmur around you (appears once there's
+          more than your row).</li>
+          <li><b>The stadium</b> — the far roar of everyone else (appears once the room
+          spans past your section). Turn it down during a quiet reading, then push it up
+          to let the whole crowd's response wash in.</li>
+        </ul>
+
+        <h4>The buttons worth knowing</h4>
+        <ul class="help-list">
+          <li><b>Blur</b> (Max / Min / None) — how blurred <i>your own</i> video looks to
+          everyone. You always control your own camera; nobody can un-blur you.</li>
+          <li><b>Stage</b> — step up to be seen and heard first by the whole room; tap
+          again to step down.</li>
+          <li><b>Hand</b> — raise it and you float to the top of a room-wide queue, in order.</li>
+          <li><b>Password</b> — the key to <i>clear</i> video. Set one and faces sharpen for
+          those who have it; without one, everyone stays gently blurred.</li>
+          <li><b>Invite</b> — one link brings people straight in.</li>
+          <li><b>Run app</b> — share an app (a Bible, a board, a game) that everyone in the
+          room uses together, live.</li>
+          <li><b>Record / CC</b> — record to <i>your own device</i>, or turn on live captions
+          your phone writes from your own voice.</li>
+          <li><b>Admin</b> — some rooms have a host who can moderate; most rooms are open
+          and run on friendly anarchy.</li>
+        </ul>
+
+        <h4>Your privacy</h4>
+        <p>Video and audio go <b>straight between people</b>, never through a server. Because
+        of that, everyone on a call can see everyone's network address — nobody here is
+        anonymous (tap the status text to see the list). It's the honest trade for having
+        no middleman.</p>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:1rem">
+        <button id="help-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Got it</button>
       </div>
     </div>
   </div>
@@ -2501,6 +2593,13 @@
       whoModal.style.display = 'flex';
     }
     document.getElementById('who-close').onclick = () => { whoModal.style.display = 'none'; };
+
+    // Help: the stadium vocabulary, the four-bus mix, the non-obvious buttons,
+    // and the dream — a whole-Earth meeting. Static content; open/close only.
+    const helpModal = document.getElementById('help-modal');
+    document.getElementById('helpbtn').onclick = () => { helpModal.style.display = 'flex'; helpModal.querySelector('.help-scroll').scrollTop = 0; };
+    document.getElementById('help-close').onclick = () => { helpModal.style.display = 'none'; };
+    helpModal.onclick = (e) => { if (e.target === helpModal) helpModal.style.display = 'none'; }; // tap the backdrop to dismiss
     document.getElementById('who-dl').onclick = () => {
       const stamp = new Date().toISOString();
       const lines = ['GifOS meeting — who is here', 'Room: ' + room, 'Saved: ' + stamp, ''];
