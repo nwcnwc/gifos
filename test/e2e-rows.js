@@ -107,18 +107,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const stagedMarked = await pages[1].waitForFunction(() => !!document.querySelector('.tile.onstage'), null, { timeout: 15000 }).then(() => true).catch(() => false);
   check('stage: the staged tile floats first, marked, on other phones', stagedMarked);
 
-  // Buses: the Crowd fader silences exactly the stadium tiles — the stage
-  // (and your row) stay at full volume. Receiver-side, one phone's own knob.
+  // Buses: in a single section the folded other-row is the MY SECTION bus, so
+  // its fader — not the stadium one — silences it, and the stadium fader isn't
+  // even shown (no cross-section content yet). Stage stays at full volume.
+  // Receiver-side, one phone's own knob.
   const busReady = await pages[1].waitForFunction(() => window.__gifosVideo.stadium().length >= 1, null, { timeout: 25000 }).then(() => true).catch(() => false);
   const busOk = busReady && await pages[1].evaluate(() => {
     const v = window.__gifosVideo;
-    v.setMix('stadium', 0);
-    const stadZero = v.stadium().every((s) => v.stadiumVolume(s.row) === 0);
+    v.setMix('section', 0);
+    const secZero = v.stadium().every((s) => v.stadiumVolume(s.row) === 0);
     const stagedId = v.stageIds()[0];
-    return stadZero && v.tileVolume(stagedId) === 1;
+    return secZero && v.tileVolume(stagedId) === 1;
   });
-  check('buses: the Crowd fader zeroes exactly the stadium — the stage stays at full volume', busOk);
-  await pages[1].evaluate(() => window.__gifosVideo.setMix('stadium', 1));
+  check('buses: the My section fader zeroes exactly the section folds — the stage stays at full volume', busOk);
+  const faderVis = await pages[1].evaluate(() => {
+    const v = window.__gifosVideo;
+    return { section: v.mixFaderShown('section'), stadium: v.mixFaderShown('stadium') };
+  });
+  check('buses: My section fader is shown (other rows present), The stadium fader is hidden (single section)',
+    faderVis.section === true && faderVis.stadium === false);
+  await pages[1].evaluate(() => window.__gifosVideo.setMix('section', 1));
 
   await pages[0].evaluate(() => window.__gifosVideo.setStageForTest(false));
   let downOk = true;
