@@ -43,6 +43,30 @@ never by branching.
 | `COMP_W/H/FPS` | fold frame budget — every fold, at every level | 756×1344 @ 12 (portrait 9:16, 1,016,064 px — a million pixels filling a phone's width) |
 | `HB` | status heartbeat ms — the gossip pulse everything idempotent rides. Beats prefer each pair's DataChannel (the relay is billed per frame it wakes for; the DC is free), fall back to the relay only while no DC is open, and hidden non-delegate tabs beat at a third pace | 4000 |
 
+## The grid — audio that never smears
+
+Voices over the internet don't smear because they're late; they smear
+because each is late by a *different* amount. The grid (meet.html) makes
+the difference zero: clocks sync continuously over the DataChannels
+(NTP-style, min-RTT filtered), and every incoming **audio receiver** gets a
+`jitterBufferTarget` so its capture-to-ear delay lands on its bus's tier.
+Always on: while people talk, the near field (stage + your row) aligns to
+its slowest mate (capped at 280ms) — laughter, "Amen"s and responsive
+readings land together. When someone leads a **song** (🎵 on the toolbar:
+steps them on stage, re-grabs their mic with the speech pipeline off), the
+tiers stretch into cathedral acoustics: the stage plays at the same synced
+instant on every device (the room sings in true unison), rows land a
+uniform beat behind, far units a beat behind that — each tier internally
+coherent, receding in time the way a real room recedes in space. The
+leader hears the congregation answer from the far tier: the cathedral
+echo. Composition is free: fold pipes tap tracks *after* the jitter
+buffer, so a deacon's aligned row folds into an internally coherent
+composite that downstream rooms align as one stream — align 7 neighbors
+plus 3 folds and you have aligned a stadium. Earbuds make a singer part of
+the choir (the speech pipeline can't separate your held note from the
+choir's — see the singbtn title); speaker-phones still participate at
+voice quality.
+
 Everything else is a **consequence**: a section seats `C²` = 64 (exactly
 the relay's socket cap), a device's live links are bounded by its row
 (≤ C−1) plus the mesh/stage arithmetic, fold fanout is `C` at every level.
