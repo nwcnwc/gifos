@@ -262,7 +262,9 @@ server.on('upgrade', (req, socket) => {
       // (locking legit members out) or unlock it. Until an admin sets the lock,
       // an admin room is an open, blurred, self-closing waiting room; the admin
       // re-asserts it on arrival via setpw. Plain rooms keep first-arriver
-      // seeding (quorum re-seed is a separate follow-up). Mirrors relay/src/relay.js.
+      // seeding BY DESIGN — the anarchy tier: a squatter can lock one only by
+      // paying for a perpetual bot while infinite open rooms stay free, a
+      // losing trade, so it's a feature boundary, not a bug. Mirrors relay/src/relay.js.
       const firstIsAdmin = !!(av && admOffer && admOffer.slice(0, av.length) === av);
       sess.pw = (av && !firstIsAdmin) ? null : ((url.searchParams.get('pw') || '') || null);
     }

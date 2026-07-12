@@ -280,9 +280,14 @@ export class Session {
       // it: a non-admin first-arriver must not be able to seize the room with a
       // rogue password (locking legit members out) OR unlock it. Until an admin
       // sets the lock, an admin room is an open, blurred, self-closing waiting
-      // room; when the admin (re)arrives they re-assert it via setpw. Plain
-      // rooms keep first-arriver seeding — a quorum re-seed is a separate
-      // follow-up. (Once occupants exist, the lock is read from them, unchanged.)
+      // room; when the admin (re)arrives they re-assert it via setpw.
+      //
+      // Plain rooms (no av) keep first-arriver seeding BY DESIGN — they are the
+      // fun-but-safe anarchy tier. A squatter CAN lock one by setting a
+      // password, but only at the price of a perpetual bot holding that single
+      // room, while an infinity of open rooms stays available. That's a losing
+      // trade for the attacker, so it's a feature boundary, not a bug to fix.
+      // (Once occupants exist, the lock is read from them, unchanged.)
       const roomPw = first ? (first.pw || '') : ((av && !isAdmin) ? '' : offeredPw);
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);

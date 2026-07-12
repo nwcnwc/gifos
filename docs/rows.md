@@ -192,6 +192,17 @@ Admin *stamps* are relay-scoped, so moderation is per-section for now; the
 receiver-side filters (stage, apps) hold at every level because they run
 on gossip, not stamps.
 
+**The password lock is occupancy state, and that cuts two ways.** In an
+**admin room** only an admin may (re)establish the door lock: after a relay
+eviction a non-admin who wins the reconnect race can neither seize the room
+with a rogue password nor unlock it — until an admin arrives it's an open,
+blurred, self-closing waiting room, and the admin re-asserts the real lock on
+arrival. In an **open room** the first arrival to an empty room still seeds
+the lock, **by design**: a squatter can lock a given open room by setting a
+password, but only at the cost of a perpetual bot holding that one room while
+an infinity of open rooms stays free — a losing trade, and the price of
+fun-but-safe anarchy. A room that must be un-seizable is an admin room.
+
 ## Known refinements (deliberately deferred)
 
 - **Deck-internal fold granularity**: at production constants a deck
