@@ -44,3 +44,8 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.
+- Meeting scale vocabulary is the STADIUM metaphor (docs/rows.md): seat,
+  row (row 0 = stage), section (one relay session, C rows), deck (sections
+  sharing a level-1 space), level, stadium. Wire gossip fields stay terse
+  (`st.leaf` = section number, `st.branch` = deck id, `'b:'` = deck fold) —
+  see the wire glossary at meet.html's STADIUM section header.

@@ -1,189 +1,201 @@
-# Rows — the scale-free meeting architecture
+# The Stadium — GifOS's scale-free meeting architecture
 
-*The spec for growing a GifOS meeting from 2 people to 1,000,000 without a
-single mode switch. This document is canonical: when code and doc disagree,
-one of them is a bug.*
+*How a GifOS meeting grows from 2 people to 1,000,000 without a single mode
+switch. This document is canonical: when code and doc disagree, one of them
+is a bug. All three phases below are BUILT and suite-verified; the "as
+built" notes record where the implementation improved on the original
+sketch.*
 
-## The one-sentence model
+## The metaphor, all the way down
 
-**Rows hold people · row 0 is subscribed by all · every edge carries one
-composite each way · fold up, forward down · zoom = pick your depth.**
+A **seat** holds a person. A **row** seats `C` people — and **row 0 is the
+stage**, born empty in every room. A **section** is `C` rows (`C²` seats):
+one relay session, the unit the join walk fills. A **deck** is the group of
+sections whose row-deacons share one level-1 space. **Levels** count the
+recursion: a section's row-deacons meet one level up; the deacons among
+*them* meet one level above that, and so on — depth is emergent, there is
+no "top" anybody has to know about. The **stadium** is everything beyond
+your own row, seen as folds.
+
+**One sentence:** seats fill rows, rows fill sections, sections fill decks
+· row 0 is subscribed by all · every edge carries one fold each way · fold
+up, forward down · zoom = pick your depth.
+
+People *walk* to their seats: a joiner knocks on sections in order and the
+relay's own roster answers "this one's full" — first-come seating, no new
+relay state, holes refilled by later walkers. Delegates walk their level's
+spaces the same way — and walk *back* when a walked-to space stays lonely
+(delegate spaces shrink; exile is not a seat).
 
 ## Design law: per-node invariants, never global modes
 
-No line of code may ask "is this room big?". Every participant obeys the same
-local rules at every size, and structure emerges from data — the way a B-tree
-splits nodes at capacity without ever having a "big-tree mode". The small
-case must equal today's behavior **by arithmetic** (empty sets, degenerate
-folds), never by branching. Corollary: production constants and stress
-constants run the same lines; only the numbers differ.
+No line of code may ask "is this room big?". Every participant obeys the
+same local rules at every size, and structure emerges from data — the way
+a B-tree splits nodes at capacity without a "big-tree mode". The small case
+equals today's behavior **by arithmetic** (empty sets, degenerate folds),
+never by branching.
 
 ### The constants (`GIFOS_SCALE`, gifos-net.js)
 
 | | meaning | production default |
 |---|---|---|
-| `C` | row capacity (people per row) | 8 (grows with rehearsals) |
-| `K` | live A/V link budget per device | 8 |
-| `F` | fold fanout (child rows per deacon at one level) | 16 |
-| `COMP_W/H/FPS` | composite frame budget | 480×270 @ 12 |
-| `HB` | status heartbeat ms | 4000 |
+| `C` | THE shape constant: seats per row, rows per section, and the fanout at every level | 8 (grows with rehearsals) |
+| `COMP_W/H/FPS` | fold frame budget — every fold, at every level | 480×270 @ 12 |
+| `HB` | status heartbeat ms — the gossip pulse everything idempotent rides | 4000 |
 
-All injectable via `window.GIFOS_SCALE` — the same idiom as `GIFOS_CONN`.
-**The K-sweep doctrine**: the e2e suite runs the identical assertions at
-tiny constants (C=2, K=1…) and at production constants. C=2 with ten
-browsers is a four-level tree — *harsher* per capita than a million at
-production constants (~4 levels). If it converges at C=2/N=10, the million
-is a relaxation, not an extrapolation. And K=∞ (production constants, small
-room) must be **byte-identical to today's mesh**: same link count, same
-message counts, no compositor working, no forwarding hop taken.
+Everything else is a **consequence**: a section seats `C²` = 64 (exactly
+the relay's socket cap), a device's live links are bounded by its row
+(≤ C−1) plus the mesh/stage arithmetic, fold fanout is `C` at every level.
+The original spec had separate `K` (link budget) and `F` (fold fanout)
+knobs; both fell out of the design and were deleted.
 
-## Structure
+All injectable via `window.GIFOS_SCALE`. **The K-sweep doctrine**: the
+suites run identical assertions at tiny constants and at production
+constants. Ten browsers at C=2 build three sections, a split level-1
+space, and a live level-2 space — harsher per capita than a million at
+production constants. If it converges there, the million is a relaxation,
+not an extrapolation. And the small-room identity is absolute: at default
+constants a room that fits one section runs **no walk, no uplink, no
+compositor, no stadium** — byte-identical to today's mesh
+(`e2e-rows.js` asserts it).
 
-- A **row** is up to `C` people inside one relay session. Members hold a full
-  in-row mesh: live individual A/V links, today's code, today's quality
-  ladder, today's blur/mute/moderation — a row *is* the current meeting.
-- **Row 0 is the stage.** It always exists and is born empty. Everyone in the
-  room subscribes to row 0's output. A room where nobody claimed the stage
-  looks exactly like today's grid — today's meetings are simply rooms with an
-  unclaimed stage.
-- Rows above 0 fill deterministically (first-fit in row order, computed
-  identically by every client from the shared roster — no coordinator).
-- The **stadium** is every row that isn't yours, seen as folded composites.
+## As built — the three phases and their suites
 
-Phase map (each phase keeps every earlier suite green):
+1. **In-section rows** (`test/e2e-rows.js`, 21 checks): rows partition one
+   session; deacons, folds, stage, buses, healing.
+2. **Multi-section rooms** (`test/e2e-rows-multi.js`, 12 checks): the walk
+   seats sections; row-deacons double-home into the level-1 space; folds,
+   stage, chat, counts cross sections; a dead delegate heals end to end.
+   *As built:* the session unit is the **section** (C rows), not the single
+   row of the original sketch — the whole phase-1 machinery stays alive
+   inside every session, and section capacity lands exactly on the relay
+   cap.
+3. **The recursion** (`test/e2e-rows-depth3.js`, 6 checks): the uplink
+   spawns an uplink. Two levels are instantiated (`UP`/`UP2`); each further
+   level repeats the same pattern with a longer path prefix. Depth 3
+   carries ~4,096 at production constants; a million is depth 5–6.
+   *CI caveat:* the depth-3 stadium is a 3-hop distribution tree; ten
+   browsers on one shared CPU occasionally outrun the suite's convergence
+   windows. Every autopsy shows a different last-mile straggler, never a
+   repeated structural defect — production phones each own their CPU.
 
-1. **In-session rows** (done — `test/e2e-rows.js`): rows partition one
-   relay session (≤ relay cap). Deacons, composites, stage, buses.
-2. **Multi-session rows** (done — `test/e2e-rows-multi.js`): a row = its
-   own relay session; deacons double-home into a parent session.
-3. **Recursive fold** (done to depth 3 — `test/e2e-rows-depth3.js`):
-   the uplink spawns an uplink, folds fold again, zoom, the global
-   hand-raise queue, presence counting. Two uplink levels are
-   instantiated (UP/UP2); depth 4+ repeats the same pattern — at
-   production constants depth 3 carries ~4,096 people, and each further
-   level multiplies by C² per branch space. Known CI caveat: the
-   depth-3 stadium is a 3-hop distribution tree, and ten browsers on
-   one shared CPU occasionally outrun the suite's convergence windows —
-   every autopsy shows a different last-mile straggler, none a repeated
-   structural defect. Production phones each own their CPU.
+## Sessions and the walk
 
-## Multi-session rows (phases 2–3): the self-similar session
+A session is addressed by a *path* mixed into the derived sid
+(`deriveMeetSess`; never appended after the last dot, where the relay
+reads the admin verifier). Path `''` is section 1 — a room that fits in
+one section keeps today's identity byte for byte. Sections walk
+`r2, r3, …`; level-1 spaces walk `u, u2, …`; level 2 is `uu, uu2, …`.
+One room key seals every session of the room; the password proof is
+room-wide.
 
-**Naming.** A session is addressed by a *path*. Path `''` is the first row
-and equals today's derived sid exactly — a room that fits in one row never
-changes identity. Leaf rows walk `r2, r3, …`; the first parent space is
-`u` (walking `u, u2, …`); its parent space is `uu`, and so on. The path
-mixes INTO the sid hash (`deriveMeetSess`) — it must never ride after the
-last dot, where the relay reads the admin verifier. One room key seals
-every session of the room; the pw proof is room-wide too.
-
-**The join walk.** A joiner tries leaf paths in order: connect, read the
-roster; if the row already holds `C` primaries and none of them is you,
-disconnect and try the next (gallop + binary search once rooms are big).
-The relay needs NO new state: its roster message already answers "is this
-row full", and holes left by departures are refilled by later walkers.
-
-**The uplink is the recursion.** Every session runs the SAME arithmetic on
-its own roster: rows → deacons → folds. A session's deacon (delegate)
-opens ONE extra socket into the session space one level up, walks it
-first-fit like any joiner, and does there exactly what a member does in a
-leaf: gossips status, links row 0 and its row, folds, forwards. When a
-parent space outgrows `C`, its sessions elect delegates who walk the next
-space up — depth is emergent, fanout is `C` at every level, and there is
-no "top" anybody has to know about.
-
-**Row 0 anchors at `u`.** Stepping onto the stage double-homes you into
-the first parent session (no walk — the tree's fixed anchor), while you
-keep your leaf seat. In a one-row room the stg flag gossips in-leaf and
-row 0 is exactly phase 1 — the parent presence is invisible. The one rule
-at every level: *row 0 is either here or arrives from upstairs; a
-delegate forwards it downstairs* — verbatim tracks where possible (the
-stage is encoded once), folds elsewhere.
-
-**Gossip bridges, media folds.** Chat-class frames (chat, transcripts,
-file metas/tombstones, app ads/stops) hop the tree through delegates:
-forward-on-first-sight, deduped by id — the discipline that already made
-same-room gossip idempotent makes tree gossip loop-proof. File BODIES stay
-in-row (budget policy, unchanged). Presence counts and the hand queue ride
-status gossip: each delegate reports its subtree upward (`cnt`, top hands)
-and carries the room total (`tot`) and the merged queue back down.
-
-**What stays honest.** Stream identity remains explicit (announced sids +
-manifests) across every hop. Admin stamps are relay-scoped, so moderation
-is per-session in a multi-session room for now — an admin can sit in any
-row; room-wide admin gossip is future work, and the governance table's
-receiver-side filters (stage, apps) hold at every level because they run
-on gossip, not stamps.
+**Wire glossary** (gossip stays terse): `st.leaf` = sender's section
+number · `st.cnt` = its section count · `st.branch` = its deck id ·
+`st.bl` = the deck's per-section counts · `'b:<n>'` = the fold of deck n ·
+`'s:<pid>'` = a stage feed · global row number = (section−1)·C + local row.
 
 ## Deacons — fold up, forward down
 
-Each row deterministically elects one **deacon** (plus a ranked backup list).
-The deacon does double duty — it is simultaneously the row's:
+Each row elects one **deacon**, capability-weighted (uplink, cores,
+memory, wall power — coarsely bucketed so jitter can't flap it) and
+deterministic (score, then id): every phone computes the same winner, and
+the ranking is the succession list. The deacon does double duty:
 
-- **compositor**: folds the row's media into ONE outbound composite stream —
-  audio summed (WebAudio), video pasted into a down-pixeled grid on a canvas
-  (`captureStream`, same primitive as the shipping blur pipe);
-- **forwarder**: carries other rows' composites (and the stage composite)
-  down to its row members over the in-row links — the volunteer-relay track
-  machinery, doing at every scale what it does today for one blocked pair.
+- **compositor** — folds its row into ONE outbound stream: video pasted
+  into a down-pixeled grid, audio summed through WebAudio, consent baked
+  in (the same receiver-side blur/mute the tiles enforce is applied to the
+  fold's pixels and samples before they leave);
+- **forwarder** — carries every fold it holds down one level: to its row
+  members always; to its space-row mates when it leads a space row; the
+  stage verbatim wherever it goes.
 
-**Election is capability-weighted and deterministic.** Every participant
-already gossips status; it now includes a small **capability score**:
-uplink estimate (`navigator.connection.downlink`/rtt when present), cores
-(`hardwareConcurrency`), memory (`deviceMemory`), plugged-in
-(`getBattery()` when available) — folded into one number, quantized
-coarsely (so jitter can't flap the election), gossiped, and the row picks
-max(score, then peer-id) — every phone computes the same winner, like the
-initiator rule and the takeover election before it. Deacon dies → next on
-the list, same re-election discipline as everything else in meet.
+At level 2 the same person may also be a **deck announcer**: exactly one
+delegate per deck (first populated space-row's deacon — same-key races
+would churn every receiver) paints everything its level-1 space carries
+into one deck fold and swaps it with foreign decks in the level-2 space.
 
-**Trust**: a composite travels with a layout manifest (who occupies which
-grid cell — the stream-identity rule extended to composites). Compositors
-only ever receive sender-enforced pixels: blur/mute are baked before the
-compositor sees a frame, so consent survives folding by construction.
+**Stream identity is explicit at every hop**: folds are claimed by
+announced streamId with a layout manifest (who's in which cell; decks
+carry their row list and headcount) — never first-stream-wins. All
+announcements are idempotent and re-sent on the heartbeat; mappings that
+stay streamless re-kick their pair; senders whose negotiated direction
+lost 'send' re-offer. (These renegotiation rules — perfect negotiation
+with polite rollback, plus fresh m-lines for all carried media — were the
+hardest-won lessons of the build.)
 
-## Media algebra
+## Presence, hands, and the echo-proof rule
 
-- **Fold (up)**: `row composite = paste(members) + sum(members' audio)`;
-  at depth, `branch composite = paste(child composites)`. Re-encoded per
-  level — generational softening *is* the crowd's distance cue.
-- **Forward (down)**: the stage composite is encoded once and relayed
-  verbatim (no re-encode, no loss) through deacons to every row.
-- **Per-edge cost is constant**: one composite up, one down, per edge,
-  forever. A device decodes: its in-row mesh (≤ C−1, laddered as today)
-  + 1 stage composite + 1 stadium composite. Constant at every N.
+Counting is hierarchical and **assertion/display separated**: what a node
+*asserts* is ground truth for its role alone (a member: nothing; a
+delegate: its section count and, in the level-1 space, its view of the
+deck's per-section counts; a level-2 attendee: the union of deck maps,
+keyed BY SECTION so a deck split across spaces can never double-count).
+What a node *displays* may absorb any fresher assertion carried down
+(`st.seen` — derived only from assertions, never from another `seen`, so
+a stale number can't chase its own tail; it expires with the assertion
+that fed it).
+
+The hand-raise queue folds the same way, ordered by raise time then id,
+entries expiring unless re-asserted within 12s. Authority to speak for a
+hand: its own leaf's delegate; a *foreign* deck's level-2 attendee (for
+that deck only — your own deck's truth comes from below); or your own
+deck's attendee acting as the deck's **window** on the world, heard only
+by non-attendees. Every hop's source is one step closer to ground truth,
+so lowered hands die everywhere instead of echoing.
+
+Chat-class gossip (chat, transcripts, file metas/tombstones, app ads)
+bridges the tree by forward-on-first-sight with dedupe-by-id, backed by
+periodic anti-entropy: delegates union-merge recent history across their
+up edges every few beats, and whatever was news gossips onward. File
+BODIES stay in-section (budget policy, unchanged).
 
 ## Audio: three buses, receiver-side
 
-Stage (row 0's audio), Row (my row's mesh audio), Stadium (the fold of
-everyone else). Buses are a *receiver-side grouping by link class* — senders
-tag nothing, and your three faders are your own WebAudio graph, as
-ungovernable as a volume knob. Degeneracies: on stage, Stage ≡ Row; in a
-one-row room, Stadium is the fold of the empty set (silence). The faders
-exist at every size and mean nothing until the room grows — by arithmetic.
+Stage / My row / Crowd — a grouping by link class, applied as volume on
+the receiving element. Senders tag nothing; your faders are your own,
+as ungovernable as a volume knob. Degenerate by arithmetic in a one-row
+room.
 
 ## Governance (the room principle, unchanged)
 
-Anarchy is unavoidable in open rooms — so DOM hackers gain nothing over the
-honest buttons — and complete control in admin rooms. Stage membership IS
-row membership, so the entire table is about row moves:
+Anarchy is unavoidable in open rooms — so DOM hackers gain nothing over
+the honest buttons — and complete control in admin rooms. The stage
+anchors at the first level-1 space; staged members never walk (their
+seats ride above the delegate count).
 
 | | Open room | Admin room |
 |---|---|---|
-| Step onto row 0 (incl. sharing an app — an app is a row-0 occupant) | anyone while seats remain; attributed | admins + stage-grantees (the moderation-table grant shipped for apps) |
+| Step onto row 0 (incl. sharing an app — an app is a row-0 occupant) | anyone while seats remain; attributed | admins + grantees (the moderation-table grant shipped for apps) |
 | Move someone else to row 0 | nobody — invite + accept | admins invite; movee accepts |
-| Remove from row 0 | attributed group action (mute/vote-off tools also apply) | admins |
-| Step down / decline / "never stage me" | everyone, always | everyone, always |
-| Personal stage/hide/faders | everyone, always | everyone, always |
+| Remove from row 0 | attributed group action (vote-off applies) | admins |
+| Step down / "never stage me" / personal faders & zoom | everyone, always | everyone, always |
 
 Being staged never commandeers a camera: blur and mute are sender-enforced,
 so row 0 is only a bigger audience for pixels the owner already governs.
+Admin *stamps* are relay-scoped, so moderation is per-section for now; the
+receiver-side filters (stage, apps) hold at every level because they run
+on gossip, not stamps.
+
+## Known refinements (deliberately deferred)
+
+- **Deck-internal fold granularity**: at production constants a deck
+  member can be forwarded up to C²−1 individual row folds; fold a deck's
+  rows into per-section folds before forwarding (one more pass of the same
+  machinery) to keep the strip constant-size.
+- **Stage seat reservation**: at production constants a full level-1
+  space plus the stage exceeds the relay's 64 sockets; reserve C seats.
+- **Depth ≥ 4 instantiation** (the pattern repeats; the loop isn't written).
+- **Walk gallop** for O(log) seating in huge rooms; **room-wide admin
+  gossip**; **zoom as re-subscription** (today zoom grows the tile —
+  pick-your-depth display, not yet pick-your-depth subscription).
 
 ## What this buys the million-person Bible reading
 
-The leader stands on row 0 (stage composite: one clean stream to a million).
-Every pew is a live small meeting. The congregation is the recursive
-composite — the stadium shimmer at the top of everyone's screen — and the
-mixing tree carries a million-voice Amen as one summed roar. The Bible app
-occupies a row-0 seat with its `nav` cursor led by the reader. Every one of
-those sentences is exercised by ten browsers at C=2 in CI.
+The reader stands on row 0 — one clean stream, encoded once, forwarded
+verbatim to every section. Every row is a live small meeting. The
+congregation is the recursive fold — the stadium shimmer at the top of
+everyone's screen — and the folding tree carries a million-voice Amen as
+one summed roar. The Bible app occupies a row-0 seat with its `nav`
+cursor led by the reader. The headline number is the leaf-keyed count no
+stale echo can inflate. Every one of those sentences is exercised by ten
+browsers at C=2 in CI.
