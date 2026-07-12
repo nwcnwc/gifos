@@ -1600,6 +1600,14 @@ document.getElementById('f').onsubmit=async e=>{
   .info .sub{color:var(--muted,#8888aa);font-size:.78rem}
   .danger{background:#3a1717;color:#ff9a9a;border:1px solid #5a2626;padding:8px 12px}
   #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:40;max-width:88%}
+  #visrow{align-items:center}
+  .tgl{position:relative;display:inline-flex;align-items:center;cursor:pointer;flex:0 0 auto}
+  .tgl input{position:absolute;opacity:0;width:0;height:0}
+  .tgl .tslide{width:44px;height:26px;border-radius:14px;background:var(--border,#2a2a3f);transition:background .15s;position:relative;flex:0 0 auto}
+  .tgl .tslide::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+  .tgl input:checked + .tslide{background:var(--accent,#ff7850)}
+  .tgl input:checked + .tslide::after{transform:translateX(18px)}
+  .visinfo .vt{font-weight:600;font-size:.9rem}
   #toast.on{opacity:1}
 </style></head><body>
 <header>
@@ -1627,7 +1635,7 @@ document.getElementById('f').onsubmit=async e=>{
     <input type="text" id="mname" placeholder="Name">
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
-    <div class="row" id="visrow" style="display:none"><button class="btn ghost" id="mvis">👁 Make visible</button><span class="sub" id="vishint">Private — only you can see it.</span></div>
+    <div class="row" id="visrow" style="display:none"><label class="tgl"><input type="checkbox" id="mvis"><span class="tslide"></span></label><div class="visinfo"><div class="vt">Visible to invited guests</div><span class="sub" id="vishint">Private — only you can see it.</span></div></div>
     <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
   </div>
 </div></div>
@@ -1727,20 +1735,20 @@ document.getElementById('f').onsubmit=async e=>{
     if(!owner || !cur){ row.style.display='none'; return; }
     row.style.display='flex';
     var vis=isVisible(cur);
-    document.getElementById('mvis').textContent = vis ? '🔒 Make private' : '👁 Make visible';
+    document.getElementById('mvis').checked = vis;
     document.getElementById('vishint').textContent = vis
-      ? 'Visible — invited guests can see and steal this item.'
-      : 'Private — only you can see it.';
+      ? 'Invited guests can see and steal this item.'
+      : 'Only you can see it. Flip on to share it.';
   }
-  document.getElementById('mvis').onclick=async function(){
+  document.getElementById('mvis').onchange=async function(){
     if(!cur||!owner) return;
-    var makeVis=!isVisible(cur), level=makeVis?'read-only':'private';
+    var makeVis=this.checked, level=makeVis?'read-only':'private';
     try{
       await media.setVisibility(cur.id, level);
       try{ await blobs.setVisibility(cur.id, level); }catch(e){}
       cur._vis=level; syncVisRow(); render();
       toast(makeVis?'Now visible to invited guests':'Now private');
-    }catch(e){ toast('Could not change visibility'); }
+    }catch(e){ this.checked=!makeVis; toast('Could not change visibility'); }
   };
   function closeModal(){
     var st=document.getElementById('stage'); st.innerHTML=''; // stops playback

@@ -1,6 +1,6 @@
 {
   "current": "0.7.0",
-  "versions": ["0.7.0","0.6.0","0.5.0"],
-  "minData": "0.5.0",
+  "versions": ["0.7.0","0.6.0"],
+  "minData": "0.6.0",
   "note": "Data migrations are additive-only and the App-GIF window.gifos API is a stable, add-only contract, so any archived build under /versions/ can safely read the current desktop."
 }
