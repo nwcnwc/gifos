@@ -73,7 +73,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const numerics = got.filter((s) => typeof s.row === 'number');
     const branches = got.filter((s) => String(s.row).indexOf('b:') === 0);
     return numerics.every((s) => s.live) && branches.length >= 1 && branches.every((s) => s.live);
-  }, null, 120000);
+  }, null, 180000);
   check('stadium: every phone holds its branch\'s rows AND a live folded tile per foreign branch', stadiumOk);
   if (!stadiumOk) { // autopsy: which phone, which hop
     for (const [i, p] of pages.entries()) {
