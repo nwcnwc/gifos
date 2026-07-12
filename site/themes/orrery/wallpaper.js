@@ -18,6 +18,10 @@
  * The canvas is fixed at z-index 0 (pointer-events:none), so the menubar and
  * every desktop icon layer cleanly on top. Loaded by this theme's theme.js.
  *
+ * One easter-egg interaction: TAP THE SUN (dead centre) and every planet
+ * rattles on its orbit, the corona flares, and it all settles back over ~1.5s.
+ * The hit-test runs on the document (the canvas takes no pointer events).
+ *
  * Guards: honours prefers-reduced-motion (draws one still frame and stops),
  * pauses when hidden, caps buffer size, and falls back to a Canvas2D solar
  * system (then the CSS chrome gradient) if WebGL is unavailable.
@@ -76,6 +80,7 @@
     'precision highp float;',
     'uniform vec2  iResolution;',
     'uniform float iTime;',
+    'uniform float iShake;',                  // tap the sun → planets rattle (1 on tap, decays to 0)
     NOISE,
     'const float TILT=0.55;',                // ecliptic tilt: orbits squash to sin(TILT)
     'const float S=0.44;',                   // world→screen scale
@@ -92,6 +97,10 @@
     '  else if(i==4){R=0.83;sz=0.080;col=vec3(0.82,0.66,0.44);kind=1.0;}',
     '  else{R=1.03;sz=0.060;col=vec3(0.36,0.56,0.92);kind=3.0;}}',
     'float planetAngle(int i,float R){return iTime*(0.34/pow(R,1.5))+float(i)*1.7;}',
+    // a decaying in-plane rattle: each world jitters on its own phase/frequency
+    // when the sun is tapped, then settles back onto its orbit as iShake fades.
+    'vec3 shakeOf(int i){if(iShake<=0.001)return vec3(0.0);float ph=float(i)*2.3;',
+    '  return vec3(sin(iTime*38.0+ph),0.0,cos(iTime*33.0+ph*1.6))*iShake*0.045;}',
     'vec3 toCam(vec3 w){return vec3(w.x,-sin(TILT)*w.z,cos(TILT)*w.z);}', // tilt the ecliptic
     '',
     // a compact 3-layer star field with a few bright, spiked stars
@@ -169,7 +178,7 @@
     '  float bestClose=-1e9;',
     '  for(int i=0;i<6;i++){float R;float sz;vec3 c0;float k;planetDef(i,R,sz,c0,k);',
     '    float a=planetAngle(i,R);',
-    '    vec3 cam=toCam(vec3(cos(a)*R,0.0,sin(a)*R));',
+    '    vec3 cam=toCam(vec3(cos(a)*R,0.0,sin(a)*R)+shakeOf(i));', // rattle when the sun is tapped
     '    float persp=1.0/(1.0-cam.z*PP);',
     '    vec2 cen=vec2(cam.x,cam.y)*S*persp;float rad=sz*S*persp;',
     '    vec2 dd=uvp-cen;',
@@ -192,6 +201,7 @@
     '  col+=vec3(1.0,0.82,0.5)*pow(cor,3.2)*0.30;',
     '  col+=vec3(1.0,0.55,0.2)*exp(-dsun*3.4)*0.30;',
     '  col+=vec3(0.6,0.75,1.0)*exp(-dsun*1.3)*0.05;',        // wide cool fill
+    '  col+=vec3(1.0,0.72,0.35)*pow(cor,2.0)*iShake*0.55;',  // a flare kicks off the tap
     '',
     '  // ---- exposure, vignette, tonemap, grain ----',
     '  float vig=smoothstep(1.4,0.25,length(uvp));',
@@ -250,6 +260,7 @@
 
     var uRes = gl.getUniformLocation(prog, 'iResolution');
     var uTime = gl.getUniformLocation(prog, 'iTime');
+    var uShake = gl.getUniformLocation(prog, 'iShake');
 
     var W = 0, H = 0;
     function resize() {
@@ -269,7 +280,10 @@
     });
 
     var last = performance.now();
-    var clock = 6.0, raf = 0, running = true, drewStill = false;
+    var clock = 6.0, raf = 0, running = true, drewStill = false, shake = 0;
+
+    // Tap the sun → slam this to 1; it decays back to 0 over ~1.5s (see frame).
+    window.__gifosOrreryShake = function () { shake = 1; kick(); };
 
     function frame(now) {
       raf = 0;
@@ -277,13 +291,15 @@
       var dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (!reduce) clock += dt;
+      shake = shake > 0.002 ? shake * Math.exp(-dt * 3.2) : 0; // exponential settle
       gl.useProgram(prog);
       gl.viewport(0, 0, W, H);
       gl.uniform2f(uRes, W, H);
       gl.uniform1f(uTime, clock);
+      gl.uniform1f(uShake, shake);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      // reduced motion: one still frame, then hold
-      if (reduce) { drewStill = true; return; }
+      // reduced motion: one still frame, then hold (but keep animating a live shake)
+      if (reduce && shake <= 0) { drewStill = true; return; }
       raf = requestAnimationFrame(frame);
     }
     function kick() {
@@ -324,10 +340,13 @@
     }
     resize();
     window.addEventListener('resize', resize);
-    var t0 = performance.now(), running = true, raf = 0;
+    var t0 = performance.now(), running = true, raf = 0, shake = 0, lastN = t0;
+    window.__gifosOrreryShake = function () { shake = 1; if (!raf && running) raf = requestAnimationFrame(frame); };
     function frame(now) {
       raf = 0; if (!running) return;
       var t = (now - t0) / 1000;
+      var dt = Math.min(0.05, (now - lastN) / 1000); lastN = now;
+      shake = shake > 0.002 ? shake * Math.exp(-dt * 3.2) : 0;
       ctx.fillStyle = '#04030a'; ctx.fillRect(0, 0, W, H);
       for (var i = 0; i < stars.length; i++) {
         var s = stars[i], tw = 0.5 + 0.5 * Math.sin(t * 2 + s.p);
@@ -347,9 +366,10 @@
       for (var q = 0; q < planets.length; q++) {
         var pl = planets[q], a = reduce ? q * 1.7 : t * pl.sp + q * 1.7;
         var px = cx + Math.cos(a) * pl.R * unit, py = cy + Math.sin(a) * pl.R * unit * flat;
+        if (shake > 0) { px += shake * 10 * Math.sin(t * 40 + q * 2.3); py += shake * 10 * Math.cos(t * 34 + q * 1.6); }
         ctx.fillStyle = pl.c; ctx.beginPath(); ctx.arc(px, py, pl.s, 0, 6.2832); ctx.fill();
       }
-      if (!reduce) raf = requestAnimationFrame(frame);
+      if (!reduce || shake > 0) raf = requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
     document.addEventListener('visibilitychange', function () {
@@ -359,8 +379,24 @@
     return true;
   }
 
+  // Tap the sun (dead centre of the screen) and every planet rattles on its
+  // orbit. The wallpaper canvas is pointer-events:none, so we hit-test on the
+  // document instead: a tap within the sun disc (radius = SUNR*S of the short
+  // side, plus a touch-friendly pad) that ISN'T on a real icon/button fires it.
+  function armSunTap() {
+    document.addEventListener('pointerdown', function (e) {
+      if (!window.__gifosOrreryShake) return;
+      if (e.target && e.target.closest && e.target.closest('.icon, button, a, input, select, textarea, [role="button"]')) return;
+      var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+      var dx = e.clientX - cx, dy = e.clientY - cy;
+      var rad = 0.115 * 0.44 * window.innerHeight + 24; // sun disc in px + touch pad
+      if (dx * dx + dy * dy <= rad * rad) window.__gifosOrreryShake();
+    }, true);
+  }
+
   whenBody(function () {
     var canvas = makeCanvas();
+    armSunTap();
     try { if (startWebGL(canvas)) return; } catch (e) { console.warn('[orrery] webgl failed:', e); }
     try { if (startCanvas2D(canvas)) return; } catch (e2) { console.warn('[orrery] canvas2d failed:', e2); }
     if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
