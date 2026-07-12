@@ -855,6 +855,60 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the returning admin\'s re-seed keeps his ban memory AND cuts the squatting banned device', true);
   await adam3.close(); await bethSneak.close();
 
+  // ================= admin room: the door lock can't be seized ================
+  // Password is occupancy state re-seeded by the first arriver after an
+  // eviction. In an ADMIN room only an admin may establish the lock, so a
+  // non-admin who wins the post-eviction race can neither ROGUE-LOCK the room
+  // (lock legit members out with a password only they know) nor unlock it —
+  // and the admin re-asserts the real lock on return.
+  const openWithPw = async (ctx, label, hash, key, pw) => {
+    const pg = await ctx.newPage();
+    pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
+    await pg.addInitScript(({ k, v }) => { try { localStorage.setItem(k, v); } catch (e) {} }, { k: key, v: pw });
+    await pg.goto(BASE + '/meet.html#' + hash);
+    return pg;
+  };
+  const lockCtx = await newUser('Cara'), memCtx = await newUser('Dan'), rogCtx = await newUser('Rogue'), strCtx = await newUser('Stray');
+  const lockRoom = 'lock' + Math.floor(Math.random() * 1e6).toString(36);
+  const cara = await openRoom(lockCtx, 'cara', 'v=' + lockRoom);
+  await cara.locator('#invite').click();
+  await cara.locator('#inv-mkadm').click();
+  await cara.locator('#inv-adm-pass').fill('greenroom-key');
+  await cara.locator('#inv-adm-go').click();
+  await cara.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
+  const caraV = await cara.evaluate(() => window.__gifosVideo.verifier());
+  const lockHash = 'v=' + lockRoom + '&av=' + caraV;
+  const vpwKey = 'gifos_vpw_' + lockRoom + '.' + caraV;
+  // the admin sets the room's door password, then the room fully empties
+  await cara.locator('#pwbtn').click();
+  await cara.locator('#pw-new').fill('psalm23');
+  await cara.locator('#pw-save').click();
+  await sleep(800);
+  await cara.close();
+  await sleep(600); // room empties — the next arriver re-seeds the lock
+
+  // a non-admin wins the race and offers a ROGUE password: under the old code
+  // this seized sess.pw and locked everyone else out. Now it can't set the
+  // lock at all — it lands in an open, blurred waiting room.
+  const rogue = await openWithPw(rogCtx, 'rogue', lockHash, vpwKey, 'rogue-pw');
+  await rogue.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 1 && !window.__gifosVideo.amAdmin(), null, { timeout: 12000 });
+  check('a non-admin cannot rogue-lock an evicted admin room (lands in the open waiting room)', true);
+  // the legit member, carrying the REAL password, is NOT locked out
+  const dan = await openWithPw(memCtx, 'dan', lockHash, vpwKey, 'psalm23');
+  const danIn = await dan.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 2, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  check('the legit member with the real password is not locked out by the rogue', danIn);
+  // the admin returns and re-asserts the real lock — now a passwordless stray is refused
+  const cara2 = await openRoom(lockCtx, 'cara2', lockHash);
+  await cara2.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
+  await sleep(1500); // the admin's setpw re-assert propagates
+  const stray = await openRoom(strCtx, 'stray', lockHash);
+  const strayBlocked = await stray.waitForFunction(() => {
+    const m = document.getElementById('pw-modal');
+    return m && getComputedStyle(m).display !== 'none' && m.dataset.mode === 'join';
+  }, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  check('the returning admin re-locks the door — a passwordless stray is challenged, not admitted', strayBlocked);
+  await cara2.close(); await dan.close(); await rogue.close(); await stray.close();
+
   // ================= admin-absence auto-close (host must be present) ==========
   // A bio-link room lives only while its host is present: host gone → 10s grace,
   // then a visible 5-minute countdown, then the room evacuates. Host back cancels.
