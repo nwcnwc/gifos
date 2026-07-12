@@ -157,6 +157,23 @@
       emit(piece, JSON.stringify(piece));
     }
   };
+  // Collect a message's fragments up front (each { o: pieceObj, s: pieceStr }) so
+  // a big send can be PACED rather than dumped. A shared video blob is hundreds
+  // of 100KB fragments; a synchronous loop of channel.send() overruns the
+  // browser's ~16MB DataChannel send buffer and the far side silently loses the
+  // tail — reassembly then hangs forever (the app RPC has no timeout). Paced
+  // sends honor the channel's backpressure so every fragment lands.
+  const chunk = (msg) => { const a = []; sendChunked(msg, (o, s) => a.push({ o, s })); return a; };
+  const PUMP_HIGH = 4 * 1024 * 1024; // keep the channel's send buffer well under its ceiling
+  const pumpChannel = (chan, pieces, mk) => new Promise((resolve) => {
+    let i = 0;
+    (function pump() {
+      if (!chan || chan.readyState !== 'open') return resolve(); // channel died mid-flush; peer will re-request
+      try { while (i < pieces.length && chan.bufferedAmount < PUMP_HIGH) chan.send(mk(pieces[i++])); }
+      catch (e) { return resolve(); }
+      if (i < pieces.length) setTimeout(pump, 40); else resolve();
+    })();
+  });
   // Stateful filter: feed every parsed inbound message with its sender key;
   // frag pieces buffer and return null until the last one completes the
   // original message. Non-frag messages pass straight through.
@@ -343,7 +360,7 @@
   GifOS.net = {
     ICE_SERVERS, hasP2P, holdSessionLock,
     steadySocket,
-    FRAG_PART, sendChunked, makeDefrag,
+    FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex,
     deriveJoin, deriveMeet, deriveMeetSess, meetPwProof,
     seal, open, isSealed, makeChain,
