@@ -857,9 +857,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bethSneak.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 1 && !window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('banned device sneaks into the admin-less re-emptied room (the window under test)', true);
   const adam3 = await openRoom(adamCtx, 'adam3', admHash);
-  await adam3.waitForFunction(() => window.__gifosVideo.amAdmin() && window.__gifosVideo.banList().length === 1, null, { timeout: 12000 });
-  await bethSneak.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
-  check('the returning admin\'s re-seed keeps his ban memory AND cuts the squatting banned device', true);
+  const reseedOk = await adam3.waitForFunction(() => window.__gifosVideo.amAdmin() && window.__gifosVideo.banList().length === 1, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  const cutOk = reseedOk && await bethSneak.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 }).then(() => true).catch(() => false);
+  if (!(reseedOk && cutOk)) { // dump both sides — this scenario spans three relay generations
+    console.log('  [dbg adam3]', await adam3.evaluate(() => JSON.stringify({ amAdmin: window.__gifosVideo.amAdmin(), banList: window.__gifosVideo.banList(), n: window.__gifosVideo.participants(), conns: (window.__gifosConns || []).map((c) => ({ state: c.state, rej: c.rejected || 0 })) })).catch((e) => 'gone: ' + e.message));
+    console.log('  [dbg beth5]', await bethSneak.evaluate(() => JSON.stringify({ bannedOut: window.__gifosVideo.bannedOut(), n: window.__gifosVideo.participants(), conns: (window.__gifosConns || []).map((c) => ({ state: c.state, rej: c.rejected || 0 })) })).catch((e) => 'gone: ' + e.message));
+  }
+  check('the returning admin\'s re-seed keeps his ban memory AND cuts the squatting banned device', reseedOk && cutOk, 'reseed=' + reseedOk + ' cut=' + cutOk);
   await adam3.close(); await bethSneak.close();
 
   // ================= admin room: the door lock can't be seized ================
