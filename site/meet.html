@@ -110,6 +110,18 @@
   .feedband { grid-column: 1 / -1; font-size: .7rem; letter-spacing: .05em; text-transform: uppercase;
     font-weight: 700; color: var(--muted, #8888aa); padding: .55rem .2rem .15rem; margin-top: .15rem;
     border-top: 1px solid var(--border, #2a2a3f); }
+  /* Recording options popup. */
+  .rec-sec { margin: .7rem 0 .3rem; }
+  .rec-sec > b { display: block; font-size: .85rem; margin-bottom: .25rem; }
+  .rec-opt { display: flex; gap: .5rem; align-items: flex-start; padding: .3rem .2rem; cursor: pointer; font-size: .9rem; }
+  .rec-opt.inline { display: inline-flex; align-items: center; margin-right: .9rem; }
+  .rec-opt small { display: block; color: var(--muted, #8888aa); font-size: .77rem; margin-top: .05rem; }
+  .rec-opt span b { font-weight: 600; }
+  .rec-opt > span { flex: 1; }
+  /* Higher specificity than `.name-box input { width:100% }` (which is defined
+     later in the sheet) so radios/checkboxes stay small and native, not full-width. */
+  .name-box .rec-opt input { width: 16px; min-width: 16px; height: 16px; flex: none; padding: 0; margin: .18rem 0 0; border: none; background: none; }
+  .name-box .rec-opt.inline input { margin: 0; }
   #stagefeed .rowtile { width: 100%; }
   .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
   .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
@@ -4266,54 +4278,143 @@
     };
 
     // ---- recording: this meeting, composited ON YOUR DEVICE ---------------------
-    // Tiles are drawn to a canvas (blur applied for real — a blurred feed is
-    // recorded blurred), audio is mixed (group-muted people contribute
-    // silence), and MediaRecorder writes a .webm that never leaves your
-    // machine. Everyone in the meeting sees the ⏺ chip while you record.
+    // A popup asks WHAT to capture (scope) and at what QUALITY. Tiles are drawn
+    // to a canvas (blur baked in — a blurred feed records blurred), audio is
+    // mixed honoring your four faders + consent, and MediaRecorder writes a
+    // .webm that never leaves your machine. Everyone sees the ⏺ chip while you
+    // record.
+    //
+    // The recorder is STADIUM-AWARE: sources are what you actually RECEIVE — the
+    // stage (verbatim), your row (direct links), and the FOLDS of your section
+    // and the crowd (compOf). You can't record a million faces; the crowd
+    // records as the same folded mosaic you see. Scope picks which tiers ride
+    // along; "match my mix" scales each bus's audio by your own fader.
     let recRec = null, recTimer = null, recDraw = null, recChunks = [], recStart = 0, recSrcs = new Map(), recDest = null;
-    let recMode = null, recRestartMode = null; // 'tiles' | 'app'; restart target after a stop
+    let recMode = null, recRestart = null, recMatchMix = true, recQuality = 'std'; // recMode = scope; recRestart = opts after a stop
     const recBtn = document.getElementById('recbtn');
-    function recMixIn(id, stream) {
-      if (!recDest || !stream || recSrcs.has(id)) return;
-      const track = stream.getAudioTracks()[0];
-      if (!track) return;
-      try {
-        const src = ac.createMediaStreamSource(new MediaStream([track]));
-        const gain = ac.createGain();
-        src.connect(gain); gain.connect(recDest);
-        recSrcs.set(id, { src, gain });
-      } catch (e) {}
-    }
-    function recTiles() {
-      const list = [{ id: 'me', name: myName() + ' (you)', video: meTile.video, st: myStatus, stream: localStream }];
+    const REC_QUALITY = { low: { w: 1280, h: 720, v: 1000000 }, std: { w: 1920, h: 1080, v: 3000000 }, high: { w: 1920, h: 1080, v: 6000000 } };
+    // Every source I can record, grouped by BUS. Direct peers + me are live
+    // tiles; folds (compOf) are already consent-baked composites of many people.
+    function recSources() {
+      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C;
+      const stg = new Set(stageIds()), mates = new Set(rowMates());
+      const g = { stage: [], row: [], section: [], stadium: [] };
+      // my own contribution rides my-row; recorded at full (I keep my own voice)
+      g.row.push({ key: 'me', video: meTile.video, label: myName() + ' (you)', bus: 'row', blur: 0, stream: localStream, me: true, camOff: myStatus.camOff });
       for (const [pid, p] of peers) {
         const st = statusOf.get(pid) || {};
-        list.push({ id: pid, name: p.name || '…', video: p.video, st, stream: p.video.srcObject });
+        const src = { key: pid, video: p.video, label: p.name || '…', blur: blurLevelFor(pid), stream: p.video.srcObject,
+          mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: !!st.camOff };
+        // Same bus classification as applyBuses: stage / my row / same-section
+        // deacon-mesh (My section) / cross-section space mate (The stadium).
+        if (stg.has(pid)) { src.bus = 'stage'; g.stage.push(src); }
+        else if (mates.has(pid)) { src.bus = 'row'; g.row.push(src); }
+        else if (rosterIds.includes(pid)) { src.bus = 'section'; g.section.push(src); }
+        else { src.bus = 'stadium'; g.stadium.push(src); }
       }
-      return list;
+      for (const [key, c] of compOf) {
+        if (!c.stream) continue;
+        const holder = isStageKey(key) ? stagefeedEl : stadiumEl;
+        const el = holder.querySelector('[data-row="' + String(key) + '"] video');
+        const src = { key: 'f:' + key, video: el, stream: c.stream, blur: 0, fold: true, // folds are consent-baked upstream
+          label: isStageKey(key) ? ((c.names || []).join(', ') + ' — stage')
+            : isDeckKey(key) ? ('Rows ' + ((c.rws || []).join(', ') || '…'))
+            : ('Row ' + key + ((c.names || []).length ? ' — ' + c.names.join(', ') : '')) };
+        if (isStageKey(key)) { src.bus = 'stage'; g.stage.push(src); }
+        else if (isDeckKey(key)) { src.bus = 'stadium'; g.stadium.push(src); }
+        else { const r = Number(key); if (r > lo && r <= hi) { src.bus = 'section'; g.section.push(src); } else { src.bus = 'stadium'; g.stadium.push(src); } }
+      }
+      return g;
     }
-    // Audio mix (app mode): every tile's stream, group-muted people silenced,
-    // joiners folded in live. The tiles composite does the same inline.
-    function pumpRecAudio() {
-      for (const t of recTiles()) {
-        const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
-        const mix = recSrcs.get(t.id);
-        if (mix) mix.gain.gain.value = gMute ? 0 : 1;
-        else if (t.stream) recMixIn(t.id, t.stream);
+    // Scope → { stage banner sources, grid sources }.
+    function recScopeSources(scope) {
+      const g = recSources();
+      if (scope === 'stage') return { stage: g.stage, grid: [] };
+      if (scope === 'row') return { stage: g.stage, grid: g.row };
+      return { stage: g.stage, grid: [...g.row, ...g.section, ...g.stadium] }; // 'all' / 'app'
+    }
+    // Wire one source's audio into the record mix once; created lazily.
+    function recMixIn(src) {
+      if (!recDest || !src.stream || recSrcs.has(src.key)) return;
+      const track = src.stream.getAudioTracks && src.stream.getAudioTracks()[0];
+      if (!track) return;
+      try {
+        const node = ac.createMediaStreamSource(new MediaStream([track]));
+        const gain = ac.createGain();
+        node.connect(gain); gain.connect(recDest);
+        recSrcs.set(src.key, { node, gain });
+      } catch (e) {}
+    }
+    // Every tick: fold in new sources, set each gain by its bus fader (when
+    // "match my mix") × consent, and drop sources that left the recorded scope.
+    function recSetGains(sources) {
+      const live = new Set();
+      for (const s of sources) {
+        live.add(s.key);
+        if (!recSrcs.has(s.key)) recMixIn(s);
+        const node = recSrcs.get(s.key);
+        if (!node) continue;
+        const busGain = recMatchMix ? (mix[s.bus] != null ? mix[s.bus] : 1) : 1;
+        node.gain.gain.value = s.mute ? 0 : (s.me ? 1 : busGain); // my own voice always full
       }
+      for (const [k, node] of recSrcs) if (!live.has(k)) { try { node.node.disconnect(); } catch (e) {} recSrcs.delete(k); }
     }
     const canScreenRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     // mode 'tiles' = on-device grid composite (blur/mute baked in; NO shared app).
     // mode 'app'  = capture this tab via getDisplayMedia so the app AND tiles are
     // recorded as shown; audio still comes from the same mix (your mic included,
     // mute honored) rather than tab audio, so nothing is doubled or missed.
-    async function startRec(mode) {
+    // Draw one source tile with blur baked in (or an initial-letter placeholder).
+    function recDrawTile(ctx, src, x, y, w, h) {
+      const v = src.video;
+      if (!src.camOff && v && v.videoWidth) {
+        const s = Math.min(w / v.videoWidth, h / v.videoHeight);
+        const dw = v.videoWidth * s, dh = v.videoHeight * s;
+        const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+        const bl = src.me ? 0 : src.blur; // ME is already the pre-blurred outbound; folds are consent-baked
+        // On iOS ctx.filter is a no-op, so a blurred guest would record clear
+        // without blurDraw, which handles both paths.
+        if (bl) blurDraw(ctx, v, dx, dy, dw, dh, bl === 2 ? 22 : 10, bl);
+        else ctx.drawImage(v, dx, dy, dw, dh);
+      } else {
+        ctx.fillStyle = '#14141f'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+        ctx.fillStyle = '#3a3a55'; ctx.font = 'bold ' + (Math.min(w, h) * .4 | 0) + 'px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((src.label || '•')[0].toUpperCase(), x + w / 2, y + h / 2);
+      }
+      const lbl = (src.label || '').slice(0, 48);
+      ctx.fillStyle = 'rgba(10,10,15,.75)';
+      ctx.fillRect(x + 6, y + h - 26, Math.min(w - 12, 12 + lbl.length * 8), 20);
+      ctx.fillStyle = '#e0e0f0'; ctx.font = '13px system-ui';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(lbl, x + 10, y + h - 16);
+    }
+    function recGrid(ctx, srcs, x, y, w, h) {
+      if (!srcs.length) return;
+      const cols = Math.ceil(Math.sqrt(srcs.length)), rows = Math.ceil(srcs.length / cols);
+      const cw = w / cols, ch = h / rows;
+      srcs.forEach((src, i) => recDrawTile(ctx, src, x + (i % cols) * cw, y + ((i / cols) | 0) * ch, cw, ch));
+    }
+    // opts = { scope:'stage'|'row'|'all'|'app', quality:'low'|'std'|'high', matchMix:bool }.
+    // scope 'app' captures this tab via getDisplayMedia so a shared app rides
+    // along; the others composite the received tiers on a canvas.
+    async function startRec(opts) {
+      opts = opts || { scope: 'all', quality: 'std', matchMix: true };
       if (!ensureAc()) { setStatus('Recording needs audio support.'); return; }
-      recMode = mode;
+      const scope = opts.scope || 'all';
+      recMatchMix = opts.matchMix !== false;
+      recQuality = REC_QUALITY[opts.quality] ? opts.quality : 'std';
+      const q = REC_QUALITY[recQuality];
+      recMode = scope;
       recDest = ac.createMediaStreamDestination();
       recSrcs = new Map();
+      if (scope === 'stage' && !recSources().stage.length) {
+        recDest = null; recMode = null;
+        setStatus('No one is on the stage yet — nothing to record.');
+        return;
+      }
       let videoTrack = null, stopVideo = () => {};
-      if (mode === 'app') {
+      if (scope === 'app') {
         let disp;
         try {
           disp = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false, preferCurrentTab: true });
@@ -4326,70 +4427,45 @@
         stopVideo = () => { for (const t of disp.getTracks()) { try { t.stop(); } catch (e) {} } };
         // Ending the tab-share from the browser's own bar stops the recording.
         if (videoTrack) videoTrack.onended = () => { if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} } };
-        pumpRecAudio();
-        recDraw = metroSub(pumpRecAudio);
+        // The tab is captured visually; audio still comes from the full mix
+        // (everything you hear, your mic included), honoring your faders.
+        const pump = () => { const s = recSources(); recSetGains([...s.stage, ...s.row, ...s.section, ...s.stadium]); };
+        pump(); recDraw = metroSub(pump);
       } else {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1280; canvas.height = 720;
-      const ctx = canvas.getContext('2d');
-      const draw = () => {
-        const list = recTiles();
-        const cols = Math.ceil(Math.sqrt(list.length)), rows = Math.ceil(list.length / cols);
-        const cw = canvas.width / cols, ch = canvas.height / rows;
-        ctx.filter = 'none';
-        ctx.fillStyle = '#0a0a0f';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        list.forEach((t, i) => {
-          const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
-          // The ME feed is already the pre-blurred outbound; don't re-blur it.
-          const bl = t.id === 'me' ? 0 : blurLevelFor(t.id);
-          const gMute = modOf(t.id).mute && modOf(t.id).mute.on;
-          const mix = recSrcs.get(t.id);
-          if (mix) mix.gain.gain.value = gMute ? 0 : 1;  // hear what the room hears
-          else if (t.stream) recMixIn(t.id, t.stream);
-          const v = t.video;
-          if (!t.st.camOff && v && v.videoWidth) {
-            const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
-            const dw = v.videoWidth * s, dh = v.videoHeight * s;
-            const dx = x + (cw - dw) / 2, dy = y + (ch - dh) / 2;
-            // Cross-platform: on iOS ctx.filter is a no-op, so a blurred guest
-            // would record UNblurred without this. blurDraw handles both.
-            if (bl) blurDraw(ctx, v, dx, dy, dw, dh, bl === 2 ? 22 : 10, bl);
-            else ctx.drawImage(v, dx, dy, dw, dh);
+        const canvas = document.createElement('canvas');
+        canvas.width = q.w; canvas.height = q.h;
+        const ctx = canvas.getContext('2d');
+        const draw = () => {
+          const { stage, grid } = recScopeSources(scope);
+          recSetGains([...stage, ...grid]);
+          ctx.filter = 'none';
+          ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          if (stage.length && grid.length) {
+            const bh = Math.round(canvas.height * 0.42); // the stage banners the top, verbatim
+            recGrid(ctx, stage, 0, 0, canvas.width, bh);
+            recGrid(ctx, grid, 0, bh, canvas.width, canvas.height - bh);
           } else {
-            ctx.fillStyle = '#14141f';
-            ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
-            ctx.fillStyle = '#3a3a55';
-            ctx.font = 'bold ' + (ch * .4 | 0) + 'px system-ui';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText((t.name || '•')[0].toUpperCase(), x + cw / 2, y + ch / 2);
+            recGrid(ctx, stage.concat(grid), 0, 0, canvas.width, canvas.height); // one tier fills the frame
           }
-          ctx.fillStyle = 'rgba(10,10,15,.75)';
-          ctx.fillRect(x + 6, y + ch - 26, Math.min(cw - 12, 8 + t.name.length * 9), 20);
-          ctx.fillStyle = '#e0e0f0';
-          ctx.font = '13px system-ui';
-          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-          ctx.fillText(t.name, x + 10, y + ch - 16);
-        });
-      };
-      draw();
-      // worker metronome (~15 fps): recording keeps compositing when the tab
-      // is hidden — main-thread intervals clamp to ≥1s in the background
-      recDraw = metroSub(draw);
-      videoTrack = canvas.captureStream(15).getVideoTracks()[0];
+        };
+        draw();
+        // worker metronome (~15 fps): recording keeps compositing when the tab
+        // is hidden — main-thread intervals clamp to ≥1s in the background
+        recDraw = metroSub(draw);
+        videoTrack = canvas.captureStream(15).getVideoTracks()[0];
       }
       const stream = new MediaStream();
       if (videoTrack) stream.addTrack(videoTrack);
       for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
       const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
       recChunks = [];
-      recRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1200000, audioBitsPerSecond: 64000 });
+      recRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: q.v, audioBitsPerSecond: 96000 });
       recRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
       recRec.onstop = () => {
         if (typeof recDraw === 'function') recDraw(); // unsubscribe the metronome
         clearInterval(recTimer);
         stopVideo();
-        for (const m of recSrcs.values()) { try { m.src.disconnect(); } catch (e) {} }
+        for (const m of recSrcs.values()) { try { m.node.disconnect(); } catch (e) {} }
         recSrcs.clear(); recDest = null; recMode = null;
         const blob = new Blob(recChunks, { type: 'video/webm' });
         recChunks = [];
@@ -4402,7 +4478,7 @@
         recBtn.textContent = 'Record';
         myStatus.rec = false;
         broadcastStatus();
-        if (recRestartMode) { const m = recRestartMode; recRestartMode = null; startRec(m); }
+        if (recRestart) { const o = recRestart; recRestart = null; startRec(o); }
       };
       recRec.start(1000);
       recStart = Date.now();
@@ -4415,29 +4491,46 @@
       myStatus.rec = true;
       broadcastStatus();
     }
-    // App on stage → offer a clean tiles composite, or capture this tab so the
-    // app rides along. No app → straight to tiles.
-    function showRecChooser() {
-      if (document.getElementById('rec-choose')) return;
-      const bg = document.createElement('div'); bg.className = 'name-modal'; bg.id = 'rec-choose';
-      bg.innerHTML = '<div class="name-box" style="max-width:440px;text-align:left">' +
+    // The options popup: scope (which tiers), quality, and whether the audio
+    // matches your personal sound mix. Shown on every Record.
+    function showRecOptions() {
+      if (document.getElementById('rec-options')) return;
+      const hasApp = findSharedApp() && canScreenRecord();
+      const bg = document.createElement('div'); bg.className = 'name-modal'; bg.id = 'rec-options';
+      const opt = (val, name, ttl, sub) => '<label class="rec-opt"><input type="radio" name="' + name + '" value="' + val + '"' + (val === 'stage' && name === 'rec-scope' ? ' checked' : '') + '> <span><b>' + ttl + '</b><small>' + sub + '</small></span></label>';
+      bg.innerHTML = '<div class="name-box" style="max-width:470px;text-align:left">' +
         '<h3>Record this meeting</h3>' +
-        '<p style="color:#aab">An app is on stage. Pick what to capture — either way the recording stays on your device.</p>' +
-        '<button id="rc-tiles" class="lob-action">Record the video tiles<small>A clean grid of faces; blur and mute are baked in. The shared app is not included.</small></button>' +
-        '<button id="rc-app" class="lob-action">Record with the app<small>Share this tab so the recording shows the app and the tiles together, exactly as on your screen.</small></button>' +
-        '<div style="display:flex;justify-content:flex-end;margin-top:.4rem"><button id="rc-cancel" class="lob-ghost">Cancel</button></div></div>';
+        '<p style="color:#889;font-size:.85rem">Saved to YOUR device only — everyone sees the ⏺ while you record. Blur and mute are always baked in.</p>' +
+        '<div class="rec-sec"><b>What to capture</b>' +
+        opt('stage', 'rec-scope', 'The stage', 'Just the front — the reader or speaker, verbatim. One clean feed.') +
+        opt('row', 'rec-scope', 'Stage + my row', 'The stage plus the people right around you.') +
+        opt('all', 'rec-scope', 'Everything I see', 'The whole screen — stage, your row, your section, the stadium. The crowd is folded, as shown.') +
+        (hasApp ? opt('app', 'rec-scope', 'With the shared app', 'Capture this tab so the app and tiles record together.') : '') +
+        '</div>' +
+        '<div class="rec-sec"><b>Quality</b>' +
+        '<label class="rec-opt inline"><input type="radio" name="rec-q" value="low"> Low · 720p</label>' +
+        '<label class="rec-opt inline"><input type="radio" name="rec-q" value="std" checked> Standard · 1080p</label>' +
+        '<label class="rec-opt inline"><input type="radio" name="rec-q" value="high"> High · 1080p</label>' +
+        '</div>' +
+        '<label class="rec-opt inline" style="margin-top:.3rem"><input type="checkbox" id="rec-matchmix" checked> Match my sound mix (record what I hear)</label>' +
+        '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.9rem">' +
+        '<button id="ro-cancel" class="lob-ghost">Cancel</button><button id="ro-start">Start recording</button></div></div>';
       document.body.appendChild(bg);
       const close = () => bg.remove();
-      bg.querySelector('#rc-cancel').onclick = close;
+      bg.querySelector('#ro-cancel').onclick = close;
       bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
-      bg.querySelector('#rc-tiles').onclick = () => { close(); startRec('tiles'); };
-      bg.querySelector('#rc-app').onclick = () => { close(); startRec('app'); };
+      bg.querySelector('#ro-start').onclick = () => {
+        const scope = bg.querySelector('input[name=rec-scope]:checked').value;
+        const quality = bg.querySelector('input[name=rec-q]:checked').value;
+        const matchMix = bg.querySelector('#rec-matchmix').checked;
+        close(); startRec({ scope, quality, matchMix });
+      };
     }
     // An app appeared while a TILES recording runs — it won't be captured. (An
     // app-mode recording already grabs the tab live, so it needs no warning.)
     function warnRecorderNewApp() {
       if (!(recRec && recRec.state !== 'inactive')) return;
-      if (recMode !== 'tiles' || !canScreenRecord()) return;
+      if (recMode === 'app' || !canScreenRecord()) return; // canvas scopes can't reach the app's pixels
       if (document.getElementById('rec-warn')) return;
       const bg = document.createElement('div'); bg.className = 'name-modal'; bg.id = 'rec-warn';
       bg.innerHTML = '<div class="name-box" style="max-width:420px;text-align:left">' +
@@ -4449,14 +4542,13 @@
       document.body.appendChild(bg);
       bg.querySelector('#rw-keep').onclick = () => bg.remove();
       bg.querySelector('#rw-restart').onclick = () => {
-        bg.remove(); recRestartMode = 'app'; // onstop restarts in app mode after downloading the partial
+        bg.remove(); recRestart = { scope: 'app', quality: recQuality, matchMix: recMatchMix }; // onstop restarts in app mode
         if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} }
       };
     }
     recBtn.onclick = () => {
       if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} recRec = null; return; }
-      if (findSharedApp() && canScreenRecord()) showRecChooser();
-      else startRec('tiles');
+      showRecOptions();
     };
 
     // ---- controls: mic + camera (traffic-light icons), blur (3-way slider) -----
@@ -5117,6 +5209,9 @@
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
       recMode: () => recMode,
+      recMatchMix: () => recMatchMix,
+      recQuality: () => recQuality,
+      recSourceCount: () => { const g = recSources(); return { stage: g.stage.length, row: g.row.length, section: g.section.length, stadium: g.stadium.length }; },
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
       hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,

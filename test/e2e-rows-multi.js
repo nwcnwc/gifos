@@ -120,6 +120,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 15000 }).then(() => true).catch(() => false);
   check('feed: the section/stadium boundary is labeled with both zone bands', bandOk);
 
+  // ---- recording is stadium-aware ------------------------------------------
+  // The whole point of the rework: a section-1 phone's record sources include
+  // the FOLDS of the far crowd (its cross-section stadium fold), not just its
+  // direct row links — so "Everything I see" captures beyond the immediate row.
+  const recSrcOk = s1 >= 0 && await pages[s1].evaluate(() => {
+    const c = window.__gifosVideo.recSourceCount();
+    return c.row >= 1 && c.stadium >= 1; // my own row + at least one folded far row
+  });
+  check('recording: the record sources include the folded stadium, not just my row', recSrcOk);
+
   // ---- chat bridges the tree ----------------------------------------------
   await pages[0].locator('#chatbtn').click();
   await pages[0].locator('#chat-in').fill('one room, many sessions');
