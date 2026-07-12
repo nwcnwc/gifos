@@ -110,6 +110,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   check('buses: My section and The stadium move independently across the session boundary, both faders shown', busOk);
 
+  // ---- the feed labels the near/far boundary -------------------------------
+  // The same section-1 phone sees an in-section row AND a cross-section row, so
+  // both zone bands show, naming the boundary the mix's faders control.
+  const bandOk = s1 >= 0 && await pages[s1].waitForFunction(() => {
+    const vis = (id) => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    const sec = document.getElementById('band-sec'), stad = document.getElementById('band-stad');
+    return vis('band-sec') && vis('band-stad') && sec.textContent === 'Your section' && stad.textContent === 'The stadium';
+  }, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  check('feed: the section/stadium boundary is labeled with both zone bands', bandOk);
+
   // ---- chat bridges the tree ----------------------------------------------
   await pages[0].locator('#chatbtn').click();
   await pages[0].locator('#chat-in').fill('one room, many sessions');

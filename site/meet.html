@@ -106,6 +106,10 @@
     border-radius: .6rem; overflow: hidden; }
   #stagefeed .rowtile { aspect-ratio: 16 / 9; } /* stage feeds are verbatim cameras */
   .rowtile.decktile { grid-column: 1 / -1; } /* a deck is the wide shot */
+  /* Zone bands: a full-width label naming the near/far boundary in the mosaic. */
+  .feedband { grid-column: 1 / -1; font-size: .7rem; letter-spacing: .05em; text-transform: uppercase;
+    font-weight: 700; color: var(--muted, #8888aa); padding: .55rem .2rem .15rem; margin-top: .15rem;
+    border-top: 1px solid var(--border, #2a2a3f); }
   #stagefeed .rowtile { width: 100%; }
   .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
   .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
@@ -3804,7 +3808,8 @@
     function renderStadium() {
       const have = new Set(Array.from(compOf.keys()).map(String));
       for (const holder of [stagefeedEl, stadiumEl])
-        for (const el of Array.from(holder.children)) if (!have.has(el.dataset.row)) el.remove();
+        for (const el of Array.from(holder.children))
+          if (!el.classList.contains('feedband') && !have.has(el.dataset.row)) el.remove(); // bands aren't tiles
       const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C; // my section's row range
       for (const [row, c] of compOf) {
         const stage = isStageKey(row);
@@ -3842,6 +3847,28 @@
             ? 'Rows ' + ((c.rws || []).join(', ') || '…') + (c.cnt ? ' · ' + c.cnt + ' people' : '')
             : 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
       }
+      // Zone bands: name the near/far boundary so the screen matches the
+      // stadium vocabulary and the four-bus mix. "Your section" heads the
+      // in-section rows; "The stadium" heads the far crowd (deck-mate rows +
+      // decks). Orders 0 and 999 bracket the 1000/5000 far-tile order bands —
+      // exact at realistic scale (labels are cosmetic, not load-bearing).
+      let hasSec = false, hasStad = false;
+      for (const key of compOf.keys()) {
+        if (isStageKey(key)) continue;
+        if (isDeckKey(key)) { hasStad = true; continue; }
+        const r = Number(key);
+        if (r > lo && r <= hi) hasSec = true; else hasStad = true;
+      }
+      const band = (id, label, ord, show) => {
+        let el = stadiumEl.querySelector('#' + id);
+        if (!el) { el = document.createElement('div'); el.className = 'feedband'; el.id = id; el.textContent = label; stadiumEl.appendChild(el); }
+        el.style.order = ord;
+        el.style.display = show ? '' : 'none';
+      };
+      // Only badge the section when there's also a far crowd to distinguish it
+      // from — a single-section room's mosaic is ALL your section, no label needed.
+      band('band-sec', 'Your section', 0, hasSec && hasStad);
+      band('band-stad', 'The stadium', 999, hasStad);
       stadiumEl.classList.toggle('on', compOf.size > 0);
       applyBuses(); // fresh stadium tiles pick up the Crowd fader immediately
     }

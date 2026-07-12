@@ -126,6 +126,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   check('buses: My section fader is shown (other rows present), The stadium fader is hidden (single section)',
     faderVis.section === true && faderVis.stadium === false);
+  const noBands = await pages[1].evaluate(() => {
+    const vis = (id) => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    return !vis('band-sec') && !vis('band-stad');
+  });
+  check('feed: a single-section room shows no zone bands — the whole mosaic is your section', noBands);
   await pages[1].evaluate(() => window.__gifosVideo.setMix('section', 1));
 
   await pages[0].evaluate(() => window.__gifosVideo.setStageForTest(false));
