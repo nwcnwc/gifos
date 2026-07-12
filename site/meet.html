@@ -2322,6 +2322,13 @@
         // right back — the ping-pong that once burned 45k relay wakes in a
         // night). Say so instead of showing an eternal "reconnecting".
         if (ws.rejected === 4000) setStatus('👋 This meeting is open in a newer tab — this one has stepped back.');
+        // A mid-session CUT carries its verdict in the close code now: a
+        // terminal socket never re-knocks, so the reason can no longer arrive
+        // as a rejection message on the next join. Read it from the code —
+        // exactly what an admin's re-seed ban sends (4004) and a live
+        // vote-off sends (4007).
+        else if (ws.rejected === 4004 && !bannedOut) { bannedOut = true; setStatus('⛔ This device was banned from the room by its admin.'); }
+        else if (ws.rejected === 4007 && !bannedOut) { bannedOut = true; setStatus('⛔ The people in this room have voted not to let this device in.'); }
       };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
