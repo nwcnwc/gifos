@@ -253,10 +253,18 @@ server.on('upgrade', (req, socket) => {
     const admOffer = admK ? crypto.createHash('sha256').update(admK).digest('hex') : null;
     if (sess.clients.size === 0) {
       sess.meshToken = token;
-      sess.pw = (url.searchParams.get('pw') || '') || null;
       sess.av = av || null;
       sess.ban = [];
       sess.mesh = true;
+      // The door lock is OCCUPANCY STATE re-seeded by whoever reconnects first
+      // after an eviction. In an ADMIN room only an admin may establish it — a
+      // non-admin first-arriver must not seize the room with a rogue password
+      // (locking legit members out) or unlock it. Until an admin sets the lock,
+      // an admin room is an open, blurred, self-closing waiting room; the admin
+      // re-asserts it on arrival via setpw. Plain rooms keep first-arriver
+      // seeding (quorum re-seed is a separate follow-up). Mirrors relay/src/relay.js.
+      const firstIsAdmin = !!(av && admOffer && admOffer.slice(0, av.length) === av);
+      sess.pw = (av && !firstIsAdmin) ? null : ((url.searchParams.get('pw') || '') || null);
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }

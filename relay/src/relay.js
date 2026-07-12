@@ -261,9 +261,6 @@ export class Session {
       const occupants = this.members();
       const first = occupants[0] ? this.att(occupants[0]) : null;
       if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
-      const offeredPw = url.searchParams.get('pw') || '';
-      const roomPw = first ? (first.pw || '') : offeredPw;
-      if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       // The verifier comes from the session id itself (…/<room>.<verifier>) —
       // the SAME derivation the app host gate uses, no separate query param.
       const av = verifierOf(sid);
@@ -272,6 +269,17 @@ export class Session {
       // 24 hex now (96-bit, preimage-safe for a public token); legacy 64-hex
       // rooms compare on their full length. Prefix-compare handles both.
       const isAdmin = !!(av && admK && (await sha256hex(admK)).slice(0, av.length) === av);
+      const offeredPw = url.searchParams.get('pw') || '';
+      // The door lock is OCCUPANCY STATE — re-seeded by whoever reconnects
+      // FIRST after an eviction. In an ADMIN room only an admin may establish
+      // it: a non-admin first-arriver must not be able to seize the room with a
+      // rogue password (locking legit members out) OR unlock it. Until an admin
+      // sets the lock, an admin room is an open, blurred, self-closing waiting
+      // room; when the admin (re)arrives they re-assert it via setpw. Plain
+      // rooms keep first-arriver seeding — a quorum re-seed is a separate
+      // follow-up. (Once occupants exist, the lock is read from them, unchanged.)
+      const roomPw = first ? (first.pw || '') : ((av && !isAdmin) ? '' : offeredPw);
+      if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
       const ban = first ? (first.ban || []) : [];
       if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);

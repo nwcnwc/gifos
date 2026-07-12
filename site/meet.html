@@ -2065,7 +2065,7 @@
     // by a random locally-persisted token (honest limitation: wiping site
     // data mints a new device — bans deter, they don't imprison).
     let av = null; // the room's admin verifier — set at join, immutable
-    let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false;
+    let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false, pwReasserted = false;
     let ipsOf = {};                          // peer -> network address (from the relay roster)
     const hasAdminRoom = () => !!av;
     const sha256hex = net.sha256hex;
@@ -2145,6 +2145,7 @@
       if (ws) { try { ws.close(); } catch (e) {} } // a terminal state or credential change replaces the socket
       ws = net.steadySocket(buildWsUrl); // self-healing: backoff + visibility/online kicks live in the fabric
       lastVoteSync = null; // a fresh socket re-syncs my standing votes
+      pwReasserted = false; // a fresh socket re-asserts the admin's door lock once
       ws.onopen = () => { lastVoteSync = null; updateStatus(); };
       ws.onstate = () => {
         updateStatus(); // live P2P links stay up; we quietly rejoin the room
@@ -2184,6 +2185,13 @@
               if (stored.length) ws.send(JSON.stringify({ t: 'banlist', devs: stored }));
             }
             banSeeded = true;
+            // Re-assert the DOOR LOCK. Only an admin may set an admin room's
+            // lock, so after an eviction a non-admin may have (re)opened the
+            // waiting room LOCKLESS. If I hold the room password, re-establish
+            // it via setpw so the relay re-locks — idempotent, and harmless
+            // when the lock already matches. Once per socket.
+            if (roomPw && pwProof && !pwReasserted) { ws.send(JSON.stringify({ t: 'setpw', pw: pwProof, by: myName() })); }
+            pwReasserted = true;
           }
           syncVotes(); // my standing vote-offs apply to whoever is here now
           applyAdminUi();
