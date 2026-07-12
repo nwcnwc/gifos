@@ -50,13 +50,14 @@ because each is late by a *different* amount. The grid (meet.html) makes
 the difference zero: clocks sync continuously over the DataChannels
 (NTP-style, min-RTT filtered), and every incoming **audio receiver** gets a
 `jitterBufferTarget` so its capture-to-ear delay lands on its bus's tier.
-Timing is a personal, receiver-side setting with three moods — **Unison**
-(default): the near field (stage + your row) aligns to the ROOM's slowest
-gossiped need (capped at 280ms), so laughter, "Amen"s, responsive readings
-and spontaneous song land together across every listener, on the shared
-clock; **Conversation**: the target derives from your own links only —
-snappiest replies, coherent locally, possibly staggered across the room;
-**Song**: not a knob (see below). When someone leads a **song** (🎵 on the toolbar:
+Timing is a personal, receiver-side setting with three moods —
+**Conversation** (default): the target derives from your own links only —
+snappiest replies, each listener's ear de-smeared, never taxing a room for
+one slow link; **Unison**: the near field (stage + your row) aligns to the
+ROOM's slowest gossiped need (capped at 280ms), so laughter, "Amen"s,
+responsive readings and spontaneous song are *generated* in sync across
+every listener, on the shared clock — worth its latency when the room is a
+congregation rather than a meeting; **Song**: not a knob (see below). When someone leads a **song** (🎵 on the toolbar:
 steps them on stage, re-grabs their mic with the speech pipeline off), the
 tiers stretch into cathedral acoustics: the stage plays at the same synced
 instant on every device (the room sings in true unison), rows land a

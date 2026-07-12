@@ -437,8 +437,8 @@
     <label id="mixlab-stadium">The stadium <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
     <b>Timing</b>
     <div id="timingrow">
-      <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
       <button data-timing="chat" title="Snappiest replies — your ears align to your own links only; across the room, timing may stagger">Conversation</button>
+      <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
       <button data-timing="song" disabled title="Active while someone leads a song (tap 🎵 to lead) — deep cathedral tiers + the leader's music-grade mic">Song</button>
     </div>
   </div>
@@ -4065,16 +4065,19 @@
     };
     // Timing is a PERSONAL, receiver-side setting (your ears, your knob — like
     // the faders), three moods:
-    //   unison (default) — everyone hears everyone at the same synced instant:
-    //     the near-field target is the ROOM's slowest gossiped need (capped),
-    //     so reactions, responsive readings and spontaneous song land together
-    //     across the whole room, not just within each listener's ears.
-    //   chat — snappiest replies: the target derives from MY links only;
-    //     coherent locally, possibly staggered across listeners.
+    //   chat (default) — snappiest replies: the target derives from MY links
+    //     only. Per-listener alignment already de-smears each listener's ears;
+    //     the default optimizes the common case — conversation — and never
+    //     taxes a whole room for one slow link.
+    //   unison — everyone hears everyone at the same synced instant: the
+    //     near-field target is the ROOM's slowest gossiped need (capped), so
+    //     reactions, responsive readings and spontaneous song are GENERATED in
+    //     sync across the room, not just tidied at each ear. Worth its latency
+    //     when the room is a congregation rather than a meeting.
     //   song — not a knob: entered by a leader's 🎵, it overrides both with
     //     the deep cathedral tiers below.
     const TIMING_KEY = 'gifos_timing';
-    let timing = 'unison';
+    let timing = 'chat';
     try { const t = localStorage.getItem(TIMING_KEY); if (t === 'chat' || t === 'unison') timing = t; } catch (e) {}
     let gdOverride = 0; // test hook: pretend this device needs a slower grid
     const clk = new Map(); // pid -> { rtt, off, n } — the best (min-rtt) sample, slowly decayed
