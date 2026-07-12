@@ -95,9 +95,12 @@ server.on('upgrade', (req, socket) => {
   const ip = socket.remoteAddress || 'unknown';
 
   // Abuse guards — mirror the Worker's caps so tests exercise them.
+  // C mirrors GIFOS_SCALE.C: a session is one SECTION (C² seats) plus C so
+  // the stage can double-home into a full level-1 space. Never client-set.
+  const C = 8, MAX_SOCKETS_PER_SESSION = C * C + C; // 72
   const rejectConn = (error) => { conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
   const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
-  if (allConns() >= 64) { rejectConn('this session is full'); return; }
+  if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   let mine = 0;
   if (sess.host && sess.host.ip === ip) mine++;
   for (const c of sess.clients.values()) if (c.ip === ip) mine++;
