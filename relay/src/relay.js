@@ -63,7 +63,13 @@ const BURST_BYTES = 1024 * 1024;        // 1 MB one-time burst (e.g. an App GIF)
 const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even low-quality video
 
 // Abuse guards (generous for humans, hostile to loops).
-const MAX_SOCKETS_PER_SESSION = 64; // a "room" is a living room, not a stadium
+// C MUST equal GIFOS_SCALE.C (site/js/gifos-net.js) — the stadium's shape
+// constant. A session is one SECTION: C rows of C seats = C² sockets, plus
+// C more so the stage can double-home into a full level-1 space. Never a
+// client parameter: letting a stranger size a Durable Object is an attack
+// vector — this number moves only here, in lockstep with C.
+const C = 8;
+const MAX_SOCKETS_PER_SESSION = C * C + C; // 72 — a full section plus the stage
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 

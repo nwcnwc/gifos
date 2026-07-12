@@ -182,8 +182,11 @@ on gossip, not stamps.
   member can be forwarded up to C²−1 individual row folds; fold a deck's
   rows into per-section folds before forwarding (one more pass of the same
   machinery) to keep the strip constant-size.
-- **Stage seat reservation**: at production constants a full level-1
-  space plus the stage exceeds the relay's 64 sockets; reserve C seats.
+- ~~Stage seat reservation~~ — done: the relay's session cap is C²+C
+  (a full section plus a double-homed stage). The relay's `C` is a
+  hardcoded twin of `GIFOS_SCALE.C` — never a client parameter (letting a
+  stranger size a Durable Object is an attack vector); raise the two
+  together.
 - **Depth ≥ 4 instantiation** (the pattern repeats; the loop isn't written).
 - **Walk gallop** for O(log) seating in huge rooms; **room-wide admin
   gossip**; **zoom as re-subscription** (today zoom grows the tile —
