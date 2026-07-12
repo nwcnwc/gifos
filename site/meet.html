@@ -101,9 +101,10 @@
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
   #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
   #stadium.on { display: grid; }
-  .rowtile { position: relative; aspect-ratio: 16 / 9;
+  .rowtile { position: relative; aspect-ratio: 9 / 16; /* folds are PORTRAIT — phone-width, scroll-tall */
     background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
     border-radius: .6rem; overflow: hidden; }
+  #stagefeed .rowtile { aspect-ratio: 16 / 9; } /* stage feeds are verbatim cameras */
   .rowtile.decktile { grid-column: 1 / -1; } /* a deck is the wide shot */
   #stagefeed .rowtile { width: 100%; }
   .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
@@ -3170,7 +3171,7 @@
         if (el && el.videoWidth) srcs.push({ key: k, el, stream: c.stream });
       }
       const canvas = deckPipe.canvas, ctx = deckPipe.ctx;
-      const cols = Math.max(1, Math.ceil(Math.sqrt(srcs.length))), rws = Math.max(1, Math.ceil(srcs.length / cols));
+      const cols = Math.min(Math.max(1, srcs.length), Math.max(1, Math.round(Math.sqrt(srcs.length * canvas.width / canvas.height)))), rws = Math.max(1, Math.ceil(srcs.length / cols));
       const cw = canvas.width / cols, ch = canvas.height / rws;
       ctx.fillStyle = '#0a0a0f';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -3233,7 +3234,8 @@
       const mine = myRowIndex();
       const rowIds = mine >= 0 ? rows[mine] : [];
       const canvas = compPipe.canvas, ctx = compPipe.ctx;
-      const cols = Math.max(1, Math.ceil(Math.sqrt(rowIds.length))), rws = Math.max(1, Math.ceil(rowIds.length / cols));
+      // aspect-aware packing: a PORTRAIT canvas stacks 2×4, not a letterboxed 3×3
+      const cols = Math.min(Math.max(1, rowIds.length), Math.max(1, Math.round(Math.sqrt(rowIds.length * canvas.width / canvas.height)))), rws = Math.max(1, Math.ceil(rowIds.length / cols));
       const cw = canvas.width / cols, ch = canvas.height / rws;
       ctx.filter = 'none';
       ctx.fillStyle = '#0a0a0f';
