@@ -55,6 +55,24 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const tgt = Object.values(tA.targets)[0];
   check('talk mode aligns the near field (row target, jitterBufferTarget set)', tgt && tgt.bus === 'row' && tgt.D > 0 && tgt.set === true, JSON.stringify(tgt));
   check('nobody is singing yet', tA.sing === false && tA.mic === 'voice');
+  check('UNISON is the default timing', tA.timing === 'unison', 'timing=' + tA.timing);
+
+  // ---- unison vs conversation: the GLOBAL clock proof ----
+  // B pretends its links need a 200ms grid and gossips that need. In UNISON,
+  // A widens its target to the ROOM's slowest ear even though A's own links
+  // are ~instant; in CONVERSATION, A ignores B's need and snaps back to local.
+  await b.evaluate(() => window.__gifosVideo.gdForTest(200));
+  await a.waitForFunction(() => { const g = window.__gifosVideo.grid(); const t = Object.values(g.targets)[0]; return t && t.D >= 200; }, null, { timeout: 15000 });
+  const uniT = Object.values((await a.evaluate(() => window.__gifosVideo.grid())).targets)[0];
+  check('UNISON: A meets the room\'s slowest ear (D rises to B\'s gossiped need)', uniT && uniT.D >= 200 && uniT.D <= 280, JSON.stringify(uniT));
+  await a.evaluate(() => window.__gifosVideo.timingForTest('chat'));
+  await a.waitForFunction(() => { const g = window.__gifosVideo.grid(); const t = Object.values(g.targets)[0]; return g.timing === 'chat' && t && t.D < 200; }, null, { timeout: 15000 });
+  const chatT = Object.values((await a.evaluate(() => window.__gifosVideo.grid())).targets)[0];
+  check('CONVERSATION: A snaps back to its own links (local, snappy)', chatT && chatT.D < 200, JSON.stringify(chatT));
+  await a.evaluate(() => window.__gifosVideo.timingForTest('unison'));
+  await b.evaluate(() => window.__gifosVideo.gdForTest(0));
+  await a.waitForFunction(() => { const t = Object.values(window.__gifosVideo.grid().targets)[0]; return t && t.D < 200; }, null, { timeout: 15000 });
+
   const mixBefore = (await b.evaluate(() => window.__gifosVideo.grid())).mixNow;
 
   // ---- the leader taps 🎵 (steps on stage + starts the song) ----
