@@ -242,6 +242,7 @@
   .tile .cap.show { opacity: 1; }
   #recbtn.on { border-color: #ff5c5c; color: #ff9c9c; }
   #ccbtn.on { border-color: #5cff7b; color: #9cffb4; }
+  #singbtn.on { border-color: #b9a5ff; color: #d5c8ff; background: #1d1633; }
   .trline { font-size: .82rem; padding: .15rem 0; overflow-wrap: anywhere; }
   .trline b { color: #7b9cff; margin-right: .35rem; }
   #trwrap { flex: 1; display: none; flex-direction: column; min-height: 0; }
@@ -380,6 +381,7 @@
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
+    <button id="singbtn" title="Lead the room in song — your mic switches to music quality and everyone's sound aligns to you (earbuds recommended for singers)">🎵 Sing</button>
     <button id="mixbtn" title="Your personal sound mix: the stage, your row, your section, and the far stadium">Mix</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, and the dream">Help</button>
@@ -2458,6 +2460,36 @@
         }).catch(() => {});
     }
 
+    // ---- mic mode: voice vs music ---------------------------------------------
+    // The default capture pipeline is built for SPEECH: echo cancellation, noise
+    // suppression and auto-gain — a package that treats a held note as noise and
+    // a crescendo as a mic problem. When this device LEADS A SONG (on stage with
+    // Sing on), re-grab the mic raw so the room hears music, and restore the
+    // speech pipeline the moment the song ends (without it, this mic would echo
+    // in ordinary conversation). Same swap idiom as reviveCamera: replace only
+    // the senders that carry OUR old mic track (never the fold-mix aux tracks),
+    // and mutate the SAME localStream so our announced stream id never changes.
+    let micMode = 'voice';
+    function setMicMode(mode) {
+      if (mode === micMode || !localStream) return;
+      const want = mode === 'music'
+        ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      navigator.mediaDevices.getUserMedia({ audio: want }).then((s) => {
+        const na = s.getAudioTracks()[0];
+        if (!na) return;
+        micMode = mode;
+        na.enabled = !myStatus.muted; // the swap must never un-mute anyone
+        const old = localStream.getAudioTracks()[0] || null;
+        for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
+          if (sender.track && sender.track.kind === 'audio' && (!old || sender.track === old)) sender.replaceTrack(na).catch(() => {});
+        }
+        if (old) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
+        localStream.addTrack(na);
+        meterFor('me', localStream);
+      }).catch(() => { /* mic re-grab refused — keep the current mode */ });
+    }
+
     // Join (or create) the room. The room id lives in the URL from the very
     // first moment — a reload, a bookmark, or a share all land in the SAME
     // room, and the room outlives everyone in it.
@@ -2969,6 +3001,12 @@
         // admin rooms) or its routing (offers/ICE) never take this path, so a
         // peer can't smuggle authority through its own channel.
         if (m.msg && m.msg.kind === 'status') onSignal(p.id, m.msg);
+      } else if (m.k === 'ck') {
+        // Clock sync (the grid's metronome): answer with our clock immediately;
+        // the asker derives offset + rtt NTP-style. Rides the free DC path.
+        dcSend(p, { k: 'ck2', t0: m.t0, t1: performance.now() });
+      } else if (m.k === 'ck2') {
+        clockSample(p.id, m.t0, m.t1, performance.now());
       } else if (m.k === 'relay-req') {
         startRelayJob(p, String(m.target || ''));
       } else if (m.k === 'relay-no') {
@@ -3975,6 +4013,144 @@
         applyBuses();
       });
     }
+    const paintFaders = () => { for (const b of ['stage', 'row', 'section', 'stadium']) { const i = document.getElementById('mix-' + b); if (i) i.value = Math.round(mix[b] * 100); } };
+
+    // ---- the grid: clock sync + per-stream delay alignment --------------------
+    // Voices over the internet don't smear because they're LATE — they smear
+    // because each one is late by a DIFFERENT amount. The grid removes the
+    // difference: clocks sync continuously over the DataChannels (NTP-style),
+    // and every incoming audio stream gets a per-receiver jitterBufferTarget so
+    // its total capture-to-ear delay lands on its BUS's tier. Always on: while
+    // people TALK, the near field (stage + your row) simply aligns to its
+    // slowest mate, capped — so shared laughter, "Amen"s and responsive
+    // readings land together instead of smearing. When someone leads a SONG
+    // the tiers stretch into cathedral acoustics: the stage plays at the same
+    // synced instant on every device (the room sings in true unison), your row
+    // swells a uniform beat behind your own voice, and the far units a beat
+    // behind that — each tier internally coherent, receding in time the way a
+    // real room recedes in space. Composition is free: the fold pipes tap
+    // tracks AFTER the jitter buffer, so a deacon's aligned row folds into an
+    // internally coherent composite that downstream rooms align as ONE stream.
+    const GRID = {
+      JB_BASE: 60,      // assumed decode+playout floor (ms); identical across streams, so it cancels where coherence matters
+      TALK_ROW: 280,    // talk: the near field aligns to its slowest mate, capped so one bad link can't drag the pew
+      SONG_STAGE: 280,  // song: the stage lands everywhere at capture+this — the true-unison anchor
+      SONG_ROW: 560,    // row voices land uniformly this far behind their capture — the pew around you
+      SONG_FAR: 840,    // section/stadium units — the far bank of the congregation
+      CK_EVERY: 5000, APPLY_EVERY: 3000,
+    };
+    const clk = new Map(); // pid -> { rtt, off, n } — the best (min-rtt) sample, slowly decayed
+    function clockSample(pid, t0, t1, t2) {
+      const rtt = Math.max(0, t2 - t0), off = t1 - (t0 + t2) / 2;
+      const c = clk.get(pid) || { rtt: Infinity, off: 0, n: 0 };
+      c.n++;
+      // Min-rtt filter: the least-queued sample is the most honest clock. The
+      // stored best inflates a little each round so one lucky sample from an
+      // hour ago can't pin the estimate after the network changes.
+      if (c.rtt !== Infinity) c.rtt = c.rtt * 1.15 + 2;
+      if (rtt <= c.rtt) { c.rtt = rtt; c.off = off; }
+      clk.set(pid, c);
+    }
+    setInterval(() => {
+      for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'ck', t0: performance.now() });
+    }, GRID.CK_EVERY);
+
+    // Sing state is DERIVED, not commanded: the leader carries `sing` in their
+    // own gossiped status, and the room is singing iff someone ON STAGE says
+    // so. Idempotent, timestamp-free convergence — and the song ends by itself
+    // if the leader steps down or leaves.
+    const singOf = (id) => !!(id === myId ? myStatus.sing : (statusOf.get(id) || {}).sing);
+    const roomSingOn = () => stageIds().some(singOf);
+    const singLeaderName = () => {
+      const pid = stageIds().find(singOf);
+      return pid === myId ? myName() : ((peers.get(pid) || {}).name || 'Someone');
+    };
+
+    // Apply the tiers: one jitterBufferTarget per incoming audio receiver so
+    // (network/2 + buffer) is EQUAL within a bus. Folds arrive as single
+    // streams on their carrier link and get aligned as units — exactly one
+    // knob per bus member, whether it's a neighbor or a thousand-voice fold.
+    const gridApplied = new Map(); // pid -> { bus, D, jbt, set } — inspection + tests
+    function applyGrid() {
+      const sing = roomSingOn();
+      const stg = new Set(stageIds());
+      const mates = new Set(rowMates());
+      const rttOf = (pid) => { const c = clk.get(pid); return c && c.n ? c.rtt : 200; }; // no sample yet → assume mid-pack
+      let rowD = 0; // talk tier: slowest near-field mate (that voice can't arrive sooner anyway), capped
+      for (const pid of peers.keys()) if (stg.has(pid) || mates.has(pid)) rowD = Math.max(rowD, rttOf(pid) / 2 + GRID.JB_BASE);
+      rowD = Math.min(GRID.TALK_ROW, Math.ceil(rowD));
+      gridApplied.clear();
+      for (const [pid, p] of peers) {
+        const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row' : rosterIds.includes(pid) ? 'section' : 'stadium';
+        const D = sing ? (bus === 'stage' ? GRID.SONG_STAGE : bus === 'row' ? GRID.SONG_ROW : GRID.SONG_FAR)
+          : (bus === 'stage' || bus === 'row') ? rowD : 0; // talk: far units play natural — they're a murmur, not a conversation
+        const jbt = D > 0 ? Math.max(0, Math.round(D - rttOf(pid) / 2 - GRID.JB_BASE)) : 0;
+        let set = false;
+        try {
+          for (const r of p.pc.getReceivers()) {
+            if (!r.track || r.track.kind !== 'audio') continue;
+            if ('jitterBufferTarget' in r) { r.jitterBufferTarget = jbt; set = true; }
+            else if ('playoutDelayHint' in r) { r.playoutDelayHint = jbt / 1000; set = true; } // older spelling, in seconds
+          }
+        } catch (e) { /* a receiver mid-teardown — next tick catches it */ }
+        gridApplied.set(pid, { bus, D, jbt, set });
+      }
+    }
+
+    // Song-mode reactions: fader preset (remembered and restored), the leader's
+    // music-grade mic, and a nudge for everyone else. All derived from
+    // roomSingOn(), so a leader vanishing mid-hymn unwinds everything.
+    let singWas = false, singPrevMix = null, singSteppedUp = false;
+    function reactSing() {
+      const on = roomSingOn();
+      if (on !== singWas) {
+        singWas = on;
+        if (on) {
+          singPrevMix = Object.assign({}, mix);
+          Object.assign(mix, { stage: 1, row: 0.55, section: 0.4, stadium: 0.3 }); // feature the leader; the room sings around you
+          paintFaders(); applyBuses();
+          if (myStatus.sing && stageIds().includes(myId)) setMicMode('music');
+          else setStatus('🎵 ' + esc(singLeaderName()) + ' is leading a song — sing along! (earbuds make your voice part of the choir)');
+        } else {
+          if (singPrevMix) { Object.assign(mix, singPrevMix); singPrevMix = null; paintFaders(); applyBuses(); }
+          setMicMode('voice'); // no-op unless we were the leader
+          setStatus('🎵 The song ended.');
+        }
+        paintSing();
+        applyGrid(); // retune the tiers now, not on the next tick
+      }
+    }
+    setInterval(() => { reactSing(); applyGrid(); }, GRID.APPLY_EVERY);
+
+    const singBtn = document.getElementById('singbtn');
+    function paintSing() {
+      const on = roomSingOn();
+      singBtn.classList.toggle('on', !!myStatus.sing);
+      singBtn.textContent = myStatus.sing ? '⏹ End song' : '🎵 Sing';
+      // Anyone allowed on stage may lead; mid-song the button hides for
+      // everyone else — one leader keeps the timing anchor unambiguous.
+      singBtn.style.display = (myStatus.sing || (!on && (!hasAdminRoom() || amAdmin || (modOf(myId).app && modOf(myId).app.on)))) ? '' : 'none';
+    }
+    singBtn.onclick = () => {
+      if (myStatus.sing) {
+        myStatus.sing = 0;
+        if (singSteppedUp) { singSteppedUp = false; setStage(false); } else broadcastStatus();
+        reactSing();
+        return;
+      }
+      if (!stageIds().includes(myId)) {
+        if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can lead a song here.'); return; }
+        if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
+        myStatus.sing = Date.now();
+        singSteppedUp = true; // we stepped up FOR the song — step back down with it
+        setStage(true);       // broadcasts
+      } else {
+        myStatus.sing = Date.now();
+        broadcastStatus();
+      }
+      reactSing();
+    };
+    paintSing();
 
     // ---- live transcript: each phone transcribes ITS OWN speaker -------------
     // The browser's speech engine hears only this device's microphone; final
@@ -4862,6 +5038,13 @@
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC)
+      grid: () => ({ // the alignment engine's live state: clocks, tiers, sing, mic
+        sing: roomSingOn(), mic: micMode,
+        clocks: Object.fromEntries(Array.from(clk, ([pid, c]) => [pid, { rtt: Math.round(c.rtt), off: Math.round(c.off), n: c.n }])),
+        targets: Object.fromEntries(Array.from(gridApplied, ([pid, g]) => [pid, g])),
+        mixNow: Object.assign({}, mix),
+      }),
+      singForTest: (on) => { if (!!on !== !!myStatus.sing) singBtn.onclick(); },
       // app-in-meeting
       appActive: () => !!appKey,
       appName: () => document.getElementById('appname').textContent,
