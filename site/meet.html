@@ -2130,12 +2130,16 @@
           amAdmin = amAdmin || admins.includes(myId);
           if (hasAdminRoom() && amAdmin) {
             if (roomBan.length) saveBans(roomBan);
-            else if (!banSeeded && m.peers.length <= 1) {
-              // Alone in a re-emptied room: re-seed the ban list from this
-              // device's copy — occupancy memory, still nothing on a server.
+            else if (!banSeeded) {
+              // The relay's list is empty — a fresh DO after eviction. Re-seed
+              // from this device's copy REGARDLESS of who is already inside:
+              // the no-admin window is exactly when banned devices sneak back
+              // in, and the relay cuts any listed socket on re-seed. Never
+              // save an empty relay list over stored occupancy memory — that
+              // would erase the bans the eviction already tried to lose.
               const stored = loadBans();
               if (stored.length) ws.send(JSON.stringify({ t: 'banlist', devs: stored }));
-            } else saveBans(roomBan);
+            }
             banSeeded = true;
           }
           syncVotes(); // my standing vote-offs apply to whoever is here now

@@ -350,10 +350,17 @@ export class Session {
       } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
         // An admin re-arriving to a (possibly re-emptied) admin room re-seeds
         // the ban list from their own device — occupancy memory, no storage.
+        // The no-admin window is exactly when a banned device can sneak back
+        // in (a fresh DO has an empty list), so the re-seed also CUTS any
+        // listed device already on a socket — same teeth as a live ban.
         const ban = cleanBanList(m.devs);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;
           try { ws2.serializeAttachment(a2); } catch (e) {}
+        }
+        for (const ws2 of this.members()) {
+          const a2 = this.att(ws2);
+          if (!a2.adm && a2.dev && ban.some((b) => b.d === a2.dev)) { try { ws2.close(4004, 'banned'); } catch (e) {} }
         }
         this.roster();
       }

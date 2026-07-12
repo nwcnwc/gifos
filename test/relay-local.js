@@ -286,7 +286,11 @@ server.on('upgrade', (req, socket) => {
         if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(); } catch (e) {} }
         roster();
       } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
+        // Re-seed also CUTS any listed device already on a socket (the
+        // no-admin window is when banned devices sneak back in) — mirrors
+        // relay/src/relay.js exactly.
         sess.ban = cleanBanList(m.devs);
+        for (const c of sess.clients.values()) if (!c.isAdmin && c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(); } catch (e) {} }
         roster();
       } else if (m.t === 'votekick' && !sess.av && Array.isArray(m.devs)) {
         conn.votes = cleanDevList(m.devs);
