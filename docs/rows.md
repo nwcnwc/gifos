@@ -40,7 +40,7 @@ never by branching.
 | | meaning | production default |
 |---|---|---|
 | `C` | THE shape constant: seats per row, rows per section, and the fanout at every level | 8 (grows with rehearsals) |
-| `COMP_W/H/FPS` | fold frame budget — every fold, at every level | 480×270 @ 12 |
+| `COMP_W/H/FPS` | fold frame budget — every fold, at every level | 756×1344 @ 12 (portrait 9:16, 1,016,064 px — a million pixels filling a phone's width) |
 | `HB` | status heartbeat ms — the gossip pulse everything idempotent rides | 4000 |
 
 Everything else is a **consequence**: a section seats `C²` = 64 (exactly
