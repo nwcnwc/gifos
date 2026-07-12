@@ -322,7 +322,7 @@ server.on('upgrade', (req, socket) => {
         // no-admin window is when banned devices sneak back in) — mirrors
         // relay/src/relay.js exactly.
         sess.ban = cleanBanList(m.devs);
-        for (const c of sess.clients.values()) if (!c.isAdmin && c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(); } catch (e) {} }
+        for (const c of sess.clients.values()) if (!c.isAdmin && c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();
       } else if (m.t === 'votekick' && !sess.av && Array.isArray(m.devs)) {
         conn.votes = cleanDevList(m.devs);
