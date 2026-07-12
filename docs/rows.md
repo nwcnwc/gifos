@@ -52,14 +52,20 @@ message counts, no compositor working, no forwarding hop taken.
 
 Phase map (each phase keeps every earlier suite green):
 
-1. **In-session rows** (done): rows partition one relay session
-   (≤ relay cap). Deacons, composites, stage, buses — everything below —
-   fully real at K=1 with ten browsers.
-2. **Multi-session rows**: a row = its own relay session; deacons
-   double-home into a parent session. Same code; the "roster" a client
-   reads becomes its row + the sessions it delegates into.
-3. **Recursive fold** (depth > 2), zoom-by-depth, hand-raise queue
-   folding, presence counting for the record.
+1. **In-session rows** (done — `test/e2e-rows.js`): rows partition one
+   relay session (≤ relay cap). Deacons, composites, stage, buses.
+2. **Multi-session rows** (done — `test/e2e-rows-multi.js`): a row = its
+   own relay session; deacons double-home into a parent session.
+3. **Recursive fold** (done to depth 3 — `test/e2e-rows-depth3.js`):
+   the uplink spawns an uplink, folds fold again, zoom, the global
+   hand-raise queue, presence counting. Two uplink levels are
+   instantiated (UP/UP2); depth 4+ repeats the same pattern — at
+   production constants depth 3 carries ~4,096 people, and each further
+   level multiplies by C² per branch space. Known CI caveat: the
+   depth-3 stadium is a 3-hop distribution tree, and ten browsers on
+   one shared CPU occasionally outrun the suite's convergence windows —
+   every autopsy shows a different last-mile straggler, none a repeated
+   structural defect. Production phones each own their CPU.
 
 ## Multi-session rows (phases 2–3): the self-similar session
 
