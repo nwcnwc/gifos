@@ -4,22 +4,27 @@
  *
  * One headless Chromium page joins the room, steps onto row 0, and streams a
  * gold "RESERVED" tile from that seat. It reveals NOTHING about who the seat
- * is for — a screen name is public and anyone can change theirs to it, so a
- * name is no key at all. The key is a WATCHWORD only you know: when you
- * arrive, type it in the meeting chat (chat gossip is room-wide, so this
- * works from any section of the stadium). The bot sees it, steps down
- * silently — no announcement, no name, nothing for a bystander to race —
- * and exits. You tap Stage the moment the gold tile vanishes.
+ * is for, and — deliberately — NOTHING inside the room can release it: not a
+ * name (public, forgeable), not a chat watchword (visible once used). The
+ * release is a purely LOCAL act on the machine running the bot, which only
+ * you can reach:
  *
- *   node test/squat.js --room mymeeting --code thunderbird
- *   …arrive later, type "thunderbird" in chat, take the stage.
+ *   - press Enter in the bot's terminal, or
+ *   - kill -USR1 <pid>            (pid is printed at start), or
+ *   - touch the --release file    (handy over ssh with nohup):
  *
- * Pick a watchword you wouldn't mind saying in public chat once — it is
- * visible in the chat log after you use it, but by then the hand-off has
- * already fired on the first sighting.
+ *   node test/squat.js --room mymeeting --release /tmp/free-seat &
+ *   …get seated in the room, ready on the Stage button, then:
+ *   ssh myserver touch /tmp/free-seat
+ *
+ * The bot steps down silently the moment any trigger fires — a bystander
+ * sees only a gold tile vanish, with no hint a hand-off happened. Tap Stage
+ * as it does. (Plain kill / Ctrl-C also frees the seat eventually — the
+ * room prunes the absent bot after its grace period — but the graceful
+ * triggers gossip the step-down instantly.)
  *
  * Options:
- *   --code <word>    REQUIRED: the secret watchword that frees the seat
+ *   --release <path> file whose appearance frees the seat (polled 1s)
  *   --room <name>    room to sit in (default: test)
  *   --name <label>   the squatter's own label (default: "Reserved")
  *   --pass <pw>      room password, if locked
@@ -32,14 +37,14 @@
  * no immunity — it holds a seat exactly as well as a person refusing to
  * move, and the room can vote it off (that's the anarchy principle: no
  * script beats the honest buttons). By default squat.js RESPECTS a bump and
- * keeps watching for the watchword without the seat. For a seat that can't
+ * keeps waiting for your release without the seat. For a seat that can't
  * be taken, run YOUR OWN admin room (/meet/<room>/<av>) and squat with
  * --av: there, stage rights are admins + grantees only.
  */
+const fs = require('fs');
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
-const CODE = (args.code || '').trim().toLowerCase();
-if (!CODE) { console.error('squat.js needs --code "<watchword>" — the secret you\'ll type in chat to free the seat.'); process.exit(1); }
+const RELEASE = args.release || '';
 const ROOM = args.room || 'test';
 const NAME = args.name || 'Reserved';
 const PASS = args.pass || '';
@@ -108,7 +113,8 @@ const fakeCam = `
   p.on('pageerror', (e) => console.log('[squat] pageerror: ' + e.message));
   await p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : ''));
   await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 1, null, { timeout: 60000 });
-  console.log('[squat] joined "' + ROOM + '" as "' + NAME + '" — taking a stage seat (watchword armed)');
+  console.log('[squat] joined "' + ROOM + '" as "' + NAME + '" — taking a stage seat (pid ' + process.pid + ')');
+  console.log('[squat] release: Enter here · kill -USR1 ' + process.pid + (RELEASE ? ' · touch ' + RELEASE : ''));
 
   // Take (and keep) the seat. stageIds() applies the room's own governance —
   // if we're not allowed (admin room, no grant) onStage() stays false and we
@@ -123,7 +129,7 @@ const fakeCam = `
     if (!st) return;
     if (st.on) { if (!hadSeat) console.log('[squat] seat taken — holding row 0'); hadSeat = true; warned = false; return; }
     if (hadSeat && !RESTAGE) {
-      console.log('[squat] BUMPED from the stage (the room\'s call — its right). Still listening for the watchword; rerun with --restage 1 to contest.');
+      console.log('[squat] BUMPED from the stage (the room\'s call — its right). Still awaiting your release; rerun with --restage 1 to contest.');
       hadSeat = false;
     } else if (!st.can && !warned) {
       console.log('[squat] cannot take the stage here (admin room, no grant?) — waiting and retrying');
@@ -133,21 +139,24 @@ const fakeCam = `
   await holdSeat();
   const holdIv = setInterval(holdSeat, 5000);
 
-  // Listen for the watchword in chat — room-wide, name-agnostic. The sender's
-  // name is IGNORED on purpose: names are public and forgeable; the word is
-  // the key.
+  // Wait for a LOCAL release — nothing in the room can trigger this. Three
+  // doors, all on the bot's own machine: stdin Enter, SIGUSR1, release file.
   await new Promise((resolve) => {
-    const iv = setInterval(async () => {
-      const hit = await p.evaluate((code) =>
-        window.__gifosVideo.chatTexts().some((t) => String(t).toLowerCase().indexOf(code) >= 0), CODE).catch(() => false);
-      if (hit) { clearInterval(iv); resolve(); }
-    }, 2000);
+    let done = false;
+    const fire = (how) => { if (done) return; done = true; console.log('[squat] released via ' + how); resolve(); };
+    process.on('SIGUSR1', () => fire('SIGUSR1'));
+    try { process.stdin.resume(); process.stdin.on('data', () => fire('stdin')); } catch (e) {}
+    if (RELEASE) {
+      const iv = setInterval(() => {
+        try { if (fs.existsSync(RELEASE)) { clearInterval(iv); fs.unlinkSync(RELEASE); fire('release file'); } } catch (e) {}
+      }, 1000);
+    }
   });
   clearInterval(holdIv);
   // Step down SILENTLY: no announcement, no name — a bystander sees only a
   // gold tile vanish, and doesn't know a hand-off happened at all.
   await p.evaluate(() => window.__gifosVideo.setStageForTest(false));
-  console.log('[squat] watchword heard — stepped down silently. The seat is yours; take the stage now.');
+  console.log('[squat] stepped down silently. The seat is yours; take the stage now.');
   await sleep(8000); // let the step-down gossip out before the socket dies
   await browser.close();
   process.exit(0);
