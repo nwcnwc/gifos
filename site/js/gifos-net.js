@@ -310,9 +310,13 @@
     // up. Per-device link count and fold fanout are CONSEQUENCES of the
     // arithmetic, never separate knobs. (Grows with rehearsals.)
     C: 8,
-    COMP_W: 480,      // fold frame budget: width…
-    COMP_H: 270,      // …height…
-    COMP_FPS: 12,     // …and rate. One fold per edge, each way, forever.
+    // The fold frame budget: 1344×756 = 1,016,064 px — the smallest 16:9
+    // frame past ONE MILLION PIXELS, on purpose: a million people in the
+    // room, and every one of them is a pixel of the fold. Phones decode
+    // ~1MP hardware-accelerated; one fold per edge, each way, forever.
+    COMP_W: 1344,
+    COMP_H: 756,
+    COMP_FPS: 12,
     HB: 4000,         // status heartbeat ms — the gossip pulse everything idempotent rides
   }, root.GIFOS_SCALE || {});
 

@@ -86,17 +86,26 @@
   .share .hint { color: var(--muted, #8888aa); }
   /* The wall of tiles wraps into rows and SCROLLS once it outgrows the
      screen — any number of people fit; you scroll the crowd like a feed. */
-  #grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto;
+  /* THE FEED: one endless vertical scroll, phone-first — the stage up top,
+     your row's live faces, your section's rows, then the stadium falling
+     away below. Every fold is constant-cost, so the scroll stays light no
+     matter how deep the room goes. */
+  #feed { flex: 1; min-height: 0; overflow-y: auto; }
+  #grid { display: grid; gap: 8px; padding: 8px;
           grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
-          grid-auto-rows: max-content; align-content: safe center; }
+          grid-auto-rows: max-content; }
+  #stagefeed { display: grid; gap: 8px; padding: 8px 8px 0; }
+  #stagefeed:empty { display: none; }
   /* The STADIUM (docs/rows.md): every row that isn't yours, folded to one
      composite tile each — a horizontally scrolling strip above your own row's
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
-  #stadium { display: none; flex: 0 0 auto; gap: 6px; padding: 8px 8px 0; overflow-x: auto; overflow-y: hidden; }
-  #stadium.on { display: flex; }
-  .rowtile { position: relative; flex: 0 0 auto; width: 176px; aspect-ratio: 16 / 9;
+  #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
+  #stadium.on { display: grid; }
+  .rowtile { position: relative; aspect-ratio: 16 / 9;
     background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
     border-radius: .6rem; overflow: hidden; }
+  .rowtile.decktile { grid-column: 1 / -1; } /* a deck is the wide shot */
+  #stagefeed .rowtile { width: 100%; }
   .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
   .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
     font-size: .65rem; color: var(--text, #e0e0f0); background: rgba(10,10,15,.7);
@@ -104,11 +113,12 @@
   /* On stage: the tile floats first and wears the accent — the whole room's
      eye line. The three-bus mix panel is a personal knob rack (receiver-side
      volume only — as ungovernable as any volume knob). */
-  .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
+  .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff);
+    grid-column: 1 / -1; aspect-ratio: 16 / 9; } /* the stage is the big tile */
   .rowtile.stagetile { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
   /* Zoom = pick your depth: a tapped stadium tile grows to a readable size
      (and back). The global hand queue reads as one ordered line. */
-  .rowtile.zoom { width: min(560px, 72vw); }
+  .rowtile.zoom { grid-column: 1 / -1; }
   #handq { display: none; padding: 6px 10px 0; font-size: .8rem; color: var(--text, #e0e0f0); }
   #handq.on { display: block; }
   #handq b { color: var(--accent, #b9a5ff); }
@@ -121,9 +131,12 @@
      a scrolling filmstrip along the bottom so everyone stays visible. */
   #apppane { display: none; flex-direction: column; flex: 1; min-height: 0; }
   body.has-app #apppane { display: flex; }
-  body.has-app #grid { flex: 0 0 auto; height: 132px; grid-auto-flow: column;
-    grid-template-columns: none; grid-auto-columns: 180px; grid-template-rows: 1fr;
-    overflow-x: auto; overflow-y: hidden; border-top: 1px solid var(--border, #2a2a3f); }
+  body.has-app #feed { flex: 0 0 auto; height: 132px; overflow-y: hidden;
+    border-top: 1px solid var(--border, #2a2a3f); }
+  body.has-app #grid { grid-auto-flow: column; grid-template-columns: none;
+    grid-auto-columns: 180px; grid-template-rows: 1fr; height: 132px; padding: 8px;
+    overflow-x: auto; overflow-y: hidden; }
+  body.has-app #stadium, body.has-app #stagefeed { display: none; }
   #appbar { display: flex; align-items: center; gap: .6rem; padding: .4rem .8rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #appbar #appname { font-weight: 700; }
@@ -373,8 +386,11 @@
     <div id="appmount"></div>
   </div>
   <div id="handq"></div>
-  <div id="stadium"></div>
-  <div id="grid"></div>
+  <div id="feed">
+    <div id="stagefeed"></div>
+    <div id="grid"></div>
+    <div id="stadium"></div>
+  </div>
   <div id="mixpanel" style="display:none">
     <b>Sound mix</b>
     <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
@@ -1347,7 +1363,10 @@
           if (!sender.track || sender.track.kind !== 'video') continue;
           const prm = sender.getParameters();
           if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
-          prm.encodings[0].maxBitrate = q.kbps * 1000;
+          // Carried media (folds, forwards, relay jobs) is budgeted by the
+          // FOLD constants, not the per-face rung — a million-pixel fold at
+          // the rung's floor would be soup.
+          prm.encodings[0].maxBitrate = auxSenders.has(sender) ? 2500000 : q.kbps * 1000;
           sender.setParameters(prm).catch(() => {});
         }
       }
@@ -3106,6 +3125,7 @@
     // another populated row exists to watch it, so a one-row room does none of
     // this — today's meeting, by arithmetic.
     const stadiumEl = document.getElementById('stadium');
+    const stagefeedEl = document.getElementById('stagefeed');
     // What I DISPLAY of the stadium: rowIndex -> { via, streamId, ids, names,
     // stream|null }. `via` is who delivers it — that row's own deacon (I'm a
     // deacon on the mesh) or MY deacon (forwarded down to me). Stream identity
@@ -3615,13 +3635,16 @@
     // empty: a one-row room shows exactly today's screen.
     function renderStadium() {
       const have = new Set(Array.from(compOf.keys()).map(String));
-      for (const el of Array.from(stadiumEl.children)) if (!have.has(el.dataset.row)) el.remove();
+      for (const holder of [stagefeedEl, stadiumEl])
+        for (const el of Array.from(holder.children)) if (!have.has(el.dataset.row)) el.remove();
+      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C; // my section's row range
       for (const [row, c] of compOf) {
         const stage = isStageKey(row);
-        let el = stadiumEl.querySelector('[data-row="' + String(row) + '"]');
+        const holder = stage ? stagefeedEl : stadiumEl; // stage feeds top the feed
+        let el = holder.querySelector('[data-row="' + String(row) + '"]');
         if (!el) {
           el = document.createElement('div');
-          el.className = 'rowtile' + (stage ? ' stagetile' : '');
+          el.className = 'rowtile' + (stage ? ' stagetile' : '') + (isDeckKey(row) ? ' decktile' : '');
           el.dataset.row = String(row);
           const v = document.createElement('video');
           v.autoplay = true; v.playsInline = true;
@@ -3629,12 +3652,17 @@
           lb.className = 'rlabel';
           el.appendChild(v); el.appendChild(lb);
           // zoom = pick your depth: tap a folded row to grow it, tap again to
-          // hand the space back to the strip
+          // hand the space back to the feed
           el.addEventListener('click', () => el.classList.toggle('zoom'));
-          stadiumEl.appendChild(el);
+          holder.appendChild(el);
         }
         const branch = isDeckKey(row);
-        el.style.order = stage ? -1 : branch ? 1000 + (+String(row).slice(2) || 0) : row;
+        // FEED ORDER below my row: my section's rows, then my deck's other
+        // sections' rows, then foreign decks at the very bottom — the crowd
+        // recedes with distance, exactly like a stadium.
+        el.style.order = stage ? -1
+          : branch ? 5000 + (+String(row).slice(2) || 0)
+          : (row > lo && row <= hi ? row : 1000 + row);
         const v = el.querySelector('video');
         if (c.stream && v.srcObject !== c.stream) {
           v.srcObject = c.stream;
@@ -3704,10 +3732,9 @@
         // stage nor my row — deacon-mesh partners, forwarded folds — is crowd
         p.video.volume = stg.has(pid) ? mix.stage : mates.has(pid) ? mix.row : mix.stadium;
       }
-      // strip tiles: forwarded stage entries are Stage, folds are Crowd
-      for (const el of stadiumEl.querySelectorAll('.rowtile video')) {
-        el.volume = el.closest('.stagetile') ? mix.stage : mix.stadium;
-      }
+      // feed tiles: forwarded stage entries are Stage, folds are Crowd
+      for (const el of stagefeedEl.querySelectorAll('.rowtile video')) el.volume = mix.stage;
+      for (const el of stadiumEl.querySelectorAll('.rowtile video')) el.volume = mix.stadium;
     }
     const mixPanel = document.getElementById('mixpanel');
     document.getElementById('mixbtn').onclick = () => {
