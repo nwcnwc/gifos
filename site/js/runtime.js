@@ -1367,15 +1367,38 @@
 
     const relayTo = (peer, msg) => tx(() => net.seal(key, msg).then((env) =>
       sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })))));
+    // Per-peer outbound flush chains: seal order stays global (cheap, on `tx`),
+    // but the PACED flush of each message runs on its own peer's chain so a big
+    // reply to one guest (a shared video blob) can't stall db-change traffic to
+    // the rest of the room, while still arriving in order to its own peer.
+    const oc = new Map();
+    const peerChain = (peer) => { let c = oc.get(peer); if (!c) { c = net.makeChain(); oc.set(peer, c); } return c; };
+    // Channel-less peer (symmetric NAT, no friend): the relay drops anything past
+    // its ~1MB burst / ~48KB-s refill, so drip a big reply under the refill rather
+    // than losing its tail. Small replies clear in the first burst.
+    const relayFlush = (peer, frags) => new Promise((resolve) => {
+      let i = 0; const BURST = 8;
+      (function drip() {
+        if (!peers.get(peer)) return resolve();
+        const target = i < BURST ? BURST : i + 1;
+        try { while (i < frags.length && i < target) { ws.send(JSON.stringify({ t: 'to', to: peer, msg: frags[i].o })); i++; } } catch (e) {}
+        if (i < frags.length) setTimeout(drip, 2300); else resolve();
+      })();
+    });
     // The path ladder for session traffic: P0 direct channel → P1 friend hop →
-    // P2 relay. The app never knows which rung carried its bytes.
-    const sendTo = (peer, msg) => tx(() => net.seal(key, msg).then((env) => {
-      const p = peers.get(peer);
-      if (p && p.channel && p.channel.readyState === 'open') return sendChunked(env, (piece, str) => p.channel.send(str));
-      const via = openRoute(peer);
-      if (via) return sendChunked(env, (piece) => via.send(JSON.stringify(net.fwdWrap('host', peer, piece))));
-      sendChunked(env, (piece) => ws.send(JSON.stringify({ t: 'to', to: peer, msg: piece })));
-    }));
+    // P2 relay. The app never knows which rung carried its bytes. Every rung is
+    // PACED to its transport's backpressure so a big message never overflows and
+    // gets its tail dropped (an unpaced dump was silently truncating shared blobs).
+    const sendTo = (peer, msg) => tx(() => net.seal(key, msg)).then((env) => {
+      const frags = net.chunk(env);
+      return peerChain(peer)(() => {
+        const p = peers.get(peer);
+        if (p && p.channel && p.channel.readyState === 'open') return net.pumpChannel(p.channel, frags, (f) => f.s);
+        const via = openRoute(peer);
+        if (via) return net.pumpChannel(via, frags, (f) => JSON.stringify(net.fwdWrap('host', peer, f.o)));
+        return relayFlush(peer, frags);
+      });
+    });
     const sendToAll = (msg) => { for (const peer of peers.keys()) sendTo(peer, msg); };
 
     // App delivery. A SMALL app goes over the relay the instant a peer joins —
@@ -1455,6 +1478,7 @@
         if (Date.now() - p.away > CONN.PEER_DROP) {
           if (p.pc) { try { p.pc.close(); } catch (e) { /* long dead */ } }
           peers.delete(peer);
+          oc.delete(peer); // drop their outbound flush chain too
           putSeen.delete(peer); // the replay window is long gone once we drop them
           changed = true;
         }
@@ -1997,10 +2021,14 @@
       return null;
     };
     const transportSend = (payload) => tx(() => net.seal(key, payload).then((env) => {
-      if (channel && channel.readyState === 'open') return sendChunked(env, (piece, str) => channel.send(str));
+      // Paced like the host reply path: a guest writing a big record to a
+      // read-write collection is hundreds of fragments — an unpaced dump overruns
+      // the DataChannel buffer and the host loses the tail.
+      const frags = net.chunk(env);
+      if (channel && channel.readyState === 'open') return net.pumpChannel(channel, frags, (f) => f.s);
       const fdc = myPeer && meshFriendDc();
-      if (fdc) return sendChunked(env, (piece) => fdc.send(JSON.stringify(net.fwdWrap(myPeer, 'host', piece))));
-      sendChunked(env, (piece, str) => ws.send(str));
+      if (fdc) return net.pumpChannel(fdc, frags, (f) => JSON.stringify(net.fwdWrap(myPeer, 'host', f.o)));
+      return sendChunked(env, (piece, str) => ws.send(str));
     }));
     // Session traffic that must ride the RELAY specifically (WebRTC bootstrap
     // signaling) — sealed like everything else.
