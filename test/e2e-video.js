@@ -840,6 +840,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('ban survives a fully-emptied room via the admin\'s copy', true);
   await adam2.close(); await bethAgain.close();
 
+  // ---- re-seed with the banned device ALREADY back inside -------------------
+  // The no-admin window: the relay forgot (fresh DO, empty list), the banned
+  // device sneaks in FIRST, and only then does the admin return. The re-seed
+  // must land with the same teeth as a live ban — cut the squatter's socket —
+  // and the empty relay list must NOT wipe the admin's stored ban memory.
+  await sleep(600); // room fully empties again — the relay forgets everything
+  const bethSneak = await openRoom(bethCtx, 'beth5', admHash);
+  await bethSneak.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 1 && !window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
+  check('banned device sneaks into the admin-less re-emptied room (the window under test)', true);
+  const adam3 = await openRoom(adamCtx, 'adam3', admHash);
+  await adam3.waitForFunction(() => window.__gifosVideo.amAdmin() && window.__gifosVideo.banList().length === 1, null, { timeout: 12000 });
+  await bethSneak.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
+  check('the returning admin\'s re-seed keeps his ban memory AND cuts the squatting banned device', true);
+  await adam3.close(); await bethSneak.close();
+
   // ================= admin-absence auto-close (host must be present) ==========
   // A bio-link room lives only while its host is present: host gone → 10s grace,
   // then a visible 5-minute countdown, then the room evacuates. Host back cancels.
