@@ -267,7 +267,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await caiTileOnAda.locator('button[data-mod="mute"]').click();
   await bPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
-    return t && t.querySelector('video').muted && /muted for everyone by Ada/.test(t.textContent);
+    // Group mute lands on the tile's COMPANION audio — the <video> itself is
+    // always muted (picture-only) so hidden tabs can't silence the meeting.
+    const v = t && t.querySelector('video');
+    return v && v._aud && v._aud.muted && /muted for everyone by Ada/.test(t.textContent);
   }, null, { timeout: 10000 });
   check('group-mute silences the target on OTHER phones too, attributed to who did it', true);
   await cPage.waitForFunction(() => /muted for everyone by Ada/.test(document.querySelector('.tile.me').textContent), null, { timeout: 10000 });
@@ -286,7 +289,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await caiTileOnBob.locator('button[data-mod="mute"]').click();
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
-    return t && !t.querySelector('video').muted;
+    const v = t && t.querySelector('video');
+    return v && v._aud && !v._aud.muted;
   }, null, { timeout: 10000 });
   check('anyone can lift a group-mute (and it clears everywhere)', true);
 
@@ -345,6 +349,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- recording: on-device, loudly attributed ----------
   await aPage.locator('#recbtn').click();
+  // Record now opens a scope/quality popup — choose "Everything I see" and start.
+  await aPage.locator('#rec-options input[name=rec-scope][value="all"]').check();
+  await aPage.locator('#ro-start').click();
   await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
     .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 10000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
