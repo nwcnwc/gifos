@@ -32,6 +32,29 @@ body {
 .vbtn { padding: .3rem .7rem; border-radius: .4rem; border: 1px solid var(--accent);
   background: none; color: var(--accent); cursor: pointer; font-size: .78rem; }
 .vbtn:hover { background: rgba(123,92,255,.15); }
+
+/* update bar: louder when a critical release is waiting */
+.update-bar.critical { background: linear-gradient(135deg, rgba(255,92,92,.28), rgba(255,150,60,.28)); border-bottom-color: #ff6b6b; }
+
+/* changelog in the Version panel */
+.changelog { margin: .2rem 0 .7rem; }
+.cl-title { margin: .2rem 0 .5rem; font-size: .9rem; }
+.cl-entry { border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .7rem; margin-bottom: .5rem; }
+.cl-entry.cl-critical { border-color: #ff6b6b; background: color-mix(in srgb, #ff5c5c 8%, transparent); }
+.cl-head { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+.cl-date { color: var(--muted); font-size: .74rem; }
+.cl-badge { margin-left: auto; font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  color: #fff; background: #d33; border-radius: .3rem; padding: .1rem .4rem; }
+.cl-headline { font-size: .82rem; margin: .25rem 0 .1rem; }
+.cl-notes { margin: .2rem 0 0; padding-left: 1.1rem; }
+.cl-notes li { color: var(--muted); font-size: .8rem; line-height: 1.45; margin: .1rem 0; }
+
+/* erase lives in its own nested disclosure inside Advanced */
+details.adv.danger-zone { margin-top: .3rem; }
+details.adv.danger-zone summary { color: color-mix(in srgb, #ff5c5c 55%, var(--muted)); }
+details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+.widebtn.danger { border-color: #a12626; color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
+.widebtn.danger:hover { background: #a12626; color: #fff; }
 .vtag { color: var(--muted); font-size: .78rem; }
 
 /* menu bar */

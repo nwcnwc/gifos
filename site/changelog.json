@@ -1,0 +1,26 @@
+{
+  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
+  "entries": [
+    {
+      "version": "0.7.0",
+      "date": "2026-07-12",
+      "critical": false,
+      "headline": "Share media in meetings + opt-in updates",
+      "notes": [
+        "Fixed: sharing a large video in a meeting now loads fully for guests (big shared files were silently truncated in transit).",
+        "Updates are now opt-in — your computer no longer refreshes itself in the background. A plain reload always keeps your current version; update when you choose from Settings → Advanced → Version.",
+        "The \"Erase This Computer\" button moved deep into Advanced settings so it can't be tapped by accident.",
+        "My Media: smaller interface, live recording preview, front/back camera flip, and guests can play videos you mark visible."
+      ]
+    },
+    {
+      "version": "0.6.0",
+      "date": "2026-06-01",
+      "critical": false,
+      "headline": "Pre-launch test build",
+      "notes": [
+        "An earlier pre-launch build, kept for testing and rollback. Your files and data carry across versions (migrations are additive), so switching between builds is safe and reversible."
+      ]
+    }
+  ]
+}
