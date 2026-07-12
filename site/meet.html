@@ -812,7 +812,21 @@
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
-    setInterval(() => { if (peers.size && ws && ws.state === 'up') broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, SCALE.HB);
+    let hbTick = 0;
+    setInterval(() => {
+      hbTick++;
+      // A hidden tab beats at a third of the pace (12s — still inside every 15s
+      // freshness window): a phone in a pocket keeps its seat without waking
+      // the relay 21,600 times a day. Delegates keep full pace — the spaces
+      // above them count the room through their assertions.
+      const throttled = document.hidden && !(UP && UP.on) && !(UP2 && UP2.on) && hbTick % 3 !== 0;
+      // Beat whenever anyone can hear us: the relay socket, or any live
+      // DataChannel (status prefers DCs — see sendSig — so a healing relay
+      // socket no longer silences the room's pulse).
+      const audible = (ws && ws.state === 'up') || Array.from(peers.values()).some((p) => p.dc && p.dc.readyState === 'open');
+      if (peers.size && audible && !throttled) broadcastStatus();
+      if (typeof reconcileApp === 'function') reconcileApp();
+    }, SCALE.HB);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
     // thing we say is an honest "away", and the first thing back is "here".
@@ -1419,7 +1433,25 @@
       if ((msg.kind === 'offer' || msg.kind === 'answer') && msg.sdp) return Object.assign({}, msg, { sdp: sdpSansIce(msg.sdp) });
       return msg;
     };
+    const txStats = { relayStatus: 0, dcStatus: 0 }; // test/inspection hook: where heartbeats actually travel
     const sendSig = (to, msg) => {
+      // STATUS gossip — the every-few-seconds pulse that is nearly all of a
+      // quiet meeting's traffic — prefers the pair's own DataChannel: the relay
+      // is a hibernated Durable Object that is WOKEN AND BILLED for every frame
+      // it carries, so two idle connected tabs heartbeating through it burn
+      // ~43k relay requests a day. Over the DC the same pulse costs nothing.
+      // Exception: an admin's heartbeat in an admin room re-gossips the mod
+      // table, which receivers only trust with the RELAY's admin stamp — that
+      // one stays on the relay. Offers/answers/ICE stay on the relay too (the
+      // DC doesn't exist yet when they matter).
+      if (msg.kind === 'status' && !(hasAdminRoom() && amAdmin)) {
+        const pd = peers.get(to);
+        if (pd && pd.dc && pd.dc.readyState === 'open') {
+          const m2 = sigSansIce(to, msg);
+          if (m2) { txStats.dcStatus++; dcSend(pd, { k: 'sig', msg: m2 }); }
+          return;
+        }
+      }
       // Route on membership, lowest shared space first: leaf, then the
       // parent space, then the level-2 space — deterministic, so both
       // halves of a handshake take the same path.
@@ -1429,6 +1461,10 @@
         else if (UP2.on && UP2.roster.includes(to)) sock = UP2.ws;
       }
       if (!sock) return;
+      // A heartbeat is re-minted every tick — never queue a stale one on a down
+      // socket (a queued backlog would blast on reconnect, and the queue-wake
+      // used to defeat the reconnect backoff entirely).
+      if (msg.kind === 'status') { if (sock.state !== 'up') return; txStats.relayStatus++; }
       msg = sigSansIce(to, msg);
       if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
@@ -2110,7 +2146,14 @@
       ws = net.steadySocket(buildWsUrl); // self-healing: backoff + visibility/online kicks live in the fabric
       lastVoteSync = null; // a fresh socket re-syncs my standing votes
       ws.onopen = () => { lastVoteSync = null; updateStatus(); };
-      ws.onstate = () => updateStatus(); // live P2P links stay up; we quietly rejoin the room
+      ws.onstate = () => {
+        updateStatus(); // live P2P links stay up; we quietly rejoin the room
+        // Evicted by a NEWER tab of this same room on this same device: the
+        // socket stays down on purpose (reconnecting would evict the newer tab
+        // right back — the ping-pong that once burned 45k relay wakes in a
+        // night). Say so instead of showing an eternal "reconnecting".
+        if (ws.rejected === 4000) setStatus('👋 This meeting is open in a newer tab — this one has stepped back.');
+      };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'joined') { myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
@@ -2805,6 +2848,12 @@
           showCaption(m.m.byId, m.m.text);
           sendAll({ k: 'tr', m: m.m }); // gossip onward, like chat
         }
+      } else if (m.k === 'sig') {
+        // Status gossip carried on the pair's DataChannel (see sendSig) —
+        // status ONLY: frames that need the relay's admin stamp (mod tables in
+        // admin rooms) or its routing (offers/ICE) never take this path, so a
+        // peer can't smuggle authority through its own channel.
+        if (m.msg && m.msg.kind === 'status') onSignal(p.id, m.msg);
       } else if (m.k === 'relay-req') {
         startRelayJob(p, String(m.target || ''));
       } else if (m.k === 'relay-no') {
@@ -4674,6 +4723,7 @@
     window.__gifosVideo = {
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
+      txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC)
       // app-in-meeting
       appActive: () => !!appKey,
       appName: () => document.getElementById('appname').textContent,

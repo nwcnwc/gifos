@@ -60,7 +60,20 @@ class Conn {
     try { this.socket.write(Buffer.concat([header, payload])); } catch (e) {}
   }
   send(text) { this.frame(0x1, text); }
-  close() { try { this.frame(0x8, Buffer.alloc(0)); this.socket.end(); } catch (e) {} }
+  // Coded closes mirror the Worker: the client's reconnect policy keys on them
+  // (4000 replaced / 4004 banned / 4007 voted-off are terminal — see
+  // steadySocket's FATAL_CLOSES), so local tests must speak them too.
+  close(code, reason) {
+    try {
+      if (code) {
+        const r = Buffer.from(String(reason || '').slice(0, 120), 'utf8');
+        const p = Buffer.alloc(2 + r.length);
+        p.writeUInt16BE(code, 0); r.copy(p, 2);
+        this.frame(0x8, p);
+      } else this.frame(0x8, Buffer.alloc(0));
+      this.socket.end();
+    } catch (e) {}
+  }
 }
 
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot
@@ -112,16 +125,25 @@ server.on('upgrade', (req, socket) => {
   if (jlog.length > 120) { rejectConn('joining too fast — slow down'); return; }
   conn.ip = ip;
 
-  // Bandwidth guard — token bucket, mirrors the Worker (media must go P2P).
+  // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
+  // must go P2P; tiny-frame loops get warned, then cut with 1013).
   const BURST = 1024 * 1024, REFILL = 48 * 1024;
-  const meter = { tokens: BURST, last: Date.now(), warned: false };
+  const FRAME_BURST = 600, FRAMES_PER_SEC = 3, FRAME_STRIKES = 3;
+  const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
     const now = Date.now();
-    meter.tokens = Math.min(BURST, meter.tokens + ((now - meter.last) / 1000) * REFILL);
+    const dt = (now - meter.last) / 1000;
+    meter.tokens = Math.min(BURST, meter.tokens + dt * REFILL);
+    meter.frames = Math.min(FRAME_BURST, meter.frames + dt * FRAMES_PER_SEC);
     meter.last = now;
     const len = Buffer.byteLength(data || '');
-    if (len <= BURST && meter.tokens >= len) { meter.tokens -= len; meter.warned = false; return true; }
-    if (!meter.warned) { meter.warned = true; conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' })); }
+    if (len <= BURST && meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return true; }
+    if (!meter.warned) {
+      meter.warned = true;
+      meter.strikes++;
+      conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' }));
+      if (meter.strikes >= FRAME_STRIKES) { try { conn.close(1013, 'rate'); } catch (e) {} }
+    }
     return false;
   };
   const roster = () => {
@@ -151,7 +173,7 @@ server.on('upgrade', (req, socket) => {
     sess.ban.push({ d: dev, n: String(name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift();
     const s = JSON.stringify({ t: 'ban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
     for (const c of sess.clients.values()) c.send(s);
-    for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(); } catch (e) {} }
+    for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(4004, 'banned'); } catch (e) {} }
     roster();
   };
   const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
@@ -176,7 +198,7 @@ server.on('upgrade', (req, socket) => {
       if (tally[d] >= need) {
         const b = JSON.stringify({ t: 'ban', dev: d, name: '', by: 'the room (vote)' });
         for (const c of sess.clients.values()) c.send(b);
-        for (const c of Array.from(sess.clients.values())) if (c.dev === d) { try { c.close(); } catch (e) {} }
+        for (const c of Array.from(sess.clients.values())) if (c.dev === d) { try { c.close(4007, 'voted-off'); } catch (e) {} }
         roster();
       }
     }
@@ -206,7 +228,7 @@ server.on('upgrade', (req, socket) => {
       const curEpoch = sess.hostEpoch || 0;
       if (epoch < curEpoch) { rejectConn('host-stale'); return; }
       if (epoch === curEpoch && hostid && sess.hostHostid && hostid !== sess.hostHostid) { rejectConn('host-taken'); return; }
-      try { sess.host.close(); } catch (e) {}
+      try { sess.host.close(4001, 'replaced by a new host'); } catch (e) {}
     }
     sess.host = conn; sess.token = token; sess.hostEpoch = epoch; sess.hostHostid = hostid;
     conn.onmessage = (data) => {
@@ -260,7 +282,7 @@ server.on('upgrade', (req, socket) => {
     for (const [p, c] of Array.from(sess.clients)) {
       if (p === peer || (dev && c.dev === dev)) {
         sess.clients.delete(p); sess.names.delete(p);
-        try { c.close(); } catch (e) {}
+        try { c.close(4000, 'replaced'); } catch (e) {} // terminal for the evicted tab — no reconnect ping-pong
         if (p !== peer) { const s = JSON.stringify({ t: 'peer-leave', peer: p }); for (const cc of sess.clients.values()) cc.send(s); }
       }
     }
@@ -283,7 +305,7 @@ server.on('upgrade', (req, socket) => {
         if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
         const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, BAN_NAME), by: (m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
-        if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(); } catch (e) {} }
+        if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();
       } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
         // Re-seed also CUTS any listed device already on a socket (the
