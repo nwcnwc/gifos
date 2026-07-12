@@ -1561,31 +1561,30 @@ document.getElementById('f').onsubmit=async e=>{
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);font:15px system-ui,sans-serif;display:flex;flex-direction:column}
-  header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f)}
-  header h1{font-size:1.05rem;margin:0;flex:1;color:var(--accent,#ff7850)}
-  header h1 small{display:block;font-weight:400;font-size:.68rem;color:var(--muted,#8888aa)}
-  button{font:inherit;cursor:pointer;border-radius:9px}
-  .btn{padding:8px 12px;border:0;background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
+  body{margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);font:13px system-ui,sans-serif;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f)}
+  header h1{font-size:.92rem;font-weight:800;margin:0;flex:1;color:var(--accent,#ff7850);white-space:nowrap}
+  button{font:inherit;cursor:pointer;border-radius:8px}
+  .btn{padding:5px 10px;border:0;background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
   .btn.ghost{background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
-  #cap{display:flex;gap:6px}
-  #cap button{padding:8px 10px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font-size:16px}
-  #bar{display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-bottom:1px solid var(--border,#2a2a3f)}
-  .seg{display:inline-flex;border:1px solid var(--border,#2a2a3f);border-radius:9px;overflow:hidden}
-  .seg button{padding:6px 12px;border:0;background:transparent;color:var(--muted,#8888aa);font-size:.85rem}
+  #cap{display:flex;gap:4px}
+  #cap button{padding:4px 7px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font-size:14px}
+  #bar{display:flex;gap:6px;align-items:center;padding:6px 10px;flex-wrap:wrap;border-bottom:1px solid var(--border,#2a2a3f)}
+  .seg{display:inline-flex;border:1px solid var(--border,#2a2a3f);border-radius:8px;overflow:hidden}
+  .seg button{padding:4px 9px;border:0;background:transparent;color:var(--muted,#8888aa);font-size:.78rem}
   .seg button.on{background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
-  select{font:inherit;padding:6px 10px;border-radius:9px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
-  #count{margin-left:auto;color:var(--muted,#8888aa);font-size:.8rem}
-  #grid{flex:1;overflow-y:auto;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;align-content:start}
-  .card{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .1s}
+  select{font:inherit;font-size:.78rem;padding:4px 8px;border-radius:8px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
+  #count{margin-left:auto;color:var(--muted,#8888aa);font-size:.72rem}
+  #grid{flex:1;overflow-y:auto;padding:8px 10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;align-content:start}
+  .card{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:9px;overflow:hidden;cursor:pointer;transition:transform .1s}
   .card:active{transform:scale(.97)}
-  .thumb{position:relative;aspect-ratio:1/1;background:#0c0c14 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:34px}
-  .thumb .kind{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);border-radius:6px;padding:1px 6px;font-size:11px}
-  .thumb .shared{position:absolute;top:6px;right:6px;background:color-mix(in srgb,var(--accent,#ff7850) 88%,#000);color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700}
-  .thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;text-shadow:0 2px 8px #000;color:#fff}
-  .meta{padding:8px 10px}
-  .meta .nm{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .meta .cat{display:inline-block;margin-top:4px;font-size:.68rem;color:var(--accent,#ff7850);background:color-mix(in srgb,var(--accent,#ff7850) 16%,transparent);border-radius:5px;padding:1px 6px}
+  .thumb{position:relative;aspect-ratio:1/1;background:#0c0c14 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:26px}
+  .thumb .kind{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.55);border-radius:5px;padding:0 5px;font-size:10px}
+  .thumb .shared{position:absolute;top:4px;right:4px;background:color-mix(in srgb,var(--accent,#ff7850) 88%,#000);color:#fff;border-radius:5px;padding:0 5px;font-size:10px;font-weight:700}
+  .thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;text-shadow:0 2px 8px #000;color:#fff}
+  .meta{padding:4px 6px}
+  .meta .nm{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .cat{display:inline-block;margin-top:3px;font-size:.62rem;color:var(--accent,#ff7850);background:color-mix(in srgb,var(--accent,#ff7850) 16%,transparent);border-radius:4px;padding:0 5px}
   #empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted,#8888aa);padding:2rem}
   #empty .big{font-size:44px;margin-bottom:.5rem}
   #drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent,#ff7850) 22%,rgba(0,0,0,.6));font-size:1.2rem;font-weight:700;color:#fff;z-index:20;border:4px dashed #fff}
@@ -1611,7 +1610,7 @@ document.getElementById('f').onsubmit=async e=>{
   #toast.on{opacity:1}
 </style></head><body>
 <header>
-  <h1>My Media<small>Your images, audio &amp; video — stored on this device</small></h1>
+  <h1>My Media</h1>
   <span id="cap"></span>
   <button class="btn" id="add">＋ Add</button>
 </header>

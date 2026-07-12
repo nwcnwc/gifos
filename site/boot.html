@@ -92,7 +92,7 @@ window.GIFOS_VERSION = '0.7.0';
     }
 
     function hydrate(archive) {
-      var dj = JSON.parse(gif.bytesToText(archive.files['desktop.json']));
+      var dj = GifOS.store.unpackJSON(gif.bytesToText(archive.files['desktop.json'])); // binary-safe: media blobs survive
       var chain = Promise.resolve();
       (dj.fileMeta || []).forEach(function (m) {
         var bytes = archive.files['files/' + m.id];

@@ -4392,7 +4392,7 @@
         if (!sess || !sess.sid) throw new Error('app session did not start');
         appKey = sess.sid;
         appLeadSet = (r && r.setLead) || null;
-        appLeadable = !!(r && r.ledCount);
+        appLeadable = !!(r && r.leadCount);
         appLeadOn = lead && appLeadable;
         if (appLeadSet) appLeadSet(appLeadOn);
         appHiddenSid = null;

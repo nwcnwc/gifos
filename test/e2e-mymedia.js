@@ -31,6 +31,20 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
   ok('imported image appears in the library', await fr.locator('.card').count() === 1);
   ok('grid card shows a baked thumbnail', /background-image/.test(await fr.locator('.card .thumb').first().getAttribute('style')||''));
 
+  // Steal / backup serialize state to a GIF via the binary-safe packer. A blob's
+  // Uint8Array must survive that round-trip (a plain JSON.stringify mangled it —
+  // and on a video-sized blob crashed the steal, so "nothing showed up").
+  const binOk = await page.evaluate(async (fid) => {
+    const s = await GifOS.store.getState(fid);
+    const items = s && s.collections && s.collections.blobs && s.collections.blobs.items;
+    const first = items && Object.values(items)[0];
+    if (!first || !(first.bytes instanceof Uint8Array) || !first.bytes.length) return { ok:false, why:'no blob' };
+    const round = GifOS.store.unpackJSON(GifOS.store.packJSON(s));
+    const back = round.collections.blobs.items[first.id].bytes;
+    return { ok: back instanceof Uint8Array && back.length === first.bytes.length && back[0] === first.bytes[0] && back[back.length-1] === first.bytes[first.bytes.length-1], len: first.bytes.length };
+  }, info.id);
+  ok('stored blob survives the steal/backup serializer (binary-safe)', binOk.ok, JSON.stringify(binOk));
+
   // open it → the image player shows the real bytes (binary round-trip through gifos.db)
   await fr.locator('.card').first().click();
   await fr.locator('#stage img').waitFor({timeout:5000});

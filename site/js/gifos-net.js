@@ -266,10 +266,17 @@
     for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
     return out;
   };
+  // Binary-safe (de)serialization lives in GifOS.store (the one module loaded on
+  // every page); seal/open use it so a Uint8Array db value — e.g. My Media's
+  // stored photo/video bytes — survives the mesh instead of turning into a
+  // mangled {"0":..} object. Fall back to plain JSON if store isn't present.
+  const packJSON = (obj) => (GifOS.store && GifOS.store.packJSON ? GifOS.store.packJSON(obj) : JSON.stringify(obj));
+  const unpackJSON = (str) => (GifOS.store && GifOS.store.unpackJSON ? GifOS.store.unpackJSON(str) : JSON.parse(str));
+
   async function seal(key, obj) {
     const iv = new Uint8Array(12);
     root.crypto.getRandomValues(iv);
-    const ct = await root.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc(JSON.stringify(obj)));
+    const ct = await root.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc(packJSON(obj)));
     return { e: 1, iv: b64ofBuf(iv), ct: b64ofBuf(ct) };
   }
   const isSealed = (m) => !!(m && m.e === 1 && typeof m.iv === 'string' && typeof m.ct === 'string');
@@ -277,7 +284,7 @@
     if (!isSealed(m) || !key) return null;
     try {
       const pt = await root.crypto.subtle.decrypt({ name: 'AES-GCM', iv: bufOfB64(m.iv) }, key, bufOfB64(m.ct));
-      return JSON.parse(new TextDecoder().decode(pt));
+      return unpackJSON(new TextDecoder().decode(pt));
     } catch (e) { return null; } // wrong key or tampered — drop silently
   }
 

@@ -15,12 +15,16 @@ let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// A minimal app whose manifest declares 'nav' as a LED record. Two buttons:
-// one writes the led record, one writes a free record; #res reports the fate.
+// A minimal app whose 'ctl' collection is shared (read-write) and whose 'nav'
+// record is LEADABLE — the sharer's Leading toggle flips it read-only, so only
+// the leader may write it. Two buttons: one writes the leadable record, one a
+// free record; #res reports the fate.
 const LED_APP = {
   'manifest.json': JSON.stringify({
     gifos: '1.0', appId: 'ledtest', name: 'LedTest', entry: 'index.html',
-    capabilities: { db: true, multiplayer: true }, ledRecords: ['nav'],
+    capabilities: { db: true, multiplayer: true },
+    data: { ctl: { visibility: 'read-write' } },
+    lead: [{ collection: 'ctl', id: 'nav' }],
   }),
   'index.html': '<!doctype html><meta charset="utf-8"><body>'
     + '<div id="nav">-</div><div id="res">-</div>'
