@@ -2542,13 +2542,15 @@
     // in ordinary conversation). Same swap idiom as reviveCamera: replace only
     // the senders that carry OUR old mic track (never the fold-mix aux tracks),
     // and mutate the SAME localStream so our announced stream id never changes.
-    let micMode = 'voice';
-    function setMicMode(mode) {
-      if (mode === micMode || !localStream) return;
+    let micMode = 'voice', micGrabbing = false;
+    function setMicMode(mode, force) {
+      if ((mode === micMode && !force) || micGrabbing || !localStream) return;
       const want = mode === 'music'
         ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
         : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      micGrabbing = true;
       navigator.mediaDevices.getUserMedia({ audio: want }).then((s) => {
+        micGrabbing = false;
         const na = s.getAudioTracks()[0];
         if (!na) return;
         micMode = mode;
@@ -2560,7 +2562,29 @@
         if (old) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
         localStream.addTrack(na);
         meterFor('me', localStream);
-      }).catch(() => { /* mic re-grab refused — keep the current mode */ });
+      }).catch(() => { micGrabbing = false; /* mic re-grab refused — keep the current mode */ });
+    }
+
+    // Headphones plugged in (or pulled out) MID-MEETING: with an active mic,
+    // mobile browsers run a phone-call-style audio session whose output route
+    // is chosen when the capture STARTS — plugging in earbuds later does
+    // nothing until the mic restarts. So restart it: re-grab in the CURRENT
+    // mode on every device change, which makes the browser re-open the audio
+    // session and route both your mic and the room's sound to the headset.
+    // (This is exactly the moment sing mode tells people to plug in earbuds.)
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      let devT = 0;
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        if (!localStream) return;
+        clearTimeout(devT);
+        devT = setTimeout(() => {
+          setMicMode(micMode, true); // same mode, fresh session → fresh route
+          // A route change can pause background audio elements — re-kick them.
+          for (const el of document.querySelectorAll('.tile video, .rowtile video')) {
+            if (el._aud && el._aud.srcObject) el._aud.play().catch(() => {});
+          }
+        }, 400); // devices settle in a burst — act once
+      });
     }
 
     // Join (or create) the room. The room id lives in the URL from the very
@@ -5290,6 +5314,8 @@
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC)
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
+        micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
+        micOn: !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
         clocks: Object.fromEntries(Array.from(clk, ([pid, c]) => [pid, { rtt: Math.round(c.rtt), off: Math.round(c.off), n: c.n }])),
         targets: Object.fromEntries(Array.from(gridApplied, ([pid, g]) => [pid, g])),
         mixNow: Object.assign({}, mix),

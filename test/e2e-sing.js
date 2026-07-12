@@ -94,6 +94,19 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the leader hears the congregation on the FAR tier (the cathedral echo, D=840)', roomTgtA && roomTgtA.D === 840 && roomTgtA.set === true, JSON.stringify(roomTgtA));
   check('the follower\'s faders moved to the song preset (stage featured)', sB.mixNow.stage === 1 && sB.mixNow.row === 0.55, JSON.stringify(sB.mixNow));
 
+  // ---- headphones plugged in mid-song: the mic session restarts ----
+  // Mobile browsers pick the speaker-vs-headset route when the mic capture
+  // STARTS; a devicechange must re-grab the mic (same mode) so the route is
+  // re-evaluated. Simulate the plug event and watch the track swap.
+  const beforePlug = await a.evaluate(() => window.__gifosVideo.grid());
+  await a.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
+  await a.waitForFunction((prev) => { const g = window.__gifosVideo.grid(); return g.micTrack && g.micTrack !== prev; }, beforePlug.micTrack, { timeout: 8000 });
+  const afterPlug = await a.evaluate(() => window.__gifosVideo.grid());
+  check('plugging headphones restarts the mic session (fresh track, fresh route)', afterPlug.micTrack !== beforePlug.micTrack, 'track changed');
+  // Meetings join QUIET by design — the swap must preserve the mute state
+  // exactly as it was, whatever it was, and stay in music mode.
+  check('…still in MUSIC mode with the mute state preserved', afterPlug.mic === 'music' && afterPlug.micOn === beforePlug.micOn, JSON.stringify({ mic: afterPlug.mic, on: afterPlug.micOn, was: beforePlug.micOn }));
+
   // ---- the song ends: everything unwinds ----
   await a.evaluate(() => window.__gifosVideo.singForTest(false));
   await b.waitForFunction(() => window.__gifosVideo.grid().sing === false, null, { timeout: 15000 });
