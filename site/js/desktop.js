@@ -22,6 +22,7 @@
 
   let latestVersion = VERSION;      // from version.json
   let availableVersions = [VERSION];
+  let changelog = null;             // from changelog.json (live), rendered in the Version panel
   const pinnedVersion = () => { try { return localStorage.getItem('gifos_pin'); } catch (e) { return null; } };
   // Compare dotted versions: >0 if a>b.
   function cmpVer(a, b) {
@@ -1294,7 +1295,8 @@
     { label: 'Empty Trash', fn: emptyTrash },
     'sep',
     { label: 'Settings…', fn: showSettings },
-    { label: 'Erase This Computer…', cls: 'danger', fn: resetFlow },
+    // Erasing the whole computer now lives deep in Settings → Advanced, not on
+    // this top-level menu, so it can't be triggered by an accidental tap.
   ]));
 
   // ---------- version: update nudge + pinning ----------
@@ -1306,26 +1308,30 @@
     updateBar.style.display = '';
     const msg = document.getElementById('update-msg');
     const action = document.getElementById('update-action');
+    const crit = criticalSince().length > 0;
+    updateBar.classList.toggle('critical', crit);
     if (pinned) {
       msg.textContent = 'You are pinned to v' + VERSION + '. Latest is v' + latestVersion + '.';
-      action.textContent = 'Return to latest';
-      action.onclick = returnToLatest;
     } else {
-      msg.textContent = 'A new version of GifOS (v' + latestVersion + ') is available.';
-      action.textContent = 'Update';
-      action.onclick = upgradeToLatest; // drops the cached shell so the reload actually pulls the new build
+      msg.textContent = (crit ? '⚠ Important update: ' : 'A new version of ')
+        + 'GifOS v' + latestVersion + ' is available.';
     }
+    // The bar only INFORMS. The update itself is a proactive choice on the
+    // Advanced → Version page, where the changelog (and any critical notes) show
+    // before anything changes — the computer is never updated behind your back.
+    action.textContent = crit ? 'See what changed' : 'What’s new';
+    action.onclick = () => showSettings({ focus: 'version' });
   }
   document.getElementById('update-dismiss').onclick = () => { updateBar.style.display = 'none'; };
 
-  // Since the offline layer (sw.js) landed, the whole computer — every HTML page
-  // and js/ module — is served from a precached "shell". That's what makes
-  // airplane mode work, but it also means a plain reload keeps handing you the
-  // SAME cached build (stale-while-revalidate serves the old copy first), so you
-  // could never actually pull a new release. dropShellCaches() deletes that
-  // shell cache and asks the browser to re-fetch the worker, so the NEXT load
-  // comes straight from the live site. (IndexedDB — your apps/files — is left
-  // untouched here; erasing handles that separately.)
+  // The whole computer — every HTML page, js/ module, css and theme file — is
+  // served from a precached "shell" (sw.js). That's what makes airplane mode
+  // work, and it's now CACHE-FIRST: a plain reload always hands you the SAME
+  // installed build, so the computer is never updated behind your back. Updating
+  // is the explicit action below. dropShellCaches() is the blunt fallback (used
+  // when there's no controlling worker, and by Erase): delete the shell cache so
+  // the next load re-fetches everything from the live site. (IndexedDB — your
+  // apps/files — is untouched here; erasing handles that separately.)
   async function dropShellCaches() {
     try {
       if (root.caches && caches.keys) {
@@ -1339,6 +1345,34 @@
         if (reg && reg.update) await reg.update().catch(() => {});
       }
     } catch (e) { /* no SW — fine */ }
+  }
+
+  // Pull the ENTIRE new computer, on purpose. The computer is far more than
+  // index.html, so a real update has to replace every shell asset. Two cases:
+  //  - a newer worker is already WAITING (a new sw.js shipped) → tell it to take
+  //    over; its install has precached the whole new shell, and activating sweeps
+  //    the old cache.
+  //  - otherwise (a deploy changed js/css/html but not sw.js, or the browser
+  //    hasn't re-checked the worker yet) → ask the active worker to re-fetch every
+  //    shell asset fresh, and wait for its ack.
+  // Falls back to dropShellCaches() when nothing is controlling the page.
+  function refreshShell() {
+    const nav = navigator.serviceWorker;
+    if (!(nav && nav.controller)) return dropShellCaches();
+    return nav.getRegistration().catch(() => null).then((reg) => new Promise((resolve) => {
+      let done = false; const finish = () => { if (!done) { done = true; resolve(); } };
+      const t = setTimeout(finish, 9000); // never hang the button on a stalled network
+      if (reg && reg.waiting) {
+        nav.addEventListener('controllerchange', () => { clearTimeout(t); finish(); }, { once: true });
+        reg.waiting.postMessage({ type: 'gifos-apply-update' });
+        return;
+      }
+      const onMsg = (e) => {
+        if (e.data && e.data.type === 'gifos-shell-refreshed') { clearTimeout(t); nav.removeEventListener('message', onMsg); finish(); }
+      };
+      nav.addEventListener('message', onMsg);
+      try { nav.controller.postMessage({ type: 'gifos-refresh-shell' }); } catch (e) { clearTimeout(t); finish(); }
+    }));
   }
   // Can we actually reach the live site right now? Used to refuse a cache purge
   // while offline (which would strand the computer with nothing to boot).
@@ -1356,11 +1390,10 @@
       return false;
     }
     try { localStorage.removeItem('gifos_pin'); } catch (e) {}
-    await dropShellCaches();
+    await refreshShell();  // re-pull the whole shell (or activate a waiting worker)
     location.replace('/?latest=' + Date.now()); // cache-buster + ?latest clears any pin in the bootstrap
     return true;
   }
-  function returnToLatest() { upgradeToLatest(); }
 
   // Erase the WHOLE computer, not just the Home Screen data. clearAll() wipes
   // IndexedDB (every app, file and their state); then — the part that was
@@ -1382,9 +1415,21 @@
       const info = await r.json();
       latestVersion = info.current || VERSION;
       availableVersions = Array.isArray(info.versions) && info.versions.length ? info.versions : [VERSION];
+      // Release notes live in changelog.json (also network-first). Best-effort:
+      // the Version panel still works without it.
+      try {
+        const cr = await fetch('/changelog.json?ts=' + Date.now(), { cache: 'no-store' });
+        if (cr.ok) { const cj = await cr.json(); if (cj && Array.isArray(cj.entries)) changelog = cj.entries; }
+      } catch (e) { /* no changelog — panel omits notes */ }
       applyUpdateBar();
       return true;
     } catch (e) { return false; /* offline or no version.json — stay silent */ }
+  }
+  // Any release newer than the running build that is flagged critical in the
+  // changelog — used to call those out prominently in the update flow.
+  function criticalSince() {
+    if (!Array.isArray(changelog)) return [];
+    return changelog.filter((e) => e && e.critical && cmpVer(e.version, VERSION) > 0 && cmpVer(e.version, latestVersion) <= 0);
   }
 
   // One-line, non-technical summary of the last paint for Settings → Advanced.
@@ -1630,7 +1675,8 @@
     return s;
   }
 
-  async function showSettings() {
+  async function showSettings(opts) {
+    opts = opts || {};
     closeContext();
     let relay = ''; try { relay = localStorage.getItem('gifos_relay') || ''; } catch (e) {}
 
@@ -1684,6 +1730,13 @@
       '<p class="add-help">How the last repaint of your Home Screen went. Reused icons are reused as-is (fast); rebuilt ones changed. Mostly useful for spotting a slow, oversized desktop.</p>' +
       '<p class="add-help mono" id="set-perf">' + perfLine(renderStats) + '</p>' +
       '<button class="widebtn" id="set-perf-refresh">Repaint &amp; measure</button>' +
+      '<div class="add-sep"></div>' +
+      // Erasing the whole computer lives here — inside Advanced, behind its own
+      // collapsed disclosure — so it can never be hit by accident.
+      '<details class="adv danger-zone"><summary>Erase this computer</summary>' +
+      '<p class="add-help">This wipes the <b>whole computer</b> stored in this browser — every app, file, folder, wallpaper and all app state — then reinstalls a fresh one on the latest version. There is no undo and no server copy. Back up first (menu → “Back up Home Screen”) if you might want it back.</p>' +
+      '<button class="widebtn danger" id="set-erase">Erase this computer…</button>' +
+      '</details>' +
       '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
@@ -1696,6 +1749,13 @@
     const vc = box.querySelector('#set-version');
     paintVersion(vc);
     checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline'); });
+    // Deep-link from the update nudge: open the Advanced section and bring the
+    // Version panel (with its changelog + Upgrade button) into view.
+    if (opts.focus === 'version') {
+      const adv = box.querySelector('details.adv');
+      if (adv) adv.open = true;
+      setTimeout(() => { const h = box.querySelector('#set-version'); if (h && h.scrollIntoView) h.scrollIntoView({ block: 'center' }); }, 30);
+    }
     box.querySelector('#set-bg-color').addEventListener('input', (e) => setBackgroundColor(e.target.value));
     box.querySelector('#set-bg-image').onclick = () => {
       const inp = document.createElement('input');
@@ -1730,6 +1790,8 @@
     };
     const perfBtn = box.querySelector('#set-perf-refresh');
     if (perfBtn) perfBtn.onclick = async () => { await render(); box.querySelector('#set-perf').textContent = perfLine(renderStats); };
+    const eraseBtn = box.querySelector('#set-erase');
+    if (eraseBtn) eraseBtn.onclick = () => { bg.remove(); resetFlow(); };
     const persistBtn = box.querySelector('#set-persist');
     if (persistBtn) persistBtn.onclick = async () => {
       const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
@@ -1789,11 +1851,34 @@
     }).join('');
     container.innerHTML =
       '<p class="add-help" id="set-latest">' + line + '</p>' +
+      changelogHtml() +
       upgradeBtn +
-      '<p class="add-help">Upgrading pulls the newest build straight from gifos.app (it clears the offline copy so the update actually lands). Rolling back runs a past build unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
+      '<p class="add-help">Nothing updates on its own — a plain reload always keeps you on the version you’re running. Upgrading pulls the newest build straight from gifos.app (the whole computer, not just one page, so the update fully lands). Rolling back runs a past build unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
       '<div class="vlist">' + rows + '</div>';
     const up = container.querySelector('#set-upgrade'); if (up) up.onclick = upgradeToLatest;
     container.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
+  }
+
+  // Release notes for the Version panel. Shows every entry newer than the running
+  // build (the actual update delta); if you're current, the latest entry as a
+  // record. Critical releases are flagged so they stand out before you update.
+  function changelogHtml() {
+    if (!Array.isArray(changelog) || !changelog.length) return '';
+    const newer = changelog.filter((e) => e && cmpVer(e.version, VERSION) > 0).sort((a, b) => cmpVer(a.version, b.version)).reverse();
+    const list = newer.length ? newer : changelog.slice().sort((a, b) => cmpVer(a.version, b.version)).reverse().slice(0, 1);
+    const heading = newer.length ? 'What’s new since v' + escapeHtml(VERSION) : 'Latest release notes';
+    const items = list.map((e) => {
+      const critical = !!e.critical && cmpVer(e.version, VERSION) > 0;
+      const notes = (Array.isArray(e.notes) ? e.notes : []).map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('');
+      return '<div class="cl-entry' + (critical ? ' cl-critical' : '') + '">' +
+        '<div class="cl-head"><b>v' + escapeHtml(e.version) + '</b>' +
+        (e.date ? '<span class="cl-date">' + escapeHtml(e.date) + '</span>' : '') +
+        (critical ? '<span class="cl-badge">Critical</span>' : '') + '</div>' +
+        (e.headline ? '<div class="cl-headline">' + escapeHtml(e.headline) + '</div>' : '') +
+        (notes ? '<ul class="cl-notes">' + notes + '</ul>' : '') +
+        '</div>';
+    }).join('');
+    return '<div class="changelog"><h5 class="cl-title">' + heading + '</h5>' + items + '</div>';
   }
 
   addBtn.addEventListener('click', showAddDialog);

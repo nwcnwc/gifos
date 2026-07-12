@@ -14,14 +14,20 @@
  * proxy), and Ask AI. Those are CROSS-ORIGIN requests — the fetch handler never
  * touches them, so they fail the same friendly way they always did offline.
  *
- * Update path: bump SHELL_VERSION on a release. A changed sw.js reinstalls, the
- * new shell precaches under a new cache, old caches are swept on activate, and
- * version.json is always fetched network-first so the desktop's existing update
- * nudge still fires the moment you're back online.
+ * Update path: updates are OPT-IN and never happen behind the user's back. A
+ * plain refresh (or hard refresh) always serves the SAME installed shell — the
+ * fetch handler is cache-first with NO background revalidation — so a deploy
+ * can't silently change a running computer. When a new sw.js ships it installs
+ * but WAITS (it does not skipWaiting over an existing shell). The desktop learns
+ * a release is available by fetching version.json + changelog.json network-first,
+ * and shows it in Settings → Advanced → Version with a changelog (critical items
+ * called out). Only when the user chooses "Upgrade this computer" does the page
+ * either activate the waiting worker or send 'gifos-refresh-shell' to re-fetch
+ * the ENTIRE shell fresh (the computer is far more than index.html) and reload.
  */
 'use strict';
 
-var SHELL_VERSION = 'v4';
+var SHELL_VERSION = 'v5';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
@@ -34,7 +40,7 @@ var CORE = [
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js',
   '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js',
   '/themes/theme.js', '/themes/icons.js', '/themes/eggs.js',
-  '/gifos.key', '/version.json', '/og.png', '/manifest.webmanifest', '/icon.svg',
+  '/gifos.key', '/version.json', '/changelog.json', '/og.png', '/manifest.webmanifest', '/icon.svg',
 ];
 
 // THIS computer's theme override files. The theme cascade (gifos-themes.js)
@@ -60,8 +66,39 @@ self.addEventListener('install', function (e) {
     await Promise.allSettled(CORE.concat(themeOverride()).map(function (u) {
       return cache.add(new Request(u, { cache: 'reload' }));
     }));
-    await self.skipWaiting();
+    // First-ever install (no prior shell): activate immediately so the very first
+    // visit is offline-ready. An UPDATE — a new sw.js landing over an existing
+    // shell — deliberately does NOT skipWaiting: it stays WAITING until the user
+    // opts in from Settings → Advanced → Version. That's what stops a deploy from
+    // updating a running computer without the user's knowledge.
+    var keys = await caches.keys();
+    var hadShell = keys.some(function (k) { return k.indexOf('gifos-shell-') === 0 && k !== CACHE; });
+    if (!hadShell) await self.skipWaiting();
   })());
+});
+
+// The desktop drives the opt-in update from Settings → Advanced → Version:
+//  - 'gifos-apply-update'  : a newer sw.js is WAITING — take over now (the user
+//                            asked to upgrade). activate sweeps the old cache.
+//  - 'gifos-refresh-shell' : re-fetch EVERY shell asset fresh into the cache,
+//                            even under the same worker (covers a deploy that
+//                            changed js/css/html but not sw.js). Acks each client
+//                            so the page can reload into the whole new build.
+self.addEventListener('message', function (e) {
+  var data = e.data || {};
+  if (data.type === 'gifos-apply-update') { self.skipWaiting(); return; }
+  if (data.type === 'gifos-refresh-shell') {
+    e.waitUntil((async function () {
+      var cache = await caches.open(CACHE);
+      await Promise.allSettled(CORE.concat(themeOverride()).map(function (u) {
+        return fetch(new Request(u, { cache: 'reload' })).then(function (r) {
+          if (r && r.ok) return cache.put(u, r);
+        }).catch(function () {});
+      }));
+      var cs = await self.clients.matchAll();
+      cs.forEach(function (c) { c.postMessage({ type: 'gifos-shell-refreshed' }); });
+    })());
+  }
 });
 
 // Resolve a fetch, but never hang: if the network hasn't answered in `ms`, give
@@ -101,23 +138,29 @@ self.addEventListener('fetch', function (e) {
   // failing offline with the app's own messaging.
   if (url.origin !== self.location.origin) return;
 
-  // The version file drives the in-app update nudge: always try the network so a
-  // reconnected device sees a new release immediately; fall back to cache offline.
-  if (url.pathname === '/version.json') {
+  // version.json + changelog.json drive the OPT-IN update flow: always try the
+  // network so a reconnected device can SEE that a new release (and its notes)
+  // exist; fall back to cache offline. These are data the desktop reads to decide
+  // whether to OFFER an update — they never change the running shell themselves.
+  if (url.pathname === '/version.json' || url.pathname === '/changelog.json') {
     e.respondWith(fetch(req).then(function (r) {
-      if (r && r.ok) { var c = r.clone(); caches.open(CACHE).then(function (ch) { ch.put('/version.json', c); }); }
+      if (r && r.ok) { var c = r.clone(); caches.open(CACHE).then(function (ch) { ch.put(url.pathname, c); }); }
       return r;
-    }).catch(function () { return caches.match('/version.json'); }));
+    }).catch(function () { return caches.match(url.pathname); }));
     return;
   }
 
-  // Everything else same-origin: stale-while-revalidate — serve the cached copy
-  // instantly (so offline works and loads are fast), and refresh it in the
-  // background whenever the network is reachable.
+  // Everything else same-origin: CACHE-FIRST with NO background revalidation. The
+  // installed shell is authoritative — a refresh or hard-refresh serves the SAME
+  // build every time, so the computer is never updated behind the user's back.
+  // Updating is an explicit choice in Settings → Advanced → Version, which either
+  // activates a waiting worker or sends 'gifos-refresh-shell' to re-pull the whole
+  // shell. (Only assets never cached before — e.g. an archived /versions/ build
+  // opened for the first time — reach the network here, and get cached for offline.)
   e.respondWith((async function () {
     var cache = await caches.open(CACHE);
     var cached = await cache.match(req, { ignoreSearch: true });
-    if (cached) { raceNetwork(req, cache, 4000); return cached; }  // detached refresh; never blocks
+    if (cached) return cached;                     // installed shell wins; no silent refresh
     var fresh = await raceNetwork(req, cache, 4000);
     if (fresh) return fresh;
     // Nothing cached and the network didn't answer (offline / stalled). Degrade
