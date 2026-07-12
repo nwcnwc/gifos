@@ -70,9 +70,20 @@
   // every (re)connect, so rotated credentials (a new password proof, an admin
   // key) ride the next attempt automatically.
   function steadySocket(makeUrl) {
-    const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now() };
-    let ws = null, closed = false, attempt = 0, timer = null;
+    const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now(), rejected: 0 };
+    let ws = null, closed = false, attempt = 0, timer = null, slow = false;
     const queue = [];
+    // Close-code policy — the relay is BILLED for every wake, so reconnects are
+    // never free. A POLICY rejection (bad token, wrong password, banned, voted
+    // off, replaced by a newer socket, stale/owned host slot) can never succeed
+    // by retrying with the same credentials: blind retries are a forever-loop
+    // (a banned tab left open overnight ≈ 17k billed wakes; two tabs of one
+    // room evicting each other never stops). Those STOP — s.rejected holds the
+    // code, and only an explicit s.kick() (the app changed something: new
+    // password, deliberate re-join) re-arms. CROWD codes (full / rate-limited /
+    // no host yet) keep retrying on a longer leash.
+    const FATAL_CLOSES = [1008, 4000, 4001, 4003, 4004, 4007, 4008, 4009, 4010];
+    const SLOW_CLOSES = [1011, 1013];
     const setState = (st) => {
       if (s.state === st) return;
       s.state = st;
@@ -85,32 +96,67 @@
       let sock;
       try { sock = new WebSocket(makeUrl()); } catch (e) { schedule(); return; }
       ws = sock;
+      // Connect watchdog: some stacks never follow a failed CONNECT with a
+      // close event — the attempt would wedge in CONNECTING forever and pin
+      // the in-flight guard. If the socket isn't OPEN by the deadline, abandon
+      // it and let backoff govern.
+      const born = setTimeout(() => {
+        if (ws !== sock || sock.readyState === 1) return;
+        ws = null;
+        try { sock.onerror = null; sock.close(); } catch (e) { /* already dead */ }
+        setState('down');
+        schedule();
+      }, 8000);
       sock.onopen = () => {
+        clearTimeout(born);
         if (closed || ws !== sock) return;
         attempt = 0;
+        slow = false;
         setState('up');
         for (const frame of queue.splice(0)) { try { sock.send(frame); } catch (e) { /* re-dropped */ } }
         if (s.onopen) s.onopen();
       };
       sock.onmessage = (ev) => { if (ws === sock && s.onmessage) s.onmessage(ev); };
-      sock.onclose = () => { if (ws === sock) { ws = null; setState('down'); schedule(); } };
-      sock.onerror = () => { try { sock.close(); } catch (e) { /* already dead */ } };
+      sock.onclose = (ev) => {
+        clearTimeout(born);
+        if (ws !== sock) return;
+        ws = null;
+        const code = ev && ev.code;
+        if (FATAL_CLOSES.indexOf(code) >= 0) s.rejected = code;
+        else if (SLOW_CLOSES.indexOf(code) >= 0) slow = true;
+        setState('down');
+        schedule();
+      };
+      // onerror is deliberately PASSIVE: browsers always follow it with a
+      // close event (which carries the code the policy above reads), and on
+      // stacks that don't, the watchdog reaps the attempt. Never call close()
+      // here — some stacks re-dispatch error from inside close() on a
+      // CONNECTING socket and recurse forever.
+      sock.onerror = () => {};
     }
     function schedule() {
-      if (closed || timer) return;
-      const delay = Math.min(5000, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
+      if (closed || s.rejected || timer) return;
+      // Backoff cap by context: snappy while someone is looking, patient when
+      // the tab is hidden (an overnight background tab must not knock every
+      // few seconds), extra patient when the relay itself said "not now".
+      const hidden = typeof document !== 'undefined' && document.hidden;
+      const cap = hidden ? 60000 : slow ? 15000 : 5000;
+      const delay = Math.min(cap, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
       timer = setTimeout(() => { timer = null; connect(); }, delay);
     }
-    const kick = () => {
-      if (closed || (ws && ws.readyState <= 1)) return;
+    const kick = (force) => {
+      if (closed || (s.rejected && !force)) return; // a policy-rejected socket stays down until the app re-arms it
+      if (force) s.rejected = 0;
+      if (ws && ws.readyState <= 1) return;
       if (timer) { clearTimeout(timer); timer = null; }
       attempt = 0;
       connect();
     };
-    if (root.addEventListener) { root.addEventListener('online', kick); root.addEventListener('pageshow', kick); }
+    const wake = () => kick(false);
+    if (root.addEventListener) { root.addEventListener('online', wake); root.addEventListener('pageshow', wake); }
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
-      document.addEventListener('resume', kick); // Page Lifecycle: tab just unfroze
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+      document.addEventListener('resume', wake); // Page Lifecycle: tab just unfroze
     }
     s.send = (data) => {
       if (closed) return;
@@ -118,8 +164,12 @@
       if (ws && ws.readyState === 1) { try { ws.send(data); return; } catch (e) { /* fell through to queue */ } }
       queue.push(data);
       if (queue.length > 500) queue.shift();
-      kick();
+      // Wake a sleeping socket, but NEVER cancel a scheduled backoff: a periodic
+      // sender (the meeting heartbeat) must not turn exponential backoff into a
+      // fixed-cadence reconnect hammer against a down or rejecting relay.
+      if (!timer) kick(false);
     };
+    s.kick = () => kick(true); // app-layer re-arm after a credential/intent change
     s.close = () => { closed = true; if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
     s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
     connect();

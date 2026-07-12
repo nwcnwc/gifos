@@ -41,7 +41,7 @@ never by branching.
 |---|---|---|
 | `C` | THE shape constant: seats per row, rows per section, and the fanout at every level | 8 (grows with rehearsals) |
 | `COMP_W/H/FPS` | fold frame budget — every fold, at every level | 756×1344 @ 12 (portrait 9:16, 1,016,064 px — a million pixels filling a phone's width) |
-| `HB` | status heartbeat ms — the gossip pulse everything idempotent rides | 4000 |
+| `HB` | status heartbeat ms — the gossip pulse everything idempotent rides. Beats prefer each pair's DataChannel (the relay is billed per frame it wakes for; the DC is free), fall back to the relay only while no DC is open, and hidden non-delegate tabs beat at a third pace | 4000 |
 
 Everything else is a **consequence**: a section seats `C²` = 64 (exactly
 the relay's socket cap), a device's live links are bounded by its row

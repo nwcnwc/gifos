@@ -85,14 +85,26 @@ const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CA
 const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
   .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
 
-function makeMeter() { return { tokens: BURST_BYTES, last: Date.now(), warned: false }; }
-// Returns true if this message must be DROPPED (would overrun the budget).
+// FRAME-rate guard beside the byte guard: tiny frames sail under the byte
+// budget forever, but with hibernation EVERY inbound frame wakes (and bills)
+// this object — a runaway client loop at 4s cadence is ~21,600 billed wakes a
+// day while never touching the byte cap. Joins are legitimately bursty (ICE
+// trickle to a full row), so the burst is generous; the sustained rate is far
+// above any real gossip pulse and far below a hot loop.
+const FRAME_BURST = 600;
+const FRAMES_PER_SEC = 3;
+const FRAME_STRIKES = 3; // sustained overruns after being told → cut the socket
+
+function makeMeter() { return { tokens: BURST_BYTES, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 }; }
+// Returns true if this message must be DROPPED (would overrun a budget).
 function overBudget(meter, len) {
   const now = Date.now();
-  meter.tokens = Math.min(BURST_BYTES, meter.tokens + ((now - meter.last) / 1000) * REFILL_BYTES_PER_SEC);
+  const dt = (now - meter.last) / 1000;
+  meter.tokens = Math.min(BURST_BYTES, meter.tokens + dt * REFILL_BYTES_PER_SEC);
+  meter.frames = Math.min(FRAME_BURST, meter.frames + dt * FRAMES_PER_SEC);
   meter.last = now;
   if (len > BURST_BYTES) return true;
-  if (meter.tokens >= len) { meter.tokens -= len; meter.warned = false; return false; }
+  if (meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return false; }
   return true;
 }
 
@@ -101,6 +113,12 @@ export class Session {
     this.state = state;
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
     this.joinLog = new Map(); // ip -> [join timestamps]; best-effort, in-memory
+    // Edge-answered keepalive: a client-level ping is answered WITHOUT waking
+    // (or billing) the hibernated object. Nothing sends {"t":"ping"} today —
+    // this guarantees that if anything ever does, it stays free.
+    try {
+      this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"t":"ping"}', '{"t":"pong"}'));
+    } catch (e) { /* older runtime without auto-response — pings just wake us */ }
   }
 
   // ---- socket bookkeeping (all derived from hibernation-surviving state) ----
@@ -309,7 +327,12 @@ export class Session {
     if (overBudget(meter, data.length)) {
       if (!meter.warned) {
         meter.warned = true;
+        meter.strikes++;
         this.send(ws, { t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' });
+        // A sender that keeps hammering after being told is cut loose: every
+        // frame it sends bills a wake whether we act or not, and a 1013 close
+        // puts a well-behaved client on its slow retry lane instead of a loop.
+        if (meter.strikes >= FRAME_STRIKES) { try { ws.close(1013, 'rate'); } catch (e) {} }
       }
       return;
     }
