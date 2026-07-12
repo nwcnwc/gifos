@@ -148,8 +148,6 @@
   #timingrow button { flex: 1; padding: .3rem .4rem; border-radius: .45rem; font-size: .72rem; cursor: pointer;
     background: none; border: 1px solid var(--border, #2a2a3f); color: var(--muted, #8a8aa8); }
   #timingrow button.on { border-color: var(--accent, #7b5cff); color: var(--text, #e0e0f0); background: rgba(123,92,255,.14); }
-  #timingrow button:disabled { cursor: default; opacity: .55; }
-  #timingrow button:disabled.on { opacity: 1; border-color: #b9a5ff; color: #d5c8ff; background: #1d1633; }
   #mixpanel input[type=range] { width: 120px; }
   /* App-in-meeting: the shared app fills the stage; participant tiles shrink to
      a scrolling filmstrip along the bottom so everyone stays visible. */
@@ -260,7 +258,6 @@
   .tile .cap.show { opacity: 1; }
   #recbtn.on { border-color: #ff5c5c; color: #ff9c9c; }
   #ccbtn.on { border-color: #5cff7b; color: #9cffb4; }
-  #singbtn.on { border-color: #b9a5ff; color: #d5c8ff; background: #1d1633; }
   .trline { font-size: .82rem; padding: .15rem 0; overflow-wrap: anywhere; }
   .trline b { color: #7b9cff; margin-right: .35rem; }
   #trwrap { flex: 1; display: none; flex-direction: column; min-height: 0; }
@@ -399,8 +396,7 @@
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
-    <button id="singbtn" title="Lead the room in song — your mic switches to music quality and everyone's sound aligns to you (earbuds recommended for singers)">🎵 Sing</button>
-    <button id="mixbtn" title="Your personal sound mix: the stage, your row, your section, and the far stadium">Mix</button>
+    <button id="mixbtn" title="Your personal sound mix — the stage, your row, your section and the far stadium, plus Timing and leading a song">Mix</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, singing together, and the dream">Help</button>
     <span class="status" id="status">Starting camera…</span>
@@ -439,7 +435,7 @@
     <div id="timingrow">
       <button data-timing="chat" title="Snappiest replies — your ears align to your own links only; across the room, timing may stagger">Conversation</button>
       <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
-      <button data-timing="song" disabled title="Active while someone leads a song (tap 🎵 to lead) — deep cathedral tiers + the leader's music-grade mic">Song</button>
+      <button data-timing="song" title="Lead the room in song — steps you onto the stage with a music-grade mic and lines everyone's sound up to you; tap again to end (earbuds recommended for singers)">🎵 Song</button>
     </div>
   </div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
@@ -593,17 +589,18 @@
           hears everything at the same instant. Shared laughter, an “Amen,” a reading
           answered together — they actually land together. The trade: replies arrive a
           blink later, set by the slowest connection in the room.</li>
-          <li><b>Song</b> — you don't pick this one; it lights up on its own while
-          someone is leading a song (see below).</li>
+          <li><b>🎵 Song</b> — tap it to <i>lead</i> the room in song yourself; it stays
+          lit for everyone while a song is on (see below).</li>
         </ul>
 
         <h4>Singing together — 🎵</h4>
         <p>Singing on a normal video call is famously awful: every voice arrives a
         different beat late, so a hymn turns to mush — and phone microphones treat a held
         note like background noise and try to erase it. This room does it differently.</p>
-        <p>When someone taps <b>🎵 Sing</b>, they step onto the stage as the song leader,
-        their microphone switches to <b>music quality</b>, and every phone quietly lines
-        the room up in time — the way sound behaves in a great stone church:</p>
+        <p>When someone taps <b>🎵 Song</b> (in <b>Mix</b>, under Timing), they step onto
+        the stage as the song leader, their microphone switches to <b>music quality</b>,
+        and every phone quietly lines the room up in time — the way sound behaves in a
+        great stone church:</p>
         <ul class="help-list">
           <li>Everyone hears the <b>leader at the same moment</b>, so the whole room is
           truly singing together, wherever everyone is.</li>
@@ -624,8 +621,6 @@
           everyone. You always control your own camera; nobody can un-blur you.</li>
           <li><b>Stage</b> — step up to be seen and heard first by the whole room; tap
           again to step down.</li>
-          <li><b>🎵 Sing</b> — lead the room in song: your mic turns music-grade and
-          everyone's sound lines up to you (see “Singing together” above).</li>
           <li><b>Hand</b> — raise it and you float to the top of a room-wide queue, in order.</li>
           <li><b>Password</b> — the key to <i>clear</i> video. Set one and faces sharpen for
           those who have it; without one, everyone stays gently blurred.</li>
@@ -4206,15 +4201,18 @@
           setMicMode('voice'); // no-op unless we were the leader
           setStatus('🎵 The song ended.');
         }
-        paintSing();
-        paintTiming(); // the Song pill lights while a song runs
+        paintTiming(); // the Song pill lights (and stays tappable for its leader)
         applyGrid(); // retune the tiers now, not on the next tick
       }
     }
     setInterval(() => { reactSing(); applyGrid(); }, GRID.APPLY_EVERY);
 
-    // The Timing pills (in the mix panel): Unison | Conversation, with Song
-    // shown as the live third state while a leader has the room singing.
+    // The Timing pills (in the mix panel): Conversation | Unison | 🎵 Song.
+    // Song doubles as the way to LEAD one — singing is loved but rare, so it
+    // lives here rather than spending a toolbar seat. Tap it to step onto the
+    // stage as the leader (music-grade mic and all); tap again to end the
+    // song. While someone else leads, the pill just glows — one leader keeps
+    // the timing anchor unambiguous.
     const timingRow = document.getElementById('timingrow');
     function paintTiming() {
       const sing = roomSingOn();
@@ -4222,32 +4220,14 @@
         btn.classList.toggle('on', sing ? btn.dataset.timing === 'song' : btn.dataset.timing === timing);
       }
     }
-    timingRow.addEventListener('click', (e) => {
-      const t = e.target && e.target.dataset ? e.target.dataset.timing : null;
-      if (t !== 'chat' && t !== 'unison') return; // Song is not a knob — tap 🎵 to lead
-      timing = t;
-      try { localStorage.setItem(TIMING_KEY, t); } catch (e2) {}
-      paintTiming();
-      applyGrid();
-    });
-    paintTiming();
-
-    const singBtn = document.getElementById('singbtn');
-    function paintSing() {
-      const on = roomSingOn();
-      singBtn.classList.toggle('on', !!myStatus.sing);
-      singBtn.textContent = myStatus.sing ? '⏹ End song' : '🎵 Sing';
-      // Anyone allowed on stage may lead; mid-song the button hides for
-      // everyone else — one leader keeps the timing anchor unambiguous.
-      singBtn.style.display = (myStatus.sing || (!on && (!hasAdminRoom() || amAdmin || (modOf(myId).app && modOf(myId).app.on)))) ? '' : 'none';
-    }
-    singBtn.onclick = () => {
+    function toggleSing() {
       if (myStatus.sing) {
         myStatus.sing = 0;
         if (singSteppedUp) { singSteppedUp = false; setStage(false); } else broadcastStatus();
         reactSing();
         return;
       }
+      if (roomSingOn()) return; // someone else is leading — their song, their pill
       if (!stageIds().includes(myId)) {
         if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can lead a song here.'); return; }
         if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
@@ -4259,8 +4239,17 @@
         broadcastStatus();
       }
       reactSing();
-    };
-    paintSing();
+    }
+    timingRow.addEventListener('click', (e) => {
+      const t = e.target && e.target.dataset ? e.target.dataset.timing : null;
+      if (t === 'song') { toggleSing(); paintTiming(); return; }
+      if (t !== 'chat' && t !== 'unison') return;
+      timing = t;
+      try { localStorage.setItem(TIMING_KEY, t); } catch (e2) {}
+      paintTiming();
+      applyGrid();
+    });
+    paintTiming();
 
     // ---- live transcript: each phone transcribes ITS OWN speaker -------------
     // The browser's speech engine hears only this device's microphone; final
@@ -5234,7 +5223,7 @@
         targets: Object.fromEntries(Array.from(gridApplied, ([pid, g]) => [pid, g])),
         mixNow: Object.assign({}, mix),
       }),
-      singForTest: (on) => { if (!!on !== !!myStatus.sing) singBtn.onclick(); },
+      singForTest: (on) => { if (!!on !== !!myStatus.sing) toggleSing(); },
       timingForTest: (t) => { const b = timingRow.querySelector('[data-timing="' + t + '"]'); if (b) b.click(); },
       gdForTest: (v) => { gdOverride = +v || 0; applyGrid(); broadcastStatus(); },
       // app-in-meeting
