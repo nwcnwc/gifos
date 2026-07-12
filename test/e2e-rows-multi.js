@@ -90,6 +90,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('stadium: every phone shows every global row but its own, LIVE, across sessions', coverOk);
 
+  // ---- four buses across the session boundary ------------------------------
+  // A phone in section 1 (global rows 1,2) sees its OTHER in-section row on the
+  // My section bus and section 2's row on The stadium bus — two faders, moved
+  // independently, each silencing exactly its own class. Both are shown now
+  // that cross-section content exists.
+  const busStates = await Promise.all(pages.map(st));
+  const s1 = busStates.findIndex((s) => s.row === 1);
+  const busOk = s1 >= 0 && await pages[s1].evaluate(() => {
+    const v = window.__gifosVideo, C = v.scale().C;
+    const lo = (v.sectionNum() - 1) * C, hi = v.sectionNum() * C;
+    const inSec = (r) => typeof r === 'number' && r > lo && r <= hi;
+    v.setMix('section', 0); v.setMix('stadium', 1);
+    const secDown = v.stadium().every((s) => inSec(s.row) ? v.stadiumVolume(s.row) === 0 : v.stadiumVolume(s.row) === 1);
+    v.setMix('section', 1); v.setMix('stadium', 0);
+    const stadDown = v.stadium().every((s) => inSec(s.row) ? v.stadiumVolume(s.row) === 1 : v.stadiumVolume(s.row) === 0);
+    v.setMix('stadium', 1);
+    return secDown && stadDown && v.mixFaderShown('section') && v.mixFaderShown('stadium');
+  });
+  check('buses: My section and The stadium move independently across the session boundary, both faders shown', busOk);
+
   // ---- chat bridges the tree ----------------------------------------------
   await pages[0].locator('#chatbtn').click();
   await pages[0].locator('#chat-in').fill('one room, many sessions');

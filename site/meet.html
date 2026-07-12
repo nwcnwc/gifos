@@ -112,8 +112,9 @@
     font-size: .65rem; color: var(--text, #e0e0f0); background: rgba(10,10,15,.7);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* On stage: the tile floats first and wears the accent — the whole room's
-     eye line. The three-bus mix panel is a personal knob rack (receiver-side
-     volume only — as ungovernable as any volume knob). */
+     eye line. The four-bus mix panel is a personal knob rack (receiver-side
+     volume only — as ungovernable as any volume knob); the section and
+     stadium faders appear only once those buses have members. */
   .tile.onstage { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff);
     grid-column: 1 / -1; aspect-ratio: 16 / 9; } /* the stage is the big tile */
   .rowtile.stagetile { border-color: var(--accent, #7b5cff); box-shadow: 0 0 0 1px var(--accent, #7b5cff); }
@@ -364,7 +365,7 @@
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
-    <button id="mixbtn" title="Your personal sound mix: the stage, your row, and the crowd">Mix</button>
+    <button id="mixbtn" title="Your personal sound mix: the stage, your row, your section, and the far stadium">Mix</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <span class="status" id="status">Starting camera…</span>
     <div class="admcount" id="admcount" style="display:none"></div>
@@ -396,7 +397,8 @@
     <b>Sound mix</b>
     <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
     <label>My row <input type="range" id="mix-row" min="0" max="100" value="100"></label>
-    <label>Crowd <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
+    <label id="mixlab-section">My section <input type="range" id="mix-section" min="0" max="100" value="100"></label>
+    <label id="mixlab-stadium">The stadium <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
   </div>
   <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
@@ -3716,33 +3718,64 @@
       setStage(true);
     };
 
-    // ---- audio: three buses, receiver-side (docs/rows.md) ---------------------
-    // Stage / Row / Stadium are a grouping by LINK CLASS, not a sender tag:
-    // your three faders are your own volume knobs, as ungovernable as any.
-    // Degenerate by arithmetic: in a one-row room nothing is on stage and
-    // nothing is folded, so only "My row" moves anything — the faders exist
-    // at every size and start meaning something when the room grows.
+    // ---- audio: four buses, receiver-side (docs/rows.md) ----------------------
+    // Stage / My row / My section / The stadium are a grouping by LINK CLASS,
+    // not a sender tag: your faders are your own volume knobs, as ungovernable
+    // as any. Degenerate by arithmetic: a one-row room has no section members
+    // and a one-section room no stadium members, so those two faders don't even
+    // show — a room that is just your row is a plain Stage + My row two-channel
+    // mix, exactly today. The faders grow in as the room does.
     const MIX_KEY = 'gifos_mix';
-    const mix = Object.assign({ stage: 1, row: 1, stadium: 1 }, (() => {
+    const mix = Object.assign({ stage: 1, row: 1, section: 1, stadium: 1 }, (() => {
       try { return JSON.parse(localStorage.getItem(MIX_KEY) || '{}'); } catch (e) { return {}; }
     })());
+    // Four buses, grouped by link CLASS (receiver-side volume only):
+    //   Stage       — the 's:' feeds, verbatim everywhere
+    //   My row      — my direct row-mate links, the people I converse with
+    //   My section  — the OTHER rows of my own section (deacon-mesh peers +
+    //                 their folds): the near-field murmur around me
+    //   The stadium — everything cross-section: space-mate links, deck-mate
+    //                 rows, and deck folds — the far roar of the other sections
+    // Section and stadium are the old "Crowd" split along the seam that already
+    // orders the feed (in-section rows vs deck/deck-mate). Both are degenerate
+    // by arithmetic: a one-row room has no section members, a one-section room
+    // no stadium members — their faders simply don't show.
     function applyBuses() {
       const stg = new Set(stageIds());
       const mates = new Set(rowMates());
+      let hasSection = false, hasStadium = false;
       for (const [pid, p] of peers) {
-        // stage first (a staged row mate is Stage); everything that is neither
-        // stage nor my row — deacon-mesh partners, forwarded folds — is crowd
-        p.video.volume = stg.has(pid) ? mix.stage : mates.has(pid) ? mix.row : mix.stadium;
+        // stage first (a staged row mate is Stage); then my row; a same-section
+        // other-row deacon (deacon mesh, in my relay roster) is My section;
+        // a space mate (another section entirely) is The stadium.
+        const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row'
+          : rosterIds.includes(pid) ? 'section' : 'stadium';
+        p.video.volume = mix[bus];
+        if (bus === 'section') hasSection = true;
+        if (bus === 'stadium') hasStadium = true;
       }
-      // feed tiles: forwarded stage entries are Stage, folds are Crowd
+      // feed tiles: forwarded stage entries are Stage; a fold of one of my own
+      // section's rows is My section; deck folds and other sections' rows are
+      // The stadium — the same predicate that orders the feed.
       for (const el of stagefeedEl.querySelectorAll('.rowtile video')) el.volume = mix.stage;
-      for (const el of stadiumEl.querySelectorAll('.rowtile video')) el.volume = mix.stadium;
+      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C;
+      for (const el of stadiumEl.querySelectorAll('.rowtile')) {
+        const v = el.querySelector('video'); if (!v) continue;
+        const key = el.dataset.row, num = Number(key);
+        const inSection = !isDeckKey(key) && Number.isFinite(num) && num > lo && num <= hi;
+        v.volume = inSection ? mix.section : mix.stadium;
+        if (inSection) hasSection = true; else hasStadium = true;
+      }
+      // Progressive disclosure: reveal a bus's fader only once it has members.
+      document.getElementById('mixlab-section').style.display = hasSection ? '' : 'none';
+      document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
     }
     const mixPanel = document.getElementById('mixpanel');
     document.getElementById('mixbtn').onclick = () => {
       mixPanel.style.display = mixPanel.style.display === 'none' ? 'flex' : 'none';
+      if (mixPanel.style.display !== 'none') applyBuses(); // refresh which faders show
     };
-    for (const bus of ['stage', 'row', 'stadium']) {
+    for (const bus of ['stage', 'row', 'section', 'stadium']) {
       const inp = document.getElementById('mix-' + bus);
       inp.value = Math.round(mix[bus] * 100);
       inp.addEventListener('input', () => {
@@ -4689,6 +4722,7 @@
       canStageNow: () => canStage(myId),
       mix: () => Object.assign({}, mix),
       setMix: (bus, v) => { mix[bus] = v; applyBuses(); },
+      mixFaderShown: (bus) => { const l = document.getElementById('mixlab-' + bus); return l ? l.style.display !== 'none' : true; },
       tileVolume: (pid) => { const p = peers.get(pid); return p ? p.video.volume : null; },
       stadiumVolume: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return el ? el.volume : null; },
       appWinner: () => { const w = findSharedApp(); return w ? w.s : null; },

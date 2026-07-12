@@ -149,12 +149,28 @@ periodic anti-entropy: delegates union-merge recent history across their
 up edges every few beats, and whatever was news gossips onward. File
 BODIES stay in-section (budget policy, unchanged).
 
-## Audio: three buses, receiver-side
+## Audio: four buses, receiver-side
 
-Stage / My row / Crowd — a grouping by link class, applied as volume on
-the receiving element. Senders tag nothing; your faders are your own,
-as ungovernable as a volume knob. Degenerate by arithmetic in a one-row
-room.
+**Stage / My row / My section / The stadium** — a grouping by link class,
+applied as volume on the receiving element. Senders tag nothing; your faders
+are your own, as ungovernable as a volume knob.
+
+- **Stage** — the `s:` feeds, verbatim everywhere.
+- **My row** — my direct row-mate links, the people I actually converse with.
+- **My section** — the *other* rows of my own section: deacon-mesh peers and
+  their forwarded folds. The near-field murmur of the ~C²−C people around me.
+- **The stadium** — everything cross-section: space-mate links, deck-mate
+  rows, and deck folds. The far roar of the other sections.
+
+The last two are one split of the old "Crowd" along the seam the feed already
+orders by (in-section rows vs deck/deck-mate). Both are **degenerate by
+arithmetic**, and their faders follow: a one-row room has no section members
+(the My section fader doesn't show), a one-section room has no stadium members
+(the stadium fader doesn't show). A room that is just your row shows exactly
+two faders — Stage and My row — the same two-channel mix as today. The split
+is what lets the reading sit clear while your section stays a faint murmur and
+the far stadium is nearly off — then, on the Amen, you push the stadium fader
+and the million-voice roar comes through.
 
 ## Governance (the room principle, unchanged)
 
