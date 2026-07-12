@@ -115,6 +115,22 @@ const MANIFEST = JSON.stringify({
   // ...but the guest keeps its OWN private copy in-tab (and still can't see the host's).
   check('guest keeps its OWN private record, still hidden from the host\'s', (await ids(guestFr, 'priv')).join() === 'gp', JSON.stringify(await ids(guestFr, 'priv')));
 
+  // ============ BINARY over the mesh (the guest-can't-play-video fix) ============
+  // A Uint8Array in a shared record must reach the guest as a real Uint8Array
+  // (not a mangled {"0":..} object) — otherwise a shared photo/video won't load.
+  // Construct the bytes INSIDE the host page (Playwright would mangle a typed
+  // array passed as an arg), then read them back on the guest.
+  await hostFr.locator('body').evaluate(() => window.gifos.db('pub').put({ id: 'blob1', bytes: new Uint8Array([1, 2, 3, 250, 251, 252]) }));
+  await sleep(700);
+  const gotBin = await guestFr.locator('body').evaluate(() => window.gifos.db('pub').getAll().then((rows) => {
+    const r = (rows || []).find((x) => x.id === 'blob1');
+    if (!r) return { found: false };
+    const b = r.bytes, isU8 = b instanceof Uint8Array;
+    return { found: true, isU8: isU8, vals: isU8 ? Array.from(b) : null };
+  }));
+  check('guest receives shared binary as a real Uint8Array (not a mangled object)', gotBin.found && gotBin.isU8 === true, JSON.stringify(gotBin));
+  check('the binary bytes arrive intact over the mesh', !!gotBin.vals && gotBin.vals.join(',') === '1,2,3,250,251,252', JSON.stringify(gotBin.vals));
+
   // ============ setVisibility: host opts a record in; guest can't ============
   const gVis = await setVis(guestFr, 'pub', 'a', 'private');
   check('guest setVisibility is REFUSED (host is master)', !!gVis.rejected, JSON.stringify(gVis));

@@ -113,13 +113,13 @@ async function invite(page, lifetime, resilient) {
   // direction (host -> client) reassembles.
   const appFrame = (p) => p.frames().find((f) => f.parentFrame() !== null);
   const bigPut = await appFrame(clientRun).evaluate(() =>
-    gifos.db('blob').put({ id: 'big', data: 'x'.repeat(400 * 1024) }).then(() => true).catch(() => false));
+    gifos.db('entries').put({ id: 'big', data: 'x'.repeat(400 * 1024) }).then(() => true).catch(() => false));
   check('client puts a ~400KB record (fragmented over the DataChannel)', bigPut === true);
   const hostBig = await appFrame(hostRun).evaluate(() =>
-    gifos.db('blob').get('big').then((r) => (r && r.data ? r.data.length : 0)));
+    gifos.db('entries').get('big').then((r) => (r && r.data ? r.data.length : 0)));
   check('the big record landed intact in the host DB', hostBig === 400 * 1024);
   const echoBig = await appFrame(clientRun).evaluate(() =>
-    gifos.db('blob').get('big').then((r) => (r && r.data ? r.data.length : 0)));
+    gifos.db('entries').get('big').then((r) => (r && r.data ? r.data.length : 0)));
   check('the big record reads back through a fragmented reply', echoBig === 400 * 1024);
 
   // ---------- forced fallback: a client with NO WebRTC still works via relay ----------
@@ -147,9 +147,9 @@ async function invite(page, lifetime, resilient) {
   // stay inside the relay's burst budget (bulk beyond the budget is still
   // throttled by design — that's bandwidth policy, not a message ceiling).
   const relayBigPut = await appFrame(noRtcRun).evaluate(() =>
-    gifos.db('blob').put({ id: 'big2', data: 'y'.repeat(300 * 1024) }).then(() => true).catch(() => false));
+    gifos.db('entries').put({ id: 'big2', data: 'y'.repeat(300 * 1024) }).then(() => true).catch(() => false));
   const hostBig2 = await appFrame(hostRun).evaluate(() =>
-    gifos.db('blob').get('big2').then((r) => (r && r.data ? r.data.length : 0)));
+    gifos.db('entries').get('big2').then((r) => (r && r.data ? r.data.length : 0)));
   check('a ~300KB record also syncs over the pure relay path', relayBigPut === true && hostBig2 === 300 * 1024);
 
   // ---------- abuse guards: the 9th socket from one IP is turned away ----------

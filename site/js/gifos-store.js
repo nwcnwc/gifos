@@ -38,6 +38,36 @@
     try { return new Date().toISOString(); } catch (e) { return ''; }
   }
 
+  // ---- binary-safe JSON (shared wire/GIF format) ----------------------------
+  // A Uint8Array/ArrayBuffer inside a db value (e.g. My Media's stored photo or
+  // video bytes) can't survive a plain JSON round-trip: it becomes a giant
+  // {"0":..,"1":..} object — mangled on read, and for a video-sized blob big
+  // enough to crash the serializer. We tag it { $bin: base64 } on the way out
+  // and restore a Uint8Array on the way in. This ONE format is used everywhere
+  // state is serialized: the mesh (gifos-net seal/open), a stolen/snapshotted
+  // app GIF, and a whole-computer backup — so media bytes travel intact.
+  function b64ofBin(v) {
+    const u = v instanceof Uint8Array ? v : new Uint8Array(v);
+    let s = '';
+    for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192));
+    return (root.btoa || btoa)(s);
+  }
+  function binOfB64(b) {
+    const s = (root.atob || atob)(b); const out = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out;
+  }
+  function binReplacer(k, v) {
+    if (v instanceof Uint8Array || v instanceof ArrayBuffer) return { $bin: b64ofBin(v) };
+    return v;
+  }
+  function binReviver(k, v) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.$bin === 'string') return binOfB64(v.$bin);
+    return v;
+  }
+  const packJSON = (obj) => JSON.stringify(obj, binReplacer);
+  const unpackJSON = (str) => JSON.parse(str, binReviver);
+
   function makeStore(dbName) {
     let dbp = null;
 
@@ -202,6 +232,8 @@
     };
 
     store.nowISO = nowISO;
+    store.packJSON = packJSON;     // binary-safe JSON.stringify (keeps media blobs intact)
+    store.unpackJSON = unpackJSON; // binary-safe JSON.parse (restores Uint8Array)
 
     // Cross-tab channel names. The default namespace keeps the historical,
     // un-suffixed names so archived /versions builds stay in sync with the

@@ -967,7 +967,7 @@
           if (archive && archive.files) {
             const out = {};
             for (const p in archive.files) if (!p.startsWith('.state/')) out[p] = archive.files[p];
-            out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
+            out['.state/db.json'] = gif.textToBytes(store.packJSON(state)); // binary-safe: media blobs survive
             bytes = await gif.repack(bytes, out);
           }
         }
@@ -1155,7 +1155,10 @@
     const [allItems, allFiles, allStates] = await Promise.all([store.allItems(), store.allFiles(), store.allStates()]);
     const archive = {
       'manifest.json': JSON.stringify({ gifos: '1.0', type: 'desktop', name: 'GifOS Desktop Backup', version: VERSION, savedAt: store.nowISO() }),
-      'desktop.json': JSON.stringify({
+      // Binary-safe: an app's state may hold Uint8Array media bytes (My Media),
+      // which a plain JSON.stringify would mangle — so pack the states with the
+      // shared binary-aware serializer.
+      'desktop.json': store.packJSON({
         items: allItems,
         states: allStates,
         fileMeta: allFiles.map((f) => ({ id: f.id, name: f.name, kind: f.kind, isApp: f.isApp, appId: f.appId, accent: f.accent, mime: f.mime })),
@@ -1172,7 +1175,7 @@
   }
 
   async function restoreDesktop(archive) {
-    const dj = JSON.parse(gif.bytesToText(archive.files['desktop.json']));
+    const dj = store.unpackJSON(gif.bytesToText(archive.files['desktop.json']));
     await store.clearAll();
     for (const m of dj.fileMeta || []) {
       const bytes = archive.files['files/' + m.id];

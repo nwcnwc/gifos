@@ -444,7 +444,7 @@
   function packSnapshot(originalBytes, files, manifest, state) {
     const out = {};
     for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
-    out['.state/db.json'] = gif.textToBytes(JSON.stringify(state));
+    out['.state/db.json'] = gif.textToBytes(store.packJSON(state)); // binary-safe: keeps media blobs intact
     return originalBytes && gif.repack
       ? gif.repack(originalBytes, out)
       : gif.encode(out, { accent: manifest.accent }); // Promise<Uint8Array>
@@ -514,13 +514,35 @@
         parent: null, x: 24, y: 24, iconSize: 64 }).then(() => STOLEN_ID);
     });
   }
+  // First free grid cell in a folder, so a stolen app never lands ON the up-hole
+  // (the top-left "go up" cell inside a folder) or stacks on top of an earlier
+  // steal. Mirrors the desktop's own layout (origin + pitch), computed here
+  // because run.html writes the icon into IndexedDB and a separate desktop tab
+  // repaints it — the two can't share the desktop's live layout helpers.
+  function freeFolderCell(all, parent) {
+    const ORIGIN = 12, PITCH = 96, ROW = 104;
+    const cellOf = (x, y) => ({ col: Math.max(0, Math.round(((x || ORIGIN) - ORIGIN) / PITCH)), row: Math.max(0, Math.round(((y || ORIGIN) - ORIGIN) / ROW)) });
+    const taken = new Set((all || []).filter((i) => (i.parent || null) === (parent || null)).map((i) => { const c = cellOf(i.x, i.y); return c.col + ',' + c.row; }));
+    if (parent) taken.add('0,0'); // the up-hole owns the corner cell inside a folder
+    for (let r = 0; r < 200; r++) {
+      for (let dc = 0; dc <= r; dc++) for (let dr = 0; dr <= r; dr++) {
+        if (Math.max(dc, dr) !== r) continue; // grow outward from the top-left
+        if (!taken.has(dc + ',' + dr)) return { x: ORIGIN + dc * PITCH, y: ORIGIN + dr * ROW };
+      }
+    }
+    return { x: ORIGIN + PITCH, y: ORIGIN };
+  }
   function saveAppToDesktop(appBytes, manifest, state, parent) {
     const fileId = store.uid('file');
     const name = (manifest.name || manifest.appId || 'App') + '.gif';
-    return store.putFile({ id: fileId, name, bytes: appBytes, kind: 'gif', isApp: true,
-      appId: manifest.appId, accent: manifest.accent, mime: 'image/gif' })
-      .then(() => store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
-        parent: parent || null, x: 24, y: 24, iconSize: 64 }))
+    return store.allItems()
+      .then((all) => {
+        const spot = freeFolderCell(all, parent || null);
+        return store.putFile({ id: fileId, name, bytes: appBytes, kind: 'gif', isApp: true,
+          appId: manifest.appId, accent: manifest.accent, mime: 'image/gif' })
+          .then(() => store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
+            parent: parent || null, x: spot.x, y: spot.y, iconSize: 64 }));
+      })
       .then(() => (state ? store.setState(fileId, state) : null))
       .then(() => {
         // Let any open desktop tab repaint and show the new icon immediately.
@@ -1316,13 +1338,18 @@
     const peers = new Map();
     const defrag = makeDefrag();
     // The visibility map (manifest.data: collection -> { visibility }) drives
-    // every host-side sharing decision — reads hide `private`, writes require
-    // `read-write`. Leadership is not a separate fence any more: `lead` names
-    // the records the chrome's communal⇄leading toggle flips between
-    // read-write (anyone leads) and read-only (only the host leads), by
-    // stamping their per-record `_vis` through the authoritative store.
+    // every host-side READ/WRITE sharing decision — reads hide `private`, writes
+    // require `read-write`. `lead` names the records the communal⇄leading toggle
+    // fences (see below); the two are orthogonal.
     const vis = opts.vis || {};
     const leadTargets = Array.isArray(opts.lead) ? opts.lead : [];
+    // Leadership is a runtime WRITE-fence on specific (collection,id) records —
+    // distinct from visibility. When the leader toggle is ON, guest writes to a
+    // fenced record are refused so only the leader drives it, EVEN IF that record
+    // doesn't exist yet (a fresh Bible cursor, an app not yet moved). Visibility
+    // still governs who can READ it (a fenced record is normally read-write, so
+    // guests see it and just can't move it). `setLead` flips the toggle live.
+    const lead = { on: false, keys: new Set(leadTargets.map((t) => t.collection + '::' + t.id)) };
     // seal()/open() are async — chains keep frames in send/receive order.
     const tx = net.makeChain();
     const rxq = new Map(); // peer -> inbound chain
@@ -1491,6 +1518,11 @@
           if (seen && seen.has(req.id)) { reply(peer, req, true, seen.get(req.id)); return; }
         }
         const targetId = req.op === 'put' ? (req.value && req.value.id) : req.key;
+        // Leadership fence: while leading, only the leader drives the fenced
+        // records — refuse guest writes to them (even ones that don't exist yet).
+        if (lead.on && targetId != null && lead.keys.has(req.collection + '::' + targetId)) {
+          reply(peer, req, false, 'the leader drives this control'); return;
+        }
         const storedP = (targetId != null) ? db.op('get', req.collection, targetId) : Promise.resolve(null);
         storedP.then((stored) => {
           // A NEW record inherits the collection default; an EXISTING one keeps
@@ -1655,13 +1687,15 @@
     };
     ws.onstate = () => notify();
 
-    // Leadership toggle: flip every declared lead target between read-write
-    // (anyone leads) and read-only (only the host leads) by restamping its
-    // per-record `_vis` in the authoritative store — which broadcasts a
-    // db-change, so guests immediately see the lock and their writes start
-    // being refused by handleRpc. No separate fence: it's all visibility.
-    const setLead = (on) => Promise.all(leadTargets.map((t) =>
-      db.op('setVisibility', t.collection, t.id, on ? 'read-only' : 'read-write').catch(() => {})));
+    // Leadership toggle: raise/lower the write-fence over the declared lead
+    // records, then wake guests (a db-change) so a follower's UI re-reads and
+    // stops trying to drive — the fence itself lives host-side in handleRpc.
+    const setLead = (on) => {
+      lead.on = !!on;
+      const cols = new Set(leadTargets.map((t) => t.collection));
+      for (const c of cols) sendToAll({ t: 'db-change', collection: c });
+      return Promise.resolve();
+    };
     return { sendToAll, stats, stop: () => clearInterval(sweeper), setLead };
   }
 
@@ -1861,7 +1895,7 @@
         // First run of a snapshot GIF: hydrate the icon's DB from embedded state.
         if (isEmptyState(state) && files['.state/db.json']) {
           try {
-            const embedded = JSON.parse(gif.bytesToText(files['.state/db.json']));
+            const embedded = store.unpackJSON(gif.bytesToText(files['.state/db.json']));
             if (embedded && embedded.collections) return db.import(embedded);
           } catch (e) { /* corrupt embedded state — start fresh */ }
         }
@@ -2452,7 +2486,7 @@
   // A cheap, stable fingerprint of a full app state — used only to tell "did I
   // change this copy since the last sync?", never for security.
   function hashState(state) {
-    let str = ''; try { str = JSON.stringify(state) || ''; } catch (e) { str = ''; }
+    let str = ''; try { str = store.packJSON(state) || ''; } catch (e) { str = ''; } // binary-safe + compact (base64, not a 10x numeric-key blob)
     let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
     return (h >>> 0).toString(36) + ':' + str.length;
   }
