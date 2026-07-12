@@ -297,13 +297,16 @@
   // small case must equal today's behavior by ARITHMETIC (empty sets,
   // degenerate folds), never by branching.
   const SCALE = Object.assign({
-    C: 8,             // row capacity — people per row (grows with rehearsals)
-    K: 8,             // live A/V link budget per device
-    F: 16,            // fold fanout — child rows per deacon at one level
-    COMP_W: 480,      // composite frame budget: width…
+    // C is THE shape constant — the stadium's whole geometry derives from it:
+    // a row seats C people, a section is C rows (C² seats — one relay
+    // session), a level-1 space seats the sections' row deacons, and so on
+    // up. Per-device link count and fold fanout are CONSEQUENCES of the
+    // arithmetic, never separate knobs. (Grows with rehearsals.)
+    C: 8,
+    COMP_W: 480,      // fold frame budget: width…
     COMP_H: 270,      // …height…
-    COMP_FPS: 12,     // …and rate. One composite per edge, each way, forever.
-    HB: 4000,         // status heartbeat ms
+    COMP_FPS: 12,     // …and rate. One fold per edge, each way, forever.
+    HB: 4000,         // status heartbeat ms — the gossip pulse everything idempotent rides
   }, root.GIFOS_SCALE || {});
 
   // ---- P1: single-hop forwarding through a friend -----------------------------

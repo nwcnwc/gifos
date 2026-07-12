@@ -27,7 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   };
   const st = (p) => p.evaluate(() => {
     const v = window.__gifosVideo;
-    return { row: v.rowNum(), myRow: v.myRow(), up: v.upOn(), tot: v.totalCount(), parts: v.participants(),
+    return { row: v.sectionNum(), myRow: v.myRow(), up: v.upOn(), tot: v.totalCount(), parts: v.participants(),
       stadium: v.stadium().map((s) => ({ row: s.row, live: s.live })) };
   });
 
@@ -47,7 +47,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---- the walk seats a leaf at C² and spills the rest --------------------
   let seated = true;
   for (const p of pages) {
-    const ok = await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.rowNum() >= 1 && window.__gifosVideo.participants() >= 2, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const ok = await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.sectionNum() >= 1 && window.__gifosVideo.participants() >= 2, null, { timeout: 30000 }).then(() => true).catch(() => false);
     if (!ok) seated = false;
   }
   await sleep(15000); // elections, uplinks, folds, totals settle
@@ -81,7 +81,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const p of pages) {
     const ok = await p.waitForFunction(() => {
       const v = window.__gifosVideo;
-      const own = (v.rowNum() - 1) * v.scale().C + v.myRow();
+      const own = (v.sectionNum() - 1) * v.scale().C + v.myRow();
       const want = [1, 2, 3].filter((r) => r !== own);
       const got = v.stadium();
       return got.length === want.length && want.every((r) => got.some((s) => s.row === r && s.live));
@@ -168,7 +168,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const p of alive) {
     const ok = await p.waitForFunction(() => {
       const v = window.__gifosVideo;
-      const own = (v.rowNum() - 1) * v.scale().C + v.myRow();
+      const own = (v.sectionNum() - 1) * v.scale().C + v.myRow();
       const want = [1, 2, 3].filter((r) => r !== own);
       const got = v.stadium();
       return v.participants() === 5 && got.length === want.length && want.every((r) => got.some((s) => s.row === r && s.live));
@@ -186,7 +186,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(6000);
   const ident = await Promise.all(pages2.map((p) => p.evaluate(() => {
     const v = window.__gifosVideo;
-    return v.rowNum() === 1 && !v.upOn() && v.stadium().length === 0 && v.participants() === 2;
+    return v.sectionNum() === 1 && !v.upOn() && v.stadium().length === 0 && v.participants() === 2;
   })));
   check('K=∞ identity: a small room is one session, no uplink, no stadium — today\'s meeting untouched', ident.every(Boolean));
 

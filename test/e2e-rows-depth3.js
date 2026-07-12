@@ -32,7 +32,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   const st = (p) => p.evaluate(() => {
     const v = window.__gifosVideo;
-    return { row: v.rowNum(), myRow: v.myRow(), up: v.upOn(), upNum: v.upNum(), up2: v.up2On(), parts: v.participants(),
+    return { row: v.sectionNum(), myRow: v.myRow(), up: v.upOn(), upNum: v.upNum(), up2: v.up2On(), parts: v.participants(),
       stadium: v.stadium().map((s) => ({ row: s.row, live: s.live, cnt: s.cnt })) };
   });
 
@@ -79,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const [i, p] of pages.entries()) {
       console.log('  [autopsy] ' + names[i], JSON.stringify(await p.evaluate(() => {
         const v = window.__gifosVideo;
-        return { row: v.rowNum(), up: v.upOn(), upN: v.upNum(), up2: v.up2On(), b: v.branchActive(),
+        return { row: v.sectionNum(), up: v.upOn(), upN: v.upNum(), up2: v.up2On(), b: v.deckActive(),
           stad: v.stadium().map((s) => String(s.row) + (s.live ? '+' : '-') + '@' + String(s.via).slice(0, 6)),
           deep: v.deepState(), fwd: v.compFwdKeys(), log: v.compLog().slice(-6) };
       })));

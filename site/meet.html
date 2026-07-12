@@ -581,13 +581,23 @@
     const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
 
-    // ================= ROWS (docs/rows.md) =================
-    // The scale-free structure: rows hold people, row 0 is the stage (born
-    // empty), the stadium is every row that isn't yours. Everything here is
-    // PURE, DERIVED BOOKKEEPING — computed on demand from the shared roster
-    // by the same arithmetic on every phone, so there is nothing to sync and
-    // nothing to invalidate. Structure emerges from GIFOS_SCALE constants;
-    // no code below ever asks "is this room big?".
+    // ================= THE STADIUM (docs/rows.md) =================
+    // One metaphor, all the way down: a SEAT holds a person; a ROW seats C
+    // (row 0 is the STAGE, born empty); a SECTION is C rows — one relay
+    // session, C² seats; a DECK is the group of sections whose deacons share
+    // one level-1 space; LEVELS count the recursion (a section's row deacons
+    // meet one level up, deacons-among-deacons one above that); and the
+    // STADIUM is everything beyond your own row, seen as folds. Everything
+    // here is PURE, DERIVED BOOKKEEPING — computed on demand from the shared
+    // roster by the same arithmetic on every phone, so there is nothing to
+    // sync and nothing to invalidate. No code below ever asks "is this room
+    // big?".
+    //
+    // WIRE GLOSSARY (gossip stays terse; the words above are the meaning):
+    //   st.leaf   = the sender's SECTION number     st.cnt = its section count
+    //   st.branch = the sender's DECK id            st.bl  = deck's per-section counts
+    //   'b:<n>'   = the fold of deck n              's:<pid>' = a stage feed
+    //   global row number = (section-1)*C + local row index — same on every phone.
     const SCALE = net.SCALE;
     // Capability score for deacon election: uplink + cores + memory + power,
     // folded into ONE coarse bucket so jitter can't flap an election. Measured
@@ -700,7 +710,7 @@
       // Tree bookkeeping rides the same heartbeat: which leaf I sit in, how
       // many people my leaf holds, and (from delegates) the room total they
       // can see from the parent space — presence counting by aggregation.
-      myStatus.leaf = rowNum;
+      myStatus.leaf = sectionNum;
       myStatus.cnt = Math.max(1, rosterIds.length);
       // ONLY delegates assert totals, and only from ground truth for their
       // role — adopted numbers are display-only (see assertedTotal). The
@@ -709,7 +719,7 @@
       myStatus.tot = assertedTotal() || 0;
       myStatus.seen = UP.on ? Math.max(assertedTotal() || 0, seenAsserted() || 0) : 0;
       myStatus.branch = UP.on ? UP.num : 0;
-      myStatus.bl = UP2.on ? Object.fromEntries(knownBranchLeafs()) : undefined;
+      myStatus.bl = UP2.on ? Object.fromEntries(knownDeckSections()) : undefined;
       myStatus.hq = UP.on ? handQueue().slice(0, 20) : undefined;
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
@@ -724,16 +734,16 @@
     // counts, a room sum of branch sums) — what it DISPLAYS may absorb any
     // fresher total gossip carried down. Assertions never absorb, so a stale
     // number can never circulate; it just expires.
-    function knownBranchLeafs() { // leafNum -> cnt, as my parent space sees it
-      const per = new Map([[rowNum, rosterIds.length || 1]]);
+    function knownDeckSections() { // leafNum -> cnt, as my parent space sees it
+      const per = new Map([[sectionNum, rosterIds.length || 1]]);
       for (const pid of upGossipIds()) {
         const st = statusOf.get(pid);
         if (st && st.leaf && st.cnt) per.set(st.leaf, Math.max(per.get(st.leaf) || 0, st.cnt));
       }
       return per;
     }
-    function knownBranchCnt() {
-      let sum = 0; for (const c of knownBranchLeafs().values()) sum += c;
+    function knownDeckCnt() {
+      let sum = 0; for (const c of knownDeckSections().values()) sum += c;
       return sum;
     }
     function assertedTotal() {
@@ -742,7 +752,7 @@
         // delegates split across sibling parent sessions would be counted
         // in two branch scalars, but it can't be counted twice under its
         // own key. Double-count impossible by construction.
-        const merged = knownBranchLeafs();
+        const merged = knownDeckSections();
         for (const pid of up2GossipIds()) {
           const st = statusOf.get(pid);
           if (!st || !st.bl || Date.now() - (st.at || 0) > 15000) continue;
@@ -754,7 +764,7 @@
         let sum = 0; for (const c of merged.values()) sum += c;
         return sum;
       }
-      if (UP.on) return knownBranchCnt();
+      if (UP.on) return knownDeckCnt();
       return 0;
     }
     function seenAsserted() { // freshest ASSERTION anyone I gossip with carries
@@ -783,7 +793,7 @@
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
-    setInterval(() => { if (peers.size && ws && ws.state === 'up') broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, 4000);
+    setInterval(() => { if (peers.size && ws && ws.state === 'up') broadcastStatus(); if (typeof reconcileApp === 'function') reconcileApp(); }, SCALE.HB);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
     // thing we say is an honest "away", and the first thing back is "here".
@@ -1359,7 +1369,7 @@
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' on the meeting · ' + q.label) + (rowNum > 1 ? ' · row ' + rowNum : '') + link + extra;
+        : n + ' on the meeting · ' + q.label) + (sectionNum > 1 ? ' · section ' + sectionNum : '') + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -1575,10 +1585,10 @@
       for (const pid of rosterIds) {
         if (pid === myId) continue;
         const st = statusOf.get(pid) || {};
-        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…', l: rowNum, b: myB });
+        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…', l: sectionNum, b: myB });
         else q.delete(pid); // leaf truth beats a stale fold
       }
-      if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName(), l: rowNum, b: myB });
+      if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName(), l: sectionNum, b: myB });
       else q.delete(myId);
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
     }
@@ -1739,14 +1749,14 @@
     let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
     // Which leaf row this device sits in (1-based; row 1 is path '' — exactly
     // today's session). The walk bumps it until a row seats us.
-    let rowNum = 1, walking = false;
-    const rowPathOf = (n) => (n <= 1 ? '' : 'r' + n);
+    let sectionNum = 1, walking = false;
+    const sectionPathOf = (n) => (n <= 1 ? '' : 'r' + n);
     function walkOn() {
       if (walking) return; // one step at a time — late rosters must not double-bump
       walking = true;
-      rowNum++;
+      sectionNum++;
       for (const pid of Array.from(peers.keys())) dropPeer(pid); // old row's links die with the walk
-      net.deriveMeetSess(room, av, rowPathOf(rowNum)).then((d) => {
+      net.deriveMeetSess(room, av, sectionPathOf(sectionNum)).then((d) => {
         sessId = d.sid; sessTok = d.tok;
         openSock();
       });
@@ -1800,7 +1810,7 @@
     // every delegate dying at once — re-election finishes well inside it.
     let multiSeen = 0;
     const roomIsMulti = () => {
-      const evidence = rowNum > 1 || rosterIds.length >= SCALE.C * SCALE.C
+      const evidence = sectionNum > 1 || rosterIds.length >= SCALE.C * SCALE.C
         || (UP.on && UP.roster.some((id) => id !== myId))
         || (knownTotal() || 0) > Math.max(1, rosterIds.length);
       if (evidence) multiSeen = Date.now();
@@ -3110,28 +3120,28 @@
     // its sibling leaves — into ONE branch composite, and swaps it in the
     // level-2 space. Same canvas primitive; generational softening is the
     // crowd's distance cue, by design (docs/rows.md).
-    const bPipe = { on: false, canvas: null, ctx: null, stream: null, dest: null, srcs: new Map(), unsub: null, idle: 0 };
-    const bSent = new Map(); // foreign-branch uu-mate pid -> { senders, sig, row }
-    const isBranchKey = (row) => typeof row === 'string' && row.indexOf('b:') === 0;
-    function branchRows() { // the global rows my parent space carries
+    const deckPipe = { on: false, canvas: null, ctx: null, stream: null, dest: null, srcs: new Map(), unsub: null, idle: 0 };
+    const deckSent = new Map(); // foreign-branch uu-mate pid -> { senders, sig, row }
+    const isDeckKey = (row) => typeof row === 'string' && row.indexOf('b:') === 0;
+    function deckRows() { // the global rows my parent space carries
       const rows = [];
       if (compPipe.on && typeof compPipe.row === 'number' && compPipe.row > 0) rows.push(compPipe.row);
       for (const k of compOf.keys()) if (typeof k === 'number') rows.push(k);
       return [...new Set(rows)].sort((a, b) => a - b);
     }
-    function bMixIn(key, stream) {
-      if (!bPipe.dest || !stream || bPipe.srcs.has(key)) return;
+    function deckMixIn(key, stream) {
+      if (!deckPipe.dest || !stream || deckPipe.srcs.has(key)) return;
       const track = stream.getAudioTracks()[0];
       if (!track) return;
       try {
         const src = ac.createMediaStreamSource(new MediaStream([track]));
         const gain = ac.createGain();
-        src.connect(gain); gain.connect(bPipe.dest);
-        bPipe.srcs.set(key, { src, gain });
+        src.connect(gain); gain.connect(deckPipe.dest);
+        deckPipe.srcs.set(key, { src, gain });
       } catch (e) {}
     }
-    function drawBranch() {
-      if (!bPipe.on) return;
+    function drawDeck() {
+      if (!deckPipe.on) return;
       const srcs = [];
       if (compPipe.on && compPipe.canvas) srcs.push({ key: 'self', el: compPipe.canvas, stream: compPipe.dest && compPipe.dest.stream });
       for (const [k, c] of compOf) {
@@ -3139,7 +3149,7 @@
         const el = stadiumEl.querySelector('[data-row="' + k + '"] video');
         if (el && el.videoWidth) srcs.push({ key: k, el, stream: c.stream });
       }
-      const canvas = bPipe.canvas, ctx = bPipe.ctx;
+      const canvas = deckPipe.canvas, ctx = deckPipe.ctx;
       const cols = Math.max(1, Math.ceil(Math.sqrt(srcs.length))), rws = Math.max(1, Math.ceil(srcs.length / cols));
       const cw = canvas.width / cols, ch = canvas.height / rws;
       ctx.fillStyle = '#0a0a0f';
@@ -3147,30 +3157,30 @@
       srcs.forEach((s, i) => {
         const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
         try { ctx.drawImage(s.el, x + 1, y + 1, cw - 2, ch - 2); } catch (e) {}
-        if (s.stream) bMixIn(s.key, s.stream);
+        if (s.stream) deckMixIn(s.key, s.stream);
       });
     }
-    function startBranch() {
-      if (bPipe.on) return;
+    function startDeck() {
+      if (deckPipe.on) return;
       const canvas = document.createElement('canvas');
       canvas.width = SCALE.COMP_W; canvas.height = SCALE.COMP_H;
-      bPipe.canvas = canvas;
-      bPipe.ctx = canvas.getContext('2d');
-      bPipe.stream = new MediaStream();
+      deckPipe.canvas = canvas;
+      deckPipe.ctx = canvas.getContext('2d');
+      deckPipe.stream = new MediaStream();
       const vt = canvas.captureStream(SCALE.COMP_FPS).getVideoTracks()[0];
-      if (vt) bPipe.stream.addTrack(vt);
+      if (vt) deckPipe.stream.addTrack(vt);
       if (ensureAc()) {
-        bPipe.dest = ac.createMediaStreamDestination();
-        for (const tr of bPipe.dest.stream.getAudioTracks()) bPipe.stream.addTrack(tr);
+        deckPipe.dest = ac.createMediaStreamDestination();
+        for (const tr of deckPipe.dest.stream.getAudioTracks()) deckPipe.stream.addTrack(tr);
       }
-      bPipe.on = true;
-      drawBranch();
-      bPipe.unsub = metroSub(drawBranch);
+      deckPipe.on = true;
+      drawDeck();
+      deckPipe.unsub = metroSub(drawDeck);
     }
-    function stopBranch(kicks) {
-      if (!bPipe.on) return;
-      if (bPipe.unsub) bPipe.unsub();
-      for (const [pid, cur] of Array.from(bSent)) {
+    function stopDeck(kicks) {
+      if (!deckPipe.on) return;
+      if (deckPipe.unsub) deckPipe.unsub();
+      for (const [pid, cur] of Array.from(deckSent)) {
         for (const sd of cur.senders) auxSenders.delete(sd);
         const p = peers.get(pid);
         if (p) {
@@ -3179,11 +3189,11 @@
           if (kicks) kicks.set(pid, 'mesh');
         }
       }
-      bSent.clear();
-      if (bPipe.stream) for (const tr of bPipe.stream.getTracks()) { try { tr.stop(); } catch (e) {} }
-      for (const m of bPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
-      bPipe.srcs.clear();
-      bPipe.on = false; bPipe.stream = null; bPipe.dest = null; bPipe.canvas = null; bPipe.ctx = null; bPipe.unsub = null; bPipe.idle = 0;
+      deckSent.clear();
+      if (deckPipe.stream) for (const tr of deckPipe.stream.getTracks()) { try { tr.stop(); } catch (e) {} }
+      for (const m of deckPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
+      deckPipe.srcs.clear();
+      deckPipe.on = false; deckPipe.stream = null; deckPipe.dest = null; deckPipe.canvas = null; deckPipe.ctx = null; deckPipe.unsub = null; deckPipe.idle = 0;
     }
 
     function compMixIn(id, stream) {
@@ -3322,8 +3332,8 @@
       // fold keys are GLOBAL row numbers; stage keys 's:<pid>'; branch folds
       // (a whole parent-space session, folded once more) ride 'b:<sess>'
       clog('take ' + row + ' via ' + String(via).slice(0, 6));
-      if (!(isStageKey(row) || isBranchKey(row) || (typeof row === 'number' && row > 0)) || via === myId) return;
-      if (isBranchKey(row) && UP.on && row === 'b:' + UP.num) return; // my own branch is the room around me
+      if (!(isStageKey(row) || isDeckKey(row) || (typeof row === 'number' && row > 0)) || via === myId) return;
+      if (isDeckKey(row) && UP.on && row === 'b:' + UP.num) return; // my own branch is the room around me
       const ids = Array.isArray(m.ids) ? m.ids.slice(0, SCALE.C).map(String) : [];
       const names = Array.isArray(m.names) ? m.names.slice(0, SCALE.C).map((n) => String(n || '').slice(0, 40)) : [];
       const rws = Array.isArray(m.rws) ? m.rws.slice(0, 64).map(Number) : undefined;
@@ -3366,7 +3376,7 @@
     // Local row index ↔ GLOBAL row number: leaves are numbered by the walk,
     // rows inside them by the arithmetic — row 5 means the same row on every
     // phone in the room, whichever session it watches from.
-    const gRowOf = (localIdx) => (rowNum - 1) * SCALE.C + localIdx;
+    const gRowOf = (localIdx) => (sectionNum - 1) * SCALE.C + localIdx;
     const isStageKey = (row) => typeof row === 'string' && row.indexOf('s:') === 0;
     function reconcileComp() {
       if (!myId) return;
@@ -3460,7 +3470,7 @@
       const myUpRowDeacon = UP.on && mySpaceRow(UP) > 0 ? deaconOf(spaceRows(UP)[mySpaceRow(UP)]) : null;
       for (const [row, c] of Array.from(compOf)) {
         let ok = false;
-        if (isBranchKey(row)) {
+        if (isDeckKey(row)) {
           // a folded sibling branch: from a live level-2 mate, or handed down
           // by my parent-space row's deacon, or by my leaf deacon
           if (UP.on && row === 'b:' + UP.num) ok = false; // my own branch is the room around me
@@ -3475,7 +3485,7 @@
           else if (UP.on) ok = !!myUpRowDeacon && c.via === myUpRowDeacon && peers.has(c.via);
           else ok = !!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon();
         } else {
-          const li = typeof row === 'number' ? row - (rowNum - 1) * SCALE.C : -1;
+          const li = typeof row === 'number' ? row - (sectionNum - 1) * SCALE.C : -1;
           if (li >= 1 && li < rows.length) {
             const r = rows[li];
             const expectVia = amDeacon() ? (r && r.length ? deaconOf(r) : null) : myDeacon;
@@ -3509,33 +3519,33 @@
       // ONE voice per branch: every phone in my parent space derives the same
       // announcer (first populated space-row's deacon) — two same-branch
       // delegates racing the same 'b:' key would churn every receiver.
-      const bAnnouncer = () => {
+      const deckAnnouncer = () => {
         const ds = spaceRows(UP).filter((r, i) => i > 0 && r.length).map((r) => deaconOf(r)).filter(Boolean).sort();
         return ds[0] || null;
       };
-      const fold2 = UP2.on && aud2.length > 0 && bAnnouncer() === myId;
-      if (fold2 && !bPipe.on) startBranch();
-      if (!fold2 && bPipe.on) {
-        if (!bPipe.idle) bPipe.idle = Date.now();
-        if (Date.now() - bPipe.idle > 15000) stopBranch(kicks);
-      } else bPipe.idle = 0;
-      if (bPipe.on && fold2) {
+      const fold2 = UP2.on && aud2.length > 0 && deckAnnouncer() === myId;
+      if (fold2 && !deckPipe.on) startDeck();
+      if (!fold2 && deckPipe.on) {
+        if (!deckPipe.idle) deckPipe.idle = Date.now();
+        if (Date.now() - deckPipe.idle > 15000) stopDeck(kicks);
+      } else deckPipe.idle = 0;
+      if (deckPipe.on && fold2) {
         const bKey = 'b:' + UP.num;
-        const sig2 = bPipe.stream.id + '|' + UP.num;
-        const announce2 = { k: 'comp-own', row: bKey, streamId: bPipe.stream.id, ids: [], names: [], rws: branchRows(), cnt: knownBranchCnt() };
+        const sig2 = deckPipe.stream.id + '|' + UP.num;
+        const announce2 = { k: 'comp-own', row: bKey, streamId: deckPipe.stream.id, ids: [], names: [], rws: deckRows(), cnt: knownDeckCnt() };
         for (const pid of aud2) {
           const p = peers.get(pid);
           if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
-          const cur = bSent.get(pid);
+          const cur = deckSent.get(pid);
           if (cur && cur.sig === sig2) { dcSend(p, announce2); continue; }
           if (cur) for (const sd of cur.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
           const senders = [];
-          for (const tr of bPipe.stream.getTracks()) { try { senders.push(addAux(p.pc, tr, bPipe.stream)); } catch (e) {} }
-          bSent.set(pid, { senders, sig: sig2, row: bKey });
+          for (const tr of deckPipe.stream.getTracks()) { try { senders.push(addAux(p.pc, tr, deckPipe.stream)); } catch (e) {} }
+          deckSent.set(pid, { senders, sig: sig2, row: bKey });
           dcSend(p, announce2);
           kicks.set(pid, 'mesh');
         }
-        for (const [pid, cur] of Array.from(bSent)) {
+        for (const [pid, cur] of Array.from(deckSent)) {
           if (aud2.includes(pid) && peers.has(pid)) continue;
           for (const sd of cur.senders) auxSenders.delete(sd);
           const p = peers.get(pid);
@@ -3544,7 +3554,7 @@
             dcSend(p, { k: 'comp-end', row: cur.row });
             kicks.set(pid, 'mesh');
           }
-          bSent.delete(pid);
+          deckSent.delete(pid);
         }
       }
       // FORWARD DOWN, one level at a time. Three audiences, one machinery:
@@ -3623,7 +3633,7 @@
           el.addEventListener('click', () => el.classList.toggle('zoom'));
           stadiumEl.appendChild(el);
         }
-        const branch = isBranchKey(row);
+        const branch = isDeckKey(row);
         el.style.order = stage ? -1 : branch ? 1000 + (+String(row).slice(2) || 0) : row;
         const v = el.querySelector('video');
         if (c.stream && v.srcObject !== c.stream) {
@@ -4626,17 +4636,17 @@
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
       // multi-session rows
-      rowNum: () => rowNum,
+      sectionNum: () => sectionNum,
       upOn: () => UP.on,
       upNum: () => UP.num,
       up2On: () => UP2.on,
       deepState: () => {
         const aud2x = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid) && !rosterIds.includes(pid)) : [];
         const ds = spaceRows(UP).filter((r, i) => i > 0 && r.length).map((r) => deaconOf(r)).filter(Boolean).sort();
-        return { up2: UP2.on, aud2: aud2x.map((x) => String(x).slice(0, 6)), ann: String(ds[0] || '').slice(0, 6), me: String(myId || '').slice(0, 6), upN: UP.roster.length, up2N: UP2.roster.length, bOn: bPipe.on };
+        return { up2: UP2.on, aud2: aud2x.map((x) => String(x).slice(0, 6)), ann: String(ds[0] || '').slice(0, 6), me: String(myId || '').slice(0, 6), upN: UP.roster.length, up2N: UP2.roster.length, bOn: deckPipe.on };
       },
       up2Roster: () => UP2.roster.slice(),
-      branchActive: () => !!bPipe.on,
+      deckActive: () => !!deckPipe.on,
       upRoster: () => UP.roster.slice(),
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
