@@ -3290,11 +3290,16 @@
       dcSend(p, { k: 'rkick' });
       renegotiate(p);
     }
-    // Any transceiver with a live sender track but no mid was rolled back or
-    // raced out of its negotiation — it needs another offer to exist on the
-    // wire. The re-offer checks after every settled negotiation.
+    // Any transceiver with a live sender track that is not actually SENDING
+    // needs another offer: no mid means it was rolled back or raced out of
+    // its negotiation entirely; a mid whose currentDirection lost 'send'
+    // means a glare interleave negotiated it recv-only around our track.
+    // Both are invisible to the media path and heal only by re-offering.
     const hasPendingTx = (p) => {
-      try { return p.pc.getTransceivers().some((t) => !t.mid && t.sender && t.sender.track); } catch (e) { return false; }
+      try {
+        return p.pc.getTransceivers().some((t) => t.sender && t.sender.track
+          && (!t.mid || (t.currentDirection && t.currentDirection.indexOf('send') < 0)));
+      } catch (e) { return false; }
     };
     function claimCompStreams() {
       let changed = false;
