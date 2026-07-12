@@ -1309,22 +1309,79 @@
       action.onclick = returnToLatest;
     } else {
       msg.textContent = 'A new version of GifOS (v' + latestVersion + ') is available.';
-      action.textContent = 'Reload';
-      action.onclick = () => location.reload();
+      action.textContent = 'Update';
+      action.onclick = upgradeToLatest; // drops the cached shell so the reload actually pulls the new build
     }
   }
   document.getElementById('update-dismiss').onclick = () => { updateBar.style.display = 'none'; };
-  function returnToLatest() { try { localStorage.removeItem('gifos_pin'); } catch (e) {} location.href = '/?latest=1'; }
+
+  // Since the offline layer (sw.js) landed, the whole computer — every HTML page
+  // and js/ module — is served from a precached "shell". That's what makes
+  // airplane mode work, but it also means a plain reload keeps handing you the
+  // SAME cached build (stale-while-revalidate serves the old copy first), so you
+  // could never actually pull a new release. dropShellCaches() deletes that
+  // shell cache and asks the browser to re-fetch the worker, so the NEXT load
+  // comes straight from the live site. (IndexedDB — your apps/files — is left
+  // untouched here; erasing handles that separately.)
+  async function dropShellCaches() {
+    try {
+      if (root.caches && caches.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.indexOf('gifos-shell-') === 0).map((k) => caches.delete(k)));
+      }
+    } catch (e) { /* CacheStorage unavailable — nothing to purge */ }
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.update) await reg.update().catch(() => {});
+      }
+    } catch (e) { /* no SW — fine */ }
+  }
+  // Can we actually reach the live site right now? Used to refuse a cache purge
+  // while offline (which would strand the computer with nothing to boot).
+  async function reachable() {
+    try { const r = await fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' }); return !!(r && r.ok); } catch (e) { return false; }
+  }
+
+  // Force this computer onto the latest live build: unpin, drop the cached shell,
+  // and reload straight from gifos.app. Guarded on reachability so we never wipe
+  // the offline shell when there's no network to replace it. Returns false (and
+  // tells the user) when offline.
+  async function upgradeToLatest() {
+    if (!(await reachable())) {
+      showConfirm('Can’t reach gifos.app', 'You appear to be offline. Reconnect and try again — upgrading has to download the latest computer from the site.', [{ label: 'OK' }]);
+      return false;
+    }
+    try { localStorage.removeItem('gifos_pin'); } catch (e) {}
+    await dropShellCaches();
+    location.replace('/?latest=' + Date.now()); // cache-buster + ?latest clears any pin in the bootstrap
+    return true;
+  }
+  function returnToLatest() { upgradeToLatest(); }
+
+  // Erase the WHOLE computer, not just the Home Screen data. clearAll() wipes
+  // IndexedDB (every app, file and their state); then — the part that was
+  // missing — we unpin and drop the cached shell so the reload re-downloads the
+  // newest computer from the live site instead of rebooting the same old cached
+  // one. Offline, we can't fetch a fresh build, so we keep the cached shell and
+  // just reboot it with empty storage (a clean computer on the current version).
+  async function eraseComputer() {
+    try { localStorage.removeItem('gifos_pin'); } catch (e) {}
+    await store.clearAll();
+    if (await reachable()) { await dropShellCaches(); location.replace('/?latest=' + Date.now()); }
+    else location.reload();
+  }
 
   async function checkForUpdate() {
     try {
       const r = await fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' });
-      if (!r.ok) return;
+      if (!r.ok) return false;
       const info = await r.json();
       latestVersion = info.current || VERSION;
       availableVersions = Array.isArray(info.versions) && info.versions.length ? info.versions : [VERSION];
       applyUpdateBar();
-    } catch (e) { /* offline or no version.json — stay silent */ }
+      return true;
+    } catch (e) { return false; /* offline or no version.json — stay silent */ }
   }
 
   // One-line, non-technical summary of the last paint for Settings → Advanced.
@@ -1572,20 +1629,6 @@
 
   async function showSettings() {
     closeContext();
-    const pinned = pinnedVersion();
-    const behind = cmpVer(latestVersion, VERSION) > 0;
-    const status = pinned ? 'Pinned to v' + VERSION + (behind ? ' (latest is v' + latestVersion + ')' : '')
-      : behind ? 'Update available: v' + latestVersion + ' — <a id="set-reload" href="#">reload</a>'
-      : 'You are on the latest version.';
-    // Version rows (newest first); switching reloads through the bootstrap.
-    const rows = availableVersions.slice().sort(cmpVer).reverse().map((v) => {
-      const isLatest = v === latestVersion;
-      const isActive = v === VERSION && !pinned;
-      const tag = (isLatest ? ' (latest)' : '') + (isActive ? ' — current' : (pinned === v ? ' — pinned' : ''));
-      const btn = isActive ? '<span class="vtag">current</span>'
-        : '<button data-v="' + v + '" class="vbtn">' + (isLatest ? 'Return to latest' : 'Switch to this') + '</button>';
-      return '<div class="vrow"><span>v' + escapeHtml(v) + escapeHtml(tag) + '</span>' + btn + '</div>';
-    }).join('');
     let relay = ''; try { relay = localStorage.getItem('gifos_relay') || ''; } catch (e) {}
 
     // Storage facts for the Advanced section.
@@ -1628,9 +1671,7 @@
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
       (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this Home Screen now</button>') +
       '<h4>Version</h4>' +
-      '<p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. ' + status + '</p>' +
-      '<p class="add-help">Run a specific version — past builds are served unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
-      '<div class="vlist">' + rows + '</div>' +
+      '<div id="set-version"><p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. Checking gifos.app for the latest…</p></div>' +
       '<h4>Multiplayer relay</h4>' +
       '<p class="add-help">Custom relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
@@ -1646,8 +1687,12 @@
     wireAiSection(box);
     wireApiSection(box);
 
-    box.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
-    const rel = box.querySelector('#set-reload'); if (rel) rel.onclick = (e) => { e.preventDefault(); location.reload(); };
+    // Version panel: paint from what we know, then ALWAYS re-check the live site
+    // (the request is network-first through the SW) so the newest release shows
+    // even if the boot-time check missed it. Repaint with the fresh answer.
+    const vc = box.querySelector('#set-version');
+    paintVersion(vc);
+    checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline'); });
     box.querySelector('#set-bg-color').addEventListener('input', (e) => setBackgroundColor(e.target.value));
     box.querySelector('#set-bg-image').onclick = () => {
       const inp = document.createElement('input');
@@ -1702,9 +1747,50 @@
   }
 
   function switchToVersion(v) {
-    if (v === latestVersion) { returnToLatest(); return; }
+    if (v === latestVersion) { upgradeToLatest(); return; } // fresh pull, not a pinned redirect
     try { localStorage.setItem('gifos_pin', v); } catch (e) {}
-    location.reload(); // bootstrap redirects to /versions/<v>/
+    location.reload(); // bootstrap redirects to /versions/<v>/ (an immutable archived build)
+  }
+
+  // Render the Advanced → Version panel into `container`. Always states the LIVE
+  // latest (from the last version.json check), and offers the two moves the user
+  // asked for: UPGRADE this computer to the latest live build (a real fresh pull
+  // that busts the offline cache), or ROLL BACK / pin any archived version.
+  // `net` is 'offline' when the live check just failed, so we say so plainly.
+  function paintVersion(container, net) {
+    if (!container) return;
+    const pinned = pinnedVersion();
+    const behind = cmpVer(latestVersion, VERSION) > 0;
+    const offline = net === 'offline';
+    const line = offline
+      ? 'Running <b>v' + escapeHtml(VERSION) + '</b>. Couldn’t reach gifos.app to check for the latest — you may be offline.'
+      : pinned
+        ? 'Running <b>v' + escapeHtml(VERSION) + '</b>, pinned. The latest on gifos.app is <b>v' + escapeHtml(latestVersion) + '</b>.'
+        : behind
+          ? 'Running <b>v' + escapeHtml(VERSION) + '</b>. A newer version, <b>v' + escapeHtml(latestVersion) + '</b>, is live on gifos.app.'
+          : 'Running <b>v' + escapeHtml(VERSION) + '</b> — the latest on gifos.app.';
+    // The upgrade action always downloads a fresh copy from the live site; when
+    // you're already current it doubles as a "force a clean re-download".
+    const upgradeBtn = (behind || pinned)
+      ? '<button class="widebtn" id="set-upgrade">⬆ Upgrade this computer to v' + escapeHtml(latestVersion) + '</button>'
+      : '<button class="widebtn ghost" id="set-upgrade">Re-download the latest (v' + escapeHtml(latestVersion) + ')</button>';
+    // Version list, newest first: current is inert; latest offers Upgrade; older
+    // offer Roll back (pinning redirects to the immutable archived build).
+    const rows = availableVersions.slice().sort(cmpVer).reverse().map((v) => {
+      const isLatest = v === latestVersion;
+      const isActive = v === VERSION && !pinned;
+      const tag = (isLatest ? ' (latest)' : '') + (isActive ? ' — running now' : (pinned === v ? ' — pinned' : ''));
+      const btn = isActive ? '<span class="vtag">running</span>'
+        : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLatest ? 'Upgrade to this' : 'Roll back to this') + '</button>';
+      return '<div class="vrow"><span>v' + escapeHtml(v) + escapeHtml(tag) + '</span>' + btn + '</div>';
+    }).join('');
+    container.innerHTML =
+      '<p class="add-help" id="set-latest">' + line + '</p>' +
+      upgradeBtn +
+      '<p class="add-help">Upgrading pulls the newest build straight from gifos.app (it clears the offline copy so the update actually lands). Rolling back runs a past build unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
+      '<div class="vlist">' + rows + '</div>';
+    const up = container.querySelector('#set-upgrade'); if (up) up.onclick = upgradeToLatest;
+    container.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
   }
 
   addBtn.addEventListener('click', showAddDialog);
@@ -1994,14 +2080,14 @@
   // Dev-only escape hatch — dies before 1.0. Backup is one click away on purpose.
   function resetFlow() {
     showConfirm('Erase this entire computer?',
-      'This is not just the Home Screen layout — it wipes the <b>whole computer</b> stored in this browser: every app, file, folder, wallpaper, and all app state. There is no undo and no server copy.',
+      'This is not just the Home Screen layout — it wipes the <b>whole computer</b> stored in this browser: every app, file, folder, wallpaper, and all app state. It then reinstalls a fresh computer on the latest version from gifos.app. There is no undo and no server copy.',
       [
         { label: 'Back up first, then erase', fn: async () => {
           await backupDesktop();
-          showConfirm('Backup downloaded', 'Your computer image is downloading — it can boot or restore this exact computer later. Erase now?',
-            [{ label: 'Erase This Computer', danger: true, fn: async () => { await store.clearAll(); location.reload(); } }]);
+          showConfirm('Backup downloaded', 'Your computer image is downloading — it can boot or restore this exact computer later. Erase and reinstall the latest now?',
+            [{ label: 'Erase This Computer', danger: true, fn: eraseComputer }]);
         } },
-        { label: 'Erase without backup', danger: true, fn: async () => { await store.clearAll(); location.reload(); } },
+        { label: 'Erase without backup', danger: true, fn: eraseComputer },
       ]);
   }
 

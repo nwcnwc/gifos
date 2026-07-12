@@ -21,7 +21,7 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v2';
+var SHELL_VERSION = 'v3';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-

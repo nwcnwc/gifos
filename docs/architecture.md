@@ -581,10 +581,25 @@ which drives the compatibility rules below.
 ### Update delivery
 
 The shell bakes in its version (`window.GIFOS_VERSION`) and, on load, fetches
-`/version.json` (no-store) to learn the deployed `current`. If it's behind, a
-dismissible **update bar** invites a reload — the user chooses when, so state is
-never yanked mid-use. (GitHub Pages' short HTML cache means a reload picks up the
-new build.)
+`/version.json` (no-store, network-first through the offline worker) to learn the
+deployed `current`. If it's behind, a dismissible **update bar** invites an
+update — the user chooses when, so state is never yanked mid-use.
+
+Because the offline layer (`sw.js`) precaches the whole shell, a *plain* reload
+would keep serving the cached build (stale-while-revalidate hands back the old
+copy first) — so "Update" and **Settings → Advanced → Version** don't just
+reload: they **drop the `gifos-shell-*` caches** and re-fetch from the live site,
+which is what makes an update actually land. The Version panel re-checks the live
+`version.json` every time it opens (so it always shows the true latest), and
+offers **Upgrade** (a fresh pull of the latest) and **Roll back** (pin an
+archived build). For existing installs, bumping `SHELL_VERSION` in `sw.js` on a
+release reinstalls the worker and re-precaches the new shell automatically.
+
+**Erase This Computer** wipes both surfaces of the machine, not just one: it
+clears IndexedDB (every app, file and their state) **and** the shell cache, then
+reloads unpinned from the live site — so erasing reinstalls the newest computer
+rather than rebooting the same cached one. (Offline, it keeps the cached shell
+and just reboots it empty, since there's no network to fetch a fresh build.)
 
 ### Version pinning
 
