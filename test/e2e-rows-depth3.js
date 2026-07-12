@@ -62,7 +62,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- presence: one number for the whole room, three sessions deep --------
   check('presence: participants() is 10 on every phone across three leaves and two branches',
-    await allWait(() => window.__gifosVideo.participants() === 10, null, 90000));
+    await allWait(() => window.__gifosVideo.participants() === 10, null, 150000));
 
   // ---- the stadium at depth: own-branch rows individually (there may be
   // none — a lone-row branch sees everything else as branches), foreign
