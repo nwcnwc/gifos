@@ -4,6 +4,11 @@
 a parallel work-stream. Nothing in here is built; the "Current state" section
 describes what ships today, and everything under "New design" is the target.
 
+**Foundation:** this presumes `docs/relay-as-introducer.md` — the relay is a
+one-time introducer and peers run the mesh P2P after join. Peer-enforced
+moderation is only coherent once peers are actually off the relay, so implement
+that model first or together.
+
 ## The principle
 
 > Don't do centrally what can be done peer-to-peer.
