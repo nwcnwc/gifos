@@ -143,6 +143,19 @@ the DC). Two builds close this:
    `{t:'fwd', src, to, p}` (`site/js/gifos-net.js`), and the fold **manifests**
    (`comp-own`/`comp-stream`) that already circulate row membership P2P.
 
+3. **Healing signaling must survive the pair it heals.** The wedged-link
+   sweeper (`988a09b`/`e198019` on main: ICE-restart a pair stuck >12s in
+   `'connecting'`, rebuild the transport past 25s, per-fold kicks only on
+   settled pairs) sends its recovery offers over the *relay* today — and the
+   pair's own DataChannel is exactly what's broken when a heal is needed. In
+   the introducer world those offers route by **sponsor-forwarding over any
+   still-live link** (a row-mate forwards to the deacon, the deacon-mesh
+   crosses rows); only when a peer has *no* live link at all does it fall to
+   §6a re-entry — and §6a's trigger is therefore "the connection-layer heal
+   **gave up**," never "a link looks down," or re-entry races the sweeper's
+   ICE-restart and double-heals. The `makingOffer`/perfect-negotiation guards
+   from those commits are transport-agnostic and carry over unchanged.
+
 After this, the relay's *only* remaining wire role is the initial newcomer↔greeter
 introduction. Everything else is DataChannels.
 
@@ -317,6 +330,15 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   now purely a client choice about which key to persist (a device-derived secret
   the *client* keeps, never shown to the relay), not a relay capability.
 
+- **Elections must respect the tally — including the deacon.** A member's
+  entire fold view rides its ONE row-deacon link (the hard-won lesson of the
+  fold-collapse fixes on main), so "shun by teardown" pointed at your own
+  deacon would black out your stadium. All role elections — deacon, greeter,
+  prober — therefore exclude peers your local tally has at threshold, and the
+  row re-elects around a shunned deacon exactly as it does around a dead one.
+  Transient divergence (two members briefly computing different deacons while
+  the tally converges) is the same eventual-consistency the counting rules
+  already tolerate.
 - **The shun must be told to its target, or §6a loops forever.** A shunned
   peer's links all die — which is *exactly* the §6a "you fell out, re-enter
   through the relay" trigger. Today the relay's terminal `close(4007)` tells
