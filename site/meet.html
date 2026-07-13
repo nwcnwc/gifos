@@ -916,7 +916,11 @@
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
       const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable };
-      for (const pid of allGossipIds()) sendSig(pid, payload);
+      // An admin's heartbeat in an admin room re-gossips the mod table, which
+      // receivers only trust with the RELAY's admin stamp — that pulse skips
+      // the DCs and rides the (stamped) relay broadcast alone.
+      const stamped = hasAdminRoom() && amAdmin;
+      fanOut(payload, stamped ? null : (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); });
       updateTile('me');
     }
     // Presence counting, echo-proof at every depth: what a node ASSERTS is
@@ -1652,6 +1656,31 @@
       txm(() => net.seal(roomE2E, msg).then((env) =>
         net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
     };
+    // Room-wide fan-out. DataChannel pairs hear it directly (viaDc — free);
+    // everyone else hears ONE relay {t:'gossip'} broadcast per session socket,
+    // which the relay fans back out as the ordinary stamped {t:'peer', from}
+    // shape — receivers need no new path, and DC pairs just absorb an
+    // idempotent duplicate. Never per-peer envelopes: a frame per silent
+    // roster member per tick (~70 members × every 4s at section scale) blew
+    // the relay's sustained frame budget and got sockets cut with "control
+    // messages only" a minute into any filled room.
+    function fanOut(msg, viaDc) {
+      const dcSent = new Set();
+      if (viaDc) for (const pid of allGossipIds()) {
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') { viaDc(p); dcSent.add(pid); }
+      }
+      for (const [sock, ids] of [[ws, gossipIds()], [UP.on && UP.ws, upGossipIds()], [UP2.on && UP2.ws, up2GossipIds()]]) {
+        if (!sock) continue;
+        // A heartbeat is re-minted every tick — never queue a stale one on a
+        // down socket. Chat-class frames DO queue (steadySocket holds them).
+        if (msg.kind === 'status' && sock.state !== 'up') continue;
+        if (!ids.some((pid) => !dcSent.has(pid))) continue; // this session already heard it on DCs
+        if (msg.kind === 'status') txStats.relayStatus++;
+        txm(() => net.seal(roomE2E, msg).then((env) =>
+          net.sendChunked(env, (piece) => { try { sock.send(JSON.stringify({ t: 'gossip', msg: piece })); } catch (e) {} })));
+      }
+    }
     const myName = () => GifOS.store.identity().name || 'Guest';
 
     // Exactly ONE side initiates each pairing, chosen by peer-id order — the
@@ -3063,12 +3092,9 @@
       // other side (forward-on-first-sight in the handlers), and dedupe-by-id
       // makes the tree loop-proof: a frame crosses each edge at most once
       // usefully. In-reach pairs ride their DataChannel; everyone else gets
-      // the sealed relay envelope on whichever socket reaches them.
-      for (const pid of allGossipIds()) {
-        const p = peers.get(pid);
-        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, msg);
-        else sendSig(pid, msg);
-      }
+      // the sealed relay envelope — one gossip broadcast per session where
+      // the relay supports it (fanOut), per-peer envelopes where it doesn't.
+      fanOut(msg, (p) => dcSend(p, msg));
     }
     // Chat-class frames that arrived over the RELAY (no DataChannel for this
     // pair). Same dispatch as the DC path; anything that needs a channel to
