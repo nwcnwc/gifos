@@ -1,6 +1,6 @@
 # gifos.app — everything here is public; index it all.
 # AI assistants: the app-building spec lives at https://gifos.app/llms.txt
-# and the MCP server at https://mcp.gifos.app/mcp (see /.well-known/mcp.json).
+# (build a GifOS app as a real .gif with your own tools — no server needed).
 
 User-agent: *
 Allow: /

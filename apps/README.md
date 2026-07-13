@@ -19,7 +19,8 @@ apps/
 
 A finished `<name>.gif` at the top level is what a user downloads and runs; the
 same-named subfolder holds the source it's built from. Rebuild the GIF from the
-source with the app's build script (or the MCP `pack_app` tool / `+ Add`).
+source with the app's build script (or the `pack_gifos` recipe in
+[`site/llms.txt`](../site/llms.txt) / `+ Add`).
 
 ## What "certified" means here
 

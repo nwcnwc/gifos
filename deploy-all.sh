@@ -24,8 +24,7 @@ cd "$(dirname "$0")"
 #   mirror      gifos-mirror       0-9.gifos.app         (theme computers)
 #   relay       gifos-relay        relay.gifos.app       (WebSocket signaling)
 #   cors-proxy  gifos-cors-proxy   cors-proxy.gifos.app  (keyed-API CORS relay)
-#   mcp         gifos-mcp          mcp.gifos.app          (AI builds app GIFs)
-WORKERS=(mirror relay cors-proxy mcp)
+WORKERS=(mirror relay cors-proxy)
 
 for d in "${WORKERS[@]}"; do
   echo "▶ deploying $d …"

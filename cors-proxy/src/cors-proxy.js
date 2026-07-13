@@ -34,6 +34,24 @@ const ALLOW_HOSTS = new Set([
   'text.recoveryversion.bible',
 ]);
 
+// Abuse/cost guards. Cloudflare bills request-count + CPU-ms (never bandwidth),
+// so the two ways this Worker costs money are: (a) request floods, and (b)
+// buffering giant bodies. Cap both.
+const MAX_BODY_BYTES = 25 * 1024 * 1024;  // 25 MB — real speech clips are a few hundred KB
+const REQ_PER_MIN_PER_IP = 240;           // generous for a talker's audio chunks; hostile to loops
+// Best-effort per-IP limiter: per-isolate memory, so it's a burst damper at
+// each edge PoP, not a global ledger. The real global cap is a Cloudflare
+// dashboard Rate-Limiting rule on cors-proxy.gifos.app (see repo README).
+const ipHits = new Map(); // ip -> [timestamps]
+function rateLimited(ip) {
+  const now = Date.now();
+  const log = (ipHits.get(ip) || []).filter((t) => now - t < 60000);
+  log.push(now);
+  ipHits.set(ip, log);
+  if (ipHits.size > 10000) ipHits.clear(); // cap memory; best-effort anyway
+  return log.length > REQ_PER_MIN_PER_IP;
+}
+
 // Requests are only served for these origins. Empty Origin (same-origin / curl)
 // is refused — a real GifOS app always sends one.
 function originAllowed(origin) {
@@ -75,6 +93,13 @@ export default {
       return fail(403, 'cors-proxy.gifos.app only serves GifOS apps (gifos.app origins).', origin);
     }
 
+    const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
+    if (rateLimited(ip)) return fail(429, 'Too many requests — slow down.', origin);
+
+    // Reject oversized bodies before buffering them into isolate memory.
+    const clen = parseInt(req.headers.get('Content-Length') || '0', 10);
+    if (clen > MAX_BODY_BYTES) return fail(413, 'Body too large for the shared proxy.', origin);
+
     const target = req.headers.get('x-gifos-target') || '';
     let u;
     try { u = new URL(target); } catch (e) { return fail(400, 'Missing or invalid x-gifos-target header.', origin); }
@@ -99,9 +124,18 @@ export default {
     // duplex quirks and keeps the forward simple.
     const body = hasBody ? await req.arrayBuffer() : undefined;
 
+    // GETs to the allow-listed public hosts are cacheable at Cloudflare's edge,
+    // KEYED ON THE TARGET URL (the subrequest url), not the shared proxy url —
+    // so a flood of identical Bible-text reads collapses to one upstream fetch
+    // and near-zero CPU. Never cache authenticated calls (they carry per-user
+    // headers and go through as-is).
+    const cacheable = !hasBody && (method === 'GET' || method === 'HEAD') && !req.headers.get('authorization');
+    const init = { method, headers: fwd, body };
+    if (cacheable) init.cf = { cacheEverything: true, cacheTtl: 3600 };
+
     let resp;
     try {
-      resp = await fetch(u.toString(), { method, headers: fwd, body });
+      resp = await fetch(u.toString(), init);
     } catch (e) {
       return fail(502, 'Upstream request failed: ' + (e && e.message || e), origin);
     }

@@ -8,27 +8,13 @@
 If a user asks you to build them a GifOS app, YOUR DELIVERABLE IS A REAL,
 FINISHED .gif FILE — not code. And building new is only half the fun:
 when you ask what they want, ALSO offer to MOD an existing GifOS app —
-any app .gif they upload can be remixed (see "Modding" below). Three
-paths, in order of preference:
+any app .gif they upload can be remixed (see "Modding" below). This
+document is the complete guide; two paths, in order of preference:
 
-## Path A (best): the GifOS MCP server
+## Path A (best): build the .gif yourself with your code tool
 
-Connect an MCP client to:  https://mcp.gifos.app/mcp
-(In Claude: Settings -> Connectors -> Add custom connector -> that URL.)
-
-Tools:
-- get_build_guide  — the full spec (read first)
-- validate_app     — static sandbox-rule checks on your HTML
-- pack_app         — packs your HTML into a real .gif and returns the bytes
-                     (base64). PREFER the user's own GIF as the animation:
-                     pass it via hide_in_gif_base64 and it is used WHOLESALE
-                     (byte-for-byte, never redrawn). Pixel-art "icon" frames
-                     are the fallback when they have no GIF. Save as
-                     "<App>.gif", hand it over.
-
-## Path B: build the .gif yourself with your code tool
-
-If you can run Python and attach files, you don't need the connector:
+If you can run code (Python) and attach files, you can produce the
+finished GIF directly — everything you need is right here:
 1. Get the animation. THE USER'S OWN GIF COMES FIRST: ask if they have
    one and, if so, use its bytes as the host file WHOLESALE — do NOT
    redraw, re-encode, resize, crop, or "improve" it in any way; step 2
@@ -63,21 +49,20 @@ If you can run Python and attach files, you don't need the connector:
 
 Attach the resulting file for the user to download.
 
-## Path C (last resort): hand the user HTML to paste
+## Path B (fallback): hand the user HTML to paste
 
-Only if you can neither use MCP nor run code: give the complete index.html
-and tell the user to open https://gifos.app -> "+ Add" -> paste it into the
-app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
+If you can't run code, give the complete index.html and tell the user to
+open https://gifos.app -> "+ Add" -> paste it into the app builder (or drop
+a .zip for multi-file apps). GifOS packs the GIF there.
 
-## The app rules (summary — get_build_guide has the full version)
+## The app rules
 
 1. The entry point is index.html. Multi-file apps are fully supported:
    app.js, style.css, assets/... referenced normally all travel inside the
-   GIF (include them in the files you pack / pass as extra_files to
-   pack_app). The ONLY hard rule: nothing external — no CDNs, frameworks,
-   remote images, or web fonts; the sandbox blocks all outside network.
-   Inline SVG + emoji are fine. (Only the paste-HTML fallback, Path C, is
-   limited to a single file.)
+   GIF (include them in the files you pack). The ONLY hard rule: nothing
+   external — no CDNs, frameworks, remote images, or web fonts; the sandbox
+   blocks all outside network. Inline SVG + emoji are fine. (Only the
+   paste-HTML fallback, Path B, is limited to a single file.)
 2. Persistence: localStorage/cookies/indexedDB are DISABLED. Use:
      const db = gifos.db('items');
      await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
@@ -183,16 +168,16 @@ app builder (or drop a .zip for multi-file apps). GifOS packs the GIF there.
 6. Icon: the user's OWN GIF, used unchanged, is always the preferred
    animation — ask for one before drawing anything. Otherwise: include
    <link rel="icon" href="data:image/svg+xml,..."> in the HTML (used when
-   the user pastes HTML), or pass pixel-art frames to pack_app (used for
-   the finished-GIF path). Animated icons are the GifOS signature.
+   the user pastes HTML), or use pixel-art frames as the host animation
+   (the finished-GIF path). Animated icons are the GifOS signature.
 
 ## Their GIF is the app (the preferred move — always offer it)
 
 GifOS can put an app inside ANY existing GIF, unchanged. ALWAYS ask the
 user first whether they have a GIF they'd like to use — their own art, a
-favorite from their camera roll, their group chat, or the wild — and pass
-its bytes to the MCP pack_app tool as "hide_in_gif_base64" (or use it as
-the host bytes in the Python recipe). The result looks and animates
+favorite from their camera roll, their group chat, or the wild — and use
+its bytes as the host file in the pack_gifos recipe above (unchanged: do
+not redraw or re-encode). The result looks and animates
 EXACTLY like their original everywhere it's shared — byte-for-byte, never
 redrawn or re-encoded — but dropped on a GifOS Home Screen it runs: a
 dancing-cat GIF that's secretly a birthday card, a meme that's secretly a
@@ -207,14 +192,10 @@ bigger", "add a dark mode", "turn this counter into a tracker". Apps are
 files, files get modded, and GifOS celebrates it — deliver the modified
 .gif back and it drops straight onto their Home Screen.
 
-Via MCP: unpack_app (returns the manifest + every file inside, including
-saved .state/ data) → edit → pack_app with hide_in_gif_base64 = the SAME
-original GIF. The payload swaps in place, the animation survives
-byte-for-byte, and the user's data rides along if you pass the .state/
-files through unchanged.
-
-With Python: cut the old app block out, then pack the modified files into
-the remaining bytes with the pack_gifos recipe above:
+Cut the old app block out, then pack the modified files back into the
+remaining bytes (the SAME original GIF) with the pack_gifos recipe above.
+The payload swaps in place, the animation survives byte-for-byte, and the
+user's data rides along if you pass the .state/ files through unchanged:
 
    def unpack_gifos(b):
        i = b.find(b"\x21\xff\x0bGIFOS1.0GOS")

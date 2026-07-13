@@ -43,9 +43,9 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 **Make your own apps**: ＋ Add → "Ask an AI to build an app" copies a prompt that teaches any AI the GifOS format; paste back the HTML it returns. Or drop in a single `.html`, or a **`.zip` for multi-file apps** (js/css/assets included).
 
-**Or let your AI do the whole thing (MCP).** Add the GifOS connector to Claude (Settings → Connectors → `https://mcp.gifos.app/mcp`) and just say *"build me a habit tracker for GifOS"* — the AI reads the build guide, writes the app, designs a pixel-art animated icon, and hands you a **finished `.gif` file** via the `pack_app` tool. Drop it on your Home Screen; done. AIs that merely browse the web learn the format from [`gifos.app/llms.txt`](site/llms.txt) and can produce paste-into-＋Add apps with no connector at all. See [`mcp/`](mcp).
+**Or let your AI do the whole thing.** Point any code-capable AI (Claude, etc.) at [`gifos.app/llms.txt`](site/llms.txt) and just say *"build me a habit tracker for GifOS"* — the guide teaches it to write the app, design a pixel-art animated icon, and pack it all into a **finished `.gif` file** with a short Python recipe, which it attaches for you to drop on your Home Screen. AIs that can't run code produce paste-into-＋Add HTML instead. No connector, no server, nothing to sign up for — the format is a public spec.
 
-**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the MCP `unpack_app` tool opens everything inside, `pack_app` splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. (`llms.txt` carries the equivalent Python recipe for AIs without the connector.) See an app you like in a friend's session? **Steal App** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
+**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal App** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
 
 ## Multiplayer: Any Browser Can Be the Server
 
@@ -175,7 +175,6 @@ node test/e2e-reconnect.js        # sockets die like on phones; sessions self-he
 node test/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
 node test/sign.js                 # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
-node test/mcp-server.js           # the MCP app builder end-to-end
 ```
 
 The e2e suites expect the static server on `:8099` and (for relay/video) `test/relay-local.js` on `:8790`.
@@ -187,7 +186,7 @@ The e2e suites expect the static server on `:8099` and (for relay/video) `test/r
 | Desktop site | GitHub Pages → `gifos.app` | **Automatic** on every push to `main` ([`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `site/` only) |
 | Relay | Cloudflare Worker → `relay.gifos.app` | **Manual**: `cd relay && npx wrangler deploy` |
 | Subdomain mirror | Cloudflare Worker → `0.gifos.app` … `9.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
-| MCP app builder | Cloudflare Worker → `mcp.gifos.app` | **Manual**: `cd mcp && npx wrangler deploy` |
+| CORS proxy | Cloudflare Worker → `cors-proxy.gifos.app` | **Manual**: `cd cors-proxy && npx wrangler deploy` |
 
 The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
 
