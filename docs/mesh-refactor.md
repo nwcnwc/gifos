@@ -100,6 +100,19 @@ which runs without any greeter). Composition:
   pool stays at 2–3, continuously refreshed, always spanning "most stable" and
   "most recent."
 
+**De-stack the roles the election concentrates.** The anchor slots come from the
+same capability-weighted ranking that elects deacons — so naïvely the deacon of
+row 1 is also greeter anchor, probe designator (§6b), *and* its row's
+compositor. Live-tested 2026-07-13: the fold mesh's failure mode at scale was
+pure deacon CPU starvation (one Chrome main thread doing compositing, ~30 aux
+encoders, and every SDP round; negotiation slowed past the glare window and the
+deacon-mesh stranded) — and `cap` is measured once at boot, deliberately, so
+the election cannot see the pile-up. Rule: greeter anchors are filled from the
+ranking **after skipping current deacons** whenever the session has enough
+members to allow it (arithmetic fallback: a tiny session stacks roles and that
+is fine — the load is tiny too). Same skip for probe designation. The point is
+per-node invariant load, not just per-node invariant *rules*.
+
 **Introduction is fan-out, not hand-off.** The relay introduces every
 newcomer/re-entrant to **all** currently-open greeter sockets (it can do this
 blind — it already `broadcast()`s to all open sockets without reading the
@@ -211,8 +224,37 @@ the session's **live P2P occupancy** (it is *in* the mesh):
   greeter must exclude the stage from the seat count — it has the stage state via
   gossip. The stage still anchors at the first level-1 space.
 
+**Section identity becomes the session address — fix this first (step 0).**
+Today `sectionNum` is a client's *local walk counter* (`let sectionNum = 1`,
+`++` per walk) — not a room truth. Two members of the same session can disagree
+on it, and everything global-row-shaped derives from it: `gRowOf`, fold keys,
+stadium ordering, `st.leaf` gossip. This is not theoretical: live-tested
+2026-07-13, a deacon whose counter disagreed with its session re-labeled its
+composite under a second global row and receivers rendered the same faces
+twice (fixed receiver-side by (via, streamId) dedupe + announce-heartbeat
+expiry, `fb562ed` — but that is a bandage on the symptom). The session
+*address* already encodes the truth — `sectionPathOf(n)` puts `r2, r3, …` into
+the very derivation that names the session — so the rule is: **a client's
+section number is read from the session it is connected to, never counted
+locally.** This refactor moves seating and re-entry to greeters and makes walk
+history even less correlated with where a client actually sits; land the
+canonical-identity change before any of that, or every layer above inherits a
+split-brain generator.
+
 Delegate seating into spaces (walk to sibling spaces, walk *back* from lonely
-ones — `rows.md:27`) is the identical greeter logic one level up.
+ones — `rows.md:27`) is the identical greeter logic one level up. **But be
+honest about the baseline: walk-back does not exist for sections today.** A
+seated member never re-walks; live-tested 2026-07-13, a room fractured into
+33/5/5 across three sections and sat that way for an hour with 49 free seats
+in section 1 — no mechanism even attempts consolidation. Greeter-based,
+eventually-consistent seating makes under-filled fragments *more* likely (a
+transient split founds a parallel group; §2's empty-session race). So
+consolidation must be designed, not assumed. The natural mechanism is already
+in this doc: the §6b probe's fan-out introduction reaches greeters of *every*
+fragment of a session, and the identical recursion one level up can notice "my
+section is far under-filled and a lower-numbered sibling has room" and steer
+members back on the same sponsored re-entry path. Treat it as a required step
+(§11 q7), not folklore inherited from `rows.md`.
 
 ---
 
@@ -281,6 +323,15 @@ first row of actual seated members:
   direct links reform, the fork heals. If there was no split, the probe is a
   cheap no-op that also happens to refresh the greeter pool. The re-entrant
   keeps its existing peer id — re-introduction is idempotent, never a ghost tile.
+- **The probe NEVER touches the roster — this is load-bearing, not hygiene.**
+  The re-entrant keeps its seat, keeps every live link, stays in every other
+  member's `computeRows()` throughout; it *only* opens a socket, receives the
+  fan-out, links to whatever answers, closes. Never implement it as
+  leave-and-rejoin: every roster change ripples `computeRows` → deacon
+  re-election → full fold teardown and cold re-negotiation for every member of
+  the affected rows (live-measured 2026-07-13: tens of seconds to re-converge a
+  section's folds after one such ripple). A 30–60s probe cadence implemented as
+  rejoin is a metronome that demolishes the stadium on every beat.
 - **Why both sides of a split still hold relay sockets — make the mechanism
   explicit, don't assert it:** the greeter-pool invariant (§2) is maintained
   *locally by every connected component*. After a split, each side notices the
@@ -344,6 +395,12 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   confidently; IP-only matches enforce cautiously (e.g. count toward the tally
   but require the tuple to auto-confirm). Within the stated scope —
   unsophisticated bad actors — this is an accepted, *named* risk, not a surprise.
+  One more gap in the same family: a pair that only ever connects via a
+  **friend-relay** (hard-NAT island, media forwarded by a mutual friend) has no
+  direct ICE exchange at all — no `srflx`, no observed path, nothing to
+  confirm. For such a peer the vote runs on the hint alone: it counts toward
+  the tally like an IP-only match but can never auto-confirm. Name it so the
+  implementation doesn't silently treat "no stats" as "no vote."
 - **Lists stay personal and client-held**, gossiped **sealed** over the same P2P
   gossip as everything else (§5). The relay never receives a `votekick`.
 - **Tally is local and eventually-consistent.** Each client counts, for each
@@ -501,6 +558,20 @@ sealed." Half true, wrong half load-bearing:
    for everyone-on-relay; steady state is now greeters + in-flight joiners +
    probes. The cap can drop sharply, but must stay generous enough to absorb a
    re-bootstrap herd; join-rate caps must not throttle a healthy probe cadence.
+7. **Section consolidation policy** (§4). Walk-back for sections does not exist
+   today and fragments persist indefinitely (measured 33/5/5 for an hour).
+   Decide the trigger ("my section is under X% full and a lower-numbered
+   sibling has room for all of us"), the mover (greeter steers members over the
+   probe/sponsored-re-entry path), and the pacing (one member per beat — a bulk
+   move is a self-inflicted roster ripple, see §6b's probe law).
+8. **Ops visibility after sockets close.** Every seating fracture found in the
+   2026-07-13 live tests was found by reading the relay's per-session socket
+   rosters — a surface this refactor deletes (members hold no sockets; identity
+   is sealed anyway). The per-client forensics hooks (§14) are per-seat, not
+   per-room. Decide what replaces room-level ground truth for a debugging
+   operator: a greeter that answers a *sealed* census to a URL-holding
+   diagnostic client is one shape; "you debug from inside, as a member" is
+   another — but choose deliberately, don't discover the gap mid-incident.
 
 ---
 
@@ -533,6 +604,11 @@ sealed." Half true, wrong half load-bearing:
 - **NAT islands unchanged.** Signaling can always be forwarded (tiny); a hard-NAT
   *media* pair may still island and fall back to a friend-relay exactly as today.
   Being off the relay for signaling creates no new connectivity.
+- **Room-level observability shrinks.** With member sockets gone, there is no
+  central surface that knows a room's fragment layout; diagnosis moves to
+  per-seat forensics plus whatever §11 q8 decides. Budget for this in incident
+  response — the 2026-07-13 fold hunt would have been materially slower without
+  the relay's session rosters.
 
 ---
 
@@ -561,6 +637,12 @@ events and the `compTable`/`incomingIds`/`fwdState` hooks alongside the fix, and
 a loaded-box multi-client forensic probe is the proven way to catch what CI's
 timing hides.
 
+0. **Canonical section identity** (§4). `sectionNum` becomes a read of the
+   session address (`sectionPathOf` is already in the derivation), never a
+   local walk counter. Smallest possible change, kills a whole bug class the
+   rest of this design would otherwise amplify (dup-fold relabeling, `fb562ed`),
+   and every later step's global-row arithmetic stands on it. Land it before
+   anything else — it is independently shippable on today's architecture.
 1. **Signaling on DataChannels** (§3.1). Move renegotiation off the relay for
    already-connected pairs. Smallest, unblocks everything.
 2. **Password into the key derivation** (§8). New DS-tagged derivation for
