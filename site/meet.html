@@ -2512,6 +2512,9 @@
       if (!localStream) return;
       const vt = localStream.getVideoTracks()[0], at = localStream.getAudioTracks()[0];
       if ((!vt || vt.readyState !== 'ended') && (!at || at.readyState !== 'ended')) return;
+      regrabCamera();
+    }
+    function regrabCamera() {
       navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
         .then((s) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
@@ -2532,6 +2535,42 @@
           refreshOutbound(); // rebuild the (blurred or raw) sender AND the WYSIWYG self-view
         }).catch(() => {});
     }
+
+    // Live-but-BLACK camera (iOS mostly: another app held the hardware, or
+    // WebKit resumed the capture session wrong): the track stays 'live' but
+    // reports muted (no frames) or delivers pure black pixels. Watch the
+    // self-view while the camera is ON; if nothing comes through for ~9s,
+    // re-grab — the exact fix people discover by hand ("close the tab and
+    // come back in"), done automatically. Capped so a genuinely dark room
+    // never loops the camera; a single bright frame refills the budget.
+    (function blackCamWatch() {
+      const probe = document.createElement('canvas');
+      probe.width = 32; probe.height = 18;
+      const pctx = probe.getContext('2d', { willReadFrequently: true });
+      let darkTicks = 0, revives = 0;
+      const dark = () => {
+        const v = meTile && meTile.video;
+        if (!v || !v.videoWidth) return true; // no frames yet IS the symptom
+        try {
+          pctx.drawImage(v, 0, 0, 32, 18);
+          const d = pctx.getImageData(0, 0, 32, 18).data;
+          for (let i = 0; i < d.length; i += 4) if (d[i] > 12 || d[i + 1] > 12 || d[i + 2] > 12) return false;
+          return true;
+        } catch (e) { return false; } // can't sample — assume fine, never loop
+      };
+      setInterval(() => {
+        if (!localStream || myStatus.camOff || document.hidden) return;
+        const vt = localStream.getVideoTracks()[0];
+        if (!vt || vt.readyState === 'ended') return; // reviveCamera's case
+        if (vt.muted || dark()) {
+          if (++darkTicks >= 3 && revives < 3) {
+            darkTicks = 0; revives++;
+            setStatus('Your camera was sending black video — restarting it…');
+            regrabCamera();
+          }
+        } else { darkTicks = 0; revives = 0; }
+      }, 3000);
+    })();
 
     // ---- mic mode: voice vs music ---------------------------------------------
     // The default capture pipeline is built for SPEECH: echo cancellation, noise
@@ -2979,7 +3018,7 @@
           if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
           meTile = makeTile('me', myName() + ' (you)', true);
           if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
-          else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — grant permission and reload to send video.');
+          else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — tap the mic or camera button above to ask again.');
           updateTile('me');
           joinRoom();
           updateStatus();
@@ -4743,9 +4782,74 @@
       for (const seg of blurSegs) seg.classList.toggle('sel', +seg.dataset.blur === lvl);
     }
 
+    // A tap on a dead mic/cam button is the ONE moment we can ask again: a
+    // getUserMedia call inside a user gesture re-prompts (or at least retries)
+    // even where the boot-time ask failed — browsers that auto-deny a page-load
+    // prompt (DuckDuckGo, links opened inside other apps), or a hasty "Deny".
+    // View-only must be an antechamber, not a sentence.
+    let lateAsk = false;
+    function lateMedia(kind) {
+      if (lateAsk) return;
+      const md = navigator.mediaDevices;
+      if (!md || !md.getUserMedia) {
+        setStatus('This browser can’t share a camera or microphone here. Open this meeting link in Safari or Chrome — the Invite button copies it.');
+        return;
+      }
+      lateAsk = true;
+      setStatus('Asking for camera & microphone…');
+      md.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+        .then((s) => {
+          lateAsk = false;
+          // Quiet-join discipline still holds: only the tapped control goes on.
+          for (const tr of s.getTracks()) tr.enabled = tr.kind === (kind === 'cam' ? 'video' : 'audio');
+          if (!localStream) {
+            localStream = s;
+            const n = meTile.tile.querySelector('.note'); if (n) n.remove();
+            meTile.video.style.display = '';
+            meTile.video.srcObject = localStream;
+            meterFor('me', localStream);
+          } else {
+            // partial stream (mic-only / cam-only): merge the missing kinds
+            // into the SAME stream — its id is our announced identity.
+            for (const tr of s.getTracks()) {
+              if (localStream.getTracks().some((t) => t.kind === tr.kind)) { try { tr.stop(); } catch (e) {} }
+              else localStream.addTrack(tr);
+            }
+          }
+          myStatus.muted = kind !== 'mic';
+          myStatus.camOff = kind !== 'cam';
+          // The mesh was built recvonly (we had nothing to offer) — add our
+          // tracks to every live pc and re-offer; perfect negotiation absorbs
+          // it, and the fresh m-lines guarantee an ontrack on the far side.
+          for (const [pid, p] of peers) {
+            if (!p.pc) continue;
+            const have = new Set(p.pc.getSenders().map((sd) => sd.track && sd.track.kind).filter(Boolean));
+            let added = false;
+            for (const tr of localStream.getTracks()) {
+              if (have.has(tr.kind)) continue;
+              try { p.pc.addTransceiver(tr, { streams: [localStream] }); added = true; } catch (e) {}
+            }
+            if (added) { if (p.dc && p.dc.readyState === 'open') compKick(pid); else renegotiate(p); }
+          }
+          paintControls();
+          refreshOutbound();
+          broadcastStatus();
+          reactRoomState();
+          updateMediaSession();
+          setStatus(kind === 'cam' ? 'Camera on.' : 'Mic on.');
+        })
+        .catch((err) => {
+          lateAsk = false;
+          const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+          setStatus(denied
+            ? 'The browser refused the camera & microphone. Check this site’s permissions in the browser settings — or open this meeting link in Safari or Chrome (some browsers, and links opened inside another app, block calls).'
+            : 'No usable camera or microphone (' + ((err && err.name) || 'error') + '). Another app may be holding them — close it and tap again.');
+        });
+    }
+
     micBtn.onclick = () => {
-      if (!localStream) return;
-      const track = localStream.getAudioTracks()[0]; if (!track) return;
+      if (!localStream) return lateMedia('mic');
+      const track = localStream.getAudioTracks()[0]; if (!track) return lateMedia('mic');
       if (!track.enabled && amGloballyMuted()) {
         const by = modOf('me').mute.by;
         setStatus('You were muted for everyone' + (by ? ' by ' + by : '') + ' — another participant has to lift it.');
@@ -4759,8 +4863,8 @@
       updateMediaSession();
     };
     camBtn.onclick = () => {
-      if (!localStream) return;
-      const track = localStream.getVideoTracks()[0]; if (!track) return;
+      if (!localStream) return lateMedia('cam');
+      const track = localStream.getVideoTracks()[0]; if (!track) return lateMedia('cam');
       if (forcedCamOff('me') && !track.enabled) {
         setStatus('📷 An admin turned your video off for the room — only they can turn it back on.');
         return;

@@ -170,6 +170,7 @@ node test/e2e-store.js            # per-record store: orphan safety + delete/rep
 node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
 node test/e2e-failover.js         # host death → client takeover, same session
 node test/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
+node test/e2e-media-recovery.js   # denied camera re-asks on tap; black camera auto-restarts
 node test/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
 node test/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
