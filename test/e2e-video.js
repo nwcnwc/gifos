@@ -797,13 +797,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'mute'), null, { timeout: 8000 });
   check('admin\'s global mute lands on the target (stamped, receiver-enforced)', true);
 
-  // ban Beth's device: socket cut, rejoin refused
-  const bethDev = await beth.evaluate(() => window.__gifosVideo.deviceId());
+  // ban Beth's device: socket cut, rejoin refused. The ban keys on the
+  // ROOM-SALTED device tag (what the relay ever sees), never the raw id.
+  const bethDev = await beth.evaluate(() => window.__gifosVideo.devHash());
   await bethTile.locator('.banbtn').evaluate((b) => b.click()); // fire directly — no menu visibility race
   await beth.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('banned device is cut and its rejoin is refused', true);
   await adam.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 8000 });
-  check('admin sees the device on the ban list',
+  check('admin sees the device (room-salted tag) on the ban list',
     (await adam.evaluate(() => window.__gifosVideo.banList()))[0].d === bethDev);
   const bethReload = await openRoom(bethCtx, 'beth2', admHash);
   await bethReload.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
@@ -959,7 +960,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pat = await openRoom(patCtx, 'pat', vHash);
   const quinn = await openRoom(quinnCtx, 'quinn', vHash);
   const vic = await openRoom(vicCtx, 'vic', vHash);
-  const vicDev = await vic.evaluate(() => window.__gifosVideo.deviceId());
   await pat.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
   check('vote-off buttons show in a non-admin room',
     (await pat.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) !== 'none');
@@ -978,26 +978,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the standing majority keeps that device out on rejoin', true);
   await vicRejoin.close(); await vic.close();
 
-  // ================= votes are GLOBAL: they follow the person =================
-  // Pat and Quinn each already carry a vote against Vic's device. Meet Vic in
-  // a DIFFERENT plain room and the vote is already there — nothing stored on
-  // any server, no list handed around, just each person's own memory.
+  // ============== votes are PER-ROOM (device tags are room-salted) ============
+  // A device's id is hashed WITH THE ROOM before it ever reaches the relay, so
+  // the relay can enforce a live majority WITHIN a room but can never correlate
+  // a device across rooms — and a vote cast in one room cannot follow a device
+  // into another. (Because a device can trivially wipe and change its id, global
+  // "everywhere, forever" vote-offs were only ever a soft tool anyway; binding
+  // them per-room keeps the relay from holding a cross-room correlator for every
+  // honest user. See docs/threat-model.md, boundary D.)
   const room2 = 'vote' + Math.floor(Math.random() * 1e6).toString(36);
   const v2Hash = 'v=' + room2;
-  const pat2 = await openRoom(patCtx, 'pat-b', v2Hash);   // carries the vote
-  const vicB = await openRoom(vicCtx, 'vic-b', v2Hash);
+  const pat2 = await openRoom(patCtx, 'pat-b', v2Hash);   // voted Vic off in room1…
+  const vicB = await openRoom(vicCtx, 'vic-b', v2Hash);   // …but this is a DIFFERENT room
   await pat2.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });
-  await pat2.waitForFunction((d) => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Vic'));
-    return t && /1\/2 to remove/.test(t.textContent);
-  }, vicDev, { timeout: 8000 });
-  check('a person you voted off already carries your vote into a brand-new room', true);
-  check('one standing vote alone does not remove them', !(await vicB.evaluate(() => window.__gifosVideo.bannedOut())));
-  const quinn2 = await openRoom(quinnCtx, 'quinn-b', v2Hash); // also carries the vote
+  await sleep(2500); // let any (non-)vote gossip settle
+  check('a vote from another room does NOT follow the device — the new room starts clean',
+    !(await pat2.evaluate(() => { const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Vic')); return !!(t && /to remove/.test(t.textContent)); })));
+  check('and the device is admitted normally into the new room', !(await vicB.evaluate(() => window.__gifosVideo.bannedOut())));
+  // A fresh majority IN THIS room still removes them — per-room vote-off works.
+  await pat2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votebtn').click();
+  const quinn2 = await openRoom(quinnCtx, 'quinn-b', v2Hash);
+  await quinn2.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
+  await quinn2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votebtn').click();
   await vicB.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
-  check('two people who voted Vic off before boot him the moment they share a room', true);
+  check('a fresh majority in the new room removes them (per-room vote-off still works)', true);
   await vicB.close();
-  // …and now that a majority present has him on their list, the door won't open.
+  // …and now that a majority PRESENT has him on their list, the door won't open.
   const vicDenied = await openRoom(vicCtx, 'vic-c', v2Hash);
   await vicDenied.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 10000 });
   check('a device a present majority has voted off is denied entry outright', true);
@@ -1007,12 +1013,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // P2P means everyone can already learn everyone's address — GifOS shows it:
   // the status pill opens the room's who-is-here list, downloadable as a
   // record you can hand to the authorities if someone truly crosses the line.
+  // The address now reaches the panel SEALED (each peer seals the IP the relay
+  // told it privately via whoami) — the relay never authored this list.
   await pat2.locator('#status').click();
   await pat2.waitForSelector('#who-modal', { state: 'visible', timeout: 6000 });
   const whoText = await pat2.locator('#who-list').textContent();
   check('the status pill opens "who is on this meeting" — names with network addresses',
     /Pat \(you\)/.test(whoText) && /127\.0\.0\.1|address unknown/.test(whoText));
-  check('every row carries a real address (the local relay reports 127.0.0.1)', /127\.0\.0\.1/.test(whoText));
+  check('my own address is present via whoami (sealed, not the relay roster)', /127\.0\.0\.1/.test(whoText));
   const [dl] = await Promise.all([
     pat2.waitForEvent('download', { timeout: 8000 }),
     pat2.locator('#who-dl').click(),
