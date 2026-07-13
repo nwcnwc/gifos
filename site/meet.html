@@ -3824,11 +3824,21 @@
       const cur = compOf.get(row);
       if (cur && cur.via === via && cur.streamId === m.streamId) {
         cur.ids = ids; cur.names = names; cur.rws = rws; cur.cnt = cnt; // manifest refresh on the same stream
+        cur.takeAt = Date.now();
         renderStadium();
         return;
       }
       if (cur) clog('remap r=' + row + ' ' + String(cur.streamId).slice(0, 8) + '>' + String(m.streamId || '').slice(0, 8) + (cur.via === via ? '' : ' via!'));
-      compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, rws, cnt, srcU, stream: null });
+      // ONE key per composite: the announcer's own section number can change
+      // (sectionNum is its local walk counter), and a re-labeled fold would
+      // otherwise live under BOTH its old and new global row — the same faces
+      // painted twice. The stream identity is the truth; retire the old key.
+      for (const [oRow, oc] of Array.from(compOf))
+        if (oRow !== row && oc.via === via && oc.streamId === String(m.streamId || '')) {
+          clog('rekey ' + oRow + '>' + row);
+          compOf.delete(oRow);
+        }
+      compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, rws, cnt, srcU, stream: null, takeAt: Date.now() });
       claimCompStreams();
       renderStadium();
       // A fresh streamless mapping is NORMAL — the sender's own offer is
@@ -3957,6 +3967,13 @@
       // who is allowed to hand things DOWN to me, per space
       const myUpRowDeacon = UP.on && mySpaceRow(UP) > 0 ? deaconOf(spaceRows(UP)[mySpaceRow(UP)]) : null;
       for (const [row, c] of Array.from(compOf)) {
+        // Announcements re-arrive on every carrier beat (~2s). A key the
+        // carrier STOPPED announcing (it re-labeled the fold after a walk,
+        // or dropped the role without a comp-end getting through) would
+        // otherwise pass the via-filters below forever — expiry is the
+        // backstop that keeps every displayed fold on a live heartbeat.
+        if (!c.takeAt) c.takeAt = Date.now();
+        else if (Date.now() - c.takeAt > 20000) { dropComp(row); continue; }
         let ok = false;
         if (isDeckKey(row)) {
           // a folded sibling branch: from a live level-2 mate, or handed down
