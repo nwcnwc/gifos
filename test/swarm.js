@@ -58,6 +58,7 @@ const RAMP = Math.max(0, parseInt(args.ramp || '400', 10));
 const FPS = Math.max(1, parseInt(args.fps || '5', 10));
 const CHAT = Math.max(0, parseFloat(args.chat === undefined ? '20' : args.chat));
 const SPEAK = Math.max(0, parseFloat(args.speak === undefined ? '45' : args.speak));
+const DIAG = Math.max(0, parseFloat(args.diag === undefined ? '0' : args.diag)); // 0=off; secs between deep topology dumps
 
 let chromium;
 try { ({ chromium } = require('playwright')); }
@@ -280,6 +281,12 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       '--disable-features=WebRtcHideLocalIpsWithMdns', '--autoplay-policy=no-user-gesture-required'],
   });
   const pages = [];
+  // Graceful teardown: on SIGTERM/SIGINT close the browser so every bot's
+  // socket closes cleanly and the room gets real peer-leaves — the count decays
+  // smoothly instead of waiting out gossip-assertion expiry after a hard kill.
+  let closing = false;
+  const shutdown = async () => { if (closing) return; closing = true; try { await browser.close(); } catch (e) {} process.exit(0); };
+  process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
   // meet.html reads the room password from localStorage at join (loadPw:
   // 'gifos_vpw_' + room[.av]) and derives the relay proof from it — seeding
   // that key makes a bot indistinguishable from a returning member, so a
@@ -326,6 +333,70 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     }
     console.log('[swarm] up=' + up + '/' + N + ' sections=' + JSON.stringify(bySection) + ' roomCount=' + parts);
   }, 20000);
+
+  // ---- deep per-bot topology diagnostic (docs/rows.md) ---------------------
+  // Every DIAG seconds, ask each bot how the mesh is treating it: section /
+  // global-row / seat, deacon or not, how many REAL RTCPeerConnections it holds
+  // and whether any reach BEYOND its row+stage (the "P2P on all 64" smell —
+  // only row-mates, stage, and deacon↔deacon should be direct), how many of its
+  // direct-face grid tiles vs folded stadium tiles are actually painting video
+  // (black-screen hunt), and whether the stadium fold panel is up. One line per
+  // bot + a shard aggregate. Runs entirely off the existing window.__gifosVideo
+  // test hook — no meet.html change needed.
+  const diagInPage = () => {
+    const V = window.__gifosVideo;
+    if (!V) return { err: 'no __gifosVideo' };
+    const g = (fn, d) => { try { return fn(); } catch (e) { return d; } };
+    const S = g(() => V.scale(), {}); const C = S.C || 8;
+    const rows = g(() => V.rows() || [], []);
+    const myRow = g(() => V.myRow(), -1);
+    const section = g(() => V.sectionNum(), 0);
+    const stageSet = new Set(rows[0] || []);
+    const myRowSet = new Set(rows[myRow] || []);
+    let pcOpen = 0, pcConn = 0, pcBeyond = 0;
+    for (const pid of rows.flat().filter(Boolean)) {
+      const st = g(() => V.pcState(pid), null);
+      if (!st) continue;
+      pcOpen++;
+      if (st.conn === 'connected') pcConn++;
+      if (!myRowSet.has(pid) && !stageSet.has(pid)) pcBeyond++;
+    }
+    const vAlive = (v) => !!(v && v.srcObject && v.videoWidth > 0 && !v.paused && v.readyState >= 2);
+    let gTiles = 0, gLive = 0;
+    for (const t of document.querySelectorAll('#grid .tile')) {
+      if (t.classList.contains('me')) continue;
+      gTiles++; if (vAlive(t.querySelector('video'))) gLive++;
+    }
+    let sTiles = 0, sLive = 0;
+    for (const t of document.querySelectorAll('#stadium [data-row]')) { sTiles++; if (vAlive(t.querySelector('video'))) sLive++; }
+    return {
+      sec: section, gRow: (section - 1) * C + (myRow < 0 ? 0 : myRow), row: myRow, deacon: g(() => V.amDeacon(), false) ? 1 : 0,
+      n: g(() => V.participants(), 0), links: g(() => V.liveLinks(), 0),
+      pcOpen, pcConn, pcBeyond,
+      gTiles, gLive, gBlack: gTiles - gLive,
+      stShown: g(() => V.stadiumShown(), false) ? 1 : 0, stFolds: g(() => (V.stadium() || []).length, 0),
+      sTiles, sLive, sBlack: sTiles - sLive, comp: g(() => V.compActive(), false) ? 1 : 0,
+    };
+  };
+  if (DIAG) setInterval(async () => {
+    const got = [];
+    for (const { idx, p } of pages) {
+      try { const d = await p.evaluate(diagInPage); if (d && !d.err) got.push({ idx, d }); } catch (e) {}
+    }
+    if (!got.length) return;
+    for (const { idx, d } of got) {
+      console.log('[diag] bot=' + idx + ' sec=' + d.sec + ' gRow=' + d.gRow + ' row=' + d.row + (d.deacon ? ' DEACON' : '')
+        + ' n=' + d.n + ' pc=' + d.pcOpen + '(' + d.pcConn + 'up' + (d.pcBeyond ? ',' + d.pcBeyond + 'BEYOND' : '') + ')'
+        + ' faces=' + d.gLive + '/' + d.gTiles + (d.gBlack ? ' BLACK=' + d.gBlack : '')
+        + ' fold=' + d.sLive + '/' + d.sTiles + ' stadium=' + (d.stShown ? 'ON' : 'off') + '(' + d.stFolds + 'folds)'
+        + (d.comp ? ' COMP' : ''));
+    }
+    const sum = (f) => got.reduce((a, r) => a + f(r.d), 0);
+    console.log('[diag] SHARD bots=' + got.length + ' maxPC=' + Math.max(...got.map((r) => r.d.pcOpen))
+      + ' faceBlack=' + sum((d) => d.gBlack) + ' foldBlack=' + sum((d) => d.sBlack)
+      + ' seeStadium=' + got.filter((r) => r.d.stShown).length + '/' + got.length + ' deacons=' + sum((d) => d.deacon));
+  }, DIAG * 1000);
+
   if (CHAT) {
     // One random bot per shard speaks per tick — through the real chat form,
     // so the message rides the same DataChannel gossip a human's would.
