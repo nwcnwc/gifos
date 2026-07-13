@@ -915,7 +915,10 @@
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable };
+      // The display name rides the SEALED status pulse (and sealed offers/
+      // answers) — never a relay query param — so the relay only ever routes
+      // opaque peer ids and never learns who is in the room by name.
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, name: myName() };
       // An admin's heartbeat in an admin room re-gossips the mod table, which
       // receivers only trust with the RELAY's admin stamp — that pulse skips
       // the DCs and rides the (stamped) relay broadcast alone.
@@ -1897,9 +1900,14 @@
         if (msg.conns) connsOf.set(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
         if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
+        // The name travels the sealed pulse now, not the relay roster. Record
+        // it for EVERY sender — including cross-row peers we hold no media link
+        // to, whose tiles read their name straight out of rosterNames.
+        if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
+          if (msg.name && sp.name !== msg.name) { sp.name = msg.name; if (sp.label) sp.label.textContent = msg.name; if (sp.avatar) sp.avatar.textContent = msg.name[0].toUpperCase(); }
           if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
@@ -2080,7 +2088,7 @@
     };
     function buildSpaceUrl(U) {
       return relayUrl().replace(/\/$/, '') + '/s/' + U.sessId + '?role=mesh&token=' + U.sessTok +
-        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(pwProof) +
+        '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
         '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
     }
     function openSpace(U) {
@@ -2340,7 +2348,7 @@
     // so a changed password proof or a fresh admin key rides the next attempt.
     function buildWsUrl() {
       return relayUrl().replace(/\/$/, '') + '/s/' + sessId + '?role=mesh&token=' + sessTok +
-        '&peer=' + myPeerId() + '&name=' + encodeURIComponent(myName()) + '&pw=' + encodeURIComponent(pwProof) +
+        '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
         '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
     }
     function openSock() {

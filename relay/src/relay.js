@@ -10,9 +10,11 @@
  * idle session or call room costs NOTHING while nobody is talking: the DO is
  * evicted from memory between messages and Cloudflare only bills actual
  * activity, not wall-clock call length. Everything a handler needs to know
- * about a socket (role, peer id, name, ip, token, room password) rides in
+ * about a socket (role, peer id, ip, token, room password) rides in
  * its serialized attachment, which survives eviction but DIES WITH THE
- * CONNECTION — the relay persists nothing, ever. A room's token and password
+ * CONNECTION — the relay persists nothing, ever. Display NAMES are never in
+ * the attachment or the roster: they travel end-to-end sealed between clients,
+ * so the relay only ever routes anonymous peer ids. A room's token and password
  * are therefore properties of its CURRENT OCCUPANTS: the first arrival to an
  * empty room re-establishes them from their own session, and everyone after
  * that must match the people already inside — except that in an ADMIN room
@@ -146,12 +148,16 @@ export class Session {
   send(ws, obj) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (e) {} }
 
   roster() {
-    const peers = [], names = {}, admins = [], devs = {}, ips = {};
+    // The roster is peer IDS only — never names. Display names travel
+    // end-to-end sealed between clients (status/offer/answer frames), so the
+    // relay routes anonymous ids and never authors a name directory. IPs, by
+    // contrast, are the relay's own unavoidable observation of each socket and
+    // are shared back deliberately (see below).
+    const peers = [], admins = [], devs = {}, ips = {};
     let admV = null, ban = null, mesh = false;
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
-      if (a.name) names[a.peer] = a.name;
       if (a.role === 'mesh') mesh = true;
       if (a.adm) admins.push(a.peer);
       if (a.dev) devs[a.peer] = a.dev;
@@ -160,7 +166,7 @@ export class Session {
       if (ban === null && a.ban) ban = a.ban;
     }
     const h = this.hostSock();
-    const msg = { t: 'roster', peers, names };
+    const msg = { t: 'roster', peers };
     if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
     if (mesh) {
       // Rooms are not anonymous BY DESIGN: everyone on a call can see
@@ -187,7 +193,10 @@ export class Session {
     const role = url.searchParams.get('role') || 'client';
     const token = url.searchParams.get('token') || '';
     const peer = (url.searchParams.get('peer') || 'c_' + crypto.randomUUID().slice(0, 8)).slice(0, 64);
-    const name = (url.searchParams.get('name') || '').slice(0, 40);
+    // NOTE: no display name is read here. Participant names travel end-to-end
+    // sealed (in status/offer/answer frames the relay only ever sees as
+    // ciphertext), so the relay never learns who is in a room by name — even
+    // if a client puts a ?name= on the URL, it is ignored and never stored.
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     // The session id string, straight from the path (/s/<sid>). An OWNED app
     // session is named "<room>.<verifier>": to hold its HOST slot you must
@@ -332,7 +341,7 @@ export class Session {
         if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, name, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
+      server.serializeAttachment({ role: 'mesh', peer, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
       this.roster();
     } else {
