@@ -53,12 +53,12 @@
   /* Size the mic/cam glyphs in em so they FOLLOW the UI text size — the fixed
      20px SVG stayed huge when everything else shrank (e.g. iPhone at 70%). */
   .iconbtn svg { width: 1.2em; height: 1.2em; }
-  /* Blur as a 3-segment slider: Max — Min — None. None grays out when clear
-     video isn't allowed (no password, a global blur on you, no admin present). */
+  /* Blur as a 3-segment slider: Max — Min — No blur. No blur grays out when
+     clear video isn't allowed (no password, a global blur on you, no admin present). */
   .blurctl { display: inline-flex; align-items: center; gap: .4rem; }
   .blurlbl { color: var(--muted, #8888aa); font-size: .75rem; }
   .segwrap { display: inline-flex; border: 1px solid var(--border, #2a2a3f); border-radius: .4rem; overflow: hidden; }
-  .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid var(--border, #2a2a3f); border-radius: 0;
+  .segwrap .seg { padding: .32rem .6rem; border: none; border-right: 1px solid var(--border, #2a2a3f); border-radius: 0; white-space: nowrap;
                   background: var(--surface, #1c1c2b); color: var(--muted, #b8b8cc); font-size: .74rem; cursor: pointer; }
   .segwrap .seg:last-child { border-right: none; }
   /* Only real pointers get a hover tint — on touch, :hover STICKS to the last
@@ -381,7 +381,7 @@
       <span id="blurseg" class="segwrap" role="group" aria-label="Blur level">
         <button class="seg" id="blur-max" data-blur="2">Max</button>
         <button class="seg" id="blur-min" data-blur="1">Min</button>
-        <button class="seg" id="blur-none" data-blur="0">None</button>
+        <button class="seg" id="blur-none" data-blur="0">No blur</button>
       </span>
     </span>
     <div class="barmore" id="barmore">
@@ -1069,7 +1069,7 @@
     // BOTH the pixels a sender broadcasts and the CSS every receiver applies —
     // so a given tile looks the same on every phone, always.
     //
-    //   consent(tile)  = tile owner's camera is ON and their blur is None
+    //   consent(tile)  = tile owner's camera is ON and their blur is No blur
     //   clear(tile)    = room password is set
     //                    AND no moderator block on the tile
     //                    AND ( admin present ? consent(tile) : EVERYONE consents )
@@ -1108,7 +1108,7 @@
         if (c !== lastCons) {
           if (lastCons !== null && participantCount() > 1 && roomPw) {
             setStatus(c ? 'Everyone is ready — this room is clear video now.'
-              : 'Back to blurred — clear video needs everyone here ready (camera on, blur None).');
+              : 'Back to blurred — clear video needs everyone here ready (camera on, No blur).');
           }
           lastCons = c;
         }
@@ -1244,7 +1244,7 @@
       const bl = blurLevelFor(id);
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
       else if (bl && consents(st)) chips.push('<span>🌫 ' + (!roomPw ? 'blurred — a room password is the key to clear video'
-        : 'blurred until everyone is ready (camera on, blur None)') + '</span>');
+        : 'blurred until everyone is ready (camera on, No blur)') + '</span>');
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (gCam) chips.push('<span class="warn">📷 video off for everyone by ' + esc(mod.cam.by) + '</span>');
       else if (st.camOff) chips.push('<span>📷 camera off</span>');
@@ -4803,9 +4803,9 @@
       });
       updateMediaSession();
     })();
-    // The blur slider: pick Max / Min / None directly. It records YOUR choice;
+    // The blur slider: pick Max / Min / No blur directly. It records YOUR choice;
     // whether a tile actually goes clear is the room rule's meeting — when your
-    // None can't show yet, the status line says exactly why.
+    // No blur can't show yet, the status line says exactly why.
     function setPersonalBlur(v) {
       myStatus.blur = v;
       paintControls();
@@ -4821,9 +4821,9 @@
       } else if (blocked) {
         setStatus('A moderator has blurred you for everyone — your video stays blurred until it is lifted.');
       } else if (myStatus.camOff) {
-        setStatus('Blur set to None — turn your camera on to be ready for clear video.');
+        setStatus('No blur picked — turn your camera on to be ready for clear video.');
       } else if (!adminPresent() && !allConsent()) {
-        setStatus('You are ready for clear video — it shows when everyone here is (camera on, blur None: ' + consentCount() + ' of ' + participantCount() + ').');
+        setStatus('You are ready for clear video — it shows when everyone here is (camera on, No blur: ' + consentCount() + ' of ' + participantCount() + ').');
       } else {
         setStatus('Blur off.');
       }
