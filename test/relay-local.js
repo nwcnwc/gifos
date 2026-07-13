@@ -307,7 +307,12 @@ server.on('upgrade', (req, socket) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
       if (m.t === 'peer') routePeer(peer, m, conn.isAdmin);
-      else if (m.t === 'setpw' && typeof m.pw === 'string') {
+      else if (m.t === 'gossip' && m.msg !== undefined) {
+        // One inbound frame fans out to every other member as the ordinary
+        // stamped {t:'peer', from} shape — mirrors relay/src/relay.js.
+        const s = JSON.stringify(conn.isAdmin ? { t: 'peer', from: peer, adm: true, msg: m.msg } : { t: 'peer', from: peer, msg: m.msg });
+        for (const [p, c] of sess.clients) if (p !== peer) c.send(s);
+      } else if (m.t === 'setpw' && typeof m.pw === 'string') {
         if (sess.av && !conn.isAdmin) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
         sess.pw = m.pw.slice(0, 64) || null;
         const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: (m.by || '').slice(0, 40) });
