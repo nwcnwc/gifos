@@ -362,10 +362,15 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       if (!myRowSet.has(pid) && !stageSet.has(pid)) pcBeyond++;
     }
     const vAlive = (v) => !!(v && v.srcObject && v.videoWidth > 0 && !v.paused && v.readyState >= 2);
-    let gTiles = 0, gLive = 0;
+    // Names now travel the E2E-SEALED heartbeat (never the relay roster), so a
+    // resolved name on a cross-row tile proves sealed name-gossip reached here.
+    // Count tiles still showing the '…' placeholder — a persistent backlog at
+    // scale would flag the sealed name path failing to propagate.
+    const named = (t) => { const n = (t.querySelector('.name') || {}).textContent || ''; return n && !/^…/.test(n.trim()); };
+    let gTiles = 0, gLive = 0, gNamed = 0;
     for (const t of document.querySelectorAll('#grid .tile')) {
       if (t.classList.contains('me')) continue;
-      gTiles++; if (vAlive(t.querySelector('video'))) gLive++;
+      gTiles++; if (vAlive(t.querySelector('video'))) gLive++; if (named(t)) gNamed++;
     }
     let sTiles = 0, sLive = 0;
     for (const t of document.querySelectorAll('#stadium [data-row]')) { sTiles++; if (vAlive(t.querySelector('video'))) sLive++; }
@@ -373,7 +378,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       sec: section, gRow: (section - 1) * C + (myRow < 0 ? 0 : myRow), row: myRow, deacon: g(() => V.amDeacon(), false) ? 1 : 0,
       n: g(() => V.participants(), 0), links: g(() => V.liveLinks(), 0),
       pcOpen, pcConn, pcBeyond,
-      gTiles, gLive, gBlack: gTiles - gLive,
+      gTiles, gLive, gBlack: gTiles - gLive, gNamed, gNoName: gTiles - gNamed,
       stShown: g(() => V.stadiumShown(), false) ? 1 : 0, stFolds: g(() => (V.stadium() || []).length, 0),
       sTiles, sLive, sBlack: sTiles - sLive, comp: g(() => V.compActive(), false) ? 1 : 0,
     };
@@ -387,13 +392,14 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     for (const { idx, d } of got) {
       console.log('[diag] bot=' + idx + ' sec=' + d.sec + ' gRow=' + d.gRow + ' row=' + d.row + (d.deacon ? ' DEACON' : '')
         + ' n=' + d.n + ' pc=' + d.pcOpen + '(' + d.pcConn + 'up' + (d.pcBeyond ? ',' + d.pcBeyond + 'BEYOND' : '') + ')'
-        + ' faces=' + d.gLive + '/' + d.gTiles + (d.gBlack ? ' BLACK=' + d.gBlack : '')
+        + ' faces=' + d.gLive + '/' + d.gTiles + (d.gBlack ? ' BLACK=' + d.gBlack : '') + (d.gNoName ? ' NONAME=' + d.gNoName : '')
         + ' fold=' + d.sLive + '/' + d.sTiles + ' stadium=' + (d.stShown ? 'ON' : 'off') + '(' + d.stFolds + 'folds)'
         + (d.comp ? ' COMP' : ''));
     }
     const sum = (f) => got.reduce((a, r) => a + f(r.d), 0);
     console.log('[diag] SHARD bots=' + got.length + ' maxPC=' + Math.max(...got.map((r) => r.d.pcOpen))
       + ' faceBlack=' + sum((d) => d.gBlack) + ' foldBlack=' + sum((d) => d.sBlack)
+      + ' noName=' + sum((d) => d.gNoName) + '/' + sum((d) => d.gTiles) // sealed name-gossip backlog (want ~0)
       + ' seeStadium=' + got.filter((r) => r.d.stShown).length + '/' + got.length + ' deacons=' + sum((d) => d.deacon));
   }, DIAG * 1000);
 

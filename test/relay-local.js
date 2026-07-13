@@ -87,8 +87,11 @@ function verifierOf(sid) {
 }
 
 // ---- session hub (mirrors the Durable Object) ----
-const sessions = new Map(); // id -> { host, token, meshToken, clients:Map, names:Map }
-function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, meshToken: null, clients: new Map(), names: new Map() }); return sessions.get(id); }
+const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
+// NOTE: no names map. Mirrors relay/src/relay.js — display names never reach
+// the relay; they travel end-to-end sealed between clients (status/offer/
+// answer), so the roster this test relay authors is peer ids only.
+function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, meshToken: null, clients: new Map() }); return sessions.get(id); }
 
 const server = http.createServer((req, res) => { res.writeHead(200); res.end('gifos relay (local)'); });
 
@@ -151,8 +154,7 @@ server.on('upgrade', (req, socket) => {
     return false;
   };
   const roster = () => {
-    const names = {}; for (const [p, n] of sess.names) names[p] = n;
-    const msg = { t: 'roster', peers: Array.from(sess.clients.keys()), names };
+    const msg = { t: 'roster', peers: Array.from(sess.clients.keys()) };
     if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
     if (sess.mesh) {
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
@@ -295,13 +297,11 @@ server.on('upgrade', (req, socket) => {
     // and announce the departure so everyone drops the stale tile.
     for (const [p, c] of Array.from(sess.clients)) {
       if (p === peer || (dev && c.dev === dev)) {
-        sess.clients.delete(p); sess.names.delete(p);
+        sess.clients.delete(p);
         try { c.close(4000, 'replaced'); } catch (e) {} // terminal for the evicted tab — no reconnect ping-pong
         if (p !== peer) { const s = JSON.stringify({ t: 'peer-leave', peer: p }); for (const cc of sess.clients.values()) cc.send(s); }
       }
     }
-    const name = (url.searchParams.get('name') || '').slice(0, 40);
-    if (name) sess.names.set(peer, name);
     sess.clients.set(peer, conn);
     conn.onmessage = (data) => {
       if (!allow(data)) return;
@@ -340,7 +340,7 @@ server.on('upgrade', (req, socket) => {
     };
     conn.onclose = () => {
       if (sess.clients.get(peer) !== conn) return;
-      sess.clients.delete(peer); sess.names.delete(peer);
+      sess.clients.delete(peer);
       const s = JSON.stringify({ t: 'peer-leave', peer });
       for (const c of sess.clients.values()) c.send(s);
       tallyVotes();

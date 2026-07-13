@@ -210,6 +210,18 @@ clients; a lost reply causes duplicate writes on reconnect.
   regardless); the link itself remains the capability — anyone who ever held it
   can derive the key, and bans/rotation do not re-key (rotating the LINK does:
   a new link is a new secret and a new key).
+- **Meeting display names never reach the relay.** A participant's name is not a
+  relay query param and is not stored in any socket attachment or roster; it
+  rides only the AES-GCM-sealed heartbeat (and sealed offers/answers) between
+  clients, so the relay routes anonymous peer ids and never authors a
+  who's-here-by-name directory. Even a client that puts a `?name=` on its URL is
+  ignored. **Network addresses are the exception and cannot be hidden this way:**
+  the relay *terminates* each WebSocket, so it observes the source IP inherently
+  (`CF-Connecting-IP`) — sealing a field cannot unsee a connection's origin. The
+  relay shares those IPs back to room members deliberately (an accountability
+  record, since peers exchange them for P2P anyway), not as a leak. Media
+  endpoints (ICE candidates) travel inside the sealed signaling and are already
+  opaque to the relay.
 - A client that joins a hostile app **still crosses boundary A and B** — it runs
   the received app sandboxed and gets the same network acknowledgement — so a
   malicious host can't do more to a client than any other app author could.
