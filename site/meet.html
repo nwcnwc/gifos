@@ -1742,6 +1742,7 @@
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
       pc.ontrack = (ev) => {
         const stream = ev.streams[0];
+        if (typeof clog === 'function') clog('trk ' + String(p.id).slice(0, 6) + ' ' + (stream ? String(stream.id).slice(0, 8) : 'NOSTREAM') + ' mid=' + (ev.transceiver && ev.transceiver.mid));
         if (!stream) return;
         p.incoming = p.incoming || [];
         if (!p.incoming.includes(stream)) p.incoming.push(stream);
@@ -3757,33 +3758,52 @@
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
       // A streamless mapping usually means the SENDER's m-lines never made
       // it into a negotiation (rolled back, or raced). My own offer can't
-      // carry their m-lines — ask them to re-offer too.
+      // carry their m-lines — ask them to re-offer. Only renegotiate from MY
+      // side when I hold pending outbound m-lines myself (deacon↔deacon
+      // mutual folds): a receiver's EMPTY re-offer has nothing to say, yet
+      // on a slow box it lands mid-flight against the sender's meaningful
+      // offer every kick, forcing the polite sender to roll its aux m-lines
+      // back each round — the kick loop ITSELF sustained the glare storm
+      // that kept the fold dark.
       dcSend(p, { k: 'rkick' });
-      renegotiate(p);
+      if (hasPendingTx(p)) renegotiate(p);
     }
     // Any transceiver with a live sender track that is not actually SENDING
     // needs another offer: no mid means it was rolled back or raced out of
-    // its negotiation entirely; a mid whose currentDirection lost 'send'
-    // means a glare interleave negotiated it recv-only around our track.
-    // Both are invisible to the media path and heal only by re-offering.
+    // its negotiation entirely; a NULL currentDirection with a mid means our
+    // offer was applied but the answer never was (glare killed the round);
+    // a currentDirection that lost 'send' means a glare interleave negotiated
+    // it recv-only around our track. All three are invisible to the media
+    // path and heal only by re-offering. (The old check treated null
+    // currentDirection as settled — so an rkick against a never-answered
+    // m-line no-opped and the fold stayed dark forever.)
     const hasPendingTx = (p) => {
       try {
         return p.pc.getTransceivers().some((t) => t.sender && t.sender.track
-          && (!t.mid || (t.currentDirection && t.currentDirection.indexOf('send') < 0)));
+          && (!t.mid || !t.currentDirection || t.currentDirection.indexOf('send') < 0));
       } catch (e) { return false; }
     };
     function claimCompStreams() {
       let changed = false;
-      for (const c of compOf.values()) {
+      for (const [row, c] of compOf) {
         if (c.stream) continue;
         const viaP = peers.get(c.via);
         if (!viaP || !viaP.incoming) continue;
         // exact-id mapping only — and never the carrier's own announced feed,
         // EXCEPT a stage entry, where the carrier's own feed IS the payload
         const found = viaP.incoming.find((st) => st.id === c.streamId && (c.own || st.id !== viaP.ownSid));
-        if (!found) continue;
+        if (!found) {
+          // diagnostic: the id is present but blocked, or plain absent (throttled)
+          if (typeof clog === 'function' && (!c.noclaimAt || Date.now() - c.noclaimAt > 8000)) {
+            c.noclaimAt = Date.now();
+            const ids = viaP.incoming.map((s) => String(s.id).slice(0, 8));
+            clog('noclaim r=' + row + ' want=' + String(c.streamId).slice(0, 8) + ' have=[' + ids.join(',') + '] own=' + String(viaP.ownSid || '').slice(0, 8));
+          }
+          continue;
+        }
         c.stream = found;
         changed = true;
+        if (typeof clog === 'function') clog('claim r=' + row + ' ' + String(c.streamId).slice(0, 8));
       }
       if (changed) renderStadium();
     }
@@ -3807,6 +3827,7 @@
         renderStadium();
         return;
       }
+      if (cur) clog('remap r=' + row + ' ' + String(cur.streamId).slice(0, 8) + '>' + String(m.streamId || '').slice(0, 8) + (cur.via === via ? '' : ' via!'));
       compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, rws, cnt, srcU, stream: null });
       claimCompStreams();
       renderStadium();
@@ -3841,6 +3862,12 @@
     const isStageKey = (row) => typeof row === 'string' && row.indexOf('s:') === 0;
     function reconcileComp() {
       if (!myId) return;
+      // Claim on the heartbeat like everything else here. ontrack/takeComp
+      // claim eagerly, but a claim window missed in a race (stream landed
+      // while the mapping still named the previous generation) used to
+      // strand forever — the periodic announce refresh takes the early
+      // manifest-refresh return and never re-claims. Idempotent and cheap.
+      claimCompStreams();
       const rows = computeRows();
       const mine = myRowIndex();
       const populated = rows.filter((r, i) => i > 0 && r.length).length;
@@ -5552,6 +5579,15 @@
       compFwdKeys: () => Array.from(fwdComp.keys()).map(String),
       compLog: () => compLog.slice(-40),
       compSentKeys: () => Array.from(compSent.keys()),
+      // deep fold forensics: expected stream ids vs what actually arrived, and
+      // (on a deacon) each forward job's negotiated state toward its member
+      compTable: () => Array.from(compOf.entries()).map(([row, c]) => ({ row: String(row), via: String(c.via).slice(0, 6), streamId: c.streamId, live: !!c.stream })),
+      incomingIds: (pid) => { const p = peers.get(pid); return p && p.incoming ? p.incoming.map((s) => s.id) : null; },
+      fwdState: () => Array.from(fwdComp.entries()).map(([key, job]) => {
+        const p = peers.get(job.member);
+        const tx = p && p.pc ? p.pc.getTransceivers().filter((t) => job.senders.includes(t.sender)).map((t) => (t.mid || '?') + ':' + (t.currentDirection || 'null')) : [];
+        return { key: String(key), streamId: job.streamId, sig: job.sig, tx };
+      }),
       pcState: (pid) => { const p = peers.get(pid); if (!p || !p.pc) return null; return { sig: p.pc.signalingState, conn: p.pc.connectionState,
         tx: p.pc.getTransceivers().map((t) => (t.mid || '?') + ':' + (t.sender && t.sender.track ? t.sender.track.kind : '-') + ':' + t.direction + ':' + (t.currentDirection || '?')) }; },
       stadium: () => Array.from(compOf.entries())
