@@ -32,6 +32,14 @@ peer-to-peer, at every level of the stadium, by one recursive pattern.
    degenerate case *by arithmetic*, never by a branch. This refactor must keep
    that law — the introducer pattern is itself the invariant, applied
    recursively.
+4. **Events accelerate; the heartbeat guarantees.** Paid for on main
+   (`6b927c5`): a derivation that runs only on events strands forever when one
+   race misses its window — the fold-claim did exactly that until it joined the
+   periodic reconcile "like every other role derivation." Every derivation this
+   refactor introduces — greeter election and pool rotation, probe designation,
+   the seating view, the shun tally, introduction-in-flight state — must
+   re-derive idempotently on the heartbeat. An event may trigger it early;
+   only the heartbeat makes it inevitable.
 
 This is **not** a scale rescue. The current design already reaches a million via
 bounded C²+C sessions on free hibernating sockets (the K-sweep proves it). This
@@ -155,6 +163,30 @@ the DC). Two builds close this:
    **gave up**," never "a link looks down," or re-entry races the sweeper's
    ICE-restart and double-heals. The `makingOffer`/perfect-negotiation guards
    from those commits are transport-agnostic and carry over unchanged.
+
+   Two negotiation lessons from the fold-strand forensics (`6b927c5`) bind
+   every recovery path this design adds:
+
+   - **"Settled" means every m-line finished its round, not just
+     `signalingState === 'stable'`.** A mid with `currentDirection: null` is an
+     offer whose *answer* never applied — glare killed the round — and it is
+     invisible to any check that only reads the signaling state. The old
+     "settled" gate no-opped exactly there and a fold stayed dark forever.
+     Every gate this refactor writes (sponsor-forwarded heals, greeter
+     admission re-kicks, shun teardown/re-admit) uses the strict form:
+     settled = stable AND no in-flight offer AND no mid with a null or
+     send-stripped `currentDirection` it still owes.
+   - **Recovery is owner-driven, or the heal loop *sustains* the wound.**
+     Observed twice now: the per-fold transport rebuild that tore down all
+     folds on a 9s loop (`e198019`), and the receiver-side empty re-offer that
+     landed against the sender's meaningful offer every 2.5s, sustaining the
+     very glare storm it was healing (`6b927c5`). The rule: only the side that
+     *owns* pending outbound m-lines renegotiates; the other side kicks —
+     asks, never offers. The refactor's new healers (sponsors forwarding
+     recovery offers, greeters re-stitching a wobbly newcomer, probe
+     re-entrants) each have exactly one owner per action, rate-limited, and a
+     no-op must stay a no-op — a healer that "does something anyway" is how
+     the outage becomes self-sustaining.
 
 After this, the relay's *only* remaining wire role is the initial newcomer↔greeter
 introduction. Everything else is DataChannels.
@@ -520,7 +552,14 @@ naturally rather than defending the per-room test.
 ## 14. Concrete change list (end-to-end, suggested order)
 
 Build bottom-up; hold the K-sweep discipline (identical assertions at C=2 and at
-production constants) for every step.
+production constants) for every step. **Every step ships its forensics with it**:
+flight-recorder `clog` events and `__gifosVideo` test hooks for the new state
+(greeter pool, introductions in flight, probe designation/outcome, shun tally),
+in the same commit as the machinery — all three fold-strand root causes on main
+were only pinnable because `6b927c5` added `trk`/`claim`/`noclaim`/`remap`
+events and the `compTable`/`incomingIds`/`fwdState` hooks alongside the fix, and
+a loaded-box multi-client forensic probe is the proven way to catch what CI's
+timing hides.
 
 1. **Signaling on DataChannels** (§3.1). Move renegotiation off the relay for
    already-connected pairs. Smallest, unblocks everything.
