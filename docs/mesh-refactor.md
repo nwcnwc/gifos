@@ -5,6 +5,14 @@ a parallel work-stream. This supersedes and merges the two earlier drafts
 (`relay-as-introducer.md`, `p2p-vote-off.md`), which are removed. It is meant to
 be read end-to-end before any of it is built.
 
+**No legacy. Rip and replace.** There is no installed base to protect: no old
+admin links that must keep working, no old rooms that must keep decrypting, no
+wire compatibility to preserve. Every derivation change here is a clean DS
+version bump (gifos-net's flag-day mechanism), old-format anything is simply
+invalid, and no code path should be written to tolerate the previous scheme.
+Do not add compatibility shims; do not carry the old relay behaviors alongside
+the new ones.
+
 **One line:** the relay is a *front door*, not a switchboard — it introduces a
 newcomer into a room and then stays out of it; everything after introduction —
 signaling, roster, gossip, seating, folds, moderation, presence — runs
@@ -394,11 +402,11 @@ peer-to-peer:
   declines-with-notice — but on the admin's signature instead of a majority
   tally. Joining an admin room remains structural consent to be administered;
   only the enforcement mechanism moves.
-- **Legacy honesty:** V lives in existing URLs forever, and a legacy
-  V = H(K) commits to a secret, not a public key — it cannot verify signatures.
-  Legacy admin rooms therefore cannot get P2P authority; they keep working only
-  in the old model, and migrating one means minting a new link (a new room
-  identity). Say this in the release notes rather than discovering it in a bug.
+- **No legacy path.** There are no existing admin links to keep alive (see the
+  rip-and-replace note up top). V = H(pubkey) is simply *the* scheme; the old
+  V = H(K) form is invalid, verified nowhere, and gets no compatibility branch —
+  the relay's stamp path (`adm:true`, `routePeer`'s stamped shape, the
+  stamped-broadcast in the gossip handler) is deleted, not deprecated.
 
 ---
 
@@ -464,8 +472,6 @@ sealed." Half true, wrong half load-bearing:
 - **Probe wakes** — big quiet rooms pay a small permanent relay wake cost for
   split-healing that today's design doesn't have; the ≥4 arithmetic gate zeroes
   it for small rooms (§6b).
-- **Legacy admin rooms can't migrate in place** — V = H(K) links cannot verify
-  signatures; new authority requires new links (§9).
 - **Re-introduction on dropout** — "never contact the relay again" is really
   "never again *unless you fall out of the mesh*" (§6a).
 - **Unhealable true partition** — a group that cannot reach the relay at all
