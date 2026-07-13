@@ -100,21 +100,38 @@ RULES=$(jq -n --arg z "$ZONE_NAME" '
     { description:"gifos-harden: site + theme backstop",
       expression:"(http.host eq \"\($z)\" or ends_with(http.host, \".\($z)\"))", action:"managed_challenge",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:1000, mitigation_timeout:60} } ]')
+# The Free plan allows only ONE http_ratelimit rule, so keep a consolidated
+# fallback: block ANY subdomain (relay, cors-proxy, 0-9 mirror — the
+# Worker/DO-backed hosts, i.e. the ones that actually cost money) that floods.
+# 600/min is generous for a real page load yet shuts a hot loop.
+SINGLE=$(jq -n --arg z "$ZONE_NAME" '
+  [ { description:"gifos-harden: subdomain flood cap",
+      expression:"(ends_with(http.host, \".\($z)\"))", action:"block",
+      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:600, mitigation_timeout:60} } ]')
 EP=$(cf GET "/zones/$ZID/rulesets/phases/http_ratelimit/entrypoint")
-if succeeded "$EP"; then
-  RSID=$(echo "$EP" | jq -r '.result.id')
-  # keep any rules that AREN'T ours (by description prefix) faithfully, dropping
-  # only the server-managed fields a PUT won't accept back; then append ours
-  KEEP=$(echo "$EP" | jq '[.result.rules[]? | select((.description // "") | startswith("gifos-harden:") | not)
-           | del(.id, .version, .last_updated, .ref)]' 2>/dev/null || echo '[]')
-  COMBINED=$(jq -n --argjson a "$KEEP" --argjson b "$RULES" '$a + $b')
-  R=$(cf PUT "/zones/$ZID/rulesets/$RSID" "$(jq -n --argjson r "$COMBINED" '{rules:$r}')")
-else
-  R=$(cf POST "/zones/$ZID/rulesets" "$(jq -n --argjson r "$RULES" '{name:"gifos rate limits", kind:"zone", phase:"http_ratelimit", rules:$r}')")
+RSID=$(echo "$EP" | jq -r '.result.id // empty')
+push_rules() { # $1 = rules array -> creates/updates the http_ratelimit ruleset
+  if succeeded "$EP"; then
+    # keep any rules that AREN'T ours (by description prefix) faithfully,
+    # dropping only server-managed fields a PUT won't accept back
+    local keep combined
+    keep=$(echo "$EP" | jq '[.result.rules[]? | select((.description // "") | startswith("gifos-harden:") | not)
+             | del(.id, .version, .last_updated, .ref)]' 2>/dev/null || echo '[]')
+    combined=$(jq -n --argjson a "$keep" --argjson b "$1" '$a + $b')
+    cf PUT "/zones/$ZID/rulesets/$RSID" "$(jq -n --argjson r "$combined" '{rules:$r}')"
+  else
+    cf POST "/zones/$ZID/rulesets" "$(jq -n --argjson r "$1" '{name:"gifos rate limits", kind:"zone", phase:"http_ratelimit", rules:$r}')"
+  fi
+}
+R=$(push_rules "$RULES"); N=3
+# 50001 = too many rules for this plan (Free = 1). Collapse to the single rule.
+if ! succeeded "$R" && echo "$R" | jq -e '((.errors // [])[] | select(.code == 50001))' >/dev/null 2>&1; then
+  warn "This plan allows only ONE rate-limit rule — consolidating to a single subdomain flood cap."
+  R=$(push_rules "$SINGLE"); N=1
 fi
-if succeeded "$R"; then ok "3 rate-limit rules in place (re-running just refreshes them)"
+if succeeded "$R"; then ok "$N rate-limit rule(s) in place (re-running just refreshes them)"
 else warn "Rate-limit rules were rejected:"; errors "$R"
-     warn "Often plan-specific (free counts per-colo). Paste this to me and I'll adjust the schema."; fi
+     warn "Paste this to me and I'll adjust the schema."; fi
 
 # ---- 3. bot fight mode -------------------------------------------------------
 say "Bot Fight Mode"
