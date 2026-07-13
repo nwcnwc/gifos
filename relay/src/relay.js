@@ -110,9 +110,21 @@ function overBudget(meter, len) {
   return true;
 }
 
+// A comma-list of source IPs (TRUSTED_IPS env var) that BYPASS the PER-IP caps
+// — for the operator's OWN load tests, where hundreds of bots share a few
+// egress IPs. Unset in normal operation, so the caps apply to everyone. Set it
+// only during a rehearsal (`wrangler deploy --var TRUSTED_IPS:"a,b"`), clear it
+// after. It never lifts the per-SESSION cap (that's section size, not abuse)
+// nor the byte/frame guards — a runaway loop is still cut even from a test box.
+function isTrusted(ip, env) {
+  if (!env || !env.TRUSTED_IPS) return false;
+  return String(env.TRUSTED_IPS).split(',').map((s) => s.trim()).filter(Boolean).includes(ip);
+}
+
 export class Session {
   constructor(state, env) {
     this.state = state;
+    this.env = env;           // for the TRUSTED_IPS test-mode allowlist
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
     this.joinLog = new Map(); // ip -> [join timestamps]; best-effort, in-memory
     // Edge-answered keepalive: a client-level ping is answered WITHOUT waking
@@ -197,14 +209,15 @@ export class Session {
     // ---- abuse guards ----
     const sockets = this.all();
     if (sockets.length >= MAX_SOCKETS_PER_SESSION) return reject('this session is full', 1013);
+    const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
     let mine = 0;
     for (const ws of sockets) if (this.att(ws).ip === ip) mine++;
-    if (mine >= MAX_SOCKETS_PER_IP) return reject('too many connections from your network', 1013);
+    if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
     const now = Date.now();
     const log = (this.joinLog.get(ip) || []).filter((t) => now - t < 60000);
     log.push(now);
     this.joinLog.set(ip, log);
-    if (log.length > MAX_JOINS_PER_IP_MIN) return reject('joining too fast — slow down', 1013);
+    if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
 
     if (role === 'host') {
       // OWNED-app gate: if the sid carries a verifier, only the secret's holder
@@ -573,7 +586,7 @@ export default {
         return new Response('forbidden origin', { status: 403 });
       }
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (edgeLimited(ip)) return new Response('rate limited', { status: 429 });
+      if (edgeLimited(ip) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
       const id = env.SESSION.idFromName(parts[1]);
       return env.SESSION.get(id).fetch(request);
     }

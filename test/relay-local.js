@@ -111,18 +111,22 @@ server.on('upgrade', (req, socket) => {
   // C mirrors GIFOS_SCALE.C: a session is one SECTION (C² seats) plus C so
   // the stage can double-home into a full level-1 space. Never client-set.
   const C = 8, MAX_SOCKETS_PER_SESSION = C * C + C; // 72
+  // TRUSTED_IPS (env) bypasses the PER-IP caps for load tests — mirrors the
+  // Worker. For a big LOCAL swarm, run: TRUSTED_IPS=127.0.0.1,::1,::ffff:127.0.0.1 node test/relay-local.js
+  const TRUSTED = String(process.env.TRUSTED_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const trusted = TRUSTED.includes(ip);
   const rejectConn = (error) => { conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
   const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   let mine = 0;
   if (sess.host && sess.host.ip === ip) mine++;
   for (const c of sess.clients.values()) if (c.ip === ip) mine++;
-  if (mine >= 8) { rejectConn('too many connections from your network'); return; }
+  if (mine >= 8 && !trusted) { rejectConn('too many connections from your network'); return; }
   sess.joins = sess.joins || new Map();
   const nowJ = Date.now();
   const jlog = (sess.joins.get(ip) || []).filter((t) => nowJ - t < 60000);
   jlog.push(nowJ); sess.joins.set(ip, jlog);
-  if (jlog.length > 120) { rejectConn('joining too fast — slow down'); return; }
+  if (jlog.length > 120 && !trusted) { rejectConn('joining too fast — slow down'); return; }
   conn.ip = ip;
 
   // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
