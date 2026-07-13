@@ -915,10 +915,12 @@
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
       // blurred-forever while the rest went clear.
-      // The display name rides the SEALED status pulse (and sealed offers/
-      // answers) — never a relay query param — so the relay only ever routes
-      // opaque peer ids and never learns who is in the room by name.
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, name: myName() };
+      // Identity rides the SEALED status pulse (and sealed offers/answers) —
+      // never a relay query param or the relay-authored roster. The display
+      // name AND my own network address (learned privately via whoami) go out
+      // encrypted under the room key, so the relay routes opaque peer ids over
+      // a roster whose identity fields it cannot read.
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, name: myName(), ip: myIp };
       // An admin's heartbeat in an admin room re-gossips the mod table, which
       // receivers only trust with the RELAY's admin stamp — that pulse skips
       // the DCs and rides the (stamped) relay broadcast alone.
@@ -1792,7 +1794,7 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
         .catch(() => {});
     }
 
@@ -1859,6 +1861,8 @@
     }
     function learn(from, msg, p, adm) {
       if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
+      if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
+      if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
       if (p) p.lastHeard = Date.now();
       if (msg.st) { takeStatus(from, msg.st); reactRoomState(); }
       // In admin rooms, group moderation is honored ONLY from relay-stamped
@@ -1881,7 +1885,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
@@ -1900,10 +1904,12 @@
         if (msg.conns) connsOf.set(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
         if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
-        // The name travels the sealed pulse now, not the relay roster. Record
-        // it for EVERY sender — including cross-row peers we hold no media link
-        // to, whose tiles read their name straight out of rosterNames.
+        // Name AND network address travel the sealed pulse now, not the relay
+        // roster. Record them for EVERY sender — including cross-row peers we
+        // hold no media link to — whose tiles and the "who's here" panel read
+        // straight out of rosterNames / ipsOf.
         if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
+        if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
@@ -1988,7 +1994,7 @@
         // A peer carrying MY device id is a stale session of my own device — a
         // second tab, or one the relay hasn't reaped yet — never a real guest.
         // Drop it instead of drawing a second "me" tile (and don't dial it).
-        if (devOf[pid] && devOf[pid] === deviceId()) { if (peers.has(pid)) dropPeer(pid); continue; }
+        if (devOf[pid] && devOf[pid] === myDevHash) { if (peers.has(pid)) dropPeer(pid); continue; }
         // Media is ROW-SCOPED: someone outside my link set stays in the
         // directory (gossip reaches them over the relay; the stadium fold will
         // show them) but gets no pc and no tile here.
@@ -2089,7 +2095,7 @@
     function buildSpaceUrl(U) {
       return relayUrl().replace(/\/$/, '') + '/s/' + U.sessId + '?role=mesh&token=' + U.sessTok +
         '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+        '&dev=' + encodeURIComponent(myDevHash) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
     }
     function openSpace(U) {
       if (U.on || !relayUrl()) return;
@@ -2208,7 +2214,7 @@
       for (const U of [UP, UP2]) {
         if (!U.on) continue;
         for (const pid of U.roster) {
-          if (pid === myId || (devOf[pid] && devOf[pid] === deviceId())) continue;
+          if (pid === myId || (devOf[pid] && devOf[pid] === myDevHash)) continue;
           if (!peers.has(pid) && !rosterIds.includes(pid)) {
             const p = makePeer(pid, U.names[pid] || null, true);
             if (iInitiate(pid)) { p.lastKick = Date.now() + Math.random() * 1500; sendOffer(pid); }
@@ -2278,7 +2284,9 @@
     // data mints a new device — bans deter, they don't imprison).
     let av = null; // the room's admin verifier — set at join, immutable
     let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false, pwReasserted = false;
-    let ipsOf = {};                          // peer -> network address (from the relay roster)
+    let ipsOf = {};                          // peer -> network address, learned from SEALED gossip (never the relay roster)
+    let myIp = '';                           // my own address — the relay tells me privately (whoami); I seal it to peers
+    let myDevHash = '';                      // my device id, ROOM-SALTED before it ever reaches the relay
     const hasAdminRoom = () => !!av;
     const sha256hex = net.sha256hex;
     // Deriving K from the password is deliberately EXPENSIVE (PBKDF2): V is
@@ -2290,6 +2298,10 @@
         { name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
       return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
+    // The RAW device id never leaves this browser: it is only ever the input
+    // to myDevHash, a room-salted hash (see the join derivation). The relay and
+    // other rooms only ever see that per-room tag, so nothing can correlate
+    // this device across rooms or back to a person.
     function deviceId() {
       let d = null; try { d = localStorage.getItem('gifos_vdev'); } catch (e) {}
       if (!d) { d = uid('d').slice(0, 16); try { localStorage.setItem('gifos_vdev', d); } catch (e) {} }
@@ -2349,7 +2361,7 @@
     function buildWsUrl() {
       return relayUrl().replace(/\/$/, '') + '/s/' + sessId + '?role=mesh&token=' + sessTok +
         '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(deviceId()) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+        '&dev=' + encodeURIComponent(myDevHash) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
     }
     function openSock() {
       const relay = relayUrl();
@@ -2377,6 +2389,14 @@
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'joined') { myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
+        else if (m.t === 'whoami') {
+          // The relay tells me MY OWN address (the one thing it may share with
+          // me, privately). I seal it to peers via the heartbeat; the relay
+          // never stores it or puts it in anyone's roster.
+          myIp = String(m.ip || '').slice(0, 64);
+          if (myId) ipsOf[myId] = myIp;
+          broadcastStatus(); // push my sealed address out now
+        }
         else if (m.t === 'roster') {
           // MULTI-SESSION WALK (docs/rows.md): the roster answers "is this
           // row full". Seats are the first C² peers in relay join order
@@ -2385,7 +2405,6 @@
           // order is shared state, so racing walkers resolve identically.
           if (myId && (m.peers || []).indexOf(myId) >= SCALE.C * SCALE.C) { walkOn(); return; }
           admins = m.admins || []; roomBan = m.ban || [];
-          ipsOf = m.ips || ipsOf;
           // MERGE device mappings (don't replace): a peer inside its absence
           // grace window still has a tile, and its Ban button must keep
           // working even though the roster no longer lists it.
@@ -2438,7 +2457,7 @@
           // links too (media otherwise outlives the relay socket by design).
           for (const pid of Object.keys(devOf)) if (devOf[pid] === m.dev) dropPeer(pid);
           const voted = m.by === 'the room (vote)';
-          if (m.dev === deviceId()) {
+          if (m.dev === myDevHash) {
             bannedOut = true;
             for (const pid of Array.from(peers.keys())) dropPeer(pid);
             try { ws.close(); } catch (e) {}
@@ -2474,7 +2493,7 @@
       const now = Date.now();
       // Elections settle as cap gossip arrives — follow the arithmetic.
       for (const pid of rosterIds) {
-        if (pid === myId || (devOf[pid] && devOf[pid] === deviceId())) continue;
+        if (pid === myId || (devOf[pid] && devOf[pid] === myDevHash)) continue;
         if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
       }
       for (const [pid, p] of Array.from(peers)) {
@@ -2864,8 +2883,16 @@
       recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
       // Derive the relay-facing identity + the room key from the room code
       // ("derive, don't send"), then connect. The relay never sees the code.
-      Promise.all([net.deriveMeet(room, av), net.meetPwProof(room, av, roomPw)]).then(([d, pr]) => {
+      // The device tag is ROOM-SALTED here too: the relay only ever receives a
+      // per-room hash of my device id, so it can enforce bans/votes by equality
+      // but can never correlate my device across rooms or back to a person.
+      Promise.all([
+        net.deriveMeet(room, av),
+        net.meetPwProof(room, av, roomPw),
+        sha256hex('gifos-dev|' + room + '|' + (av || '') + '|' + deviceId()),
+      ]).then(([d, pr, dh]) => {
         sessId = d.sid; sessTok = d.tok; roomE2E = d.key; pwProof = pr;
+        myDevHash = dh.slice(0, 16);
         openSock();
       });
     }
@@ -5550,6 +5577,7 @@
       banList: () => roomBan,
       bannedOut: () => bannedOut,
       deviceId,
+      devHash: () => myDevHash, // the ROOM-SALTED device tag actually sent to the relay (bans/votes key on this)
       verifier: () => av,
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
       adminsHere: () => admins.slice(),

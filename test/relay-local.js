@@ -121,16 +121,22 @@ server.on('upgrade', (req, socket) => {
   const rejectConn = (error) => { conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
   const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
+  // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
+  // never STORED on the connection. Mirrors relay/src/relay.js: a salted hash
+  // is what rides the per-socket state, so a state/log dump yields opaque tags,
+  // not addresses. Identity (name/IP) reaches peers only sealed under the room
+  // key, which this relay never holds.
+  const iph = crypto.createHash('sha256').update('gifos-relay-ip-tag|' + ip).digest('hex').slice(0, 24);
   let mine = 0;
-  if (sess.host && sess.host.ip === ip) mine++;
-  for (const c of sess.clients.values()) if (c.ip === ip) mine++;
+  if (sess.host && sess.host.iph === iph) mine++;
+  for (const c of sess.clients.values()) if (c.iph === iph) mine++;
   if (mine >= 8 && !trusted) { rejectConn('too many connections from your network'); return; }
   sess.joins = sess.joins || new Map();
   const nowJ = Date.now();
   const jlog = (sess.joins.get(ip) || []).filter((t) => nowJ - t < 60000);
   jlog.push(nowJ); sess.joins.set(ip, jlog);
   if (jlog.length > 120 && !trusted) { rejectConn('joining too fast — slow down'); return; }
-  conn.ip = ip;
+  conn.iph = iph;
 
   // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
@@ -157,8 +163,10 @@ server.on('upgrade', (req, socket) => {
     const msg = { t: 'roster', peers: Array.from(sess.clients.keys()) };
     if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
     if (sess.mesh) {
+      // Room-salted device tags only (for client-side ban/vote UI). NO ips —
+      // network addresses travel sealed peer-to-peer; the relay never authors
+      // them. Mirrors relay/src/relay.js.
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
-      msg.ips = {}; for (const [p, c] of sess.clients) if (c.ip) msg.ips[p] = c.ip;
       if (sess.av) {
         msg.hasAdmin = true;
         msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
@@ -347,6 +355,7 @@ server.on('upgrade', (req, socket) => {
       roster();
     };
     conn.send(JSON.stringify({ t: 'joined', peer, admin: isAdmin }));
+    conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
     roster();
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }
