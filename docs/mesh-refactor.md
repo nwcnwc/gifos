@@ -189,7 +189,7 @@ transport.
 
 ---
 
-## 6. Staying whole: disconnection, split-brain, and the row-0 re-entry probe
+## 6. Staying whole: disconnection, split-brain, and the row-1 re-entry probe
 
 The hard problem the relay used to hide: **in a relay-minimal mesh you cannot
 passively tell a mass-departure from a partition.** If a branch goes silent, or
@@ -207,15 +207,21 @@ relay once** to be re-introduced (§1). The front door must stay open for
 *re*-entry, not only first entry. This is obvious to the individual and needs no
 detection.
 
-### 6b. The active anti-split probe — row 0 keeps its row-0-ness
+### 6b. The active anti-split probe — row 1 keeps row 0 whole
 
 The silent case (a group still internally connected but severed from the rest)
-cannot be detected passively, so it must be *actively* probed. The anchor does
-it:
+cannot be detected passively, so it must be *actively* probed. What the probe
+protects is row 0's defining property — "row 0 is subscribed by all"
+(`rows.md`): the stage is only the stage if it reaches *everyone*, which is
+false the moment the room forks. But row 0 cannot be the *actor*: **the stage is
+born empty in every room**, and an empty row designates nobody. The actor is the
+first row of actual seated members:
 
-- **Row 0 (the stage) is the room's spine** — "row 0 is subscribed by all"
-  (`rows.md`). Its defining property is that it reaches everyone. So row 0
-  **periodically designates a member to re-enter through the relay**. That
+- **Row 1 runs the probe, on its heartbeat.** Its deacon (deterministic — every
+  phone already agrees who that is) **periodically designates a member to
+  re-enter through the relay**; if row 1 has somehow emptied (holes mid-refill),
+  the duty falls to the lowest-numbered occupied row by the same rule — the
+  arithmetic answer, never a special case. That
   re-entrant is introduced by the relay to **all currently-open greeter sockets**
   (§2) — and if those greeters span two partitions, the re-entrant is now
   P2P-linked to both and **sutures them**: rosters merge via gossip through it,
@@ -241,7 +247,7 @@ it:
 - **This is recursive**, like everything else: each session's greeter pool /
   anchor runs the same periodic re-probe of *its* relay session, so splits heal
   at the level they occur — a section that forks internally is re-sutured by its
-  own greeters, the tree by its delegates, the room by row 0. No global coordinator.
+  own greeters, the tree by its delegates, the room by row 1. No global coordinator.
 - Because the relay introduces *every* newcomer to *all* greeters (§2), an active,
   join-heavy room heals partitions organically; the probe is the guarantee for
   *quiet* rooms where organic joins won't force a re-entry.
@@ -406,7 +412,7 @@ sealed." Half true, wrong half load-bearing:
   fans a frame to every open socket blind to identity (`broadcast()` / the
   `gossip` handler). What actually removes the relay from the loop is **peers
   closing their sockets** — a deliberate lifecycle choice (§1), not a consequence
-  of sealing. The greeter pool (§2) and the row-0 probe (§6b) exist *because* the
+  of sealing. The greeter pool (§2) and the row-1 probe (§6b) exist *because* the
   relay can still reach whatever sockets are open; that is the mechanism, not an
   accident.
 
@@ -420,7 +426,7 @@ sealed." Half true, wrong half load-bearing:
    already handles reload; the new-tab case may be acceptable to drop or handle
    client-side).
 2. **Probe cadence and candidate choice** (§6b) — the ≥4-member arithmetic gate
-   is settled; tune the interval and who row 0 sends. Too rare risks slow heal,
+   is settled; tune the interval and who row 1 sends. Too rare risks slow heal,
    too frequent wastes relay wakes.
 3. **Greeter admission throttling** to absorb re-bootstrap bursts (§12, herd
    risk).
@@ -444,7 +450,7 @@ sealed." Half true, wrong half load-bearing:
   absorb it — a genuinely new risk the socket-heavy current design lacks (a
   hibernating socket just wakes; it does not re-handshake).
 - **Greeter/anchor are per-session soft single points for *joining*** (not for
-  the mesh). The pool of 2–3 + deterministic election + the row-0 probe contain
+  the mesh). The pool of 2–3 + deterministic election + the row-1 probe contain
   it; still a new seam to test at every level (same class as host-takeover).
 - **Seating and counts go eventually-consistent.** The relay's socket count was
   authoritative; greeter/gossip views lag, so sections may over/under-fill by one
@@ -507,7 +513,7 @@ production constants) for every step.
    status/presence/hands (latest-wins, not id-dedupe); delete the relay
    `{t:'gossip'}` fallback. Largest step.
 8. **Close sockets after join** (§1) + **individual re-entry** (§6a).
-9. **Row-0 anti-split probe** (§6b, ≥4-gated) + recursive per-session probes +
+9. **Row-1 anti-split probe** (§6b, ≥4-gated, heartbeat-driven) + recursive per-session probes +
    detect-and-warn for the unhealable case (§6c).
 10. **Peer-enforced vote-off** (§7). Tuple key (path + hint), sealed vote gossip,
     local tally, local + fold shunning, **shun notice** (terminal for honest
