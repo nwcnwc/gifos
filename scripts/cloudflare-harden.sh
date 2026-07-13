@@ -90,16 +90,20 @@ warn "Reminder: Workers FREE has no overage — a flood just returns 429s until 
 
 # ---- 2. rate-limiting rules --------------------------------------------------
 say "Rate-limiting rules (per IP, per edge PoP)"
+# Period is 10s and mitigation 10s — the ONLY values the Free plan allows;
+# both are valid on paid plans too, so one schema fits all. Counts are per-10s
+# (×6 ≈ per-minute): relay 10 (=60/min), cors-proxy 40 (=240/min), backstop
+# 200 (=1200/min).
 RULES=$(jq -n --arg z "$ZONE_NAME" '
   [ { description:"gifos-harden: relay flood cap",
       expression:"(http.host eq \"relay.\($z)\")", action:"block",
-      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:60, mitigation_timeout:60} },
+      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:10, mitigation_timeout:10} },
     { description:"gifos-harden: cors-proxy flood cap",
       expression:"(http.host eq \"cors-proxy.\($z)\")", action:"block",
-      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:240, mitigation_timeout:60} },
+      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:40, mitigation_timeout:10} },
     { description:"gifos-harden: site + theme backstop",
       expression:"(http.host eq \"\($z)\" or ends_with(http.host, \".\($z)\"))", action:"managed_challenge",
-      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:1000, mitigation_timeout:60} } ]')
+      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:200, mitigation_timeout:10} } ]')
 # The Free plan allows only ONE http_ratelimit rule, so keep a consolidated
 # fallback: block ANY subdomain (relay, cors-proxy, 0-9 mirror — the
 # Worker/DO-backed hosts, i.e. the ones that actually cost money) that floods.
@@ -107,7 +111,7 @@ RULES=$(jq -n --arg z "$ZONE_NAME" '
 SINGLE=$(jq -n --arg z "$ZONE_NAME" '
   [ { description:"gifos-harden: subdomain flood cap",
       expression:"(ends_with(http.host, \".\($z)\"))", action:"block",
-      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:60, requests_per_period:600, mitigation_timeout:60} } ]')
+      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:100, mitigation_timeout:10} } ]')
 EP=$(cf GET "/zones/$ZID/rulesets/phases/http_ratelimit/entrypoint")
 RSID=$(echo "$EP" | jq -r '.result.id // empty')
 push_rules() { # $1 = rules array -> creates/updates the http_ratelimit ruleset
@@ -167,5 +171,9 @@ if [ -n "$ALERT_EMAIL" ]; then
        warn "Do this one in the dashboard: Notifications → Add → Usage-Based Billing."; fi
 fi
 
-say "Done.${DRY:+  (dry-run — nothing was changed)}"
-[ "$DRY" = 1 ] && echo "Re-run without --dry-run to apply."
+if [ "$DRY" = 1 ]; then
+  say "Done.  (dry-run — nothing was changed)"
+  echo "Re-run without --dry-run to apply."
+else
+  say "Done.  (changes applied — re-run any time; it's idempotent)"
+fi
