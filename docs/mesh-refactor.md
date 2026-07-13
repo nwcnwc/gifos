@@ -30,6 +30,11 @@ bounded C²+C sessions on free hibernating sockets (the K-sweep proves it). This
 refactor is driven by principles 1–2; the large drop in steady-state relay
 sockets is a bonus, not the motivation. Say so honestly to anyone who asks.
 
+**Scope:** this covers **meeting (mesh) sessions only**. The relay's app
+multiplayer sessions (`host`/`client` roles, the epoch guard, owned-link host
+gating) are untouched by this refactor — the host-authoritative app model is a
+different trust shape and stays on the relay for now.
+
 ---
 
 ## 1. The core mechanism: introduce, then leave — recursively
@@ -89,6 +94,25 @@ one dropped link from isolation; and (c) it is the seam that heals partitions
 (§6), because greeters from *different* partitions all receive the same
 introduction.
 
+**An open socket is not authority.** Anyone holding the room URL can sit on an
+open relay socket and receive introduction fan-outs — including a shunned
+re-entrant or a squatter — and answer newcomers with lies ("room's full") or
+garbage manifests. This is contained by construction, but say it out loud so the
+implementation leans on it: (a) fan-out means honest greeters answer the same
+introduction — a newcomer cross-checks sponsors and takes the mesh that actually
+stitches it in; (b) a shunned "greeter" cannot forward signaling into the mesh
+(members hold no DataChannels with it), so its only power is to lie to a
+newcomer who is simultaneously hearing the truth; (c) greeter *eligibility* in
+the election excludes peers you shun, so honest members never yield the anchor
+slots to one. Sponsorship trust comes from the mesh, never from holding a socket.
+
+**Empty-session detection is authoritative, not a timeout.** The relay knows how
+many sockets a session has open (it counts blind, reading no identity). A
+newcomer arriving at a zero-socket session is told "you're alone" and seats
+itself as first occupant/greeter (§1's base case). The residual race — a section
+whose greeters all crashed in the same instant looks empty and a newcomer founds
+a parallel group — is a transient split, and §6b heals it.
+
 ---
 
 ## 3. Signaling goes peer-to-peer (the machinery to build)
@@ -147,10 +171,12 @@ deacon-mesh, and cross-row *status/presence* gossip leans on the relay's
 relay only while no DC is open"). With members off the relay, that fallback is
 gone. So **all** gossip must forward P2P:
 
-- **Status / presence / hands** join the chat-class treatment that already
-  exists (`rows.md:175`): forward-on-first-sight with dedupe-by-id, plus periodic
-  anti-entropy union-merge across up-edges. Cross-row hops go through the
-  deacon-mesh; cross-section hops go up/down the delegate tree. The
+- **Status / presence / hands** get the same *transport* as chat-class gossip
+  (`rows.md:175`) — hop through the deacon-mesh and up/down the delegate tree,
+  with periodic anti-entropy — but NOT the same merge rule: chat dedupes by
+  message id (each message is new), while status is **latest-wins by (peer,
+  timestamp)** — forward a status only when it is fresher than the one you hold,
+  or a section will flood itself re-forwarding 4-second heartbeats. The
   assertion/display counting rules (`rows.md:157`) are unchanged — they already
   assume tree forwarding; they just lose the relay shortcut.
 - The **fold/stadium is already fully P2P** — deacon composites over
@@ -189,14 +215,29 @@ it:
 
 - **Row 0 (the stage) is the room's spine** — "row 0 is subscribed by all"
   (`rows.md`). Its defining property is that it reaches everyone. So row 0
-  **periodically designates a member to re-enter through the relay** (e.g. every
-  ~30–60s; the freshest links make good candidates). That re-entrant is
-  introduced by the relay to **all currently-open greeter sockets** (§2) — and if
-  those greeters span two partitions (both partitions still hold relay sockets,
-  as the greeter-pool rule ensures), the re-entrant is now P2P-linked to both and
-  **sutures them**: rosters merge via gossip through it, direct links reform, the
-  fork heals. If there was no split, the probe is a cheap no-op that also happens
-  to refresh the greeter pool.
+  **periodically designates a member to re-enter through the relay**. That
+  re-entrant is introduced by the relay to **all currently-open greeter sockets**
+  (§2) — and if those greeters span two partitions, the re-entrant is now
+  P2P-linked to both and **sutures them**: rosters merge via gossip through it,
+  direct links reform, the fork heals. If there was no split, the probe is a
+  cheap no-op that also happens to refresh the greeter pool. The re-entrant
+  keeps its existing peer id — re-introduction is idempotent, never a ghost tile.
+- **Why both sides of a split still hold relay sockets — make the mechanism
+  explicit, don't assert it:** the greeter-pool invariant (§2) is maintained
+  *locally by every connected component*. After a split, each side notices the
+  other's absence (links died), recomputes the deterministic election over its
+  own shrunken membership view, and its newly-elected greeters open sockets.
+  Neither side needs to know it is "the minority"; both just keep their own pool
+  staffed. That per-component re-election is the precondition the suture stands
+  on — without it the probe would find only one partition at the relay.
+- **Probe only when a silent split is arithmetically possible.** A split is
+  silent only if **both** sides keep ≥2 members (a lone severed peer sees its
+  links die and self-heals via §6a). So a section probes only while it holds
+  ≥4 members — the per-node-invariant way to gate it. This matters for cost: a
+  quiet connected room today costs the relay *zero* wakes (DC-first heartbeats),
+  and an unconditional 30–60s probe would re-introduce ~1,400–2,900 billed
+  wakes/day/room forever. The arithmetic gate zeroes that for the dominant
+  small-room case; cadence for big rooms is a tunable (§11).
 - **This is recursive**, like everything else: each session's greeter pool /
   anchor runs the same periodic re-probe of *its* relay session, so splits heal
   at the level they occur — a section that forks internally is re-sutured by its
@@ -236,6 +277,14 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   peer can lie about that) nor the client-chosen device tag (trivially wiped). A
   vote pre-flagged on a hint is *confirmed* on the observed path when connection
   is attempted.
+- **Shared IPs mean collateral — be honest and key on the tuple.** CGNAT puts
+  thousands of strangers behind one mobile-carrier IP; a household or office
+  shares one; and a same-LAN pair may connect via host candidates with no
+  `srflx` at all. An IP-only shun can hit innocents. So the vote key is the
+  **(observed path, device-tag hint) tuple**: full-tuple matches enforce
+  confidently; IP-only matches enforce cautiously (e.g. count toward the tally
+  but require the tuple to auto-confirm). Within the stated scope —
+  unsophisticated bad actors — this is an accepted, *named* risk, not a surprise.
 - **Lists stay personal and client-held**, gossiped **sealed** over the same P2P
   gossip as everything else (§5). The relay never receives a `votekick`.
 - **Tally is local and eventually-consistent.** Each client counts, for each
@@ -254,15 +303,100 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   now purely a client choice about which key to persist (a device-derived secret
   the *client* keeps, never shown to the relay), not a relay capability.
 
-**Honest limit — soft, not hard.** Shunning blocks everything a bad actor
-*sends* and removes them from every screen, but cannot evict them from signaling:
-while they hold the room URL they can still passively *receive* sealed gossip
-(lurk). A URL-holder can already lurk by joining quietly, so this is not a
-regression; the harm is outbound, and shunning stops it completely.
+- **The shun must be told to its target, or §6a loops forever.** A shunned
+  peer's links all die — which is *exactly* the §6a "you fell out, re-enter
+  through the relay" trigger. Today the relay's terminal `close(4007)` tells
+  them and `bannedOut` stops the reconnect; here nobody would, and an honest
+  client would re-bootstrap through the relay endlessly. So: enforcement sends
+  an attributed, sealed **shun notice** ("the people in this room have voted not
+  to include this device") before teardown, and a greeter whose local tally has
+  the re-entrant at threshold **declines sponsorship with the same notice**
+  instead of stitching them in. The client treats the notice as terminal, like
+  `bannedOut` today. A *modified* client that hammers re-entry anyway buys
+  nothing (nobody links to it) and runs into the relay's join-rate caps.
+
+**Honest limit — soft, not hard (but see §8: locked rooms can re-key).** Shunning
+blocks everything a bad actor *sends* and removes them from every screen, but
+cannot evict them from signaling: while they hold the room URL they can still
+passively *receive* sealed gossip (lurk). A URL-holder can already lurk by
+joining quietly, so this is not a regression; the harm is outbound, and shunning
+stops it completely. In a **password-locked** room the limit disappears: once
+the password enters the key derivation (§8), rotating the password after a
+vote-off re-keys the room and the lurker can no longer even decrypt.
 
 ---
 
-## 8. The clarification that keeps the design honest
+## 8. The door lock becomes cryptography (it must — and it's an upgrade)
+
+Today the room password is **only an admission gate at the relay**: the E2E key
+derives from `roomCode|av` alone (`deriveMeet`, `site/js/gifos-net.js`), and the
+password just yields an equality proof the relay compares before letting a
+socket in. That was fine while the relay was the door. In the introducer world
+the "door" is a greeter — a peer, checkable but not authoritative — so an
+unmodified gate would leave a URL-holder without the password able to decrypt
+every sealed frame they can obtain. **The lock would become decorative.**
+
+The fix is to move the password into the key itself:
+
+- **Locked room key = H(code | av | pw)** (a new derivation label under the DS
+  version tag — gifos-net's DS bump is a deliberate flag day). Without the
+  password you cannot *read* the room, no matter what you hold or which greeter
+  you fool. The lock stops being a gate someone enforces and becomes a property
+  of the ciphertext.
+- **Changing the password re-keys the room.** The existing `setpw`/`pwinfo` flow
+  becomes a key rotation: members holding the old key receive the new password
+  over the old sealed channel (exactly how `pwinfo` already shares it), derive
+  the new key, and move; whoever doesn't learn the new password falls out of the
+  ciphertext.
+- **This upgrades vote-off from soft to hard in locked rooms.** The standing
+  "soft shun" limit (§7) is that a voted-off URL-holder can still lurk on sealed
+  gossip. In a locked room: vote off, then rotate the password (don't send the
+  shunned device the new one) — the lurker can no longer decrypt anything. Hard
+  exclusion, achieved entirely P2P, no relay in the loop.
+- Greeters still *check* the pw proof at introduction as a courtesy gate (fail
+  fast with a clear error instead of letting someone join a room they can't
+  read), but nothing rests on that check anymore.
+
+---
+
+## 9. Admin rooms: authority becomes a signature (the stamp cannot survive)
+
+The doc cannot punt this one. Today admin authority exists **only** as the
+relay's `adm:true` stamp on frames it routes — `relay/src/relay.js:472` says it
+plainly: *"clients themselves can't prove adminship to each other"* — and admin
+bans are relay socket-cuts plus a relay door-gate. In the introducer world
+members hold no sockets and gossip rides DataChannels: **there is nothing to
+stamp and nobody to cut.** "Leave admin rooms relay-enforced" is not an option
+short of keeping every admin-room member on the relay forever — a global mode
+switch that violates the design law. So admin authority must become verifiable
+peer-to-peer:
+
+- **Make K a signing key, not a bare secret.** Keep the deliberately-expensive
+  PBKDF2 derivation from the admin password (dictionary resistance is still
+  wanted), but use the derived bits as the **seed of a signature keypair**
+  (Ed25519 — precedent already in the codebase via GIF signing; P-256 ECDSA if
+  WebCrypto availability demands). The room verifier **V becomes a hash
+  commitment of the public key** (same 24-hex prefix form, so URL shape is
+  unchanged).
+- **Admins sign their moderation messages** (mod table, ban/unban, setpw/re-key
+  orders). The first signed message carries the public key; any peer checks
+  `H(pubkey)` startsWith V (V is in the URL they joined by), caches it, and
+  verifies signatures from then on. The relay stamp is replaced by a proof any
+  peer can check with no third party.
+- **Admin bans become signed shun orders**: every client enforces them exactly
+  like vote-off shunning (§7) — teardown, tile removal, fold exclusion, greeter
+  declines-with-notice — but on the admin's signature instead of a majority
+  tally. Joining an admin room remains structural consent to be administered;
+  only the enforcement mechanism moves.
+- **Legacy honesty:** V lives in existing URLs forever, and a legacy
+  V = H(K) commits to a secret, not a public key — it cannot verify signatures.
+  Legacy admin rooms therefore cannot get P2P authority; they keep working only
+  in the old model, and migrating one means minting a new link (a new room
+  identity). Say this in the release notes rather than discovering it in a bug.
+
+---
+
+## 10. The clarification that keeps the design honest
 
 It is tempting to say "the relay can't poll the members because the roster is
 sealed." Half true, wrong half load-bearing:
@@ -278,25 +412,31 @@ sealed." Half true, wrong half load-bearing:
 
 ---
 
-## 9. Open questions to coordinate
+## 11. Open questions to coordinate
 
-1. **Admin-room bans.** A designated-authority model (one admin, a real ban list,
-   relay-held cut/gate). Recommendation: leave relay-enforced for now — you
-   consent to an admin by joining an admin room, and admin rooms already advertise
-   a central authority. Revisit as admin-stamped P2P shunning later.
-2. **Same-device eviction.** The relay uses `dev` to evict a stale same-device
+1. **Same-device eviction.** The relay uses `dev` to evict a stale same-device
    socket when a new tab opens (functionality, not moderation). If `dev` leaves
    the relay for plain rooms, decide how to preserve it (sessionStorage peer-id
    already handles reload; the new-tab case may be acceptable to drop or handle
    client-side).
-3. **Probe cadence and candidate choice** (§6b) — tune interval and who row 0
-   sends; too rare risks slow heal, too frequent wastes relay wakes.
-4. **Greeter admission throttling** to absorb re-bootstrap bursts (§10, herd
+2. **Probe cadence and candidate choice** (§6b) — the ≥4-member arithmetic gate
+   is settled; tune the interval and who row 0 sends. Too rare risks slow heal,
+   too frequent wastes relay wakes.
+3. **Greeter admission throttling** to absorb re-bootstrap bursts (§12, herd
    risk).
+4. **IP-only vote matches** (§7): exact policy for tuple-vs-IP-only confidence —
+   how cautious is "cautious" (display-only? counts but never auto-confirms?).
+5. **Signature algorithm** (§9): Ed25519 (codebase precedent, cleaner) vs P-256
+   ECDSA (WebCrypto ubiquity) — verify Ed25519 WebCrypto support across the
+   browsers GifOS actually targets before committing.
+6. **Relay session caps re-tuned** — `MAX_SOCKETS_PER_SESSION = C²+C` was sized
+   for everyone-on-relay; steady state is now greeters + in-flight joiners +
+   probes. The cap can drop sharply, but must stay generous enough to absorb a
+   re-bootstrap herd; join-rate caps must not throttle a healthy probe cadence.
 
 ---
 
-## 10. Honest limits, consolidated
+## 12. Honest limits, consolidated
 
 - **Re-bootstrap thundering herd.** A partition or mass reconnect sends many
   peers to the relay's introduce path at once; at a million, correlated failures
@@ -311,7 +451,15 @@ sealed." Half true, wrong half load-bearing:
   or two (the C²+C cap has slack) and counts can momentarily disagree.
 - **Small-room base case changes** — no longer byte-identical to today's mesh
   (§1).
-- **Soft shun** — a voted-off URL-holder can still lurk (§7).
+- **Soft shun in unlocked rooms** — a voted-off URL-holder can still lurk (§7);
+  locked rooms escape this via re-key (§8).
+- **Shared-IP collateral** — CGNAT/household/office peers share an observed
+  path; tuple keying reduces but cannot eliminate it (§7).
+- **Probe wakes** — big quiet rooms pay a small permanent relay wake cost for
+  split-healing that today's design doesn't have; the ≥4 arithmetic gate zeroes
+  it for small rooms (§6b).
+- **Legacy admin rooms can't migrate in place** — V = H(K) links cannot verify
+  signatures; new authority requires new links (§9).
 - **Re-introduction on dropout** — "never contact the relay again" is really
   "never again *unless you fall out of the mesh*" (§6a).
 - **Unhealable true partition** — a group that cannot reach the relay at all
@@ -322,7 +470,7 @@ sealed." Half true, wrong half load-bearing:
 
 ---
 
-## 11. Relationship to the already-shipped sealing work
+## 13. Relationship to the already-shipped sealing work
 
 Branch `claude/domain-name-status-k2mfc5`, commits `a5151c8` + `a61e038`:
 **keep it.** Names + self-reported IP sealed; peer-ids-only roster; IP stored
@@ -335,29 +483,41 @@ naturally rather than defending the per-room test.
 
 ---
 
-## 12. Concrete change list (end-to-end, suggested order)
+## 14. Concrete change list (end-to-end, suggested order)
 
 Build bottom-up; hold the K-sweep discipline (identical assertions at C=2 and at
 production constants) for every step.
 
 1. **Signaling on DataChannels** (§3.1). Move renegotiation off the relay for
    already-connected pairs. Smallest, unblocks everything.
-2. **Sponsor-forwarded introduction** (§3.2). One greeter stitches a newcomer
+2. **Password into the key derivation** (§8). New DS-tagged derivation for
+   locked rooms; `setpw` becomes re-key. Independent of everything else, and the
+   introducer world is unsafe for locked rooms without it — land it early.
+3. **Admin authority as signatures** (§9). PBKDF2 bits seed a keypair; V commits
+   to the pubkey; mod/ban messages signed; receivers verify. Unblocks admin
+   rooms for every later step.
+4. **Sponsor-forwarded introduction** (§3.2). One greeter stitches a newcomer
    into a row over P2P. New primitive on top of `relayVia`/`fwd`.
-3. **Greeter pool + fan-out introduction** (§2). Elect 2–3, last-joiner always
-   in, relay introduces to all open greeters, rotation on join.
-4. **Seating on the greeter** (§4). Move "is this section full / where's the
+5. **Greeter pool + fan-out introduction** (§2). Elect 2–3, last-joiner always
+   in, relay introduces to all open greeters, rotation on join, "you're alone"
+   for zero-socket sessions.
+6. **Seating on the greeter** (§4). Move "is this section full / where's the
    hole" from relay roster to greeter P2P view; preserve stage exception.
-5. **All gossip P2P** (§5). Extend chat-class forward+anti-entropy to
-   status/presence/hands; delete the relay `{t:'gossip'}` fallback. Largest step.
-6. **Close sockets after join** (§1) + **individual re-entry** (§6a).
-7. **Row-0 anti-split probe** (§6b) + recursive per-session probes + detect-and-warn
-   for the unhealable case (§6c).
-8. **Peer-enforced vote-off** (§7). ICE-path key, sealed vote gossip, local
-   tally, local + fold shunning; delete relay `votekick`/tally/boot/door-gate.
-9. **Reconcile docs** — `README.md:72` and `docs/threat-model.md` (both currently
-   describe relay-enforced vote-off and a relay-authored roster); update
-   `docs/rows.md`'s "byte-identical small room" law.
+7. **All gossip P2P** (§5). Extend tree forwarding + anti-entropy to
+   status/presence/hands (latest-wins, not id-dedupe); delete the relay
+   `{t:'gossip'}` fallback. Largest step.
+8. **Close sockets after join** (§1) + **individual re-entry** (§6a).
+9. **Row-0 anti-split probe** (§6b, ≥4-gated) + recursive per-session probes +
+   detect-and-warn for the unhealable case (§6c).
+10. **Peer-enforced vote-off** (§7). Tuple key (path + hint), sealed vote gossip,
+    local tally, local + fold shunning, **shun notice** (terminal for honest
+    clients; greeters decline-with-notice); delete relay
+    `votekick`/tally/boot/door-gate. Admin bans ride the same shunning on
+    signatures (§9).
+11. **Reconcile docs** — `README.md:72` and `docs/threat-model.md` (both
+    currently describe relay-enforced vote-off, a relay-authored roster, and a
+    relay-checked password); update `docs/rows.md`'s "byte-identical small room"
+    law and its walk/gossip-fallback lines (25, 44).
 
 The relay keeps its abuse caps and origin allowlist throughout — those guard the
 introduce path, which is now the *only* thing it does.
