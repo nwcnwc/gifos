@@ -318,11 +318,11 @@
   // by the app's manifest allowlist. Hardening (fail closed):
   //  - only https:// (and http:// for localhost dev) — never file:, blob:, etc.
   //  - never the GifOS origin or its own subdomains: an app must not be able to
-  //    turn the trusted first-party into a proxy for the relay/mcp/site itself.
+  //    turn the trusted first-party into a proxy for the relay/site itself.
   //  - no credentials are ever attached, and the response body is size-capped.
   const FETCH_MAX_BYTES = 8 * 1024 * 1024; // 8 MB response ceiling
   function firstPartyHost(host) {
-    // gifos.app and *.gifos.app (relay/mcp/mirrors) are always off-limits.
+    // gifos.app and *.gifos.app (relay/mirrors) are always off-limits.
     if (host === 'gifos.app' || host.endsWith('.gifos.app')) return true;
     // Custom deployments can protect their own sibling services by setting
     // window.GIFOS_FIRST_PARTY = ['example.com', ...] — each entry blocks that

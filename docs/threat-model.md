@@ -28,7 +28,7 @@ workers — is denied by default and granted narrowly.
 |---|---|---|
 | The user's local computer | IndexedDB (`gifos` DB): files, per-app state, desktop layout | It's everything the user owns; there is no server copy |
 | The user's device | The browser/OS running GifOS | An app must not pivot from "runs in a tab" to "attacks the machine" |
-| The GifOS first-party origin(s) | `gifos.app`, `relay.gifos.app`, `mcp.gifos.app`, `0–9.gifos.app` | A malicious app must not use us as a proxy or reach our own services |
+| The GifOS first-party origin(s) | `gifos.app`, `relay.gifos.app`, `cors-proxy.gifos.app`, `0–9.gifos.app` | A malicious app must not use us as a proxy or reach our own services |
 | Provenance private keys | The signer's own machine — **never** in client JS, the repo, Workers, or any AI channel | If a signing key leaks, authorship claims become forgeable |
 | The relay | A stateless Cloudflare Worker | It must stay a dumb, cheap pipe — no data at rest, no media |
 | Live media | Camera/mic in video calls | Media must stay peer-to-peer and consented; it must never transit our servers |

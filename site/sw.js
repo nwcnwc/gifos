@@ -133,7 +133,7 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET') return;
   var url;
   try { url = new URL(req.url); } catch (err) { return; }
-  // Cross-origin (relay wss handled elsewhere, CORS proxy, AI, MCP, GitHub, key
+  // Cross-origin (relay wss handled elsewhere, CORS proxy, AI, GitHub, key
   // servers): never intercept. They behave exactly as before — working online,
   // failing offline with the app's own messaging.
   if (url.origin !== self.location.origin) return;
