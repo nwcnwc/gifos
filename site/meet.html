@@ -3930,19 +3930,18 @@
           c.since = c.since || Date.now();
           // Only kick a SETTLED pair. Kicking one mid-negotiation (non-stable
           // or an offer in flight) piles a fresh offer onto the in-flight one
-          // and LIVELOCKS perfect-negotiation — the streamless fold then never
-          // converges. If a pair stays wedged non-stable a long time the
-          // transport itself is stuck; rebuild it (composite roles re-derive on
-          // the next reconcile) rather than kicking it harder.
+          // and LIVELOCKS perfect-negotiation — the streamless fold never lands.
+          // NEVER rebuild the transport from here: a MEMBER receives EVERY fold
+          // over the one link to its row deacon, so nuking that link to chase a
+          // single streamless fold tears down ALL folds at once — and because a
+          // cold link needs >9s to reconnect and re-forward, the 9s rebuild
+          // timer refires and loops (conn stuck 'new', folds stuck 0). Wedged
+          // transports heal at the CONNECTION layer in the sweeper (ICE restart,
+          // then rebuild), which owns the whole link — not per-fold here.
           const settled = vp && vp.pc && vp.pc.signalingState === 'stable' && !vp.makingOffer;
-          if (vp && vp.connected && vp.dc && vp.dc.readyState === 'open'
+          if (settled && vp.connected && vp.dc && vp.dc.readyState === 'open'
               && Date.now() - c.since > 2000 && Date.now() - (c.kickAt || 0) > 2500) {
-            if (settled) { c.kickAt = Date.now(); compKick(c.via); }
-            else if (Date.now() - c.since > 9000 && Date.now() - (c.kickAt || 0) > 9000) {
-              c.kickAt = Date.now();
-              if (typeof clog === 'function') clog('rebuild ' + String(c.via).slice(0, 6) + ' ' + (vp.pc && vp.pc.signalingState));
-              newPcFor(vp); if (iInitiate(c.via)) sendOffer(c.via, true);
-            }
+            c.kickAt = Date.now(); compKick(c.via);
           }
         } else c.since = 0;
       }
