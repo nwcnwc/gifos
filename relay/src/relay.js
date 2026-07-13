@@ -10,11 +10,14 @@
  * idle session or call room costs NOTHING while nobody is talking: the DO is
  * evicted from memory between messages and Cloudflare only bills actual
  * activity, not wall-clock call length. Everything a handler needs to know
- * about a socket (role, peer id, ip, token, room password) rides in
- * its serialized attachment, which survives eviction but DIES WITH THE
- * CONNECTION — the relay persists nothing, ever. Display NAMES are never in
- * the attachment or the roster: they travel end-to-end sealed between clients,
- * so the relay only ever routes anonymous peer ids. A room's token and password
+ * about a socket (role, peer id, a SALTED IP tag, token, room password) rides
+ * in its serialized attachment, which survives eviction but DIES WITH THE
+ * CONNECTION — the relay persists nothing, ever. Identity is never in the
+ * attachment or the roster in readable form: display NAMES and network
+ * ADDRESSES travel end-to-end sealed under the meeting-URL key the relay does
+ * not hold, and the stored IP is a salted hash used only for per-IP abuse
+ * caps — so the relay routes anonymous peer ids over an encrypted roster it
+ * cannot read. A room's token and password
  * are therefore properties of its CURRENT OCCUPANTS: the first arrival to an
  * empty room re-establishes them from their own session, and everyone after
  * that must match the people already inside — except that in an ADMIN room
@@ -50,6 +53,20 @@
 async function sha256hex(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
   return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+// The relay OBSERVES a socket's IP (Cloudflare terminates the connection) but
+// must never PERSIST it in readable form: a peer's network address is theirs
+// and their room-mates', not something a relay-state dump or log should hand
+// out. So the per-IP abuse caps key on a SALTED HASH of the IP, kept in the
+// attachment — equality still counts sockets-per-network, but a state breach
+// yields opaque tags, not addresses. (A party holding the salt AND the code
+// could still brute-force IPv4 — but that party can already log raw IPs, so
+// the salt raises the bar exactly against the storage/log-only adversary this
+// is meant to stop.) Set ABUSE_SALT in the environment to make it a real
+// secret; the default keeps dev and tests working.
+async function ipTag(ip, env) {
+  const salt = (env && env.ABUSE_SALT) || 'gifos-relay-ip-tag';
+  return (await sha256hex(salt + '|' + ip)).slice(0, 24);
 }
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot —
 // hex, 16–64 chars (24 now, legacy 64). ONE derivation, used by BOTH the app
@@ -148,12 +165,15 @@ export class Session {
   send(ws, obj) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (e) {} }
 
   roster() {
-    // The roster is peer IDS only — never names. Display names travel
-    // end-to-end sealed between clients (status/offer/answer frames), so the
-    // relay routes anonymous ids and never authors a name directory. IPs, by
-    // contrast, are the relay's own unavoidable observation of each socket and
-    // are shared back deliberately (see below).
-    const peers = [], admins = [], devs = {}, ips = {};
+    // The roster the relay AUTHORS is peer IDS only — never names, never
+    // network addresses. Identity (name + IP) travels end-to-end SEALED under
+    // the meeting-URL key the relay does not hold: clients seal it into their
+    // status heartbeat / offer-answer, so the relay stores and broadcasts only
+    // ciphertext. A relay-state dump or log yields opaque ids, not a directory
+    // of who is on the call. Device tags ARE carried (the relay needs them for
+    // ban/vote equality) but they are ROOM-SALTED by the client, so they are
+    // per-room opaque tokens — not correlatable to a person or across rooms.
+    const peers = [], admins = [], devs = {};
     let admV = null, ban = null, mesh = false;
     for (const ws of this.members()) {
       const a = this.att(ws);
@@ -161,7 +181,6 @@ export class Session {
       if (a.role === 'mesh') mesh = true;
       if (a.adm) admins.push(a.peer);
       if (a.dev) devs[a.peer] = a.dev;
-      if (a.ip) ips[a.peer] = a.ip;
       if (!admV && a.av) admV = a.av;
       if (ban === null && a.ban) ban = a.ban;
     }
@@ -169,10 +188,7 @@ export class Session {
     const msg = { t: 'roster', peers };
     if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
     if (mesh) {
-      // Rooms are not anonymous BY DESIGN: everyone on a call can see
-      // everyone's network address (they exchange it for P2P anyway) — the
-      // client shows it under the status pill as an accountability record.
-      msg.devs = devs; msg.ips = ips;
+      msg.devs = devs; // room-salted device tags, for client-side ban/vote UI
       if (admV) { msg.hasAdmin = true; msg.admins = admins; msg.ban = ban || []; }
     }
     const s = JSON.stringify(msg);
@@ -220,8 +236,9 @@ export class Session {
     const sockets = this.all();
     if (sockets.length >= MAX_SOCKETS_PER_SESSION) return reject('this session is full', 1013);
     const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
+    const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
     let mine = 0;
-    for (const ws of sockets) if (this.att(ws).ip === ip) mine++;
+    for (const ws of sockets) if (this.att(ws).iph === iph) mine++;
     if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
     const now = Date.now();
     const log = (this.joinLog.get(ip) || []).filter((t) => now - t < 60000);
@@ -258,7 +275,7 @@ export class Session {
       }
       for (const ws of this.state.getWebSockets('role:host')) { try { ws.close(4001, 'replaced by a new host'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:host', 'peer:host']);
-      server.serializeAttachment({ role: 'host', peer: 'host', ip, tok: token, epoch, hostid });
+      server.serializeAttachment({ role: 'host', peer: 'host', iph, tok: token, epoch, hostid });
       this.send(server, { t: 'host-ready', epoch });
       for (const ws of this.members()) this.send(server, { t: 'peer-join', peer: this.att(ws).peer });
       this.roster();
@@ -341,8 +358,14 @@ export class Session {
         if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, ip, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
+      server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
       this.send(server, { t: 'joined', peer, admin: isAdmin });
+      // Tell this socket its OWN address (privately, once). The relay can't
+      // seal — it lacks the room key — so the client seals its IP into the
+      // sealed roster card/heartbeat itself; the relay only ever holds and
+      // broadcasts ciphertext. This is the one place an IP crosses the relay,
+      // to its rightful owner, and it is never stored.
+      this.send(server, { t: 'whoami', ip });
       this.roster();
     } else {
       const h = this.hostSock();
@@ -351,7 +374,7 @@ export class Session {
       if (tok && token !== tok) return reject('bad join token', 1008);
       for (const ws of this.members()) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:client', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'client', peer, ip });
+      server.serializeAttachment({ role: 'client', peer, iph });
       this.send(server, { t: 'joined', peer });
       this.send(h, { t: 'peer-join', peer });
       this.roster();
