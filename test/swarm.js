@@ -64,21 +64,113 @@ try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('playwright not found — run: npm i playwright && npx playwright install chromium'); process.exit(1); }
 
 // Pre-rendered spoken phrases (ogg/vorbis base64) — optional: without the
-// file the bots simply stay silent between heartbeats.
+// file the bots simply stay silent between heartbeats. Only used as the
+// audio source when the intro-video pack (below) is absent.
 let VOICES = [];
 try { VOICES = require(require('path').join(__dirname, 'swarm-voices.js')); }
 catch (e) { if (SPEAK) console.log('[swarm] swarm-voices.js not found — bots will be mute'); }
 
+// Intro-video pack: 50 talking-head clips + matching portrait stills
+// (test/swarm-videos/, self-fetched onto each bot box). When present, a bot's
+// camera IS one of these clips (chosen at random): it plays the ~6s intro
+// once — the clip's OWN audio becomes the bot's mic — then freezes on the
+// portrait for a random 1-10s, then plays again, a self-introducing loop that
+// turns a full room into a cacophony of "Hi, I'm …". Falls back to the solid
+// swatch cam + espeak voices when the pack isn't on disk.
+const fs = require('fs');
+const nodePath = require('path');
+const VIDEO_DIR = args.videos || nodePath.join(__dirname, 'swarm-videos');
+let PEOPLE = [];
+try {
+  const clipDir = nodePath.join(VIDEO_DIR, 'clips');
+  const portDir = nodePath.join(VIDEO_DIR, 'portraits');
+  const nnOf = (f) => (/^(\d+)/.exec(f) || [])[1];
+  const ports = {};
+  for (const p of fs.readdirSync(portDir)) if (p.endsWith('.jpg')) ports[nnOf(p)] = nodePath.join(portDir, p);
+  let names = {};
+  try {
+    for (const r of JSON.parse(fs.readFileSync(nodePath.join(VIDEO_DIR, 'roster.json'), 'utf8'))) names[r.id] = r.name;
+  } catch (e) { /* names are cosmetic */ }
+  for (const c of fs.readdirSync(clipDir).filter((f) => f.endsWith('.mp4')).sort()) {
+    const nn = nnOf(c);
+    if (ports[nn]) PEOPLE.push({ clip: nodePath.join(clipDir, c), portrait: ports[nn], name: names[nn] || null });
+  }
+} catch (e) { /* no video pack — solid-swatch cams instead */ }
+// base64 data-URL cache so N bots sharing a clip read/encode it only once.
+const _b64 = {};
+const dataUrl = (file, mime) => (_b64[file] || (_b64[file] = 'data:' + mime + ';base64,' + fs.readFileSync(file).toString('base64')));
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The fake phone camera: a 9:16 canvas, one solid color per bot (spread
-// around the hue wheel by golden-angle so neighbors contrast), the bot's
-// number painted on it, and one simple object hopping to a random spot,
-// shape, and size every few seconds. Repaint is 1/s over a 270×480 canvas —
-// a handful of fill calls, no gradients, no animation loop — so CPU stays
-// negligible while the video stays visibly alive. Audio is a silent
-// WebAudio destination track.
-const fakeCam = (idx, fps) => `
+// Intro-video camera (used when the pack in test/swarm-videos/ is present):
+// play a real talking-head clip once — the clip's OWN audio becomes the mic —
+// then hold the portrait still 1-10s and replay, forever. The frame is
+// composited on a canvas so clip↔portrait swaps need no track renegotiation;
+// audio is pulled off the <video> through WebAudio (naturally silent while the
+// clip is paused on the portrait).
+const fakeCamVideo = (idx, fps, clipUrl, portraitUrl) => `
+  (() => {
+    const mk = async () => {
+      const vid = document.createElement('video');
+      vid.src = ${JSON.stringify(clipUrl)};
+      vid.muted = false; vid.playsInline = true; vid.preload = 'auto';
+      vid.style.cssText = 'position:fixed;left:-9999px;width:2px;height:2px;opacity:0';
+      document.documentElement.appendChild(vid);
+      const img = new Image(); img.src = ${JSON.stringify(portraitUrl)};
+      await new Promise((r) => { img.complete ? r() : (img.onload = img.onerror = r); });
+      await new Promise((r) => { vid.readyState >= 1 ? r() : (vid.onloadedmetadata = r); });
+      const W = vid.videoWidth || 400, H = vid.videoHeight || 736;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const x = c.getContext('2d');
+      let mode = 'portrait';
+      const draw = () => { try { (mode === 'video' && vid.readyState >= 2) ? x.drawImage(vid, 0, 0, W, H) : x.drawImage(img, 0, 0, W, H); } catch (e) {} };
+      draw(); setInterval(draw, Math.round(1000 / Math.max(${fps}, 12))); // keep captureStream fed at >= fps
+      // Route the clip's own audio to the mic. MediaElementSource redirects the
+      // element's audio into the graph; connected only to the stream dest (not
+      // ac.destination) so nothing plays locally, and it goes silent whenever
+      // the clip is paused on the portrait.
+      let dst = null;
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        if (ac.state === 'suspended') ac.resume();
+        dst = ac.createMediaStreamDestination();
+        ac.createMediaElementSource(vid).connect(dst);
+        window.__botAC = ac;
+      } catch (e) {}
+      const playOnce = async () => {
+        mode = 'video';
+        try { vid.currentTime = 0; if (window.__botAC && window.__botAC.state === 'suspended') await window.__botAC.resume(); await vid.play(); }
+        catch (e) { setTimeout(playOnce, 1500); }
+      };
+      vid.onended = () => { mode = 'portrait'; setTimeout(playOnce, 1000 + Math.random() * 9000); };
+      playOnce();
+      const stream = c.captureStream(${fps});
+      if (dst) for (const t of dst.stream.getAudioTracks()) stream.addTrack(t);
+      return stream;
+    };
+    navigator.mediaDevices.getUserMedia = mk;
+    navigator.mediaDevices.getDisplayMedia = mk;
+    window.addEventListener('load', () => {
+      let blurSet = false;
+      const iv = setInterval(() => {
+        const cam = document.getElementById('cam'), mic = document.getElementById('mic');
+        const none = document.getElementById('blur-none');
+        if (!cam || !mic || !window.__gifosVideo) return;
+        if (none && !blurSet) { none.click(); blurSet = true; }
+        if (cam.classList.contains('off')) cam.click();
+        if (mic.classList.contains('off')) mic.click();
+        if (!cam.classList.contains('off') && !mic.classList.contains('off')) clearInterval(iv);
+      }, 2000);
+    });
+  })();
+`;
+
+// Fallback camera: a 9:16 canvas, one solid color per bot (spread around the
+// hue wheel by golden-angle so neighbors contrast), the bot's number painted
+// on it, and one simple object hopping to a random spot, shape, and size every
+// few seconds. Used when the intro-video pack isn't on disk. Audio is optional
+// espeak phrases (swarm-voices.js) or silence.
+const fakeCamSolid = (idx, fps) => `
   (() => {
     const hue = Math.round((${idx} * 137.508) % 360);
     const mk = async () => {
@@ -161,6 +253,12 @@ const fakeCam = (idx, fps) => `
   })();
 `;
 
+// Pick the camera flavor per bot: an intro clip when the pack is on disk
+// (read + data-URL'd in from Node), otherwise the solid swatch.
+const fakeCam = (idx, fps, person) => person
+  ? fakeCamVideo(idx, fps, dataUrl(person.clip, 'video/mp4'), dataUrl(person.portrait, 'image/jpeg'))
+  : fakeCamSolid(idx, fps);
+
 // Random congregation chatter — a few stock lines plus a tiny grammar, so
 // 600 bots don't all say the same six things.
 const STOCK = [
@@ -192,16 +290,22 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     ? 'window.__swarmClips=' + JSON.stringify(VOICES.map((v) => v.ogg)) + ';window.__swarmSpeakMs=' + Math.round(SPEAK * 1000) + ';'
     : '';
   console.log('[swarm] shard: bots ' + OFFSET + '…' + (OFFSET + N - 1) + ' → ' + BASE + ' room "' + ROOM + '"'
-    + (AV ? ' (admin room)' : '') + (PASS ? ' [password]' : ''));
+    + (AV ? ' (admin room)' : '') + (PASS ? ' [password]' : '')
+    + (PEOPLE.length ? ' · intro-video pack (' + PEOPLE.length + ' people)' : ' · solid-swatch cams'));
   for (let i = 0; i < N; i++) {
     const idx = OFFSET + i;
+    // Each bot randomly adopts one of the 50 roster people (clip + portrait +
+    // name) when the pack is present; espeak voices are only seeded as the
+    // audio source in the fallback (no-pack) case.
+    const person = PEOPLE.length ? PEOPLE[(Math.random() * PEOPLE.length) | 0] : null;
+    const botName = (person && person.name) ? person.name : ('Bot-' + idx);
     const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } }); // a phone
     await ctx.addInitScript({ content:
       (RELAY ? 'localStorage.setItem(\'gifos_relay\',' + JSON.stringify(RELAY) + ');' : '') +
-      pwSeed + voiceSeed +
-      "localStorage.setItem('gifos_name','Bot-" + idx + "');" +
+      pwSeed + (person ? '' : voiceSeed) +
+      'localStorage.setItem(\'gifos_name\',' + JSON.stringify(botName) + ');' +
       "localStorage.setItem('gifos_meet_bar','0');" +
-      fakeCam(idx, FPS) });
+      fakeCam(idx, FPS, person) });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
     p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '')).catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
