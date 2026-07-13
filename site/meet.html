@@ -2486,6 +2486,23 @@
           if (iInitiate(pid)) { p.lastKick = now + Math.random() * 1500; sendOffer(pid); }
           continue;
         }
+        // A pc WEDGED in 'connecting' never completed its first ICE handshake —
+        // typically a candidate lost to a renegotiation glare, or an aux-track
+        // reneg reset ICE mid-flight. The browser won't downgrade it to
+        // 'failed' for tens of seconds, and 'failed'/'disconnected' below never
+        // fires meanwhile — so the link just hangs. That dead link may be the
+        // ONE peer we depend on: a row deacon forwarding every other row's fold
+        // down to us. A single wedged deacon link = zero folds, forever (this
+        // is exactly what strands a human who joins a full section cold). Nudge
+        // it with an ICE restart, then rebuild the transport outright if it is
+        // still wedged well past any honest handshake. Only the initiator
+        // drives — the far side's own sweeper heals its half.
+        if (!p.absentSince && iInitiate(pid) && !p.connected && st === 'connecting'
+            && p.downSince && now - p.downSince > 12000 && now - p.lastKick > 8000) {
+          p.lastKick = now + Math.random() * 1500;
+          if (now - p.downSince > 25000) { newPcFor(p); sendOffer(pid); }
+          else sendOffer(pid, true);
+        }
         // 'failed'/'disconnected' heal with an ICE restart — and a pc STUCK in
         // 'new' means our offer was dropped on arrival (the receiver's roster
         // hadn't caught up, so its row-discipline guard refused us): re-offer
@@ -3224,7 +3241,7 @@
         // and MUST re-offer afterwards, or its rolled-back m-lines are
         // orphaned forever (the browser's negotiationneeded would refire
         // here; our hand-rolled offers need the explicit flag).
-        if (p.pc.signalingState === 'have-local-offer') {
+        if (p.makingOffer || p.pc.signalingState === 'have-local-offer') {
           if (iInitiate(p.id)) return;
           p.renegAgain = true; // polite rollback: my changes go again after I answer
         }
@@ -3451,10 +3468,19 @@
     // soon as the pc is stable again (renegAgain).
     function renegotiate(p) {
       if (!p.pc || !p.dc || p.dc.readyState !== 'open') return;
-      if (p.pc.signalingState !== 'stable') { p.renegAgain = true; return; }
-      p.pc.createOffer().then((o) => p.pc.setLocalDescription(o))
+      // makingOffer guards the async createOffer→setLocalDescription window:
+      // two renegotiate() calls used to both pass the stable check, then race
+      // on setLocalDescription — the loser threw InvalidAccessError and its
+      // added tracks (composite folds!) were orphaned with no retry. Standard
+      // perfect-negotiation: at most one offer in flight; re-check stability
+      // after the async createOffer; any failure re-arms renegAgain.
+      if (p.makingOffer || p.pc.signalingState !== 'stable') { p.renegAgain = true; return; }
+      p.makingOffer = true;
+      p.pc.createOffer()
+        .then((o) => { if (p.pc.signalingState !== 'stable') { const e = new Error('raced'); e.name = 'GlareRace'; throw e; } return p.pc.setLocalDescription(o); })
         .then(() => { dcSend(p, { k: 'roffer', sdp: p.pc.localDescription }); if (typeof clog === 'function') clog('roffer→' + String(p.id).slice(0, 6)); })
-        .catch((e) => { if (typeof clog === 'function') clog('roffer-FAIL ' + String(p.id).slice(0, 6) + ' ' + (p.pc && p.pc.signalingState) + ' ' + (e && e.name)); });
+        .catch((e) => { if (typeof clog === 'function') clog('roffer-FAIL ' + String(p.id).slice(0, 6) + ' ' + (p.pc && p.pc.signalingState) + ' ' + (e && e.name)); p.renegAgain = true; })
+        .finally(() => { p.makingOffer = false; });
     }
     function startRelayJob(reqP, target) {
       const key = target + '>' + reqP.id;
@@ -3902,10 +3928,21 @@
         if (!c.stream) {
           const vp = peers.get(c.via);
           c.since = c.since || Date.now();
+          // Only kick a SETTLED pair. Kicking one mid-negotiation (non-stable
+          // or an offer in flight) piles a fresh offer onto the in-flight one
+          // and LIVELOCKS perfect-negotiation — the streamless fold then never
+          // converges. If a pair stays wedged non-stable a long time the
+          // transport itself is stuck; rebuild it (composite roles re-derive on
+          // the next reconcile) rather than kicking it harder.
+          const settled = vp && vp.pc && vp.pc.signalingState === 'stable' && !vp.makingOffer;
           if (vp && vp.connected && vp.dc && vp.dc.readyState === 'open'
-              && Date.now() - c.since > 5000 && Date.now() - (c.kickAt || 0) > 5000) {
-            c.kickAt = Date.now();
-            compKick(c.via);
+              && Date.now() - c.since > 2000 && Date.now() - (c.kickAt || 0) > 2500) {
+            if (settled) { c.kickAt = Date.now(); compKick(c.via); }
+            else if (Date.now() - c.since > 9000 && Date.now() - (c.kickAt || 0) > 9000) {
+              c.kickAt = Date.now();
+              if (typeof clog === 'function') clog('rebuild ' + String(c.via).slice(0, 6) + ' ' + (vp.pc && vp.pc.signalingState));
+              newPcFor(vp); if (iInitiate(c.via)) sendOffer(c.via, true);
+            }
           }
         } else c.since = 0;
       }
