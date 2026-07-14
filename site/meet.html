@@ -1616,7 +1616,7 @@
       if ((msg.kind === 'offer' || msg.kind === 'answer') && msg.sdp) return Object.assign({}, msg, { sdp: sdpSansIce(msg.sdp) });
       return msg;
     };
-    const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0 }; // test/inspection hook: where heartbeats + signaling actually travel
+    const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0, fwdSig: 0 }; // test/inspection hook: where heartbeats + signaling actually travel
     const sendSig = (to, msg) => {
       // STATUS gossip — the every-few-seconds pulse that is nearly all of a
       // quiet meeting's traffic — prefers the pair's own DataChannel: the relay
@@ -1661,6 +1661,28 @@
       if (!rosterIds.includes(to)) {
         if (UP.on && UP.roster.includes(to)) sock = UP.ws;
         else if (UP2.on && UP2.roster.includes(to)) sock = UP2.ws;
+      }
+      // SPONSOR-FORWARDED SIGNALING (mesh-refactor §3.2/§3.3): when my relay
+      // path to this peer is down or absent — the exact moment a heal offer
+      // matters most, and the seam introduction will ride once sockets close
+      // (step 8) — a MUTUAL FRIEND's DataChannel carries the frame instead:
+      // lowest-id connected peer who reports a live link to the target, one
+      // hop, sealed end-to-end the whole way (the friend forwards ciphertext
+      // context it could read anyway as a room member, but cannot alter —
+      // it re-seals the same payload). Deterministic pick, so retries hop
+      // the same sponsor. Trust note (doc §12): the relay's authoritative
+      // `from` doesn't cover this path — an in-room impostor could already
+      // disrupt via gossip; connection-level guards (perfect negotiation,
+      // linkTo discipline) bound the blast radius.
+      const relayDown = !sock || sock.state !== 'up';
+      if (relayDown && msg.kind !== 'status') {
+        const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
+        const fp = cands.length ? peers.get(cands[0]) : null;
+        if (fp && fp.dc && fp.dc.readyState === 'open') {
+          const m2 = sigSansIce(to, msg);
+          if (m2) { txStats.fwdSig++; dcSend(fp, { k: 'fsig', from: myId, to, m: m2 }); }
+          return;
+        }
       }
       if (!sock) return;
       // A heartbeat is re-minted every tick — never queue a stale one on a down
@@ -3370,6 +3392,17 @@
         // channel.
         const k2 = m.msg && m.msg.kind;
         if (k2 === 'status' || k2 === 'offer' || k2 === 'answer' || k2 === 'ice') onSignal(p.id, m.msg);
+      } else if (m.k === 'fsig') {
+        // Sponsor-forwarded signaling (§3.2/§3.3): one hop only. If it names
+        // me, take it as if it arrived from its claimed sender; otherwise
+        // forward ONLY when I hold a direct open channel to the target —
+        // never re-sponsor (no multi-hop floods; the sender's deterministic
+        // pick retries elsewhere if my link died).
+        const k3 = m.m && m.m.kind;
+        if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice')) return;
+        if (m.to === myId) { if (m.from && m.from !== myId) onSignal(String(m.from), m.m); return; }
+        const tp = peers.get(m.to);
+        if (tp && tp.dc && tp.dc.readyState === 'open') dcSend(tp, { k: 'fsig', from: m.from, to: m.to, m: m.m });
       } else if (m.k === 'ck') {
         // Clock sync (the grid's metronome): answer with our clock immediately;
         // the asker derives offset + rtt NTP-style. Rides the free DC path.
