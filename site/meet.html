@@ -1617,7 +1617,7 @@
       if ((msg.kind === 'offer' || msg.kind === 'answer') && msg.sdp) return Object.assign({}, msg, { sdp: sdpSansIce(msg.sdp) });
       return msg;
     };
-    const txStats = { relayStatus: 0, dcStatus: 0 }; // test/inspection hook: where heartbeats actually travel
+    const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0 }; // test/inspection hook: where heartbeats + signaling actually travel
     const sendSig = (to, msg) => {
       // STATUS gossip — the every-few-seconds pulse that is nearly all of a
       // quiet meeting's traffic — prefers the pair's own DataChannel: the relay
@@ -1635,6 +1635,25 @@
           if (m2) { txStats.dcStatus++; dcSend(pd, { k: 'sig', msg: m2 }); }
           return;
         }
+      }
+      // POST-JOIN SIGNALING ON THE PAIR'S OWN CHANNEL (mesh-refactor §3.1):
+      // once a pair is connected, its negotiation traffic — renegotiation
+      // offers, answers, trickle ICE — rides its DataChannel. These frames are
+      // PAIR-LOCAL: they affect only this one connection and carry no room
+      // authority (unlike admin-stamped mod tables, which stay on the relay),
+      // so the pair's own sealed channel is exactly as trustworthy as the
+      // relay's routing for them — and every DC frame is one less billed
+      // relay wake. The relay remains the path whenever no DC is open: first
+      // handshakes, and heals of a transport whose DC died with it (§3.3 —
+      // the sweeper's recovery offers NEED a path that survives the pair).
+      if (msg.kind === 'offer' || msg.kind === 'answer' || msg.kind === 'ice') {
+        const pd = peers.get(to);
+        if (pd && pd.dc && pd.dc.readyState === 'open') {
+          const m2 = sigSansIce(to, msg);
+          if (m2) { txStats.dcSig++; dcSend(pd, { k: 'sig', msg: m2 }); }
+          return; // a blocked pair sends nothing on either path (fault injection)
+        }
+        txStats.relaySig++;
       }
       // Route on membership, lowest shared space first: leaf, then the
       // parent space, then the level-2 space — deterministic, so both
@@ -2026,14 +2045,23 @@
     let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
     // Which leaf row this device sits in (1-based; row 1 is path '' — exactly
     // today's session). The walk bumps it until a row seats us.
-    let sectionNum = 1, walking = false;
+    // CANONICAL SECTION IDENTITY (mesh-refactor step 0): my section number is
+    // a property of the session I am JOINED to, never a locally-kept count.
+    // sectionTry names the section my current credentials ADDRESS (bumped when
+    // a walk derives the next session); sectionNum only ever adopts it on the
+    // relay's 'joined' — the moment the addressed session actually seats me.
+    // The old `sectionNum++` bumped BEFORE the async derive/connect resolved,
+    // so a failed hop left the counter naming a session I never entered — and
+    // every global-row label (gRowOf), fold key, and st.leaf gossip built on
+    // the lie (the dup-fold relabeling class, fb562ed).
+    let sectionNum = 1, walking = false, sectionTry = 1;
     const sectionPathOf = (n) => (n <= 1 ? '' : 'r' + n);
     function walkOn() {
       if (walking) return; // one step at a time — late rosters must not double-bump
       walking = true;
-      sectionNum++;
+      sectionTry++;
       for (const pid of Array.from(peers.keys())) dropPeer(pid); // old row's links die with the walk
-      net.deriveMeetSess(room, av, sectionPathOf(sectionNum)).then((d) => {
+      net.deriveMeetSess(room, av, sectionPathOf(sectionTry)).then((d) => {
         sessId = d.sid; sessTok = d.tok;
         openSock();
       });
@@ -2345,6 +2373,17 @@
     const pwKey = () => 'gifos_vpw_' + roomKey();
     function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
     function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
+    // THE PASSWORD IS THE KEY (mesh-refactor §8): adopting a password means
+    // deriving the room key that contains it. Every caller that changes
+    // roomPw re-keys; frames sealed under the other side of a rotation drop
+    // silently (open() → null) and the next heartbeat re-mints them — the
+    // same eventual consistency every other room state already rides.
+    function rekeyRoom() {
+      return net.deriveMeetKey(room, av, roomPw).then((k) => {
+        if (k) roomE2E = k;
+        if (typeof clog === 'function') clog('rekey ' + (roomPw ? 'locked' : 'open'));
+      });
+    }
     // A per-tab, per-room peer id: a reload reconnects AS the same peer and
     // the relay's stale-close guard swaps the socket instead of duplicating us.
     function myPeerId() {
@@ -2389,7 +2428,16 @@
       };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') { myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin; updateStatus(); broadcastStatus(); applyAdminUi(); }
+        if (m.t === 'joined') {
+          myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin;
+          // Adopt the section number of the session that just SEATED me —
+          // the only place sectionNum may change (mesh-refactor step 0).
+          if (sectionNum !== sectionTry) {
+            if (typeof clog === 'function') clog('section ' + sectionNum + '>' + sectionTry);
+            sectionNum = sectionTry;
+          }
+          updateStatus(); broadcastStatus(); applyAdminUi();
+        }
         else if (m.t === 'whoami') {
           // The relay tells me MY OWN address (the one thing it may share with
           // me, privately). I seal it to peers via the heartbeat; the relay
@@ -2745,8 +2793,11 @@
         pwBlocked = false;
         pwModal.style.display = 'none';
         setStatus('Trying the password…');
-        // The relay only ever sees the PROOF of this password, never the text.
-        net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; openSock(); }); // wrong password → bounced right back here
+        // The relay only ever sees the PROOF of this password, never the text —
+        // and the key I read the room with now contains it (§8): a wrong
+        // password doesn't just bounce at the courtesy gate, it can't decrypt.
+        Promise.all([net.meetPwProof(room, av, roomPw), rekeyRoom()])
+          .then(([pr]) => { pwProof = pr; openSock(); }); // wrong password → bounced right back here
       } else {
         // Clearing the password opens the room — warn that it also deletes any
         // shared files, then purge them for everyone.
@@ -2764,6 +2815,13 @@
           // their own proof for reconnects.
           if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: pr, by: myName() }));
           sendAll({ k: 'pwinfo', pw: v, by: myName() });
+          // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
+          // that is exactly how current occupants learn the new password. Only
+          // after those seals have left the queue do I move to the new key
+          // (txm is a chain; a queued no-op resolves after every earlier seal).
+          // Whoever doesn't learn the new password falls out of the ciphertext
+          // — which upgrades vote-off to a hard exclusion in locked rooms.
+          txm(() => Promise.resolve()).then(() => rekeyRoom());
         });
         renderFiles(); // reflect the new password state (files allowed / the lock note)
         reactRoomState(); // the password is the key to clear video — re-derive MY tiles now, not on the next heartbeat
@@ -2905,7 +2963,7 @@
       // per-room hash of my device id, so it can enforce bans/votes by equality
       // but can never correlate my device across rooms or back to a person.
       Promise.all([
-        net.deriveMeet(room, av),
+        net.deriveMeet(room, av, roomPw), // locked room ⇒ the password IS in the key (mesh-refactor §8)
         net.meetPwProof(room, av, roomPw),
         sha256hex('gifos-dev|' + room + '|' + (av || '') + '|' + deviceId()),
       ]).then(([d, pr, dh]) => {
@@ -3219,11 +3277,15 @@
           sendAll({ k: 'tr', m: m.m }); // gossip onward, like chat
         }
       } else if (m.k === 'sig') {
-        // Status gossip carried on the pair's DataChannel (see sendSig) —
-        // status ONLY: frames that need the relay's admin stamp (mod tables in
-        // admin rooms) or its routing (offers/ICE) never take this path, so a
-        // peer can't smuggle authority through its own channel.
-        if (m.msg && m.msg.kind === 'status') onSignal(p.id, m.msg);
+        // Pair-local signaling on the pair's own DataChannel (see sendSig,
+        // mesh-refactor §3.1): status gossip AND this pair's offers/answers/
+        // trickle ICE — frames that affect only this one connection. adm is
+        // NEVER honored on this path (onSignal is called without it), so
+        // authority-bearing frames (admin mod tables) still require the
+        // relay's stamp — a peer can't smuggle authority through its own
+        // channel.
+        const k2 = m.msg && m.msg.kind;
+        if (k2 === 'status' || k2 === 'offer' || k2 === 'answer' || k2 === 'ice') onSignal(p.id, m.msg);
       } else if (m.k === 'ck') {
         // Clock sync (the grid's metronome): answer with our clock immediately;
         // the asker derives offset + rtt NTP-style. Rides the free DC path.
@@ -3262,7 +3324,10 @@
         // re-derive our proof so reconnects keep working.
         const cleared = !m.pw && roomPw;
         storePw(m.pw || '');
+        // Adopt the new password's KEY too (§8) — this sealed frame arrived
+        // under the old key; from here on the room speaks the new one.
         net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; });
+        rekeyRoom();
         const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
         renderFiles();
         setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
