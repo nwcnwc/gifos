@@ -283,8 +283,14 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   const browser = await chromium.launch({
     headless: true,
     executablePath: process.env.SWARM_CHROME || undefined,
+    // LocalNetworkAccessChecks (Chromium 141+, enforcing ~149): a PUBLIC-origin
+    // page (gifos.app) opening a socket to a LOCAL/LAN address (a self-hosted
+    // relay on a tailnet/LAN IP) is blocked with ERR_BLOCKED_BY_LOCAL_NETWORK_
+    // ACCESS_CHECKS. A real swarm points at exactly such a relay, so disable
+    // the checks for these bots (also legacy PNA flags for older builds).
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
-      '--use-fake-ui-for-media-stream', '--disable-features=WebRtcHideLocalIpsWithMdns', '--autoplay-policy=no-user-gesture-required'],
+      '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
+      '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const pages = [];
   // Graceful teardown: on SIGTERM/SIGINT close the browser so every bot's
