@@ -300,9 +300,23 @@
   // identity) derives the sid the relay routes on, the token occupants must
   // match, and the room key. The verifier is re-appended after the derived
   // hex so the relay's verifierOf(sid) keeps reading it off the tail.
-  function deriveMeet(roomCode, av) {
+  //
+  // THE DOOR LOCK IS CRYPTOGRAPHY (mesh-refactor §8): a LOCKED room's E2E key
+  // mixes the password into the derivation — without the password you cannot
+  // READ the room, no matter what you hold or which door you talk past. The
+  // relay's proof check remains a courtesy gate only (fail fast with a clear
+  // error). Distinct label ('meet-e2e-pw') so unlocked rooms derive exactly
+  // as before and app-session derivations are untouched; changing a room's
+  // password RE-KEYS it (deriveMeetKey is the rotation primitive). sid/token
+  // deliberately stay password-free — routing identity must not move when
+  // the room re-keys.
+  function deriveMeetKey(roomCode, av, pw) {
     const base = roomCode + '|' + (av || '');
-    return Promise.all([dsHash('meet-sid', base), dsHash('meet-tok', base), aesKey('meet-e2e', base)])
+    return pw ? aesKey('meet-e2e-pw', base + '|' + pw) : aesKey('meet-e2e', base);
+  }
+  function deriveMeet(roomCode, av, pw) {
+    const base = roomCode + '|' + (av || '');
+    return Promise.all([dsHash('meet-sid', base), dsHash('meet-tok', base), deriveMeetKey(roomCode, av, pw || '')])
       .then(([sid, tok, key]) => ({ sid: sid.slice(0, 20) + (av ? '.' + av : ''), tok: tok.slice(0, 24), key }));
   }
   // Multi-session rows (docs/rows.md): each row lives in its OWN relay
@@ -412,7 +426,7 @@
     steadySocket,
     FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex,
-    deriveJoin, deriveMeet, deriveMeetSess, meetPwProof,
+    deriveJoin, deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
     SCALE,
