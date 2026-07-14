@@ -275,10 +275,16 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   : pick(SUBJ) + ' ' + pick(VERB) + ' ' + pick(OBJ) + (Math.random() < 0.25 ? ' — Bot-' + idx : '.');
 
 (async () => {
+  // SWARM_CHROME lets a box point at the FULL chromium binary instead of
+  // playwright's stripped 'headless_shell' — the shell lacks pieces our
+  // WebRTC/media path needs (observed: shell bots load but never open the
+  // relay socket; full-browser bots mesh). e.g. on the Pis:
+  //   SWARM_CHROME=~/.cache/ms-playwright/chromium-1228/chrome-linux/chrome
   const browser = await chromium.launch({
     headless: true,
+    executablePath: process.env.SWARM_CHROME || undefined,
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
-      '--disable-features=WebRtcHideLocalIpsWithMdns', '--autoplay-policy=no-user-gesture-required'],
+      '--use-fake-ui-for-media-stream', '--disable-features=WebRtcHideLocalIpsWithMdns', '--autoplay-policy=no-user-gesture-required'],
   });
   const pages = [];
   // Graceful teardown: on SIGTERM/SIGINT close the browser so every bot's
