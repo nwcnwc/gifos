@@ -745,7 +745,7 @@
         if (me.name) { resolve(me); return; }
         const bg = document.createElement('div'); bg.className = 'name-modal';
         bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
-          '<p>Other people on the meeting will see this name.</p>' +
+          '<p>Other people in the meeting will see this name.</p>' +
           '<input id="nm" maxlength="40" placeholder="Your name" autocomplete="off">' +
           '<button id="nmok">Continue</button></div>';
         document.body.appendChild(bg);
@@ -1588,7 +1588,7 @@
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' on the meeting · ' + q.label) + (sectionNum > 1 ? ' · section ' + sectionNum : '') + link + extra;
+        : n + ' in the meeting · ' + q.label) + (sectionNum > 1 ? ' · section ' + sectionNum : '') + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -3188,7 +3188,7 @@
     function renameFlow() {
       const cur = (GifOS.store.identity().name) || '';
       const bg = document.createElement('div'); bg.className = 'name-modal';
-      bg.innerHTML = '<div class="name-box"><h3>Your screen name</h3><p>Other people on the meeting see this.</p>' +
+      bg.innerHTML = '<div class="name-box"><h3>Your screen name</h3><p>Other people in the meeting see this.</p>' +
         '<input id="nm2" maxlength="40" autocomplete="off"><button id="nm2ok">Save</button></div>';
       document.body.appendChild(bg);
       const input = bg.querySelector('#nm2'); input.value = cur; input.focus();
