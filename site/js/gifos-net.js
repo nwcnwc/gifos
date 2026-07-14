@@ -339,6 +339,53 @@
     return dsHash('meet-pw', roomCode + '|' + (av || '') + '|' + pw);
   }
 
+  // ---- authority is a signature (mesh-refactor §9) ---------------------------
+  // Admin power used to exist only as the relay's adm:true stamp — nothing a
+  // peer could check. Now the PBKDF2 bits derived from the admin password are
+  // the SEED of a deterministic Ed25519 keypair; the room verifier V commits
+  // to the PUBLIC key (24-hex prefix of its SHA-256, same URL shape as
+  // before); admins SIGN their moderation orders. Any peer — and the relay
+  // itself — verifies the same proof: H(pub) startsWith V, signature valid.
+  // No third party, no stamp, and the secret never leaves the device (the
+  // old scheme put K itself in the socket URL).
+  //
+  // Signing canonicalization: the SIGNED BYTES are an exact JSON string the
+  // sender minted (sp); receivers verify the string then parse it — key-order
+  // ambiguity never enters the trust path.
+  const ED_PKCS8 = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+  const hexBytes = (hex) => { const u = new Uint8Array(hex.length >> 1); for (let i = 0; i < u.length; i++) u[i] = parseInt(hex.substr(i * 2, 2), 16); return u; };
+  async function edKeysFromSeedHex(seedHex) {
+    const seed = hexBytes(String(seedHex).slice(0, 64));
+    const pkcs8 = new Uint8Array(ED_PKCS8.length + 32);
+    pkcs8.set(ED_PKCS8, 0); pkcs8.set(seed, ED_PKCS8.length);
+    const priv = await root.crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
+    // the browser gives the public half via JWK export of the private key
+    const jwk = await root.crypto.subtle.exportKey('jwk', priv);
+    const xb = String(jwk.x).replace(/-/g, '+').replace(/_/g, '/');
+    const pubRaw = bufOfB64(xb + '='.repeat((4 - xb.length % 4) % 4));
+    const pub = await root.crypto.subtle.importKey('raw', pubRaw, 'Ed25519', true, ['verify']);
+    const pubB64 = b64ofBuf(pubRaw.buffer || pubRaw);
+    const verifier = (await sha256hex(pubB64)).slice(0, 24);
+    return { priv, pub, pubB64, verifier };
+  }
+  async function edSign(priv, str) {
+    const sig = await root.crypto.subtle.sign('Ed25519', priv, enc(str));
+    return b64ofBuf(sig);
+  }
+  async function edVerify(pubB64, sigB64, str) {
+    try {
+      const pub = await root.crypto.subtle.importKey('raw', bufOfB64(pubB64), 'Ed25519', false, ['verify']);
+      return await root.crypto.subtle.verify('Ed25519', pub, bufOfB64(sigB64), enc(str));
+    } catch (e) { return false; }
+  }
+  // One check, used by peers AND the relay: does this pubkey commit to the
+  // room's verifier, and did it sign these bytes?
+  async function edProven(av, pubB64, sigB64, str) {
+    if (!av || !pubB64 || !sigB64 || typeof str !== 'string') return false;
+    if ((await sha256hex(pubB64)).slice(0, 24) !== String(av).toLowerCase()) return false;
+    return edVerify(pubB64, sigB64, str);
+  }
+
   // ---- sealed frames ---------------------------------------------------------
   // One envelope for every content frame, over every path: AES-256-GCM under
   // the session key. On P0 this doubles DTLS — cheap, and it removes the whole
@@ -427,6 +474,7 @@
     FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex,
     deriveJoin, deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof,
+    edKeysFromSeedHex, edSign, edVerify, edProven,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
     SCALE,

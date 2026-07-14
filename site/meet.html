@@ -920,12 +920,11 @@
       // name AND my own network address (learned privately via whoami) go out
       // encrypted under the room key, so the relay routes opaque peer ids over
       // a roster whose identity fields it cannot read.
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, name: myName(), ip: myIp };
-      // An admin's heartbeat in an admin room re-gossips the mod table, which
-      // receivers only trust with the RELAY's admin stamp — that pulse skips
-      // the DCs and rides the (stamped) relay broadcast alone.
-      const stamped = hasAdminRoom() && amAdmin;
-      fanOut(payload, stamped ? null : (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); });
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, modw: gossipModW(), name: myName(), ip: myIp };
+      // The mod table's authority is its SIGNATURE now (§9) — an admin's
+      // heartbeat rides the same free DC path as everyone else's; receivers
+      // verify the proof, not the transport.
+      fanOut(payload, (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); });
       updateTile('me');
     }
     // Presence counting, echo-proof at every depth: what a node ASSERTS is
@@ -1058,7 +1057,7 @@
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
-      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
+      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
       refreshAllTiles();
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
@@ -1218,7 +1217,7 @@
             const dev = devOf[id];
             if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, ws && ws.state);
             if (!amAdmin || !dev) return;
-            if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName() }));
+            admSigned('ban', { dev }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName(), w })); });
             return;
           }
           const f = e.target.dataset.mod;
@@ -1628,7 +1627,7 @@
       // table, which receivers only trust with the RELAY's admin stamp — that
       // one stays on the relay. Offers/answers/ICE stay on the relay too (the
       // DC doesn't exist yet when they matter).
-      if (msg.kind === 'status' && !(hasAdminRoom() && amAdmin)) {
+      if (msg.kind === 'status') { // admin heartbeats too — their authority is the signature (§9), not the transport
         const pd = peers.get(to);
         if (pd && pd.dc && pd.dc.readyState === 'open') {
           const m2 = sigSansIce(to, msg);
@@ -1814,7 +1813,7 @@
       const p = makePeer(peerId, null);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
         .catch(() => {});
     }
 
@@ -1885,9 +1884,9 @@
       if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
       if (p) p.lastHeard = Date.now();
       if (msg.st) { takeStatus(from, msg.st); reactRoomState(); }
-      // In admin rooms, group moderation is honored ONLY from relay-stamped
-      // (verified admin) messages — gossip can't spoof an admin's authority.
-      if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
+      // Group moderation: signature-verified in admin rooms (§9), open in
+      // plain rooms — the transport no longer matters, only the proof.
+      takeMod(from, msg);
       if (msg.conns) connsOf.set(from, msg.conns);
       if ('sid' in msg && p && p.ownSid !== msg.sid) { p.ownSid = msg.sid; claimOwnStream(p); }
       else if ('sid' in msg && p) claimOwnStream(p);
@@ -1905,7 +1904,7 @@
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, conns: myConns(), sid: mySid() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
@@ -1923,7 +1922,8 @@
         takeStatus(from, msg.s || {});
         if (msg.conns) connsOf.set(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
-        if (msg.mod && (!hasAdminRoom() || adm)) mergeMod(msg.mod);
+        // (signature-verified in admin rooms — takeMod, §9)
+        takeMod(from, msg);
         // Name AND network address travel the sealed pulse now, not the relay
         // roster. Record them for EVERY sender — including cross-row peers we
         // hold no media link to — whose tiles and the "who's here" panel read
@@ -1939,19 +1939,22 @@
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
         if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
       } else if (msg.kind === 'mod') {
-        if (!hasAdminRoom() || adm) mergeMod(msg.mod);
+        takeMod(from, msg); // signature-verified in admin rooms (§9)
       } else if (msg.kind === 'appstop') {
         // Someone stopped the room's app. Open room: anyone's word counts
-        // (anarchy, attributed). Admin room: only a relay-stamped admin
-        // envelope counts — gossip can't fake the authority.
-        if (hasAdminRoom() && !adm) return;
-        const sid = String(msg.s || ''); if (!sid) return;
-        // Clamp the clock so a hostile 'at' can't tombstone all future re-shares.
-        const at = Math.min(+msg.at || Date.now(), Date.now() + 60000);
-        const cur = appStops.get(sid);
-        if (!cur || at > cur.at) appStops.set(sid, { at, by: String(msg.by || '').slice(0, 40) });
-        if (appKey === sid && !(myStatus.app && myStatus.app.s === sid)) setStatus('🧩 ' + esc(msg.by || 'Someone') + ' stopped the shared app.');
-        reconcileApp();
+        // (anarchy, attributed). Admin room: only a SIGNED admin order
+        // counts (§9) — gossip can't fake the authority.
+        const apply = () => {
+          const sid = String(msg.s || ''); if (!sid) return;
+          // Clamp the clock so a hostile 'at' can't tombstone all future re-shares.
+          const at = Math.min(+msg.at || Date.now(), Date.now() + 60000);
+          const cur = appStops.get(sid);
+          if (!cur || at > cur.at) appStops.set(sid, { at, by: String(msg.by || '').slice(0, 40) });
+          if (appKey === sid && !(myStatus.app && myStatus.app.s === sid)) setStatus('🧩 ' + esc(msg.by || 'Someone') + ' stopped the shared app.');
+          reconcileApp();
+        };
+        if (!hasAdminRoom()) apply();
+        else admVerify(msg.w, 'appstop').then((o) => { if (o && String(o.s || '') === String(msg.s || '')) apply(); });
       }
     }
 
@@ -1988,7 +1991,7 @@
         else p = makePeer(pid, name); // their offer is on its way
         // Newcomers can't trust gossip for moderation in admin rooms — an
         // admin hands them the table over the relay's stamped path.
-        if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable });
+        if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
         // A newcomer still channel-less after a grace gets the union-merge
         // 'hi' over the RELAY (sealed) — chat and history converge even for
         // a fully P2P-blocked participant. Smaller slices: relay budget.
@@ -2124,7 +2127,7 @@
     function buildSpaceUrl(U) {
       return relayUrl().replace(/\/$/, '') + '/s/' + U.sessId + '?role=mesh&token=' + U.sessTok +
         '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(myDevHash) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+        '&dev=' + encodeURIComponent(myDevHash); // adminship is a SIGNATURE now (§9) — no secret in any URL
     }
     function openSpace(U) {
       if (U.on || !relayUrl()) return;
@@ -2327,6 +2330,71 @@
         { name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
       return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
+    // AUTHORITY IS A SIGNATURE (mesh-refactor §9). K's PBKDF2 bits seed a
+    // deterministic Ed25519 keypair; V commits to the PUBLIC key (24-hex
+    // prefix of SHA-256(pub)); admins SIGN their moderation orders. Any peer
+    // — and the relay itself — checks the same proof: H(pub) startsWith V,
+    // signature valid over the exact minted string (sp). The relay's adm
+    // stamp is gone, and K never leaves this device (the old scheme put K
+    // itself in the socket URL).
+    let admKeys = null;              // { priv, pub, pubB64, verifier } — set on sign-in / load
+    const admSeen = new Map();       // pid -> last time a frame from them VERIFIED as admin
+    const adminsNow = () => {
+      const now = Date.now(), out = [];
+      for (const [pid, t] of admSeen) if (now - t < 30000) out.push(pid);
+      if (amAdmin && myId && !out.includes(myId)) out.push(myId);
+      return out;
+    };
+    async function adoptAdmKey(K) { // derive + verify K against this room's V
+      const k = await net.edKeysFromSeedHex(K).catch(() => null);
+      if (!k || k.verifier !== av) return false;
+      admKey = K; admKeys = k; amAdmin = true;
+      refreshModSig();
+      return true;
+    }
+    async function admSigned(act, extra) {
+      if (!admKeys) return null;
+      // `by` is signed: the admin claims their own peer id inside the proof,
+      // so presence tracking can't be spoofed by whoever re-gossips it.
+      const sp = JSON.stringify(Object.assign({ act, ts: Date.now(), room: roomKey(), by: myId }, extra || {}));
+      return { sp, sig: await net.edSign(admKeys.priv, sp), pub: admKeys.pubB64 };
+    }
+    async function admVerify(w, act) { // -> parsed signed payload, or null
+      try {
+        if (!w || !hasAdminRoom()) return null;
+        if (!(await net.edProven(av, w.pub, w.sig, w.sp))) return null;
+        const o = JSON.parse(w.sp);
+        if (o.act !== act || o.room !== roomKey()) return null;
+        if (Math.abs(Date.now() - o.ts) > 300000) return null; // stale order — replay window
+        return o;
+      } catch (e) { return null; }
+    }
+    // The signed mod table travels ON the heartbeat; signing is async, so a
+    // fresh signature is minted on the sweeper's beat whenever the table (or
+    // the 2-minute freshness bucket) changed — the heartbeat law: events may
+    // trigger early, the beat guarantees.
+    let modSigW = null, modSigSrc = '', modWSeen = null, modWSeenTs = 0;
+    function refreshModSig() {
+      if (!admKeys || !hasAdminRoom()) return;
+      const src = JSON.stringify(modTable) + '|' + Math.floor(Date.now() / 120000);
+      if (src === modSigSrc) return;
+      modSigSrc = src;
+      admSigned('mod', { mod: modTable }).then((w) => { modSigW = w; });
+    }
+    const gossipModW = () => (amAdmin ? modSigW : modWSeen); // non-admins re-gossip the admin's own signed table — the signature travels
+    // In an admin room, group moderation is honored ONLY from a verified
+    // signature — checkable over ANY transport (DC or relay); nobody can
+    // spoof an admin. Plain rooms keep the open merge (vote-off model).
+    function takeMod(from, msg) {
+      if (!hasAdminRoom()) { if (msg.mod) mergeMod(msg.mod); return; }
+      if (!msg.modw) return;
+      admVerify(msg.modw, 'mod').then((o) => {
+        if (!o || !o.mod) return;
+        if (o.by) admSeen.set(o.by, Date.now()); // the SIGNED claim, not the re-gossiper
+        if (o.ts > modWSeenTs) { modWSeen = msg.modw; modWSeenTs = o.ts; }
+        mergeMod(o.mod);
+      });
+    }
     // The RAW device id never leaves this browser: it is only ever the input
     // to myDevHash, a room-salted hash (see the join derivation). The relay and
     // other rooms only ever see that per-room tag, so nothing can correlate
@@ -2401,7 +2469,7 @@
     function buildWsUrl() {
       return relayUrl().replace(/\/$/, '') + '/s/' + sessId + '?role=mesh&token=' + sessTok +
         '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(myDevHash) + (admKey ? '&adm=' + encodeURIComponent(admKey) : '');
+        '&dev=' + encodeURIComponent(myDevHash); // adminship is a SIGNATURE now (§9) — no secret in any URL
     }
     function openSock() {
       const relay = relayUrl();
@@ -2429,7 +2497,7 @@
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'joined') {
-          myId = m.peer; walking = false; amAdmin = amAdmin || !!m.admin;
+          myId = m.peer; walking = false; // adminship comes from adoptAdmKey (a verified signature), never the relay (§9)
           // Adopt the section number of the session that just SEATED me —
           // the only place sectionNum may change (mesh-refactor step 0).
           if (sectionNum !== sectionTry) {
@@ -2453,12 +2521,11 @@
           // this row filled before I arrived — walk to the next one. Join
           // order is shared state, so racing walkers resolve identically.
           if (myId && (m.peers || []).indexOf(myId) >= SCALE.C * SCALE.C) { walkOn(); return; }
-          admins = m.admins || []; roomBan = m.ban || [];
+          roomBan = m.ban || []; // admins[] comes from VERIFIED signatures now (adminsNow, §9), never the relay
           // MERGE device mappings (don't replace): a peer inside its absence
           // grace window still has a tile, and its Ban button must keep
           // working even though the roster no longer lists it.
           Object.assign(devOf, m.devs || {});
-          amAdmin = amAdmin || admins.includes(myId);
           if (hasAdminRoom() && amAdmin) {
             if (roomBan.length) saveBans(roomBan);
             else if (!banSeeded) {
@@ -2468,16 +2535,21 @@
               // in, and the relay cuts any listed socket on re-seed. Never
               // save an empty relay list over stored occupancy memory — that
               // would erase the bans the eviction already tried to lose.
+              // The order is SIGNED — the relay verifies the same Ed25519
+              // proof any peer would (§9); no stamp, no secret presented.
               const stored = loadBans();
-              if (stored.length) ws.send(JSON.stringify({ t: 'banlist', devs: stored }));
+              if (stored.length) admSigned('banlist', { devs: stored }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'banlist', devs: stored, w })); });
             }
             banSeeded = true;
             // Re-assert the DOOR LOCK. Only an admin may set an admin room's
             // lock, so after an eviction a non-admin may have (re)opened the
             // waiting room LOCKLESS. If I hold the room password, re-establish
             // it via setpw so the relay re-locks — idempotent, and harmless
-            // when the lock already matches. Once per socket.
-            if (roomPw && pwProof && !pwReasserted) { ws.send(JSON.stringify({ t: 'setpw', pw: pwProof, by: myName() })); }
+            // when the lock already matches. Once per socket. Signed (§9).
+            if (roomPw && pwProof && !pwReasserted) {
+              const proof = pwProof;
+              admSigned('setpw', { pw: proof }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: proof, by: myName(), w })); });
+            }
             pwReasserted = true;
           }
           syncVotes(); // my standing vote-offs apply to whoever is here now
@@ -2619,6 +2691,10 @@
         }
         if (p.noRoute && peerAway(pid)) { p.noRoute = false; updateTile(pid); }
       }
+      // Admin presence + the signed mod table re-derive on the beat (§9):
+      // `admins` is a VIEW over signature-verified sightings, and the
+      // signature re-mints when the table (or freshness bucket) changed.
+      if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
       reconcileUp();   // delegates + stage double-home into the parent space
       reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
       applyBuses();    // bus membership follows the same arithmetic
@@ -2807,14 +2883,17 @@
           purgeAllFiles(true);
         }
         storePw(v);
-        net.meetPwProof(room, av, roomPw).then((pr) => {
+        net.meetPwProof(room, av, roomPw).then(async (pr) => {
           pwProof = pr;
           // Two messages, two audiences: the relay's door gate gets the PROOF
           // (it only ever compares equality); the room's occupants get the
           // plaintext SEALED ({k:'pwinfo'}), so each can store it and derive
-          // their own proof for reconnects.
-          if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: pr, by: myName() }));
-          sendAll({ k: 'pwinfo', pw: v, by: myName() });
+          // their own proof for reconnects. In an admin room both orders are
+          // SIGNED (§9): the relay verifies the setpw, peers verify the pwinfo.
+          const wRelay = hasAdminRoom() ? await admSigned('setpw', { pw: pr }) : undefined;
+          const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v }) : undefined;
+          if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: pr, by: myName(), w: wRelay }));
+          sendAll({ k: 'pwinfo', pw: v, by: myName(), w: wPeers });
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
           // after those seals have left the queue do I move to the new key
@@ -2843,7 +2922,7 @@
         const nm = document.createElement('span'); nm.style.flex = '1';
         nm.textContent = (b.n || 'unnamed') + ' · ' + b.d;
         const btn = document.createElement('button'); btn.textContent = 'Unban';
-        btn.onclick = () => { if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName() })); };
+        btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName(), w })); }); };
         row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
       }
     }
@@ -2873,14 +2952,15 @@
       if (!v) return;
       setStatus('🛡 Checking the password… (takes a few seconds)');
       const K = await deriveAdminKey(room, v);
-      const V = (await sha256hex(K)).slice(0, av.length); // compare on the room's own length (24, or a legacy 64)
       document.getElementById('adm-pass').value = '';
-      if (V !== av) { setStatus('🛡 Wrong admin password.'); return; }
-      admKey = K;
+      // V commits to the PUBLIC KEY of the keypair K seeds (§9) — the check
+      // is local, instant, and needs no relay round-trip.
+      if (!(await adoptAdmKey(K))) { setStatus('🛡 Wrong admin password.'); return; }
       try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
       admModal.style.display = 'none';
-      setStatus('🛡 Signing in as admin…');
-      openSock(); // replaces the socket; the fresh connect presents the key
+      setStatus('🛡 You are signed in as admin.');
+      applyAdminUi();
+      broadcastStatus(); // the next signed heartbeat announces my adminship to every peer
     };
     // ---- who is on this meeting (names + addresses) -------------------------------
     // P2P meetings are direct connections: everyone can already learn everyone's
@@ -2939,6 +3019,10 @@
       // admin-managed room, without it an anarchic one — two different rooms.
       av = (/^[a-f0-9]{16,64}$/.exec((params.get('av') || '').toLowerCase()) || [null])[0];
       loadAdm(); // this device's stored admin key for this exact room, if any
+      // Adopt the stored key as a SIGNING key (§9): verifies K against the
+      // room's V locally and arms signed moderation. Async — the first
+      // signed heartbeat follows on the next beat.
+      if (admKey && av) adoptAdmKey(admKey).then((ok) => { if (ok) { applyAdminUi(); broadcastStatus(); } });
       loadPw();
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
@@ -3105,7 +3189,7 @@
         const go = document.getElementById('lob-admin-go'); go.disabled = true; go.textContent = 'Creating…';
         try {
           const K = await deriveAdminKey(chosen, pass);
-          const V = (await sha256hex(K)).slice(0, 24);
+          const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key (§9)
           try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
           enterMeeting('#v=' + chosen + '&av=' + V);
         } catch (e) { err.textContent = 'Could not create the room. Try again.'; go.disabled = false; go.textContent = 'Create & enter'; }
@@ -3321,7 +3405,13 @@
       } else if (m.k === 'pwinfo') {
         // The room's password changed — the PLAINTEXT arrives only inside this
         // sealed frame, never through the relay in the clear. Adopt it and
-        // re-derive our proof so reconnects keep working.
+        // re-derive our proof so reconnects keep working. In an ADMIN room
+        // only a SIGNED order re-keys the room (§9) — verify, then re-enter
+        // this handler with the proof already checked.
+        if (hasAdminRoom() && !m.__admOk) {
+          admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '')) onDc(p, null, Object.assign({}, m, { __admOk: 1 })); });
+          return;
+        }
         const cleared = !m.pw && roomPw;
         storePw(m.pw || '');
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
@@ -5177,7 +5267,7 @@
         mine.blur = { on, by: myName(), byId: myId, at: now };
         changed = true;
       }
-      if (changed) for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
+      if (changed) for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
       refreshAllTiles(); updateBlurAllBtn();
       setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
@@ -5203,7 +5293,7 @@
         const mine = modTable[pid] = modTable[pid] || {};
         mine.cam = { on, by: myName(), byId: myId, at: now };
       }
-      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable });
+      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
       refreshAllTiles(); updateCamAllBtn();
       setStatus(on ? 'Turned every guest\'s video off.' : 'Guests may turn their video back on.');
     };
@@ -5311,7 +5401,7 @@
     async function createAdminRoom(chosen, pass, postToChat) {
       setStatus('🛡 Creating your room… (takes a few seconds)');
       const K = await deriveAdminKey(chosen, pass);
-      const V = (await sha256hex(K)).slice(0, 24); // 96-bit public verifier — short link, still preimage-safe
+      const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key K seeds (§9) — 96-bit, short link, preimage-safe
       try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
@@ -5442,11 +5532,13 @@
     }
     // Stop the ROOM's app (not mine): open rooms — anyone, attributed, and
     // reversible (the sharer can just re-share); admin rooms — admins only,
-    // verified receiver-side via the relay's adm stamp.
+    // verified receiver-side by the admin's SIGNATURE (§9).
     function stopRoomApp(ad) {
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
-      for (const pid of allGossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName() });
+      const fan = (w) => { for (const pid of allGossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName(), w }); };
+      if (hasAdminRoom()) admSigned('appstop', { s: ad.s }).then(fan);
+      else fan(undefined);
       setStatus('🧩 You stopped the shared app for everyone here.');
       reconcileApp();
     }

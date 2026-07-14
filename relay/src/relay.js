@@ -78,6 +78,30 @@ function verifierOf(sid) {
   const v = sid.slice(dot + 1);
   return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
 }
+// AUTHORITY IS A SIGNATURE (mesh-refactor §9). Privileged mesh orders
+// (setpw / ban / unban / banlist in verifier rooms) carry { sp, sig, pub }:
+// sp is the exact JSON string the admin signed, sig its Ed25519 signature,
+// pub the raw public key (base64). The relay checks the SAME proof any peer
+// checks — SHA-256(pub) starts with the room verifier, the signature covers
+// sp, the parsed order names the right action and is fresh. No stamp, no
+// stored authority, and the admin secret never reaches this code.
+async function admProvenGet(av, w, act) {
+  try {
+    if (!av || !w || typeof w.sp !== 'string' || w.sp.length > 8192 || !w.sig || !w.pub) return null;
+    if ((await sha256hex(w.pub)).slice(0, 24) !== String(av).toLowerCase().slice(0, 24)) return null;
+    const raw = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+    const pub = await crypto.subtle.importKey('raw', raw(w.pub), 'Ed25519', false, ['verify']);
+    if (!(await crypto.subtle.verify('Ed25519', pub, raw(w.sig), new TextEncoder().encode(w.sp)))) return null;
+    const o = JSON.parse(w.sp);
+    if (o.act !== act) return null;
+    if (Math.abs(Date.now() - (+o.ts || 0)) > 300000) return null; // stale order — replay window
+    return o;
+  } catch (e) { return null; }
+}
+async function admProven(av, w, act, check) {
+  const o = await admProvenGet(av, w, act);
+  return !!(o && (!check || check(o)));
+}
 
 // Token bucket: a one-time BURST (delivering an App GIF) is fine, but SUSTAINED
 // throughput is refilled far below any usable audio/video bitrate.
@@ -173,13 +197,12 @@ export class Session {
     // of who is on the call. Device tags ARE carried (the relay needs them for
     // ban/vote equality) but they are ROOM-SALTED by the client, so they are
     // per-room opaque tokens — not correlatable to a person or across rooms.
-    const peers = [], admins = [], devs = {};
+    const peers = [], devs = {};
     let admV = null, ban = null, mesh = false;
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
       if (a.role === 'mesh') mesh = true;
-      if (a.adm) admins.push(a.peer);
       if (a.dev) devs[a.peer] = a.dev;
       if (!admV && a.av) admV = a.av;
       if (ban === null && a.ban) ban = a.ban;
@@ -189,7 +212,10 @@ export class Session {
     if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
     if (mesh) {
       msg.devs = devs; // room-salted device tags, for client-side ban/vote UI
-      if (admV) { msg.hasAdmin = true; msg.admins = admins; msg.ban = ban || []; }
+      // No admins[] here anymore: adminship is a SIGNATURE peers verify
+      // themselves (mesh-refactor §9) — the relay neither knows nor says
+      // who is an admin. It only still carries the door ban list.
+      if (admV) msg.ban = ban || [];
     }
     const s = JSON.stringify(msg);
     if (h) this.send(h, s);
@@ -308,12 +334,13 @@ export class Session {
       if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
       // The verifier comes from the session id itself (…/<room>.<verifier>) —
       // the SAME derivation the app host gate uses, no separate query param.
+      // ADMINSHIP IS NOT A JOIN PROPERTY ANYMORE (mesh-refactor §9): the
+      // secret never rides the URL, and no socket is "an admin socket".
+      // Privileged orders (setpw/ban/unban/banlist) arrive individually
+      // SIGNED by the keypair the admin password seeds; V commits to its
+      // public key, and this relay verifies each order exactly like any
+      // peer would (admProven below). Nothing claimed, nothing stored.
       const av = verifierOf(sid);
-      const admK = (url.searchParams.get('adm') || '').slice(0, 128);
-      // Admin iff SHA-256(presented K) STARTS WITH the room's verifier. V is
-      // 24 hex now (96-bit, preimage-safe for a public token); legacy 64-hex
-      // rooms compare on their full length. Prefix-compare handles both.
-      const isAdmin = !!(av && admK && (await sha256hex(admK)).slice(0, av.length) === av);
       const offeredPw = url.searchParams.get('pw') || '';
       // The door lock is OCCUPANCY STATE — re-seeded by whoever reconnects
       // FIRST after an eviction. In an ADMIN room only an admin may establish
@@ -328,11 +355,16 @@ export class Session {
       // room, while an infinity of open rooms stays available. That's a losing
       // trade for the attacker, so it's a feature boundary, not a bug to fix.
       // (Once occupants exist, the lock is read from them, unchanged.)
-      const roomPw = first ? (first.pw || '') : ((av && !isAdmin) ? '' : offeredPw);
+      // Admin rooms always start LOCKLESS at the door (nobody is an admin at
+      // join time now): the admin re-asserts the lock with a SIGNED setpw the
+      // moment they see the roster — the same waiting-room doctrine as before,
+      // one signed round-trip later. §8 makes this safe: the lock that
+      // matters is the ciphertext, not this courtesy gate.
+      const roomPw = first ? (first.pw || '') : (av ? '' : offeredPw);
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
       const ban = first ? (first.ban || []) : [];
-      if (!isAdmin && dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
+      if (dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
       // STANDING VOTES GATE (plain rooms): every participant carries a
       // personal, global vote-off list; if a MAJORITY of the devices already
       // here (min 2, counting the arriver) have this device on theirs, the
@@ -358,8 +390,8 @@ export class Session {
         if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, adm: isAdmin, dev, ban });
-      this.send(server, { t: 'joined', peer, admin: isAdmin });
+      server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban });
+      this.send(server, { t: 'joined', peer });
       // Tell this socket its OWN address (privately, once). The relay can't
       // seal — it lacks the room key — so the client seals its IP into the
       // sealed roster card/heartbeat itself; the relay only ever holds and
@@ -384,7 +416,7 @@ export class Session {
   }
 
   // ---- hibernation handlers (the DO may have been asleep between any two) ----
-  webSocketMessage(ws, data) {
+  async webSocketMessage(ws, data) {
     if (typeof data !== 'string') return;
     let meter = this.meters.get(ws);
     if (!meter) { meter = makeMeter(); this.meters.set(ws, meter); }
@@ -407,31 +439,38 @@ export class Session {
       else if (m.t === 'bcast') this.broadcast(m.msg);
       else if (m.t === 'peer') this.routePeer('host', m);
     } else if (a.role === 'mesh') {
-      if (m.t === 'peer') this.routePeer(a.peer, m, a.adm); // signaling only — admin sends are stamped
+      if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
       else if (m.t === 'gossip' && m.msg !== undefined) {
         // Room-wide fan-out of ONE inbound frame, delivered as the ordinary
-        // stamped { t:'peer', from } shape so receivers need no new path. The
+        // { t:'peer', from } shape so receivers need no new path. The
         // client's status heartbeat is the same sealed envelope for every
         // recipient; per-peer envelopes at section scale (~70 silent roster
         // members × every 4s) both tripped the frame budget above (sockets
         // cut with "control messages only") and billed a wake per member per
         // tick. Fan-out multiplies only OUTBOUND sends, which are unmetered.
-        const s = JSON.stringify(a.adm ? { t: 'peer', from: a.peer, adm: true, msg: m.msg } : { t: 'peer', from: a.peer, msg: m.msg });
+        const s = JSON.stringify({ t: 'peer', from: a.peer, msg: m.msg });
         for (const ws2 of this.members()) if (this.att(ws2).peer !== a.peer) this.send(ws2, s);
       } else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Only someone already IN the room can reach this — that's the
-        // authorization (and in an admin room, only an admin). The new
-        // password is written into every current occupant's attachment (the
-        // room's only "memory") and propagated so their sessions keep
-        // working; empty removes the lock.
-        if (this.meshAdmV() && !a.adm) return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
+        // authorization; in an admin room the order must additionally be
+        // SIGNED by the room's admin key (§9) — the relay verifies the same
+        // Ed25519 proof any peer would. The new password proof is written
+        // into every occupant's attachment (the room's only "memory");
+        // empty removes the lock.
+        const av2 = this.meshAdmV();
+        if (av2 && !(await admProven(av2, m.w, 'setpw', (o) => o.pw === m.pw)))
+          return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
         const pw = m.pw.slice(0, 64);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.pw = pw;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
         this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
-      } else if ((m.t === 'ban' || m.t === 'unban') && a.adm && typeof m.dev === 'string') {
+      } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
+        // Signed admin orders only — verifier rooms are the only rooms with
+        // a ban list, and the signature is the entire authority.
+        const av2 = this.meshAdmV();
+        if (!av2 || !(await admProven(av2, m.w, m.t, (o) => o.dev === m.dev))) return;
         if (m.t === 'ban') this.banDevice(m.dev, m.name, m.by);
         else this.unbanDevice(m.dev, m.name, m.by);
       } else if (m.t === 'votekick' && !this.meshAdmV() && Array.isArray(m.devs)) {
@@ -444,20 +483,24 @@ export class Session {
         a.votes = cleanDevList(m.devs);
         try { ws.serializeAttachment(a); } catch (e) {}
         this.tallyVotes();
-      } else if (m.t === 'banlist' && a.adm && Array.isArray(m.devs)) {
+      } else if (m.t === 'banlist' && Array.isArray(m.devs)) {
         // An admin re-arriving to a (possibly re-emptied) admin room re-seeds
         // the ban list from their own device — occupancy memory, no storage.
-        // The no-admin window is exactly when a banned device can sneak back
-        // in (a fresh DO has an empty list), so the re-seed also CUTS any
-        // listed device already on a socket — same teeth as a live ban.
-        const ban = cleanBanList(m.devs);
+        // The order must be SIGNED (§9); the SIGNED devs list is the
+        // authoritative one. The no-admin window is exactly when a banned
+        // device can sneak back in (a fresh DO has an empty list), so the
+        // re-seed also CUTS any listed device already on a socket.
+        const av2 = this.meshAdmV();
+        const o = av2 ? await admProvenGet(av2, m.w, 'banlist') : null;
+        if (!o || !Array.isArray(o.devs)) return;
+        const ban = cleanBanList(o.devs);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2);
-          if (!a2.adm && a2.dev && ban.some((b) => b.d === a2.dev)) { try { ws2.close(4004, 'banned'); } catch (e) {} }
+          if (a2.dev && ban.some((b) => b.d === a2.dev)) { try { ws2.close(4004, 'banned'); } catch (e) {} }
         }
         this.roster();
       }
@@ -470,9 +513,9 @@ export class Session {
   // Route a peer-addressed message to the named peer (or 'host'), tagged with
   // sender — and, in admin rooms, with a relay-verified admin stamp receivers
   // can trust (clients themselves can't prove adminship to each other).
-  routePeer(from, m, adm) {
+  routePeer(from, m) {
     const dest = m.to === 'host' ? this.hostSock() : this.peerSock(m.to);
-    if (dest) this.send(dest, adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
+    if (dest) this.send(dest, { t: 'peer', from, msg: m.msg }); // no stamp — authority is a signature (§9)
   }
 
   // Is this an admin room? The verifier rides in every occupant's attachment
@@ -499,7 +542,7 @@ export class Session {
     this.broadcast({ t: 'ban', dev, name: entry.n, by: String(by || '').slice(0, 40) });
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2);
-      if (a2.dev === dev && !a2.adm) { try { ws2.close(4004, 'banned'); } catch (e) {} }
+      if (a2.dev === dev) { try { ws2.close(4004, 'banned'); } catch (e) {} }
     }
     this.roster();
   }

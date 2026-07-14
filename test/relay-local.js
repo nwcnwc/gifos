@@ -86,6 +86,28 @@ function verifierOf(sid) {
   return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
 }
 
+// AUTHORITY IS A SIGNATURE (mesh-refactor §9) — mirrors relay/src/relay.js:
+// privileged mesh orders carry { sp, sig, pub }; verify Ed25519 over the
+// exact signed string, and that the pubkey commits to the room verifier.
+async function admProvenGet(av, w, act) {
+  try {
+    if (!av || !w || typeof w.sp !== 'string' || w.sp.length > 8192 || !w.sig || !w.pub) return null;
+    const h = crypto.createHash('sha256').update(String(w.pub)).digest('hex');
+    if (h.slice(0, 24) !== String(av).toLowerCase().slice(0, 24)) return null;
+    const raw = (b) => Buffer.from(String(b), 'base64');
+    const pub = await crypto.webcrypto.subtle.importKey('raw', raw(w.pub), 'Ed25519', false, ['verify']);
+    if (!(await crypto.webcrypto.subtle.verify('Ed25519', pub, raw(w.sig), Buffer.from(w.sp, 'utf8')))) return null;
+    const o = JSON.parse(w.sp);
+    if (o.act !== act) return null;
+    if (Math.abs(Date.now() - (+o.ts || 0)) > 300000) return null;
+    return o;
+  } catch (e) { return null; }
+}
+async function admProven(av, w, act, check) {
+  const o = await admProvenGet(av, w, act);
+  return !!(o && (!check || check(o)));
+}
+
 // ---- session hub (mirrors the Durable Object) ----
 const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
 // NOTE: no names map. Mirrors relay/src/relay.js — display names never reach
@@ -169,7 +191,7 @@ server.on('upgrade', (req, socket) => {
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
       if (sess.av) {
         msg.hasAdmin = true;
-        msg.admins = Array.from(sess.clients.entries()).filter(([, c]) => c.isAdmin).map(([p]) => p);
+        // no admins[] — adminship is a signature peers verify themselves (§9)
         msg.ban = sess.ban || [];
       }
     }
@@ -217,8 +239,9 @@ server.on('upgrade', (req, socket) => {
       }
     }
   };
-  const routePeer = (from, m, adm) => {
-    const wrapped = JSON.stringify(adm ? { t: 'peer', from, adm: true, msg: m.msg } : { t: 'peer', from, msg: m.msg });
+  const routePeer = (from, m) => {
+    // no stamp — authority is a signature (mesh-refactor §9)
+    const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
     if (dest) dest.send(wrapped);
   };
@@ -260,33 +283,25 @@ server.on('upgrade', (req, socket) => {
     // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
     // Token + password + ban list are occupancy state; the admin verifier is
     // part of the ROOM IDENTITY (the &av= every occupant's URL carries — a
-    // room without it can never have an admin). Admin = presenting a key K
-    // whose SHA-256 equals the room's verifier.
+    // room without it can never have an admin). ADMINSHIP IS A SIGNATURE now
+    // (mesh-refactor §9): no socket is admin; privileged orders arrive
+    // individually signed and are verified per-frame (admProvenGet).
     const av = verifierOf(parts[1]); // verifier from the session id, not a query param
-    const admK = (url.searchParams.get('adm') || '').slice(0, 128);
-    const admOffer = admK ? crypto.createHash('sha256').update(admK).digest('hex') : null;
     if (sess.clients.size === 0) {
       sess.meshToken = token;
       sess.av = av || null;
       sess.ban = [];
       sess.mesh = true;
-      // The door lock is OCCUPANCY STATE re-seeded by whoever reconnects first
-      // after an eviction. In an ADMIN room only an admin may establish it — a
-      // non-admin first-arriver must not seize the room with a rogue password
-      // (locking legit members out) or unlock it. Until an admin sets the lock,
-      // an admin room is an open, blurred, self-closing waiting room; the admin
-      // re-asserts it on arrival via setpw. Plain rooms keep first-arriver
-      // seeding BY DESIGN — the anarchy tier: a squatter can lock one only by
-      // paying for a perpetual bot while infinite open rooms stay free, a
-      // losing trade, so it's a feature boundary, not a bug. Mirrors relay/src/relay.js.
-      const firstIsAdmin = !!(av && admOffer && admOffer.slice(0, av.length) === av);
-      sess.pw = (av && !firstIsAdmin) ? null : ((url.searchParams.get('pw') || '') || null);
+      // Admin rooms always start LOCKLESS at the door (nobody is admin at
+      // join time): the admin re-asserts the lock with a SIGNED setpw right
+      // after the roster. Plain rooms keep first-arriver seeding BY DESIGN —
+      // the anarchy tier. Mirrors relay/src/relay.js.
+      sess.pw = av ? null : ((url.searchParams.get('pw') || '') || null);
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
-    const isAdmin = !!(sess.av && admOffer && admOffer.slice(0, sess.av.length) === sess.av); // V is 24-hex now; prefix-compare also fits legacy 64
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
-    if (!isAdmin && dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
+    if (dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
     // Standing-votes gate (plain rooms): a majority of the devices already
     // here (min 2, counting the arriver) with this device on their personal
     // vote-off list keeps the door shut.
@@ -298,7 +313,7 @@ server.on('upgrade', (req, socket) => {
       }
       if (voters.size >= Math.max(2, Math.floor(pop.size / 2) + 1)) { rejectConn('voted-off'); return; }
     }
-    conn.isAdmin = isAdmin; conn.dev = dev;
+    conn.dev = dev;
     // Parity with the Worker: one socket per peer id AND one slot per DEVICE. A
     // reload reuses its peer id and swaps silently; a NEW tab/session from the
     // same device gets a fresh peer id but the same device id — evict its ghost
@@ -311,35 +326,41 @@ server.on('upgrade', (req, socket) => {
       }
     }
     sess.clients.set(peer, conn);
-    conn.onmessage = (data) => {
+    conn.onmessage = async (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
-      if (m.t === 'peer') routePeer(peer, m, conn.isAdmin);
+      if (m.t === 'peer') routePeer(peer, m);
       else if (m.t === 'gossip' && m.msg !== undefined) {
         // One inbound frame fans out to every other member as the ordinary
-        // stamped {t:'peer', from} shape — mirrors relay/src/relay.js.
-        const s = JSON.stringify(conn.isAdmin ? { t: 'peer', from: peer, adm: true, msg: m.msg } : { t: 'peer', from: peer, msg: m.msg });
+        // {t:'peer', from} shape (no stamp — §9) — mirrors relay/src/relay.js.
+        const s = JSON.stringify({ t: 'peer', from: peer, msg: m.msg });
         for (const [p, c] of sess.clients) if (p !== peer) c.send(s);
       } else if (m.t === 'setpw' && typeof m.pw === 'string') {
-        if (sess.av && !conn.isAdmin) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
+        // Signed in admin rooms (§9): the relay verifies the same Ed25519
+        // proof any peer would — mirrors relay/src/relay.js.
+        if (sess.av && !(await admProven(sess.av, m.w, 'setpw', (o) => o.pw === m.pw))) {
+          conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return;
+        }
         sess.pw = m.pw.slice(0, 64) || null;
         const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: (m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
-      } else if ((m.t === 'ban' || m.t === 'unban') && conn.isAdmin && typeof m.dev === 'string') {
+      } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
+        if (!sess.av || !(await admProven(sess.av, m.w, m.t, (o) => o.dev === m.dev))) return;
         const d = m.dev.slice(0, 16);
         if (!d) return;
         sess.ban = (sess.ban || []).filter((b) => b.d !== d);
         if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
         const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, BAN_NAME), by: (m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
-        if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d && !c.isAdmin) { try { c.close(4004, 'banned'); } catch (e) {} }
+        if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();
-      } else if (m.t === 'banlist' && conn.isAdmin && Array.isArray(m.devs)) {
-        // Re-seed also CUTS any listed device already on a socket (the
-        // no-admin window is when banned devices sneak back in) — mirrors
-        // relay/src/relay.js exactly.
-        sess.ban = cleanBanList(m.devs);
-        for (const c of sess.clients.values()) if (!c.isAdmin && c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(4004, 'banned'); } catch (e) {} }
+      } else if (m.t === 'banlist' && Array.isArray(m.devs)) {
+        // Signed re-seed; the SIGNED devs list is authoritative. Re-seed also
+        // CUTS any listed device already on a socket — mirrors relay/src/relay.js.
+        const o = sess.av ? await admProvenGet(sess.av, m.w, 'banlist') : null;
+        if (!o || !Array.isArray(o.devs)) return;
+        sess.ban = cleanBanList(o.devs);
+        for (const c of sess.clients.values()) if (c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();
       } else if (m.t === 'votekick' && !sess.av && Array.isArray(m.devs)) {
         conn.votes = cleanDevList(m.devs);
@@ -354,7 +375,7 @@ server.on('upgrade', (req, socket) => {
       tallyVotes();
       roster();
     };
-    conn.send(JSON.stringify({ t: 'joined', peer, admin: isAdmin }));
+    conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
     roster();
   } else {
