@@ -53,94 +53,241 @@ different trust shape and stays on the relay for now.
 
 ---
 
-## 1. The core mechanism: introduce, then leave — recursively
+## 1. The core mechanism: introduce, sponsor, then hold the door
 
-A **session** (one relay Durable Object) is the unit the join walk fills: a
-**section** of C² seats, or a **space** in the delegate tree (`docs/rows.md`).
-In this refactor every session — section *and* space — behaves identically:
+There is **one relay session per room** — not per section. The old
+`MAX_SOCKETS_PER_SESSION = C²+C` cap is gone: the relay holds only the room's
+small **greeter pool** (§2), never its seated members. Joining is one move,
+identical at every scale:
 
-1. A newcomer contacts the session's relay **once**.
-2. The relay introduces it to the session's **greeter pool** (§2).
-3. A greeter **sponsors** it: brokers its WebRTC signaling to the rest of the
-   session's mesh over existing DataChannels (§3), and hands it the membership
-   manifest so it knows who to expect.
-4. The newcomer is now in the P2P mesh. It **closes its relay socket** (unless it
-   is holding a greeter slot) and does not contact the relay again — until it
-   either falls out of the mesh (§6) or takes a turn as greeter.
+1. A newcomer contacts the room's relay **once** and is fanned to the open
+   greeters.
+2. A greeter **sponsors** it: it runs a seat-finding **ping** across the live
+   mesh (§1½) to place the newcomer in an empty seat, then brokers the
+   newcomer's WebRTC signaling to that seat's neighbours over existing
+   DataChannels (§3).
+3. The newcomer is now woven into the mesh along its seven links (§1½). It
+   **becomes a greeter** — keeps its relay socket open — and holds the door for
+   the next arrival.
+4. It **closes its socket** only once a newer newcomer has confirmed-joined
+   behind it *and* the pool would still meet `X` without it (§2). Until then it
+   *is* the front door.
 
-The delegate tree is the same pattern one level up: a section's delegate is a
-newcomer to its parent **space**, introduced by that space's greeter pool into
-the space mesh. Depth is emergent; there is no top. This recursion is the whole
-architecture — sections and spaces are the same object at different scales.
+That is the entire lifecycle, and it is the same at every level of the tree
+because the tree is not built from different kinds of thing — it is one kind of
+thing, the **seat**, repeated (§1½). There is no delegate, no deacon, no space
+that behaves unlike a section.
 
-**Small-room honesty:** this changes the sacred base case. A 2-person room today
-has both peers sitting on the relay; here the first peer is the greeter (holds
-the socket) and the second is introduced P2P. The *spirit* of "no mode switch,
-one recursive pattern" is preserved, but `rows.md`'s "byte-identical to today's
-mesh" for a one-section room no longer holds — the mesh itself changed. Update
-that law when this lands.
+**Small-room honesty:** the sacred base case does change. A 2-person room today
+has both peers on the relay; here the first is a lone greeter holding the door
+and the second is introduced P2P. "One recursive pattern, no mode switch" holds
+in spirit, but `rows.md`'s "byte-identical to today's mesh for one section" does
+not — the mesh itself is different. That law gets rewritten, not preserved.
 
 ---
 
-## 2. The greeter pool (never a single greeter)
+## 1½. The topology: uniform seats, one tree, no deacons
 
-A session's front door is staffed by a **pool of 2–3 open sockets**, never one —
-a single greeter is a single point of failure for *joining* (not for the mesh,
-which runs without any greeter). Composition:
+*This section supersedes the deacon/composite model of `docs/rows.md` and every
+"deacon" reference elsewhere in this document. **There are no deacons.** Every
+seat is identical and carries a bounded, uniform share of the whole structure —
+which is exactly why it converges where a deacon-centred star did not (the
+2026-07-13 live tests: one overloaded deacon starved and its whole fold-mesh
+stranded; here there is no such node to starve).*
 
-- **The last peer to join is always in the pool.** It is the freshest, it just
-  proved it can reach the relay, and this makes the pool self-refresh on every
-  join with zero coordination.
-- **The other 1–2 slots** are the session's top-ranked members by the existing
-  deacon/host-takeover election (capability-weighted, deterministic — so every
-  member agrees who they are without negotiation), for stability when joins are
-  infrequent.
-- On each new join the newcomer takes the "last joiner" slot and the *oldest
-  non-anchor* greeter drops back to a plain member and closes its socket. The
-  pool stays at 2–3, continuously refreshed, always spanning "most stable" and
-  "most recent."
+**Coordinates.** A seat's address is `(path, r, i)`:
+- `path` — the section's position in a fixed **C-ary tree**, a base-C string:
+  `""` is the root section, `"2"` its third child, `"20"` that child's first.
+  Depth `= len(path)`.
+- `r` — the row within the section, `0 … C-1`.
+- `i` — the seat within the row, `0 … C-1`.
 
-**De-stack the roles the election concentrates.** The anchor slots come from the
-same capability-weighted ranking that elects deacons — so naïvely the deacon of
-row 1 is also greeter anchor, probe designator (§6b), *and* its row's
-compositor. Live-tested 2026-07-13: the fold mesh's failure mode at scale was
-pure deacon CPU starvation (one Chrome main thread doing compositing, ~30 aux
-encoders, and every SDP round; negotiation slowed past the glare window and the
-deacon-mesh stranded) — and `cap` is measured once at boot, deliberately, so
-the election cannot see the pile-up. Rule: greeter anchors are filled from the
-ranking **after skipping current deacons** whenever the session has enough
-members to allow it (arithmetic fallback: a tiny session stacks roles and that
-is fine — the load is tiny too). Same skip for probe designation. The point is
-per-node invariant load, not just per-node invariant *rules*.
+A section is `C²` seats (C rows of C). Every seat computes the entire wiring
+below **from its own coordinate alone** — no negotiation, no election, no
+roster.
 
-**Introduction is fan-out, not hand-off.** The relay introduces every
-newcomer/re-entrant to **all** currently-open greeter sockets (it can do this
-blind — it already `broadcast()`s to all open sockets without reading the
-roster). The newcomer links to whichever greeters answer. This gives: (a)
-failover — any greeter can sponsor, a mid-introduction greeter drop just falls to
-the next; (b) the newcomer starts with 2–3 P2P links, not one, so it is never
-one dropped link from isolation; and (c) it is the seam that heals partitions
-(§6), because greeters from *different* partitions all receive the same
-introduction.
+**C = 5.** Small enough that a row-strip (C feeds stacked vertically) is cheap
+to composite and a section grid `(C-1)×C` fits a screen; large enough that the
+tree stays shallow — `log₅`, so a million seats is ~7 levels deep. Every
+per-seat link budget and composite size is a function of this one constant.
 
-**An open socket is not authority.** Anyone holding the room URL can sit on an
-open relay socket and receive introduction fan-outs — including a shunned
-re-entrant or a squatter — and answer newcomers with lies ("room's full") or
-garbage manifests. This is contained by construction, but say it out loud so the
-implementation leans on it: (a) fan-out means honest greeters answer the same
-introduction — a newcomer cross-checks sponsors and takes the mesh that actually
-stitches it in; (b) a shunned "greeter" cannot forward signaling into the mesh
-(members hold no DataChannels with it), so its only power is to lie to a
-newcomer who is simultaneously hearing the truth; (c) greeter *eligibility* in
-the election excludes peers you shun, so honest members never yield the anchor
-slots to one. Sponsorship trust comes from the mesh, never from holding a socket.
+**The links every seat owns** (uniform — this is the whole point):
 
-**Empty-session detection is authoritative, not a timeout.** The relay knows how
-many sockets a session has open (it counts blind, reading no identity). A
-newcomer arriving at a zero-socket session is told "you're alone" and seats
-itself as first occupant/greeter (§1's base case). The residual race — a section
-whose greeters all crashed in the same instant looks empty and a newcomer founds
-a parallel group — is a transient split, and §6b heals it.
+1. **Row mesh** — `C-1` links to the rest of my row `(path, r, ·)`. Full P2P; I
+   see my row-mates as individual live feeds.
+2. **One cross-row link** into my section — deterministically the transpose,
+   `(path, r, i) ↔ (path, i, r)`. It's symmetric, and each row `r` owns one seat
+   pointing at every other row (`i ≠ r`), so a row's C seats collectively bridge
+   **all C-1 other rows** — widen the rule with a second offset if a row-pair
+   needs more than one bridge. Over it I trade **row-strips**: I send my row's C
+   feeds as one vertical strip and the row mesh fans all C-1 incoming strips to
+   every row-mate, so each of us renders the section as a **(C-1)×C grid**.
+3. **One up-link** to the parent section (a deterministic seat, e.g. same
+   `(r,i)` one level up). Carries my section's **assembly piece** toward the
+   root.
+4. **One down-link** into one child section (deterministic — row `r` descends
+   into child `r`, tiled so each child receives C down-links: **C-fold
+   redundancy on every tree edge**). Carries the **Stage + Stadium + count**
+   back down.
+
+Owned links: `C-1 + 1 + 1 + 1 = C+2 = 7`. Total *degree*, counting links others
+own onto me, stays bounded at ~`2C` — never `O(section)`, as a deacon was. **No
+seat is load-bearing for anyone else's whole experience.** A dead seat costs its
+row-mates one feed and its neighbours one redundant path; the blast radius is a
+smudge, not a hole. *(The exact seat-to-seat function for links 3–4 is a
+deterministic tiling to finalize in code; the load-bearing invariants are:
+pure-function-of-coordinate, bounded degree, C-fold-redundant tree edges.)*
+
+**The four fidelity tiers — distance rendered as latency and compression:**
+
+- **Your row** — individual live feeds over the row mesh. Sharpest, lowest
+  latency: the people beside you.
+- **Your section** — the C-1 other rows as composited strips (cross-row bridges
+  + row mesh). One hop out, lightly compressed.
+- **The Stage** — row 0 of the root section, broadcast *down* the tree on a
+  **tight latency budget**: it's what everyone is actually watching, so it gets
+  priority to the leaves (~depth hops).
+- **The Stadium** — the whole crowd as one **rolled-up mosaic**. Each section
+  composites itself into a fixed-size tile; a parent composites its own tile
+  with its children's (arriving up their up-links) into a same-resolution,
+  wider-coverage tile, up to the root — where the **full-tree mosaic exists in
+  bounded size regardless of room scale**. It broadcasts *down* alongside the
+  Stage on a **loose** budget, lagging it by roughly the extra up-then-down trip
+  (~2×depth). Exactly right: the ambient crowd may be a beat stale; the stage
+  may not.
+
+Up-links assemble the Stadium; down-links broadcast Stage + Stadium. **Audio,
+video, gossip, and seat-finding all ride these same seven links** — one
+structure, four tiers. That is the stadium, expressed as a protocol.
+
+**The count comes free.** Rolling the Stadium mosaic up means the root tallies
+every occupied seat as it composites the pieces; **`total` rides back *down*
+with the Stadium**, and every seat reads the room size — and derives
+`X = max(3, 2·log₁₀ total)` for the greeter pool — from that one broadcast. No
+roster is summed, no count is polled.
+
+**Seating is a ping, not a roster** (this replaces the relay-arbitrated walk
+entirely). Handed X greeters, a newcomer asks each: *find me a seat.* The
+greeter floods the question across its seven links — *"does your row have an
+empty seat?"* — carrying a dedup id so every seat forwards it once (**the same
+flood primitive as gossip**). The **first vacancy to answer wins**; the newcomer
+claims that coordinate first-writer-wins, and a loser re-pings. The ping prefers
+an existing-row gap; only if none answers within a reasonable window does a
+**frontier seat** — one whose down-link points at an *unoccupied* child — offer
+*"the section below me is empty, take its first seat,"* and the tree grows one
+level. So the room **fills dense before it grows deep**, with no vacancy list
+maintained anywhere.
+
+**The only state is a seat's own coordinate and its live links.** Everything
+else — who is present, where the vacancies are, the count, the crowd — is
+discovered on the wire, on demand, along the same seven paths. No roster, no
+deacon, no per-section relay session.
+
+**Two primitives carry everything else, too.** A C-ary tree is a reduce/broadcast
+machine, and once you have it the rest of the room's coordination is free, in
+exactly two shapes over the one tree:
+
+- **Reduce up** — each section folds its children's partial into its own and
+  passes *one bounded summary* to its parent. The count (sum occupancy), a vote
+  tally (sum a device's shun-count), any room-wide aggregate: computed at the
+  root in `O(depth)`, no seat holding more than its own section's share.
+- **Broadcast down** — the root's result (or the Stage, or an admin's signed
+  order) fans down to every seat, `O(depth)`, C-fold redundant.
+
+So **stepping onto the Stage** is a broadcast (gossip your step-up stamp; the
+deterministic row-0 resolves; broadcast down who holds the stage). **Vote-off**
+(§7) is a reduce (tally each device's shun-count up the tree, cross threshold,
+broadcast the verdict down — no relay tally, ever). Presence, moderation, the
+count, the crowd mosaic — every one is a reduce or a broadcast over the same
+tree. *That* is why the design needs no special machinery for any of them: the
+tree already is the machinery.
+
+---
+
+## 2. The greeter pool — self-forming, never elected
+
+A room's front door is a small pool of open relay sockets — the **greeters**.
+Never a single one (a single point of failure for *joining*; the mesh itself
+needs no greeter at all), and — the correction to the earlier draft — never
+*elected*. The pool forms out of the arrival stream itself:
+
+- **Every newcomer becomes a greeter the instant it is woven in, and holds its
+  socket.** It just proved it can reach the relay — the one qualification a
+  door-holder needs — so it holds the door for the next arrival. No ranking, no
+  capability weighting, no negotiation.
+- **It closes its socket only once a *newer* newcomer has confirmed-joined
+  behind it** — actually taken a pool slot of its own, never on a mere knock, so
+  a bouncing knocker can't shrink the pool. On that trigger it re-decides,
+  purely locally: would the pool fall below `X = max(3, 2·log₁₀(total))` if I
+  left? If yes, stay; otherwise close and become a plain member.
+
+So the pool is the **most-recent arrivals, sized `X`, self-refreshing on every
+join with zero coordination**. `X` is 3 for a handful, ~8 at ten thousand,
+**~12 at a million** — the front door's standing load grows with the *log* of
+the room, which is the entire reason a million-person room survives on a
+hibernating relay. **The relay never holds more than ~`X` sockets per room.**
+
+**The relay has no counts.** `K` (the live greeter count) and `total` are
+P2P-gossiped facts — greeter is a *status* a member advertises in the same
+heartbeat that already carries presence — so every member derives `K` and `X`
+from the roster it already holds. The relay's sole act is to fan a newcomer's
+knock to whatever sockets are open (blind broadcast; it *has* the sockets in
+order to route, it does not count or report them). No count, no roster, no seat
+number ever crosses it.
+
+**Row 1 keeps the pool honest and topped off — on the heartbeat.** Left to the
+arrival stream alone the pool is made entirely of the *freshest* peers, which
+are also the least-proven and the easiest for a bad actor to flood (sit on
+sockets, sponsor newcomers with lies). So the room's first row — deterministic,
+every member already agrees who is in it — **periodically sends one known-good
+member to re-enter through the front door**, on its heartbeat. That single act
+does three jobs at once:
+
+1. **Tops the pool up** whenever arrivals have thinned it below `X` — the §0.4
+   heal applied to the door.
+2. **Guarantees at least one honest greeter** at all times, so a newcomer
+   cross-checking its sponsors always has a truthful mesh to take. The pool can
+   be *diluted* by squatters but never *entirely* poisoned.
+3. **Sutures silent splits** (§6b): the same re-entrant, fanned to whatever
+   sockets are open, stitches together partitions whose greeters landed on
+   different sides — and because one room is one relay session, every fragment's
+   greeters are reachable from that one knock.
+
+This collapses three mechanisms the earlier draft treated separately — pool
+maintenance, anti-poison, and split-healing — into **one heartbeat action by
+row 1**. (Cadence and who row 1 designates: OPEN — see §6b/§11.)
+
+**Introduction is fan-out, not hand-off.** The relay fans every knock to all
+open greeters; the newcomer links to whichever answer, cross-checks them, and
+takes the mesh that actually stitches it in. Failover is free (a greeter
+dropping mid-handshake is simply not one of the ones that wove you in), the
+newcomer starts with several P2P links rather than one, and — because greeters
+from different fragments all receive the same knock — it is the seam that heals
+splits.
+
+**An open socket is not authority.** Anyone with the room URL can hold a socket
+and answer with lies ("room's full", a garbage manifest). Contained by
+construction: (a) fan-out + cross-check means an honest greeter — guaranteed
+present by row 1's injection — is always among the answers; (b) a shunned or
+fake "greeter" holds no DataChannels into the real mesh, so its only power is to
+lie to a newcomer who is simultaneously hearing the truth; (c) sponsorship trust
+comes from the mesh actually forming around you, never from who answered the
+door.
+
+**Cold start needs no authority — it self-heals.** With the relay reporting no
+counts, a first arrival that can reach no greeter simply concludes *"I'm alone,
+I am the only greeter,"* and waits. This is not a decision that has to be
+*correct*: if it was wrong — the greeters had merely all died a half-second
+ago, or a twin genesis happened elsewhere — the mesh **merges** the moment any
+later arrival bridges the islands. The bridge can come from anywhere: the
+newcomer's own greeter list, a mesh it was already part of, or a row-1
+re-entrant (§6b) fanned to both islands' sockets on one relay session. Parallel
+genesis is therefore not a fault to prevent but a state to reconcile — the same
+self-healing that carries the rest of the design. The one irreducible loss is a
+*genesis-time* bad actor who poisons arrival #2 before any healing peer shows
+up; the accepted escape is that the room eventually notices and retreats to a
+fresh URL the attacker doesn't hold. No relay count, no empty-detection
+protocol, is needed.
 
 ---
 
