@@ -16,6 +16,13 @@
  * before the rename keep working. Anything unrecognized just goes home.
  */
 (function () {
+  // Bare /meet (or its /call alias), no room = START A FRESH MEETING, identical
+  // to double-clicking the Meeting app on the Home Screen (which loads
+  // meet.html with no room and mints one). Keeps the two entry points equal.
+  if (/^\/(?:meet|call)\/?$/i.test(location.pathname)) {
+    location.replace('/meet.html');
+    return;
+  }
   // /meet/<room>/<verifier> is an ADMIN-MANAGED room — a DIFFERENT room from
   // /meet/<room>. The verifier segment is part of the room's identity (safe
   // to share publicly); admin power is knowing the password it derives from.
