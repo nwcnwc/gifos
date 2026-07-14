@@ -166,17 +166,30 @@ with the Stadium**, and every seat reads the room size — and derives
 `X = max(3, 2·log₁₀ total)` for the greeter pool — from that one broadcast. No
 roster is summed, no count is polled.
 
-**Seating is a ping, not a roster** (this replaces the relay-arbitrated walk
-entirely). Handed X greeters, a newcomer asks each: *find me a seat.* The
-greeter floods the question across its seven links — *"does your row have an
-empty seat?"* — carrying a dedup id so every seat forwards it once (**the same
-flood primitive as gossip**). The **first vacancy to answer wins**; the newcomer
-claims that coordinate first-writer-wins, and a loser re-pings. The ping prefers
-an existing-row gap; only if none answers within a reasonable window does a
-**frontier seat** — one whose down-link points at an *unoccupied* child — offer
-*"the section below me is empty, take its first seat,"* and the tree grows one
-level. So the room **fills dense before it grows deep**, with no vacancy list
-maintained anywhere.
+**Seating anchors to Section 1 — the room's identity is its root, not a
+roster.** Handed X greeters, a newcomer does *not* ask "where's an empty seat."
+It asks each greeter **"what is your Section 1?"** — the identities of the root
+section's seats, which any seat reads in a few hops up its up-link. **The room
+*is* its Section 1**: the real people at the top, under sealed identities no
+adversary can forge.
+
+- **Greeters agree** (identical, or mostly-overlapping mid-churn, Section 1) →
+  they are one tree. The newcomer asks any Section-1 seat for its **closest empty
+  seat**; that seat runs a **downward search** — a root-anchored breadth-first
+  descent that fills the tree dense-from-the-top — and returns a *definitive*
+  vacancy, which the newcomer claims (first-writer-wins; a loser re-asks). The
+  frontier grows the tree one level only when the downward search bottoms out
+  full. No vacancy list is maintained anywhere.
+- **Greeters disagree** (different Section 1s) → a genuine fork, and no algorithm
+  can say which is the *real* room. So **ask the human**: show a snapshot of who
+  is on the **Stage (row 0)** — or **Row 1** if the stage is empty — in each
+  tree, and let them pick. Sealed identities make the faces real; the person
+  recognizes their own meeting. Honest and unspoofable.
+
+This *is* the split-resolver (§6): a malicious "join my empty tree" greeter is
+caught the instant its Section 1 fails to match the honest greeters', and a true
+fork is settled by the humans, who converge on the tree they recognize — the
+fake withers because nobody joins it.
 
 **The only state is a seat's own coordinate and its live links.** Everything
 else — who is present, where the vacancies are, the count, the crowd — is
@@ -317,8 +330,8 @@ the DC). Two builds close this:
    settled pairs) sends its recovery offers over the *relay* today — and the
    pair's own DataChannel is exactly what's broken when a heal is needed. In
    the introducer world those offers route by **sponsor-forwarding over any
-   still-live link** (a row-mate forwards to the deacon, the deacon-mesh
-   crosses rows); only when a peer has *no* live link at all does it fall to
+   still-live link** (any of the seven — a row-mate, the cross-row bridge, the
+   up/down tree link); only when a seat has *no* live link at all does it fall to
    §6a re-entry — and §6a's trigger is therefore "the connection-layer heal
    **gave up**," never "a link looks down," or re-entry races the sweeper's
    ICE-restart and double-heals. The `makingOffer`/perfect-negotiation guards
@@ -353,81 +366,55 @@ introduction. Everything else is DataChannels.
 
 ---
 
-## 4. Seating & the walk move to the greeter
+## 4. Seating is the ping — there is no walk
 
-`rows.md` line 25 is the collision point: today "the relay's own roster answers
-'this one's full'." That works only while seated members hold sockets — which
-this refactor removes. So seating moves off the relay to the greeter, which has
-the session's **live P2P occupancy** (it is *in* the mesh):
+Superseded by §1½; kept here only to state what *dies*. Seating is not
+arbitrated by the relay's roster (gone) or by a greeter's private occupancy
+count — it is a **C-ary vacancy ping** across the mesh, first-vacancy-wins,
+fill-dense-before-deep. Consequences worth pinning:
 
-- On introduction, a greeter checks the section's P2P membership count. If
-  seats remain, it **admits** (sponsors the newcomer into a row, or a hole left
-  by a departure). If full (≥ C² non-stage seats), it **redirects**: "knock on
-  the next section" (deterministic address, unchanged — the joiner tries `r2,
-  r3, …`), or hands the newcomer up the tree toward a section with room.
-- **Holes refilled** gets cleaner, not harder — the greeter admits into the real
-  gap it sees in its P2P roster.
-- **Preserve the exceptions:** staged members never walk (`rows.md:209`), so the
-  greeter must exclude the stage from the seat count — it has the stage state via
-  gossip. The stage still anchors at the first level-1 space.
-
-**Section identity becomes the session address — fix this first (step 0).**
-Today `sectionNum` is a client's *local walk counter* (`let sectionNum = 1`,
-`++` per walk) — not a room truth. Two members of the same session can disagree
-on it, and everything global-row-shaped derives from it: `gRowOf`, fold keys,
-stadium ordering, `st.leaf` gossip. This is not theoretical: live-tested
-2026-07-13, a deacon whose counter disagreed with its session re-labeled its
-composite under a second global row and receivers rendered the same faces
-twice (fixed receiver-side by (via, streamId) dedupe + announce-heartbeat
-expiry, `fb562ed` — but that is a bandage on the symptom). The session
-*address* already encodes the truth — `sectionPathOf(n)` puts `r2, r3, …` into
-the very derivation that names the session — so the rule is: **a client's
-section number is read from the session it is connected to, never counted
-locally.** This refactor moves seating and re-entry to greeters and makes walk
-history even less correlated with where a client actually sits; land the
-canonical-identity change before any of that, or every layer above inherits a
-split-brain generator.
-
-Delegate seating into spaces (walk to sibling spaces, walk *back* from lonely
-ones — `rows.md:27`) is the identical greeter logic one level up. **But be
-honest about the baseline: walk-back does not exist for sections today.** A
-seated member never re-walks; live-tested 2026-07-13, a room fractured into
-33/5/5 across three sections and sat that way for an hour with 49 free seats
-in section 1 — no mechanism even attempts consolidation. Greeter-based,
-eventually-consistent seating makes under-filled fragments *more* likely (a
-transient split founds a parallel group; §2's empty-session race). So
-consolidation must be designed, not assumed. The natural mechanism is already
-in this doc: the §6b probe's fan-out introduction reaches greeters of *every*
-fragment of a session, and the identical recursion one level up can notice "my
-section is far under-filled and a lower-numbered sibling has room" and steer
-members back on the same sponsored re-entry path. Treat it as a required step
-(§11 q7), not folklore inherited from `rows.md`.
+- **No `sectionNum` walk counter, anywhere.** A seat's identity is its absolute
+  coordinate `(path, r, i)`, assigned by the ping and fixed for life. The whole
+  bug class where a *local* walk counter disagreed with reality and mislabeled a
+  composite (`fb562ed`) simply cannot exist: nothing is counted locally, and no
+  composite is keyed by a derived row number — the coordinate *is* the key.
+- **Holes refill for free.** A departed seat is a vacancy the next ping finds;
+  the tree never renumbers, because coordinates are absolute.
+- **The Stage is exempt from ordinary seating.** Row 0 of the root section is
+  addressed and broadcast specially (§1½, §7 step-up); the ping never hands a
+  row-0-root seat out as a normal vacancy.
+- **Steady-state fragmentation is gone.** The 33/5/5 fracture we watched under
+  the old relay-walk was a symptom of sections-as-relay-sessions; with one tree
+  and a ping that always fills the nearest vacancy of *that* tree, it cannot
+  arise. The only residual split is genesis-time (two islands founded before
+  they could see each other), and that **merges** when a bridge appears (§2 cold
+  start, §6) — a reconciliation, not a fault. "Walk back from lonely sections"
+  disappears along with the problem it never actually solved.
 
 ---
 
-## 5. Gossip goes fully peer-to-peer (the largest single piece)
+## 5. Gossip is reduce-and-broadcast — not a layer to build
 
-A section is **not** a full mesh today: links are row-scoped plus the
-deacon-mesh, and cross-row *status/presence* gossip leans on the relay's
-`{t:'gossip'}` broadcast (`fanOut`; `rows.md:44` — heartbeats "fall back to the
-relay only while no DC is open"). With members off the relay, that fallback is
-gone. So **all** gossip must forward P2P:
+Superseded by §1½. There is no separate gossip subsystem to write and no relay
+`{t:'gossip'}` fallback to keep. Every non-media coordination is one of the two
+tree motions, over the same seven links that carry the media:
 
-- **Status / presence / hands** get the same *transport* as chat-class gossip
-  (`rows.md:175`) — hop through the deacon-mesh and up/down the delegate tree,
-  with periodic anti-entropy — but NOT the same merge rule: chat dedupes by
-  message id (each message is new), while status is **latest-wins by (peer,
-  timestamp)** — forward a status only when it is fresher than the one you hold,
-  or a section will flood itself re-forwarding 4-second heartbeats. The
-  assertion/display counting rules (`rows.md:157`) are unchanged — they already
-  assume tree forwarding; they just lose the relay shortcut.
-- The **fold/stadium is already fully P2P** — deacon composites over
-  DataChannels, fold up / forward down. It needs **no** change. The relay's only
-  fingerprints on the stadium were the walk (§4) and this gossip fallback; remove
-  both and the entire tree is relay-free after introduction.
+- **Broadcast (down):** presence/status, hand-raises, the Stage, signed admin
+  orders, the room count, the Stadium mosaic. Fans down the tree, `O(depth)`,
+  C-fold redundant, deduped by message id so it never loops. Mutable status is
+  **latest-wins by `(peer, timestamp)`** — forward only if fresher, or a section
+  re-floods its own 4-second heartbeats.
+- **Reduce (up):** the count, any tally (votes — §7), any room-wide aggregate.
+  Each section folds its children's partial into its own and passes one bounded
+  summary up; the result forms at the root and rides back down as a broadcast.
+- **Anti-entropy on the heartbeat:** each seat periodically reconciles its view
+  with each of its seven neighbours, so a broadcast a link dropped is repaired
+  on the next beat — §0.4 applied to gossip. Nothing here is event-only; that
+  was the root cause of every convergence bug on `main`.
 
-This is the biggest build. Flag it as such: it is not a deletion, it is moving a
-transport.
+The "biggest build" the earlier draft feared turns out to be mostly *deletion*:
+the transport already exists (the seven links) and the merge rules are the two
+motions above.
 
 ---
 
@@ -449,59 +436,51 @@ relay once** to be re-introduced (§1). The front door must stay open for
 *re*-entry, not only first entry. This is obvious to the individual and needs no
 detection.
 
-### 6b. The active anti-split probe — row 1 keeps row 0 whole
+### 6b. The active anti-split probe — row 1 keeps the Stage whole
 
 The silent case (a group still internally connected but severed from the rest)
-cannot be detected passively, so it must be *actively* probed. What the probe
-protects is row 0's defining property — "row 0 is subscribed by all"
-(`rows.md`): the stage is only the stage if it reaches *everyone*, which is
-false the moment the room forks. But row 0 cannot be the *actor*: **the stage is
-born empty in every room**, and an empty row designates nobody. The actor is the
-first row of actual seated members:
+must be *actively* probed. What it protects is the Stage's defining property —
+row 0 of the root reaches *everyone* — which is false the instant the room
+forks. Row 0 can't be the actor (it is born empty). The actor is the root
+section's **row 1**, a deterministic set of seats every member already agrees
+on:
 
-- **Row 1 runs the probe, on its heartbeat.** Its deacon (deterministic — every
-  phone already agrees who that is) **periodically designates a member to
-  re-enter through the relay**; if row 1 has somehow emptied (holes mid-refill),
-  the duty falls to the lowest-numbered occupied row by the same rule — the
-  arithmetic answer, never a special case. That
-  re-entrant is introduced by the relay to **all currently-open greeter sockets**
-  (§2) — and if those greeters span two partitions, the re-entrant is now
-  P2P-linked to both and **sutures them**: rosters merge via gossip through it,
-  direct links reform, the fork heals. If there was no split, the probe is a
-  cheap no-op that also happens to refresh the greeter pool. The re-entrant
-  keeps its existing peer id — re-introduction is idempotent, never a ghost tile.
-- **The probe NEVER touches the roster — this is load-bearing, not hygiene.**
-  The re-entrant keeps its seat, keeps every live link, stays in every other
-  member's `computeRows()` throughout; it *only* opens a socket, receives the
-  fan-out, links to whatever answers, closes. Never implement it as
-  leave-and-rejoin: every roster change ripples `computeRows` → deacon
-  re-election → full fold teardown and cold re-negotiation for every member of
-  the affected rows (live-measured 2026-07-13: tens of seconds to re-converge a
-  section's folds after one such ripple). A 30–60s probe cadence implemented as
-  rejoin is a metronome that demolishes the stadium on every beat.
-- **Why both sides of a split still hold relay sockets — make the mechanism
-  explicit, don't assert it:** the greeter-pool invariant (§2) is maintained
-  *locally by every connected component*. After a split, each side notices the
-  other's absence (links died), recomputes the deterministic election over its
-  own shrunken membership view, and its newly-elected greeters open sockets.
-  Neither side needs to know it is "the minority"; both just keep their own pool
-  staffed. That per-component re-election is the precondition the suture stands
-  on — without it the probe would find only one partition at the relay.
-- **Probe only when a silent split is arithmetically possible.** A split is
-  silent only if **both** sides keep ≥2 members (a lone severed peer sees its
-  links die and self-heals via §6a). So a section probes only while it holds
-  ≥4 members — the per-node-invariant way to gate it. This matters for cost: a
-  quiet connected room today costs the relay *zero* wakes (DC-first heartbeats),
-  and an unconditional 30–60s probe would re-introduce ~1,400–2,900 billed
-  wakes/day/room forever. The arithmetic gate zeroes that for the dominant
-  small-room case; cadence for big rooms is a tunable (§11).
-- **This is recursive**, like everything else: each session's greeter pool /
-  anchor runs the same periodic re-probe of *its* relay session, so splits heal
-  at the level they occur — a section that forks internally is re-sutured by its
-  own greeters, the tree by its delegates, the room by row 1. No global coordinator.
-- Because the relay introduces *every* newcomer to *all* greeters (§2), an active,
-  join-heavy room heals partitions organically; the probe is the guarantee for
-  *quiet* rooms where organic joins won't force a re-entry.
+- **Row 1 sends one known-good member to re-enter, on its heartbeat** — the
+  *same* action that tops off the greeter pool and resists poisoning (§2). One
+  mechanism, three effects. The re-entrant is fanned to **all open greeter
+  sockets** on the room's single relay session; if those sockets span two
+  fragments, the re-entrant is now linked into both and **sutures them** (gossip
+  merges, the ping re-seats stragglers, the fork heals). No split → a cheap
+  no-op that just refreshes the pool.
+- **The re-entrant never leaves its seat.** It keeps its coordinate and all
+  seven links throughout; it *only* opens a socket, receives the fan-out, links
+  to whatever answers, and closes. Never leave-and-rejoin — a seat vacating and
+  re-seating is a needless vacancy-ping plus link churn for its neighbours.
+  (Live-measured 2026-07-13 in the old deacon model, a rejoin-style probe took
+  tens of seconds to re-converge and demolished the view on every beat; there
+  are no deacons now, but the churn reason alone still forbids it.)
+- **One relay session per room makes the suture trivial.** Both fragments'
+  greeters sit on the *same* relay session (§1), so any re-entry is fanned
+  across the whole split — there is no per-section session for a fragment to be
+  isolated in. This is strictly simpler than the earlier per-space recursion,
+  which the single-session model dissolves outright.
+- **Probe only when a silent split is arithmetically possible** — both sides
+  would need ≥2 seats (a lone severed seat self-heals via 6a), so gate the probe
+  on the room holding ≥4 seats. This zeroes the standing relay-wake cost for the
+  dominant small-room case (a quiet connected room costs the relay nothing);
+  cadence for big rooms is a tunable (§11).
+- **A fork is resolved by Section 1 — and, if genuine, by the human.** With no
+  roster a split cannot be *seen*, only *bridged*, so every join already does the
+  detecting work: a newcomer asks all its greeters for their **Section 1** (§1½)
+  and compares. Matching Section 1s were never truly forked — same tree, seat
+  downward. *Different* Section 1s are a real fork, and no algorithm should be
+  trusted to pick the "real" room over an adversary's decoy: both claim to be it.
+  So the machine refuses to guess and **surfaces it — show the human the faces on
+  the Stage (or Row 1) of each tree and let them choose.** Sealed identities make
+  those faces unforgeable; people converge on the meeting they recognize and the
+  decoy withers unjoined. There is deliberately **no automatic coordinate-merge**
+  — an earlier larger-wins idea is dropped, because a count can be inflated by an
+  adversary where a human glance at who is actually present cannot be gamed.
 
 ### 6c. The honest, unhealable case
 
@@ -550,15 +529,18 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   implementation doesn't silently treat "no stats" as "no vote."
 - **Lists stay personal and client-held**, gossiped **sealed** over the same P2P
   gossip as everything else (§5). The relay never receives a `votekick`.
-- **Tally is local and eventually-consistent.** Each client counts, for each
-  present peer, how many present peers have that peer's path on their list; at
-  majority-of-present-devices it acts. Brief disagreement across clients during
-  gossip convergence is fine for a civility tool.
-- **Enforcement is local shunning, layered where connections live.** Direct
-  peers: refuse/tear down the RTCPeerConnection, stop sending media, hide the
-  tile. Folded peers: the deacon compositing a row **excludes** a shunned member
-  from the manifest and composite, so they appear in no fold and on no distant
-  screen either. Media reaches no one.
+- **Tally is a reduce (§1½).** Each device's shun-count sums up the tree; when
+  it crosses majority-of-present it broadcasts down as a verdict. Brief
+  disagreement during convergence is fine for a civility tool — it is the same
+  eventual consistency every reduce carries.
+- **Enforcement is local shunning, and the mesh absorbs it.** Tear down any link
+  to a shunned device (row, cross-row, up, or down), stop sending it media, hide
+  its tile — and because *every* seat composites its own row-strip and rolls its
+  section into the Stadium, **exclude a shunned member from every strip and
+  mosaic you render**, so it reaches no distant screen either. Dropping the link
+  costs you nothing: each of the seven is redundant (C-fold on the tree edges,
+  C-1 in the row), so the mesh routes around the shunned seat. There is no deacon
+  whose loss could black out your view — that failure mode left with the deacon.
 - **This design needs the introducer world to be coherent:** with peers off the
   relay there is no relay to tally or kick, which is the point. It also dissolves
   the earlier "global vs per-room" tension — the relay never sees the vote key,
@@ -566,15 +548,12 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
   now purely a client choice about which key to persist (a device-derived secret
   the *client* keeps, never shown to the relay), not a relay capability.
 
-- **Elections must respect the tally — including the deacon.** A member's
-  entire fold view rides its ONE row-deacon link (the hard-won lesson of the
-  fold-collapse fixes on main), so "shun by teardown" pointed at your own
-  deacon would black out your stadium. All role elections — deacon, greeter,
-  prober — therefore exclude peers your local tally has at threshold, and the
-  row re-elects around a shunned deacon exactly as it does around a dead one.
-  Transient divergence (two members briefly computing different deacons while
-  the tally converges) is the same eventual-consistency the counting rules
-  already tolerate.
+- **A shunned seat is frozen out of every role — but roles are positional now.**
+  With uniform seats there is nothing to *elect* and therefore nothing to
+  hijack. A shunned device is simply never re-seated by the vacancy ping (§1½),
+  never sponsored by an honest greeter (§2), and never accepted as a row-1
+  re-entrant (§6b). The old worry — "don't let your shunned deacon black out
+  your view" — is moot: no seat carries anyone else's whole experience.
 - **The shun must be told to its target, or §6a loops forever.** A shunned
   peer's links all die — which is *exactly* the §6a "you fell out, re-enter
   through the relay" trigger. Today the relay's terminal `close(4007)` tells
@@ -772,54 +751,67 @@ naturally rather than defending the per-room test.
 
 ---
 
-## 14. Concrete change list (end-to-end, suggested order)
+## 14. Concrete change list — rip and replace
 
-Build bottom-up; hold the K-sweep discipline (identical assertions at C=2 and at
-production constants) for every step. **Every step ships its forensics with it**:
-flight-recorder `clog` events and `__gifosVideo` test hooks for the new state
-(greeter pool, introductions in flight, probe designation/outcome, shun tally),
-in the same commit as the machinery — all three fold-strand root causes on main
-were only pinnable because `6b927c5` added `trk`/`claim`/`noclaim`/`remap`
-events and the `compTable`/`incomingIds`/`fwdState` hooks alongside the fix, and
-a loaded-box multi-client forensic probe is the proven way to catch what CI's
-timing hides.
+**No legacy.** We have not launched, so this is a *replacement* of the mesh
+layer, not a migration — no compatibility branches, no old code path kept
+alongside. Hold two disciplines throughout: **K-sweep** (identical assertions at
+C=2 and at production `C=5`), and **ship the forensics with the step** — `clog`
+flight-recorder events and `__gifosVideo` / `test/observer.js` hooks for every
+new bit of state, in the same commit. The 2026-07-13 root causes were only
+pinnable because the forensics existed; the new state (seat coordinate, the
+seven links, ping-in-flight, reduce/broadcast, greeter pool, shun tally) needs
+the same instrumentation.
 
-0. **Canonical section identity** (§4). `sectionNum` becomes a read of the
-   session address (`sectionPathOf` is already in the derivation), never a
-   local walk counter. Smallest possible change, kills a whole bug class the
-   rest of this design would otherwise amplify (dup-fold relabeling, `fb562ed`),
-   and every later step's global-row arithmetic stands on it. Land it before
-   anything else — it is independently shippable on today's architecture.
-1. **Signaling on DataChannels** (§3.1). Move renegotiation off the relay for
-   already-connected pairs. Smallest, unblocks everything.
-2. **Password into the key derivation** (§8). New DS-tagged derivation for
-   locked rooms; `setpw` becomes re-key. Independent of everything else, and the
-   introducer world is unsafe for locked rooms without it — land it early.
-3. **Admin authority as signatures** (§9). PBKDF2 bits seed a keypair; V commits
-   to the pubkey; mod/ban messages signed; receivers verify. Unblocks admin
-   rooms for every later step.
-4. **Sponsor-forwarded introduction** (§3.2). One greeter stitches a newcomer
-   into a row over P2P. New primitive on top of `relayVia`/`fwd`.
-5. **Greeter pool + fan-out introduction** (§2). Elect 2–3, last-joiner always
-   in, relay introduces to all open greeters, rotation on join, "you're alone"
-   for zero-socket sessions.
-6. **Seating on the greeter** (§4). Move "is this section full / where's the
-   hole" from relay roster to greeter P2P view; preserve stage exception.
-7. **All gossip P2P** (§5). Extend tree forwarding + anti-entropy to
-   status/presence/hands (latest-wins, not id-dedupe); delete the relay
-   `{t:'gossip'}` fallback. Largest step.
-8. **Close sockets after join** (§1) + **individual re-entry** (§6a).
-9. **Row-1 anti-split probe** (§6b, ≥4-gated, heartbeat-driven) + recursive per-session probes +
-   detect-and-warn for the unhealable case (§6c).
-10. **Peer-enforced vote-off** (§7). Tuple key (path + hint), sealed vote gossip,
-    local tally, local + fold shunning, **shun notice** (terminal for honest
-    clients; greeters decline-with-notice); delete relay
-    `votekick`/tally/boot/door-gate. Admin bans ride the same shunning on
-    signatures (§9).
-11. **Reconcile docs** — `README.md:72` and `docs/threat-model.md` (both
-    currently describe relay-enforced vote-off, a relay-authored roster, and a
-    relay-checked password); update `docs/rows.md`'s "byte-identical small room"
-    law and its walk/gossip-fallback lines (25, 44).
+**Already shipped — the safe prefix, still valid under the new model:**
 
-The relay keeps its abuse caps and origin allowlist throughout — those guard the
-introduce path, which is now the *only* thing it does.
+- **0. Canonical seat identity** (`566977e`) — identity is a coordinate, never a
+  local counter. Under the new model the coordinate the ping assigns simply *is*
+  the identity (§1½); no counter remains anywhere.
+- **1. Signaling on DataChannels** (`566977e`) — renegotiation/ICE ride the
+  pair's own channel; the relay carries only the first handshake.
+- **2. Password into the key** (`566977e`) — a locked room's key mixes the
+  password; `setpw` is a re-key (§8).
+- **3. Admin authority as a signature** (`05ffaca`) — Ed25519 seeded by the
+  PBKDF2 bits; V commits to the pubkey; orders signed, verified by peers *and*
+  the relay (§9).
+- **4. Sponsor-forwarded signaling** (`29523c1`) — a heal/introduction frame
+  routes over a mutual friend's channel when the relay path is down (§3).
+
+**The rip-and-replace — the new topology (§1½) replaces `docs/rows.md` wholesale:**
+
+- **5. The uniform seat + the seven links.** *Delete* deacons, the deacon-mesh,
+  deacon-composites, `computeRows`-as-election, the `C²+C` session cap, and the
+  multi-session walk. *Build*: the seat coordinate `(path, r, i)`; the
+  deterministic wiring (row mesh, cross-row transpose, up-link, down-link); each
+  seat composites *its own* row-strip. This is the heart — land it behind the
+  scale flag and prove convergence at C=2 with `observer.js` before widening.
+- **6. The four media tiers** — row feeds (mesh) + section strips (cross-row) +
+  Stage broadcast-down (tight latency) + Stadium rolled-up mosaic
+  (assemble-up / broadcast-down, loose). One composited tile per section,
+  bounded size at every hop; `total` rides down with it.
+- **7. Seating by vacancy ping** (§1½) — the C-ary flood, first-vacancy-wins,
+  fill-dense-before-deep, frontier grows the tree on timeout. Delete
+  relay-arbitrated seating entirely.
+- **8. Reduce / broadcast gossip** (§5) — presence, hands, the count, the
+  Stadium, admin orders as broadcasts (latest-wins, id-dedup); count and votes
+  as reduces; anti-entropy on the heartbeat. Delete the relay `{t:'gossip'}`
+  fallback.
+- **9. The self-forming greeter pool** (§2) — greeter-on-join, hold until
+  relieved, `X = max(3, 2·log₁₀ total)`, count-less relay, cold-start self-heal.
+- **10. The row-1 heartbeat re-entrant** (§2 / §6b) — one action that tops off
+  the pool, guarantees an honest greeter, and sutures splits; ≥4-seat gate.
+  Close member sockets after join (§1); individual re-entry on total link loss
+  (§6a); detect-and-warn for the unreachable-relay island (§6c).
+- **11. Peer-enforced vote-off as a reduce** (§7) — tuple key (observed ICE path
+  + hint), sealed vote gossip, tally-up-the-tree, shun by link-teardown +
+  strip/mosaic exclusion, terminal shun notice, greeter declines-with-notice.
+  Delete the relay `votekick` / tally / boot / door-gate.
+- **12. Reconcile every doc** (no legacy): rewrite `docs/rows.md` to the
+  uniform-seat model (or retire it into this doc), and update `architecture.md`,
+  `docs/threat-model.md`, and `README.md` — all still describe deacons, a
+  relay-authored roster, relay-enforced vote-off, and relay-checked passwords
+  that will no longer exist.
+
+The relay keeps only its abuse caps + origin allowlist, guarding the one thing it
+still does: **introduce.**
