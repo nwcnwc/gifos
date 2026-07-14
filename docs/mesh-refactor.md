@@ -41,10 +41,11 @@ peer-to-peer, at every level of the stadium, by one recursive pattern.
    re-derive idempotently on the heartbeat. An event may trigger it early;
    only the heartbeat makes it inevitable.
 
-This is **not** a scale rescue. The current design already reaches a million via
-bounded C²+C sessions on free hibernating sockets (the K-sweep proves it). This
-refactor is driven by principles 1–2; the large drop in steady-state relay
-sockets is a bonus, not the motivation. Say so honestly to anyone who asks.
+This is **not** a scale rescue. The prior design already reached a million via
+bounded relay sessions on free hibernating sockets. This refactor is driven by
+principles 1–2; the collapse of the relay to a **log-sized (`~X`) front door** —
+one that only ever *introduces* — is a bonus of removing it from the loop, not
+the motivation. Say so honestly to anyone who asks.
 
 **Scope:** this covers **meeting (mesh) sessions only**. The relay's app
 multiplayer sessions (`host`/`client` roles, the epoch guard, owned-link host
@@ -666,38 +667,38 @@ sealed." Half true, wrong half load-bearing:
 ## 11. Open questions to coordinate
 
 1. **Same-device eviction.** The relay uses `dev` to evict a stale same-device
-   socket when a new tab opens (functionality, not moderation). If `dev` leaves
-   the relay for plain rooms, decide how to preserve it (sessionStorage peer-id
-   already handles reload; the new-tab case may be acceptable to drop or handle
-   client-side).
-2. **Probe cadence and candidate choice** (§6b) — the ≥4-member arithmetic gate
-   is settled; tune the interval and who row 1 sends. Too rare risks slow heal,
-   too frequent wastes relay wakes.
-3. **Greeter admission throttling** to absorb re-bootstrap bursts (§12, herd
-   risk).
-4. **IP-only vote matches** (§7): exact policy for tuple-vs-IP-only confidence —
-   how cautious is "cautious" (display-only? counts but never auto-confirms?).
-5. **Signature algorithm** (§9): Ed25519 (codebase precedent, cleaner) vs P-256
-   ECDSA (WebCrypto ubiquity) — verify Ed25519 WebCrypto support across the
-   browsers GifOS actually targets before committing.
-6. **Relay session caps re-tuned** — `MAX_SOCKETS_PER_SESSION = C²+C` was sized
-   for everyone-on-relay; steady state is now greeters + in-flight joiners +
-   probes. The cap can drop sharply, but must stay generous enough to absorb a
-   re-bootstrap herd; join-rate caps must not throttle a healthy probe cadence.
-7. **Section consolidation policy** (§4). Walk-back for sections does not exist
-   today and fragments persist indefinitely (measured 33/5/5 for an hour).
-   Decide the trigger ("my section is under X% full and a lower-numbered
-   sibling has room for all of us"), the mover (greeter steers members over the
-   probe/sponsored-re-entry path), and the pacing (one member per beat — a bulk
-   move is a self-inflicted roster ripple, see §6b's probe law).
-8. **Ops visibility after sockets close.** Every seating fracture found in the
-   2026-07-13 live tests was found by reading the relay's per-session socket
-   rosters — a surface this refactor deletes (members hold no sockets; identity
-   is sealed anyway). The per-client forensics hooks (§14) are per-seat, not
-   per-room. Decide what replaces room-level ground truth for a debugging
-   operator: a greeter that answers a *sealed* census to a URL-holding
-   diagnostic client is one shape; "you debug from inside, as a member" is
-   another — but choose deliberately, don't discover the gap mid-incident.
+   socket when a new tab opens (functionality, not moderation). With members off
+   the relay, decide how to preserve it (sessionStorage peer-id handles reload;
+   the new-tab case may be acceptable to drop, or handled seat-side).
+2. **Row-1 re-entry cadence + who.** The ≥4-seat gate is settled (§6b); tune the
+   interval and which Row-1 seat re-enters (rotate it, so no one seat eats the
+   cost). Too rare → slow heal; too frequent → wasted relay wakes.
+3. **Greeter admission throttling** to absorb a re-bootstrap burst (§12 herd
+   risk) without throttling a healthy re-entry cadence.
+4. **IP-only vote confidence** (§7): tuple-vs-IP-only policy — display-only?
+   count but never auto-confirm? — plus the friend-relayed no-`srflx` case.
+5. **The deterministic wiring, finalized** (§1½). The exact seat-to-seat
+   functions for the cross-row bridge (and its redundancy width), the up-link,
+   and the down-link — any pure function of coordinate that keeps degree bounded
+   and every tree edge C-fold redundant. Pick it and freeze it; it is the one
+   piece marked "to finalize in code."
+6. **The Section-1 fork UX** (§1½/§6). When greeters return different Section 1s,
+   the human is shown the Stage (or Row 1) faces of each tree to choose. Design
+   the surface: how many faces, how identity is shown, the default on dismiss.
+7. **Reduce/broadcast tuning** (§5): the id-dedup window, the latest-wins clock
+   discipline (skew tolerance), and the per-link anti-entropy interval — fast to
+   converge, cheap enough not to saturate the seven links.
+8. **Ops visibility from inside.** The relay's per-session rosters — how every
+   2026-07-13 fracture was found — are gone. `test/observer.js` is the
+   replacement: it joins as a seat and streams protocol-level stats. Decide
+   whether that suffices, or whether a seat should answer a *sealed* census to a
+   URL-holding diagnostic client. Choose deliberately; don't discover the gap
+   mid-incident.
+
+*(Settled and dropped from this list: the signature algorithm — Ed25519, shipped
+in step 3; and the relay session cap — now trivially "≈ X greeters + in-flight
+joiners," no longer a tuning knob. Section consolidation is dissolved: one tree +
+Section-1-anchored seating leaves no steady-state fragments to consolidate.)*
 
 ---
 
