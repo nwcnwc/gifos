@@ -396,4 +396,8 @@ server.on('upgrade', (req, socket) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log('gifos local relay on ws://127.0.0.1:' + PORT));
+// Binds 127.0.0.1 by default (every e2e suite is same-host, unchanged). Set
+// RELAY_HOST=0.0.0.0 to expose it on the LAN/tailnet for a multi-machine swarm
+// (bots on other boxes point --relay ws://<this-box-ip>:PORT).
+const HOST = process.env.RELAY_HOST || '127.0.0.1';
+server.listen(PORT, HOST, () => console.log('gifos local relay on ws://' + HOST + ':' + PORT));
