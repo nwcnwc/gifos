@@ -1,12 +1,23 @@
 # Working on GifOS
 
-## Workflow — commit directly to main
+## Workflow — ALWAYS COMMIT, so there is history
 
-We work directly on `main`. No feature branches, no PRs, no merge commits —
-commit on `main` and push. `main` auto-deploys to gifos.app via GitHub Pages
+**Commit early and often — after every milestone, ALWAYS, with no exception.**
+A test goes green, a bug is fixed, a design decision lands, a file is created —
+commit it and push it. Never let work accumulate uncommitted: the clone is a
+snapshot, not durable, and a single end-of-session lump commit destroys the
+step-by-step history (the dead-ends, fixes, and reverts) that we treat as
+valuable. If unsure whether something is commit-worthy, commit anyway — small
+commits are cheap; lost work and lost history are not. **Always `git push`** so
+it lives on the remote, not just locally.
+
+We work directly on `main`. No PRs, no merge commits — commit on `main` and
+push. `main` auto-deploys to gifos.app via GitHub Pages
 (`.github/workflows/pages.yml`) on every push, usually live within a minute.
 Before starting work, `git pull origin main` — other sessions commit to main
-too, and your clone is a snapshot, not a live view.
+too, and your clone is a snapshot, not a live view. (A dedicated feature branch
+is fine ONLY for a not-yet-deployable flag-day like the mesh-v2 rewrite — and
+the always-commit-and-push rule still applies there, to the branch.)
 
 ## Running the tests
 
