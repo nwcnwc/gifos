@@ -56,7 +56,16 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.
 - Meeting scale vocabulary is the STADIUM metaphor (docs/rows.md): seat,
-  row (row 0 = stage), section (one relay session, C rows), deck (sections
-  sharing a level-1 space), level, stadium. Wire gossip fields stay terse
+  row (every section has an ordinary row 0 — just its first row, NOT a stage),
+  Stage (a SPECIAL standalone single-row entity, decoupled from the seating
+  tree — the broadcast-to-the-whole-room tier whose membership is CHOSEN by a
+  deliberate act, not filled by arrival-order seating; it is NOT "row 0" of any
+  section — row-0-of-Section-1 was rejected precisely because dense seating
+  would put random early arrivers on stage), section (an internal C×C block of
+  the tree — NOT its own relay
+  session), deck (sections sharing a level-1 space), level, stadium (the whole
+  room = ONE relay session = one URL; the relay is a single front door for the
+  entire stadium, sections are pure peer-to-peer tree structure). Wire gossip
+  fields stay terse
   (`st.leaf` = section number, `st.branch` = deck id, `'b:'` = deck fold) —
   see the wire glossary at meet.html's STADIUM section header.
