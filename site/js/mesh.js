@@ -1,19 +1,33 @@
 /*
- * mesh.js — the topology core of the introducer-mesh architecture
- * (docs/mesh-refactor.md §1½). PURE ARITHMETIC: no relay, no WebRTC, no DOM.
- * Every seat computes the entire wiring from its own coordinate; this module is
- * that computation, isolated so it can be unit-tested with no browser.
+ * mesh.js — the topology core of the introducer-mesh architecture, v2.
+ * PURE ARITHMETIC: no relay, no WebRTC, no DOM. Every seat computes its wiring
+ * from its own coordinate; this module is that computation, isolated for tests.
  *
- * There are NO deacons. Every seat is identical and owns a bounded, uniform set
- * of links. A seat's address is { path, r, i }:
- *   path : section position in a C-ary tree, a base-C digit string
- *          ("" = root, "2" = 3rd child of root, "20" = 1st child of that).
- *   r    : row within the section, 0..C-1.
- *   i    : seat within the row,    0..C-1.
+ * v2 topology (2026-07-14, per the per-row-ownership redesign):
  *
- * The seven links (§1½): C-1 row-mesh + 1 cross-row + 1 up + 1 down.
- * Media/audio/gossip/seat-finding all ride these same links; the tree is a
- * reduce(up)/broadcast(down) machine.
+ *  ADDRESS  { path, r, i } — section (base-C digit string), row r, column i.
+ *
+ *  LINKS (every seat holds exactly C+1: C-1 row-mesh + 1 "Cth" + 1 downlink):
+ *   • ROW MESH   — C-1 links to the rest of my row (full clique).
+ *   • CROSS-LINK — column>0 only: a hubless, symmetric FULL MESH among the C
+ *       rows of my section (off-diagonal transposes (r,i)↔(i,r); each diagonal
+ *       (r,r) pairs with row-0 seat (0,r), so row 0 joins without needing a
+ *       column-0 seat, which is busy holding an uplink).
+ *   • UP         — column 0 only: my ROW's uplink to its OWNER, a seat in the
+ *       section above. up(path,r,0) = (parent, r, lastDigit(path)). Section 1 is
+ *       an INTERNAL 2-level tree: row r's head uplinks to (0,0,r) — the r-th seat
+ *       of row 0 — so each row-0 seat owns one of the other rows (plus its own
+ *       down-subtree). (0,0) is the tree root. This lets the rows hold row 0 up:
+ *       an orphaned row r re-fills its owner (0,0,r) by promoting a leaf, then
+ *       ordinary row-self-heal re-fills (0,0).
+ *   • DOWN       — every (non-leaf) seat OWNS one row of a child section: row r
+ *       of child i, landing on that row's 0th seat. down(path,r,i) = (path·i,
+ *       r, 0). This IS the child row's uplink target — one bidirectional edge
+ *       shared as down-for-me / up-for-the-child. (Fixes the old C× up/down
+ *       asymmetry: only column-0 child seats carry up-links.)
+ *
+ *  OWNERSHIP is per-ROW and fully distributed: every non-leaf seat owns exactly
+ *  one child row (≤C seats) and talks to it through that row's 0th seat.
  */
 (function (root, factory) {
   const M = factory();
@@ -22,23 +36,23 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const C = 5; // seats per row; rows per section (§1½ "C = 5")
+  const C = 5; // seats per row; rows per section
 
   // ---- coordinates --------------------------------------------------------
   const key = (s) => s.path + '/' + s.r + '.' + s.i;
   const seat = (path, r, i) => ({ path: path, r: r, i: i });
   const eq = (a, b) => a.path === b.path && a.r === b.r && a.i === b.i;
-  const depth = (s) => s.path.length;
   const isRoot = (s) => s.path === '';
+  const parentPath = (path) => path.slice(0, -1);
+  const childPath = (path, d) => path + String(d);
+  const lastDigit = (path) => (path.length ? +path[path.length - 1] : -1);
 
-  // Every seat of a section, and the section that owns a path.
   function sectionSeats(path) {
     const out = [];
     for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) out.push(seat(path, r, i));
     return out;
   }
-  const parentPath = (path) => path.slice(0, -1);
-  const childPath = (path, d) => path + String(d);
+  const childrenPaths = (path) => { const o = []; for (let d = 0; d < C; d++) o.push(childPath(path, d)); return o; };
 
   // ---- the wiring (pure functions of coordinate) --------------------------
   // 1. ROW MESH — C-1 links to the rest of my row.
@@ -48,85 +62,54 @@
     return out;
   }
 
-  // 2. CROSS-ROW — the transpose (r,i)<->(i,r), symmetric, so a row's C seats
-  //    collectively bridge all C-1 other rows. Diagonal seats (r==i) have no
-  //    transpose partner, so they form a cycle among themselves — one extra
-  //    bridge to the next row, which is the redundancy the doc wants.
-  function crossRow(s) {
-    if (s.r !== s.i) return seat(s.path, s.i, s.r);        // transpose
-    const k = (s.r + 1) % C;                                // diagonal -> next diagonal
-    return seat(s.path, k, k);
+  // 2. CROSS-LINK — column>0 only. Hubless symmetric full mesh among the C rows.
+  function crossLink(s) {
+    const r = s.r, i = s.i;
+    if (i === 0) return null;                 // column 0 carries the uplink, not a cross-link
+    if (r === i) return seat(s.path, 0, i);   // diagonal (r,r) <-> row-0 seat (0,r)
+    if (r === 0) return seat(s.path, i, i);   // row-0 seat (0,i) <-> diagonal (i,i)
+    return seat(s.path, i, r);                // off-diagonal transpose (r,i) <-> (i,r)
   }
 
-  // 3. UP — one link to the parent section, same (r,i) one level up. Root has none.
+  // 3. UP — column 0 only: my row's uplink to its owner (a seat one level up).
+  //    Section 1's five rows uplink to (0,0); (0,0) itself is the tree root.
   function up(s) {
-    if (isRoot(s)) return null;
-    return seat(parentPath(s.path), s.r, s.i);
+    if (s.i !== 0) return null;               // non-0 seats reach up THROUGH their row's 0th seat
+    if (isRoot(s)) return s.r === 0 ? null : seat('', 0, s.r);   // Section 1 is an internal tree: row r's head → (0,0,r), the r-th seat of row 0
+    return seat(parentPath(s.path), s.r, lastDigit(s.path));
   }
 
-  // 4. DOWN — one link into a child. Seat i of any row descends into child i,
-  //    so a row's C seats cover the C children (one each) and each child
-  //    receives C down-links (one per row) — C-fold redundancy on every tree
-  //    edge. It lands on the child's column 0.
+  // 4. DOWN — I own row r of child section i; my downlink lands on its 0th seat.
+  //    That same edge is the child row's up-link (bidirectional).
   function down(s) {
     return seat(childPath(s.path, s.i), s.r, 0);
   }
 
-  // All links a seat OWNS (deterministic, bounded: C-1 + 1 + 1 + 1 = C+2).
+  // OWNER — the seat that owns me = where my ROW's 0th seat uplinks.
+  function owner(s) { return up(seat(s.path, s.r, 0)); }
+
+  // All links a seat OWNS (C+1: C-1 row-mesh + 1 cross-or-up + 1 down).
   function ownedLinks(s) {
     const out = rowMates(s);
-    out.push(crossRow(s));
+    const x = crossLink(s); if (x) out.push(x);
     const u = up(s); if (u) out.push(u);
-    out.push(down(s));
+    out.push(down(s));                        // potential — the child row may be empty (leaf)
     return out;
   }
 
-  // ---- tree helpers for reduce(up) / broadcast(down) ----------------------
-  const childrenPaths = (path) => { const out = []; for (let d = 0; d < C; d++) out.push(childPath(path, d)); return out; };
-  const pathToRoot = (path) => { const out = []; for (let n = path.length; n >= 0; n--) out.push(path.slice(0, n)); return out; };
-
-  // Section 1 (the ROOT section) is the room's identity (§1½). A seat reaches it
-  // by walking its up-link to depth 0; these are the coordinates whose occupants
-  // (sealed identities) name the room. Two greeters are the same room iff their
-  // Section-1 occupant sets match (mostly-overlapping tolerated mid-churn).
-  const SECTION_ONE = () => sectionSeats(''); // the C² root coordinates
-
-  // ---- seating: the Section-1-anchored downward search (§1½) ---------------
-  // Given the occupied set (a Set of coord keys) and the root as anchor, return
-  // the nearest empty coordinate by a breadth-first descent from Section 1:
-  // fill the root section, then its children, then grandchildren — dense before
-  // deep. Returns null only if the tree is impossibly full (unbounded in
-  // practice; callers grow depth as needed).
-  function nearestVacancy(occupied, maxDepth) {
-    maxDepth = maxDepth == null ? 24 : maxDepth;
-    // BFS over sections by path length, seats within a section in (r,i) order.
-    let frontier = [''];
-    for (let d = 0; d <= maxDepth; d++) {
-      const next = [];
-      for (const path of frontier) {
-        for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) {
-          const s = seat(path, r, i);
-          if (!occupied.has(key(s))) return s;          // first (nearest) vacancy
-        }
-        // section full — its children are the next frontier level
-        for (const cp of childrenPaths(path)) next.push(cp);
-      }
-      frontier = next;
-    }
-    return null;
-  }
-
-  // How full is the tree, sized to the occupancy — used to derive X and the
-  // displayed count. `total` is just occupied.size (the reduce result); this is
-  // the greeter-pool size that rides down with it.
+  // ---- tree helpers -------------------------------------------------------
+  const pathToRoot = (path) => { const o = []; for (let n = path.length; n >= 0; n--) o.push(path.slice(0, n)); return o; };
+  // Section 1 (root) occupants name the room (sealed identity), fetched on demand
+  // by a greeter walking its uplink — NOT pushed by any beacon.
+  const SECTION_ONE = () => sectionSeats('');
   const greeterPoolSize = (total) => Math.max(3, Math.round(2 * Math.log10(Math.max(1, total))));
 
   return {
     C: C,
-    seat: seat, key: key, eq: eq, depth: depth, isRoot: isRoot,
-    sectionSeats: sectionSeats, parentPath: parentPath, childPath: childPath,
-    rowMates: rowMates, crossRow: crossRow, up: up, down: down, ownedLinks: ownedLinks,
-    childrenPaths: childrenPaths, pathToRoot: pathToRoot, sectionOne: SECTION_ONE,
-    nearestVacancy: nearestVacancy, greeterPoolSize: greeterPoolSize,
+    seat: seat, key: key, eq: eq, isRoot: isRoot,
+    parentPath: parentPath, childPath: childPath, lastDigit: lastDigit,
+    sectionSeats: sectionSeats, childrenPaths: childrenPaths,
+    rowMates: rowMates, crossLink: crossLink, up: up, down: down, owner: owner, ownedLinks: ownedLinks,
+    pathToRoot: pathToRoot, sectionOne: SECTION_ONE, greeterPoolSize: greeterPoolSize,
   };
 });
