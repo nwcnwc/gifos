@@ -123,6 +123,8 @@ const C = M.C, key = M.key, seatOf = M.seat;
 const N = parseInt(process.argv[2] || '10000', 10);
 const LEAVE = parseFloat(process.argv[3] || '0');
 const MODE = process.argv[4] || '';
+const SNAPDIR = process.env.SNAP || '';   // topology-snapshot directory (see snapshot() below)
+let snapN = 0;
 const READD = /^[\d.]+$/.test(MODE) ? parseFloat(MODE) : 0;
 
 let _seed = 20260714;
@@ -626,6 +628,7 @@ if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   if (MODE === 's1all') { for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '') leavingSet.add(s.id); console.log('  [catastrophe: killing ALL 25 Section-1 seats]'); }
   const leaving = [...leavingSet];
   for (const id of leaving) { const x = seats.get(id); ACT(x, () => x.leave()); }
+  snapshot('post-kill-' + Math.round(LEAVE * 100) + 'pct');   // the wound, before any healing — the reference frame for debugging what the laws then repair
   const readdTotal = Math.floor(N * READD); let readdDone = 0;
   const expect = (N - leaving.length) + readdTotal, start = TICK;
   const readdPlan = new Map(); for (let k = 0; k < readdTotal; k++) { const t = start + 4 + ((rnd() * joinWindow) | 0); readdPlan.set(t, (readdPlan.get(t) || 0) + 1); }
@@ -645,7 +648,34 @@ if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
 }
 process.exit(failed ? 1 : 0);
 
+// SNAP=<dir> dumps the ENTIRE topology at every checkpoint (JOIN, post-kill,
+// each heal report): a JSONL of every live seat {id, coord, state} plus its
+// occ-integrity, and a compact summary. Debug-grade forensics for scale runs
+// where a single stuck seat in 100k must be findable after the fact.
+function snapshot(label) {
+  if (!SNAPDIR) return;
+  const nodeFS = require('fs');
+  try { nodeFS.mkdirSync(SNAPDIR, { recursive: true }); } catch (e) {}
+  const tag = String(snapN++).padStart(2, '0') + '-' + label.replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
+  const live = [...seats.values()].filter((s) => s.alive);
+  const coords = new Map(); for (const s of live) if (s.state === 'seated' && s.coord) coords.set(key(s.coord), s.id);
+  const out = nodeFS.createWriteStream(SNAPDIR + '/' + tag + '.jsonl');
+  // every seat: coord, state, how many of its owned links it can actually name,
+  // whether its up-path is intact, and its front-door socket state
+  for (const s of live) {
+    let up = null;
+    if (s.coord && s.coord.path !== '') { let cur = s.coord, h = 0; up = true; while (cur.path !== '') { if (h++ > 80) { up = false; break; } const oc = upCoord(seatOf(cur.path, cur.r, 0)); if (!oc || !coords.has(key(oc))) { up = false; break; } cur = oc; } }
+    let named = 0, links = 0; if (s.coord) for (const nb of ownedLinks(s.coord)) { links++; const id = s.occ.get(key(nb)); if (id && id !== s.id) named++; }
+    out.write(JSON.stringify({ id: s.id, c: s.coord ? key(s.coord) : null, st: s.state, up, wired: links ? (named + '/' + links) : null, ws: !!s.wsSock, roster: s.roster ? s.roster.length : 0 }) + '\n');
+  }
+  out.end();
+  const st = {}; for (const s of live) st[s.state] = (st[s.state] || 0) + 1;
+  const s1 = [...coords.keys()].filter((k) => k.charCodeAt(0) === 47).length;
+  nodeFS.appendFileSync(SNAPDIR + '/INDEX.txt', tag + '  tick=' + TICK + '  live=' + live.length + '  states=' + JSON.stringify(st) + '  s1cells=' + s1 + '/25  wsOpen=' + SESSION.members().length + '\n');
+}
+
 function report(label, expect) {
+  snapshot(label);
   const live = [...seats.values()].filter((s) => s.alive);
   let pass = 0, fail = 0; const ok = (n, c) => { if (c) pass++; else { fail++; console.log('    FAIL — ' + n); } };
   const seated = live.filter((s) => s.state === 'seated' && s.coord);
