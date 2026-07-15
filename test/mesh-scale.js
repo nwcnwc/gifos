@@ -124,6 +124,8 @@ const N = parseInt(process.argv[2] || '10000', 10);
 const LEAVE = parseFloat(process.argv[3] || '0');
 const MODE = process.argv[4] || '';
 const SNAPDIR = process.env.SNAP || '';   // topology-snapshot directory (see snapshot() below)
+const ATTACK = parseFloat(process.env.ATTACK || '0');   // fraction of seats that are ADVERSARIAL insiders (hold the room key, forge claims). Off by default.
+let EVICTIONS = 0;
 let snapN = 0;
 const READD = /^[\d.]+$/.test(MODE) ? parseFloat(MODE) : 0;
 
@@ -263,7 +265,10 @@ class Seat {
         if (this.state === 'searching') { this.retryAt = TICK; if (this.roster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t) return this.askSeat(t); } this.seatTries = 0; this.join(); }
         return;
       case 'HELLO': {
-        if (this.coord && this.state === 'seated' && m.ck === key(this.coord) && m.id !== this.id && m.id < this.id) return this.requeue();   // E2: a lower id also holds my coord — I yield
+        if (this.coord && this.state === 'seated' && m.ck === key(this.coord) && m.id !== this.id && m.id < this.id) {   // E2 HARDENED: a lower id CLAIMS my coord — but a claim is not proof. CHALLENGE it: only a seat ACTUALLY at my coord (that can answer) unseats me. A forged/ghost id is unroutable or silent → ignored. (Finding 2026-07-15: the bare requeue here let any insider evict every higher-id neighbour at will → 10%% insiders collapsed the room.)
+          if (TICK - (this.challAt || 0) > 20) { this.challAt = TICK; send(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); }
+          return;
+        }
         const prev = this.occ.get(m.ck);
         const prevFresh = prev ? (m.ck.charCodeAt(0) === 47 ? this.s1Fresh(m.ck) : (this.live.has(m.ck) ? TICK - this.live.get(m.ck) <= 40 : true)) : false;
         if (prev && prev !== m.id && prevFresh) send(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });    // E2: I see TWO LIVE ids on one cell — the higher yields. LIVE is the operative word: a stale occ entry (a dead ex-occupant, usually a LOWER id) must never assassinate the freshly promoted seat — that was an endless take→yield→requeue loop
@@ -308,6 +313,9 @@ class Seat {
         this.drainAt = TICK + 6 + ((rnd() * 12) | 0); wake(this.id);
         return;
       }
+      case 'CHALLENGE': if (this.evil) return send(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id });   // ADVERSARY lies: confirms cells it does not hold
+        if (this.coord && this.state === 'seated' && key(this.coord) === m.ck) send(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;   // honest: I really am at this cell → say so (a ghost id cannot answer this)
+      case 'CONFIRM': if (this.coord && this.state === 'seated' && key(this.coord) === m.ck && m.id !== this.id && m.id < this.id) return this.requeue(); return;   // the lower claimant PROVED it holds my cell (a genuine promotion-race loser) → now I yield
       case 'PHONE': return this.onPhone(m);
       case 'PONG':
         this.lastAck = TICK;
@@ -428,7 +436,12 @@ class Seat {
     this.take(hole, null, nbrs);
     this.lastAck = TICK; this.lastPhone = TICK - 100;
   }
+  attack() {                                                                        // strongest routable attack: claim each neighbour's OWN cell with MY lex-low id, and (see CHALLENGE) lie to confirm it — impersonating a promotion-race winner I am not
+    if (!this.coord) return;
+    for (const nb of ownedLinks(this.coord)) { const id = this.occ.get(key(nb)); if (id && id !== this.id) send(id, { t: 'HELLO', ck: key(nb), id: this.id }); }
+  }
   requeue() {                                                                       // last resort (E1 fallback / E2 loser): give up the seat, re-enter the front door
+    if (!this.evil) EVICTIONS++;
     const oldC = this.coord; MOVES++;
     if (oldC) { const seen = new Set(); for (const nb of ownedLinks(oldC)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck: key(oldC), id: this.id }); } } }
     this.coord = null; this.occ = new Map(); this.s1seen = new Map(); this.drainAt = 0;
@@ -541,6 +554,7 @@ class Seat {
       else if (this.state === 'searching' && TICK - this.retryAt > 60) { if (this.roster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
       active.add(this.id); return;
     }
+    if (this.evil) this.attack();                                                   // ADVERSARY: an insider with the room key forges eviction claims at its neighbours every tick
     if (this.coord.path === '') {                                                    // SECTION 1: always on — the home runs its bookkeeping in every phase
       if (this.greetAt === undefined) this.greetAt = TICK + ((rnd() * GREET_PERIOD) | 0);
       if (TICK >= this.greetAt) { this.greetAt = TICK + GREET_PERIOD + ((rnd() * GREET_PERIOD) | 0); this.recv({ t: 'GREETWALK', ttl: 1 + ((rnd() * 5) | 0) }); }   // H6
@@ -580,7 +594,7 @@ const spawnPlan = new Map(); for (let k = 0; k < N; k++) { const t = (rnd() * jo
 const MAXP = N * 30 + 60000;
 
 function step() {
-  for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('p' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); }
+  for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const n = nextId++; const evil = ATTACK > 0 && rnd() < ATTACK; const id = (evil ? 'a' : 'p') + String(n).padStart(8, '0'); const seat = new Seat(id); seat.evil = evil; seats.set(seat.id, seat); seat.join(); }
   const due = buckets.get(TICK); if (due) { buckets.delete(TICK); inflight -= due.length; for (const e of due) e.fn(); }
   const cur = active; active = new Set();
   for (const id of cur) { const s = seats.get(id); if (s) ACT(s, () => s.tick()); }
@@ -697,6 +711,6 @@ function report(label, expect) {
   ok('every seat has a live up-path to Section 1 (orphans=' + orphan + ')', orphan === 0);
   const s1 = seated.filter((s) => s.coord.path === '');
   ok('Section 1 is FULL — the home stays whole (' + s1.length + '/' + Math.min(25, expect) + ')', s1.length === Math.min(25, expect));   // H1-S1 + H7: fullness IS the invariant now — no root to count
-  console.log('  ' + label + ': ' + pass + '/' + (pass + fail) + ' [seated=' + seated.length + ', depth<=' + maxDepth + ', ' + TICK + ' ticks, ' + ((Date.now() - t0) / 1000).toFixed(1) + 's, mem=' + (process.memoryUsage().heapUsed / 1e6 | 0) + 'MB]');
+  console.log('  ' + label + ': ' + pass + '/' + (pass + fail) + ' [seated=' + seated.length + ', depth<=' + maxDepth + ', ' + TICK + ' ticks, ' + ((Date.now() - t0) / 1000).toFixed(1) + 's, mem=' + (process.memoryUsage().heapUsed / 1e6 | 0) + 'MB' + (ATTACK > 0 ? ', ATTACK=' + ATTACK + ' honestEvictions=' + EVICTIONS + ' MOVES=' + MOVES : '') + ']');
   return fail;
 }
