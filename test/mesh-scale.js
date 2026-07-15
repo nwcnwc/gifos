@@ -1,5 +1,10 @@
 /*
- * mesh-scale.js — SCALABLE simulation of the introducer mesh, v2 topology
+ * mesh-scale.js — simulation of the introducer mesh on the REAL fabric:
+ * every peer frame is a real AES-256-GCM envelope under the DS-derived room
+ * key, the relay is the ported production Session (real sockets, occupancy
+ * token, meters), and links are STATE born by signaling with connect delays
+ * (sim-fabric.js). NOCRYPTO=1 env skips sealing for monster-scale runs —
+ * transports stay modeled; a warning prints. v2 topology
  * (per-row ownership, bidirectional tree links; site/js/mesh.js v2).
  *
  * OWNERSHIP is per-ROW and distributed: every seat (path,r,i) owns row r of its
@@ -110,6 +115,10 @@
  */
 'use strict';
 const M = require('../site/js/mesh.js');
+const F = require('./sim-fabric.js');
+const ROOM = F.deriveMeet('sim-stadium-' + (process.env.ROOM || '1'), '', process.env.PW || '');   // REAL DS derivation: sid routes, tok gates, key seals — the relay never sees the room code
+const NOCRYPTO = process.env.NOCRYPTO === '1';
+if (NOCRYPTO) console.log('  [NOCRYPTO warning: envelopes unsealed for scale — transports still modeled]');   // scale-run escape hatch — DEFAULTS OFF; when set, envelopes are passed unsealed and a warning prints
 const C = M.C, key = M.key, seatOf = M.seat;
 const N = parseInt(process.argv[2] || '10000', 10);
 const LEAVE = parseFloat(process.argv[3] || '0');
@@ -121,8 +130,24 @@ const rnd = () => { _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _s
 const shuffle = (a) => { for (let k = a.length - 1; k > 0; k--) { const j = (rnd() * (k + 1)) | 0; const t = a[k]; a[k] = a[j]; a[j] = t; } return a; };
 const pickN = (a, k) => { if (a.length <= k) return a.slice(); const o = [], u = new Set(); while (o.length < k) { const j = (rnd() * a.length) | 0; if (!u.has(j)) { u.add(j); o.push(a[j]); } } return o; };
 
-const buckets = new Map(); let TICK = 0, inflight = 0, HEALING = true, MOVES = 0;   // continuous operation from t=0 — reality has no join phase where seats stop phoning
-const send = (to, msg) => { const at = TICK + 1 + ((rnd() * 3) | 0); let b = buckets.get(at); if (!b) buckets.set(at, b = []); b.push({ to, msg }); inflight++; };
+const buckets = new Map(); let TICK = 0, inflight = 0, HEALING = true, MOVES = 0;   // continuous operation from t=0
+const schedule = (d, fn) => { const at = TICK + Math.max(1, d | 0); let b = buckets.get(at); if (!b) buckets.set(at, b = []); b.push({ fn }); inflight++; };
+const fabric = F.makeFabric({
+  tickRef: () => TICK, rnd, schedule,
+  wsFrame: (owner, sockId, m) => { const x = seats.get(owner); if (x) { ACT(x, () => x.wsRecv(sockId, m)); wake(owner); } },
+  wsClosed: (owner, sockId) => { const x = seats.get(owner); if (x && x.wsSock === sockId) x.wsSock = null; },
+  dcFrame: (to, from, env) => { const x = seats.get(to); if (!x) return; const m = NOCRYPTO ? env : F.open(ROOM.key, env); if (!m) return; m._from = from; ACT(x, () => x.recv(m)); wake(to); },   // every peer frame is a REAL sealed envelope — wrong key or tampering drops silently, exactly like production
+  dcOpen: (a, b) => { const x = seats.get(a); if (x) { ACT(x, () => x.dcReady(b)); wake(a); } },
+  dcClosed: () => {},
+});
+const SESSION = fabric.relay.session(ROOM.sid);
+// send(): the ONE mesh-message primitive — a sealed frame over an established DataChannel.
+// No channel yet → establish (models offer/answer + DTLS connect) and queue until open.
+const send = (to, msg) => {
+  if (to === 'relay') { const x = seats.get(msg.id); if (x) x.knock(); return; }
+  if (!ACTIVE_SEAT) return;
+  ACTIVE_SEAT.dcSend(to, msg);
+};
 
 const upCoord = M.up, downCoord = M.down, rowMates = M.rowMates, crossLink = M.crossLink, ownedLinks = M.ownedLinks;
 const parentPath = M.parentPath, lastDigit = M.lastDigit;
@@ -132,25 +157,9 @@ const parentPath = M.parentPath, lastDigit = M.lastDigit;
 const ownedRowHead = (s) => seatOf(M.childPath(s.path, s.i), s.r, 0);
 const ownedRowSeat = (s, col) => seatOf(M.childPath(s.path, s.i), s.r, col);
 
-// Relay: single front door for the whole STADIUM (one room = one URL).
-// Greeters-only (R2): no home pointer, no arbitration. Genesis (R3) is
-// serialized through the arrival stream: with no seated greeter, the
-// lowest-id waiter founds; everyone else waits on it.
-const relay = { g: [], set: new Set(), recent: [], founder: null, founderAt: -999,
-  open(id) { if (!this.set.has(id)) { this.set.add(id); this.g.push(id); } },
-  knock(id) {
-    const out = []; for (let k = 0; k < this.g.length && out.length < 6; k++) { const c = this.g[k]; const s = seats.get(c); if (s && s.alive && s.state === 'seated' && c !== id) out.push(c); }   // EARLIEST seated = shallow = reliably home-connected
-    if (out.length === 0) {                                                          // R3 genesis, SERIALIZED: designate ONE founder and make every later knocker wait on it — a second designation while the first is mid-seat forks the room
-      const f = this.founder ? seats.get(this.founder) : null;
-      const fOk = f && f.alive && (f.state === 'seated' || TICK - this.founderAt < 200);
-      if (!fOk || this.founder === id) { this.founder = id; this.founderAt = TICK; this.recent.push(id); if (this.recent.length > 12) this.recent.shift(); return send(id, { t: 'GREETERS', list: [] }); }
-      out.push(this.founder);
-    }
-    this.recent.push(id); if (this.recent.length > 12) this.recent.shift();
-    send(id, { t: 'GREETERS', list: shuffle(out) });
-  } };
-
 const seats = new Map(); let nextId = 0;
+let ACTIVE_SEAT = null;   // the seat whose code is currently running — send() reads the sender off it
+const ACT = (x, fn) => { const p = ACTIVE_SEAT; ACTIVE_SEAT = x; try { return fn(); } finally { ACTIVE_SEAT = p; } };
 let active = new Set(); const wake = (id) => active.add(id);
 const GREET_PERIOD = 800;   // H6: base ticks between a Section-1 seat's greeter-refresh walks (randomized per seat, per fire) — the sim's stand-in for the ~25-minute real timer
 
@@ -164,7 +173,8 @@ class Seat {
     this.kidful = new Map();   // row-mate cell -> does it have downlinks? (C1: a childless leaver's hole is never filled — outside Section 1)
     this.childOf = new Map();  // row-mate cell -> that cell's CHILD-ROW HEAD id (W3) so a healer can wire the downlink at promotion
     this.s1seen = new Map();   // W5: Section-1 cell key -> last tick I heard it live (freshness for the 25-roster + H7's empty-row check)
-    this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0; this.greetAt = undefined; this.healTry = new Map();   // per-hole backoff: a promotion needs its full round trip (FINDLEAF descent + take + HELLO back) before the healer may re-fire — re-firing early mints duplicates
+    this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0; this.greetAt = undefined; this.healTry = new Map();
+    this.wsSock = null; this.greetHold = 0; this.outbox = new Map();   // transport: my relay socket (open only while knocking/greeting), and per-peer queues for frames awaiting DC establishment   // per-hole backoff: a promotion needs its full round trip (FINDLEAF descent + take + HELLO back) before the healer may re-fire — re-firing early mints duplicates
   }
   inS1() { return this.coord !== null && this.coord.path === ''; }
   noteS1(ck) { if (ck.charCodeAt(0) === 47) this.s1seen.set(ck, TICK); }   // '/' prefix = a Section-1 cell key
@@ -181,6 +191,28 @@ class Seat {
 
   // ---- join ----------------------------------------------------------------
   join() { this.state = 'joining'; this.retryAt = TICK; this.roster = null; send('relay', { t: 'KNOCK', id: this.id }); wake(this.id); }
+  knock() {                                                                        // open a REAL socket on the room's derived session — the relay checks the derived token like production
+    if (this.wsSock) { const g = SESSION.members().filter((k) => k.peer !== this.id).map((k) => k.peer); return ACT(this, () => this.recv({ t: 'GREETERS', list: shuffle(g) })); }
+    const r = SESSION.connect(this.id, { peer: this.id, token: ROOM.tok, pw: '' });
+    if (r.err) { this.retryAt = TICK; return; }                                    // full / rejected — back off and re-knock
+    this.wsSock = r.sock.id;
+  }
+  wsRecv(sockId, m) {                                                              // frames from MY relay socket
+    if (m.t === 'roster') { const g = m.peers.filter((p) => p !== this.id);
+      if (this.state === 'joining') ACT(this, () => this.recv({ t: 'GREETERS', list: shuffle(g) }));   // the roster IS the greeter list: whoever holds a socket open is the door
+      else if (this.state === 'seated' && this.coord && this.coord.path === '' && this.auditPend) { this.auditPend = false; if (g.length) ACT(this, () => this.recv({ t: 'GREETERS', list: shuffle(g) })); }
+      return; }
+    if (m.t === 'joined') return;                                                  // socket accepted — roster follows
+  }
+  wsClose() { if (this.wsSock) { const k = SESSION.sockets.get(this.wsSock); if (k) k.close('done'); this.wsSock = null; } }
+  dcSend(to, msg) {                                                                // THE peer primitive: a real sealed envelope over an established DataChannel
+    const env = NOCRYPTO ? msg : F.seal(ROOM.key, msg);
+    if (fabric.dc.send(this.id, to, env)) return;
+    let q = this.outbox.get(to); if (!q) this.outbox.set(to, q = []);
+    if (q.length < 64) q.push(env);                                                // bounded: a dead peer's queue must not grow forever
+    fabric.dc.establish(this.id, to);                                              // stage-1: the offer/answer + DTLS ride the modeled connect delay (sponsor-forwarded signaling is production-shipped, §3.2)
+  }
+  dcReady(peer) { const q = this.outbox.get(peer); if (q) { this.outbox.delete(peer); for (const env of q) fabric.dc.send(this.id, peer, env); } }
   askSeat(target) { this.state = 'searching'; this.retryAt = TICK; send(target, { t: 'FIND', nc: this.id, ttl: 200 }); wake(this.id); }   // WAKE: a searcher whose FIND lands on a dead roster entry gets no reply — it must stay scheduled to retry, or it hangs forever
   pickRoster() { const live = this.roster.filter((e) => e[1] !== this.id); return live.length ? live[(rnd() * live.length) | 0][1] : null; }   // R4: a newcomer picks a RANDOM Section-1 seat — 25 co-equal entry trees, no bottleneck
 
@@ -188,7 +220,8 @@ class Seat {
     if (!this.alive) return;
     switch (m.t) {
       case 'GREETERS':
-        if (m.list.length === 0) { if (this.state === 'joining') return this.take(seatOf('', 0, 0), null, []); return; }   // R3 genesis: the relay says I'm first → found the home
+        if (m.list.length === 0) { if (this.state === 'joining') return this.take(seatOf('', 0, 0), null, []); return; }   // R3 genesis: an empty roster means I hold the only socket — I found the home (a rare knock-race mints a duplicate that E2/E3 settle, same as any other dupe)
+        this.lastGreeters = m.list;
         if (this.state === 'joining') { send(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 'asking'; this.retryAt = TICK; }
         else if (this.state === 'seated' && this.coord && this.coord.path === '') send(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 });   // SELF-AUDIT: I asked the front door for a walk to the home — the reply tells me whether the home even knows me
         return;
@@ -205,7 +238,12 @@ class Seat {
       }
       case 'HOME':
         if (this.state === 'asking') {
-          if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; }   // walk dead-ended — recycle quickly
+          if (!m.roster || !m.roster.length) {                                     // walk dead-ended — nobody I can reach is seated
+            this.emptyHomes = (this.emptyHomes || 0) + 1;
+            if (this.emptyHomes >= 3 && (!this.lastGreeters || !this.lastGreeters.some((p) => p < this.id))) { this.emptyHomes = 0; return this.take(seatOf('', 0, 0), null, []); }   // R3 under SIMULTANEOUS cold start: every knocker sees other knockers, so nobody is ever 'alone' — the lowest-id visible knocker founds; any race mints a duplicate that E2/E3 settle like all the others
+            this.retryAt = TICK - 10; return;
+          }
+          this.emptyHomes = 0;
           this.roster = m.roster; this.seatTries = 0;
           const t = this.pickRoster(); if (t) this.askSeat(t); else this.retryAt = TICK - 10;
         } else if (this.state === 'seated' && m.roster && m.roster.length) {
@@ -248,7 +286,7 @@ class Seat {
       case 'GREETWALK': {                                                            // H6: a random descendant walk from a Section-1 seat — walk down to a random occupied child, that seat becomes a greeter
         if (!this.coord || this.state !== 'seated') return;
         if ((m.ttl | 0) > 0) { const kids = []; for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) kids.push(id); } if (kids.length) return send(kids[(rnd() * kids.length) | 0], { t: 'GREETWALK', ttl: (m.ttl | 0) - 1 }); }
-        return relay.open(this.id);
+        this.greetHold = TICK + GREET_PERIOD; return this.knock();                 // H6: the walk's chosen descendant opens a real socket and holds the door
       }
       case 'S1SYNC': {                                                               // W5: freshness-tagged Section-1 roster entries — fresher wins, staler is ignored
         for (const [ck, id, age] of m.ent) {
@@ -425,7 +463,8 @@ class Seat {
     this.coord = coord; this.state = 'seated'; this.occ.set(key(coord), this.id); this.noteS1(key(coord));
     if (nbrs) for (const [k, id] of nbrs) if (!this.occ.has(k)) { this.occ.set(k, id); this.noteS1(k); }
     this.drainAt = 0; this.seatTries = 0; this.noHome = 0; this.seatedAt = TICK;
-    relay.open(this.id); this.lastAck = TICK; this.lastPhone = TICK;
+    this.greetHold = Math.max(this.greetHold, TICK + 150);                          // become-greeter-on-join: hold the door until relieved by later arrivals
+    this.lastAck = TICK; this.lastPhone = TICK;
     if (owner) send(owner, { t: 'CLAIM', ck: key(coord), id: this.id });
     this.announce(); wake(this.id);
   }
@@ -494,6 +533,7 @@ class Seat {
 
   tick() {
     if (!this.alive) { active.delete(this.id); return; }
+    if (this.wsSock && this.state === 'seated' && TICK > this.greetHold) this.wsClose();   // the door is for knocking and greeting — seated members hang up (R2: the relay holds only the pool)
     if (this.state !== 'seated') {
       if ((this.state === 'joining' || this.state === 'asking') && TICK - this.retryAt > 20) this.join();
       else if (this.state === 'searching' && TICK - this.retryAt > 60) { if (this.roster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
@@ -507,7 +547,7 @@ class Seat {
       if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf('', this.coord.r, 0));   // H2 — Section-1 rows heal their head like any other row
       if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + ((rnd() * 100) | 0); if (!this.occ.get(key(crossLink(this.coord)))) this.probeXlink(); }
       if (this.s1CheckAt === undefined) this.s1CheckAt = TICK + 150 + ((rnd() * 150) | 0);
-      if (TICK >= this.s1CheckAt) { this.s1CheckAt = TICK + 250 + ((rnd() * 150) | 0); send('relay', { t: 'KNOCK', id: this.id }); }   // E2 self-audit heartbeat: periodically walk the front door and ask the home about my own cell
+      if (TICK >= this.s1CheckAt) { this.s1CheckAt = TICK + 250 + ((rnd() * 150) | 0); this.auditPend = true; this.greetHold = Math.max(this.greetHold, TICK + 30); this.knock(); }   // E3 self-audit heartbeat: open the front door, read the roster, walk WHOHOME
       active.add(this.id); return;                                                   // Section-1 seats never drain, never requeue: you ARE the home
     }
     if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }      // D1
@@ -519,7 +559,7 @@ class Seat {
     active.add(this.id);
   }
   leave() {
-    this.alive = false; active.delete(this.id); if (!this.coord) return;
+    this.alive = false; active.delete(this.id); this.wsClose(); if (!this.coord) return;
     const ck = key(this.coord); const seen = new Set();
     for (const nb of ownedLinks(this.coord)) { const id = this.occ.get(key(nb)); if (id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck, id: this.id }); } }
     const o = this.ownerCoord(); const oid = o && this.occ.get(key(o)); if (oid && !seen.has(oid)) send(oid, { t: 'LEAVE', ck, id: this.id });
@@ -539,9 +579,9 @@ const MAXP = N * 30 + 60000;
 
 function step() {
   for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('p' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); }
-  const due = buckets.get(TICK); if (due) { buckets.delete(TICK); inflight -= due.length; for (const e of due) { if (e.to === 'relay') relay.knock(e.msg.id); else { const s = seats.get(e.to); if (s) { s.recv(e.msg); wake(s.id); } } } }
+  const due = buckets.get(TICK); if (due) { buckets.delete(TICK); inflight -= due.length; for (const e of due) e.fn(); }
   const cur = active; active = new Set();
-  for (const id of cur) { const s = seats.get(id); if (s) s.tick(); }
+  for (const id of cur) { const s = seats.get(id); if (s) ACT(s, () => s.tick()); }
 }
 const liveSeated = () => { let c = 0; for (const s of seats.values()) if (s.alive && s.state === 'seated') c++; return c; };
 const allSeated = () => { for (const s of seats.values()) if (s.alive && s.state !== 'seated') return false; return true; };
@@ -561,14 +601,14 @@ if (MODE === 'route') {                                                         
   const handler = (m) => { const b = expect.get(m.tag); if (b === undefined) return; done++; if (m.id === b) hit++; else if (m.id === null) miss++; else wrong++; };
   for (const s of seats.values()) s._onRouted = handler;
   const sources = shuffle(seated.slice()); const trials = Math.min(1500, sources.length);
-  for (let k = 0; k < trials; k++) { const a = sources[k]; const b = seated[(rnd() * seated.length) | 0]; if (a === b) { done++; hit++; continue; } expect.set(k, b.id); a.routeTo(b.coord, k); active.add(a.id); }   // a self-pair is a trivially reached route, not a miss
+  for (let k = 0; k < trials; k++) { const a = sources[k]; const b = seated[(rnd() * seated.length) | 0]; if (a === b) { done++; hit++; continue; } expect.set(k, b.id); ACT(a, () => a.routeTo(b.coord, k)); active.add(a.id); }   // a self-pair is a trivially reached route, not a miss
   for (let g = 0; g < 6000 && done < trials; TICK++, g++) step();
   console.log('  route: ' + hit + '/' + trials + ' reached (miss=' + miss + ', wrong=' + wrong + ', unresolved=' + (trials - done) + ')');
   process.exit(hit === trials ? 0 : 1);
 }
 
 if (MODE === 'xlink') {                                                              // establish cross-links via routing, then measure completeness
-  for (let round = 0; round < 30; round++) { for (const s of seats.values()) if (s.alive && s.state === 'seated') { s.probeXlink(); active.add(s.id); } for (let g = 0; g < 16; g++, TICK++) step(); }
+  for (let round = 0; round < 30; round++) { for (const s of seats.values()) if (s.alive && s.state === 'seated') { ACT(s, () => s.probeXlink()); active.add(s.id); } for (let g = 0; g < 16; g++, TICK++) step(); }
   const seated = [...seats.values()].filter((s) => s.alive && s.state === 'seated' && s.coord);
   const at = new Map(); for (const s of seated) at.set(key(s.coord), s.id);
   let known = 0, tot = 0;
@@ -585,7 +625,7 @@ if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   if (MODE === 's1row') { const rr = (rnd() * C) | 0; for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '' && s.coord.r === rr) leavingSet.add(s.id); console.log('  [catastrophe: killing ALL of Section-1 row ' + rr + ']'); }
   if (MODE === 's1all') { for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '') leavingSet.add(s.id); console.log('  [catastrophe: killing ALL 25 Section-1 seats]'); }
   const leaving = [...leavingSet];
-  for (const id of leaving) seats.get(id).leave();
+  for (const id of leaving) { const x = seats.get(id); ACT(x, () => x.leave()); }
   const readdTotal = Math.floor(N * READD); let readdDone = 0;
   const expect = (N - leaving.length) + readdTotal, start = TICK;
   const readdPlan = new Map(); for (let k = 0; k < readdTotal; k++) { const t = start + 4 + ((rnd() * joinWindow) | 0); readdPlan.set(t, (readdPlan.get(t) || 0) + 1); }
