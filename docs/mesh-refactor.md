@@ -145,9 +145,13 @@ pure-function-of-coordinate, bounded degree, C-fold-redundant tree edges.)*
   latency: the people beside you.
 - **Your section** — the C-1 other rows as composited strips (cross-row bridges
   + row mesh). One hop out, lightly compressed.
-- **The Stage** — row 0 of the root section, broadcast *down* the tree on a
-  **tight latency budget**: it's what everyone is actually watching, so it gets
-  priority to the leaves (~depth hops).
+- **The Stage** — a SPECIAL standalone single-row entity (Section 0, attached
+  *above* Section 1), decoupled from the seating tree; its membership is
+  **chosen by a deliberate act** (step-up, request-to-speak, moderation), never
+  filled by arrival-order seating. It is *not* row 0 of any section — every
+  section has an ordinary row 0 that is just its first row. The Stage
+  broadcasts *down* the tree on a **tight latency budget**: it's what everyone
+  is actually watching, so it gets priority to the leaves (~depth hops).
 - **The Stadium** — the whole crowd as one **rolled-up mosaic**. Each section
   composites itself into a fixed-size tile; a parent composites its own tile
   with its children's (arriving up their up-links) into a same-resolution,
@@ -183,8 +187,8 @@ adversary can forge.
   full. No vacancy list is maintained anywhere.
 - **Greeters disagree** (different Section 1s) → a genuine fork, and no algorithm
   can say which is the *real* room. So **ask the human**: show a snapshot of who
-  is on the **Stage (row 0)** — or **Row 1** if the stage is empty — in each
-  tree, and let them pick. Sealed identities make the faces real; the person
+  is on the **Stage** — or **row 0 of Section 1** if the stage is empty — in
+  each tree, and let them pick. Sealed identities make the faces real; the person
   recognizes their own meeting. Honest and unspoofable.
 
 This *is* the split-resolver (§6): a malicious "join my empty tree" greeter is
@@ -215,6 +219,121 @@ broadcast the verdict down — no relay tally, ever). Presence, moderation, the
 count, the crowd mosaic — every one is a reduce or a broadcast over the same
 tree. *That* is why the design needs no special machinery for any of them: the
 tree already is the machinery.
+
+---
+
+## 1¾. The healing laws — the canonical set
+
+*(This list and the header of `test/mesh-scale.js` are the same set — keep them
+in sync. Every heal change must name which law it implements or amends. All of
+H1–H4 plus the C/W/E/R machinery are implemented and proven in the sim: 4/4
+invariants — everyone seated, unique coords, live up-paths, exactly one root —
+after a random 50% departure at N=500/1k/2k/6k, including root death, plus a
+concurrent 25% rejoin mid-heal.)*
+
+**P. One principle: every row keeps itself whole by promoting a leaf from its
+own subtree.** Child-heals-parent is the same motion one level up. A leaf has
+no dependents, so promoting it orphans no one; the frontier cell it vacates is
+a harmless childless hole.
+
+**Detection**
+
+- **D1 — phone-home heartbeat.** Row-mates phone their **head** `(P,r,0)`; a
+  head phones **its owner**. So the head hears its whole row, and the row-mates
+  hear the head. One message per seat per beat; this is all the liveness the
+  laws need.
+- **D2 — LEAVE.** An announced departure deletes the occupancy entry at its
+  neighbours and owner immediately.
+- **D3 — rowSweep.** The head sweeps its row for cells gone silent — the
+  backstop for unannounced death.
+- **D4 — lastAck.** No PONG back means my phone-target is dead; the climbing
+  clock drives healing first, re-entry (E1) later.
+
+**Healing**
+
+- **H1 — the head heals a non-head hole in its row**, only if the departed
+  cell *had children* (C1).
+- **H2 — row-mates heal a dead head**: the **lowest-column survivor** promotes
+  a new head. Deterministic, so exactly one healer and no race.
+- **H3 — the two-step**: a head `(P,r,0)` heals its owner
+  `(parentPath(P), r, lastDigit(P))` — the **column-`lastDigit(P)`** seat of
+  row `r` in the *parent* section (generally *not* that row's head) — by
+  promoting a leaf from its own subtree. In Section 1, `(0,r,0)` refills
+  `(0,0,r)`. **Gated on a live root**, so the promoted seat can phone the root
+  for the row-0 roster and never races the root heal.
+- **H4 — the root re-anchors by row-0 self-heal**: the lowest-column surviving
+  row-0 seat promotes a leaf into `(0,0)`; if its subtree is dead (FINDLEAF
+  keeps failing), it scooches itself in.
+- **H5 — whole-row-0 re-mint (the deadlock breaker)**: if *all* of row 0 dies,
+  H4 has no survivor and H3 has no root. A re-entrant whose greeter-walk
+  (WHOROOT) finds **no root anywhere, repeatedly**, mints a genesis root. The
+  greeter path reaches any live root reliably, so this fires only when there
+  truly is none. *(See the open problem below.)*
+- **H6 — relay freshness**: every Section-1 seat, on its own randomized
+  ~25-minute timer, sends a **random descendant** (a down-walk that picks a
+  random occupied child at each level) to (re)join the greeter pool. The front
+  door stays stocked with live, tree-connected members no matter how the pool
+  churns — arrivals can thin it, squatters can dilute it, but the tree itself
+  keeps restocking it with honest seats.
+
+**Anti-cascade**
+
+- **C1 — childless holes are never filled.** A cell is on someone's up-path
+  only if it owns an occupied child; a childless leaver's hole has no
+  dependents — skip it, let the next newcomer take it (dense-before-deep).
+  Heads are the exception: always refilled, the row relays through them.
+- **C2 — scooch is a last resort**: the childless-frontier head case (H2) and
+  the root cases (H4/H5) only. Everything else promotes a leaf.
+- **C3 — exactly one healer per hole**, by construction (the head, the
+  lowest-column survivor, the owner). No elections, no quorums.
+
+**Wiring — real-time, never stale gossip**
+
+- **W1** — the healer hands the promoted seat its neighbour list out of its
+  *own live occupancy* at promotion time.
+- **W2** — **every PONG carries "who my owner is"**, so every seat always
+  knows its *grandparent*, live. This is what lets H3 wire the promoted seat's
+  up-link.
+- **W3** — a head's PONG to a row-mate carries the current row roster (each
+  member's id and its child-row head), so any row-mate can wire around a
+  vanished sibling.
+- **W4** — the promoted seat HELLOs its owned links and phones up; the
+  orphaned subtree beneath the hole re-attaches by itself, because it was
+  already phoning that cell.
+
+**Fallback**
+
+- **E1 — severed branch re-enters** through the front door — *except row-0
+  seats*, which stay put to re-anchor `(0,0)` (if they re-entered there would
+  be nothing left to re-enter under).
+- **E2 — race loser yields**: two ids on one coordinate, the higher id yields
+  and re-enters. Also the dedup channel for duplicate roots.
+
+**Root & entry**
+
+- **R1 — no stored root, anywhere.** WHOROOT walks the live mesh to `(0,0)`.
+- **R2 — the relay is greeters-only.** It never arbitrates, stores, or serves
+  the root.
+- **R3 — genesis**: an empty greeter list means first arrival takes `(0,0)`.
+- **R4 — seating is a ping** (§4): greeters agree on Section 1 → dense descent
+  to a definitive vacancy; greeters disagree → genuine fork, shown to the
+  human (§6c).
+
+### The open problem this set does not resolve
+
+**The laws do not yet converge to ONE root after a whole-row-0 wipe.** H5
+prevents the collapse — every survivor re-seats — but the simultaneous death
+of all five row-0 seats *shatters the mesh into disconnected islands*. Each
+island honestly observes "no root exists" and mints its own `(0,0)` (~180
+roots measured at N=1000). E2's yield-by-id can only dedup roots that *hear
+about each other*, and partitioned islands share exactly one surface — the
+relay — which R2 forbids from arbitrating root. So no current law merges the
+islands back into one tree: **per-cell healing is solved; partition merge is
+not.** This is the honest split-brain of §6c, arising internally rather than
+from a relay outage. The likely lever is H6 — every island keeps touching the
+shared greeter pool on its own timers, so a greeter walk or re-entrant could
+carry "a root already exists over there" across islands and let E2 finish the
+job — but that motion is not yet a law.
 
 ---
 
@@ -249,12 +368,14 @@ knock to whatever sockets are open (blind broadcast; it *has* the sockets in
 order to route, it does not count or report them). No count, no roster, no seat
 number ever crosses it.
 
-**Row 1 keeps the pool honest and topped off — on the heartbeat.** Left to the
+**Section 1 keeps the pool honest and topped off — law H6 (§1¾).** Left to the
 arrival stream alone the pool is made entirely of the *freshest* peers, which
 are also the least-proven and the easiest for a bad actor to flood (sit on
-sockets, sponsor newcomers with lies). So the room's first row — deterministic,
-every member already agrees who is in it — **periodically sends one known-good
-member to re-enter through the front door**, on its heartbeat. That single act
+sockets, sponsor newcomers with lies). So **every Section-1 seat, on its own
+randomized ~25-minute timer, sends a random descendant** — a down-walk that
+picks a random occupied child at each level — **to contact the relay and make
+itself a greeter**. Twenty-five independent timers, each injecting a random
+live, tree-connected member drawn from the whole stadium. That standing motion
 does three jobs at once:
 
 1. **Tops the pool up** whenever arrivals have thinned it below `X` — the §0.4
@@ -268,8 +389,11 @@ does three jobs at once:
    greeters are reachable from that one knock.
 
 This collapses three mechanisms the earlier draft treated separately — pool
-maintenance, anti-poison, and split-healing — into **one heartbeat action by
-row 1**. (Cadence and who row 1 designates: OPEN — see §6b/§11.)
+maintenance, anti-poison, and split-healing — into **one standing motion by
+Section 1** (H6). An earlier draft assigned this to a single deterministic
+"first row" on one heartbeat; H6 supersedes it — per-seat randomized timers
+and random-descendant selection are more robust (no single cadence to profile,
+no fixed set of re-entrants to target, greeters drawn from the whole tree).
 
 **Introduction is fan-out, not hand-off.** The relay fans every knock to all
 open greeters; the newcomer links to whichever answer, cross-checks them, and
@@ -282,7 +406,7 @@ splits.
 **An open socket is not authority.** Anyone with the room URL can hold a socket
 and answer with lies ("room's full", a garbage manifest). Contained by
 construction: (a) fan-out + cross-check means an honest greeter — guaranteed
-present by row 1's injection — is always among the answers; (b) a shunned or
+present by Section 1's H6 injection — is always among the answers; (b) a shunned or
 fake "greeter" holds no DataChannels into the real mesh, so its only power is to
 lie to a newcomer who is simultaneously hearing the truth; (c) sponsorship trust
 comes from the mesh actually forming around you, never from who answered the
@@ -294,8 +418,9 @@ I am the only greeter,"* and waits. This is not a decision that has to be
 *correct*: if it was wrong — the greeters had merely all died a half-second
 ago, or a twin genesis happened elsewhere — the mesh **merges** the moment any
 later arrival bridges the islands. The bridge can come from anywhere: the
-newcomer's own greeter list, a mesh it was already part of, or a row-1
-re-entrant (§6b) fanned to both islands' sockets on one relay session. Parallel
+newcomer's own greeter list, a mesh it was already part of, or an H6
+greeter-walk descendant (§6b) fanned to both islands' sockets on one relay
+session. Parallel
 genesis is therefore not a fault to prevent but a state to reconcile — the same
 self-healing that carries the rest of the design. The one irreducible loss is a
 *genesis-time* bad actor who poisons arrival #2 before any healing peer shows
@@ -381,9 +506,10 @@ fill-dense-before-deep. Consequences worth pinning:
   composite is keyed by a derived row number — the coordinate *is* the key.
 - **Holes refill for free.** A departed seat is a vacancy the next ping finds;
   the tree never renumbers, because coordinates are absolute.
-- **The Stage is exempt from ordinary seating.** Row 0 of the root section is
-  addressed and broadcast specially (§1½, §7 step-up); the ping never hands a
-  row-0-root seat out as a normal vacancy.
+- **The Stage is exempt from ordinary seating.** The Stage is a standalone
+  Section 0 above the tree (§1½, §7 step-up), addressed and broadcast
+  specially; the ping never seats anyone there — its membership is chosen, not
+  arrived-at. (Row 0 of Section 1 is ordinary seating like any other row.)
 - **Steady-state fragmentation is gone.** The 33/5/5 fracture we watched under
   the old relay-walk was a symptom of sections-as-relay-sessions; with one tree
   and a ping that always fills the nearest vacancy of *that* tree, it cannot
@@ -419,7 +545,7 @@ motions above.
 
 ---
 
-## 6. Staying whole: disconnection, split-brain, and the row-1 re-entry probe
+## 6. Staying whole: disconnection, split-brain, and the H6 greeter-walk probe
 
 The hard problem the relay used to hide: **in a relay-minimal mesh you cannot
 passively tell a mass-departure from a partition.** If a branch goes silent, or
@@ -437,26 +563,26 @@ relay once** to be re-introduced (§1). The front door must stay open for
 *re*-entry, not only first entry. This is obvious to the individual and needs no
 detection.
 
-### 6b. The active anti-split probe — row 1 keeps the Stage whole
+### 6b. The active anti-split probe — Section 1 keeps the Stage whole (H6)
 
 The silent case (a group still internally connected but severed from the rest)
 must be *actively* probed. What it protects is the Stage's defining property —
-row 0 of the root reaches *everyone* — which is false the instant the room
-forks. Row 0 can't be the actor (it is born empty). The actor is the root
-section's **row 1**, a deterministic set of seats every member already agrees
-on:
+it reaches *everyone* — which is false the instant the room forks. The Stage
+can't be the actor (it may be empty). The actor is **Section 1** — every one
+of its seats, on its own randomized timer (law H6, §1¾):
 
-- **Row 1 sends one known-good member to re-enter, on its heartbeat** — the
-  *same* action that tops off the greeter pool and resists poisoning (§2). One
-  mechanism, three effects. The re-entrant is fanned to **all open greeter
+- **Each Section-1 seat sends a random descendant to the relay** — the *same*
+  action that tops off the greeter pool and resists poisoning (§2). One
+  mechanism, three effects. The descendant is fanned to **all open greeter
   sockets** on the room's single relay session; if those sockets span two
-  fragments, the re-entrant is now linked into both and **sutures them** (gossip
-  merges, the ping re-seats stragglers, the fork heals). No split → a cheap
-  no-op that just refreshes the pool.
-- **The re-entrant never leaves its seat.** It keeps its coordinate and all
-  seven links throughout; it *only* opens a socket, receives the fan-out, links
-  to whatever answers, and closes. Never leave-and-rejoin — a seat vacating and
-  re-seating is a needless vacancy-ping plus link churn for its neighbours.
+  fragments, it is now linked into both and **sutures them** (gossip merges,
+  the ping re-seats stragglers, the fork heals). No split → a cheap no-op that
+  just refreshes the pool.
+- **The walker never leaves its seat.** It keeps its coordinate and all seven
+  links throughout; it *only* opens a socket, receives the fan-out, links
+  to whatever answers, and holds the socket as a greeter. Never
+  leave-and-rejoin — a seat vacating and re-seating is a needless vacancy-ping
+  plus link churn for its neighbours.
   (Live-measured 2026-07-13 in the old deacon model, a rejoin-style probe took
   tens of seconds to re-converge and demolished the view on every beat; there
   are no deacons now, but the churn reason alone still forbids it.)
@@ -477,7 +603,7 @@ on:
   downward. *Different* Section 1s are a real fork, and no algorithm should be
   trusted to pick the "real" room over an adversary's decoy: both claim to be it.
   So the machine refuses to guess and **surfaces it — show the human the faces on
-  the Stage (or Row 1) of each tree and let them choose.** Sealed identities make
+  the Stage (or row 0 of Section 1) of each tree and let them choose.** Sealed identities make
   those faces unforgeable; people converge on the meeting they recognize and the
   decoy withers unjoined. There is deliberately **no automatic coordinate-merge**
   — an earlier larger-wins idea is dropped, because a count can be inflated by an
@@ -552,8 +678,8 @@ Peer-enforced replacement, which this whole architecture finally makes coherent:
 - **A shunned seat is frozen out of every role — but roles are positional now.**
   With uniform seats there is nothing to *elect* and therefore nothing to
   hijack. A shunned device is simply never re-seated by the vacancy ping (§1½),
-  never sponsored by an honest greeter (§2), and never accepted as a row-1
-  re-entrant (§6b). The old worry — "don't let your shunned deacon black out
+  never sponsored by an honest greeter (§2), and never reached by the H6
+  greeter walk (§6b) — it holds no seat for the walk to land on. The old worry — "don't let your shunned deacon black out
   your view" — is moot: no seat carries anyone else's whole experience.
 - **The shun must be told to its target, or §6a loops forever.** A shunned
   peer's links all die — which is *exactly* the §6a "you fell out, re-enter
@@ -658,7 +784,7 @@ sealed." Half true, wrong half load-bearing:
   fans a frame to every open socket blind to identity (`broadcast()` / the
   `gossip` handler). What actually removes the relay from the loop is **peers
   closing their sockets** — a deliberate lifecycle choice (§1), not a consequence
-  of sealing. The greeter pool (§2) and the row-1 probe (§6b) exist *because* the
+  of sealing. The greeter pool (§2) and the H6 greeter walk (§6b) exist *because* the
   relay can still reach whatever sockets are open; that is the mechanism, not an
   accident.
 
@@ -670,9 +796,10 @@ sealed." Half true, wrong half load-bearing:
    socket when a new tab opens (functionality, not moderation). With members off
    the relay, decide how to preserve it (sessionStorage peer-id handles reload;
    the new-tab case may be acceptable to drop, or handled seat-side).
-2. **Row-1 re-entry cadence + who.** The ≥4-seat gate is settled (§6b); tune the
-   interval and which Row-1 seat re-enters (rotate it, so no one seat eats the
-   cost). Too rare → slow heal; too frequent → wasted relay wakes.
+2. **H6 tuning.** The "who" is settled by H6 itself (every Section-1 seat, its
+   own randomized ~25-minute timer, a random descendant — no rotation to
+   design, no fixed cadence to profile). Remaining: tune the base period. Too
+   rare → slow heal and a stale pool; too frequent → wasted relay wakes.
 3. **Greeter admission throttling** to absorb a re-bootstrap burst (§12 herd
    risk) without throttling a healthy re-entry cadence.
 4. **IP-only vote confidence** (§7): tuple-vs-IP-only policy — display-only?
@@ -683,7 +810,8 @@ sealed." Half true, wrong half load-bearing:
    and every tree edge C-fold redundant. Pick it and freeze it; it is the one
    piece marked "to finalize in code."
 6. **The Section-1 fork UX** (§1½/§6). When greeters return different Section 1s,
-   the human is shown the Stage (or Row 1) faces of each tree to choose. Design
+   the human is shown the Stage (or row-0-of-Section-1) faces of each tree to
+   choose. Design
    the surface: how many faces, how identity is shown, the default on dismiss.
 7. **Reduce/broadcast tuning** (§5): the id-dedup window, the latest-wins clock
    discipline (skew tolerance), and the per-link anti-entropy interval — fast to
@@ -710,7 +838,7 @@ Section-1-anchored seating leaves no steady-state fragments to consolidate.)*
   absorb it — a genuinely new risk the socket-heavy current design lacks (a
   hibernating socket just wakes; it does not re-handshake).
 - **Greeter/anchor are per-session soft single points for *joining*** (not for
-  the mesh). The pool of 2–3 + deterministic election + the row-1 probe contain
+  the mesh). The pool of 2–3 + deterministic election + the H6 greeter walk contain
   it; still a new seam to test at every level (same class as host-takeover).
 - **Seating and counts go eventually-consistent.** The relay's socket count was
   authoritative; greeter/gossip views lag, so sections may over/under-fill by one
@@ -800,8 +928,10 @@ the same instrumentation.
   fallback.
 - **9. The self-forming greeter pool** (§2) — greeter-on-join, hold until
   relieved, `X = max(3, 2·log₁₀ total)`, count-less relay, cold-start self-heal.
-- **10. The row-1 heartbeat re-entrant** (§2 / §6b) — one action that tops off
-  the pool, guarantees an honest greeter, and sutures splits; ≥4-seat gate.
+- **10. The H6 greeter walk** (§1¾ / §2 / §6b) — every Section-1 seat, on its
+  own randomized ~25-minute timer, sends a random descendant to become a
+  greeter; one action that tops off the pool, guarantees an honest greeter,
+  and sutures splits.
   Close member sockets after join (§1); individual re-entry on total link loss
   (§6a); detect-and-warn for the unreachable-relay island (§6c).
 - **11. Peer-enforced vote-off as a reduce** (§7) — tuple key (observed ICE path

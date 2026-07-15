@@ -11,6 +11,86 @@
  *
  *   node test/mesh-scale.js [N] [leaveFraction]
  *
+ * ============================ THE HEALING LAWS ============================
+ * (the canonical set — docs/mesh-refactor.md carries the same list; keep them
+ *  in sync. Every heal change must name which law it implements or amends.)
+ *
+ * P.  ONE PRINCIPLE: every row keeps itself whole by promoting a leaf from its
+ *     own subtree. Child-heals-parent is the same motion one level up. A leaf
+ *     has no dependents, so promoting it orphans no one.
+ *
+ * Detection:
+ * D1. Phone-home heartbeat: row-mates (i>0) phone their HEAD (P,r,0); a head
+ *     phones ITS OWNER. Head hears its row; row-mates hear the head.
+ * D2. LEAVE: announced departure deletes the occ entry immediately.
+ * D3. rowSweep: the head sweeps for silently-dead row cells (>50 ticks quiet).
+ * D4. lastAck climbing: no PONG => my phone-target is dead (heal >40, E1 >80).
+ *
+ * Healing:
+ * H1. The HEAD heals a non-head hole in its row — only if that cell HAD
+ *     children (see C1).
+ * H2. Row-mates heal a dead HEAD: the lowest-column survivor promotes a new
+ *     head. Deterministic => one healer, no race.
+ * H3. TWO-STEP: a head (P,r,0) heals its owner (parentPath(P), r, lastDigit(P))
+ *     — the column-lastDigit(P) seat of row r in the PARENT section (generally
+ *     NOT that row's head!) — from its own subtree. In Section 1: (0,r,0)
+ *     refills (0,0,r). GATED on a live root, so the promoted seat can phone the
+ *     root for the row-0 roster and never races the root heal.
+ * H4. ROOT (0,0) re-anchors by row-0 self-heal: the lowest-column surviving
+ *     row-0 seat promotes a leaf into (0,0); after 6 dead-subtree FINDLEAF
+ *     rounds it scooches itself in.
+ * H5. WHOLE-ROW-0 RE-MINT (deadlock breaker): if ALL of row 0 dies, H4 has no
+ *     survivor and H3 has no root. A re-entrant whose greeter-WHOROOT finds no
+ *     root anywhere for 5 cycles mints a genesis root. Fires only when there
+ *     truly is none (greeter path is reliable). See THE OPEN PROBLEM below.
+ * H6. RELAY FRESHNESS: every Section-1 seat, on its own randomized ~25-minute
+ *     timer, sends a RANDOM DESCENDANT (GREETWALK down-walk) to (re)join the
+ *     greeter pool. The front door stays stocked with live members.
+ *
+ * Anti-cascade:
+ * C1. Childless holes are NEVER filled (no dependents => no up-path through
+ *     them; the kids-bit rides D1). Heads are the exception — always refilled.
+ * C2. Scooch is a last resort: childless-frontier head (H2) or root (H4/H5).
+ * C3. Exactly ONE healer per hole (lowestSurvivor / the head / the owner).
+ *
+ * Wiring (real-time, NEVER stale gossip):
+ * W1. The healer builds the promoted seat's neighbour list from its OWN live
+ *     occ at promotion time.
+ * W2. EVERY PONG carries "who my owner is" => every seat learns its
+ *     GRANDPARENT live. This is what lets H3 wire the new seat's up-link.
+ * W3. A head's PONG to a row-mate carries the CURRENT row roster (ids + each
+ *     cell's child-row head).
+ * W4. The promoted seat HELLOs its owned links and phones up; the orphaned
+ *     subtree below re-attaches by phoning the refilled cell.
+ *
+ * Fallback:
+ * E1. Severed >80 ticks => requeue through the relay — EXCEPT row-0 seats,
+ *     which stay put to re-anchor (0,0) (re-entering would leave nothing to
+ *     re-enter under).
+ * E2. Promotion-race loser yields: two ids on one coord => the HIGHER id
+ *     yields and re-enters (HELLO/YIELD). Also the dedup channel for roots.
+ *
+ * Root & entry:
+ * R1. NO STORED ROOT anywhere. WHOROOT walks the live mesh to (0,0).
+ * R2. The relay is GREETERS-ONLY. It never arbitrates or remembers root.
+ * R3. Genesis: empty greeter list => first arrival takes (0,0).
+ * R4. Seating is a ping: agree on Section 1 => dense-before-deep descent to a
+ *     definitive vacancy; disagree => genuine fork, shown to the human.
+ *
+ * ---------------------------- THE OPEN PROBLEM ----------------------------
+ * This ruleset does NOT yet converge to ONE root after a whole-row-0 wipe.
+ * H5 prevents the collapse (everyone re-seats), but killing all five row-0
+ * seats at once SHATTERS the mesh into disconnected islands; each island
+ * honestly observes "no root" and mints its own (0,0) (~180 roots measured at
+ * N=1000). E2's yield-by-id can only dedup roots that HEAR about each other,
+ * and partitioned islands share exactly one surface — the relay — which R2
+ * forbids from arbitrating root. So no current rule merges the islands back
+ * into one tree: per-cell healing is solved, PARTITION MERGE is not. The
+ * likely lever is H6 (all islands keep touching the shared greeter pool, so a
+ * greeter walk / re-entrant could carry "a root already exists" across
+ * islands), but that motion is not yet a law.
+ * ==========================================================================
+ *
  * This build proves JOIN convergence on the v2 topology first; healing follows.
  */
 'use strict';
