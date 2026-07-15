@@ -659,16 +659,17 @@ function snapshot(label) {
   const tag = String(snapN++).padStart(2, '0') + '-' + label.replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
   const live = [...seats.values()].filter((s) => s.alive);
   const coords = new Map(); for (const s of live) if (s.state === 'seated' && s.coord) coords.set(key(s.coord), s.id);
-  const out = nodeFS.createWriteStream(SNAPDIR + '/' + tag + '.jsonl');
   // every seat: coord, state, how many of its owned links it can actually name,
-  // whether its up-path is intact, and its front-door socket state
+  // whether its up-path is intact, and its front-door socket state (SYNC write —
+  // report() calls process.exit right after, so a stream would never flush)
+  const lines = [];
   for (const s of live) {
     let up = null;
     if (s.coord && s.coord.path !== '') { let cur = s.coord, h = 0; up = true; while (cur.path !== '') { if (h++ > 80) { up = false; break; } const oc = upCoord(seatOf(cur.path, cur.r, 0)); if (!oc || !coords.has(key(oc))) { up = false; break; } cur = oc; } }
     let named = 0, links = 0; if (s.coord) for (const nb of ownedLinks(s.coord)) { links++; const id = s.occ.get(key(nb)); if (id && id !== s.id) named++; }
-    out.write(JSON.stringify({ id: s.id, c: s.coord ? key(s.coord) : null, st: s.state, up, wired: links ? (named + '/' + links) : null, ws: !!s.wsSock, roster: s.roster ? s.roster.length : 0 }) + '\n');
+    lines.push(JSON.stringify({ id: s.id, c: s.coord ? key(s.coord) : null, st: s.state, up, wired: links ? (named + '/' + links) : null, ws: !!s.wsSock, roster: s.roster ? s.roster.length : 0 }));
   }
-  out.end();
+  nodeFS.writeFileSync(SNAPDIR + '/' + tag + '.jsonl', lines.join('\n') + '\n');
   const st = {}; for (const s of live) st[s.state] = (st[s.state] || 0) + 1;
   const s1 = [...coords.keys()].filter((k) => k.charCodeAt(0) === 47).length;
   nodeFS.appendFileSync(SNAPDIR + '/INDEX.txt', tag + '  tick=' + TICK + '  live=' + live.length + '  states=' + JSON.stringify(st) + '  s1cells=' + s1 + '/25  wsOpen=' + SESSION.members().length + '\n');
