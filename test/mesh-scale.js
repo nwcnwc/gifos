@@ -119,6 +119,15 @@ const F = require('./sim-fabric.js');
 const ROOM = F.deriveMeet('sim-stadium-' + (process.env.ROOM || '1'), '', process.env.PW || '');   // REAL DS derivation: sid routes, tok gates, key seals — the relay never sees the room code
 const NOCRYPTO = process.env.NOCRYPTO === '1';
 if (NOCRYPTO) console.log('  [NOCRYPTO warning: envelopes unsealed for scale — transports still modeled]');   // scale-run escape hatch — DEFAULTS OFF; when set, envelopes are passed unsealed and a warning prints
+// --workers=N (or WORKERS env): deterministic crypto POOL. The sim is
+// crypto-bound (~78%% of wall-clock is seal/open), so batching a tick's
+// frames across N worker threads — barrier-synchronized per tick — is the
+// real speedup. WORKERS=0 keeps the proven single-threaded path byte-for-byte.
+const WORKERS = (() => { const a = process.argv.find((x) => x.startsWith('--workers=')); return a ? (parseInt(a.slice(10), 10) || 0) : (parseInt(process.env.WORKERS || '0', 10) || 0); })();
+const POOLED = WORKERS > 0 && !NOCRYPTO;
+let POOL = null;
+const pendingSends = [];   // {from,to,msg} deferred to the tick-end batch-SEAL
+const pendingOpen = [];    // {to,from,env} deferred to the tick-start batch-OPEN
 const C = M.C, key = M.key, seatOf = M.seat;
 const N = parseInt(process.argv[2] || '10000', 10);
 const LEAVE = parseFloat(process.argv[3] || '0');
@@ -140,11 +149,19 @@ const fabric = F.makeFabric({
   tickRef: () => TICK, rnd, schedule,
   wsFrame: (owner, sockId, m) => { const x = seats.get(owner); if (x) { ACT(x, () => x.wsRecv(sockId, m)); wake(owner); } },
   wsClosed: (owner, sockId) => { const x = seats.get(owner); if (x && x.wsSock === sockId) x.wsSock = null; },
-  dcFrame: (to, from, env) => { const x = seats.get(to); if (!x) return; const m = NOCRYPTO ? env : F.open(ROOM.key, env); if (!m) return; m._from = from; ACT(x, () => x.recv(m)); wake(to); },   // every peer frame is a REAL sealed envelope — wrong key or tampering drops silently, exactly like production
+  dcFrame: (to, from, env) => { if (POOLED) { pendingOpen.push({ to, from, env }); return; } const x = seats.get(to); if (!x) return; const m = NOCRYPTO ? env : F.open(ROOM.key, env); if (!m) return; m._from = from; ACT(x, () => x.recv(m)); wake(to); },   // every peer frame is a REAL sealed envelope — wrong key or tampering drops silently, exactly like production
   dcOpen: (a, b) => { const x = seats.get(a); if (x) { ACT(x, () => x.dcReady(b)); wake(a); } },
   dcClosed: () => {},
 });
 const SESSION = fabric.relay.session(ROOM.sid);
+if (POOLED) { const { makePool } = require('./crypto-pool.js'); POOL = makePool(ROOM.key.toString('hex'), WORKERS); }
+function routeSealed(from, to, env) {                                             // the tail of dcSend, applied AFTER a batch-seal: deliver over an open channel, else queue on the sender + establish
+  if (fabric.dc.send(from, to, env)) return;
+  const x = seats.get(from); if (!x) return;
+  let q = x.outbox.get(to); if (!q) x.outbox.set(to, q = []);
+  if (q.length < 64) q.push(env);
+  fabric.dc.establish(from, to);
+}
 // send(): the ONE mesh-message primitive — a sealed frame over an established DataChannel.
 // No channel yet → establish (models offer/answer + DTLS connect) and queue until open.
 const send = (to, msg) => {
@@ -210,6 +227,7 @@ class Seat {
   }
   wsClose() { if (this.wsSock) { const k = SESSION.sockets.get(this.wsSock); if (k) k.close('done'); this.wsSock = null; } }
   dcSend(to, msg) {                                                                // THE peer primitive: a real sealed envelope over an established DataChannel
+    if (POOLED) { pendingSends.push({ from: this.id, to, msg }); return; }         // pooled: defer the seal to the tick-end batch, route after
     const env = NOCRYPTO ? msg : F.seal(ROOM.key, msg);
     if (fabric.dc.send(this.id, to, env)) return;
     let q = this.outbox.get(to); if (!q) this.outbox.set(to, q = []);
@@ -593,19 +611,30 @@ const joinWindow = Math.max(1, Math.min((N * 0.25) | 0, 2000));
 const spawnPlan = new Map(); for (let k = 0; k < N; k++) { const t = (rnd() * joinWindow) | 0; spawnPlan.set(t, (spawnPlan.get(t) || 0) + 1); }
 const MAXP = N * 30 + 60000;
 
-function step() {
+async function step() {
   for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const n = nextId++; const evil = ATTACK > 0 && rnd() < ATTACK; const id = (evil ? 'a' : 'p') + String(n).padStart(8, '0'); const seat = new Seat(id); seat.evil = evil; seats.set(seat.id, seat); seat.join(); }
   const due = buckets.get(TICK); if (due) { buckets.delete(TICK); inflight -= due.length; for (const e of due) e.fn(); }
+  if (POOLED && pendingOpen.length) {                                              // batch-OPEN this tick's due frames across the pool, then deliver in order
+    const b = pendingOpen.splice(0);
+    const plains = await POOL.open(b.map((x) => x.env));
+    for (let i = 0; i < b.length; i++) { const p = plains[i]; if (!p) continue; let m; try { m = JSON.parse(p); } catch (e) { continue; } m._from = b[i].from; const x = seats.get(b[i].to); if (x) { ACT(x, () => x.recv(m)); wake(b[i].to); } }
+  }
   const cur = active; active = new Set();
   for (const id of cur) { const s = seats.get(id); if (s) ACT(s, () => s.tick()); }
+  if (POOLED && pendingSends.length) {                                             // batch-SEAL everything this tick produced across the pool, then route
+    const b = pendingSends.splice(0);
+    const envs = await POOL.seal(b.map((x) => JSON.stringify(x.msg)));
+    for (let i = 0; i < b.length; i++) routeSealed(b[i].from, b[i].to, envs[i]);
+  }
 }
 const liveSeated = () => { let c = 0; for (const s of seats.values()) if (s.alive && s.state === 'seated') c++; return c; };
 const allSeated = () => { for (const s of seats.values()) if (s.alive && s.state !== 'seated') return false; return true; };
 const s1Count = () => { let c = 0; for (const s of seats.values()) if (s.alive && s.state === 'seated' && s.coord && s.coord.path === '') c++; return c; };
 
+(async () => {
 let joinStable = 0;
 for (TICK = 0; ; TICK++) {
-  step();
+  await step();
   if (TICK > joinWindow + 50 && seats.size === N && allSeated() && s1Count() === Math.min(25, N)) { if (++joinStable > 100) break; } else joinStable = 0;
   if (TICK > MAXP) break;
 }
@@ -618,25 +647,25 @@ if (MODE === 'route') {                                                         
   for (const s of seats.values()) s._onRouted = handler;
   const sources = shuffle(seated.slice()); const trials = Math.min(1500, sources.length);
   for (let k = 0; k < trials; k++) { const a = sources[k]; const b = seated[(rnd() * seated.length) | 0]; if (a === b) { done++; hit++; continue; } expect.set(k, b.id); ACT(a, () => a.routeTo(b.coord, k)); active.add(a.id); }   // a self-pair is a trivially reached route, not a miss
-  for (let g = 0; g < 6000 && done < trials; TICK++, g++) step();
+  for (let g = 0; g < 6000 && done < trials; TICK++, g++) await step();
   console.log('  route: ' + hit + '/' + trials + ' reached (miss=' + miss + ', wrong=' + wrong + ', unresolved=' + (trials - done) + ')');
-  process.exit(hit === trials ? 0 : 1);
+  if (POOL) POOL.close(); process.exit(hit === trials ? 0 : 1);
 }
 
 if (MODE === 'xlink') {                                                              // establish cross-links via routing, then measure completeness
-  for (let round = 0; round < 30; round++) { for (const s of seats.values()) if (s.alive && s.state === 'seated') { ACT(s, () => s.probeXlink()); active.add(s.id); } for (let g = 0; g < 16; g++, TICK++) step(); }
+  for (let round = 0; round < 30; round++) { for (const s of seats.values()) if (s.alive && s.state === 'seated') { ACT(s, () => s.probeXlink()); active.add(s.id); } for (let g = 0; g < 16; g++, TICK++) await step(); }
   const seated = [...seats.values()].filter((s) => s.alive && s.state === 'seated' && s.coord);
   const at = new Map(); for (const s of seated) at.set(key(s.coord), s.id);
   let known = 0, tot = 0;
   for (const s of seated) { const x = crossLink(s.coord); if (!x) continue; const real = at.get(key(x)); if (!real || real === s.id) continue; tot++; if (s.occ.get(key(x)) === real) known++; }
   console.log('  cross-links established: ' + known + '/' + tot + ' (' + (100 * known / (tot || 1) | 0) + '%)');
-  process.exit(known === tot ? 0 : 1);
+  if (POOL) POOL.close(); process.exit(known === tot ? 0 : 1);
 }
 
 if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   HEALING = true;
   for (const s of seats.values()) if (s.alive) { s.lastAck = TICK; s.lastPhone = TICK; s.healAt = TICK; active.add(s.id); }
-  for (let w = 0; w < 48; w++, TICK++) { if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id); step(); }   // warmup: phone-home populates liveness + child bits + cross-links, as continuous operation would
+  for (let w = 0; w < 48; w++, TICK++) { if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id); await step(); }   // warmup: phone-home populates liveness + child bits + cross-links, as continuous operation would
   const leavingSet = new Set(pickN([...seats.keys()], Math.floor(N * LEAVE)));      // true random — nothing is protected
   if (MODE === 's1row') { const rr = (rnd() * C) | 0; for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '' && s.coord.r === rr) leavingSet.add(s.id); console.log('  [catastrophe: killing ALL of Section-1 row ' + rr + ']'); }
   if (MODE === 's1all') { for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '') leavingSet.add(s.id); console.log('  [catastrophe: killing ALL 25 Section-1 seats]'); }
@@ -651,7 +680,7 @@ if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   for (; ; TICK++) {
     for (let s = readdPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('q' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); readdDone++; }
     if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id);   // pulse so everyone phones home
-    step();
+    await step();
     if ((TICK % 50) === 0) {                                                         // convergence = everyone seated AND the home is full, sustained
       if (readdDone === readdTotal && liveSeated() === expect && allSeated() && s1Count() === Math.min(25, expect)) { if (TICK - seatedSince > 400 && TICK - start > 300) break; } else seatedSince = TICK;
     }
@@ -660,7 +689,9 @@ if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   const label = 'after ' + Math.round(LEAVE * 100) + '% LEFT' + (MODE === 's1row' ? ' + Section-1 ROW WIPE' : '') + (MODE === 's1all' ? ' + ALL of Section 1 WIPED' : '') + (readdTotal ? ' + ' + Math.round(READD * 100) + '% REJOIN' : '');
   failed += report(label, expect);
 }
+if (POOL) POOL.close();
 process.exit(failed ? 1 : 0);
+})();
 
 // SNAP=<dir> dumps the ENTIRE topology at every checkpoint (JOIN, post-kill,
 // each heal report): a JSONL of every live seat {id, coord, state} plus its
