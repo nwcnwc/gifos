@@ -14,12 +14,12 @@
  *       (r,r) pairs with row-0 seat (0,r), so row 0 joins without needing a
  *       column-0 seat, which is busy holding an uplink).
  *   • UP         — column 0 only: my ROW's uplink to its OWNER, a seat in the
- *       section above. up(path,r,0) = (parent, r, lastDigit(path)). Section 1 is
- *       an INTERNAL 2-level tree: row r's head uplinks to (0,0,r) — the r-th seat
- *       of row 0 — so each row-0 seat owns one of the other rows (plus its own
- *       down-subtree). (0,0) is the tree root. This lets the rows hold row 0 up:
- *       an orphaned row r re-fills its owner (0,0,r) by promoting a leaf, then
- *       ordinary row-self-heal re-fills (0,0).
+ *       section above. up(path,r,0) = (parent, r, lastDigit(path)). SECTION 1
+ *       HAS NO UP AT ALL (flag-day #2): there is no special root seat and no
+ *       special row — the root of the tree is the whole 25-seat section,
+ *       internally meshed by its own row meshes + cross-links. Section 1's rows
+ *       self-heal like any other row; its heads phone no one, because Section 1
+ *       IS the home.
  *   • DOWN       — every (non-leaf) seat OWNS one row of a child section: row r
  *       of child i, landing on that row's 0th seat. down(path,r,i) = (path·i,
  *       r, 0). This IS the child row's uplink target — one bidirectional edge
@@ -72,10 +72,12 @@
   }
 
   // 3. UP — column 0 only: my row's uplink to its owner (a seat one level up).
-  //    Section 1's five rows uplink to (0,0); (0,0) itself is the tree root.
+  //    Section 1 has NO up at all: it IS the home — the root of the tree is the
+  //    whole 25-seat section, meshed by its own row + cross links, not any one
+  //    seat. (Flag-day #2: no special root seat, no special row 0.)
   function up(s) {
     if (s.i !== 0) return null;               // non-0 seats reach up THROUGH their row's 0th seat
-    if (isRoot(s)) return s.r === 0 ? null : seat('', 0, s.r);   // Section 1 is an internal tree: row r's head → (0,0,r), the r-th seat of row 0
+    if (isRoot(s)) return null;               // Section 1 IS the home — nothing above it
     return seat(parentPath(s.path), s.r, lastDigit(s.path));
   }
 

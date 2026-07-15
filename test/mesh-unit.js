@@ -64,12 +64,12 @@ console.log('mesh-unit: v2 topology invariants (C=' + C + ')');
   ok('every row has a direct cross-edge to every other row (no self-edge)', full);
 })();
 
-// 5 — UP is column-0-only; row-0 of Section 1 excepted, the rest go to (0,0).
+// 5 — UP is column-0-only; Section 1 has NO up at all (it IS the home).
 (() => {
   ok('non-column-0 seats have no up-link', M.up(seat('2', 3, 4)) === null);
   ok('column-0 up = (parent, r, lastDigit)', eq(M.up(seat('31', 2, 0)), seat('3', 2, 1)));
-  ok('Section 1 row r head uplinks to (0,0,r) [internal 2-level tree]', eq(M.up(seat('', 4, 0)), seat('', 0, 4)));
-  ok('(0,0) is the root (no up)', M.up(seat('', 0, 0)) === null);
+  ok('Section 1 heads have no up — Section 1 IS the home (no root seat)', M.up(seat('', 4, 0)) === null && M.up(seat('', 0, 0)) === null && M.up(seat('', 1, 0)) === null);
+  ok('Section 1 seats have no owner', M.owner(seat('', 3, 2)) === null && M.owner(seat('', 0, 0)) === null);
 })();
 
 // 6 — BIDIRECTIONAL TREE LINKS: down-for-me IS up-for-my-child.
@@ -104,15 +104,12 @@ console.log('mesh-unit: v2 topology invariants (C=' + C + ')');
     for (const c of scan) { if (eq(c, s) || !occ.has(key(c))) continue; for (const t of M.ownedLinks(c)) if (eq(t, s)) { nb.add(key(c)); break; } }
     return nb;
   };
-  let maxOrdinary = 0, s1r0Max = 0;
+  let maxDeg = 0;
   for (const k of occ) {
     const [pr, ii] = k.split('.'); const [path, r] = pr.split('/'); const s = seat(path, +r, +ii);
-    const d = neigh(s).size;
-    if (path === '' && +r === 0) s1r0Max = Math.max(s1r0Max, d);   // Section-1 row 0 owns the internal tree (each seat holds an extra row)
-    else maxOrdinary = Math.max(maxOrdinary, d);
+    maxDeg = Math.max(maxDeg, neigh(s).size);
   }
-  ok('every seat outside Section-1 row 0 has degree <= C+1 (hubless) — max=' + maxOrdinary, maxOrdinary <= C + 1);
-  ok('Section-1 row-0 seats carry the internal tree — max deg=' + s1r0Max + ' (<=C+2)', s1r0Max > C + 1 && s1r0Max <= C + 2);
+  ok('EVERY seat has degree <= C+1 — fully uniform, no special seat anywhere (max=' + maxDeg + ')', maxDeg <= C + 1);
 })();
 
 console.log('mesh-unit: ' + pass + ' passed, ' + fail + ' failed');
