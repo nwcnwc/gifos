@@ -117,8 +117,8 @@
 const M = require('../site/js/mesh.js');
 const F = require('./sim-fabric.js');
 const ROOM = F.deriveMeet('sim-stadium-' + (process.env.ROOM || '1'), '', process.env.PW || '');   // REAL DS derivation: sid routes, tok gates, key seals — the relay never sees the room code
-const NOCRYPTO = process.env.NOCRYPTO === '1';
-if (NOCRYPTO) console.log('  [NOCRYPTO warning: envelopes unsealed for scale — transports still modeled]');   // scale-run escape hatch — DEFAULTS OFF; when set, envelopes are passed unsealed and a warning prints
+const NOCRYPTO = process.env.NOCRYPTO === '1' || (N > 5000 && process.env.CRYPTO !== '1');   // crypto is PROVEN faithful at <=5k (fabric-unit + full 5k board); above 5k the seal/open cost (78%% of wall-clock) buys nothing for CONVERGENCE, so drop it by default. Force back on with CRYPTO=1.
+if (NOCRYPTO) console.log('  [crypto OFF (N>5000): transports fully modeled, sealing skipped — proven faithful at <=5k, forces back on with CRYPTO=1]');
 // --workers=N (or WORKERS env): deterministic crypto POOL. The sim is
 // crypto-bound (~78%% of wall-clock is seal/open), so batching a tick's
 // frames across N worker threads — barrier-synchronized per tick — is the
