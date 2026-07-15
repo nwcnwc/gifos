@@ -94,7 +94,7 @@ class Seat {
         for (const rm of rowMates(this.coord)) { const cx = crossLink(rm); if (cx && fwd(this.occ.get(key(cx)))) return; }
         return;
       }
-      case 'ROOT': if (this.state === 'asking') { this.whoTries = 0; this.rootOwner = m.root; this.askRoot(m.root); } return;   // found a live root → reset the re-anchor countdown
+      case 'ROOT': if (this.state === 'asking') { this.noRoot = 0; this.rootOwner = m.root; this.askRoot(m.root); } return;   // found a live root → reset the no-root-remint countdown and search for a seat under it
       case 'FIND': return this.serveFind(m);
       case 'FINDLEAF': return this.findLeaf(m.hole, m.nbrs, m.ttl);                    // a healer's probe descending its subtree to a leaf, which promotes into the hole
       case 'PLACE': if (this.state === 'searching') this.take(m.coord, m.owner, m.nbrs, m.rootOwner); return;
@@ -119,6 +119,11 @@ class Seat {
           }
         }
         return;
+      }
+      case 'GREETWALK': {                                                            // H6: a random descendant walk started by a Section-1 seat — keep walking down to a random occupied child, then that seat refreshes itself into the greeter pool
+        if (!this.coord || this.state !== 'seated') return;
+        if ((m.ttl | 0) > 0) { const kids = []; for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) kids.push(id); } if (kids.length) return send(kids[(rnd() * kids.length) | 0], { t: 'GREETWALK', ttl: (m.ttl | 0) - 1 }); }
+        return relay.open(this.id);                                                  // I'm the chosen descendant → make myself a greeter (front door stays stocked with live members, no matter how the tree churns)
       }
       case 'PHONE': return this.onPhone(m);                                          // a seat that phones me (my row-mate if I'm the head; my child head if I'm the owner)
       case 'PONG': this.lastAck = TICK; if (m.oCk && m.owner && this.occ.get(m.oCk) !== m.owner) this.occ.set(m.oCk, m.owner); if (m.row) for (const [k, id, ch] of m.row) { if (this.occ.get(k) !== id) this.occ.set(k, id); if (ch) this.childOf.set(k, ch); } return;   // answered live + handed me my grandparent (owner's owner) AND, if from my head, the row roster → I can wire the up-link when healing my owner, and wire around any row-mate that vanishes
@@ -210,7 +215,7 @@ class Seat {
     const nbrs = []; for (const nb of ownedLinks(hole)) { const id = this.occ.get(key(nb)); if (id && id !== this.id) nbrs.push([key(nb), id]); }
     if (rootHole && ownedLinks(hole).some((nb) => key(nb) === key(this.coord))) nbrs.push([key(this.coord), this.id]);   // the ROOT hole has no owner to phone, so the new root reconnects to me (its row-mate healer) only by announce — include me so it tells me it exists and I stop re-firing (else duplicate roots)
     const oc = this.ownerCoordOf(hole); if (oc) { const oid = this.occ.get(key(oc)); if (oid && !nbrs.some((n) => n[0] === key(oc))) nbrs.push([key(oc), oid]); }   // the promoted seat needs its owner id — REAL-TIME from my occ, never gossip
-    if (rootHole && this.coord.i > 0) {                                              // ROOT re-anchor: try to promote a leaf from my subtree, but if that keeps failing (subtree is dead — its occ entries are stale), scooch in myself so (0,0) actually fills
+    if (rootHole && this.coord.i > 0) {                                              // ROOT re-anchor (H4): try to promote a leaf from my subtree, but if that keeps failing (subtree is dead — its occ entries are stale), scooch in myself so (0,0) actually fills
       this.rootTries = (this.rootTries || 0) + 1;
       if (this.rootTries <= 6) for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }
       return this.promoteInto(hole, nbrs);                                           // >6 failed rounds, or no occupied child → scooch (chasing dead children forever was the roots=0 collapse)
@@ -301,15 +306,19 @@ class Seat {
   tick() {
     if (!this.alive) { active.delete(this.id); return; }
     if (this.state !== 'seated') {                                                   // unseated: keep retrying, and STAY scheduled (never drop out of `active`)
-      if ((this.state === 'joining' || this.state === 'asking') && TICK - this.retryAt > 20) this.join();
+      if ((this.state === 'joining' || this.state === 'asking') && TICK - this.retryAt > 20) {
+        if (HEALING && (this.noRoot = (this.noRoot || 0) + 1) >= 5) { this.noRoot = 0; return this.take(seatOf('', 0, 0), null, []); }   // H5 (deadlock breaker): I re-entered and 5 cycles of greeter-WHOROOT found NO root anywhere → the whole of row 0 died, so there is nothing to seat under → genesis-remint (0,0) myself. Reliable because greeter-WHOROOT reaches any live root 100%, so this fires ONLY when there truly is none; a live root resets noRoot in the ROOT handler. Duplicates dedupe by id (HELLO/YIELD).
+        this.join();
+      }
       else if (this.state === 'searching' && TICK - this.retryAt > 60) { this.rootOwner ? this.askRoot(this.rootOwner) : this.join(); }
       active.add(this.id); return;
     }
     if (!HEALING) { active.delete(this.id); return; }
+    if (this.coord.path === '') { if (this.greetAt === undefined) this.greetAt = TICK + ((rnd() * GREET_PERIOD) | 0); if (TICK >= this.greetAt) { this.greetAt = TICK + GREET_PERIOD + ((rnd() * GREET_PERIOD) | 0); this.recv({ t: 'GREETWALK', ttl: 1 + ((rnd() * 5) | 0) }); } }   // H6: every Section-1 seat, on its own randomized ~25-min timer, sends a RANDOM descendant to (re)join the greeter pool — keeps the relay fresh with live members, tolerates greeter churn/poisoning, and helps re-entrants always reach a live root
     if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }
     if (this.coord.i === 0 && (TICK % 12) === 0) this.rowSweep();                     // head: sweep for dead non-head cells in my row
     if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf(this.coord.path, this.coord.r, 0));   // my head stopped answering → the lowest-column survivor promotes a new head (deterministic, no race)
-    if (this.coord.path === '' && this.coord.r > 0 && this.coord.i === 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && !this.occ.get(key(this.ownerCoord())) && this.occ.get(key(seatOf('', 0, 0)))) return this.heal(this.ownerCoord());   // I'm a Section-1 row-r head and my owner (0,0,r) is empty → heal it from my own subtree, exactly like every row heals its head. GATED on a live root: only refill (0,0,r) once (0,0) exists, so the promoted seat can phone the root for the row-0 roster and won't spuriously race the root heal. Order: root re-anchors first, then its row cells.
+    if (this.coord.path === '' && this.coord.r > 0 && this.coord.i === 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && !this.occ.get(key(this.ownerCoord())) && this.occ.get(key(seatOf('', 0, 0)))) return this.heal(this.ownerCoord());   // I'm a Section-1 row-r head and my owner (0,0,r) is empty → heal it from my own subtree (H3, the two-step). Gated on a live root so the promoted seat can phone the root for the row-0 roster. When the WHOLE of row 0 died (no root either), this can't fire — that deadlock is broken by the genesis-remint in the re-entry path below (H5): a re-entrant that finds no root ANYWHERE mints one.
     if (!this.isRoot() && !(this.coord.path === '' && this.coord.r === 0) && TICK - this.lastAck > 80) return this.requeue();   // branch severed → re-enter the front door — EXCEPT row-0 seats, which must stay put to re-anchor (0,0) (if they re-entered, there'd be no root to re-enter UNDER → collapse). A row-r head whose owner AND root are both gone falls back to re-entry here, then heals via the two-step once (0,0) is back.
     active.add(this.id);
   }
@@ -321,6 +330,7 @@ const t0 = Date.now();
 const joinWindow = Math.max(1, Math.min((N * 0.25) | 0, 2000));
 const spawnPlan = new Map(); for (let k = 0; k < N; k++) { const t = (rnd() * joinWindow) | 0; spawnPlan.set(t, (spawnPlan.get(t) || 0) + 1); }
 const MAXP = N * 30 + 60000;
+const GREET_PERIOD = 800;   // H6: base ticks between a Section-1 seat's greeter-refresh walks (randomized per seat, per fire) — the sim's stand-in for the ~25-minute real timer
 
 function step() {
   for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('p' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); }
