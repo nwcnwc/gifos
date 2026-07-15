@@ -78,8 +78,19 @@
  *     re-seats last. Only if NO route to Section 1 exists (>220 ticks) does
  *     it fall back to relay re-entry. Section-1 seats never drain or requeue
  *     — you cannot re-enter the home; you ARE the home.
- * E2. Race loser yields: two ids on one coord => the HIGHER id yields (the
- *     dedup channel for every promotion/backfill race).
+ * E2. Race loser yields: two ids on one coord => the HIGHER id yields — but
+ *     only between LIVE claimants (a stale occ entry never assassinates a
+ *     fresh promotee), judged with TENURE in the sync stream (only claims
+ *     heard after my seating outrank me), broken deterministically LOWER-ID-
+ *     WINS at comparable freshness, with a YIELD back-channel for losing
+ *     heads nobody targets, and closed by E3.
+ * E3. THE SELF-AUDIT + STITCH: every Section-1 seat, on a slow randomized
+ *     timer, KNOCKs the front door and walks WHOHOME like any newcomer. If
+ *     the home's view names its cell under a LOWER claimant, it requeues; a
+ *     HIGHER claimant is told to yield directly; and either way the auditor
+ *     HELLOs the responder — stitching a link-isolated claimant into the
+ *     mesh, where the ordinary channels can settle it. The front door being
+ *     always reachable is R2 earning its keep.
  *
  * Home & entry:
  * R1. NO STORED HOME anywhere. WHOHOME walks the live mesh to any Section-1
@@ -550,7 +561,7 @@ if (MODE === 'route') {                                                         
   const handler = (m) => { const b = expect.get(m.tag); if (b === undefined) return; done++; if (m.id === b) hit++; else if (m.id === null) miss++; else wrong++; };
   for (const s of seats.values()) s._onRouted = handler;
   const sources = shuffle(seated.slice()); const trials = Math.min(1500, sources.length);
-  for (let k = 0; k < trials; k++) { const a = sources[k]; const b = seated[(rnd() * seated.length) | 0]; if (a === b) { done++; continue; } expect.set(k, b.id); a.routeTo(b.coord, k); active.add(a.id); }
+  for (let k = 0; k < trials; k++) { const a = sources[k]; const b = seated[(rnd() * seated.length) | 0]; if (a === b) { done++; hit++; continue; } expect.set(k, b.id); a.routeTo(b.coord, k); active.add(a.id); }   // a self-pair is a trivially reached route, not a miss
   for (let g = 0; g < 6000 && done < trials; TICK++, g++) step();
   console.log('  route: ' + hit + '/' + trials + ' reached (miss=' + miss + ', wrong=' + wrong + ', unresolved=' + (trials - done) + ')');
   process.exit(hit === trials ? 0 : 1);

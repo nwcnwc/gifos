@@ -225,117 +225,139 @@ tree already is the machinery.
 ## 1¾. The healing laws — the canonical set
 
 *(This list and the header of `test/mesh-scale.js` are the same set — keep them
-in sync. Every heal change must name which law it implements or amends. All of
-H1–H4 plus the C/W/E/R machinery are implemented and proven in the sim: 4/4
-invariants — everyone seated, unique coords, live up-paths, exactly one root —
-after a random 50% departure at N=500/1k/2k/6k, including root death, plus a
-concurrent 25% rejoin mid-heal.)*
+in sync. Every heal change must name which law it implements or amends. The
+whole set is PROVEN in the sim: 4/4 invariants — everyone seated, unique
+coords, live up-paths, and Section 1 FULL — after a random 50% departure at
+N=500/1k/2k, after wiping an ENTIRE Section-1 row on top of a 50% kill, after
+wiping ALL 25 Section-1 seats on top of a 50% kill, and with a concurrent 25%
+rejoin mid-heal; route and cross-link probes at 100%.)*
+
+**There is no root seat and no special row. Section 1 — the home — is 25
+uniform seats meshed by their own row + cross links, with nothing above them
+(flag-day #2). Its heads phone no one, because the home IS where phones
+terminate.**
 
 **P. One principle: every row keeps itself whole by promoting a leaf from its
-own subtree.** Child-heals-parent is the same motion one level up. A leaf has
-no dependents, so promoting it orphans no one; the frontier cell it vacates is
-a harmless childless hole.
+own subtree.** Child-heals-parent is the same motion one level up — and at the
+top the same motion once more: Section 1 keeps itself whole from ITS subtree,
+which is the whole stadium.
 
 **Detection**
 
 - **D1 — phone-home heartbeat.** Row-mates phone their **head** `(P,r,0)`; a
-  head phones **its owner**. So the head hears its whole row, and the row-mates
-  hear the head. One message per seat per beat; this is all the liveness the
-  laws need.
+  head phones **its owner** — except Section-1 heads, who phone no one. The
+  head hears its whole row; the row-mates hear the head.
 - **D2 — LEAVE.** An announced departure deletes the occupancy entry at its
   neighbours and owner immediately.
 - **D3 — rowSweep.** The head sweeps its row for cells gone silent — the
-  backstop for unannounced death.
+  backstop for unannounced death. THE PHONE IS THE AUTHORITY, never occ: a
+  cell that is not phoning its head is not there, whatever anyone's map says.
 - **D4 — lastAck.** No PONG back means my phone-target is dead; the climbing
-  clock drives healing first, re-entry (E1) later.
+  clock drives healing first (>40), the drain later (>80).
 
 **Healing**
 
 - **H1 — the head heals a non-head hole in its row**, only if the departed
-  cell *had children* (C1).
-- **H2 — row-mates heal a dead head**: the **lowest-column survivor** promotes
-  a new head. Deterministic, so exactly one healer and no race.
-- **H3 — the two-step**: a head `(P,r,0)` heals its owner
-  `(parentPath(P), r, lastDigit(P))` — the **column-`lastDigit(P)`** seat of
-  row `r` in the *parent* section (generally *not* that row's head) — by
-  promoting a leaf from its own subtree. In Section 1, `(0,r,0)` refills
-  `(0,0,r)`. **Gated on a live root**, so the promoted seat can phone the root
-  for the row-0 roster and never races the root heal.
-- **H4 — the root re-anchors by row-0 self-heal**: the lowest-column surviving
-  row-0 seat promotes a leaf into `(0,0)`; if its subtree is dead (FINDLEAF
-  keeps failing), it scooches itself in.
-- **H5 — whole-row-0 re-mint (the deadlock breaker)**: if *all* of row 0 dies,
-  H4 has no survivor and H3 has no root. A re-entrant whose greeter-walk
-  (WHOROOT) finds **no root anywhere, repeatedly**, mints a genesis root. The
-  greeter path reaches any live root reliably, so this fires only when there
-  truly is none. *(See the open problem below.)*
+  cell *had children* (C1) — **except in Section 1 (H1-S1)**, where the head
+  keeps its row FULL unconditionally: holes seat arriving newcomers first
+  (dense-before-deep at the very top), and otherwise a promoted leaf — from
+  the head's own subtree; if that is empty, through a **kidful row-mate's**
+  (the row's subtree is the union of its members'); and if the whole row is
+  barren, from **any live home seat** via the W5 roster.
+- **H2 — row-mates heal a dead head**: the **lowest-column survivor**
+  promotes a new head — judged by *freshness*, never by stale occupancy
+  (deferring to a dead lower column left headless rows unhealed forever).
 - **H6 — relay freshness**: every Section-1 seat, on its own randomized
-  ~25-minute timer, sends a **random descendant** (a down-walk that picks a
-  random occupied child at each level) to (re)join the greeter pool. The front
-  door stays stocked with live, tree-connected members no matter how the pool
-  churns — arrivals can thin it, squatters can dilute it, but the tree itself
-  keeps restocking it with honest seats.
+  ~25-minute timer, sends a **random descendant** (a down-walk picking a
+  random occupied child at each level) to contact the relay and make itself
+  a greeter. The front door stays stocked with live, tree-connected members.
+- **H7 — column backfill**: a Section-1 seat handed a newcomer first checks
+  the row ABOVE it (wrapping row 0 to the bottom row); if that row is
+  **entirely empty**, the newcomer resurrects it — directly above the seat,
+  same column. One designated backfiller per cell, race-free; arrival
+  traffic revives dead rows. (Sparse rows are H1-S1's job; empty rows H7's.)
+- *(H3, H4, H5 are retired: they healed a special root that no longer
+  exists.)*
 
 **Anti-cascade**
 
-- **C1 — childless holes are never filled.** A cell is on someone's up-path
-  only if it owns an occupied child; a childless leaver's hole has no
-  dependents — skip it, let the next newcomer take it (dense-before-deep).
-  Heads are the exception: always refilled, the row relays through them.
-- **C2 — scooch is a last resort**: the childless-frontier head case (H2) and
-  the root cases (H4/H5) only. Everything else promotes a leaf.
-- **C3 — exactly one healer per hole**, by construction (the head, the
-  lowest-column survivor, the owner). No elections, no quorums.
+- **C1 — childless holes are never filled** (no dependents, no up-path
+  through them) — except in the home (H1-S1): the one tier where fullness IS
+  resilience.
+- **C2 — scooch is a last resort**: a childless-frontier row's head only.
+  A Section-1 seat never leaves the home for a deep hole, and never slides
+  sideways within it (the only in-home scooch is H2 into its own row's head
+  slot).
+- **C3 — exactly one healer per hole**, by construction (the head / the
+  lowest-column survivor / the designated backfiller), with a per-hole
+  backoff no shorter than a promotion round trip.
 
 **Wiring — real-time, never stale gossip**
 
 - **W1** — the healer hands the promoted seat its neighbour list out of its
-  *own live occupancy* at promotion time.
-- **W2** — **every PONG carries "who my owner is"**, so every seat always
-  knows its *grandparent*, live. This is what lets H3 wire the promoted seat's
-  up-link.
-- **W3** — a head's PONG to a row-mate carries the current row roster (each
-  member's id and its child-row head), so any row-mate can wire around a
-  vanished sibling.
+  own live occupancy at promotion time, including itself when it neighbours
+  the hole.
+- **W2** — every PONG carries "who my owner is": every seat knows its
+  grandparent, live.
+- **W3** — a head's PONG to a row-mate carries the current row roster.
 - **W4** — the promoted seat HELLOs its owned links and phones up; the
-  orphaned subtree beneath the hole re-attaches by itself, because it was
-  already phoning that cell.
+  orphaned subtree re-attaches by itself.
+- **W5** — Section 1 maintains the **full 25-roster at every one of its
+  seats**: freshness-tagged entries sync every phone beat across the row
+  meshes, the cross-links, **and the H7 column cycle** — a resurrected
+  head's only standing channel is its backfiller below. This roster is what
+  greeters serve to newcomers and what draining subtrees re-seat against.
 
 **Fallback**
 
-- **E1 — severed branch re-enters** through the front door — *except row-0
-  seats*, which stay put to re-anchor `(0,0)` (if they re-entered there would
-  be nothing left to re-enter under).
-- **E2 — race loser yields**: two ids on one coordinate, the higher id yields
-  and re-enters. Also the dedup channel for duplicate roots.
+- **E1 — the drain.** A severed seat (owner chain dead >80 ticks, unhealed)
+  does not stampede the relay: it fetches the Section-1 roster over the mesh
+  (WHOHOME, escaping sideways past its dead chain via cross-links), then
+  acts as the greeter for its own subtree — DRAIN fans down, every member
+  re-seats as a newcomer against a random roster pick, the initiator last.
+  Only with no route at all (>220 ticks) does it fall back to relay
+  re-entry. Section-1 seats never drain and never requeue: you cannot
+  re-enter the home; you are the home.
+- **E2 — the race loser yields**: two ids on one coordinate, the higher
+  yields — but only between **live** claimants (a stale occ entry must never
+  assassinate a fresh promotee), judged with **tenure** in the sync stream
+  (only claims heard after my own seating outrank me), broken
+  deterministically **lower-id-wins** at comparable freshness, with a YIELD
+  back-channel for losing heads that nothing targets.
+- **E3 — the self-audit + stitch.** Every Section-1 seat, on a slow
+  randomized timer, KNOCKs the front door and walks WHOHOME like any
+  newcomer. A **lower** claimant on its cell in the home's view → it
+  requeues; a **higher** one → it tells it to yield directly; and either way
+  it HELLOs the responder, **stitching a link-isolated claimant into the
+  mesh** where the ordinary channels can settle it. This is what makes the
+  total-home-wipe converge: the front door is the one door every seat can
+  always walk through — R2 earning its keep.
 
-**Root & entry**
+**Home & entry**
 
-- **R1 — no stored root, anywhere.** WHOROOT walks the live mesh to `(0,0)`.
-- **R2 — the relay is greeters-only.** It never arbitrates, stores, or serves
-  the root.
-- **R3 — genesis**: an empty greeter list means first arrival takes `(0,0)`.
-- **R4 — seating is a ping** (§4): greeters agree on Section 1 → dense descent
-  to a definitive vacancy; greeters disagree → genuine fork, shown to the
-  human (§6c).
+- **R1 — no stored home, anywhere.** WHOHOME walks the live mesh to any
+  Section-1 seat and gets the W5 roster back.
+- **R2 — the relay is greeters-only.** It never arbitrates, stores, or
+  serves the home.
+- **R3 — genesis, serialized.** With no seated greeter, the relay designates
+  ONE founder and every later knocker waits on it (re-designating whenever a
+  lower id appeared forked the room). The founder takes `('',0,0)` — an
+  ordinary seat, special only for being first.
+- **R4 — seating is a ping**: pick a RANDOM Section-1 seat off the roster —
+  25 co-equal entry trees, no bottleneck — and descend dense-before-deep
+  (H7 and the home's own holes first) to a definitive vacancy.
 
-### The open problem this set does not resolve
+### The problem this set retired
 
-**The laws do not yet converge to ONE root after a whole-row-0 wipe.** H5
-prevents the collapse — every survivor re-seats — but the simultaneous death
-of all five row-0 seats *shatters the mesh into disconnected islands*. Each
-island honestly observes "no root exists" and mints its own `(0,0)` (~180
-roots measured at N=1000). E2's yield-by-id can only dedup roots that *hear
-about each other*, and partitioned islands share exactly one surface — the
-relay — which R2 forbids from arbitrating root. So no current law merges the
-islands back into one tree: **per-cell healing is solved; partition merge is
-not.** This is the honest split-brain of §6c, arising internally rather than
-from a relay outage. The likely lever is H6 — every island keeps touching the
-shared greeter pool on its own timers, so a greeter walk or re-entrant could
-carry "a root already exists over there" across islands and let E2 finish the
-job — but that motion is not yet a law.
-
----
+The old design stored a root seat, and its death was a distributed-consensus
+trap: a whole-row-0 wipe shattered the mesh into islands that each minted a
+root (~180 at N=1000), with no partition-merge law to reunite them. Removing
+the root **dissolved** the problem rather than solving it: with nothing to
+mint, orphaned subtrees *drain* into the surviving home (E1), a wiped row is
+resurrected by arrivals (H7), a wiped home rebuilds through the serialized
+genesis (R3), and the residual duplicate claims that partitions leave behind
+are settled by E2/E3. Proven: **killing ALL 25 home seats plus half the room
+converges to a full, unique, fully-routed stadium in ~2300 ticks.**
 
 ## 2. The greeter pool — self-forming, never elected
 
