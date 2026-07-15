@@ -184,7 +184,7 @@ class Seat {
       case 'WHOHOME': {                                                              // R1: find Section 1 by walking the LIVE MESH — no cache, no stored pointer
         if (!this.coord) return send(m.from, { t: 'HOME', roster: [] });             // I'm nobody right now — tell the asker fast so it retries elsewhere
         if ((m.ttl | 0) <= 0) return;
-        if (this.coord.path === '') return send(m.from, { t: 'HOME', roster: this.s1Roster() });   // I AM the home → serve the W5 roster
+        if (this.coord.path === '') return send(m.from, { t: 'HOME', roster: this.s1Roster(), id: this.id });   // I AM the home → serve the W5 roster (+ my id, so an auditing home seat can stitch itself to me)
         const fwd = (id) => { if (id && id !== this.id && id !== m.via) { send(id, { t: 'WHOHOME', from: m.from, via: this.id, ttl: (m.ttl | 0) - 1 }); return true; } return false; };
         if (this.coord.i !== 0) { if (fwd(this.occ.get(key(seatOf(this.coord.path, this.coord.r, 0))))) return; }   // CLIMB: route to my row's head (it holds the uplink)
         else if (fwd(this.ownerId())) return;                                        // I AM the head → go UP to my owner
@@ -199,7 +199,10 @@ class Seat {
           const t = this.pickRoster(); if (t) this.askSeat(t); else this.retryAt = TICK - 10;
         } else if (this.state === 'seated' && m.roster && m.roster.length) {
           this.roster = m.roster;                                                    // E1: a severed seat fetched the roster → next tick it drains
-          if (this.coord && this.coord.path === '') for (const [ck, id] of m.roster) if (ck === key(this.coord) && id !== this.id && id < this.id) return this.requeue();   // E2, the last resort: the home's own view says a LOWER claimant holds my cell — I am the zombie. A fully link-isolated duplicate (occ empty, phones no one, hears nothing) can be reached by NO mesh channel; the front door is the one door every seat can always walk through (R2's whole point).
+          if (this.coord && this.coord.path === '') {
+            for (const [ck, id] of m.roster) if (ck === key(this.coord) && id !== this.id) { if (id < this.id) return this.requeue(); send(id, { t: 'YIELD', ck }); }   // E2, the last resort: the home's view names another claimant on MY cell — a LOWER one means I am the zombie and requeue; a HIGHER one is told to yield DIRECTLY (it can't hear me any other way while I'm the invisible one)
+            if (m.id) send(m.id, { t: 'HELLO', ck: key(this.coord), id: this.id });    // and STITCH: HELLO the responder so an isolated claimant joins the mesh instead of staying invisible — an unwired lower claimant otherwise wins every audit yet is never adopted, and the cell flaps forever
+          }
         }
         return;
       case 'FIND': return this.serveFind(m);
