@@ -179,6 +179,7 @@ class Seat {
       case 'GREETERS':
         if (m.list.length === 0) { if (this.state === 'joining') return this.take(seatOf('', 0, 0), null, []); return; }   // R3 genesis: the relay says I'm first → found the home
         if (this.state === 'joining') { send(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 'asking'; this.retryAt = TICK; }
+        else if (this.state === 'seated' && this.coord && this.coord.path === '') send(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 });   // SELF-AUDIT: I asked the front door for a walk to the home — the reply tells me whether the home even knows me
         return;
       case 'WHOHOME': {                                                              // R1: find Section 1 by walking the LIVE MESH — no cache, no stored pointer
         if (!this.coord) return send(m.from, { t: 'HOME', roster: [] });             // I'm nobody right now — tell the asker fast so it retries elsewhere
@@ -196,7 +197,10 @@ class Seat {
           if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; }   // walk dead-ended — recycle quickly
           this.roster = m.roster; this.seatTries = 0;
           const t = this.pickRoster(); if (t) this.askSeat(t); else this.retryAt = TICK - 10;
-        } else if (this.state === 'seated' && m.roster && m.roster.length) this.roster = m.roster;   // E1: a severed seat fetched the roster → next tick it drains
+        } else if (this.state === 'seated' && m.roster && m.roster.length) {
+          this.roster = m.roster;                                                    // E1: a severed seat fetched the roster → next tick it drains
+          if (this.coord && this.coord.path === '') for (const [ck, id] of m.roster) if (ck === key(this.coord) && id !== this.id && id < this.id) return this.requeue();   // E2, the last resort: the home's own view says a LOWER claimant holds my cell — I am the zombie. A fully link-isolated duplicate (occ empty, phones no one, hears nothing) can be reached by NO mesh channel; the front door is the one door every seat can always walk through (R2's whole point).
+        }
         return;
       case 'FIND': return this.serveFind(m);
       case 'FINDLEAF': return this.findLeaf(m.hole, m.nbrs, m.ttl);                  // a healer's probe descending its subtree to a leaf, which promotes into the hole
@@ -488,6 +492,8 @@ class Seat {
       if (this.coord.i === 0 && (TICK % 12) === 0) { this.rowSweep(); this.s1Fill(); }              // D3 + H1-S1
       if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf('', this.coord.r, 0));   // H2 — Section-1 rows heal their head like any other row
       if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + ((rnd() * 100) | 0); if (!this.occ.get(key(crossLink(this.coord)))) this.probeXlink(); }
+      if (this.s1CheckAt === undefined) this.s1CheckAt = TICK + 150 + ((rnd() * 150) | 0);
+      if (TICK >= this.s1CheckAt) { this.s1CheckAt = TICK + 250 + ((rnd() * 150) | 0); send('relay', { t: 'KNOCK', id: this.id }); }   // E2 self-audit heartbeat: periodically walk the front door and ask the home about my own cell
       active.add(this.id); return;                                                   // Section-1 seats never drain, never requeue: you ARE the home
     }
     if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }      // D1
