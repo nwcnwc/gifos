@@ -170,7 +170,7 @@ class Seat {
 
   // ---- join ----------------------------------------------------------------
   join() { this.state = 'joining'; this.retryAt = TICK; this.roster = null; send('relay', { t: 'KNOCK', id: this.id }); wake(this.id); }
-  askSeat(target) { this.state = 'searching'; this.retryAt = TICK; send(target, { t: 'FIND', nc: this.id, ttl: 200 }); }
+  askSeat(target) { this.state = 'searching'; this.retryAt = TICK; send(target, { t: 'FIND', nc: this.id, ttl: 200 }); wake(this.id); }   // WAKE: a searcher whose FIND lands on a dead roster entry gets no reply — it must stay scheduled to retry, or it hangs forever
   pickRoster() { const live = this.roster.filter((e) => e[1] !== this.id); return live.length ? live[(rnd() * live.length) | 0][1] : null; }   // R4: a newcomer picks a RANDOM Section-1 seat — 25 co-equal entry trees, no bottleneck
 
   recv(m) {
@@ -207,7 +207,8 @@ class Seat {
       case 'HELLO': {
         if (this.coord && this.state === 'seated' && m.ck === key(this.coord) && m.id !== this.id && m.id < this.id) return this.requeue();   // E2: a lower id also holds my coord — I yield
         const prev = this.occ.get(m.ck);
-        if (prev && prev !== m.id) send(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });    // E2: I see TWO ids on one cell — the higher yields
+        const prevFresh = prev ? (m.ck.charCodeAt(0) === 47 ? this.s1Fresh(m.ck) : (this.live.has(m.ck) ? TICK - this.live.get(m.ck) <= 40 : true)) : false;
+        if (prev && prev !== m.id && prevFresh) send(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });    // E2: I see TWO LIVE ids on one cell — the higher yields. LIVE is the operative word: a stale occ entry (a dead ex-occupant, usually a LOWER id) must never assassinate the freshly promoted seat — that was an endless take→yield→requeue loop
         if (prev !== m.id) { this.occ.set(m.ck, m.id); if (this.coord) send(m.id, { t: 'HELLO', ck: key(this.coord), id: this.id }); }
         this.noteS1(m.ck);
         return;
@@ -233,9 +234,12 @@ class Seat {
       }
       case 'S1SYNC': {                                                               // W5: freshness-tagged Section-1 roster entries — fresher wins, staler is ignored
         for (const [ck, id, age] of m.ent) {
-          if (this.coord && ck === key(this.coord) && id !== this.id) { if (id < this.id) return this.requeue(); continue; }   // E2 via the sync stream: someone else claims MY cell — lower id keeps it, higher yields (this is how duplicates in not-yet-wired pockets of Section 1 find each other)
+          if (this.coord && ck === key(this.coord) && id !== this.id) { const seen = TICK - (age | 0) - 2; if (id < this.id && seen > (this.seatedAt || 0) + 4) return this.requeue(); continue; }   // E2 via the sync stream — TENURE-AWARE: only a claimant heard AFTER I sat outranks me; the dead ex-occupant's residue (fresh-looking for up to 120 ticks) must not assassinate the promoted seat
+          if ((age | 0) === 0 && this.coord) { const cur = this.occ.get(ck); if (cur && cur !== id && cur < id && TICK - (this.s1seen.get(ck) || -999) < 60) send(id, { t: 'YIELD', ck }); }   // the sender ITSELF claims this cell (self-entry, age 0) but a LOWER live claimant holds it in my view → tell the sender to yield. Without this, a losing head is a ZOMBIE: heads phone no one, and once every holder converges to the winner, nothing ever targets the loser again.
           const seen = TICK - (age | 0) - 2;
-          if ((this.s1seen.get(ck) || -999) < seen) { this.s1seen.set(ck, seen); if (this.occ.get(ck) !== id) this.occ.set(ck, id); }
+          const cur = this.occ.get(ck), curSeen = this.s1seen.get(ck) || -999;
+          if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur !== undefined && id < cur)) { this.s1seen.set(ck, Math.max(curSeen, seen)); if (cur !== id) this.occ.set(ck, id); }   // fresher wins — but at COMPARABLE freshness the LOWER id wins deterministically, so a duplicate pair's two cohorts converge on one claimant instead of each keeping their own (the higher dupe then hears the lower claim and yields)
+          else if (cur === undefined && seen > -999) { this.s1seen.set(ck, seen); this.occ.set(ck, id); }
         }
         return;
       }
@@ -314,6 +318,10 @@ class Seat {
       const ar = (this.coord.r - 1 + C) % C;
       let empty = true; for (let j = 0; j < C; j++) if (this.s1Fresh(key(seatOf('', ar, j)))) { empty = false; break; }
       if (empty) return this.admit(seatOf('', ar, this.coord.i), m.nc);
+      if (this.coord.i === 0) for (let j = 1; j < C; j++) {                          // H1-S1 with ARRIVALS: I'm a Section-1 head — my own row's OCC-EMPTY holes seat newcomers BEFORE my subtree does (dense-before-deep at the very top; single admitter = no race). s1Fill's phone-authoritative purge empties occ of phantoms; the shared healTry backoff keeps this and the promotion path from double-filling one cell.
+        const rc = seatOf('', this.coord.r, j); const rck = key(rc);
+        if (!this.occ.has(rck) && TICK - (this.healTry.get(rck) || -999) > 45) { this.healTry.set(rck, TICK); return this.admit(rc, m.nc); }
+      }
     }
     const free = this.firstFreeInRoster();
     if (free) return this.admit(free, m.nc);
@@ -337,16 +345,24 @@ class Seat {
     if (ownedLinks(hole).some((nb) => key(nb) === key(this.coord))) nbrs.push([key(this.coord), this.id]);   // W1: I neighbour the hole — include myself so the promoted seat can reach me (a healer that omits itself re-fires forever)
     const oc = ownerCoordOf(hole); if (oc) { const oid = this.occ.get(key(oc)); if (oid && !nbrs.some((n) => n[0] === key(oc))) nbrs.push([key(oc), oid]); }   // the promoted seat needs its owner id — REAL-TIME from my occ
     for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }   // promote a leaf strictly from BELOW me (my own subtree)…
+    if (hole.path === this.coord.path && hole.r === this.coord.r) for (const rm of shuffle(rowMates(this.coord))) {   // …P, precisely: the ROW's subtree is the union of ALL its members' subtrees — mine is empty, so promote through a live row-mate's (the findLeaf sideways-scooch guard stops musical chairs)
+      if (key(rm) === key(hole) || !this.kidful.get(key(rm))) continue; const id = this.occ.get(key(rm)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }   // only through a row-mate that HAS children (the kids bit rides every phone) — a subtree-less mate is a dead end that would shadow the section-level fallback
+    if (hole.path === '' && this.coord.path === '') {                                // …and at the TOP, P one level up again: SECTION 1 keeps itself whole from ITS subtree — the whole stadium. A lone empty head (no members, no children) asks any live home seat, via the W5 roster, to find it a leaf.
+      const r = this.s1Roster().filter((e) => e[1] !== this.id && e[0] !== key(hole));
+      if (r.length) return send(r[(rnd() * r.length) | 0][1], { t: 'FINDLEAF', hole, nbrs, ttl: 40 });
+    }
     if (hole.i === 0 && this.coord.i > 0 && !this.hasChildren()) this.promoteInto(hole, nbrs);   // …C2: a CHILDLESS frontier row that lost its head — the lowest survivor scooches itself in
   }
   findLeaf(hole, nbrs, ttl) {
     if (!this.coord) return;
     if ((ttl | 0) > 0) for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: (ttl | 0) - 1 }); }
+    if (this.coord.path === hole.path && this.coord.r === hole.r && hole.i !== 0) return;   // a subtree-less ROW-MATE never scooches sideways into a non-head hole — that just moves the hole (musical chairs)
     this.promoteInto(hole, nbrs);                                                    // no occupied child → I AM a leaf → I fill the hole
   }
   promoteInto(hole, nbrs) {
     if (!this.coord || key(this.coord) === key(hole)) return;
     if (this.coord.path === '' && hole.path !== '') return;                          // a Section-1 seat never leaves the home for a deep hole
+    if (this.coord.path === '' && hole.path === '' && !(hole.i === 0 && hole.r === this.coord.r)) return;   // …and never slides sideways within the home (that just moves the hole) — the only in-home scooch is H2: into MY OWN row's head slot
     MOVES++;
     const oldC = this.coord, seen = new Set();
     for (const nb of ownedLinks(oldC)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck: key(oldC), id: this.id }); } }
@@ -417,7 +433,7 @@ class Seat {
   onPhone(m) {
     if (!this.coord || (m.to && m.to !== key(this.coord))) return;                   // phones address a COORD — no phantom liveness
     const ck = key(m.coord); const prev = this.occ.get(ck);
-    if (prev && prev !== m.id && m.id > prev) return send(m.id, { t: 'YIELD', ck });
+    if (prev && prev !== m.id && m.id > prev && this.live.has(ck) && TICK - this.live.get(ck) <= 40) return send(m.id, { t: 'YIELD', ck });   // E2 with LIVENESS: I'm the authority for this cell (they phone me) — only a claimant I've actually heard recently outranks a new one; a dead lower id must not win
     this.occ.set(ck, m.id); this.live.set(ck, TICK); this.noteS1(ck); this.kidful.set(ck, !!m.kids); if (m.child) this.childOf.set(ck, m.child); else this.childOf.delete(ck);
     let owner = null, oCk = null, row = null;
     const myOc = this.ownerCoord(); if (myOc) { oCk = key(myOc); owner = this.occ.get(oCk) || null; }   // W2
