@@ -428,7 +428,7 @@ class Seat {
     return this.ownerCoord();                                                       // heads phone their owner — null in Section 1: the home phones no one
   }
   hasChildren() { for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) return true; } return false; }
-  lowestSurvivor() { for (let j = 1; j < this.coord.i; j++) { const id = this.occ.get(key(seatOf(this.coord.path, this.coord.r, j))); if (id && id !== this.id) return false; } return true; }
+  lowestSurvivor() { for (let j = 1; j < this.coord.i; j++) { const k = key(seatOf(this.coord.path, this.coord.r, j)); const id = this.occ.get(k); if (!id || id === this.id) continue; if (this.coord.path !== '' || this.s1Fresh(k)) return false; } return true; }   // in the HOME, a lower column only outranks me if it's actually been HEARD lately — deferring to a dead column's stale occ entry left headless rows unhealed forever (the old 'defers to a dead lower-column seat' bug, S1 edition)
   phoneHome() {
     const tc = this.phoneTargetCoord(); if (!tc) return;
     const tid = this.occ.get(key(tc));
