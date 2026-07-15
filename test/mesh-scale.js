@@ -3,17 +3,20 @@
  * (per-row ownership, bidirectional tree links; site/js/mesh.js v2).
  *
  * OWNERSHIP is per-ROW and distributed: every seat (path,r,i) owns row r of its
- * child section path·i — up to C seats reached through that row's 0th seat. The
- * root (0,0) additionally owns Section 1 (its five rows uplink to it). A row's
- * owner admits into the row, keeps it dense (in-row compaction), and — on each
- * phone-home — re-homes the row UP to the shallowest free downlink (vertical
- * compaction), which is also how a row heals when its owner absconds.
+ * child section path·i — up to C seats reached through that row's 0th seat.
+ * THERE IS NO ROOT SEAT: Section 1 (path='') is the home — 25 uniform seats,
+ * meshed by their own row + cross links, with nothing above them.
  *
- *   node test/mesh-scale.js [N] [leaveFraction]
+ *   node test/mesh-scale.js [N] [leaveFraction] [mode]
+ *     mode: a number   → fraction of N to re-add DURING healing (concurrent)
+ *           route      → validate the route() primitive after JOIN
+ *           xlink      → establish + measure cross-links after JOIN
+ *           s1row      → catastrophe: kill an ENTIRE Section-1 row (+ leaveFraction)
+ *           s1all      → catastrophe: kill ALL 25 Section-1 seats (+ leaveFraction)
  *
  * ============================ THE HEALING LAWS ============================
- * (the canonical set — docs/mesh-refactor.md carries the same list; keep them
- *  in sync. Every heal change must name which law it implements or amends.)
+ * (the canonical set — docs/mesh-refactor.md §1¾ carries the same list; keep
+ *  them in sync. Every heal change must name which law it implements.)
  *
  * P.  ONE PRINCIPLE: every row keeps itself whole by promoting a leaf from its
  *     own subtree. Child-heals-parent is the same motion one level up. A leaf
@@ -21,90 +24,93 @@
  *
  * Detection:
  * D1. Phone-home heartbeat: row-mates (i>0) phone their HEAD (P,r,0); a head
- *     phones ITS OWNER. Head hears its row; row-mates hear the head.
+ *     phones ITS OWNER — except Section-1 heads, who phone NO ONE, because
+ *     Section 1 IS the home. Head hears its row; row-mates hear the head.
  * D2. LEAVE: announced departure deletes the occ entry immediately.
  * D3. rowSweep: the head sweeps for silently-dead row cells (>50 ticks quiet).
- * D4. lastAck climbing: no PONG => my phone-target is dead (heal >40, E1 >80).
+ * D4. lastAck climbing: no PONG => my phone-target is dead (heal >40, drain >80).
  *
  * Healing:
  * H1. The HEAD heals a non-head hole in its row — only if that cell HAD
- *     children (see C1).
+ *     children (C1) — EXCEPT in Section 1, where the head proactively fills
+ *     ANY empty cell of its row, childless or not (H1-S1): the home tier is
+ *     the one place where fullness IS resilience, so C1 yields there.
  * H2. Row-mates heal a dead HEAD: the lowest-column survivor promotes a new
- *     head. Deterministic => one healer, no race.
- * H3. TWO-STEP: a head (P,r,0) heals its owner (parentPath(P), r, lastDigit(P))
- *     — the column-lastDigit(P) seat of row r in the PARENT section (generally
- *     NOT that row's head!) — from its own subtree. In Section 1: (0,r,0)
- *     refills (0,0,r). GATED on a live root, so the promoted seat can phone the
- *     root for the row-0 roster and never races the root heal.
- * H4. ROOT (0,0) re-anchors by row-0 self-heal: the lowest-column surviving
- *     row-0 seat promotes a leaf into (0,0); after 6 dead-subtree FINDLEAF
- *     rounds it scooches itself in.
- * H5. WHOLE-ROW-0 RE-MINT (deadlock breaker): if ALL of row 0 dies, H4 has no
- *     survivor and H3 has no root. A re-entrant whose greeter-WHOROOT finds no
- *     root anywhere for 5 cycles mints a genesis root. Fires only when there
- *     truly is none (greeter path is reliable). See THE OPEN PROBLEM below.
+ *     head. Deterministic => one healer, no race. Applies to Section-1 rows
+ *     exactly like any other row — no special root motion exists.
+ * H7. COLUMN BACKFILL: a Section-1 seat handed a newcomer first checks the
+ *     row ABOVE it (wrapping row 0 to the bottom row); if that row is
+ *     ENTIRELY empty, it seats the newcomer directly above itself (same
+ *     column). One designated backfiller per cell => race-free; arrival
+ *     traffic resurrects fully-dead Section-1 rows. (Sparse rows are H1-S1's
+ *     job; empty rows are H7's.)
  * H6. RELAY FRESHNESS: every Section-1 seat, on its own randomized ~25-minute
  *     timer, sends a RANDOM DESCENDANT (GREETWALK down-walk) to (re)join the
  *     greeter pool. The front door stays stocked with live members.
+ *     (H3/H4/H5 are RETIRED: they healed a special root that no longer exists.)
  *
  * Anti-cascade:
  * C1. Childless holes are NEVER filled (no dependents => no up-path through
- *     them; the kids-bit rides D1). Heads are the exception — always refilled.
- * C2. Scooch is a last resort: childless-frontier head (H2) or root (H4/H5).
- * C3. Exactly ONE healer per hole (lowestSurvivor / the head / the owner).
+ *     them) — except in Section 1 (see H1-S1). Heads are always refilled.
+ * C2. Scooch is a last resort: a childless-frontier row's head only (H2).
+ * C3. Exactly ONE healer per hole (the head / the lowest-column survivor /
+ *     the designated H7 backfiller).
  *
  * Wiring (real-time, NEVER stale gossip):
  * W1. The healer builds the promoted seat's neighbour list from its OWN live
- *     occ at promotion time.
+ *     occ at promotion time (including ITSELF when it neighbours the hole).
  * W2. EVERY PONG carries "who my owner is" => every seat learns its
- *     GRANDPARENT live. This is what lets H3 wire the new seat's up-link.
- * W3. A head's PONG to a row-mate carries the CURRENT row roster (ids + each
- *     cell's child-row head).
+ *     GRANDPARENT live.
+ * W3. A head's PONG to a row-mate carries the CURRENT row roster.
  * W4. The promoted seat HELLOs its owned links and phones up; the orphaned
  *     subtree below re-attaches by phoning the refilled cell.
+ * W5. Section 1 maintains the FULL 25-roster at every one of its seats:
+ *     freshness-tagged entries sync across the section's row meshes and
+ *     cross-links every phone beat (S1SYNC). This is what greeters serve to
+ *     newcomers and what draining subtrees re-seat against.
  *
  * Fallback:
- * E1. Severed >80 ticks => requeue through the relay — EXCEPT row-0 seats,
- *     which stay put to re-anchor (0,0) (re-entering would leave nothing to
- *     re-enter under).
- * E2. Promotion-race loser yields: two ids on one coord => the HIGHER id
- *     yields and re-enters (HELLO/YIELD). Also the dedup channel for roots.
+ * E1. THE DRAIN: a severed seat (owner chain dead >80 ticks, unhealed) does
+ *     NOT stampede the relay. It fetches the Section-1 roster over the mesh
+ *     (WHOHOME via its cross-links — sideways past the dead chain), then acts
+ *     as the greeter for its own subtree: DRAIN fans down, every member
+ *     re-seats as a newcomer against a random roster seat, the initiator
+ *     re-seats last. Only if NO route to Section 1 exists (>220 ticks) does
+ *     it fall back to relay re-entry. Section-1 seats never drain or requeue
+ *     — you cannot re-enter the home; you ARE the home.
+ * E2. Race loser yields: two ids on one coord => the HIGHER id yields (the
+ *     dedup channel for every promotion/backfill race).
  *
- * Root & entry:
- * R1. NO STORED ROOT anywhere. WHOROOT walks the live mesh to (0,0).
- * R2. The relay is GREETERS-ONLY. It never arbitrates or remembers root.
- * R3. Genesis: empty greeter list => first arrival takes (0,0).
- * R4. Seating is a ping: agree on Section 1 => dense-before-deep descent to a
- *     definitive vacancy; disagree => genuine fork, shown to the human.
+ * Home & entry:
+ * R1. NO STORED HOME anywhere. WHOHOME walks the live mesh to any Section-1
+ *     seat and gets the W5 roster back.
+ * R2. The relay is GREETERS-ONLY. It never arbitrates or remembers the home.
+ * R3. Genesis: no seated greeter and no earlier waiter => first (lowest-id)
+ *     knocker takes ('',0,0) — an ordinary seat, special only for being first.
+ * R4. Seating is a ping: pick a RANDOM Section-1 seat off the roster, descend
+ *     its tree dense-before-deep to a definitive vacancy (H7 first).
  *
- * ---------------------------- THE OPEN PROBLEM ----------------------------
- * This ruleset does NOT yet converge to ONE root after a whole-row-0 wipe.
- * H5 prevents the collapse (everyone re-seats), but killing all five row-0
- * seats at once SHATTERS the mesh into disconnected islands; each island
- * honestly observes "no root" and mints its own (0,0) (~180 roots measured at
- * N=1000). E2's yield-by-id can only dedup roots that HEAR about each other,
- * and partitioned islands share exactly one surface — the relay — which R2
- * forbids from arbitrating root. So no current rule merges the islands back
- * into one tree: per-cell healing is solved, PARTITION MERGE is not. The
- * likely lever is H6 (all islands keep touching the shared greeter pool, so a
- * greeter walk / re-entrant could carry "a root already exists" across
- * islands), but that motion is not yet a law.
+ * THE OLD OPEN PROBLEM (partition merge / root minting) IS DISSOLVED: with no
+ * root there is nothing to mint. Orphaned subtrees DRAIN into the surviving
+ * Section 1 instead of founding islands; total-Section-1 death cascades
+ * through the drain fallback to a single serialized genesis (R3) and the room
+ * rebuilds itself.
  * ==========================================================================
- *
- * This build proves JOIN convergence on the v2 topology first; healing follows.
  */
 'use strict';
 const M = require('../site/js/mesh.js');
 const C = M.C, key = M.key, seatOf = M.seat;
 const N = parseInt(process.argv[2] || '10000', 10);
 const LEAVE = parseFloat(process.argv[3] || '0');
+const MODE = process.argv[4] || '';
+const READD = /^[\d.]+$/.test(MODE) ? parseFloat(MODE) : 0;
 
 let _seed = 20260714;
 const rnd = () => { _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _seed / 0x7fffffff; };
 const shuffle = (a) => { for (let k = a.length - 1; k > 0; k--) { const j = (rnd() * (k + 1)) | 0; const t = a[k]; a[k] = a[j]; a[j] = t; } return a; };
 const pickN = (a, k) => { if (a.length <= k) return a.slice(); const o = [], u = new Set(); while (o.length < k) { const j = (rnd() * a.length) | 0; if (!u.has(j)) { u.add(j); o.push(a[j]); } } return o; };
 
-const buckets = new Map(); let TICK = 0, inflight = 0, HEALING = false, MOVES = 0;
+const buckets = new Map(); let TICK = 0, inflight = 0, HEALING = true, MOVES = 0;   // continuous operation from t=0 — reality has no join phase where seats stop phoning
 const send = (to, msg) => { const at = TICK + 1 + ((rnd() * 3) | 0); let b = buckets.get(at); if (!b) buckets.set(at, b = []); b.push({ to, msg }); inflight++; };
 
 const upCoord = M.up, downCoord = M.down, rowMates = M.rowMates, crossLink = M.crossLink, ownedLinks = M.ownedLinks;
@@ -116,315 +122,404 @@ const ownedRowHead = (s) => seatOf(M.childPath(s.path, s.i), s.r, 0);
 const ownedRowSeat = (s, col) => seatOf(M.childPath(s.path, s.i), s.r, col);
 
 // Relay: single front door for the whole STADIUM (one room = one URL).
-const relay = { g: [], set: new Set(), recent: [],
+// Greeters-only (R2): no home pointer, no arbitration. Genesis (R3) is
+// serialized through the arrival stream: with no seated greeter, the
+// lowest-id waiter founds; everyone else waits on it.
+const relay = { g: [], set: new Set(), recent: [], founder: null, founderAt: -999,
   open(id) { if (!this.set.has(id)) { this.set.add(id); this.g.push(id); } },
-  knock(id) {                                                                     // greeters ONLY — no founder/root pointer. Genesis serialises through the arrival stream.
-    const out = []; for (let k = 0; k < this.g.length && out.length < 6; k++) { const c = this.g[k]; const s = seats.get(c); if (s && s.alive && s.state === 'seated' && c !== id) out.push(c); }   // EARLIEST seated = shallow = reliably root-connected. A greeter only relays WHOROOT→root, so reliability beats recency; placement disperses in root's dense descent, not here.
-    if (out.length === 0) for (let k = this.recent.length - 1; k >= 0 && out.length < 4; k--) { const c = this.recent[k]; const s = seats.get(c); if (s && s.alive && c !== id) out.push(c); }   // none seated yet → hand out recent knockers so the SECOND arrival waits on the first (empty ⇒ genesis root)
-    this.recent.push(id); if (this.recent.length > 8) this.recent.shift();
+  knock(id) {
+    const out = []; for (let k = 0; k < this.g.length && out.length < 6; k++) { const c = this.g[k]; const s = seats.get(c); if (s && s.alive && s.state === 'seated' && c !== id) out.push(c); }   // EARLIEST seated = shallow = reliably home-connected
+    if (out.length === 0) {                                                          // R3 genesis, SERIALIZED: designate ONE founder and make every later knocker wait on it — a second designation while the first is mid-seat forks the room
+      const f = this.founder ? seats.get(this.founder) : null;
+      const fOk = f && f.alive && (f.state === 'seated' || TICK - this.founderAt < 200);
+      if (!fOk || this.founder === id) { this.founder = id; this.founderAt = TICK; this.recent.push(id); if (this.recent.length > 12) this.recent.shift(); return send(id, { t: 'GREETERS', list: [] }); }
+      out.push(this.founder);
+    }
+    this.recent.push(id); if (this.recent.length > 12) this.recent.shift();
     send(id, { t: 'GREETERS', list: shuffle(out) });
   } };
 
 const seats = new Map(); let nextId = 0;
 let active = new Set(); const wake = (id) => active.add(id);
+const GREET_PERIOD = 800;   // H6: base ticks between a Section-1 seat's greeter-refresh walks (randomized per seat, per fire) — the sim's stand-in for the ~25-minute real timer
 
 class Seat {
   constructor(id) {
     this.id = id; this.coord = null; this.occ = new Map();   // occ: coord-key -> id, for cells I know (my roster + neighbours)
-    this.state = 'joining'; this.alive = true; this.retryAt = -1; this.rootOwner = null; this.candidates = [];
+    this.state = 'joining'; this.alive = true; this.retryAt = -1; this.roster = null; this.seatTries = 0;
     this.live = new Map();                                    // owner side: roster-cell key -> last-phone tick
-    this.lastPhone = -99; this.lastAck = 0; this.myOwner = null;
-    this.healAt = -99;   // healing: last promotion attempt tick cached id of my row's owner (gossiped by the head, so any survivor can promote a new head that knows where to phone up).
-    this.kidful = new Map();   // row-mate cell -> does it have downlinks (children)? A hole left by a CHILDLESS sibling has no dependents, so we never fill it (kills come-and-go churn).
-    this.childOf = new Map();   // row-mate cell -> that cell's CHILD-ROW HEAD id (shared live across the row) so a healer can attach the downlink at promotion → the orphan reconnects in one hop, no relay re-entry.
+    this.lastPhone = -99; this.lastAck = 0;
+    this.healAt = -99;                                        // healing throttle: last promotion attempt tick
+    this.kidful = new Map();   // row-mate cell -> does it have downlinks? (C1: a childless leaver's hole is never filled — outside Section 1)
+    this.childOf = new Map();  // row-mate cell -> that cell's CHILD-ROW HEAD id (W3) so a healer can wire the downlink at promotion
+    this.s1seen = new Map();   // W5: Section-1 cell key -> last tick I heard it live (freshness for the 25-roster + H7's empty-row check)
+    this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0; this.greetAt = undefined; this.healTry = new Map();   // per-hole backoff: a promotion needs its full round trip (FINDLEAF descent + take + HELLO back) before the healer may re-fire — re-firing early mints duplicates
   }
-  isRoot() { return this.coord && this.coord.path === '' && this.coord.r === 0 && this.coord.i === 0; }
+  inS1() { return this.coord !== null && this.coord.path === ''; }
+  noteS1(ck) { if (ck.charCodeAt(0) === 47) this.s1seen.set(ck, TICK); }   // '/' prefix = a Section-1 cell key
+  s1Fresh(ck) { const at = this.s1seen.get(ck); return at !== undefined && TICK - at < 120 && this.occ.has(ck); }
 
-  // ---- roster: the cells I admit into ------------------------------------
-  // The root owns all of Section 1 (25). Everyone else owns their single child
-  // row (≤C). rosterCells() lists the coords I'm the authority for.
+  // ---- roster: the cells I admit into (uniform: my ONE child row) ---------
   rosterCells() {
     if (!this.coord) return [];
-    const out = [];
-    if (this.isRoot()) { for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) out.push(seatOf('', r, i)); }
-    else { const h = ownedRowHead(this.coord); for (let c = 0; c < C; c++) out.push(seatOf(h.path, h.r, c)); }
+    const out = []; const h = ownedRowHead(this.coord);
+    for (let c = 0; c < C; c++) out.push(seatOf(h.path, h.r, c));
     return out;
   }
   firstFreeInRoster() { for (const c of this.rosterCells()) if (!this.occ.has(key(c))) return c; return null; }
-  rosterFull() { return this.firstFreeInRoster() === null; }
 
-  // ---- join --------------------------------------------------------------
-  join() { this.state = 'joining'; this.retryAt = TICK; this.rootOwner = null; send('relay', { t: 'KNOCK', id: this.id }); wake(this.id); }
-  askRoot(target) { this.state = 'searching'; this.retryAt = TICK; send(target, { t: 'FIND', nc: this.id, ttl: 200 }); }
+  // ---- join ----------------------------------------------------------------
+  join() { this.state = 'joining'; this.retryAt = TICK; this.roster = null; send('relay', { t: 'KNOCK', id: this.id }); wake(this.id); }
+  askSeat(target) { this.state = 'searching'; this.retryAt = TICK; send(target, { t: 'FIND', nc: this.id, ttl: 200 }); }
+  pickRoster() { const live = this.roster.filter((e) => e[1] !== this.id); return live.length ? live[(rnd() * live.length) | 0][1] : null; }   // R4: a newcomer picks a RANDOM Section-1 seat — 25 co-equal entry trees, no bottleneck
 
   recv(m) {
     if (!this.alive) return;
     switch (m.t) {
       case 'GREETERS':
-        if (m.list.length === 0) { if (this.state === 'joining') return this.take(seatOf('', 0, 0), null, []); return; }   // empty ⇒ genesis founder = root (0,0)
-        if (this.state === 'joining') { send(m.list[0], { t: 'WHOROOT', from: this.id, ttl: 60 }); this.state = 'asking'; this.retryAt = TICK; }
+        if (m.list.length === 0) { if (this.state === 'joining') return this.take(seatOf('', 0, 0), null, []); return; }   // R3 genesis: the relay says I'm first → found the home
+        if (this.state === 'joining') { send(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 'asking'; this.retryAt = TICK; }
         return;
-      case 'WHOROOT': {                                                                // a newcomer/re-entrant finds the CURRENT root by walking the MESH to (0,0). No cache.
-        if (!this.coord || (m.ttl | 0) <= 0) return;
-        if (this.isRoot()) return send(m.from, { t: 'ROOT', root: this.id });
-        const fwd = (id) => { if (id && id !== this.id && id !== m.via) { send(id, { t: 'WHOROOT', from: m.from, via: this.id, ttl: (m.ttl | 0) - 1 }); return true; } return false; };
-        if (this.coord.i !== 0) { if (fwd(this.occ.get(key(seatOf(this.coord.path, this.coord.r, 0))))) return; }   // CLIMB: not my row's head → route to the head (it holds the uplink)
-        else if (fwd(this.ownerId())) return;                                          // I AM the head → go UP to my owner
-        const x = crossLink(this.coord); if (x && fwd(this.occ.get(key(x)))) return;   // uplink absent/unknown → hop SIDEWAYS to a row that can climb
+      case 'WHOHOME': {                                                              // R1: find Section 1 by walking the LIVE MESH — no cache, no stored pointer
+        if (!this.coord) return send(m.from, { t: 'HOME', roster: [] });             // I'm nobody right now — tell the asker fast so it retries elsewhere
+        if ((m.ttl | 0) <= 0) return;
+        if (this.coord.path === '') return send(m.from, { t: 'HOME', roster: this.s1Roster() });   // I AM the home → serve the W5 roster
+        const fwd = (id) => { if (id && id !== this.id && id !== m.via) { send(id, { t: 'WHOHOME', from: m.from, via: this.id, ttl: (m.ttl | 0) - 1 }); return true; } return false; };
+        if (this.coord.i !== 0) { if (fwd(this.occ.get(key(seatOf(this.coord.path, this.coord.r, 0))))) return; }   // CLIMB: route to my row's head (it holds the uplink)
+        else if (fwd(this.ownerId())) return;                                        // I AM the head → go UP to my owner
+        const x = crossLink(this.coord); if (x && fwd(this.occ.get(key(x)))) return; // uplink dead/unknown → escape SIDEWAYS to a row that can climb
         for (const rm of rowMates(this.coord)) { const cx = crossLink(rm); if (cx && fwd(this.occ.get(key(cx)))) return; }
         return;
       }
-      case 'ROOT': if (this.state === 'asking') { this.noRoot = 0; this.rootOwner = m.root; this.askRoot(m.root); } return;   // found a live root → reset the no-root-remint countdown and search for a seat under it
+      case 'HOME':
+        if (this.state === 'asking') {
+          if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; }   // walk dead-ended — recycle quickly
+          this.roster = m.roster; this.seatTries = 0;
+          const t = this.pickRoster(); if (t) this.askSeat(t); else this.retryAt = TICK - 10;
+        } else if (this.state === 'seated' && m.roster && m.roster.length) this.roster = m.roster;   // E1: a severed seat fetched the roster → next tick it drains
+        return;
       case 'FIND': return this.serveFind(m);
-      case 'FINDLEAF': return this.findLeaf(m.hole, m.nbrs, m.ttl);                    // a healer's probe descending its subtree to a leaf, which promotes into the hole
-      case 'PLACE': if (this.state === 'searching') this.take(m.coord, m.owner, m.nbrs, m.rootOwner); return;
-      case 'NOROOM': if (this.state === 'searching') { this.retryAt = TICK; if (this.rootOwner) this.askRoot(this.rootOwner); else this.join(); } return;
+      case 'FINDLEAF': return this.findLeaf(m.hole, m.nbrs, m.ttl);                  // a healer's probe descending its subtree to a leaf, which promotes into the hole
+      case 'PLACE': if (this.state === 'searching') this.take(m.coord, m.owner, m.nbrs); return;
+      case 'NOROOM':
+        if (this.state === 'searching') { this.retryAt = TICK; if (this.roster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t) return this.askSeat(t); } this.seatTries = 0; this.join(); }
+        return;
       case 'HELLO': {
-        if (HEALING && this.coord && this.state === 'seated' && m.ck === key(this.coord) && m.id !== this.id && m.id < this.id) return this.requeue();   // a lower id also holds my coord (promotion race) — I yield and re-enter
+        if (this.coord && this.state === 'seated' && m.ck === key(this.coord) && m.id !== this.id && m.id < this.id) return this.requeue();   // E2: a lower id also holds my coord — I yield
         const prev = this.occ.get(m.ck);
-        if (HEALING && prev && prev !== m.id) send(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });    // I see TWO ids on one cell — the higher yields
+        if (prev && prev !== m.id) send(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });    // E2: I see TWO ids on one cell — the higher yields
         if (prev !== m.id) { this.occ.set(m.ck, m.id); if (this.coord) send(m.id, { t: 'HELLO', ck: key(this.coord), id: this.id }); }
+        this.noteS1(m.ck);
         return;
       }
-      case 'YIELD': if (HEALING && this.coord && this.state === 'seated' && key(this.coord) === m.ck) return this.requeue(); return;
-      case 'CLAIM': if (this.occ.get(m.ck) !== m.id) { this.occ.set(m.ck, m.id); this.live.set(m.ck, TICK); } return;   // a seat that phoned me confirms; keep my view
+      case 'YIELD': if (this.coord && this.state === 'seated' && key(this.coord) === m.ck) return this.requeue(); return;
+      case 'CLAIM': if (this.occ.get(m.ck) !== m.id) { this.occ.set(m.ck, m.id); this.live.set(m.ck, TICK); } this.noteS1(m.ck); return;
       case 'LEAVE': {
         const hadKids = this.kidful.get(m.ck);
-        if (this.occ.get(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); }
+        if (this.occ.get(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); }
         if (HEALING && this.coord && this.state === 'seated') {
           const [pr, ii] = m.ck.split('.'); const [pth, rr] = pr.split('/'); const ci = +ii, cr = +rr;
           if (pth === this.coord.path && cr === this.coord.r && ci !== this.coord.i) {   // a hole opened in MY row → keep the row whole
-            if (ci === 0 && this.coord.i > 0 && this.lowestSurvivor()) return this.heal(seatOf(pth, cr, 0));   // head hole → the lowest-column survivor promotes a new head (row-mates relay through it, so always refill)
-            if (ci > 0 && this.coord.i === 0 && hadKids) return this.heal(seatOf(pth, cr, ci));   // non-head hole → the head promotes, but ONLY if that sibling had downlinks (a childless leaver is never filled)
+            if (ci === 0 && this.coord.i > 0 && this.lowestSurvivor()) return this.heal(seatOf(pth, cr, 0));   // H2: head hole → the lowest-column survivor refills it
+            if (ci > 0 && this.coord.i === 0 && (hadKids || pth === '')) return this.heal(seatOf(pth, cr, ci));   // H1: non-head hole → the head refills it IF it had downlinks — or unconditionally in Section 1 (H1-S1)
           }
         }
         return;
       }
-      case 'GREETWALK': {                                                            // H6: a random descendant walk started by a Section-1 seat — keep walking down to a random occupied child, then that seat refreshes itself into the greeter pool
+      case 'GREETWALK': {                                                            // H6: a random descendant walk from a Section-1 seat — walk down to a random occupied child, that seat becomes a greeter
         if (!this.coord || this.state !== 'seated') return;
         if ((m.ttl | 0) > 0) { const kids = []; for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) kids.push(id); } if (kids.length) return send(kids[(rnd() * kids.length) | 0], { t: 'GREETWALK', ttl: (m.ttl | 0) - 1 }); }
-        return relay.open(this.id);                                                  // I'm the chosen descendant → make myself a greeter (front door stays stocked with live members, no matter how the tree churns)
+        return relay.open(this.id);
       }
-      case 'PHONE': return this.onPhone(m);                                          // a seat that phones me (my row-mate if I'm the head; my child head if I'm the owner)
-      case 'PONG': this.lastAck = TICK; if (m.oCk && m.owner && this.occ.get(m.oCk) !== m.owner) this.occ.set(m.oCk, m.owner); if (m.row) for (const [k, id, ch] of m.row) { if (this.occ.get(k) !== id) this.occ.set(k, id); if (ch) this.childOf.set(k, ch); } return;   // answered live + handed me my grandparent (owner's owner) AND, if from my head, the row roster → I can wire the up-link when healing my owner, and wire around any row-mate that vanishes
+      case 'S1SYNC': {                                                               // W5: freshness-tagged Section-1 roster entries — fresher wins, staler is ignored
+        for (const [ck, id, age] of m.ent) {
+          if (this.coord && ck === key(this.coord) && id !== this.id) { if (id < this.id) return this.requeue(); continue; }   // E2 via the sync stream: someone else claims MY cell — lower id keeps it, higher yields (this is how duplicates in not-yet-wired pockets of Section 1 find each other)
+          const seen = TICK - (age | 0) - 2;
+          if ((this.s1seen.get(ck) || -999) < seen) { this.s1seen.set(ck, seen); if (this.occ.get(ck) !== id) this.occ.set(ck, id); }
+        }
+        return;
+      }
+      case 'DRAIN': {                                                                // E1: my subtree is re-homing — fan down first, then re-seat myself against the roster
+        if (!this.coord || this.state !== 'seated' || this.coord.path === '' || this.drainAt) return;
+        this.roster = m.roster;
+        for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) send(id, { t: 'DRAIN', roster: m.roster }); }
+        this.drainAt = TICK + 6 + ((rnd() * 12) | 0); wake(this.id);
+        return;
+      }
+      case 'PHONE': return this.onPhone(m);
+      case 'PONG':
+        this.lastAck = TICK;
+        if (m.oCk && m.owner && this.occ.get(m.oCk) !== m.owner) { this.occ.set(m.oCk, m.owner); this.noteS1(m.oCk); }   // W2: my grandparent, live
+        if (m.row) for (const [k, id, ch] of m.row) { if (this.occ.get(k) !== id) this.occ.set(k, id); this.noteS1(k); if (ch) this.childOf.set(k, ch); }   // W3: my row roster
+        return;
       case 'ROUTE': {
         if (!this.coord) return;
-        if (key(this.coord) === key(m.target)) return send(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: this.id });   // I'm the target — hand back the live connection
+        if (key(this.coord) === key(m.target)) return send(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: this.id });
         if ((m.ttl | 0) <= 0) return send(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null });
         const nh = this.nextHopToward(m.target, m.via);
         if (nh) return send(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: (m.ttl | 0) - 1, via: this.id });
-        return send(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null });   // no live neighbour is closer — dead end (target empty/unreachable)
+        return send(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null });
       }
       case 'ROUTED':
-        if (m.tag === 'xlink') { if (m.id && this.coord) { this.occ.set(key(m.target), m.id); send(m.id, { t: 'HELLO', ck: key(this.coord), id: this.id }); } return; }   // discovered my cross-partner → record it and HELLO so it records me (bidirectional)
-        if (m.tag === 'owner') { if (m.id && this.coord) { this.occ.set(key(m.target), m.id); this.lastPhone = TICK - 100; } return; }   // rediscovered my owner → record it and phone it right away (reconnected, no re-entry)
+        if (m.tag === 'xlink') { if (m.id && this.coord) { this.occ.set(key(m.target), m.id); this.noteS1(key(m.target)); send(m.id, { t: 'HELLO', ck: key(this.coord), id: this.id }); } return; }
         if (this._onRouted) this._onRouted(m); return;
     }
   }
   routeTo(target, tag) { const nh = this.nextHopToward(target); if (key(this.coord) === key(target)) { if (this._onRouted) this._onRouted({ tag, target, id: this.id }); return; } if (nh) send(nh, { t: 'ROUTE', target, asker: this.id, tag, ttl: 60, via: this.id }); else if (this._onRouted) this._onRouted({ tag, target, id: null }); }
-  probeXlink() { const x = this.coord && crossLink(this.coord); if (x && !this.occ.get(key(x))) this.routeTo(x, 'xlink'); }   // establish my cross-link by routing to my transpose partner (over up/down/row — needs no cross-links)
+  probeXlink() { const x = this.coord && crossLink(this.coord); if (x && !this.occ.get(key(x))) this.routeTo(x, 'xlink'); }   // establish my cross-link by routing to my transpose partner (over up/down/row)
 
-  ownerId() {                                                                       // the seat that owns me (where my row's 0th seat uplinks)
-    if (!this.coord || this.isRoot()) return null;
+  ownerId() {
+    if (!this.coord) return null;
     const u = upCoord(seatOf(this.coord.path, this.coord.r, 0));
     return u ? (this.occ.get(key(u)) || null) : null;
   }
+  s1Roster() {                                                                      // W5: my freshness-filtered view of Section 1 (always includes myself if I'm home)
+    const out = []; if (this.coord && this.coord.path === '') out.push([key(this.coord), this.id]);
+    for (const [ck, id] of this.occ) if (ck.charCodeAt(0) === 47 && id !== this.id && this.s1Fresh(ck)) out.push([ck, id]);
+    return out;
+  }
 
-  // ---- route: a live connection to ANY coordinate, over 100%-wired links ----
-  // Rows can only change at Section 1 (via the row-0 hub of the internal tree),
-  // so: a target in a DIFFERENT row → climb to Section 1, cross row-0 to the
-  // target row, then descend; a target in the SAME row → just climb to the
-  // common ancestor and descend by path. Every hop is an up / down / row-mate
-  // link — all 100% established — so this needs NO cross-links (and is exactly
-  // what bootstraps them).
+  // ---- route: a live connection to ANY coordinate ---------------------------
+  // Rows change INSIDE Section 1 via its own cross-links (there is no hub):
+  // climb to Section 1 preserving my row, hop the cross-link that lands on the
+  // target row, then descend by path. Same-row targets: climb to the common
+  // ancestor and descend. Every hop is an up / down / row / S1-cross link.
   nextHopCoord(t) {
-    const C = this.coord;
-    if (C.path === t.path && C.r === t.r && C.i === t.i) return null;               // arrived
-    if (C.r !== t.r) {                                                              // ROW CHANGE → do it at Section 1
-      if (C.path !== '') return C.i !== 0 ? seatOf(C.path, C.r, 0) : upCoord(C);    // climb (up preserves my row) to Section 1
-      if (C.r !== 0) return C.i !== 0 ? seatOf('', C.r, 0) : upCoord(C);            // Section-1 row r → head → up to its owner (0,0,r) on row 0
-      if (C.i !== t.r) return seatOf('', 0, t.r);                                   // on row 0: slide to column t.r …
-      return seatOf('', t.r, 0);                                                    // … then down into row t.r (its head phones (0,0,t.r), so it's known)
+    const c = this.coord;
+    if (c.path === t.path && c.r === t.r && c.i === t.i) return null;               // arrived
+    if (c.r !== t.r) {                                                              // ROW CHANGE → do it in Section 1
+      if (c.path !== '') return c.i !== 0 ? seatOf(c.path, c.r, 0) : upCoord(c);    // climb (up preserves my row)
+      for (let j = 1; j < C; j++) { const x = crossLink(seatOf('', c.r, j)); if (x && x.r === t.r) return c.i === j ? x : seatOf('', c.r, j); }   // find the column whose cross lands on the target row; walk to it, then hop
+      return null;
     }
-    const pa = C.path, pb = t.path;                                                 // SAME ROW → navigate by path
+    const pa = c.path, pb = t.path;                                                 // SAME ROW → navigate by path
     let l = 0; while (l < pa.length && l < pb.length && pa[l] === pb[l]) l++;
-    if (l < pa.length) return C.i !== 0 ? seatOf(pa, C.r, 0) : upCoord(C);          // climb to the common ancestor
-    if (pa.length < pb.length) { const d = +pb[pa.length]; return C.i !== d ? seatOf(pa, C.r, d) : M.down(C); }   // descend: align column to the path digit, then down
-    return seatOf(pa, C.r, t.i);                                                    // same section + row → row-mate
+    if (l < pa.length) return c.i !== 0 ? seatOf(pa, c.r, 0) : upCoord(c);          // climb to the common ancestor
+    if (pa.length < pb.length) { const d = +pb[pa.length]; return c.i !== d ? seatOf(pa, c.r, d) : M.down(c); }   // descend: align column to the path digit, then down
+    return seatOf(pa, c.r, t.i);                                                    // same section + row → row-mate
   }
   nextHopToward(target, exclude) {
     if (!this.coord) return null;
     const ideal = this.nextHopCoord(target);
     if (ideal) { const id = this.occ.get(key(ideal)); if (id && id !== this.id && id !== exclude) return id; }
-    const x = crossLink(this.coord); if (x) { const id = this.occ.get(key(x)); if (id && id !== this.id && id !== exclude) return id; }   // ideal hop is a HOLE (e.g. my dead owner) → escape SIDEWAYS via a cross-link to a row that can proceed
+    const x = crossLink(this.coord); if (x) { const id = this.occ.get(key(x)); if (id && id !== this.id && id !== exclude) return id; }   // ideal hop is a hole → escape SIDEWAYS
     for (const rm of rowMates(this.coord)) { const cx = crossLink(rm); if (!cx) continue; const id = this.occ.get(key(cx)); if (id && id !== this.id && id !== exclude) return id; }
     return null;
   }
 
-  // Serve "find me a seat": admit into my roster (dense) or descend to a child
-  // row that has room. Dense-before-deep: my roster fills before my children.
+  // ---- seating: H7 first, then dense-before-deep down my own tree ----------
   serveFind(m) {
     if (!this.coord || (m.ttl | 0) <= 0) return send(m.nc, { t: 'NOROOM' });
+    if (this.coord.path === '') {                                                   // H7: if the row ABOVE me (wrap row 0 → bottom) is ENTIRELY empty, the newcomer resurrects it — directly above me, my column
+      const ar = (this.coord.r - 1 + C) % C;
+      let empty = true; for (let j = 0; j < C; j++) if (this.s1Fresh(key(seatOf('', ar, j)))) { empty = false; break; }
+      if (empty) return this.admit(seatOf('', ar, this.coord.i), m.nc);
+    }
     const free = this.firstFreeInRoster();
     if (free) return this.admit(free, m.nc);
-    // roster full — hand the newcomer down to one of my roster seats, whose own
-    // roster (a deeper row) may have room. Round-robin/random for balance.
-    const cells = shuffle(this.rosterCells());
+    const cells = shuffle(this.rosterCells());                                      // roster full → hand down to a child that may have room
     for (const c of cells) { const occId = this.occ.get(key(c)); if (occId && occId !== this.id) return send(occId, { t: 'FIND', nc: m.nc, ttl: (m.ttl | 0) - 1 }); }
     return send(m.nc, { t: 'NOROOM' });
   }
   admit(coord, nc) {
-    this.occ.set(key(coord), nc);
+    this.occ.set(key(coord), nc); this.noteS1(key(coord));
     const nbrs = []; for (const nb of ownedLinks(coord)) { const id = this.occ.get(key(nb)); if (id && id !== nc) nbrs.push([key(nb), id]); }
-    send(nc, { t: 'PLACE', coord, owner: this.id, nbrs, rootOwner: this.isRoot() ? this.id : this.rootOwner });
+    if (ownedLinks(coord).some((nb) => key(nb) === key(this.coord))) nbrs.push([key(this.coord), this.id]);   // W1: I may neighbour the cell I'm admitting into (H7 backfill) — include myself
+    send(nc, { t: 'PLACE', coord, owner: this.id, nbrs });
   }
 
-  // ---- healing: ONE motion — every row keeps ITSELF whole -----------------
-  // A row watches its own C cells. A hole (a cell that was occupied and departed)
-  // is filled by a survivor promoting a LEAF from its own subtree into it — never
-  // by moving a subtree. Roles within the row: the head heals its non-head cells
-  // (it hears them phone), the row-mates heal the head (they hear it PONG); first
-  // writer wins, losers re-enter via the relay. The hole's orphaned subtree
-  // re-attaches on its own once the cell is filled (it just phones the new
-  // occupant). (0,0) is healed by its own row 0 — same motion — so the root
-  // re-anchors for free, with no root stored anywhere.
+  // ---- healing: ONE motion — every row keeps ITSELF whole (P) ---------------
   heal(hole) {
-    if (!this.coord || this.state !== 'seated' || TICK - this.healAt < 12) return;    // throttle: one promotion attempt in flight
-    this.healAt = TICK;
-    const rootHole = hole.path === '' && hole.r === 0 && hole.i === 0;
+    if (!this.coord || this.state !== 'seated' || TICK - this.healAt < 12) return;   // throttle: one promotion attempt in flight
+    if (TICK - (this.healTry.get(key(hole)) || -999) < 45) return;                  // per-hole backoff: wait out the promotion round trip before re-firing (C3 — one healer AND one attempt at a time)
+    this.healAt = TICK; this.healTry.set(key(hole), TICK);
     const nbrs = []; for (const nb of ownedLinks(hole)) { const id = this.occ.get(key(nb)); if (id && id !== this.id) nbrs.push([key(nb), id]); }
-    if (rootHole && ownedLinks(hole).some((nb) => key(nb) === key(this.coord))) nbrs.push([key(this.coord), this.id]);   // the ROOT hole has no owner to phone, so the new root reconnects to me (its row-mate healer) only by announce — include me so it tells me it exists and I stop re-firing (else duplicate roots)
-    const oc = this.ownerCoordOf(hole); if (oc) { const oid = this.occ.get(key(oc)); if (oid && !nbrs.some((n) => n[0] === key(oc))) nbrs.push([key(oc), oid]); }   // the promoted seat needs its owner id — REAL-TIME from my occ, never gossip
-    if (rootHole && this.coord.i > 0) {                                              // ROOT re-anchor (H4): try to promote a leaf from my subtree, but if that keeps failing (subtree is dead — its occ entries are stale), scooch in myself so (0,0) actually fills
-      this.rootTries = (this.rootTries || 0) + 1;
-      if (this.rootTries <= 6) for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }
-      return this.promoteInto(hole, nbrs);                                           // >6 failed rounds, or no occupied child → scooch (chasing dead children forever was the roots=0 collapse)
-    }
-    for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }   // promote a leaf strictly from BELOW me (child-heals-parent, my own subtree)…
-    if (hole.i === 0 && this.coord.i > 0 && !this.hasChildren()) this.promoteInto(hole, nbrs);   // …unless a CHILDLESS frontier row lost its head — then the lowest survivor scooches itself in
+    if (ownedLinks(hole).some((nb) => key(nb) === key(this.coord))) nbrs.push([key(this.coord), this.id]);   // W1: I neighbour the hole — include myself so the promoted seat can reach me (a healer that omits itself re-fires forever)
+    const oc = ownerCoordOf(hole); if (oc) { const oid = this.occ.get(key(oc)); if (oid && !nbrs.some((n) => n[0] === key(oc))) nbrs.push([key(oc), oid]); }   // the promoted seat needs its owner id — REAL-TIME from my occ
+    for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); }   // promote a leaf strictly from BELOW me (my own subtree)…
+    if (hole.i === 0 && this.coord.i > 0 && !this.hasChildren()) this.promoteInto(hole, nbrs);   // …C2: a CHILDLESS frontier row that lost its head — the lowest survivor scooches itself in
   }
-  findLeaf(hole, nbrs, ttl) {                                                         // a DESCENDED node: keep going to a leaf, then that leaf fills the hole
+  findLeaf(hole, nbrs, ttl) {
     if (!this.coord) return;
     if ((ttl | 0) > 0) for (const c of shuffle(this.rosterCells())) { const id = this.occ.get(key(c)); if (id && id !== this.id) return send(id, { t: 'FINDLEAF', hole, nbrs, ttl: (ttl | 0) - 1 }); }
-    this.promoteInto(hole, nbrs);                                                     // no occupied child → I AM a leaf → I fill the hole
+    this.promoteInto(hole, nbrs);                                                    // no occupied child → I AM a leaf → I fill the hole
   }
   promoteInto(hole, nbrs) {
-    if (this.isRoot() || key(this.coord) === key(hole)) return;
+    if (!this.coord || key(this.coord) === key(hole)) return;
+    if (this.coord.path === '' && hole.path !== '') return;                          // a Section-1 seat never leaves the home for a deep hole
     MOVES++;
-    const oldC = this.coord, seen = new Set();                                        // vacate my old (frontier) cell — it's a childless leaf, so siblings won't re-fill it (no cascade)
+    const oldC = this.coord, seen = new Set();
     for (const nb of ownedLinks(oldC)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck: key(oldC), id: this.id }); } }
-    this.occ = new Map();
-    this.take(hole, null, nbrs, this.rootOwner);                                      // become the hole; announce → the subtree below re-attaches, I phone up
+    this.occ = new Map(); this.s1seen = new Map();
+    this.take(hole, null, nbrs);
     this.lastAck = TICK; this.lastPhone = TICK - 100;
   }
-  requeue() {                                                                        // give up my seat (severed branch / promotion-race loser) and re-enter from the front door
+  requeue() {                                                                       // last resort (E1 fallback / E2 loser): give up the seat, re-enter the front door
     const oldC = this.coord; MOVES++;
     if (oldC) { const seen = new Set(); for (const nb of ownedLinks(oldC)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck: key(oldC), id: this.id }); } } }
-    this.coord = null; this.occ = new Map(); this.rootOwner = null;
+    this.coord = null; this.occ = new Map(); this.s1seen = new Map(); this.drainAt = 0;
     this.join();
   }
 
-  // ---- take a seat -------------------------------------------------------
-  take(coord, owner, nbrs, rootOwner) {
-    this.coord = coord; this.state = 'seated'; this.occ.set(key(coord), this.id);
-    this.rootOwner = rootOwner || (coord.path === '' && coord.r === 0 && coord.i === 0 ? this.id : this.rootOwner);
-    if (nbrs) for (const [k, id] of nbrs) if (!this.occ.has(k)) this.occ.set(k, id);
+  // ---- E1: the drain — my subtree re-homes over the mesh, not the relay -----
+  drainOrReenter() {
+    if (this.roster && this.roster.length) {                                        // roster in hand → drain: children first, me last
+      if (!this.drainAt) {
+        for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) send(id, { t: 'DRAIN', roster: this.roster }); }
+        this.drainAt = TICK + 25 + ((rnd() * 10) | 0);
+      }
+      return;
+    }
+    if (TICK - this.rosterAskAt > 40) {                                             // fetch the roster over the mesh: sideways past my dead chain via cross-links
+      this.rosterAskAt = TICK;
+      const x = crossLink(this.coord); const xid = x && this.occ.get(key(x));
+      if (xid && xid !== this.id) send(xid, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 });
+      else { for (const rm of shuffle(rowMates(this.coord))) { const id = this.occ.get(key(rm)); if (id && id !== this.id) { send(id, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 }); break; } } }
+    }
+    if (TICK - this.lastAck > 220) return this.requeue();                           // no route to Section 1 at all → abandon ship, relay front door
+  }
+  reseatViaRoster() {
+    const oldC = this.coord; MOVES++;
+    if (oldC) { const seen = new Set(); for (const nb of ownedLinks(oldC)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck: key(oldC), id: this.id }); } } }
+    this.coord = null; this.occ = new Map(); this.s1seen = new Map(); this.drainAt = 0; this.seatTries = 0;
+    const t = this.roster && this.roster.length ? this.pickRoster() : null;
+    if (t) this.askSeat(t); else this.join();
+  }
+
+  // ---- take a seat -----------------------------------------------------------
+  take(coord, owner, nbrs) {
+    this.coord = coord; this.state = 'seated'; this.occ.set(key(coord), this.id); this.noteS1(key(coord));
+    if (nbrs) for (const [k, id] of nbrs) if (!this.occ.has(k)) { this.occ.set(k, id); this.noteS1(k); }
+    this.drainAt = 0; this.seatTries = 0; this.noHome = 0; this.seatedAt = TICK;
     relay.open(this.id); this.lastAck = TICK; this.lastPhone = TICK;
     if (owner) send(owner, { t: 'CLAIM', ck: key(coord), id: this.id });
     this.announce(); wake(this.id);
   }
-  announce() {                                                                       // open my links: HELLO each neighbour I can name
+  announce() {
     const c = this.coord, seen = new Set();
     for (const nb of ownedLinks(c)) { const id = this.occ.get(key(nb)); if (id && id !== this.id && !seen.has(id)) { seen.add(id); send(id, { t: 'HELLO', ck: key(c), id: this.id }); } }
   }
 
-  // ---- phone-home: the row heartbeat that detects holes -------------------
-  // Row-mates phone their HEAD; the head phones its OWNER. So the head hears its
-  // whole row (detects a dead non-head cell) and the row-mates hear the head
-  // (detect a dead head). That's all the liveness the one healing motion needs.
-  ownerCoordOf(c) {                                                               // owner of an arbitrary coord (the cell it phones/depends on)
-    if (c.path === '' && c.r === 0 && c.i === 0) return null;                     // root has no owner
-    if (c.path === '' && c.r === 0) return seatOf('', 0, 0);                      // root row (0,0,*) → root (0,0)
-    return upCoord(seatOf(c.path, c.r, 0));                                        // Section-1 row r>0 → (0,0,r); everywhere else → parent
-  }
-  ownerCoord() { return this.coord ? this.ownerCoordOf(this.coord) : null; }
-  phoneTargetCoord() {                                                               // who I phone: my head if I'm a row-mate, else my owner
-    if (!this.coord || this.isRoot()) return null;
-    return this.coord.i !== 0 ? seatOf(this.coord.path, this.coord.r, 0) : this.ownerCoord();
+  // ---- phone-home (D1) + Section-1 bookkeeping -------------------------------
+  ownerCoord() { return this.coord ? ownerCoordOf(this.coord) : null; }
+  phoneTargetCoord() {
+    if (!this.coord) return null;
+    if (this.coord.i !== 0) return seatOf(this.coord.path, this.coord.r, 0);        // row-mates phone their head
+    return this.ownerCoord();                                                       // heads phone their owner — null in Section 1: the home phones no one
   }
   hasChildren() { for (const c of this.rosterCells()) { const id = this.occ.get(key(c)); if (id && id !== this.id) return true; } return false; }
-  lowestSurvivor() { for (let j = 1; j < this.coord.i; j++) { const id = this.occ.get(key(seatOf(this.coord.path, this.coord.r, j))); if (id && id !== this.id) return false; } return true; }   // am I the lowest-column survivor of my row? (the one who promotes a new head — deterministic, so no race)
+  lowestSurvivor() { for (let j = 1; j < this.coord.i; j++) { const id = this.occ.get(key(seatOf(this.coord.path, this.coord.r, j))); if (id && id !== this.id) return false; } return true; }
   phoneHome() {
     const tc = this.phoneTargetCoord(); if (!tc) return;
-    const tid = this.occ.get(key(tc)); this.myOwner = tid;
-    if (tid) send(tid, { t: 'PHONE', coord: this.coord, to: key(tc), id: this.id, kids: this.hasChildren(), child: this.occ.get(key(downCoord(this.coord))) || null });   // …share my child-row head id so my row (and my parent) can wire around me if I vanish
+    const tid = this.occ.get(key(tc));
+    if (tid) send(tid, { t: 'PHONE', coord: this.coord, to: key(tc), id: this.id, kids: this.hasChildren(), child: this.occ.get(key(downCoord(this.coord))) || null });
   }
-  onPhone(m) {                                                                       // someone phones me: confirm liveness (FWW arbitration); if I'm their head, gossip our owner
-    if (!this.coord || (m.to && m.to !== key(this.coord))) return;                    // phones address a COORD — if I've moved off it, I'm not that cell anymore (no phantom liveness)
+  onPhone(m) {
+    if (!this.coord || (m.to && m.to !== key(this.coord))) return;                   // phones address a COORD — no phantom liveness
     const ck = key(m.coord); const prev = this.occ.get(ck);
-    if (prev && prev !== m.id && m.id > prev) return send(m.id, { t: 'YIELD', ck });  // a lower id already holds this cell — you yield
-    this.occ.set(ck, m.id); this.live.set(ck, TICK); this.kidful.set(ck, !!m.kids); if (m.child) this.childOf.set(ck, m.child); else this.childOf.delete(ck);
+    if (prev && prev !== m.id && m.id > prev) return send(m.id, { t: 'YIELD', ck });
+    this.occ.set(ck, m.id); this.live.set(ck, TICK); this.noteS1(ck); this.kidful.set(ck, !!m.kids); if (m.child) this.childOf.set(ck, m.child); else this.childOf.delete(ck);
     let owner = null, oCk = null, row = null;
-    const myOc = this.ownerCoord(); if (myOc) { oCk = key(myOc); owner = this.occ.get(oCk) || null; }   // ALWAYS tell my phoner who MY owner is → they learn their grandparent in real-time. That's how a Section-1 row-r head learns (0,0), so when it heals (0,0,r) it can hand the new seat its root up-link (child-heals-parent needs the grandparent).
-    if (this.coord.i === 0 && m.coord.path === this.coord.path && m.coord.r === this.coord.r) {   // I'm the head, phoner is my row-mate: also hand back the CURRENT row roster (each member's id AND its child-row head, so any row-mate can wire the downlink when healing)
+    const myOc = this.ownerCoord(); if (myOc) { oCk = key(myOc); owner = this.occ.get(oCk) || null; }   // W2
+    if (this.coord.i === 0 && m.coord.path === this.coord.path && m.coord.r === this.coord.r) {         // W3
       row = [[key(this.coord), this.id, this.occ.get(key(downCoord(this.coord))) || null]];
       for (let c = 1; c < C; c++) { const rc = seatOf(this.coord.path, this.coord.r, c); const id = this.occ.get(key(rc)); if (id && id !== m.id) row.push([key(rc), id, this.childOf.get(key(rc)) || null]); }
     }
     send(m.id, { t: 'PONG', owner, oCk, row });
     if (prev && prev !== m.id) send(prev, { t: 'YIELD', ck });
   }
-  rowSweep() {                                                                       // head: a row-mate cell that stopped phoning is a hole → heal it (backstop for silent death; LEAVE handles the announced case)
+  rowSweep() {                                                                       // D3: head backstop for silent death in my row
     if (this.coord.i !== 0) return;
     for (const [ck, at] of this.live) {
       if (TICK - at <= 50) continue;
       const slash = ck.indexOf('/'), dot = ck.indexOf('.', slash);
       const pth = ck.slice(0, slash), rr = +ck.slice(slash + 1, dot), ii = +ck.slice(dot + 1);
-      if (pth === this.coord.path && rr === this.coord.r && ii > 0) { const kids = this.kidful.get(ck); this.live.delete(ck); this.occ.delete(ck); this.kidful.delete(ck); if (kids) this.heal(seatOf(pth, rr, ii)); }   // only refill a departed sibling that had downlinks
+      if (pth === this.coord.path && rr === this.coord.r && ii > 0) { const kids = this.kidful.get(ck); this.live.delete(ck); this.occ.delete(ck); this.kidful.delete(ck); this.s1seen.delete(ck); if (kids || pth === '') this.heal(seatOf(pth, rr, ii)); }   // H1 (kids-gated) / H1-S1 (unconditional in the home)
     }
+  }
+  s1Fill() {                                                                         // H1-S1: a Section-1 head keeps its row FULL — fill ANY empty cell, childless or not.
+    if (TICK - (this.seatedAt || 0) < 80) return;                                    // warm-up: give my row time to phone me before I judge any cell
+    for (let j = 1; j < C; j++) {                                                    // the row authority is the PHONE (D1), never occ: a yielded/phantom claimant can sit in occ forever and W3/W5 will faithfully re-circulate the stale entry — a cell that is not phoning me is NOT THERE
+      const c = seatOf('', this.coord.r, j); const ck = key(c);
+      const lv = this.live.get(ck);
+      if (lv !== undefined && TICK - lv <= 60) continue;                             // phoning → present
+      if (this.occ.has(ck)) { this.occ.delete(ck); this.live.delete(ck); this.s1seen.delete(ck); this.kidful.delete(ck); }   // purge the phantom so W3/W5 stop spreading it
+      return this.heal(c);
+    }
+  }
+  s1Sync() {                                                                         // W5: freshness-tagged roster entries flow across the section every phone beat
+    const ent = [[key(this.coord), this.id, 0]];
+    for (const [ck, id] of this.occ) if (ck.charCodeAt(0) === 47 && id !== this.id) { const at = this.s1seen.get(ck); if (at !== undefined && TICK - at < 120) ent.push([ck, id, TICK - at]); }
+    const tgts = new Set();
+    const x = crossLink(this.coord); if (x) { const id = this.occ.get(key(x)); if (id && id !== this.id) tgts.add(id); }
+    for (const rm of rowMates(this.coord)) { const id = this.occ.get(key(rm)); if (id && id !== this.id) tgts.add(id); }
+    const ab = this.occ.get(key(seatOf('', (this.coord.r - 1 + C) % C, this.coord.i))); if (ab && ab !== this.id) tgts.add(ab);   // W5 rides the H7 COLUMN CYCLE too: I sync the seat directly above me…
+    const be = this.occ.get(key(seatOf('', (this.coord.r + 1) % C, this.coord.i))); if (be && be !== this.id) tgts.add(be);   // …and directly below me. A resurrected row's head has no row-mates and no cross yet — its backfiller below is its ONLY standing channel, and this is it.
+    for (const id of tgts) send(id, { t: 'S1SYNC', ent });
   }
 
   tick() {
     if (!this.alive) { active.delete(this.id); return; }
-    if (this.state !== 'seated') {                                                   // unseated: keep retrying, and STAY scheduled (never drop out of `active`)
-      if ((this.state === 'joining' || this.state === 'asking') && TICK - this.retryAt > 20) {
-        if (HEALING && (this.noRoot = (this.noRoot || 0) + 1) >= 5) { this.noRoot = 0; return this.take(seatOf('', 0, 0), null, []); }   // H5 (deadlock breaker): I re-entered and 5 cycles of greeter-WHOROOT found NO root anywhere → the whole of row 0 died, so there is nothing to seat under → genesis-remint (0,0) myself. Reliable because greeter-WHOROOT reaches any live root 100%, so this fires ONLY when there truly is none; a live root resets noRoot in the ROOT handler. Duplicates dedupe by id (HELLO/YIELD).
-        this.join();
-      }
-      else if (this.state === 'searching' && TICK - this.retryAt > 60) { this.rootOwner ? this.askRoot(this.rootOwner) : this.join(); }
+    if (this.state !== 'seated') {
+      if ((this.state === 'joining' || this.state === 'asking') && TICK - this.retryAt > 20) this.join();
+      else if (this.state === 'searching' && TICK - this.retryAt > 60) { if (this.roster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
       active.add(this.id); return;
     }
-    if (!HEALING) { active.delete(this.id); return; }
-    if (this.coord.path === '') { if (this.greetAt === undefined) this.greetAt = TICK + ((rnd() * GREET_PERIOD) | 0); if (TICK >= this.greetAt) { this.greetAt = TICK + GREET_PERIOD + ((rnd() * GREET_PERIOD) | 0); this.recv({ t: 'GREETWALK', ttl: 1 + ((rnd() * 5) | 0) }); } }   // H6: every Section-1 seat, on its own randomized ~25-min timer, sends a RANDOM descendant to (re)join the greeter pool — keeps the relay fresh with live members, tolerates greeter churn/poisoning, and helps re-entrants always reach a live root
-    if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }
-    if (this.coord.i === 0 && (TICK % 12) === 0) this.rowSweep();                     // head: sweep for dead non-head cells in my row
-    if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf(this.coord.path, this.coord.r, 0));   // my head stopped answering → the lowest-column survivor promotes a new head (deterministic, no race)
-    if (this.coord.path === '' && this.coord.r > 0 && this.coord.i === 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && !this.occ.get(key(this.ownerCoord())) && this.occ.get(key(seatOf('', 0, 0)))) return this.heal(this.ownerCoord());   // I'm a Section-1 row-r head and my owner (0,0,r) is empty → heal it from my own subtree (H3, the two-step). Gated on a live root so the promoted seat can phone the root for the row-0 roster. When the WHOLE of row 0 died (no root either), this can't fire — that deadlock is broken by the genesis-remint in the re-entry path below (H5): a re-entrant that finds no root ANYWHERE mints one.
-    if (!this.isRoot() && !(this.coord.path === '' && this.coord.r === 0) && TICK - this.lastAck > 80) return this.requeue();   // branch severed → re-enter the front door — EXCEPT row-0 seats, which must stay put to re-anchor (0,0) (if they re-entered, there'd be no root to re-enter UNDER → collapse). A row-r head whose owner AND root are both gone falls back to re-entry here, then heals via the two-step once (0,0) is back.
+    if (this.coord.path === '') {                                                    // SECTION 1: always on — the home runs its bookkeeping in every phase
+      if (this.greetAt === undefined) this.greetAt = TICK + ((rnd() * GREET_PERIOD) | 0);
+      if (TICK >= this.greetAt) { this.greetAt = TICK + GREET_PERIOD + ((rnd() * GREET_PERIOD) | 0); this.recv({ t: 'GREETWALK', ttl: 1 + ((rnd() * 5) | 0) }); }   // H6
+      if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); this.s1Sync(); }   // D1 + W5
+      if (this.coord.i === 0 && (TICK % 12) === 0) { this.rowSweep(); this.s1Fill(); }              // D3 + H1-S1
+      if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf('', this.coord.r, 0));   // H2 — Section-1 rows heal their head like any other row
+      if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + ((rnd() * 100) | 0); if (!this.occ.get(key(crossLink(this.coord)))) this.probeXlink(); }
+      active.add(this.id); return;                                                   // Section-1 seats never drain, never requeue: you ARE the home
+    }
+    if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }      // D1
+    if (this.coord.i === 0 && (TICK % 12) === 0) this.rowSweep();                     // D3
+    if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal(seatOf(this.coord.path, this.coord.r, 0));   // H2
+    if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + ((rnd() * 100) | 0); if (!this.occ.get(key(crossLink(this.coord)))) this.probeXlink(); }   // keep my sideways escape live (the drain depends on it)
+    if (this.drainAt && TICK >= this.drainAt) return this.reseatViaRoster();          // E1: my turn in the drain
+    if (TICK - this.lastAck > 80) this.drainOrReenter();                              // D4 → E1: severed — drain my subtree over the mesh (relay only as last resort)
     active.add(this.id);
   }
-  leave() { this.alive = false; active.delete(this.id); if (!this.coord) return; const ck = key(this.coord); const seen = new Set(); for (const nb of ownedLinks(this.coord)) { const id = this.occ.get(key(nb)); if (id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck, id: this.id }); } } const o = this.occ.get(key(this.ownerCoord() || seatOf('', 0, 0))); if (o) send(o, { t: 'LEAVE', ck, id: this.id }); }
+  leave() {
+    this.alive = false; active.delete(this.id); if (!this.coord) return;
+    const ck = key(this.coord); const seen = new Set();
+    for (const nb of ownedLinks(this.coord)) { const id = this.occ.get(key(nb)); if (id && !seen.has(id)) { seen.add(id); send(id, { t: 'LEAVE', ck, id: this.id }); } }
+    const o = this.ownerCoord(); const oid = o && this.occ.get(key(o)); if (oid && !seen.has(oid)) send(oid, { t: 'LEAVE', ck, id: this.id });
+  }
 }
 
-// ---- run --------------------------------------------------------------------
+function ownerCoordOf(c) {                                                           // owner of an arbitrary coord (the cell it phones/depends on)
+  if (c.path === '') return null;                                                    // Section 1 is ownerless — it IS the home
+  return upCoord(seatOf(c.path, c.r, 0));
+}
+
+// ---- run ----------------------------------------------------------------------
 const t0 = Date.now();
 const joinWindow = Math.max(1, Math.min((N * 0.25) | 0, 2000));
 const spawnPlan = new Map(); for (let k = 0; k < N; k++) { const t = (rnd() * joinWindow) | 0; spawnPlan.set(t, (spawnPlan.get(t) || 0) + 1); }
 const MAXP = N * 30 + 60000;
-const GREET_PERIOD = 800;   // H6: base ticks between a Section-1 seat's greeter-refresh walks (randomized per seat, per fire) — the sim's stand-in for the ~25-minute real timer
 
 function step() {
   for (let s = spawnPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('p' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); }
   const due = buckets.get(TICK); if (due) { buckets.delete(TICK); inflight -= due.length; for (const e of due) { if (e.to === 'relay') relay.knock(e.msg.id); else { const s = seats.get(e.to); if (s) { s.recv(e.msg); wake(s.id); } } } }
-  const cur = active; active = new Set();                                           // double-buffer: process this tick's scheduled seats; tick()/wake() enqueue into next
+  const cur = active; active = new Set();
   for (const id of cur) { const s = seats.get(id); if (s) s.tick(); }
 }
 const liveSeated = () => { let c = 0; for (const s of seats.values()) if (s.alive && s.state === 'seated') c++; return c; };
 const allSeated = () => { for (const s of seats.values()) if (s.alive && s.state !== 'seated') return false; return true; };
+const s1Count = () => { let c = 0; for (const s of seats.values()) if (s.alive && s.state === 'seated' && s.coord && s.coord.path === '') c++; return c; };
 
-for (TICK = 0; ; TICK++) { step(); if (TICK > joinWindow + 200 && seats.size === N && inflight === 0 && allSeated()) break; if (TICK > MAXP) break; }
+let joinStable = 0;
+for (TICK = 0; ; TICK++) {
+  step();
+  if (TICK > joinWindow + 50 && seats.size === N && allSeated() && s1Count() === Math.min(25, N)) { if (++joinStable > 100) break; } else joinStable = 0;
+  if (TICK > MAXP) break;
+}
 let failed = report('after JOIN', N);
 
-if (process.argv[4] === 'route') {                                                  // validate the route() primitive: route between random seated pairs
+if (MODE === 'route') {                                                              // validate the route() primitive between random seated pairs
   const seated = [...seats.values()].filter((s) => s.alive && s.state === 'seated' && s.coord);
   const expect = new Map(); let done = 0, hit = 0, miss = 0, wrong = 0;
   const handler = (m) => { const b = expect.get(m.tag); if (b === undefined) return; done++; if (m.id === b) hit++; else if (m.id === null) miss++; else wrong++; };
@@ -436,7 +531,7 @@ if (process.argv[4] === 'route') {                                              
   process.exit(hit === trials ? 0 : 1);
 }
 
-if (process.argv[4] === 'xlink') {                                                  // establish cross-links via routing, then measure completeness
+if (MODE === 'xlink') {                                                              // establish cross-links via routing, then measure completeness
   for (let round = 0; round < 30; round++) { for (const s of seats.values()) if (s.alive && s.state === 'seated') { s.probeXlink(); active.add(s.id); } for (let g = 0; g < 16; g++, TICK++) step(); }
   const seated = [...seats.values()].filter((s) => s.alive && s.state === 'seated' && s.coord);
   const at = new Map(); for (const s of seated) at.set(key(s.coord), s.id);
@@ -446,28 +541,31 @@ if (process.argv[4] === 'xlink') {                                              
   process.exit(known === tot ? 0 : 1);
 }
 
-if (LEAVE > 0) {
+if (LEAVE > 0 || MODE === 's1row' || MODE === 's1all') {
   HEALING = true;
   for (const s of seats.values()) if (s.alive) { s.lastAck = TICK; s.lastPhone = TICK; s.healAt = TICK; active.add(s.id); }
-  for (let w = 0; w < 48; w++, TICK++) { if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id); step(); }   // warmup: let phone-home run a few rounds so liveness + child-status are populated, as continuous operation would
-  const leaving = pickN([...seats.keys()], Math.floor(N * LEAVE));   // true random half — (0,0) heals like any other row, so nothing is protected
+  for (let w = 0; w < 48; w++, TICK++) { if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id); step(); }   // warmup: phone-home populates liveness + child bits + cross-links, as continuous operation would
+  const leavingSet = new Set(pickN([...seats.keys()], Math.floor(N * LEAVE)));      // true random — nothing is protected
+  if (MODE === 's1row') { const rr = (rnd() * C) | 0; for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '' && s.coord.r === rr) leavingSet.add(s.id); console.log('  [catastrophe: killing ALL of Section-1 row ' + rr + ']'); }
+  if (MODE === 's1all') { for (const s of seats.values()) if (s.alive && s.coord && s.coord.path === '') leavingSet.add(s.id); console.log('  [catastrophe: killing ALL 25 Section-1 seats]'); }
+  const leaving = [...leavingSet];
   for (const id of leaving) seats.get(id).leave();
-  const READD = parseFloat(process.argv[4]) || 0;                    // fraction of N to re-add DURING healing (concurrent join + heal)
   const readdTotal = Math.floor(N * READD); let readdDone = 0;
   const expect = (N - leaving.length) + readdTotal, start = TICK;
-  const readdPlan = new Map(); for (let k = 0; k < readdTotal; k++) { const t = start + 4 + ((rnd() * joinWindow) | 0); readdPlan.set(t, (readdPlan.get(t) || 0) + 1); }   // trickle newcomers in over the join window, starting almost immediately (don't wait for heal)
+  const readdPlan = new Map(); for (let k = 0; k < readdTotal; k++) { const t = start + 4 + ((rnd() * joinWindow) | 0); readdPlan.set(t, (readdPlan.get(t) || 0) + 1); }
   for (const s of seats.values()) if (s.alive) active.add(s.id);
   let seatedSince = TICK;
   for (; ; TICK++) {
-    for (let s = readdPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('q' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); readdDone++; }   // concurrent newcomers land mid-heal
+    for (let s = readdPlan.get(TICK) || 0; s > 0; s--) { const seat = new Seat('q' + String(nextId++).padStart(8, '0')); seats.set(seat.id, seat); seat.join(); readdDone++; }
     if ((TICK % 8) === 0) for (const s of seats.values()) if (s.alive && s.state === 'seated') active.add(s.id);   // pulse so everyone phones home
     step();
-    if ((TICK % 50) === 0) {                                                          // convergence = EVERYONE seated (not "zero moves" — a tiny residual re-home churn is harmless and must not block the break)
-      if (readdDone === readdTotal && liveSeated() === expect && allSeated()) { if (TICK - seatedSince > 400 && TICK - start > 300) break; } else seatedSince = TICK;
+    if ((TICK % 50) === 0) {                                                         // convergence = everyone seated AND the home is full, sustained
+      if (readdDone === readdTotal && liveSeated() === expect && allSeated() && s1Count() === Math.min(25, expect)) { if (TICK - seatedSince > 400 && TICK - start > 300) break; } else seatedSince = TICK;
     }
     if (TICK - start > MAXP) break;
   }
-  failed += report('after ' + Math.round(LEAVE * 100) + '% LEFT' + (readdTotal ? ' + ' + Math.round(READD * 100) + '% REJOIN' : ''), expect);
+  const label = 'after ' + Math.round(LEAVE * 100) + '% LEFT' + (MODE === 's1row' ? ' + Section-1 ROW WIPE' : '') + (MODE === 's1all' ? ' + ALL of Section 1 WIPED' : '') + (readdTotal ? ' + ' + Math.round(READD * 100) + '% REJOIN' : '');
+  failed += report(label, expect);
 }
 process.exit(failed ? 1 : 0);
 
@@ -478,21 +576,20 @@ function report(label, expect) {
   ok('all ' + expect + ' live seats seated (' + seated.length + ')', seated.length === expect);
   const coords = new Map(); let dupes = 0, maxDepth = 0; for (const s of seated) { const ck = key(s.coord); maxDepth = Math.max(maxDepth, s.coord.path.length); if (coords.has(ck) && coords.get(ck) !== s.id) dupes++; else coords.set(ck, s.id); }
   ok('unique coordinates (dupes=' + dupes + ')', dupes === 0);
-  // up-path: every seat reaches (0,0) through its OWNER-cell chain (each cell in a
-  // row phones its owner directly, so a head may be an empty frontier cell).
-  let orphan = 0;
+  let orphan = 0;                                                                    // up-path: every seat's owner-cell chain reaches Section 1
   for (const s of seated) {
     let cur = s.coord, h = 0, live2 = true;
-    while (!(cur.path === '' && cur.r === 0 && cur.i === 0)) {
+    while (cur.path !== '') {
       if (h++ > 80) { live2 = false; break; }
-      const oc = (cur.path === '' && cur.r === 0) ? seatOf('', 0, 0) : upCoord(seatOf(cur.path, cur.r, 0));   // root row → (0,0); Section-1 row r>0 → (0,0,r); else parent
-      if (!oc || !coords.has(key(oc))) { live2 = false; break; }                    // owner cell empty → orphaned
+      const oc = upCoord(seatOf(cur.path, cur.r, 0));
+      if (!oc || !coords.has(key(oc))) { live2 = false; break; }
       cur = oc;
     }
     if (!live2) orphan++;
   }
   ok('every seat has a live up-path to Section 1 (orphans=' + orphan + ')', orphan === 0);
-  const roots = seated.filter((s) => s.coord.path === '' && s.coord.r === 0 && s.coord.i === 0); ok('exactly one seat at the root (0,0) (' + roots.length + ')', roots.length === 1);   // the design stores NO root pointer — "one root" = one occupant of (0,0), re-anchored by its own row
+  const s1 = seated.filter((s) => s.coord.path === '');
+  ok('Section 1 is FULL — the home stays whole (' + s1.length + '/' + Math.min(25, expect) + ')', s1.length === Math.min(25, expect));   // H1-S1 + H7: fullness IS the invariant now — no root to count
   console.log('  ' + label + ': ' + pass + '/' + (pass + fail) + ' [seated=' + seated.length + ', depth<=' + maxDepth + ', ' + TICK + ' ticks, ' + ((Date.now() - t0) / 1000).toFixed(1) + 's, mem=' + (process.memoryUsage().heapUsed / 1e6 | 0) + 'MB]');
   return fail;
 }
