@@ -36,7 +36,7 @@ static uint32_t GSEED=20260714;
 static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7fffffff); return GSEED/2147483648.0; }
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
-static vector<int> greetRecent; static unordered_map<int,int> greetHold;
+static vector<int> greetRecent; static unordered_map<int,int> greetHold; static int FOUNDER=-1; static long long FOUNDER_AT=-999;
 
 struct Seat;
 static vector<Seat*> seats;              // index = id
@@ -112,6 +112,12 @@ static void relayKnock(int id,int hold){
   greetHold[id]=hold;
   vector<int> out;
   for(int k=(int)greetRecent.size()-1;k>=0 && (int)out.size()<6;k--){ int c=greetRecent[k]; if(c!=id && alive[c] && seats[c]->state==3 && (greetHold.count(c)?greetHold[c]:0)>=TICK) out.push_back(c); }
+  if(out.empty()){   // R3 genesis SERIALIZED: designate ONE founder; everyone else waits on it (WHOHOMEs it) instead of all founding
+    Seat* f=(FOUNDER>=0 && FOUNDER<(int)alive.size() && alive[FOUNDER])? seats[FOUNDER]:nullptr;
+    bool fOk = f && (f->state==3 || TICK-FOUNDER_AT<200);
+    if(!fOk || FOUNDER==id){ FOUNDER=id; FOUNDER_AT=TICK; greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200); Msg m; m.t=GREETERS; m.to=id; m.from=-1; bus[TICK+1].push_back(move(m)); return; }
+    out.push_back(FOUNDER);
+  }
   greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200);
   // shuffle out with global rng
   for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}
