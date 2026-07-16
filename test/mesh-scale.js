@@ -49,9 +49,8 @@
  *     column). One designated backfiller per cell => race-free; arrival
  *     traffic resurrects fully-dead Section-1 rows. (Sparse rows are H1-S1's
  *     job; empty rows are H7's.)
- * H6. RELAY FRESHNESS: every Section-1 seat, on its own randomized ~25-minute
- *     timer, sends a RANDOM DESCENDANT (GREETWALK down-walk) to (re)join the
- *     greeter pool. The front door stays stocked with live members.
+ * H6. RETIRED — folded into E3. (Section-1 seats now ARE the greeter pool: each
+ *     knocks on seating and re-knocks each ~TTL. No separate descendant walk.)
  *     (H3/H4/H5 are RETIRED: they healed a special root that no longer exists.)
  *
  * Anti-cascade:
@@ -88,29 +87,52 @@
  *     fresh promotee), judged with TENURE in the sync stream (only claims
  *     heard after my seating outrank me), broken deterministically LOWER-ID-
  *     WINS at comparable freshness, with a YIELD back-channel for losing
- *     heads nobody targets, and closed by E3.
- * E3. THE SELF-AUDIT + STITCH: every Section-1 seat, on a slow randomized
- *     timer, KNOCKs the front door and walks WHOHOME like any newcomer. If
- *     the home's view names its cell under a LOWER claimant, it requeues; a
- *     HIGHER claimant is told to yield directly; and either way the auditor
- *     HELLOs the responder — stitching a link-isolated claimant into the
- *     mesh, where the ordinary channels can settle it. The front door being
- *     always reachable is R2 earning its keep.
+ *     heads nobody targets. (Cross-fork duplicates no longer arise: R2/R3's
+ *     genesis key prevents parallel homes at admission, so E2 only settles the
+ *     LOCAL races of ordinary healing; a severed straggler drains via E1.)
+ * E3. GREETER REGISTRATION (was self-audit + stitch): every Section-1 seat
+ *     knocks the front door WHEN IT TAKES ITS SEAT and re-knocks each ~TTL,
+ *     presenting the meeting's GENESIS KEY (R3) — which admits it to the greeter
+ *     list. The Section-1 seats ARE the greeter pool (~25, +rotation churn). No
+ *     roster comparison, no stitch: genesis and forks are handled at admission
+ *     time by the key (R2/R3), so E3 is pure liveness. When every Section-1 seat
+ *     stops re-knocking for one TTL, the list empties and the room reopens for a
+ *     fresh genesis (this is how a total-Section-1 wipe rebuilds).
  *
  * Home & entry:
  * R1. NO STORED HOME anywhere. WHOHOME walks the live mesh to any Section-1
  *     seat and gets the W5 roster back.
- * R2. The relay is GREETERS-ONLY. It never arbitrates or remembers the home.
- * R3. Genesis: no seated greeter and no earlier waiter => first (lowest-id)
- *     knocker takes ('',0,0) — an ordinary seat, special only for being first.
+ * R2. The relay is a GREETER REGISTRY keyed by the hashed URL, holding ONLY a
+ *     GENESIS KEY and a TTL'd GREETER LIST (peer ids). On knock it returns the
+ *     current list and ADMITS the knocker iff the list is empty (mint genesis)
+ *     or the knocker presents the MATCHING key. It holds no home, no coords, no
+ *     seat-state, and arbitrates nothing — arrival order alone decides genesis.
+ *     Entries expire on TTL; an empty list forgets the key.
+ * R3. Genesis via the KEY: a NEWCOMER knocks with a throwaway PERSONAL key. The
+ *     first to meet an empty list has its key recorded as the meeting's genesis
+ *     key and founds ('',0,0). Because the relay adds it at KNOCK time (not seat
+ *     time) and is single-threaded, every later knocker gets a NON-EMPTY list
+ *     and never founds. A newcomer learns the real genesis key during the
+ *     newcomer dance (the greeter's HOME reply carries it) and, only after
+ *     taking a Section-1 seat, re-knocks with the matching key to join the pool.
+ *     One key per URL-instance => no storm, no parallel founders; the key is the
+ *     unforgeable, member-held INSTANCE IDENTITY (a fork = a different key).
  * R4. Seating is a ping: pick a RANDOM Section-1 seat off the roster, descend
  *     its tree dense-before-deep to a definitive vacancy (H7 first).
+ * R5. A GENUINE fork (disjoint FILLED rosters — real partition or adversarial
+ *     decoy whose sealed dance fails) is never auto-merged: the client surfaces
+ *     the unforgeable faces on the Stage / row 0 of each tree and the HUMAN
+ *     chooses. Counts are not trusted (inflatable); a face cannot be gamed.
+ *     (E4 — a genesis-storm resolver — is DISSOLVED: R2/R3's key prevents the
+ *     storm at admission, so there is nothing to resolve after the fact.)
  *
- * THE OLD OPEN PROBLEM (partition merge / root minting) IS DISSOLVED: with no
- * root there is nothing to mint. Orphaned subtrees DRAIN into the surviving
- * Section 1 instead of founding islands; total-Section-1 death cascades
- * through the drain fallback to a single serialized genesis (R3) and the room
- * rebuilds itself.
+ * THE OLD OPEN PROBLEM (partition merge / root minting) IS DISSOLVED twice over:
+ * with no root there is nothing to mint, AND the relay's genesis key admits only
+ * ONE home per URL-instance, so parallel founders can't form in the first place.
+ * Orphaned subtrees DRAIN into the surviving Section 1 instead of founding
+ * islands; total-Section-1 death lets the greeter list expire (one TTL), which
+ * reopens the room for a single fresh genesis (R3) and it rebuilds itself. Only
+ * a genuine, human-scale fork (R5) is ever surfaced to a person.
  * ==========================================================================
  */
 'use strict';
