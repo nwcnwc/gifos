@@ -459,6 +459,42 @@
     HB: 4000,         // status heartbeat ms — the gossip pulse everything idempotent rides
   }, root.GIFOS_SCALE || {});
 
+  // ---- the mesh topology as arithmetic (port of sim/topo.h) ------------------
+  // A coordinate is { pc, r, i }: pc the SECTION path encoded as an integer, r
+  // the row (0..C-1), i the column (0..C-1). Path encoding: '' = 0; appending
+  // digit d (0..C-1) => pc*6 + (d+1) (base-6 leaves headroom past C=5). So
+  // parentPath(pc) = floor((pc-1)/6), lastDigit(pc) = (pc-1)%6. Every heal and
+  // every media link derives from THESE functions — no seat ever "asks" the
+  // structure, it computes it. Mirrors sim/topo.h exactly (verified by
+  // test/topo.js); the ONLY divergence is ckey returns a STRING map key (JS
+  // has no uint64 — the sim packs the same fields into a 64-bit int for speed).
+  const topo = (() => {
+    const Cn = () => SCALE.C;
+    const childPath = (pc, d) => pc * 6 + (d + 1);
+    const parentPath = (pc) => Math.floor((pc - 1) / 6);
+    const lastDigit = (pc) => (pc - 1) % 6;
+    const isRoot = (c) => c.pc === 0;
+    const ckey = (c) => c.pc + '_' + c.r + '_' + c.i;                 // Map key (string, not uint64)
+    const unck = (k) => { const p = k.split('_'); return { pc: +p[0], r: +p[1], i: +p[2] }; };
+    const eq = (a, b) => a.pc === b.pc && a.r === b.r && a.i === b.i;
+    // up: column-0 (head) only, and Section 1 (pc==0) has no up. null if none.
+    const up = (s) => (s.i !== 0 || s.pc === 0) ? null : { pc: parentPath(s.pc), r: s.r, i: lastDigit(s.pc) };
+    // down: every seat has one — to a child head, whose up is exactly this edge.
+    const down = (s) => ({ pc: childPath(s.pc, s.i), r: s.r, i: 0 });
+    // cross-link: column>0 only; transpose-pair (r,i)<->(i,r). null for a head.
+    const crossLink = (s) => {
+      if (s.i === 0) return null;
+      if (s.r === s.i) return { pc: s.pc, r: 0, i: s.i };
+      if (s.r === 0) return { pc: s.pc, r: s.i, i: s.i };
+      return { pc: s.pc, r: s.i, i: s.r };
+    };
+    const rowMates = (s) => { const out = []; const C = Cn(); for (let j = 0; j < C; j++) if (j !== s.i) out.push({ pc: s.pc, r: s.r, i: j }); return out; };
+    // ownedLinks: rowMates(C-1) + cross?(1) + up?(1) + down(1). Bounded degree.
+    const ownedLinks = (s) => { const out = rowMates(s); const x = crossLink(s); if (x) out.push(x); const u = up(s); if (u) out.push(u); out.push(down(s)); return out; };
+    const isHead = (s) => s.i === 0;
+    return { childPath, parentPath, lastDigit, isRoot, isHead, ckey, unck, eq, up, down, crossLink, rowMates, ownedLinks };
+  })();
+
   // ---- P1: single-hop forwarding through a friend -----------------------------
   // {t:'fwd', src, to, p} — p is ONE piece (a sealed envelope, or one {t:'frag'}
   // fragment of one). The forwarder relays pieces verbatim and statelessly:
@@ -478,6 +514,6 @@
     edKeysFromSeedHex, edSign, edVerify, edProven,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
-    SCALE,
+    SCALE, topo,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
