@@ -4,9 +4,15 @@ The no-root introducer mesh: Section 1 (`path=''`) is the home — C² uniform s
 meshed by their own rows + cross-links, nothing above them. Coordinate `(path, r, i)`,
 column count `C`. **Every heal change must name which law it implements.**
 
-This is the canonical set. It supersedes the old copy that lived in
-`test/mesh-scale.js` (the Node reference sim, now retired — see git history).
-The C++ reference sim is `sim/mesh.cpp` + `sim/mesh_seat.inc` + `sim/topo.h`.
+This is the canonical set. The C++ reference sim is the SOURCE OF TRUTH:
+`sim/mesh.cpp` + `sim/mesh_seat.inc` + `sim/topo.h`. Production runs a
+line-for-line port of it — `site/js/mesh.js` (the Seat brain) on `net.topo`
+(the port of topo.h), bound to real transports by `site/js/mesh-wire.js` —
+pinned against the sim's numbers by `test/mesh-harness.js` (JOIN/50%/s1row/
+s1all, dups=0, s1 25/25) and end-to-end by `test/e2e-mesh-wire.js` (real
+relay, real sealing). Security doctrines: `docs/meet-security.md`. Media:
+`docs/media-plane.md`. (Older catalogs — test/mesh-scale.js, docs/rows.md,
+docs/mesh-refactor.md — are retired; git history keeps them.)
 
 ## P — the one principle
 Every row keeps itself whole by **promoting a leaf from its own subtree**.

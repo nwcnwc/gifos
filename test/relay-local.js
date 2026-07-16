@@ -90,7 +90,7 @@ function verifierOf(sid) {
   return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
 }
 
-// AUTHORITY IS A SIGNATURE (mesh-refactor §9) — mirrors relay/src/relay.js:
+// AUTHORITY IS A SIGNATURE (docs/meet-security.md §SIG) — mirrors relay/src/relay.js:
 // privileged mesh orders carry { sp, sig, pub }; verify Ed25519 over the
 // exact signed string, and that the pubkey commits to the room verifier.
 async function admProvenGet(av, w, act) {
@@ -244,7 +244,7 @@ server.on('upgrade', (req, socket) => {
     }
   };
   const routePeer = (from, m) => {
-    // no stamp — authority is a signature (mesh-refactor §9)
+    // no stamp — authority is a signature (docs/meet-security.md §SIG)
     const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
     if (dest) dest.send(wrapped);
@@ -313,7 +313,7 @@ server.on('upgrade', (req, socket) => {
     // Token + password + ban list are occupancy state; the admin verifier is
     // part of the ROOM IDENTITY (the &av= every occupant's URL carries — a
     // room without it can never have an admin). ADMINSHIP IS A SIGNATURE now
-    // (mesh-refactor §9): no socket is admin; privileged orders arrive
+    // (docs/meet-security.md §SIG): no socket is admin; privileged orders arrive
     // individually signed and are verified per-frame (admProvenGet).
     const av = verifierOf(parts[1]); // verifier from the session id, not a query param
     if (sess.clients.size === 0) {

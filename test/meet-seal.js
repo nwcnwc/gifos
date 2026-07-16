@@ -40,7 +40,7 @@ const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' 
   const mPw = await net.deriveMeet(ROOM, AV, 'hunter2');
   check('sid is password-free (same room locked or not)', mOpen.sid === mPw.sid, [mOpen.sid, mPw.sid]);
   check('tok is password-free', mOpen.tok === mPw.tok);
-  // ...but the KEY differs, so the lock is cryptographic (mesh-refactor §8 / R6).
+  // ...but the KEY differs, so the lock is cryptographic (meet-security §LOCK / R6).
   const probe = await net.seal(mPw.key, addr);
   check('the E2E key DOES change with the password', (await net.open(mOpen.key, probe)) === null);
 

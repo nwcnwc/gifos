@@ -55,17 +55,19 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.
-- Meeting scale vocabulary is the STADIUM metaphor (docs/rows.md): seat,
-  row (every section has an ordinary row 0 — just its first row, NOT a stage),
-  Stage (a SPECIAL standalone single-row entity, decoupled from the seating
-  tree — the broadcast-to-the-whole-room tier whose membership is CHOSEN by a
-  deliberate act, not filled by arrival-order seating; it is NOT "row 0" of any
-  section — row-0-of-Section-1 was rejected precisely because dense seating
-  would put random early arrivers on stage), section (an internal C×C block of
-  the tree — NOT its own relay
-  session), deck (sections sharing a level-1 space), level, stadium (the whole
-  room = ONE relay session = one URL; the relay is a single front door for the
-  entire stadium, sections are pure peer-to-peer tree structure). Wire gossip
-  fields stay terse
-  (`st.leaf` = section number, `st.branch` = deck id, `'b:'` = deck fold) —
-  see the wire glossary at meet.html's STADIUM section header.
+- Meeting scale vocabulary is the STADIUM metaphor (docs/healing-laws.md +
+  docs/media-plane.md): seat (coord `{pc, r, i}` — pc the section path, r the
+  row, i the column), row (every section has an ordinary row 0 — just its
+  first row, NOT a stage), Stage (a SPECIAL decoupled chosen set capped at C —
+  the broadcast-to-the-whole-room tier whose membership is CHOSEN by a
+  deliberate act (self step-up in open rooms, admin-granted in admin rooms),
+  never filled by seating; it is NOT "row 0" of anything), section (an
+  internal C×C block of the tree — NOT its own relay session), stadium (the
+  whole room = ONE relay session = one URL; the relay is a zero-knowledge
+  greeter registry for the entire stadium — healing-laws R2/R3 — and sections
+  are pure peer-to-peer tree structure). The control plane is site/js/mesh.js
+  (a faithful port of the C++ reference sim — sim/mesh.cpp is source of
+  truth), bound to transports by site/js/mesh-wire.js; security doctrines
+  (crypto lock, signed authority, sponsor forwarding) live in
+  docs/meet-security.md. The old deacon/deck/fold model is DEAD (git history
+  has docs/rows.md + docs/mesh-refactor.md if archaeology is ever needed).

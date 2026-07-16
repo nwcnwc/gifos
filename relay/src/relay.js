@@ -41,13 +41,18 @@
  *   host   → relay : { t:'bcast', msg:{} }            → every client as msg
  *   any    → relay : { t:'peer', to:<peer>, msg:{} }  → routed peer↔peer (mesh signaling)
  *   mesh   → relay : { t:'gossip', msg:{} }           → every OTHER mesh member as { t:'peer', from, msg }
+ *   mesh   → relay : { t:'knock', gk, gblob }         → { t:'greeters', list, founded, admitted } (R2/R3)
  *   relay  → host  : { t:'peer-join'|'peer-leave', peer }
  *   relay  → all   : { t:'roster', peers:[...], names:{...} }
  *   relay  → client: { t:'joined', peer } / { t:'host-gone' } / { t:'error', error }
  *
  * Roles: 'host'/'client' form an app session (host's browser is the server);
- * 'mesh' forms a host-less ROOM (video calls) that lives at its URL forever —
- * with hibernation, an idle room literally costs nothing to keep alive.
+ * 'mesh' is a MEETING socket — but a meeting session is NOT the room anymore:
+ * it is the stadium's FRONT DOOR (docs/healing-laws.md R2/R3), holding only
+ * the greeter pool (Section-1 seats re-knocking on E3) plus knock churn.
+ * Room-wide traffic rides the mesh itself (mesh.js gossip over WebRTC);
+ * newcomers drop their socket after seating deep. With hibernation, an idle
+ * door costs nothing to keep alive.
  */
 
 async function sha256hex(s) {
@@ -78,7 +83,7 @@ function verifierOf(sid) {
   const v = sid.slice(dot + 1);
   return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
 }
-// AUTHORITY IS A SIGNATURE (mesh-refactor §9). Privileged mesh orders
+// AUTHORITY IS A SIGNATURE (docs/meet-security.md §SIG). Privileged mesh orders
 // (setpw / ban / unban / banlist in verifier rooms) carry { sp, sig, pub }:
 // sp is the exact JSON string the admin signed, sig its Ed25519 signature,
 // pub the raw public key (base64). The relay checks the SAME proof any peer
@@ -228,7 +233,7 @@ export class Session {
     if (mesh) {
       msg.devs = devs; // room-salted device tags, for client-side ban/vote UI
       // No admins[] here anymore: adminship is a SIGNATURE peers verify
-      // themselves (mesh-refactor §9) — the relay neither knows nor says
+      // themselves (docs/meet-security.md §SIG) — the relay neither knows nor says
       // who is an admin. It only still carries the door ban list.
       if (admV) msg.ban = ban || [];
     }
@@ -397,7 +402,7 @@ export class Session {
       if (first && (first.tok || '') !== token) return reject('bad room token', 1008);
       // The verifier comes from the session id itself (…/<room>.<verifier>) —
       // the SAME derivation the app host gate uses, no separate query param.
-      // ADMINSHIP IS NOT A JOIN PROPERTY ANYMORE (mesh-refactor §9): the
+      // ADMINSHIP IS NOT A JOIN PROPERTY ANYMORE (docs/meet-security.md §SIG): the
       // secret never rides the URL, and no socket is "an admin socket".
       // Privileged orders (setpw/ban/unban/banlist) arrive individually
       // SIGNED by the keypair the admin password seeds; V commits to its
