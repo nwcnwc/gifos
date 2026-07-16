@@ -60,6 +60,7 @@ struct Seat {
   template<class T> void shuf(vector<T>&a){ for(int k=(int)a.size()-1;k>0;k--){ int j=(int)(rng()*(k+1)); T tmp=a[k];a[k]=a[j];a[j]=tmp; } }
 
   inline int occGet(uint64_t k){ auto it=occ.find(k); return it==occ.end()?-1:it->second; }
+  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies)
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
