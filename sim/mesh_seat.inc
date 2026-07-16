@@ -3,7 +3,7 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
-  coord=c; hasCoord=true; state=3; occ[ckey(c)]=id; noteS1(ckey(c));
+  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; occ[ckey(c)]=id; noteS1(ckey(c));
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK;
   lastAck=(int)TICK; lastPhone=(int)TICK;
@@ -156,7 +156,8 @@ void Seat::recv(Msg& m){
   if(!alive[id]) return;
   switch(m.t){
     case GREETERS: {
-      if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key (relay recorded it) and I found the home
+      if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)
+      if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL){ stranded=true; return; }   // R6: greeters exist (meeting alive) but I've reached none for a full TTL => voted off, or on an unreachable subnet (indistinguishable). Give up: "network settings won't let you connect."
       lastGreeters=m.list;
       if(state==0){ Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(m.list[0],w); state=1; retryAt=(int)TICK; }
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
@@ -225,7 +226,8 @@ void Seat::recv(Msg& m){
 void Seat::leave(){ alive[id]=0; active.erase(id); if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
 void Seat::tick(){
   if(!alive[id]){ return; }
-  if(state!=3){ if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
+  if(state!=3){ if(stranded) return;   // R6: stranded => stop retrying (final error state; a real client would show the message + a manual retry)
+    if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
   if(evil) attack();
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); s1Sync(); }
