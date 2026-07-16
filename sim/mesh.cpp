@@ -315,6 +315,27 @@ int main(int argc,char**argv){
       for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; uint32_t pc=seats[q]->coord.pc; if(pc==0) continue; while(parentPath(pc)!=0) pc=parentPath(pc); secSub[pc][seats[q]->subnet]++; }
       double puritySum=0; int nsec=0; for(auto&s:secSub){ int tot=0,mx=0; for(auto&e:s.second){ tot+=e.second; if(e.second>mx)mx=e.second; } if(tot>0){ puritySum+=(double)mx/tot; nsec++; } }
       printf("SUBNETS s1_span=%zu s1_unreachable_pairs=%d subtree_purity=%.2f (nsec=%d) [purity 1.0 = each section is one subnet]\n", s1sub.size(), badpairs, nsec?puritySum/nsec:1.0, nsec); }
+    else if(op=="media"){
+      // MEDIA PLANE: media rides the REACHABLE edges only (unreachable direct links can't carry A/V,
+      // so it must route around). Reports per-tier: effective latency (hops), reachability gaps, forwarder load.
+      unordered_map<uint64_t,int> at; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) at[ckey(seats[q]->coord)]=q;
+      auto rmedia=[&](int a,int b){ return reachable(seats[a]->subnet, seats[b]->subnet); };   // can this edge carry media?
+      auto nbrs=[&](int q, vector<int>&out){ out.clear(); Coord ol[C+2]; int n=ownedLinks(seats[q]->coord,ol); for(int k=0;k<n;k++){ auto it=at.find(ckey(ol[k])); if(it!=at.end()&&it->second!=q&&rmedia(q,it->second)) out.push_back(it->second); } };
+      // --- STAGE / STADIUM: broadcast BFS from (0,0,0) over the reachable media graph ---
+      int src = at.count(ckey({0,0,0}))? at[ckey({0,0,0})] : -1;
+      int seatedN=(int)at.size(), maxDepth=0, cutoff=0, maxFan=0; double weakFanQual=1.0; int weakFanFan=0;
+      if(src>=0){ unordered_map<int,int> depth, fan; vector<int> Q={src}; depth[src]=0; size_t h=0; vector<int> nb;
+        while(h<Q.size()){ int u=Q[h++]; nbrs(u,nb); for(int v:nb){ if(!depth.count(v)){ depth[v]=depth[u]+1; fan[u]++; if(depth[v]>maxDepth)maxDepth=depth[v]; Q.push_back(v);} } }
+        cutoff=seatedN-(int)depth.size();
+        for(auto&e:fan){ if(e.second>maxFan)maxFan=e.second; if((double)e.second/max(0.01,seats[e.first]->netQual) > weakFanFan/max(0.01,weakFanQual)){ weakFanFan=e.second; weakFanQual=seats[e.first]->netQual; } } }
+      // --- ROW: direct row-mate edges that CAN'T carry media (topology put an unreachable peer in your row) ---
+      int rowEdges=0,rowGap=0; for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; Coord c=seats[q]->coord; Coord rm[C-1]; rowMates(c,rm); for(int k=0;k<C-1;k++){ auto it=at.find(ckey(rm[k])); if(it!=at.end()){ rowEdges++; if(!rmedia(q,it->second)) rowGap++; } } }
+      // --- SECTION: how many top-sections are internally SPLIT over reachable media edges ---
+      unordered_map<uint32_t,vector<int>> sec; for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; uint32_t pc=seats[q]->coord.pc; if(pc==0)continue; while(parentPath(pc)!=0)pc=parentPath(pc); sec[pc].push_back(q); }
+      int secSplit=0; vector<int> nb; for(auto&s:sec){ if(s.second.size()<2)continue; unordered_set<int> vis; vector<int> Q={s.second[0]}; vis.insert(s.second[0]); size_t h=0; unordered_set<int> members(s.second.begin(),s.second.end());
+        while(h<Q.size()){ int u=Q[h++]; nbrs(u,nb); for(int v:nb){ if(members.count(v)&&!vis.count(v)){ vis.insert(v); Q.push_back(v);} } } if(vis.size()<s.second.size()) secSplit++; }
+      printf("MEDIA seated=%d | STAGE/STADIUM: bcast_depth=%d cutoff=%d max_fanout=%d weakest_forwarder(fan=%d,qual=%.2f) | ROW: gap_edges=%d/%d (%.1f%%) | SECTION: split=%d/%zu\n",
+        seatedN, maxDepth, cutoff, maxFan, weakFanFan, weakFanQual, rowGap, rowEdges, rowEdges?100.0*rowGap/rowEdges:0.0, secSplit, sec.size()); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
