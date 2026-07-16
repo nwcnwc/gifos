@@ -366,33 +366,38 @@ int main(int argc,char**argv){
       printf(" | ROW: gap_edges=%d/%d (%.1f%%) | SECTION: split=%d/%zu\n",
         rowGap, rowEdges, rowEdges?100.0*rowGap/rowEdges:0.0, secSplit, sec.size()); }
     else if(op=="medialocal"){
-      // ROW/SECTION relay with YOUR rule: an in-scope member (already a taker) may relay onward freely
-      // (chain); a PURE GIVER (a bridge OUTSIDE the scope) accepts at most ONE taker. Measure: gaps
-      // closed, how (taker-chain vs pure giver), max pure-giver load (should stay 1), uncovered.
+      // ROW/SECTION relay, SPANNING-TREE + MULTI-HOP: media flows over a spanning distribution, not
+      // all-pairs. Union-find the scope members over reachable pairs (in-scope takers chain freely, any
+      // #hops). If the scope is ONE component -> covered by members alone (0 pure givers). If it SPLITS,
+      // each extra component is bridged by a PURE GIVER outside the scope, capped at ONE taker; if no
+      // bridge exists it's a TRUE partition (uncoverable). Reports coverage + max pure-giver load.
       unordered_map<uint64_t,int> at; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) at[ckey(seats[q]->coord)]=q;
       unordered_map<int,int> pureLoad;
-      auto R=[&](int a,int b){ return reachable(seats[a]->subnet, seats[b]->subnet); };
-      auto relayScope=[&](vector<int>&scope, int&gaps,int&byTaker,int&byPure,int&uncov,int&maxPure){
-        unordered_set<int> inScope(scope.begin(),scope.end());
-        for(size_t a=0;a<scope.size();a++) for(size_t b=a+1;b<scope.size();b++){ int T=scope[a],M=scope[b];
-          if(R(T,M)) continue; gaps++;   // an in-scope pair that can't carry media directly
-          bool done=false;
-          for(int X:scope){ if(X==T||X==M)continue; if(R(T,X)&&R(X,M)){ byTaker++; done=true; break; } }   // in-scope taker bridges freely
-          if(done) continue;
-          for(auto&kv:at){ int X=kv.second; if(inScope.count(X)) continue; if(pureLoad.count(X)&&pureLoad[X]>=1) continue;   // pure giver, cap 1
-            if(R(T,X)&&R(X,M)){ pureLoad[X]++; if(pureLoad[X]>maxPure)maxPure=pureLoad[X]; byPure++; done=true; break; } }
-          if(!done) uncov++;
-        } };
-      // ROWS
-      int rG=0,rT=0,rP=0,rU=0,rMax=0; unordered_set<uint64_t> seenRow;
+      auto Rq=[&](int a,int b){ return reachable(seats[a]->subnet, seats[b]->subnet); };
+      auto relayScope=[&](vector<int>&scope,int&covered,int&bridged,int&pureUsed,int&uncov,int&maxPure,int&maxComp){
+        int n=(int)scope.size(); vector<int> uf(n); for(int i=0;i<n;i++)uf[i]=i;
+        auto find=[&uf](int x){ while(uf[x]!=x){uf[x]=uf[uf[x]];x=uf[x];} return x; };
+        for(int i=0;i<n;i++) for(int j=i+1;j<n;j++) if(Rq(scope[i],scope[j])) uf[find(i)]=find(j);
+        unordered_map<int,vector<int>> comps; for(int i=0;i<n;i++) comps[find(i)].push_back(i);
+        if((int)comps.size()>maxComp)maxComp=(int)comps.size();
+        if(comps.size()==1){ covered++; return; }
+        bridged++; unordered_set<int> inScope(scope.begin(),scope.end());
+        unordered_set<int> conn; auto it0=comps.begin(); for(int idx:it0->second) conn.insert(scope[idx]);
+        for(auto it=next(comps.begin()); it!=comps.end(); ++it){ bool ok=false;
+          for(auto&kv:at){ int X=kv.second; if(inScope.count(X)) continue; if(pureLoad.count(X)&&pureLoad[X]>=1) continue;
+            bool rc=false; for(int c:conn) if(Rq(c,X)){rc=true;break;} if(!rc)continue;
+            bool rn=false; for(int idx:it->second) if(Rq(scope[idx],X)){rn=true;break;} if(!rn)continue;
+            pureLoad[X]++; if(pureLoad[X]>maxPure)maxPure=pureLoad[X]; pureUsed++; ok=true; for(int idx:it->second) conn.insert(scope[idx]); break; }
+          if(!ok) uncov++; }
+      };
+      int rC=0,rB=0,rP=0,rU=0,rMx=0,rComp=0; unordered_set<uint64_t> seenRow;
       for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3)continue; Coord c=seats[q]->coord; uint64_t rk=ckey({c.pc,c.r,0}); if(seenRow.count(rk))continue; seenRow.insert(rk);
-        vector<int> row; for(int j=0;j<C;j++){ auto it=at.find(ckey({c.pc,c.r,(uint8_t)j})); if(it!=at.end())row.push_back(it->second);} if(row.size()>1) relayScope(row,rG,rT,rP,rU,rMax); }
-      // SECTIONS (top-level)
-      int sG=0,sT=0,sP=0,sU=0,sMax=0; unordered_map<uint32_t,vector<int>> sec;
+        vector<int> row; for(int j=0;j<C;j++){ auto it=at.find(ckey({c.pc,c.r,(uint8_t)j})); if(it!=at.end())row.push_back(it->second);} if(row.size()>1) relayScope(row,rC,rB,rP,rU,rMx,rComp); }
+      int sC=0,sB=0,sP=0,sU=0,sMx=0,sComp=0; unordered_map<uint32_t,vector<int>> sec;
       for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3)continue; uint32_t pc=seats[q]->coord.pc; if(pc==0)continue; while(parentPath(pc)!=0)pc=parentPath(pc); sec[pc].push_back(q); }
-      for(auto&s:sec) if(s.second.size()>1) relayScope(s.second,sG,sT,sP,sU,sMax);
-      printf("MEDIALOCAL ROW gaps=%d [taker-chain=%d pure-giver=%d uncovered=%d] | SECTION gaps=%d [taker-chain=%d pure-giver=%d uncovered=%d] | max_pure_giver_load=%d (rule cap=1)\n",
-        rG,rT,rP,rU, sG,sT,sP,sU, max(rMax,sMax)); }
+      for(auto&s:sec) if(s.second.size()>1) relayScope(s.second,sC,sB,sP,sU,sMx,sComp);
+      printf("MEDIALOCAL ROW: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | SECTION: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | max_pure_giver_load=%d (rule cap=1)\n",
+        rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
