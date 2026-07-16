@@ -48,6 +48,28 @@ static inline uint64_t keyHash(uint64_t k){ k^=k>>33; k*=0xff51afd7ed558ccdull; 
 static const long long RELAY_TTL=500; static const int RELAY_CAP=72;
 static const long long E3_PERIOD=200;   // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
 
+// ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
+// Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
+// existing heal/drain treats it as a dead link and routes/heals around it (no new
+// transport law). A dedicated seeded rng (frnd) keeps clean runs byte-identical and
+// conditioned runs --det-reproducible; it never touches the relay-shuffle rng.
+static double NET_LOSS=0.0;       // base per-frame drop probability on a P2P link
+static int    NET_LAT=1;          // established-link latency: delay ~ 1..NET_LAT (+ device/link penalty)
+static double NET_SEVER=0.0;      // per-frame probability an established link severs (dead ~40-200 ticks)
+static int    NUM_SUBNETS=1;      // participants split across this many subnets (1 = all reachable)
+static double REACH_DENSITY=1.0;  // fraction of NON-spanning subnet pairs that are directly reachable
+static double NET_QUAL_MIN=1.0;   // netQual drawn uniformly in [NET_QUAL_MIN, 1.0] (1.0 = all perfect)
+static uint32_t FSEED=20260714;
+static inline double frnd(){ FSEED=(uint32_t)((FSEED*1103515245u+12345u)&0x7fffffff); return FSEED/2147483648.0; }
+static vector<vector<char>> reachMx;                    // reachMx[a][b]: subnets a<->b directly reachable
+static unordered_map<uint64_t,long long> severedUntil;  // pairKey -> tick the link recovers
+static inline bool reachable(int sa,int sb){ return (int)reachMx.size()<=sa || (int)reachMx.size()<=sb ? true : reachMx[sa][sb]!=0; }
+static void buildReach(){
+  reachMx.assign(NUM_SUBNETS, vector<char>(NUM_SUBNETS,0));
+  for(int a=0;a<NUM_SUBNETS;a++){ reachMx[a][a]=1; if(a>0){ reachMx[a][a-1]=reachMx[a-1][a]=1; } }  // spanning chain => graph is CONNECTED (bridges always exist)
+  for(int a=0;a<NUM_SUBNETS;a++) for(int b=a+2;b<NUM_SUBNETS;b++) if(frnd()<REACH_DENSITY){ reachMx[a][b]=reachMx[b][a]=1; }  // extra shortcuts by density
+}
+
 // ---- threading: per-thread outboxes (seats are independent within a tick, so
 // each thread recv/ticks its own id%NTHREADS shard into thread-local buffers;
 // a serial flush then merges them into the shared fabric). PAR is true ONLY
@@ -85,6 +107,7 @@ struct Seat {
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
+  int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
   bool auditPend=false; bool evil=false;
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
@@ -134,8 +157,26 @@ struct Seat {
 // ---- fabric send/route/relay ----
 static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint32_t)b) : ((uint64_t)b<<32|(uint32_t)a); }
 static void schedule(int from,int to,Msg m){
-  uint64_t pk=pairKey(from,to); int d;
-  if(openPairs.count(pk)) d=1+(SEQ&1); else { openPairs.insert(pk); d=4+(int)(SEQ%5); }
+  uint64_t pk=pairKey(from,to);
+  bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
+  if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
+    Seat* sf=seats[from]; Seat* st=seats[to];
+    // (a) reachability: mutually-unreachable subnets can't form a direct P2P link -> DROP (mesh heals/routes around it)
+    if(NUM_SUBNETS>1 && !reachable(sf->subnet, st->subnet)) return;
+    // (b) severance: an established link occasionally goes dead for a window
+    if(NET_SEVER>0){ auto it=severedUntil.find(pk);
+      if(it!=severedUntil.end()){ if(it->second>TICK) return; severedUntil.erase(it); }
+      if(openPairs.count(pk) && frnd()<NET_SEVER){ severedUntil[pk]=TICK+40+(long long)(frnd()*160); return; } }
+    double q = min(sf->netQual, st->netQual);   // the worse endpoint dominates
+    // (c) loss: bad links drop frames -> sender never acks -> lastAck climbs -> heal/drain fire for real
+    if(NET_LOSS>0 && frnd() < NET_LOSS*(1.0+2.0*(1.0-q))) return;
+    // (d) latency: 1..NET_LAT established spread + a device/link penalty, atop the first-contact establishment cost
+    int spread = (NET_LAT>1)? 1+(int)(frnd()*NET_LAT) : 1+(int)(SEQ&1);
+    int qp = (q<1.0)? (int)((1.0-q)*4.0*frnd()) : 0;
+    int d; if(openPairs.count(pk)) d=spread+qp; else { openPairs.insert(pk); d=4+(int)(SEQ%5)+spread+qp; }
+    m.to=to; m.from=from; SEQ++; bus[TICK+d].push_back(move(m)); return;
+  }
+  int d; if(openPairs.count(pk)) d=1+(SEQ&1); else { openPairs.insert(pk); d=4+(int)(SEQ%5); }
   m.to=to; m.from=from; SEQ++;
   bus[TICK+d].push_back(move(m));
 }
@@ -164,7 +205,10 @@ static void relayKnock(int id,uint64_t presentedKey){
 // ---- run / service ----
 static vector<vector<int>> spawnPlan;
 static int nextId=0, joinWindow=0; static long long MAXP=0;
-static void spawnDue(){ if(TICK<(long long)spawnPlan.size()) for(int k:spawnPlan[TICK]){ int id=nextId++; seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } }
+static void spawnDue(){ if(TICK<(long long)spawnPlan.size()) for(int k:spawnPlan[TICK]){ int id=nextId++; seats[id]=new Seat(id); alive[id]=1;
+    if(NUM_SUBNETS>1) seats[id]->subnet=(int)(frnd()*NUM_SUBNETS);
+    if(NET_QUAL_MIN<1.0) seats[id]->netQual=NET_QUAL_MIN+frnd()*(1.0-NET_QUAL_MIN);
+    seats[id]->join(); } }
 // serial merge of every thread's outbox into the shared fabric, in canonical
 // thread order (t=0..NTHREADS), so a given (seed,threads) run is reproducible.
 static void flushTls(){
@@ -219,6 +263,7 @@ static void initSim(int n,double leave){
   size_t cap=(size_t)N+(size_t)(N*0.6)+16; seats.assign(cap,nullptr); alive.assign(cap,0);
   spawnPlan.assign(joinWindow+1,{}); for(int k=0;k<N;k++){ int t=(int)(grnd()*joinWindow); spawnPlan[t].push_back(k); }
   TICK=0; nextId=0;
+  FSEED=20260714; severedUntil.clear(); buildReach();   // reset fabric rng + reachability for a reproducible conditioned run
 }
 // advance until converged (seated==N && s1 full) or cap; returns ticks used
 static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt && DUPS_G==0) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>6000) return TICK; } else goodSince=-1; } } return TICK; }
@@ -257,6 +302,19 @@ int main(int argc,char**argv){
     else if(op=="tick"){ int n=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<n;q++){doTick();TICK++;} printf("OK tick now=%lld\n",TICK); }
     else if(op=="threads"){ int w=tk.size()>1?max(1,atoi(tk[1].c_str())):1; tlsResize(w); printf("OK threads=%d det=%d\n",NTHREADS,(int)DETERM); }
     else if(op=="det"){ DETERM=(tk.size()>1 && (tk[1]=="on"||tk[1]=="1")); printf("OK det=%d\n",(int)DETERM); }
+    else if(op=="net"){   // net loss=.. lat=.. sever=.. subnets=.. density=.. qual=..   (set BEFORE init)
+      for(size_t z=1;z<tk.size();z++){ auto&t=tk[z]; size_t e=t.find('='); if(e==string::npos)continue; string k=t.substr(0,e); double v=atof(t.substr(e+1).c_str());
+        if(k=="loss")NET_LOSS=v; else if(k=="lat")NET_LAT=(int)v; else if(k=="sever")NET_SEVER=v; else if(k=="subnets")NUM_SUBNETS=max(1,(int)v); else if(k=="density")REACH_DENSITY=v; else if(k=="qual")NET_QUAL_MIN=v; }
+      printf("OK net loss=%.4f lat=%d sever=%.4f subnets=%d density=%.2f qual=%.2f\n",NET_LOSS,NET_LAT,NET_SEVER,NUM_SUBNETS,REACH_DENSITY,NET_QUAL_MIN); }
+    else if(op=="subnets"){   // measure: subtree subnet-clustering + does Section 1 span mutually-unreachable subnets?
+      // Section-1 subnet spread + reachability of its internal mesh
+      vector<int> s1sub; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3&&seats[q]->coord.pc==0) s1sub.push_back(seats[q]->subnet);
+      int badpairs=0; for(size_t a=0;a<s1sub.size();a++) for(size_t b=a+1;b<s1sub.size();b++) if(!reachable(s1sub[a],s1sub[b])) badpairs++;
+      // subtree purity: for each top section i (path digit), what fraction of its members share the modal subnet
+      unordered_map<uint32_t,unordered_map<int,int>> secSub;   // top-section pc -> {subnet: count}
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; uint32_t pc=seats[q]->coord.pc; if(pc==0) continue; while(parentPath(pc)!=0) pc=parentPath(pc); secSub[pc][seats[q]->subnet]++; }
+      double puritySum=0; int nsec=0; for(auto&s:secSub){ int tot=0,mx=0; for(auto&e:s.second){ tot+=e.second; if(e.second>mx)mx=e.second; } if(tot>0){ puritySum+=(double)mx/tot; nsec++; } }
+      printf("SUBNETS s1_span=%zu s1_unreachable_pairs=%d subtree_purity=%.2f (nsec=%d) [purity 1.0 = each section is one subnet]\n", s1sub.size(), badpairs, nsec?puritySum/nsec:1.0, nsec); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
