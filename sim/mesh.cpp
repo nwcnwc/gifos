@@ -97,7 +97,7 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay();
-  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; emitRelay(); wake(id); }
+  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; greetHoldT=(int)TICK+60; emitRelay(); wake(id); }   // hold a socket while joining, so I count as an EARLIER WAITER for later knockers (R3)
   void askSeat(int target){ state=2; retryAt=(int)TICK; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   int pickRoster(){ vector<int> live_; for(auto&e:roster) if(e.v!=id) live_.push_back(e.v); if(live_.empty()) return -1; return live_[(int)(rng()*live_.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first)) out.push_back({e.first,e.second}); } return out; }
@@ -140,7 +140,13 @@ static void relayKnock(int id,int hold){
   // (E2/E3 + roster reconciliation), never prevented by the relay.
   greetHold[id]=hold;
   vector<int> out;
-  for(int k=(int)greetRecent.size()-1;k>=0 && (int)out.size()<6;k--){ int c=greetRecent[k]; if(c!=id && alive[c] && seats[c]->state==3 && (greetHold.count(c)?greetHold[c]:0)>=TICK) out.push_back(c); }
+  // R3 EARLIER-WAITER CLAUSE: hand back everyone holding a live socket — SEATED
+  // seats AND still-joining WAITERS — exactly like the JS reference's
+  // SESSION.members(). greetRecent is updated synchronously, so a simultaneous
+  // cold-start burst serialises: knocker #2 sees waiter #1 and does NOT found.
+  // (The old `state==3` filter dropped waiters, so every knocker in the
+  // seat-and-register latency window saw an empty list and founded => storm.)
+  for(int k=(int)greetRecent.size()-1;k>=0 && (int)out.size()<6;k--){ int c=greetRecent[k]; if(c!=id && alive[c] && (greetHold.count(c)?greetHold[c]:0)>=TICK) out.push_back(c); }
   greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200);
   for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}   // shuffle with global rng
   Msg m; m.t=GREETERS; m.list=out; m.to=id; m.from=-1;
