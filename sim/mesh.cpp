@@ -59,6 +59,8 @@ static double NET_SEVER=0.0;      // per-frame probability an established link s
 static int    NUM_SUBNETS=1;      // participants split across this many subnets (1 = all reachable)
 static double REACH_DENSITY=1.0;  // fraction of NON-spanning subnet pairs that are directly reachable
 static double NET_QUAL_MIN=1.0;   // netQual drawn uniformly in [NET_QUAL_MIN, 1.0] (1.0 = all perfect)
+static int    NET_SPINE=1;        // 1 = force the subnet graph CONNECTED (spanning chain); 0 = pure density (can partition!)
+static int    RELAY_K=0;          // media relay-assist fan-out cap per node (0 = off; >0 = bounded-degree relay tree). "one taker per giver + chain" ~ small K.
 static uint32_t FSEED=20260714;
 static inline double frnd(){ FSEED=(uint32_t)((FSEED*1103515245u+12345u)&0x7fffffff); return FSEED/2147483648.0; }
 static vector<vector<char>> reachMx;                    // reachMx[a][b]: subnets a<->b directly reachable
@@ -66,8 +68,15 @@ static unordered_map<uint64_t,long long> severedUntil;  // pairKey -> tick the l
 static inline bool reachable(int sa,int sb){ return (int)reachMx.size()<=sa || (int)reachMx.size()<=sb ? true : reachMx[sa][sb]!=0; }
 static void buildReach(){
   reachMx.assign(NUM_SUBNETS, vector<char>(NUM_SUBNETS,0));
-  for(int a=0;a<NUM_SUBNETS;a++){ reachMx[a][a]=1; if(a>0){ reachMx[a][a-1]=reachMx[a-1][a]=1; } }  // spanning chain => graph is CONNECTED (bridges always exist)
-  for(int a=0;a<NUM_SUBNETS;a++) for(int b=a+2;b<NUM_SUBNETS;b++) if(frnd()<REACH_DENSITY){ reachMx[a][b]=reachMx[b][a]=1; }  // extra shortcuts by density
+  for(int a=0;a<NUM_SUBNETS;a++){ reachMx[a][a]=1; if(NET_SPINE && a>0){ reachMx[a][a-1]=reachMx[a-1][a]=1; } }  // spanning chain => CONNECTED (spine on); spine off => can partition
+  int lo = NET_SPINE?2:1;
+  for(int a=0;a<NUM_SUBNETS;a++) for(int b=a+lo;b<NUM_SUBNETS;b++) if(frnd()<REACH_DENSITY){ reachMx[a][b]=reachMx[b][a]=1; }  // extra shortcuts by density
+}
+// connected components of the SUBNET reachability graph (=> which seats can carry media to each other AT ALL, even via relay)
+static vector<int> subnetComp(){
+  vector<int> comp(NUM_SUBNETS,-1); int c=0;
+  for(int s=0;s<NUM_SUBNETS;s++) if(comp[s]<0){ vector<int> st={s}; comp[s]=c; while(!st.empty()){ int u=st.back(); st.pop_back(); for(int v=0;v<NUM_SUBNETS;v++) if(reachMx[u][v]&&comp[v]<0){ comp[v]=c; st.push_back(v);} } c++; }
+  return comp;
 }
 
 // ---- threading: per-thread outboxes (seats are independent within a tick, so
@@ -304,8 +313,8 @@ int main(int argc,char**argv){
     else if(op=="det"){ DETERM=(tk.size()>1 && (tk[1]=="on"||tk[1]=="1")); printf("OK det=%d\n",(int)DETERM); }
     else if(op=="net"){   // net loss=.. lat=.. sever=.. subnets=.. density=.. qual=..   (set BEFORE init)
       for(size_t z=1;z<tk.size();z++){ auto&t=tk[z]; size_t e=t.find('='); if(e==string::npos)continue; string k=t.substr(0,e); double v=atof(t.substr(e+1).c_str());
-        if(k=="loss")NET_LOSS=v; else if(k=="lat")NET_LAT=(int)v; else if(k=="sever")NET_SEVER=v; else if(k=="subnets")NUM_SUBNETS=max(1,(int)v); else if(k=="density")REACH_DENSITY=v; else if(k=="qual")NET_QUAL_MIN=v; }
-      printf("OK net loss=%.4f lat=%d sever=%.4f subnets=%d density=%.2f qual=%.2f\n",NET_LOSS,NET_LAT,NET_SEVER,NUM_SUBNETS,REACH_DENSITY,NET_QUAL_MIN); }
+        if(k=="loss")NET_LOSS=v; else if(k=="lat")NET_LAT=(int)v; else if(k=="sever")NET_SEVER=v; else if(k=="subnets")NUM_SUBNETS=max(1,(int)v); else if(k=="density")REACH_DENSITY=v; else if(k=="qual")NET_QUAL_MIN=v; else if(k=="spine")NET_SPINE=(int)v; else if(k=="relayk")RELAY_K=(int)v; }
+      printf("OK net loss=%.4f lat=%d sever=%.4f subnets=%d density=%.2f qual=%.2f spine=%d relayk=%d\n",NET_LOSS,NET_LAT,NET_SEVER,NUM_SUBNETS,REACH_DENSITY,NET_QUAL_MIN,NET_SPINE,RELAY_K); }
     else if(op=="subnets"){   // measure: subtree subnet-clustering + does Section 1 span mutually-unreachable subnets?
       // Section-1 subnet spread + reachability of its internal mesh
       vector<int> s1sub; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3&&seats[q]->coord.pc==0) s1sub.push_back(seats[q]->subnet);
@@ -334,8 +343,28 @@ int main(int argc,char**argv){
       unordered_map<uint32_t,vector<int>> sec; for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; uint32_t pc=seats[q]->coord.pc; if(pc==0)continue; while(parentPath(pc)!=0)pc=parentPath(pc); sec[pc].push_back(q); }
       int secSplit=0; vector<int> nb; for(auto&s:sec){ if(s.second.size()<2)continue; unordered_set<int> vis; vector<int> Q={s.second[0]}; vis.insert(s.second[0]); size_t h=0; unordered_set<int> members(s.second.begin(),s.second.end());
         while(h<Q.size()){ int u=Q[h++]; nbrs(u,nb); for(int v:nb){ if(members.count(v)&&!vis.count(v)){ vis.insert(v); Q.push_back(v);} } } if(vis.size()<s.second.size()) secSplit++; }
-      printf("MEDIA seated=%d | STAGE/STADIUM: bcast_depth=%d cutoff=%d max_fanout=%d weakest_forwarder(fan=%d,qual=%.2f) | ROW: gap_edges=%d/%d (%.1f%%) | SECTION: split=%d/%zu\n",
-        seatedN, maxDepth, cutoff, maxFan, weakFanFan, weakFanQual, rowGap, rowEdges, rowEdges?100.0*rowGap/rowEdges:0.0, secSplit, sec.size()); }
+      // --- TRUE partition: a seat is unreachable AT ALL (even via relay) iff its subnet is in a different component than the source ---
+      int trueCut=0; if(NUM_SUBNETS>1 && src>=0){ vector<int> comp=subnetComp(); int sc=comp[seats[src]->subnet]; for(auto&kv:at) if(comp[seats[kv.second]->subnet]!=sc) trueCut++; }
+      // --- RELAY-ASSIST (item 1): media may open a relay to ANY reachable peer, bounded to RELAY_K adopted takers per node
+      //     (one-taker-per-giver + chain => small K spreads load into a chain). Report the achievable depth + the bounded load. ---
+      int rdepth=-1, rmaxload=0, rcut=0;
+      if(RELAY_K>0 && src>=0){
+        vector<vector<int>> bySub(NUM_SUBNETS); for(auto&kv:at) bySub[seats[kv.second]->subnet].push_back(kv.second);
+        vector<size_t> cur(NUM_SUBNETS,0); unordered_set<int> vis; vis.insert(src);
+        vector<int> frontier={src}; long long remaining=(long long)at.size()-1; rdepth=0;
+        while(remaining>0 && !frontier.empty()){ vector<int> next;
+          for(int u:frontier){ int su=seats[u]->subnet, adopted=0;
+            for(int sv=0; sv<NUM_SUBNETS && adopted<RELAY_K; sv++){ if(!reachMx[su][sv])continue;
+              while(cur[sv]<bySub[sv].size() && adopted<RELAY_K){ int v=bySub[sv][cur[sv]++]; if(vis.count(v))continue; vis.insert(v); next.push_back(v); adopted++; remaining--; } }
+            if(adopted>rmaxload)rmaxload=adopted; }
+          frontier=next; if(!next.empty())rdepth++; }
+        rcut=(int)at.size()-(int)vis.size();
+      }
+      printf("MEDIA seated=%d | STAGE/STADIUM: bcast_depth=%d cutoff=%d TRUE_partition=%d max_fanout=%d weakest_fwd(fan=%d,qual=%.2f)",
+        seatedN, maxDepth, cutoff, trueCut, maxFan, weakFanFan, weakFanQual);
+      if(RELAY_K>0) printf(" | RELAY-ASSIST k=%d: depth=%d max_relay_load=%d uncovered=%d", RELAY_K, rdepth, rmaxload, rcut);
+      printf(" | ROW: gap_edges=%d/%d (%.1f%%) | SECTION: split=%d/%zu\n",
+        rowGap, rowEdges, rowEdges?100.0*rowGap/rowEdges:0.0, secSplit, sec.size()); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
