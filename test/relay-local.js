@@ -10,7 +10,8 @@ const PORT = process.env.RELAY_PORT ? parseInt(process.env.RELAY_PORT, 10) : 879
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 // GREETER REGISTRY constants (R2/R3) — mirror relay/src/relay.js.
-const GREETER_TTL_MS = 90 * 1000, GBLOB_CAP = 4096;
+// TTL = RELAY_TTL(500 ticks) × the 500ms production tick > E3 worst case (200s).
+const GREETER_TTL_MS = 250 * 1000, GBLOB_CAP = 4096;
 
 // ---- minimal RFC6455 connection ----
 class Conn {

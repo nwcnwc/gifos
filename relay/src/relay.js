@@ -128,7 +128,10 @@ const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT s
 // (an empty registry ⇒ the first knocker founds the instance) and hands
 // newcomers the sealed list so they can walk into the mesh. Arrival order
 // alone decides genesis; the relay arbitrates nothing.
-const GREETER_TTL_MS = 90 * 1000;   // a Section-1 seat re-knocks (E3) well inside this
+// TTL = the sim's RELAY_TTL (500 ticks) × the canonical 500ms production tick.
+// Must exceed the E3 re-knock worst case (E3_PERIOD + jitter = up to 400 ticks
+// = 200s), or live greeters would expire off the list between re-knocks.
+const GREETER_TTL_MS = 250 * 1000;
 const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphertext
 
 // Admin-room ban lists ride in socket attachments (2KB serialized cap) —
