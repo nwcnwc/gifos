@@ -11,6 +11,8 @@
 #include <unordered_set>
 #include <string>
 #include <chrono>
+#include <algorithm>
+#include <utility>
 using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
@@ -36,13 +38,35 @@ static uint32_t GSEED=20260714;
 static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7fffffff); return GSEED/2147483648.0; }
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
-static vector<int> greetRecent; static unordered_map<int,int> greetHold; static int FOUNDER=-1; static long long FOUNDER_AT=-999;
+static vector<int> greetRecent; static unordered_map<int,int> greetHold;
+
+// ---- threading: per-thread outboxes (seats are independent within a tick, so
+// each thread recv/ticks its own id%NTHREADS shard into thread-local buffers;
+// a serial flush then merges them into the shared fabric). PAR is true ONLY
+// inside the parallel region, so NTHREADS==1 stays byte-identical to the
+// validated single-threaded path (everything routes inline). DETERM sorts the
+// per-shard tick order for guaranteed run-to-run reproducibility.
+#ifdef _OPENMP
+#include <omp.h>
+static inline int curTid(){ return omp_get_thread_num(); }
+#else
+static inline int curTid(){ return 0; }
+#endif
+static int NTHREADS=1; static bool DETERM=false; static bool PAR=false;
+struct Pend{ int from,to; Msg m; };
+static vector<vector<Pend>> tlsOut;
+static vector<vector<pair<int,int>>> tlsRelay;   // {id, hold}
+static vector<vector<int>> tlsWake;
+static vector<long long> tlsMoves, tlsEvict;
+static void tlsResize(int n){ NTHREADS=n; tlsOut.assign(n,{}); tlsRelay.assign(n,{}); tlsWake.assign(n,{}); tlsMoves.assign(n,0); tlsEvict.assign(n,0); }
+static inline void bumpMoves(){ if(PAR) tlsMoves[curTid()]++; else MOVES++; }
+static inline void bumpEvict(){ if(PAR) tlsEvict[curTid()]++; else EVICTIONS++; }
 
 struct Seat;
 static vector<Seat*> seats;              // index = id
 static vector<char> alive;               // alive[id]
 static unordered_set<int> active, nextActive;
-static inline void wake(int id){ nextActive.insert(id); }
+static inline void wake(int id){ if(PAR) tlsWake[curTid()].push_back(id); else nextActive.insert(id); }
 
 // ---- seat ----
 struct Seat {
@@ -105,22 +129,20 @@ static void schedule(int from,int to,Msg m){
   m.to=to; m.from=from; SEQ++;
   bus[TICK+d].push_back(move(m));
 }
-void Seat::emit(int to,const Msg& m){ Msg mm=m; schedule(id,to,move(mm)); }
+void Seat::emit(int to,const Msg& m){ if(PAR){ tlsOut[curTid()].push_back({id,to,m}); } else { Msg mm=m; schedule(id,to,move(mm)); } }
 static void relayKnock(int id,int hold);
-void Seat::emitRelay(){ relayKnock(id, greetHoldT); }
+void Seat::emitRelay(){ if(PAR){ tlsRelay[curTid()].push_back({id,greetHoldT}); } else { relayKnock(id, greetHoldT); } }
 static void relayKnock(int id,int hold){
+  // R2: the relay is a DUMB front door — it knows nothing of root/home. It just
+  // hands back whoever currently holds a socket (the greeters). An empty list
+  // means the knocker holds the only socket → it founds the home (R3). Races
+  // that mint duplicate Section-1 seats are settled by the healing laws
+  // (E2/E3 + roster reconciliation), never prevented by the relay.
   greetHold[id]=hold;
   vector<int> out;
   for(int k=(int)greetRecent.size()-1;k>=0 && (int)out.size()<6;k--){ int c=greetRecent[k]; if(c!=id && alive[c] && seats[c]->state==3 && (greetHold.count(c)?greetHold[c]:0)>=TICK) out.push_back(c); }
-  if(out.empty()){   // R3 genesis SERIALIZED: designate ONE founder; everyone else waits on it (WHOHOMEs it) instead of all founding
-    Seat* f=(FOUNDER>=0 && FOUNDER<(int)alive.size() && alive[FOUNDER])? seats[FOUNDER]:nullptr;
-    bool fOk = f && (f->state==3 || TICK-FOUNDER_AT<200);
-    if(!fOk || FOUNDER==id){ FOUNDER=id; FOUNDER_AT=TICK; greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200); Msg m; m.t=GREETERS; m.to=id; m.from=-1; bus[TICK+1].push_back(move(m)); return; }
-    out.push_back(FOUNDER);
-  }
   greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200);
-  // shuffle out with global rng
-  for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}
+  for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}   // shuffle with global rng
   Msg m; m.t=GREETERS; m.list=out; m.to=id; m.from=-1;
   bus[TICK+1].push_back(move(m));
 }
@@ -132,7 +154,45 @@ static void relayKnock(int id,int hold){
 static vector<vector<int>> spawnPlan;
 static int nextId=0, joinWindow=0; static long long MAXP=0;
 static void spawnDue(){ if(TICK<(long long)spawnPlan.size()) for(int k:spawnPlan[TICK]){ int id=nextId++; seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } }
+// serial merge of every thread's outbox into the shared fabric, in canonical
+// thread order (t=0..NTHREADS), so a given (seed,threads) run is reproducible.
+static void flushTls(){
+  for(int t=0;t<NTHREADS;t++){
+    for(auto&p:tlsOut[t]) schedule(p.from,p.to,move(p.m));
+    tlsOut[t].clear();
+    for(auto&r:tlsRelay[t]) relayKnock(r.first,r.second);
+    tlsRelay[t].clear();
+    for(int w:tlsWake[t]) nextActive.insert(w);
+    tlsWake[t].clear();
+    MOVES+=tlsMoves[t]; EVICTIONS+=tlsEvict[t]; tlsMoves[t]=0; tlsEvict[t]=0;
+  }
+}
+// parallel tick: partition this tick's inbox + active set by id%NTHREADS; each
+// thread recv+ticks its own shard (no shared reads between seats), buffering all
+// sends. Recipients of this tick's delivery also tick this tick (matches serial).
+static vector<vector<Msg>> inboxBuf; static vector<vector<int>> actBuf;
+static void doTickPar(){
+  spawnDue();                                              // serial (PAR=false → inline)
+  inboxBuf.assign(NTHREADS,{}); actBuf.assign(NTHREADS,{});
+  auto it=bus.find(TICK);
+  if(it!=bus.end()){ for(auto&m:it->second){ if(m.to>=0 && m.to<(int)seats.size() && alive[m.to]) inboxBuf[m.to%NTHREADS].push_back(move(m)); } bus.erase(it); }
+  active.swap(nextActive); nextActive.clear();
+  for(int id: active){ if(id<nextId && alive[id]) actBuf[id%NTHREADS].push_back(id); }
+  PAR=true;
+  #pragma omp parallel num_threads(NTHREADS)
+  {
+    int t=curTid();
+    unordered_set<int> tickset;
+    for(int id:actBuf[t]) tickset.insert(id);
+    for(auto&m:inboxBuf[t]){ if(alive[m.to]){ seats[m.to]->recv(m); tickset.insert(m.to); } }
+    if(DETERM){ vector<int> v(tickset.begin(),tickset.end()); sort(v.begin(),v.end()); for(int id:v) if(alive[id]) seats[id]->tick(); }
+    else { for(int id:tickset) if(alive[id]) seats[id]->tick(); }
+  }
+  PAR=false;
+  flushTls();
+}
 static void doTick(){
+  if(NTHREADS>1){ doTickPar(); return; }
   spawnDue();
   auto it=bus.find(TICK);
   if(it!=bus.end()){ for(auto&m:it->second){ if(m.to>=0 && m.to<(int)seats.size() && alive[m.to]){ seats[m.to]->recv(m); wake(m.to);} } bus.erase(it); }
@@ -153,8 +213,13 @@ static void initSim(int n,double leave){
 static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt && DUPS_G==0) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>6000) return TICK; } else goodSince=-1; } } return TICK; }
 
 int main(int argc,char**argv){
-  // batch mode: ./mesh N [leaveFrac]   |   service mode: ./mesh --service
-  bool service = (argc>1 && string(argv[1])=="--service");
+  // batch: ./mesh N [leaveFrac] [--threads=W] [--det]  |  service: ./mesh --service [--threads=W] [--det]
+  bool service=false; int wthreads=1;
+  for(int a=1;a<argc;a++){ string s=argv[a];
+    if(s=="--service") service=true;
+    else if(s.rfind("--threads=",0)==0) wthreads=max(1,atoi(s.c_str()+10));
+    else if(s=="--det") DETERM=true; }
+  tlsResize(wthreads);
   if(!service){
     int n=argc>1?atoi(argv[1]):10000; double lv=argc>2?atof(argv[2]):0;
     initSim(n,lv); auto t0=chrono::steady_clock::now();
@@ -179,6 +244,8 @@ int main(int argc,char**argv){
     if(op=="quit"||op=="exit"){ printf("BYE\n"); break; }
     else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f\n",n,lv); }
     else if(op=="tick"){ int n=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<n;q++){doTick();TICK++;} printf("OK tick now=%lld\n",TICK); }
+    else if(op=="threads"){ int w=tk.size()>1?max(1,atoi(tk[1].c_str())):1; tlsResize(w); printf("OK threads=%d det=%d\n",NTHREADS,(int)DETERM); }
+    else if(op=="det"){ DETERM=(tk.size()>1 && (tk[1]=="on"||tk[1]=="1")); printf("OK det=%d\n",(int)DETERM); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), nb.c_str()); } }
