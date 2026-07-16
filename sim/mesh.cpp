@@ -47,6 +47,7 @@ static uint64_t relayGenesisKey=0; static unordered_map<int,long long> relayGree
 static inline uint64_t keyHash(uint64_t k){ k^=k>>33; k*=0xff51afd7ed558ccdull; k^=k>>33; k*=0xc4ceb9fe1a85ec53ull; k^=k>>33; return k?k:1; }
 static const long long RELAY_TTL=500; static const int RELAY_CAP=72;
 static const long long E3_PERIOD=200;   // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
+static const long long STRAND_TTL=500;   // R6: a newcomer that cannot reach any greeter for this long (=RELAY_TTL) re-checks: empty list => take over, else => stranded (voted off / unreachable subnet)
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
 // Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
@@ -117,6 +118,7 @@ struct Seat {
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
   int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
+  int joinStart=-1; bool stranded=false;   // R6: when this join attempt began; stranded once I give up
   bool auditPend=false; bool evil=false;
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
@@ -139,7 +141,7 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
   void askSeat(int target){ state=2; retryAt=(int)TICK; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   int pickRoster(){ vector<int> live_; for(auto&e:roster) if(e.v!=id) live_.push_back(e.v); if(live_.empty()) return -1; return live_[(int)(rng()*live_.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first)) out.push_back({e.first,e.second}); } return out; }
@@ -399,7 +401,7 @@ int main(int argc,char**argv){
       printf("MEDIALOCAL ROW: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | SECTION: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | max_pure_giver_load=%d (rule cap=1)\n",
         rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
-    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
+    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++; printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
