@@ -440,11 +440,12 @@
   // degenerate folds), never by branching.
   const SCALE = Object.assign({
     // C is THE shape constant — the stadium's whole geometry derives from it:
-    // a row seats C people, a section is C rows (C² seats — one relay
-    // session), a level-1 space seats the sections' row deacons, and so on
-    // up. Per-device link count and fold fanout are CONSEQUENCES of the
-    // arithmetic, never separate knobs. (Grows with rehearsals.)
-    C: 8,
+    // a row seats C people, a section is a C×C block of uniform seats, and each
+    // seat roots a child section one level down (no root, no deacons — see
+    // docs/healing-laws.md). Per-device link count (bounded: C-1 row-mates +
+    // cross + up/down) and fold fan-out are CONSEQUENCES of the arithmetic,
+    // never separate knobs. MUST equal C in relay/src/relay.js + test/relay-local.js.
+    C: 5,
     // The fold frame budget: 756×1344 = 1,016,064 px — the smallest 9:16
     // frame past ONE MILLION PIXELS, on purpose: a million people in the
     // room, and every one of them is a pixel of the fold. PORTRAIT, because
