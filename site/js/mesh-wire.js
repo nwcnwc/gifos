@@ -80,6 +80,7 @@
     };
     const seat = new mesh.Seat(peer, env);
     seat.myKey = myKey;
+    if (opts.onGossip) seat.onGossip = (src, m) => { if (!stopped) opts.onGossip(src, m); };
 
     function makeSock() {
       sock = net.steadySocket(makeUrl);
@@ -129,6 +130,9 @@
       // DataChannel ingestion: the DC layer hands OPENED control objects here
       // (production unwraps its own sealed frames; {mw:1, m} envelopes route m).
       recvCtl(m) { if (!stopped && m) seat.recv(m); },
+      // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
+      // the relay session is only the greeter pool now, not the room.
+      gossip(payload) { if (!stopped) seat.gossip(payload); },
       stats() { return { peer, state: seat.state, coord: seat.hasCoord ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: seat.stranded, tick: env.TICK }; },
       leave() { try { seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },

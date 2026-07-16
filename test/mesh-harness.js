@@ -110,6 +110,19 @@ function kill(env, N, frac, mode) {
 let fails = 0;
 const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '')); if (!cond) fails++; };
 
+// Gossip coverage: one seat floods; every other live seated seat must hear it
+// exactly once (dedup) within a few hundred ticks.
+function gossipCheck(env, label) {
+  let got = 0, dupDeliveries = 0; const seen = new Set();
+  let src = null;
+  for (const s of env.seats.values()) { if (!s.alive) continue; if (!src && s.state === 3) src = s; s.onGossip = () => { got++; if (seen.has(s.id)) dupDeliveries++; seen.add(s.id); }; }
+  const expect = [...env.seats.values()].filter((s) => s.alive && s.state === 3).length - 1;
+  src.gossip({ hello: 1 });
+  for (let t = 0; t < 400; t++) doTick(env);
+  check(`${label}: gossip reached ${got}/${expect}, redelivered ${dupDeliveries}`, got === expect && dupDeliveries === 0, { got, expect });
+  for (const s of env.seats.values()) s.onGossip = null;
+}
+
 function scenario(N, killSpec) {
   seedRng(20260714); // per-scenario reset ⇒ independent + reproducible
   const env = makeFabric();
@@ -118,6 +131,7 @@ function scenario(N, killSpec) {
   let c = counts(env);
   const tgt = Math.min(25, N);
   check(`JOIN N=${N}: seated ${c.seated}/${N}, s1 ${c.s1}/${tgt}, dups ${c.dups} @${jt}`, c.seated === N && c.s1 === tgt && c.dups === 0, c);
+  if (!killSpec) gossipCheck(env, `GOSSIP N=${N}`);
   if (killSpec) {
     const nk = kill(env, N, killSpec.frac || 0, killSpec.mode || '');
     const nowN = N - nk;
@@ -125,6 +139,7 @@ function scenario(N, killSpec) {
     c = counts(env);
     const tgt2 = Math.min(25, nowN);
     check(`${killSpec.label} (killed ${nk}): seated ${c.seated}/${nowN}, s1 ${c.s1}/${tgt2}, dups ${c.dups} @${kt}`, c.seated === nowN && c.s1 === tgt2 && c.dups === 0, c);
+    gossipCheck(env, `GOSSIP after ${killSpec.label}`);
   }
 }
 
