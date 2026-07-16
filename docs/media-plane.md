@@ -26,23 +26,50 @@ Direct, full quality: the `C` seats of a row are already fully meshed, so each
 holds every row-mate's stream directly. No compositing, no forwarding. This is
 the tightest, lowest-latency tier — the people you're "sitting with."
 
-## Channel Se — Section (your C×C block)
-Rides the **cross-links**, kept **off the heads** (heads are busy with the
-Stadium up/down duty). A non-head's cross-link plus the row meshes make the
-section one connected graph, so Section video **floods** that graph: each seat
-forwards section frames across its cross-link and row, and every seat in the
-C² block converges on the same set. Bounded fan-out (row + one cross-link), no
-central assembler.
+## Channel Se — Section (your C×C block, self-composited below your row)
+You see your own **Row** live (Channel R, on top), and beneath it a **composite
+of the other C-1 rows** of your section — assembled **by you**, from feeds
+arriving over your **cross-links**. A non-head's cross-link plus the row meshes
+make the section one connected graph, so section feeds **flood** it (bounded
+fan-out — row + one cross-link — kept **off the busy heads**); each seat receives
+the other rows and composites them itself into the block under its live row. That
+block runs slightly **behind** your row (the compositing lag) — everyone does
+their own, no central assembler. (A separate media path for now; may later feed
+the Stadium.)
 
 ## Channel St — Stage (the chosen ≤C broadcasters)
-A decoupled, deliberately-chosen set (never row 0 — see the STADIUM vocabulary
-in CLAUDE.md), capped at `C`. A stager's stream is passed **up** the tree to
-Section 1 **uncomposited** (Stage is few enough streams to keep at full
-quality), then fanned **down** every `down`-link to the whole stadium. Latency
-is one up-traversal + one down-traversal; Stage is never folded, so it stays
-sharp and roughly lip-sync. Membership is gated per room type (self step-up in
-open rooms; admin-granted in admin rooms) — a product decision tracked with the
-control plane, not here.
+A decoupled, deliberately-chosen set (never row 0 — STADIUM vocabulary in
+CLAUDE.md), capped at `C`. **Entry** is per room type: self step-up in open
+rooms, admin-granted in admin rooms. **Membership rides phone-home**: a stager
+announces its coord + a stage flag/timestamp in its status heartbeat, so every
+seat knows who is on Stage and in what tile order (the cap-C set is
+deterministic — earliest timestamp wins, ties by coord), and joining is just
+flipping your own flag.
+
+**Assembly — the Stage is a "row fold" assembled at Section 1, not down-tree:**
+1. **Collect (1 hop).** Each stager opens **one direct link** to a Section-1 seat
+   it already knows (its entry greeter / any S1 seat on the roster) and pushes
+   its raw feed there. Only ≤C such off-tree links exist — cheap, stagers are few.
+2. **Spread (~2 hops).** That S1 seat relays the feed across the Section-1
+   row+cross mesh (the W5 roster fabric), so **every** S1 seat holds all ≤C feeds.
+3. **Composite + fan down.** Each Section-1 seat composites the ≤C feeds into
+   **one** horizontal Stage strip **itself** (redundant, parallel, no election —
+   the Stadium doctrine) and fans that **single** stream down its subtree; heads
+   forward it down.
+
+One composited strip, **not** ≤C separate streams — fan-out is one cheap stream
+and a fixed panel is what a broadcast tier wants. Latency = 1 (to S1) + ~2
+(spread) + tree depth (down); less than Stadium (no per-level composite on the
+way up), as befits the live tier.
+
+**An APP on Stage carries a DATA stream, not A/V.** Running an app occupies one
+of the ≤C Stage seats; instead of camera pixels it broadcasts the app's shared
+**state** (small — deltas over the data channel), fanned down the same Stage
+path. The composited strip leaves that tile's slot empty; each client runs the
+app **locally** and renders it into the slot (positions are deterministic from
+the stage roster). This reuses GifOS's P2P app-state machinery, now broadcast
+stadium-wide — a collaborative app on the Stage, crisp and interactive, for the
+price of a data stream instead of a video one.
 
 ## Channel Sd — Stadium (everyone, as one fractal mosaic)
 The novel tier: the entire room assembled into a single mosaic by the
