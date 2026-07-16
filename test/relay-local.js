@@ -8,6 +8,9 @@ const crypto = require('crypto');
 
 const PORT = process.env.RELAY_PORT ? parseInt(process.env.RELAY_PORT, 10) : 8790;
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+// GREETER REGISTRY constants (R2/R3) — mirror relay/src/relay.js.
+const GREETER_TTL_MS = 90 * 1000, GBLOB_CAP = 4096;
 
 // ---- minimal RFC6455 connection ----
 class Conn {
@@ -245,6 +248,31 @@ server.on('upgrade', (req, socket) => {
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
     if (dest) dest.send(wrapped);
   };
+  // ---- greeter registry (R2/R3) — mirrors relay/src/relay.js ----
+  // State lives on the CONNECTIONS (occupancy), so it is forgotten when the room
+  // empties. The relay holds only H(genesis key) + TTL'd SEALED addresses,
+  // gates GENESIS (empty registry ⇒ first knocker founds), and hands newcomers
+  // the opaque list. Zero-knowledge — it never holds the meeting-URL key.
+  const genesisHash = () => {
+    for (const c of sess.clients.values()) if (c.gkh) return c.gkh;
+    return null;
+  };
+  const greeterList = (except) => {
+    const now = Date.now(), out = [];
+    for (const c of sess.clients.values()) {
+      if (c === except) continue;
+      if (c.gblob && (c.gexp || 0) > now) out.push(c.gblob);
+    }
+    return out;
+  };
+  const knock = (c, gk, gblob) => {
+    const have = genesisHash();
+    let founded = false, admitted = false;
+    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; } // empty ⇒ found (R3)
+    else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
+    if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
+    c.send(JSON.stringify({ t: 'greeters', list: greeterList(c), founded, admitted }));
+  };
 
   if (role === 'host') {
     // Owned-app gate (mirrors the Worker): a sid "<room>.<verifier>" gates the
@@ -301,6 +329,7 @@ server.on('upgrade', (req, socket) => {
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+    const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
     if (dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
     // Standing-votes gate (plain rooms): a majority of the devices already
     // here (min 2, counting the arriver) with this device on their personal
@@ -330,6 +359,7 @@ server.on('upgrade', (req, socket) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
       if (m.t === 'peer') routePeer(peer, m);
+      else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
       else if (m.t === 'gossip' && m.msg !== undefined) {
         // One inbound frame fans out to every other member as the ordinary
         // {t:'peer', from} shape (no stamp — §9) — mirrors relay/src/relay.js.
@@ -377,6 +407,7 @@ server.on('upgrade', (req, socket) => {
     };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
+    knock(conn, gk, null); // KNOCK at connection (R2/R3): found if empty, else hand back the sealed greeter list
     roster();
   } else {
     if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }

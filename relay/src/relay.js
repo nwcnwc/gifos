@@ -119,6 +119,18 @@ const MAX_SOCKETS_PER_SESSION = C * C + C; // 72 — a full section plus the sta
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 
+// GREETER REGISTRY (healing-laws R2/R3) — the relay's ONE piece of state beyond
+// live occupancy. Per session it holds H(genesis key) + a TTL'd list of SEALED
+// greeter addresses, BOTH carried in occupant attachments (so they survive
+// hibernation and die with the room — nothing is persisted to disk). It is
+// zero-knowledge: the relay never holds the meeting-URL key that seals the
+// addresses, never sees a coord, a home, or a seat. It gates only GENESIS
+// (an empty registry ⇒ the first knocker founds the instance) and hands
+// newcomers the sealed list so they can walk into the mesh. Arrival order
+// alone decides genesis; the relay arbitrates nothing.
+const GREETER_TTL_MS = 90 * 1000;   // a Section-1 seat re-knocks (E3) well inside this
+const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphertext
+
 // Admin-room ban lists ride in socket attachments (2KB serialized cap) —
 // keep entries tiny. Plain rooms have NO ban list at all: exclusion there is
 // only ever a live MAJORITY of personal vote-offs (see tallyVotes).
@@ -225,6 +237,54 @@ export class Session {
   broadcast(obj) {
     const s = JSON.stringify(obj);
     for (const ws of this.members()) this.send(ws, s);
+  }
+
+  // ---- greeter registry (R2/R3): state = occupancy, nothing persisted ----
+  // The genesis-key hash is the ROOM-INSTANCE identity: recorded by the first
+  // knocker to meet an empty registry, then replicated into every admitted
+  // Section-1 seat's attachment. Any live seat carries it; when the last seat
+  // leaves it is forgotten and the room reopens for a fresh genesis (R2/R3).
+  genesisHash() {
+    for (const ws of this.members()) { const g = this.att(ws).gkh; if (g) return g; }
+    return null;
+  }
+  // The sealed greeter list: every unexpired Seal(K,address) blob a Section-1
+  // seat has registered, opaque to the relay (sealed under the meeting-URL key
+  // it does not hold). The knocker's own blob is excluded — you don't greet
+  // yourself. GC is lazy (expiry filtered here); a departed seat's blob leaves
+  // with its socket, so the list is naturally the live greeter pool.
+  greeterList(exceptWs) {
+    const now = Date.now(), out = [];
+    for (const ws of this.members()) {
+      if (ws === exceptWs) continue;
+      const a = this.att(ws);
+      if (a.gblob && (a.gexp || 0) > now) out.push(a.gblob);
+    }
+    return out;
+  }
+  // Answer a knock. Returns the sealed greeter list ALWAYS (newcomers need it to
+  // find the mesh) and decides two flags: `founded` — this knocker met an empty
+  // registry and MINTED the genesis instance (R3); `admitted` — its key matches
+  // the instance genesis, so its sealed address joins the greeter POOL. Only
+  // H(gk) is ever stored/compared, so the relay never learns the key in a form
+  // that decrypts anything (the genesis key is an admission token, not the
+  // URL seal). The DO is single-threaded, so exactly one knocker can found.
+  async knock(ws, gk, gblob) {
+    const a = this.att(ws);
+    const have = this.genesisHash();
+    let founded = false, admitted = false;
+    if (!have) {
+      a.gkh = gk ? await sha256hex(gk) : null;   // empty registry ⇒ found (R3)
+      founded = admitted = !!a.gkh;
+    } else if (gk && (await sha256hex(gk)) === have) {
+      a.gkh = have; admitted = true;             // matching key ⇒ join the pool
+    }
+    if (admitted && gblob) {
+      a.gblob = String(gblob).slice(0, GBLOB_CAP);
+      a.gexp = Date.now() + GREETER_TTL_MS;
+    }
+    try { ws.serializeAttachment(a); } catch (e) {}
+    this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded, admitted });
   }
 
   async fetch(request) {
@@ -363,6 +423,7 @@ export class Session {
       const roomPw = first ? (first.pw || '') : (av ? '' : offeredPw);
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+      const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
       const ban = first ? (first.ban || []) : [];
       if (dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
       // STANDING VOTES GATE (plain rooms): every participant carries a
@@ -398,6 +459,11 @@ export class Session {
       // broadcasts ciphertext. This is the one place an IP crosses the relay,
       // to its rightful owner, and it is never stored.
       this.send(server, { t: 'whoami', ip });
+      // KNOCK at connection (R2/R3): found the instance if the registry is
+      // empty, else hand back the sealed greeter list. A newcomer presents a
+      // throwaway gk and has no address to register yet — it re-knocks with
+      // { t:'knock', gk, gblob } once it has taken a Section-1 seat (E3).
+      await this.knock(server, gk, null);
       this.roster();
     } else {
       const h = this.hostSock();
@@ -440,6 +506,7 @@ export class Session {
       else if (m.t === 'peer') this.routePeer('host', m);
     } else if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
+      else if (m.t === 'knock') this.knock(ws, m.gk, m.gblob); // (re)register a greeter / take-over an empty room (R2/R3/R6)
       else if (m.t === 'gossip' && m.msg !== undefined) {
         // Room-wide fan-out of ONE inbound frame, delivered as the ordinary
         // { t:'peer', from } shape so receivers need no new path. The
