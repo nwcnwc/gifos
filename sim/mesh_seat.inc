@@ -58,7 +58,7 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
   if(coord.pc==0 && hole.pc!=0) return;
   if(coord.pc==0 && hole.pc==0 && !(hole.i==0&&hole.r==coord.r)) return;
-  MOVES++;
+  bumpMoves();
   Coord oldC=coord; Coord ol[C+2]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(oldC);m.id=id; emit(x,m);} }
   occ.clear(); s1seen.clear();
@@ -66,15 +66,20 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   lastAck=(int)TICK; lastPhone=(int)TICK-100;
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(){ if(!evil) EVICTIONS++; MOVES++; if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
+  // E1 LAST RESORT, checked FIRST: owner-chain dead >220 ticks with no mesh
+  // route to Section 1 → re-enter the front door. This was previously below the
+  // drain branch and thus UNREACHABLE for a seat holding a STALE roster (branch
+  // 1 returned every tick), stranding it forever phoning a ghost owner. Drop the
+  // dead roster and requeue → join() re-knocks the relay for fresh greeters.
+  if(TICK-lastAck>220){ haveRoster=false; roster.clear(); drainAt=0; requeue(); return; }
   if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
-  if(TICK-lastAck>220) requeue();
 }
-void Seat::reseatViaRoster(){ MOVES++; if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::reseatViaRoster(){ bumpMoves(); if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
