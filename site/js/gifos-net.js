@@ -301,7 +301,7 @@
   // match, and the room key. The verifier is re-appended after the derived
   // hex so the relay's verifierOf(sid) keeps reading it off the tail.
   //
-  // THE DOOR LOCK IS CRYPTOGRAPHY (mesh-refactor §8): a LOCKED room's E2E key
+  // THE DOOR LOCK IS CRYPTOGRAPHY (docs/meet-security.md §LOCK): a LOCKED room's E2E key
   // mixes the password into the derivation — without the password you cannot
   // READ the room, no matter what you hold or which door you talk past. The
   // relay's proof check remains a courtesy gate only (fail fast with a clear
@@ -319,7 +319,8 @@
     return Promise.all([dsHash('meet-sid', base), dsHash('meet-tok', base), deriveMeetKey(roomCode, av, pw || '')])
       .then(([sid, tok, key]) => ({ sid: sid.slice(0, 20) + (av ? '.' + av : ''), tok: tok.slice(0, 24), key }));
   }
-  // Multi-session rows (docs/rows.md): each row lives in its OWN relay
+  // Legacy multi-session derivation (app sessions still use paths; the
+  // MEETING mesh is one session per stadium now): each path derives its OWN
   // session so no single DO ever holds more than a row's worth of sockets.
   // Path '' IS deriveMeet — a room that fits in one row never changes
   // identity. Deeper paths mix INTO the hash (never appended after the
@@ -348,7 +349,7 @@
   // one home). A fork is a different key. 24 bytes = 192 bits, unforgeable.
   const mintGenesisKey = () => randHex(24);
 
-  // ---- authority is a signature (mesh-refactor §9) ---------------------------
+  // ---- authority is a signature (docs/meet-security.md §SIG) -----------------
   // Admin power used to exist only as the relay's adm:true stamp — nothing a
   // peer could check. Now the PBKDF2 bits derived from the admin password are
   // the SEED of a deterministic Ed25519 keypair; the room verifier V commits
@@ -440,7 +441,7 @@
     return (job) => { q = q.then(job).catch(() => {}); return q; };
   }
 
-  // ---- the scale constants (docs/rows.md) ------------------------------------
+  // ---- the scale constants (docs/healing-laws.md + docs/media-plane.md) ------
   // Structure emerges from THESE NUMBERS, never from code that asks "is this
   // room big?" (per-node invariants, no global modes). Tests and rehearsals
   // override via window.GIFOS_SCALE — the same idiom as GIFOS_CONN — so ten

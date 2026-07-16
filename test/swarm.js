@@ -346,7 +346,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     console.log('[swarm] up=' + up + '/' + N + ' sections=' + JSON.stringify(bySection) + ' roomCount=' + parts);
   }, 20000);
 
-  // ---- deep per-bot topology diagnostic (docs/rows.md) ---------------------
+  // ---- deep per-bot topology diagnostic (docs/healing-laws.md) -------------
   // Every DIAG seconds, ask each bot how the mesh is treating it: section /
   // global-row / seat, deacon or not, how many REAL RTCPeerConnections it holds
   // and whether any reach BEYOND its row+stage (the "P2P on all 64" smell —

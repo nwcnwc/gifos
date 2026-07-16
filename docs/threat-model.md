@@ -173,6 +173,13 @@ sink; a client regains burst budget by reconnecting.
   is strictly peer-to-peer.
 - Practical abuse guards: **per-IP socket caps, join-rate caps, hard
   message-size caps, and an origin allowlist**.
+- For MEETINGS the relay is additionally a **zero-knowledge greeter registry**
+  (docs/healing-laws.md R2/R3): per room it holds only `H(genesis key)` and
+  TTL'd greeter addresses **sealed under the room key it does not hold**
+  (`Seal(K, addr)`, K = derive(url, pw) — docs/meet-security.md §LOCK). A
+  relay-state dump yields a hash and ciphertext — no membership, no seats, no
+  identities. It gates only GENESIS (empty registry ⇒ first knocker founds;
+  the DO's single thread serialises it) and arbitrates nothing else.
 
 **Residual risk:** metering is in-memory, so a determined client can regain a
 burst bucket across reconnects. Accepted for now — the socket/join caps bound it,

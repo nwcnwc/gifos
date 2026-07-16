@@ -33,7 +33,7 @@
  *   --relay <ws://>  custom relay
  *   --restage 1      re-take the seat if bumped (default: off — see below)
  *
- * Honesty about governance (docs/rows.md): in an OPEN room a squatter has
+ * Honesty about governance (docs/media-plane.md, Channel St): in an OPEN room a squatter has
  * no immunity — it holds a seat exactly as well as a person refusing to
  * move, and the room can vote it off (that's the anarchy principle: no
  * script beats the honest buttons). By default squat.js RESPECTS a bump and

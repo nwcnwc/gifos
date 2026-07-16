@@ -148,10 +148,21 @@ relay → dest: { t:'peer', from:<peerId|'host'>, msg:{...} }
 relay → all : { t:'roster', peers:[...] }     ← current participant list
 ```
 
-The roster + peer routing is what lets a **full mesh** form (every participant
-connected to every other), which the Meeting app uses for media and which
-future apps can use for any N-way topology. The relay still only ever sees
-signaling envelopes.
+The roster + peer routing is what lets APP sessions form any N-way topology.
+The relay still only ever sees signaling envelopes.
+
+**Meetings are different now (the no-root mesh).** A meeting session is NOT
+the room — it is the stadium's FRONT DOOR: a zero-knowledge greeter registry
+(`{t:'knock', gk, gblob}` → `{t:'greeters', list, founded, admitted}`,
+docs/healing-laws.md R2/R3). The relay holds only `H(genesis key)` + TTL'd
+SEALED greeter addresses; seating, healing, and room-wide traffic (chat,
+status, votes) ride the mesh itself — `site/js/mesh.js` over WebRTC
+DataChannels, bound by `site/js/mesh-wire.js`. Members hold a relay socket
+only while joining or serving as Section-1 greeters; the session cap (C²+C)
+is the greeter pool plus knock churn, not the room size. A room that fits in
+Section 1 still renders as a full mesh of tiles — the Section tier's
+degenerate case — and larger rooms scale by the tree
+(docs/media-plane.md), never by relay fan-out.
 
 ### Built to scale (and to be attacked)
 
