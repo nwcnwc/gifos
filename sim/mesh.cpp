@@ -150,7 +150,7 @@ static void initSim(int n,double leave){
   TICK=0; nextId=0;
 }
 // advance until converged (seated==N && s1 full) or cap; returns ticks used
-static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>1500) return TICK; } else goodSince=-1; } } return TICK; }
+static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt && DUPS_G==0) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>6000) return TICK; } else goodSince=-1; } } return TICK; }
 
 int main(int argc,char**argv){
   // batch mode: ./mesh N [leaveFrac]   |   service mode: ./mesh --service
