@@ -266,7 +266,8 @@ compose the two session shapes above rather than merging them:
   tiles as a filmstrip, meeting controls in the bar.
 
 The media mesh and the app's data channels are independent peer connections
-over the one relay room; the app never touches the camera (that stays with the
+within the one meeting (the relay is only the stadium's front door —
+docs/healing-laws.md R2); the app never touches the camera (that stays with the
 trusted meeting page), so the sandbox guarantees are unchanged.
 
 **Who runs the stage** follows the room principle — anarchy is unavoidable in
@@ -277,9 +278,9 @@ control in admin rooms:
   rule (newest ad by timestamp, peer-id tiebreak) so the room can never split;
   anyone may stop it for the room (attributed, and reversible — the sharer can
   re-share past the stop tombstone). *Admin rooms*: only admins — or guests an
-  admin granted the `app` right to (a stamped moderation-table entry, revocable
-  live) — may share, and stops are honored only from relay-stamped admin
-  envelopes. Everyone, everywhere, always has a personal **Hide** (opt-out on
+  admin granted the `app` right to (a SIGNED moderation-table entry, revocable
+  live) — may share, and stops are honored only with the admin's Ed25519
+  signature (docs/meet-security.md §SIG — no relay stamps exist). Everyone, everywhere, always has a personal **Hide** (opt-out on
   their own screen only).
 - **Led records**: an app's manifest may declare `ledRecords` — record ids
   (like the Bible Browser's shared `nav` cursor) that only the sharer may
