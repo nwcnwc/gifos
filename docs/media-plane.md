@@ -63,11 +63,12 @@ and a fixed panel is what a broadcast tier wants. Latency = 1 (to S1) + ~2
 way up), as befits the live tier.
 
 **An APP on Stage carries a DATA stream, not A/V.** Running an app occupies one
-of the ≤C Stage seats; instead of camera pixels it broadcasts the app's shared
-**state** (small — deltas over the data channel), fanned down the same Stage
-path. The composited strip leaves that tile's slot empty; each client runs the
-app **locally** and renders it into the slot (positions are deterministic from
-the stage roster). This reuses GifOS's P2P app-state machinery, now broadcast
+of the ≤C Stage seats (it counts toward the cap), but instead of camera pixels
+it broadcasts the app's shared **state** (small — deltas over the data channel),
+fanned down the same Stage path. It does **not** take a slot in the A/V strip —
+the strip composites only the A/V stagers, contiguous, no gap. The app renders
+in its **own dedicated UI region**, and each client runs it **locally** from the
+data stream. This reuses GifOS's P2P app-state machinery, now broadcast
 stadium-wide — a collaborative app on the Stage, crisp and interactive, for the
 price of a data stream instead of a video one.
 
