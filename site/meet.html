@@ -1445,10 +1445,22 @@
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
       const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0 };
+      // ADAPTIVE FRAME-DROP: paint is driven by BOTH the metronome and rVFC,
+      // and on a software-rendered / overloaded device one filtered drawImage
+      // can cost 100ms+. Without a governor the paint tasks queue FASTER than
+      // they complete and the main thread's task queue grows into a MINUTES-
+      // long backlog — everything (offers, mesh ticks, UI) stalls behind it
+      // (found by CPU profile: 95% drawImage during a 4-minute wedge). So:
+      // never spend more than ~1/3 of wall time painting — each paint's cost
+      // sets the earliest next paint (≥66ms = the captureStream 15fps budget).
+      let paintLast = 0, paintCost = 0;
       const paint = () => {
+        const now = performance.now();
+        if (now - paintLast < Math.max(66, paintCost * 3)) return; // drop the frame
         const w = src.videoWidth || 640, h = src.videoHeight || 480;
         if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
         try { blurDraw(ctx, src, 0, 0, w, h, px, level); } catch (e) {}
+        paintLast = now; paintCost = performance.now() - now;
       };
       // Draw on every DECODED camera frame when the browser supports it (the
       // correct, smooth path on iOS/Safari) — and ALSO on the worker metronome,
