@@ -3,7 +3,7 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   coord=c; hasCoord=true; state=3; occ[ckey(c)]=id; noteS1(ckey(c));
-  for(auto&kv:nbrs) if(!occ.count(kv.k)){ occ[kv.k]=kv.v; noteS1(kv.k); }
+  for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK; if(greetHoldT< (int)TICK+150) greetHoldT=(int)TICK+150;
   lastAck=(int)TICK; lastPhone=(int)TICK;
   if(owner>=0){ Msg m; m.t=CLAIM; m.ck=ckey(c); m.id=id; emit(owner,m); }
@@ -109,7 +109,7 @@ void Seat::onPhone(Msg& m){
   if(!hasCoord|| (m.tock && m.tock!=ckey(coord))) return;
   uint64_t ck=ckey(m.coord); int prev=occGet(ck);
   if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
-  occ[ck]=m.id; live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  setOcc(ck,m.id); live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -169,10 +169,10 @@ void Seat::recv(Msg& m){
       int prev=occGet(m.ck);
       bool prevFresh=false; if(prev>=0){ if((m.ck>>16)==0) prevFresh=s1Fresh(m.ck); else prevFresh = live.count(m.ck)? (TICK-live[m.ck]<=40) : true; }
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }
-      if(prev!=m.id){ occ[m.ck]=m.id; if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
+      if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       noteS1(m.ck); return; }
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck) requeue(); return;
-    case CLAIM: if(occGet(m.ck)!=m.id){ occ[m.ck]=m.id; live[m.ck]=(int)TICK; } noteS1(m.ck); return;
+    case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
     case LEAVE: {
       bool hadKids=kidful.count(m.ck)&&kidful[m.ck];
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); }
@@ -187,8 +187,8 @@ void Seat::recv(Msg& m){
         if(hasCoord&&ck==ckey(coord)&&eid!=id){ int seen=(int)TICK-age-2; if(eid<id&&seen>seatedAt+4){ requeue(); return; } continue; }
         if(age==0&&hasCoord){ int cur=occGet(ck); if(cur>=0&&cur!=eid&&cur<eid && TICK-(s1seen.count(ck)?s1seen[ck]:-999)<60){ Msg y;y.t=YIELD;y.ck=ck; emit(eid,y);} }
         int seen=(int)TICK-age-2; int cur=occGet(ck); int curSeen=s1seen.count(ck)?s1seen[ck]:-999;
-        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur)){ s1seen[ck]=max(curSeen,seen); if(cur!=eid)occ[ck]=eid; }
-        else if(cur<0&&seen>-999){ s1seen[ck]=seen; occ[ck]=eid; }
+        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur)){ s1seen[ck]=max(curSeen,seen); if(cur!=eid)setOcc(ck,eid); }
+        else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); }
       } return; }
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
@@ -196,14 +196,14 @@ void Seat::recv(Msg& m){
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id) requeue(); return;
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(m.oCk&&m.owner>=0&&occGet(m.oCk)!=m.owner){ occ[m.oCk]=m.owner; noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) occ[e.k]=e.v; noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } return; }
+    case PONG: { lastAck=(int)TICK; if(m.oCk&&m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } return; }
     case ROUTE: {
       if(!hasCoord) return;
       if(ckey(coord)==ckey(m.target)){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
       if(m.ttl<=0){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
       int nh=nextHopToward(m.target,m.via); if(nh>=0){ Msg r;r.t=ROUTE;r.target=m.target;r.asker=m.asker;r.tag=m.tag;r.ttl=m.ttl-1;r.via=id; emit(nh,r); return; }
       Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
-    case ROUTED: if(m.tag==1){ if(m.id>=0&&hasCoord){ occ[ckey(m.target)]=m.id; noteS1(ckey(m.target)); Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;
+    case ROUTED: if(m.tag==1){ if(m.id>=0&&hasCoord){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;
     default: return;
   }
 }
