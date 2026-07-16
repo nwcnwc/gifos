@@ -23,7 +23,7 @@ struct Ent { uint64_t k; int v; int age; };
 struct Msg {
   MT t; int to=-1;
   int from=-1,id=-1,owner=-1,nc=-1,asker=-1,via=-1,child=-1,ttl=0,tag=0,hold=0;
-  uint64_t ck=0,oCk=0,tock=0;
+  uint64_t ck=0,oCk=0,tock=0,gkey=0;
   Coord coord{0,0,0},hole{0,0,0},target{0,0,0};
   bool kids=false;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
@@ -38,7 +38,12 @@ static uint32_t GSEED=20260714;
 static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7fffffff); return GSEED/2147483648.0; }
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
-static vector<int> greetRecent; static unordered_map<int,int> greetHold;
+// R2 relay: a per-hashed-URL registry holding ONLY a genesis key + a TTL'd
+// greeter list. It admits a knocker iff the list is empty (mint genesis) or the
+// knocker presents the matching key. No home, no coords, no seat-state.
+static uint64_t relayGenesisKey=0; static unordered_map<int,long long> relayGreeters;   // id -> entry expiry tick
+static const long long RELAY_TTL=500; static const int RELAY_CAP=72;
+static const long long E3_PERIOD=200;   // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
 
 // ---- threading: per-thread outboxes (seats are independent within a tick, so
 // each thread recv/ticks its own id%NTHREADS shard into thread-local buffers;
@@ -55,7 +60,7 @@ static inline int curTid(){ return 0; }
 static int NTHREADS=1; static bool DETERM=false; static bool PAR=false;
 struct Pend{ int from,to; Msg m; };
 static vector<vector<Pend>> tlsOut;
-static vector<vector<pair<int,int>>> tlsRelay;   // {id, hold}
+static vector<vector<pair<int,uint64_t>>> tlsRelay;   // {id, presentedKey}
 static vector<vector<int>> tlsWake;
 static vector<long long> tlsMoves, tlsEvict;
 static void tlsResize(int n){ NTHREADS=n; tlsOut.assign(n,{}); tlsRelay.assign(n,{}); tlsWake.assign(n,{}); tlsMoves.assign(n,0); tlsEvict.assign(n,0); }
@@ -76,10 +81,12 @@ struct Seat {
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   long long greetAt=-1,s1CheckAt=-1;
+  uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
   bool auditPend=false; bool evil=false;
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
-  Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u; }
+  Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
+    uint64_t z=((uint64_t)i+1)*0x9e3779b97f4a7c15ull; z=(z^(z>>30))*0xbf58476d1ce4e5b9ull; z=(z^(z>>27))*0x94d049bb133111ebull; myKey=(z^(z>>31))|1ull; }   // per-seat throwaway genesis key (nonzero)
   inline double rng(){ rs=(rs+0x6d2b79f5u); uint32_t t=rs; t=(t^(t>>15))*(t|1u); t^=t+(t^(t>>7))*(t|61u); return ((t^(t>>14))>>0)/4294967296.0; }
   template<class T> void shuf(vector<T>&a){ for(int k=(int)a.size()-1;k>0;k--){ int j=(int)(rng()*(k+1)); T tmp=a[k];a[k]=a[j];a[j]=tmp; } }
 
@@ -96,8 +103,8 @@ struct Seat {
   bool lowestSurvivor(){ for(int j=1;j<coord.i;j++){ uint64_t k=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(k); if(x<0||x==id) continue; if(coord.pc!=0||s1Fresh(k)) return false;} return true; }
 
   void emit(int to, const Msg& m);         // fwd
-  void emitRelay();
-  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; greetHoldT=(int)TICK+60; emitRelay(); wake(id); }   // hold a socket while joining, so I count as an EARLIER WAITER for later knockers (R3)
+  void emitRelay(uint64_t presentedKey);
+  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
   void askSeat(int target){ state=2; retryAt=(int)TICK; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   int pickRoster(){ vector<int> live_; for(auto&e:roster) if(e.v!=id) live_.push_back(e.v); if(live_.empty()) return -1; return live_[(int)(rng()*live_.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first)) out.push_back({e.first,e.second}); } return out; }
@@ -130,27 +137,22 @@ static void schedule(int from,int to,Msg m){
   bus[TICK+d].push_back(move(m));
 }
 void Seat::emit(int to,const Msg& m){ if(PAR){ tlsOut[curTid()].push_back({id,to,m}); } else { Msg mm=m; schedule(id,to,move(mm)); } }
-static void relayKnock(int id,int hold);
-void Seat::emitRelay(){ if(PAR){ tlsRelay[curTid()].push_back({id,greetHoldT}); } else { relayKnock(id, greetHoldT); } }
-static void relayKnock(int id,int hold){
-  // R2: the relay is a DUMB front door — it knows nothing of root/home. It just
-  // hands back whoever currently holds a socket (the greeters). An empty list
-  // means the knocker holds the only socket → it founds the home (R3). Races
-  // that mint duplicate Section-1 seats are settled by the healing laws
-  // (E2/E3 + roster reconciliation), never prevented by the relay.
-  greetHold[id]=hold;
-  vector<int> out;
-  // R3 EARLIER-WAITER CLAUSE: hand back everyone holding a live socket — SEATED
-  // seats AND still-joining WAITERS — exactly like the JS reference's
-  // SESSION.members(). greetRecent is updated synchronously, so a simultaneous
-  // cold-start burst serialises: knocker #2 sees waiter #1 and does NOT found.
-  // (The old `state==3` filter dropped waiters, so every knocker in the
-  // seat-and-register latency window saw an empty list and founded => storm.)
-  for(int k=(int)greetRecent.size()-1;k>=0 && (int)out.size()<6;k--){ int c=greetRecent[k]; if(c!=id && alive[c] && (greetHold.count(c)?greetHold[c]:0)>=TICK) out.push_back(c); }
-  greetRecent.push_back(id); if(greetRecent.size()>400) greetRecent.erase(greetRecent.begin(),greetRecent.begin()+200);
-  for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}   // shuffle with global rng
-  Msg m; m.t=GREETERS; m.list=out; m.to=id; m.from=-1;
-  bus[TICK+1].push_back(move(m));
+static void relayKnock(int id,uint64_t presentedKey);
+void Seat::emitRelay(uint64_t presentedKey){ if(PAR){ tlsRelay[curTid()].push_back({id,presentedKey}); } else { relayKnock(id, presentedKey); } }
+static void relayKnock(int id,uint64_t presentedKey){
+  // R2/R3: the relay knows only a GENESIS KEY + a TTL'd GREETER LIST for this
+  // hashed URL. Expire stale entries; an empty list forgets the key (fresh
+  // genesis available). Hand back the current list. Then ADMIT: an empty list
+  // means this knocker MINTS the genesis (it founds); otherwise it is added only
+  // if it presents the MATCHING key — proof it did the newcomer dance with a
+  // real member. A wrong-key knocker gets the list but never pollutes it.
+  for(auto it=relayGreeters.begin(); it!=relayGreeters.end();){ if(it->second<TICK || it->first>=(int)alive.size() || !alive[it->first]) it=relayGreeters.erase(it); else ++it; }
+  if(relayGreeters.empty()) relayGenesisKey=0;
+  vector<int> out; for(auto&e:relayGreeters) if(e.first!=id) out.push_back(e.first);
+  for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}   // shuffle
+  Msg m; m.t=GREETERS; m.list=out; m.to=id; m.from=-1; bus[TICK+1].push_back(move(m));
+  if(relayGreeters.empty()){ relayGenesisKey=presentedKey; relayGreeters[id]=TICK+RELAY_TTL; }        // mint genesis
+  else if(presentedKey==relayGenesisKey && (int)relayGreeters.size()<RELAY_CAP){ relayGreeters[id]=TICK+RELAY_TTL; }   // proven member: (re)admit + refresh TTL
 }
 
 // (seat method bodies continue in mesh_seat.inc)
@@ -262,7 +264,7 @@ int main(int argc,char**argv){
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }
     else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d auditAt=%lld(in %lld)\n",id,a.c_str(),v,age,se->s1CheckAt,se->s1CheckAt-TICK);} }
     else if(op=="hist"){ unordered_map<uint64_t,int> cnt; int s1seats=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ cnt[ckey(seats[q]->coord)]++; if(seats[q]->coord.pc==0)s1seats++; } int h1=0,h2=0,h3=0,mx=0; uint64_t mxk=0; for(auto&e:cnt){ if(e.second==1)h1++; else if(e.second==2)h2++; else h3++; if(e.second>mx){mx=e.second;mxk=e.first;} } printf("HIST cells:1=%d 2=%d 3+=%d maxDup=%d@%s s1seats=%d\n",h1,h2,h3,mx,coordStr(unck(mxk)).c_str(),s1seats); }
-    else if(op=="relay"){ int valid=0; for(auto&pr:greetHold){ if(pr.second>=TICK && pr.first<nextId && alive[pr.first] && seats[pr.first]->state==3) valid++; } int recentValid=0; for(int k=(int)greetRecent.size()-1;k>=0&&recentValid<20;k--){int c=greetRecent[k]; if(c<nextId&&alive[c]&&seats[c]->state==3&&(greetHold.count(c)?greetHold[c]:0)>=TICK)recentValid++;} printf("RELAY greeters_valid=%d recent_valid(<=20)=%d recentWindow=%zu\n",valid,recentValid,greetRecent.size()); }
+    else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) genesisKey=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }

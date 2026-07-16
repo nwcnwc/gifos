@@ -4,9 +4,10 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   coord=c; hasCoord=true; state=3; occ[ckey(c)]=id; noteS1(ckey(c));
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
-  drainAt=0; seatTries=0; seatedAt=(int)TICK; if(greetHoldT< (int)TICK+150) greetHoldT=(int)TICK+150;
+  drainAt=0; seatTries=0; seatedAt=(int)TICK;
   lastAck=(int)TICK; lastPhone=(int)TICK;
   if(owner>=0){ Msg m; m.t=CLAIM; m.ck=ckey(c); m.id=id; emit(owner,m); }
+  if(c.pc==0){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3: a Section-1 seat registers as a greeter on seating (present the MEETING genesis key)
   announce(); wake(id);
 }
 void Seat::announce(){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
@@ -147,7 +148,7 @@ void Seat::recv(Msg& m){
   if(!alive[id]) return;
   switch(m.t){
     case GREETERS: {
-      if(m.list.empty()){ if(state==0){ vector<KV> e; take({0,0,0},-1,e);} return; }
+      if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key (relay recorded it) and I found the home
       lastGreeters=m.list;
       if(state==0){ Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(m.list[0],w); state=1; retryAt=(int)TICK; }
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
@@ -157,14 +158,15 @@ void Seat::recv(Msg& m){
     case WHOHOME: {
       if(!hasCoord){ Msg h;h.t=HOME; emit(m.from,h); return; }
       if(m.ttl<=0) return;
-      if(coord.pc==0){ Msg h;h.t=HOME;h.roster=s1Roster();h.id=id; emit(m.from,h); return; }
+      if(coord.pc==0){ Msg h;h.t=HOME;h.roster=s1Roster();h.id=id;h.gkey=genKey; emit(m.from,h); return; }   // the newcomer dance hands over THIS meeting's genesis key
       auto fwd=[&](int x)->bool{ if(x>=0&&x!=id&&x!=m.via){ Msg w;w.t=WHOHOME;w.from=m.from;w.via=id;w.ttl=m.ttl-1; emit(x,w); return true;} return false; };
       if(coord.i!=0){ if(fwd(occGet(ckey({coord.pc,coord.r,0})))) return; } else { if(fwd(ownerId())) return; }
       Coord x; if(crossLink(coord,x)&&fwd(occGet(ckey(x)))) return;
       Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ Coord cx; if(crossLink(rm[q],cx)&&fwd(occGet(ckey(cx)))) return; }
       return; }
     case HOME: {
-      if(state==1){ if(m.roster.empty()){ emptyHomes++; if(emptyHomes>=3){ bool lower=false; for(int p:lastGreeters) if(p<id)lower=true; if(!lower){ emptyHomes=0; vector<KV> e; take({0,0,0},-1,e); return; } } retryAt=(int)TICK-10; return; } emptyHomes=0; roster=m.roster; haveRoster=true; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }
+      if(m.gkey) genKey=m.gkey;   // learn THIS meeting's genesis key from the greeter (the newcomer dance)
+      if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // genesis is ONLY via an empty greeter LIST (relay-serialised); an empty roster just means retry — never a second founder
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
     case FIND: serveFind(m); return;
@@ -185,10 +187,7 @@ void Seat::recv(Msg& m){
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); }
       if(HEALING&&hasCoord&&state==3){ Coord c=unck(m.ck); if(c.pc==coord.pc&&c.r==coord.r&&c.i!=coord.i){ if(c.i==0&&coord.i>0&&lowestSurvivor()){ heal({c.pc,c.r,0}); return; } if(c.i>0&&coord.i==0&&(hadKids||c.pc==0)){ heal(c); return; } } }
       return; }
-    case GREETWALK: {
-      if(!hasCoord||state!=3) return;
-      if(m.ttl>0){ Coord rc[C]; rosterCells(rc); vector<int> kids; for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id)kids.push_back(x);} if(kids.size()){ Msg w;w.t=GREETWALK;w.ttl=m.ttl-1; emit(kids[(int)(rng()*kids.size())],w); return; } }
-      greetHoldT=(int)TICK+GREET_PERIOD; emitRelay(); return; }
+    case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
       for(auto&e:m.ent){ uint64_t ck=e.k; int eid=e.v; int age=e.age;
         if(hasCoord&&ck==ckey(coord)&&eid!=id){ int seen=(int)TICK-age-2; if(eid<id&&seen>seatedAt+4){ requeue(); return; } continue; }
@@ -220,14 +219,12 @@ void Seat::tick(){
   if(state!=3){ if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
   if(evil) attack();
   if(coord.pc==0){
-    if(greetAt<0) greetAt=TICK+(long long)(rng()*GREET_PERIOD);
-    if(TICK>=greetAt){ greetAt=TICK+GREET_PERIOD+(long long)(rng()*GREET_PERIOD); Msg g;g.t=GREETWALK;g.ttl=1+(int)(rng()*5); recv(g); }
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); s1Sync(); }
     if(coord.i==0 && (TICK%12)==0){ rowSweep(); s1Fill(); }
     if(coord.i>0 && TICK-lastAck>40 && TICK-healAt>20 && lowestSurvivor()) heal({0,coord.r,0});
     if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
-    if(s1CheckAt<0) s1CheckAt=TICK+150+(long long)(rng()*150);
-    if(TICK>=s1CheckAt){ s1CheckAt=TICK+250+(long long)(rng()*150); greetHoldT=(int)TICK+GREET_PERIOD; emitRelay(); }   // E3: knock to keep an honest Section-1 greeter in the pool (anti-poison); ignore the returned list
+    if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);
+    if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
     wake(id); return;
   }
   if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
