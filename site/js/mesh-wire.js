@@ -45,6 +45,11 @@
   //   onUpdate(node)  per-tick UI hook
   //   onLocked()      R6: greeters exist but none decrypt — wrong password
   //   onStranded()    R6: meeting is live but unreachable a full TTL
+  //   onGossip(src,m) room-wide app traffic delivery (exact-once)
+  //   onRelayMsg(m)   every relay frame the wire does not consume — 'whoami',
+  //                   'pw', 'ban', 'votes', 'joined', app-layer sealed 'peer'
+  //                   frames (incl. fragments) — so the app keeps its existing
+  //                   handlers while the wire OWNS the one socket.
   function createMeshNode(opts) {
     const tickMs = opts.tickMs || 500;
     const peer = opts.peer || 'c_' + net.randHex(6);
@@ -87,9 +92,19 @@
       sock.onmessage = (ev) => {
         if (stopped) return;
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'greeters') onGreeters(m);
-        else if (m.t === 'peer' && m.msg) net.open(opts.key, m.msg).then((o) => { if (o && o.mw === 1 && o.m && !stopped) seat.recv(o.m); }).catch(() => {});
-        else if (m.t === 'error' && /password/i.test(m.error || '')) fireLocked(); // relay courtesy gate
+        if (m.t === 'greeters') { onGreeters(m); return; }
+        if (m.t === 'peer' && m.msg) {
+          // Mesh control frames ({mw:1}) are consumed here; anything else —
+          // app signaling, fragments, unopenable — is the app's to handle.
+          net.open(opts.key, m.msg).then((o) => {
+            if (stopped) return;
+            if (o && o.mw === 1 && o.m) seat.recv(o.m);
+            else if (opts.onRelayMsg) opts.onRelayMsg(m);
+          }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
+          return;
+        }
+        if (m.t === 'error' && /password/i.test(m.error || '')) fireLocked(); // relay courtesy gate
+        if (opts.onRelayMsg) opts.onRelayMsg(m);
       };
     }
     function relaySend(obj) {
@@ -133,6 +148,10 @@
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
       gossip(payload) { if (!stopped) seat.gossip(payload); },
+      // App access to the wire's relay socket (the ONE socket): signaling
+      // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
+      // Recreates the socket on demand, same as the mesh's own sends.
+      relaySend(obj) { relaySend(obj); },
       stats() { return { peer, state: seat.state, coord: seat.hasCoord ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: seat.stranded, tick: env.TICK }; },
       leave() { try { seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
