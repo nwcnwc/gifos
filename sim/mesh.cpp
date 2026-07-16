@@ -133,7 +133,7 @@ static void doTick(){
   active.swap(nextActive); nextActive.clear();
   for(int id: active){ if(id<nextId && alive[id]) seats[id]->tick(); }
 }
-static void counts(long long&seated,long long&s1c){ seated=0;s1c=0; for(int i=0;i<nextId;i++){ if(alive[i]&&seats[i]->state==3){seated++; if(seats[i]->coord.pc==0)s1c++;} } }
+static long long DUPS_G=0; static void counts(long long&seated,long long&s1c){ seated=0; static unordered_set<uint64_t> s1cells, allc; s1cells.clear(); allc.clear(); DUPS_G=0; for(int i=0;i<nextId;i++){ if(alive[i]&&seats[i]->state==3){seated++; uint64_t k=ckey(seats[i]->coord); if(allc.count(k))DUPS_G++; else allc.insert(k); if(seats[i]->coord.pc==0) s1cells.insert(k);} } s1c=(long long)s1cells.size(); }
 static string coordStr(Coord c){ // decode pc to base-5 path string
   string p; uint32_t pc=c.pc; vector<int> d; while(pc){d.push_back(lastDigit(pc)); pc=parentPath(pc);} for(int a=(int)d.size()-1;a>=0;a--) p+=('0'+d[a]);
   char b[64]; snprintf(b,64,"%s/%d.%d",p.c_str(),c.r,c.i); return b; }
@@ -144,7 +144,7 @@ static void initSim(int n,double leave){
   TICK=0; nextId=0;
 }
 // advance until converged (seated==N && s1 full) or cap; returns ticks used
-static long long converge(long long cap){ long long seated,s1c; long long start=TICK; while(TICK<start+cap){ doTick(); TICK++; long long tgt=min((long long)25,(long long)N); if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt) return TICK; } } return -1; }
+static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>1500) return TICK; } else goodSince=-1; } } return TICK; }
 
 int main(int argc,char**argv){
   // batch mode: ./mesh N [leaveFrac]   |   service mode: ./mesh --service
@@ -174,7 +174,7 @@ int main(int argc,char**argv){
     else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f\n",n,lv); }
     else if(op=="tick"){ int n=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<n;q++){doTick();TICK++;} printf("OK tick now=%lld\n",TICK); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
-    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1=%lld/%d moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),MOVES,EVICTIONS,busq); }
+    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,MOVES,EVICTIONS,busq); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
