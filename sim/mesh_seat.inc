@@ -150,7 +150,9 @@ void Seat::recv(Msg& m){
       if(m.list.empty()){ if(state==0){ vector<KV> e; take({0,0,0},-1,e);} return; }
       lastGreeters=m.list;
       if(state==0){ Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(m.list[0],w); state=1; retryAt=(int)TICK; }
-      else if(state==3&&hasCoord&&coord.pc==0){ Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(m.list[0],w); }
+      // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
+      // greeter in the pool (anti-poison floor); it IGNORES the greeters it gets
+      // back. The roster self-audit is gone — genesis/fork convergence is E4/R5.
       return; }
     case WHOHOME: {
       if(!hasCoord){ Msg h;h.t=HOME; emit(m.from,h); return; }
@@ -163,7 +165,7 @@ void Seat::recv(Msg& m){
       return; }
     case HOME: {
       if(state==1){ if(m.roster.empty()){ emptyHomes++; if(emptyHomes>=3){ bool lower=false; for(int p:lastGreeters) if(p<id)lower=true; if(!lower){ emptyHomes=0; vector<KV> e; take({0,0,0},-1,e); return; } } retryAt=(int)TICK-10; return; } emptyHomes=0; roster=m.roster; haveRoster=true; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }
-      else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; if(hasCoord&&coord.pc==0){ for(auto&kv:m.roster){ if(kv.k==ckey(coord)&&kv.v!=id){ if(kv.v<id){ requeue(); return;} Msg y;y.t=YIELD;y.ck=kv.k; emit(kv.v,y);} } if(m.id>=0){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } }
+      else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
     case FIND: serveFind(m); return;
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
@@ -225,7 +227,7 @@ void Seat::tick(){
     if(coord.i>0 && TICK-lastAck>40 && TICK-healAt>20 && lowestSurvivor()) heal({0,coord.r,0});
     if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
     if(s1CheckAt<0) s1CheckAt=TICK+150+(long long)(rng()*150);
-    if(TICK>=s1CheckAt){ s1CheckAt=TICK+250+(long long)(rng()*150); auditPend=true; if(greetHoldT<(int)TICK+30)greetHoldT=(int)TICK+30; emitRelay(); }
+    if(TICK>=s1CheckAt){ s1CheckAt=TICK+250+(long long)(rng()*150); greetHoldT=(int)TICK+GREET_PERIOD; emitRelay(); }   // E3: knock to keep an honest Section-1 greeter in the pool (anti-poison); ignore the returned list
     wake(id); return;
   }
   if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
