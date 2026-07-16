@@ -114,8 +114,8 @@ const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even lo
 // C more so the stage can double-home into a full level-1 space. Never a
 // client parameter: letting a stranger size a Durable Object is an attack
 // vector — this number moves only here, in lockstep with C.
-const C = 8;
-const MAX_SOCKETS_PER_SESSION = C * C + C; // 72 — a full section plus the stage
+const C = 5;
+const MAX_SOCKETS_PER_SESSION = C * C + C; // 30 — Section 1 (the greeter pool) plus knock/churn headroom
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 

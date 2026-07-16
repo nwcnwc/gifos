@@ -138,7 +138,7 @@ server.on('upgrade', (req, socket) => {
   // Abuse guards — mirror the Worker's caps so tests exercise them.
   // C mirrors GIFOS_SCALE.C: a session is one SECTION (C² seats) plus C so
   // the stage can double-home into a full level-1 space. Never client-set.
-  const C = 8, MAX_SOCKETS_PER_SESSION = C * C + C; // 72
+  const C = 5, MAX_SOCKETS_PER_SESSION = C * C + C; // 30
   // TRUSTED_IPS (env) bypasses the PER-IP caps for load tests — mirrors the
   // Worker. For a big LOCAL swarm, run: TRUSTED_IPS=127.0.0.1,::1,::ffff:127.0.0.1 node test/relay-local.js
   const TRUSTED = String(process.env.TRUSTED_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
