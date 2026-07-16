@@ -19,7 +19,7 @@ typedef unordered_map<uint64_t,int> Occ;
 // ---- message ----
 enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK };
 struct KV { uint64_t k; int v; };
-struct Ent { uint64_t k; int v; int age; };
+struct Ent { uint64_t k; int v; int age; int ch=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir
 struct Msg {
   MT t; int to=-1;
   int from=-1,id=-1,owner=-1,nc=-1,asker=-1,via=-1,child=-1,ttl=0,tag=0,hold=0;
@@ -80,7 +80,7 @@ static inline void wake(int id){ if(PAR) tlsWake[curTid()].push_back(id); else n
 struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
-  Occ occ, live, s1seen, healTry; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;
+  Occ occ, live, s1seen, healTry, cousins; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   long long greetAt=-1,s1CheckAt=-1;

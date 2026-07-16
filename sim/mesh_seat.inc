@@ -2,6 +2,7 @@ static inline Coord unck(uint64_t k){ return {(uint32_t)(k>>16),(uint8_t)((k>>8)
 static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; return up({c.pc,c.r,0},o); }
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
+  if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
   coord=c; hasCoord=true; state=3; occ[ckey(c)]=id; noteS1(ckey(c));
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK;
@@ -62,7 +63,7 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   bumpMoves();
   Coord oldC=coord; Coord ol[C+2]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(oldC);m.id=id; emit(x,m);} }
-  occ.clear(); s1seen.clear();
+  occ.clear(); s1seen.clear(); cousins.clear();   // moving levels: old cousins are stale; rebuild fresh at the new position
   take(hole,-1,nbrs);
   lastAck=(int)TICK; lastPhone=(int)TICK-100;
 }
@@ -119,7 +120,14 @@ void Seat::onPhone(Msg& m){
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
-  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row; emit(m.id,p);
+  vector<KV> cous;
+  if(ckey(m.coord)==ckey(down(coord))){   // my DOWN-CHILD is phoning: teach it the heirs at its FUTURE owned-links (= my row-mates + cross-link), so if I die it promotes into me and re-links with no relay
+    Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ auto it=childOf.find(ckey(rm[q])); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(rm[q]),it->second}); }
+    Coord xl; if(crossLink(coord,xl)){ auto it=childOf.find(ckey(xl)); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(xl),it->second}); }
+  } else if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){   // a ROW-MATE phoned me (the head): share MY cousins, so if it scooches/heals into head (H2/C2) it inherits the relay-free promote-up neighborhood
+    for(auto&c:cousins) cous.push_back({c.first,c.second});
+  }
+  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous; emit(m.id,p);
   if(prev>=0&&prev!=m.id){ Msg y;y.t=YIELD;y.ck=ck; emit(prev,y); }
 }
 void Seat::phoneHome(){
@@ -128,8 +136,8 @@ void Seat::phoneHome(){
   Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m);
 }
 void Seat::s1Sync(){
-  vector<Ent> ent; ent.push_back({ckey(coord),id,0});
-  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second)}); } }
+  vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord)))});   // carry MY heir (my down-child)
+  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1}); } }
   unordered_set<int> tg; Coord x; if(crossLink(coord,x)){int t=occGet(ckey(x)); if(t>=0&&t!=id)tg.insert(t);} Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){int t=occGet(ckey(rm[q])); if(t>=0&&t!=id)tg.insert(t);} int ab=occGet(ckey({0,(uint8_t)((coord.r-1+C)%C),coord.i})); if(ab>=0&&ab!=id)tg.insert(ab); int be=occGet(ckey({0,(uint8_t)((coord.r+1)%C),coord.i})); if(be>=0&&be!=id)tg.insert(be);
   for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent; emit(t,m); }
 }
@@ -190,6 +198,7 @@ void Seat::recv(Msg& m){
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
       for(auto&e:m.ent){ uint64_t ck=e.k; int eid=e.v; int age=e.age;
+        if(e.ch>=0) childOf[ck]=e.ch;   // learn this Section-1 cell's heir (its down-child) — feeds cousins-in-PONG
         if(hasCoord&&ck==ckey(coord)&&eid!=id){ int seen=(int)TICK-age-2; if(eid<id&&seen>seatedAt+4){ requeue(); return; } continue; }
         if(age==0&&hasCoord){ int cur=occGet(ck); if(cur>=0&&cur!=eid&&cur<eid && TICK-(s1seen.count(ck)?s1seen[ck]:-999)<60){ Msg y;y.t=YIELD;y.ck=ck; emit(eid,y);} }
         int seen=(int)TICK-age-2; int cur=occGet(ck); int curSeen=s1seen.count(ck)?s1seen[ck]:-999;
@@ -202,7 +211,7 @@ void Seat::recv(Msg& m){
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id) requeue(); return;
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(m.oCk&&m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } return; }
+    case PONG: { lastAck=(int)TICK; if(m.oCk&&m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;
       if(ckey(coord)==ckey(m.target)){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
@@ -232,6 +241,24 @@ void Seat::tick(){
   if(coord.i>0 && TICK-lastAck>40 && TICK-healAt>20 && lowestSurvivor()) heal({coord.pc,coord.r,0});
   if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
   if(drainAt && TICK>=drainAt){ reseatViaRoster(); return; }
-  if(TICK-lastAck>80) drainOrReenter();
+  // H8 (whole-section death): my owner cell O is DEAD, its whole ROW is empty (so
+  // no H2 row-mate can heal it) and the cell BELOW it is empty (so no H7 backfill
+  // from below). I am O's sole down-child, so I HEAL O by promoting a LEAF from my
+  // subtree (I stay put — P: only leaves promote), wiring it with my cousins.
+  bool didH8=false;
+  if(coord.i==0 && !cousins.empty() && TICK-lastAck>150){ Coord oc;
+    if(ownerCoord(oc) && occGet(ckey(oc))<0){
+      bool rowEmpty=true; for(int j=0;j<C;j++) if(occGet(ckey({oc.pc,oc.r,(uint8_t)j}))>=0){rowEmpty=false;break;}
+      bool belowEmpty = occGet(ckey({oc.pc,(uint8_t)((oc.r+1)%C),oc.i}))<0;
+      if(rowEmpty && belowEmpty && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
+        healTry[ckey(oc)]=(int)TICK; healAt=(int)TICK; didH8=true;
+        vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
+        Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
+        bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }
+        if(!sent) promoteInto(oc,nb);   // I'm childless => I AM the leaf
+      }
+    }
+  }
+  if(!didH8 && TICK-lastAck>80) drainOrReenter();
   wake(id);
 }
