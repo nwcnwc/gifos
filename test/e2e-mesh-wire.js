@@ -63,10 +63,13 @@ async function waitConverged(nodes, N, ms) {
       if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 5 + Math.random() * 20); }
       return true; // a channel "exists" either way — a crashed far end just never answers
     };
-    const nodes = [];
+    const nodes = []; const heard = new Map();
     for (let i = 0; i < 20; i++) {
       const peer = 'a' + String(i).padStart(2, '0');
-      const node = wire.createMeshNode({ relayUrl: RELAY, sid: 'wire-a-sid', tok: 'T', key, peer, tickMs: 25, sendDC });
+      const node = wire.createMeshNode({
+        relayUrl: RELAY, sid: 'wire-a-sid', tok: 'T', key, peer, tickMs: 25, sendDC,
+        onGossip: (src, m) => heard.set(peer, (heard.get(peer) || 0) + 1),
+      });
       bus.set(peer, { node, dead: false });
       nodes.push(node);
       await sleep(25);
@@ -75,6 +78,13 @@ async function waitConverged(nodes, N, ms) {
     check('A: 20 nodes all seated, no dups (s1=' + c.s1 + ')', c.seated === 20 && c.dups === 0, c);
     const keys = new Set(nodes.map((n) => n.seat.genKey)); keys.delete(null);
     check('A: one genesis key across the room', keys.size === 1, { distinct: keys.size });
+
+    // Room-wide mesh gossip (the chat/status/votes lane): one flood reaches all.
+    nodes[0].gossip({ chat: 'hello stadium' });
+    await sleep(3000);
+    const reached = [...heard.values()].filter((n) => n >= 1).length;
+    const dupDeliv = [...heard.values()].filter((n) => n > 1).length;
+    check('A: gossip reached all 19 peers exactly once', reached === 19 && dupDeliv === 0, { reached, dupDeliv });
 
     // CRASH 8 (no LEAVE, sockets die, DCs black-hole) → survivors heal.
     const dead = nodes.slice(12);

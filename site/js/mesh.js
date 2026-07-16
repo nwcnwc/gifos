@@ -114,6 +114,7 @@
       let selfNb = false; for (const olc of ol) if (ck(olc) === ck(this.coord)) selfNb = true;
       if (selfNb) nbrs.push({ k: ck(this.coord), v: this.id });
       this.emit(nc, { t: 'PLACE', coord: c, owner: this.id, nbrs });
+      this._gspReplay(nc); // an ADMITTED newcomer arrives with no gossip history — hand over the backlog (its later PHONEs will show no prev-transition, so this is the only hook that fires for it)
     }
     serveFind(mm) {
       const TICK = this.TICK;
@@ -225,6 +226,7 @@
         for (const [k, v] of this.cousins) cous.push({ k, v });
       }
       this.emit(m.id, { t: 'PONG', owner, oCk, row, nbrs: cous });
+      if (prev !== m.id) this._gspReplay(m.id); // NEW occupant learned ⇒ hand over the recent gossip backlog
       if (prev != null && prev !== m.id) this.emit(prev, { t: 'YIELD', ck: kk });
     }
     phoneHome() {
@@ -253,6 +255,59 @@
       if (TICK - this.seatedAt < 80) return;
       for (let j = 1; j < C(); j++) { const c = { pc: 0, r: this.coord.r, i: j }; const kk = ck(c); const it = this.live.get(kk); if (it !== undefined && TICK - it <= 60) continue; if (this.occ.has(kk)) { this.occ.delete(kk); this.live.delete(kk); this.s1seen.delete(kk); this.kidful.delete(kk); } this.heal(c); return; }
     }
+
+    // ---- gossip: room-wide flood over the mesh (PRODUCTION EXTENSION) ----
+    // Not part of the sim's law set — the app layer (chat/status/votes/files)
+    // rides this instead of relay fan-out, because the relay session is only
+    // the greeter pool now, not the room. A bounded-degree flood with dedup:
+    // fan-out ≤ my live links (≤C+2), the seen-cache kills echoes, and the
+    // link graph (rows + cross + up/down + S1 columns — the same edges W1-W4
+    // keep wired) spans the stadium, so every seated seat converges on every
+    // message. Cost: O(edges) frames per message; delivery cb = onGossip.
+    linkPeers() {
+      const out = new Set();
+      if (!this.hasCoord) return out;
+      for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) out.add(x); }
+      const o = this.ownerId(); if (o != null && o !== this.id) out.add(o);
+      if (this.coord.pc === 0) { // Section-1 column neighbours (the S1SYNC verticals)
+        const ab = this.occGet(ck({ pc: 0, r: (this.coord.r - 1 + C()) % C(), i: this.coord.i })); if (ab != null && ab !== this.id) out.add(ab);
+        const be = this.occGet(ck({ pc: 0, r: (this.coord.r + 1) % C(), i: this.coord.i })); if (be != null && be !== this.id) out.add(be);
+      }
+      return out;
+    }
+    gossip(payload) {
+      this.gseq = (this.gseq || 0) + 1; const gid = this.id + ':' + this.gseq;
+      (this.gseen = this.gseen || new Map()).set(gid, this.TICK);
+      this._gspRemember(gid, this.id, payload);
+      for (const p of this.linkPeers()) this.emit(p, { t: 'GSP', gid, src: this.id, m: payload });
+    }
+    _gspRecv(m) {
+      const g = this.gseen = this.gseen || new Map();
+      if (g.has(m.gid)) return;
+      g.set(m.gid, this.TICK);
+      if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
+      if (this.onGossip) { try { this.onGossip(m.src, m.m); } catch (e) {} }
+      this._gspRemember(m.gid, m.src, m.m);
+      for (const p of this.linkPeers()) if (p !== m.src) this.emit(p, { t: 'GSP', gid: m.gid, src: m.src, m: m.m });
+    }
+    // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
+    // 1. BEAT RE-FAN — a one-shot flood races topology convergence: a seat whose
+    //    neighbours' occ was momentarily stale (mid-heal) is silently missed, so
+    //    each seat re-fans messages younger than ~4 phone beats.
+    // 2. NEW-NEIGHBOUR REPLAY — a seat that was UNSEATED during the whole flood
+    //    window (requeue → reseat can take 45+ ticks) arrives with no history and
+    //    no re-fan can be timed to catch it. Event-driven instead: the first
+    //    PHONE that teaches me a NEW occupant gets my recent backlog replayed.
+    _gspRemember(gid, src, m) { const g = this.grecent = this.grecent || []; g.push({ gid, src, m, at: this.TICK }); if (g.length > 64) g.shift(); }
+    _gspRefan() {
+      const g = this.grecent; if (!g || !g.length) return;
+      this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
+      for (const e of this.grecent) {
+        if (this.TICK - e.at > 32) continue; // beat re-fan only while fresh
+        for (const p of this.linkPeers()) this.emit(p, { t: 'GSP', gid: e.gid, src: e.src, m: e.m });
+      }
+    }
+    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) this.emit(to, { t: 'GSP', gid: e.gid, src: e.src, m: e.m }); }
 
     // ---- message dispatch ----
     recv(m) {
@@ -291,7 +346,7 @@
           const prev = this.occGet(m.ck);
           let prevFresh = false; if (prev != null) { if (isS1key(m.ck)) prevFresh = this.s1Fresh(m.ck); else prevFresh = this.live.has(m.ck) ? (TICK - this.live.get(m.ck) <= 40) : true; }
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck });
-          if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); }
+          if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
           this.noteS1(m.ck); return;
         }
         case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.requeue(); return;
@@ -321,6 +376,7 @@
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
         case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) this.requeue(); return;
+        case 'GSP': this._gspRecv(m); return;
         case 'PHONE': this.onPhone(m); return;
         case 'PONG': { this.lastAck = TICK; if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); } for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); } for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); return; }
         case 'ROUTE': {
@@ -351,7 +407,7 @@
       }
       if (this.evil) this.attack();
       if (this.coord.pc === 0) {
-        if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); this.s1Sync(); }
+        if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); this.s1Sync(); this._gspRefan(); }
         if (this.coord.i === 0 && (TICK % 12) === 0) { this.rowSweep(); this.s1Fill(); }
         if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal({ pc: 0, r: this.coord.r, i: 0 });
         if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + (this.rng() * 100 | 0); const x = topo.crossLink(this.coord); if (x && this.occGet(ck(x)) == null) this.routeTo(x, 1); }
@@ -359,7 +415,7 @@
         if (TICK >= this.s1CheckAt) { this.s1CheckAt = TICK + E3_PERIOD + (this.rng() * E3_PERIOD | 0); this.emitRelay(this.genKey); } // E3 re-knock
         this.wake(); return;
       }
-      if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); }
+      if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); this._gspRefan(); }
       if (this.coord.i === 0 && (TICK % 12) === 0) this.rowSweep();
       if (this.coord.i > 0 && TICK - this.lastAck > 40 && TICK - this.healAt > 20 && this.lowestSurvivor()) this.heal({ pc: this.coord.pc, r: this.coord.r, i: 0 });
       if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + (this.rng() * 100 | 0); const x = topo.crossLink(this.coord); if (x && this.occGet(ck(x)) == null) this.routeTo(x, 1); }
