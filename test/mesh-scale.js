@@ -102,12 +102,16 @@
  * Home & entry:
  * R1. NO STORED HOME anywhere. WHOHOME walks the live mesh to any Section-1
  *     seat and gets the W5 roster back.
- * R2. The relay is a GREETER REGISTRY keyed by the hashed URL, holding ONLY a
- *     GENESIS KEY and a TTL'd GREETER LIST (peer ids). On knock it returns the
- *     current list and ADMITS the knocker iff the list is empty (mint genesis)
- *     or the knocker presents the MATCHING key. It holds no home, no coords, no
- *     seat-state, and arbitrates nothing — arrival order alone decides genesis.
- *     Entries expire on TTL; an empty list forgets the key.
+ * R2. The relay is a ZERO-KNOWLEDGE GREETER REGISTRY keyed by the hashed URL. It
+ *     stores ONLY: H(genesis key), and a TTL'd list of SEALED greeter entries —
+ *     each Seal(K, address) under the meeting-URL key K the relay never holds.
+ *     On knock it returns the sealed list and ADMITS the knocker iff the list is
+ *     empty (mint genesis) or the knocker's presented key hashes to the stored
+ *     H(genesis key). It holds no home, no coords, no seat-state, no plaintext
+ *     address or identity, and arbitrates nothing — arrival order alone decides
+ *     genesis. A URL-holder decrypts the list to reach greeters; the relay (and
+ *     its operator) sees only opaque ciphertext + a hash. Entries expire on TTL;
+ *     an empty list forgets the key.
  * R3. Genesis via the KEY: a NEWCOMER knocks with a throwaway PERSONAL key. The
  *     first to meet an empty list has its key recorded as the meeting's genesis
  *     key and founds ('',0,0). Because the relay adds it at KNOCK time (not seat

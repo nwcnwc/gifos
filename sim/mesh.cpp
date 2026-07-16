@@ -38,10 +38,13 @@ static uint32_t GSEED=20260714;
 static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7fffffff); return GSEED/2147483648.0; }
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
-// R2 relay: a per-hashed-URL registry holding ONLY a genesis key + a TTL'd
-// greeter list. It admits a knocker iff the list is empty (mint genesis) or the
-// knocker presents the matching key. No home, no coords, no seat-state.
-static uint64_t relayGenesisKey=0; static unordered_map<int,long long> relayGreeters;   // id -> entry expiry tick
+// R2 zero-knowledge relay: a per-hashed-URL registry holding ONLY H(genesis key)
+// + a TTL'd list of SEALED greeter entries (in production each is Seal(K,address)
+// under the meeting-URL key K the relay never holds; here the id MODELS that
+// opaque blob — the relay only stores & hands it back, never reads it). Admits a
+// knocker iff the list is empty (mint) or H(presented key)==stored hash.
+static uint64_t relayGenesisKey=0; static unordered_map<int,long long> relayGreeters;   // sealed-entry(modelled as id) -> expiry tick; relayGenesisKey holds H(key), not the key
+static inline uint64_t keyHash(uint64_t k){ k^=k>>33; k*=0xff51afd7ed558ccdull; k^=k>>33; k*=0xc4ceb9fe1a85ec53ull; k^=k>>33; return k?k:1; }
 static const long long RELAY_TTL=500; static const int RELAY_CAP=72;
 static const long long E3_PERIOD=200;   // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
 
@@ -151,8 +154,8 @@ static void relayKnock(int id,uint64_t presentedKey){
   vector<int> out; for(auto&e:relayGreeters) if(e.first!=id) out.push_back(e.first);
   for(int k=(int)out.size()-1;k>0;k--){int j=(int)(grnd()*(k+1)); swap(out[k],out[j]);}   // shuffle
   Msg m; m.t=GREETERS; m.list=out; m.to=id; m.from=-1; bus[TICK+1].push_back(move(m));
-  if(relayGreeters.empty()){ relayGenesisKey=presentedKey; relayGreeters[id]=TICK+RELAY_TTL; }        // mint genesis
-  else if(presentedKey==relayGenesisKey && (int)relayGreeters.size()<RELAY_CAP){ relayGreeters[id]=TICK+RELAY_TTL; }   // proven member: (re)admit + refresh TTL
+  if(relayGreeters.empty()){ relayGenesisKey=keyHash(presentedKey); relayGreeters[id]=TICK+RELAY_TTL; }        // mint genesis — store only H(key)
+  else if(keyHash(presentedKey)==relayGenesisKey && (int)relayGreeters.size()<RELAY_CAP){ relayGreeters[id]=TICK+RELAY_TTL; }   // proven member (H(key) matches): (re)admit + refresh TTL
 }
 
 // (seat method bodies continue in mesh_seat.inc)
@@ -264,7 +267,7 @@ int main(int argc,char**argv){
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }
     else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d auditAt=%lld(in %lld)\n",id,a.c_str(),v,age,se->s1CheckAt,se->s1CheckAt-TICK);} }
     else if(op=="hist"){ unordered_map<uint64_t,int> cnt; int s1seats=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ cnt[ckey(seats[q]->coord)]++; if(seats[q]->coord.pc==0)s1seats++; } int h1=0,h2=0,h3=0,mx=0; uint64_t mxk=0; for(auto&e:cnt){ if(e.second==1)h1++; else if(e.second==2)h2++; else h3++; if(e.second>mx){mx=e.second;mxk=e.first;} } printf("HIST cells:1=%d 2=%d 3+=%d maxDup=%d@%s s1seats=%d\n",h1,h2,h3,mx,coordStr(unck(mxk)).c_str(),s1seats); }
-    else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) genesisKey=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
+    else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) H(genesisKey)=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
