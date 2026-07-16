@@ -96,7 +96,7 @@
           grid-auto-rows: max-content; }
   #stagefeed { display: grid; gap: 8px; padding: 8px 8px 0; }
   #stagefeed:empty { display: none; }
-  /* The STADIUM (docs/rows.md): every row that isn't yours, folded to one
+  /* The STADIUM (docs/media-plane.md): the room beyond your row, folded to one
      composite tile each — a horizontally scrolling strip above your own row's
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
   #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
@@ -668,6 +668,8 @@
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/gifos-net.js"></script>
+  <script src="js/mesh.js"></script>
+  <script src="js/mesh-wire.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
   <script src="js/gifos-perms.js"></script>
@@ -734,7 +736,7 @@
     // The one standard row-delete glyph (see button.row-del in the styles).
     const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
-    let ws = null, myId = null, localStream = null, meTile = null, leaving = false;
+    let myId = null, localStream = null, meTile = null, leaving = false;
     const peers = new Map(); // peerId -> { pc, tile, video, name, connected, absentSince, lastKick }
     const ABSENT_GRACE = 12000; // roster-absent AND link-down this long → tile drops
 
@@ -771,7 +773,7 @@
     const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
 
-    // ================= THE STADIUM (docs/rows.md) =================
+    // ================= THE STADIUM (docs/healing-laws.md + docs/media-plane.md) =================
     // One metaphor, all the way down: a SEAT holds a person; a ROW seats C
     // (row 0 is the STAGE, born empty); a SECTION is C rows — one relay
     // session, C² seats; a DECK is the group of sections whose deacons share
@@ -832,20 +834,40 @@
       }
       return out.sort((a, b) => (a[1] - b[1]) || (a[0] < b[0] ? -1 : 1)).slice(0, SCALE.C).map((x) => x[0]);
     };
-    // The room DIRECTORY: everyone on the roster, whether or not we hold a
-    // media link to them. Gossip (status, moderation, chat fallback) spans the
-    // directory over the relay; MEDIA spans only the row (docs/rows.md).
+    // The room DIRECTORY: everyone we know to be in the room — the mesh occ
+    // map (coord → peer, maintained by the healing laws) unioned with fresh
+    // status gossip. The relay's roster is only the GREETER POOL now, never
+    // the room; rosterIds is refreshed from the mesh each tick (renderFromOcc).
     let rosterIds = [], rosterNames = {};
     const gossipIds = () => rosterIds.filter((id) => id !== myId);
+    // ---- rows from COORDS (no more roster arithmetic, no deacons) ----------
+    // My row is a fact of my SEAT: the occupants of (pc, r, 0..C-1). The old
+    // computeRows derived rows from relay-roster join order with row 0 as the
+    // stage — both notions are dead: the Stage is a decoupled chosen set
+    // (stageIds), and a row is a place in the tree.
+    const meshSeat = () => (meshNode ? meshNode.seat : null);
+    const meshCoord = () => { const s = meshSeat(); return s && s.hasCoord ? s.coord : null; };
+    const meshOccAt = (c) => { const s = meshSeat(); if (!s) return null; return s.occGet(net.topo.ckey(c)); };
+    function myRowIds() {
+      const c = meshCoord();
+      if (!c) return myId ? [myId] : [];
+      const out = [];
+      for (let j = 0; j < SCALE.C; j++) { const v = (j === c.i) ? myId : meshOccAt({ pc: c.pc, r: c.r, i: j }); if (v) out.push(v); }
+      return out;
+    }
+    // Grid shape (render order): the Stage strip, then MY row, then the rest
+    // of the known room packed C per row. Same return shape as before so the
+    // tile layout keeps working; the SEMANTICS moved to the tree.
     function computeRows() {
       const onStage = new Set(stageIds());
-      const ids = [...new Set([myId, ...rosterIds])].filter((id) => id && !onStage.has(id)).sort();
-      const rows = [stageIds()];
-      for (const id of ids) {
-        if (rows.length === 1 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
+      const mine = myRowIds().filter((id) => !onStage.has(id));
+      const inMine = new Set([...onStage, ...mine]);
+      const rest = [...new Set([myId, ...rosterIds])].filter((id) => id && !inMine.has(id)).sort();
+      const rows = [stageIds(), mine];
+      for (const id of rest) {
+        if (rows.length === 2 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
         else rows[rows.length - 1].push(id);
       }
-      if (rows.length === 1) rows.push([]); // every room automatically has 2 rows
       return rows;
     }
     const rowIndexOf = (id) => {
@@ -854,16 +876,7 @@
       return -1;
     };
     const myRowIndex = () => rowIndexOf(myId);
-    const rowMates = () => { const rows = computeRows(); const i = myRowIndex(); return i < 0 ? [] : rows[i].filter((id) => id !== myId); };
-    // Deacon: capability-weighted, deterministic (score, then peer id) — the
-    // same election discipline as the initiator rule and host takeover. The
-    // full ranking IS the backup list; a dead deacon's successor is simply
-    // the next name every phone already agrees on.
-    function deaconRanking(rowIds) {
-      return rowIds.slice().sort((a, b) => (capOf(b) - capOf(a)) || (a < b ? -1 : 1));
-    }
-    const deaconOf = (rowIds) => deaconRanking(rowIds)[0] || null;
-    const amDeacon = () => { const rows = computeRows(); const i = myRowIndex(); return i > 0 && deaconOf(rows[i]) === myId; };
+    const rowMates = () => myRowIds().filter((id) => id !== myId);
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
     // Admin "blur all guests": a room-wide level applied to every NON-admin,
@@ -883,13 +896,13 @@
     let lastVoteSync = null;
     let voteTally = {}, voteNeed = 0;  // relay's live tally, keyed by DEVICE id
     function syncVotes() {
-      if (hasAdminRoom() || !ws || ws.state !== 'up') return;
+      if (hasAdminRoom() || !relayUp()) return;
       const present = new Set(Object.values(devOf));
       const relevant = Array.from(myVoteoffs).filter((d) => present.has(d)).sort();
       const sig = relevant.join(',');
       if (sig === lastVoteSync) return;
       lastVoteSync = sig;
-      ws.send(JSON.stringify({ t: 'votekick', devs: relevant }));
+      relaySendObj({ t: 'votekick', devs: relevant });
     }
 
     let connBcastT = null;
@@ -897,20 +910,12 @@
     const mySid = () => (localStream ? localStream.id : null);
     function broadcastStatus() {
       myStatus.at = Date.now(); // timestamped: out-of-order gossip can't roll me back
-      // Tree bookkeeping rides the same heartbeat: which leaf I sit in, how
-      // many people my leaf holds, and (from delegates) the room total they
-      // can see from the parent space — presence counting by aggregation.
-      myStatus.leaf = sectionNum;
-      myStatus.cnt = Math.max(1, rosterIds.length);
-      // ONLY delegates assert totals, and only from ground truth for their
-      // role — adopted numbers are display-only (see assertedTotal). The
-      // hand queue folds the same way: delegates alone re-assert it upward
-      // and downward; members contribute through their own st.hand.
-      myStatus.tot = assertedTotal() || 0;
-      myStatus.seen = UP.on ? Math.max(assertedTotal() || 0, seenAsserted() || 0) : 0;
-      myStatus.branch = UP.on ? UP.num : 0;
-      myStatus.bl = UP2.on ? Object.fromEntries(knownDeckSections()) : undefined;
-      myStatus.hq = UP.on ? handQueue().slice(0, 20) : undefined;
+      // My SEAT rides the heartbeat: coord is the tree fact everything else
+      // (rows, links, Stage membership order) derives from. The old deck
+      // bookkeeping (leaf/cnt/tot/seen/branch/bl) is gone with the deck model —
+      // presence is the mesh occ map now, not counting-by-aggregation.
+      const c = meshCoord();
+      myStatus.seat = c ? { pc: c.pc, r: c.r, i: c.i } : undefined;
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
@@ -927,67 +932,18 @@
       fanOut(payload, (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); });
       updateTile('me');
     }
-    // Presence counting, echo-proof at every depth: what a node ASSERTS is
-    // ground truth for its role alone (a leaf count, a branch sum of leaf
-    // counts, a room sum of branch sums) — what it DISPLAYS may absorb any
-    // fresher total gossip carried down. Assertions never absorb, so a stale
-    // number can never circulate; it just expires.
-    function knownDeckSections() { // leafNum -> cnt, as my parent space sees it
-      const per = new Map([[sectionNum, rosterIds.length || 1]]);
-      for (const pid of upGossipIds()) {
-        const st = statusOf.get(pid);
-        if (st && st.leaf && st.cnt) per.set(st.leaf, Math.max(per.get(st.leaf) || 0, st.cnt));
-      }
-      return per;
+    // Presence: the mesh occ map IS the count — distinct peers at distinct
+    // coords in my view of the tree, me included. (The deck aggregation
+    // machinery — leaf/branch sums, assertions vs display — died with the
+    // deck model; a deep stadium's total becomes a media-plane concern.)
+    function knownTotal() {
+      const s = meshSeat();
+      if (!s) return rosterIds.length || 1;
+      const ids = new Set([myId]);
+      for (const v of s.occ.values()) if (v) ids.add(v);
+      for (const id of rosterIds) ids.add(id);
+      return ids.size;
     }
-    function knownDeckCnt() {
-      let sum = 0; for (const c of knownDeckSections().values()) sum += c;
-      return sum;
-    }
-    function assertedTotal() {
-      if (UP2.on) {
-        // Union LEAF-KEYED maps across attendees, then sum — a leaf whose
-        // delegates split across sibling parent sessions would be counted
-        // in two branch scalars, but it can't be counted twice under its
-        // own key. Double-count impossible by construction.
-        const merged = knownDeckSections();
-        for (const pid of up2GossipIds()) {
-          const st = statusOf.get(pid);
-          if (!st || !st.bl || Date.now() - (st.at || 0) > 15000) continue;
-          for (const k of Object.keys(st.bl)) {
-            const leaf = +k, cnt = st.bl[k] | 0;
-            if (leaf > 0 && cnt > 0) merged.set(leaf, Math.max(merged.get(leaf) || 0, cnt));
-          }
-        }
-        let sum = 0; for (const c of merged.values()) sum += c;
-        return sum;
-      }
-      if (UP.on) return knownDeckCnt();
-      return 0;
-    }
-    function seenAsserted() { // freshest ASSERTION anyone I gossip with carries
-      let best = 0;
-      for (const pid of allGossipIds()) {
-        const st = statusOf.get(pid);
-        if (st && st.tot && Date.now() - (st.at || 0) < 15000) best = Math.max(best, st.tot);
-      }
-      return best;
-    }
-    function seenTotal() { // display: assertions, plus delegates' RELAYED views
-      // st.seen is a delegate's display-only relay, itself derived ONLY from
-      // assertions (never from another seen) — so a stale number can't chase
-      // its own tail; it expires with the assertion that fed it. This is how
-      // a member whose delegate isn't a level-2 attendee still hears the
-      // room total: attendee ASSERTS in the parent space → its space mates
-      // RELAY (seen) into their leaves → members display it.
-      let best = seenAsserted();
-      for (const pid of gossipIds()) {
-        const st = statusOf.get(pid);
-        if (st && st.seen && Date.now() - (st.at || 0) < 15000) best = Math.max(best, st.seen);
-      }
-      return best;
-    }
-    function knownTotal() { return Math.max(assertedTotal(), seenTotal()); }
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
@@ -996,13 +952,12 @@
       hbTick++;
       // A hidden tab beats at a third of the pace (12s — still inside every 15s
       // freshness window): a phone in a pocket keeps its seat without waking
-      // the relay 21,600 times a day. Delegates keep full pace — the spaces
-      // above them count the room through their assertions.
-      const throttled = document.hidden && !(UP && UP.on) && !(UP2 && UP2.on) && hbTick % 3 !== 0;
+      // the relay 21,600 times a day.
+      const throttled = document.hidden && hbTick % 3 !== 0;
       // Beat whenever anyone can hear us: the relay socket, or any live
       // DataChannel (status prefers DCs — see sendSig — so a healing relay
       // socket no longer silences the room's pulse).
-      const audible = (ws && ws.state === 'up') || Array.from(peers.values()).some((p) => p.dc && p.dc.readyState === 'open');
+      const audible = relayUp() || Array.from(peers.values()).some((p) => p.dc && p.dc.readyState === 'open');
       if (peers.size && audible && !throttled) broadcastStatus();
       if (typeof reconcileApp === 'function') reconcileApp();
     }, SCALE.HB);
@@ -1163,7 +1118,7 @@
     function closeRoomNoHost() {
       clearAdminClose();
       leaving = true;                          // stop the auto-reconnect loop
-      try { ws && ws.close(); } catch (e) {}
+      try { meshNode && meshNode.stop(); } catch (e) {}
       for (const pid of Array.from(peers.keys())) dropPeer(pid);
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
       const cm = document.getElementById('closed-modal'); if (cm) cm.style.display = 'flex';
@@ -1215,9 +1170,9 @@
           if (e.target.dataset.adm === 'ban') {
             e.stopPropagation();
             const dev = devOf[id];
-            if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, ws && ws.state);
+            if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, relayUp());
             if (!amAdmin || !dev) return;
-            admSigned('ban', { dev }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName(), w })); });
+            admSigned('ban', { dev }).then((w) => { if (w) relaySendObj({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName(), w }); });
             return;
           }
           const f = e.target.dataset.mod;
@@ -1580,7 +1535,7 @@
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
       const q = rung(n);
-      const link = ws && ws.state === 'up' ? '' : ' · reconnecting to the room…';
+      const link = (relayUp() || (meshSeat() && meshSeat().state === 3 && meshCoord() && meshCoord().pc !== 0)) ? '' : ' · reconnecting to the room…';
       let extra = '';
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
@@ -1588,7 +1543,7 @@
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
-        : n + ' in the meeting · ' + q.label) + (sectionNum > 1 ? ' · section ' + sectionNum : '') + link + extra;
+        : n + ' in the meeting · ' + q.label) + link + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -1635,7 +1590,7 @@
           return;
         }
       }
-      // POST-JOIN SIGNALING ON THE PAIR'S OWN CHANNEL (mesh-refactor §3.1):
+      // POST-JOIN SIGNALING ON THE PAIR'S OWN CHANNEL (docs/meet-security.md §FWD):
       // once a pair is connected, its negotiation traffic — renegotiation
       // offers, answers, trickle ICE — rides its DataChannel. These frames are
       // PAIR-LOCAL: they affect only this one connection and carry no room
@@ -1654,27 +1609,14 @@
         }
         txStats.relaySig++;
       }
-      // Route on membership, lowest shared space first: leaf, then the
-      // parent space, then the level-2 space — deterministic, so both
-      // halves of a handshake take the same path.
-      let sock = ws;
-      if (!rosterIds.includes(to)) {
-        if (UP.on && UP.roster.includes(to)) sock = UP.ws;
-        else if (UP2.on && UP2.roster.includes(to)) sock = UP2.ws;
-      }
-      // SPONSOR-FORWARDED SIGNALING (mesh-refactor §3.2/§3.3): when my relay
+      // SPONSOR-FORWARDED SIGNALING (docs/meet-security.md §FWD): when my relay
       // path to this peer is down or absent — the exact moment a heal offer
-      // matters most, and the seam introduction will ride once sockets close
-      // (step 8) — a MUTUAL FRIEND's DataChannel carries the frame instead:
+      // matters most — a MUTUAL FRIEND's DataChannel carries the frame instead:
       // lowest-id connected peer who reports a live link to the target, one
-      // hop, sealed end-to-end the whole way (the friend forwards ciphertext
-      // context it could read anyway as a room member, but cannot alter —
-      // it re-seals the same payload). Deterministic pick, so retries hop
-      // the same sponsor. Trust note (doc §12): the relay's authoritative
-      // `from` doesn't cover this path — an in-room impostor could already
-      // disrupt via gossip; connection-level guards (perfect negotiation,
-      // linkTo discipline) bound the blast radius.
-      const relayDown = !sock || sock.state !== 'up';
+      // hop, sealed end-to-end the whole way. Deterministic pick, so retries
+      // hop the same sponsor. With deep seats running SOCKETLESS by design,
+      // this is a first-class path now, not a degraded one.
+      const relayDown = !relayUp();
       if (relayDown && msg.kind !== 'status') {
         const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
         const fp = cands.length ? peers.get(cands[0]) : null;
@@ -1684,15 +1626,14 @@
           return;
         }
       }
-      if (!sock) return;
       // A heartbeat is re-minted every tick — never queue a stale one on a down
       // socket (a queued backlog would blast on reconnect, and the queue-wake
       // used to defeat the reconnect backoff entirely).
-      if (msg.kind === 'status') { if (sock.state !== 'up') return; txStats.relayStatus++; }
+      if (msg.kind === 'status') { if (!relayUp()) return; txStats.relayStatus++; }
       msg = sigSansIce(to, msg);
       if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
-        net.sendChunked(env, (piece) => { try { sock.send(JSON.stringify({ t: 'peer', to, msg: piece })); } catch (e) {} })));
+        net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to, msg: piece }))));
     };
     // Sealed frame over this pair's DataChannel (chat, files, relay control).
     const dcSend = (p, msg) => {
@@ -1701,30 +1642,18 @@
       txm(() => net.seal(roomE2E, msg).then((env) =>
         net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
     };
-    // Room-wide fan-out. DataChannel pairs hear it directly (viaDc — free);
-    // everyone else hears ONE relay {t:'gossip'} broadcast per session socket,
-    // which the relay fans back out as the ordinary stamped {t:'peer', from}
-    // shape — receivers need no new path, and DC pairs just absorb an
-    // idempotent duplicate. Never per-peer envelopes: a frame per silent
-    // roster member per tick (~70 members × every 4s at section scale) blew
-    // the relay's sustained frame budget and got sockets cut with "control
-    // messages only" a minute into any filled room.
+    // Room-wide fan-out. DataChannel pairs hear it directly (viaDc — free and
+    // immediate); the ROOM hears it via MESH GOSSIP (exact-once flood over the
+    // tree's own links — mesh.js) — the relay session is only the greeter pool
+    // now, so relay {t:'gossip'} no longer reaches the room and is gone. DC
+    // pairs absorb the idempotent duplicate (status is timestamped, chat is
+    // deduped by id — the same discipline as before).
     function fanOut(msg, viaDc) {
-      const dcSent = new Set();
-      if (viaDc) for (const pid of allGossipIds()) {
+      if (viaDc) for (const pid of gossipIds()) {
         const p = peers.get(pid);
-        if (p && p.dc && p.dc.readyState === 'open') { viaDc(p); dcSent.add(pid); }
+        if (p && p.dc && p.dc.readyState === 'open') viaDc(p);
       }
-      for (const [sock, ids] of [[ws, gossipIds()], [UP.on && UP.ws, upGossipIds()], [UP2.on && UP2.ws, up2GossipIds()]]) {
-        if (!sock) continue;
-        // A heartbeat is re-minted every tick — never queue a stale one on a
-        // down socket. Chat-class frames DO queue (steadySocket holds them).
-        if (msg.kind === 'status' && sock.state !== 'up') continue;
-        if (!ids.some((pid) => !dcSent.has(pid))) continue; // this session already heard it on DCs
-        if (msg.kind === 'status') txStats.relayStatus++;
-        txm(() => net.seal(roomE2E, msg).then((env) =>
-          net.sendChunked(env, (piece) => { try { sock.send(JSON.stringify({ t: 'gossip', msg: piece })); } catch (e) {} })));
-      }
+      if (meshNode) meshNode.gossip({ a: 1, msg });
     }
     const myName = () => GifOS.store.identity().name || 'Guest';
 
@@ -1789,7 +1718,6 @@
         if (p.incoming.length > 8) p.incoming.shift(); // dead renegotiation leftovers
         claimOwnStream(p);     // proven-own media → their tile
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
-        claimCompStreams();    // explicitly mapped row composites → stadium tiles
       };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -1824,7 +1752,6 @@
       connsOf.delete(peerId);
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
-      endCompRolesFor(peerId);
       if (focusId === peerId) focusId = null;
       layout();
       adapt();
@@ -1852,52 +1779,20 @@
       const cur = statusOf.get(from);
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
       statusOf.set(from, st);
-      // THE HAND QUEUE folds up the tree: a delegate's status carries the
-      // ordered hands it can see; receivers absorb them with a freshness
-      // stamp (an entry not re-asserted for 12s was lowered somewhere).
-      // Echo-safety: entries carry their ORIGIN leaf, and a fellow delegate
-      // only absorbs what the sender is authoritative for (its own leaf) —
-      // otherwise two foreign delegates would refresh a lowered hand between
-      // themselves forever. Members absorb everything; they never re-gossip.
-      if (Array.isArray(st.hq)) {
-        for (const e of st.hq.slice(0, 20)) {
-          if (!e || !e.i || e.i === myId) continue;
-          if (UP.on && (e.l || 0) !== (st.leaf || 0)) {
-            // Not leaf-authoritative. Two more voices carry weight:
-            //  - a FOREIGN-branch level-2 speaker, for its own branch
-            //    (never for mine: my branch's truth comes from below);
-            //  - my own branch's level-2 attendee (st.bl marks one), for
-            //    OTHER branches — it is my branch's window to the world.
-            //    Only non-attendees listen to the window (attendees take
-            //    foreign truth from the level-2 space alone), so window
-            //    entries can't circulate between attendees and echo.
-            const foreignSpeaker = UP2.on && st.branch && (e.b || 0) === st.branch && st.branch !== UP.num;
-            const myWindow = !UP2.on && st.branch === UP.num && st.bl && (e.b || 0) && (e.b || 0) !== UP.num;
-            if (!foreignSpeaker && !myWindow) continue;
-          }
-          handSeen.set(String(e.i), { t: +e.t || 0, name: String(e.n || '…').slice(0, 40), leaf: e.l || 0, branch: e.b || 0, seen: Date.now() });
-        }
-      }
       return true;
     }
-    // One global, ordered hand-raise queue (docs/rows.md): local hands are
-    // ground truth for my leaf; everything beyond arrives folded through
-    // delegates and expires unless re-asserted. Every phone derives the same
-    // order — raise time, then id — however deep the room grows.
-    const handSeen = new Map(); // pid -> { t, name, leaf, seen } (foreign hands)
+    // One global, ordered hand-raise queue: hands ride the status pulse, and
+    // the status pulse reaches the WHOLE room over mesh gossip now — no fold,
+    // no delegate re-assertion, no echo rules. Every phone derives the same
+    // order (raise time, then id) from the same gossip, however deep the room.
     function handQueue() {
       const q = new Map();
-      const now = Date.now();
-      const myB = UP.on ? UP.num : 0;
-      for (const [pid, h] of handSeen) if (now - h.seen < 12000) q.set(pid, { i: pid, t: h.t, n: h.name, l: h.leaf, b: h.branch || 0 });
       for (const pid of rosterIds) {
         if (pid === myId) continue;
         const st = statusOf.get(pid) || {};
-        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…', l: sectionNum, b: myB });
-        else q.delete(pid); // leaf truth beats a stale fold
+        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
       }
-      if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName(), l: sectionNum, b: myB });
-      else q.delete(myId);
+      if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName() });
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
     }
     function learn(from, msg, p, adm) {
@@ -1989,17 +1884,17 @@
     // deacons (the fold/forward edges). At default constants a small room is
     // one row, so this set is EVERYONE — today's mesh, by arithmetic.
     function linkTo(pid) {
-      // Space mates are always linkable at every level (full mesh within a
-      // space session — bounded at C² occupants; docs/rows.md).
-      if (!rosterIds.includes(pid)
-        && ((UP.on && UP.roster.includes(pid)) || (UP2.on && UP2.roster.includes(pid)))) return true;
-      const rows = computeRows();
-      const mine = myRowIndex();
-      if (rows[0].includes(pid) || mine === 0) return true; // the stage sees and is seen by all… of its links
-      const theirs = rowIndexOf(pid);
-      if (theirs === mine) return true;
-      if (theirs <= 0) return theirs === 0; // stage members are always linked
-      if (amDeacon() && deaconOf(rows[theirs]) === pid) return true; // deacon mesh
+      // The mesh's OWN control links (row + cross + up/down + S1 columns) are
+      // always held — they carry the healing laws and mesh gossip.
+      const s = meshSeat();
+      if (!s || !s.hasCoord) return rosterIds.includes(pid); // pre-seat bootstrap: link who we know
+      if (s.linkPeers().has(pid)) return true;
+      if (stageIds().includes(pid) || stageIds().includes(myId)) return true; // the Stage sees and is seen (direct until 3b's strip)
+      // INTERIM MEDIA RULE (docs/meet-wiring-plan.md, until the 3b mosaic):
+      // when the whole room fits in Section 1 your section IS the room — the
+      // Section tier's degenerate case is direct links to everyone. Bigger
+      // rooms hold mesh links only; out-of-section faces arrive with 3b.
+      if (s.coord.pc === 0 && knownTotal() <= SCALE.C * SCALE.C) return true;
       return false;
     }
     // Establish or retire ONE peer's media link per the row arithmetic. Also
@@ -2025,33 +1920,27 @@
         }, 8000);
       }
       p.absentSince = 0;
-      // A peer first met upstairs (headless plumbing) who later walks into MY
-      // leaf becomes a face: same record, same link — the tile just lands.
-      if (p.headless && rosterIds.includes(pid)) { p.headless = false; grid.appendChild(p.tile); }
       if (name && p.name !== name) { p.name = name; p.label.textContent = name; }
     }
-    function reconcile(list, names) {
-      names = names || {};
-      rosterIds = list.slice();
-      rosterNames = Object.assign({}, rosterNames, names);
-      for (const pid of list) {
-        if (pid === myId) continue;
-        // A peer carrying MY device id is a stale session of my own device — a
-        // second tab, or one the relay hasn't reaped yet — never a real guest.
-        // Drop it instead of drawing a second "me" tile (and don't dial it).
+    // The directory is DERIVED, every tick, from the mesh: occ (coord → peer,
+    // maintained by the healing laws) plus fresh status gossip. Replaces the
+    // relay-roster reconcile — the relay's roster is the greeter pool, not
+    // the room. Runs on the mesh node's onUpdate (each 500ms tick).
+    function renderFromOcc() {
+      const s = meshSeat();
+      if (!s) return;
+      const ids = new Set();
+      for (const v of s.occ.values()) if (v && v !== myId) ids.add(v);
+      for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000) ids.add(pid);
+      rosterIds = Array.from(ids);
+      for (const pid of rosterIds) {
+        // A peer carrying MY device id is a stale session of my own device —
+        // never a real guest. Drop it instead of drawing a second "me" tile.
         if (devOf[pid] && devOf[pid] === myDevHash) { if (peers.has(pid)) dropPeer(pid); continue; }
-        // Media is ROW-SCOPED: someone outside my link set stays in the
-        // directory (gossip reaches them over the relay; the stadium fold will
-        // show them) but gets no pc and no tile here.
-        ensureLink(pid, names[pid] || rosterNames[pid] || null);
+        if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
       }
-      for (const [pid, p] of peers) {
-        // Uplink-only peers live by their SPACE rosters, not this one — the
-        // leaf's roster must never bury a fellow delegate.
-        if ((UP.roster.includes(pid) || UP2.roster.includes(pid)) && !list.includes(pid)) continue;
-        if (!list.includes(pid) && !p.absentSince) p.absentSince = Date.now();
-      }
-      for (const pid of Object.keys(rosterNames)) if (!list.includes(pid)) delete rosterNames[pid];
+      for (const [pid, p] of peers) if (!ids.has(pid) && !p.absentSince) p.absentSince = Date.now();
+      for (const pid of Object.keys(rosterNames)) if (!ids.has(pid)) delete rosterNames[pid];
       updateStatus();
     }
 
@@ -2068,256 +1957,23 @@
     // one-way hashes of the room code (+ password); roomE2E seals every
     // content frame and exists only in occupants' browsers.
     let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
-    // Which leaf row this device sits in (1-based; row 1 is path '' — exactly
-    // today's session). The walk bumps it until a row seats us.
-    // CANONICAL SECTION IDENTITY (mesh-refactor step 0): my section number is
-    // a property of the session I am JOINED to, never a locally-kept count.
-    // sectionTry names the section my current credentials ADDRESS (bumped when
-    // a walk derives the next session); sectionNum only ever adopts it on the
-    // relay's 'joined' — the moment the addressed session actually seats me.
-    // The old `sectionNum++` bumped BEFORE the async derive/connect resolved,
-    // so a failed hop left the counter naming a session I never entered — and
-    // every global-row label (gRowOf), fold key, and st.leaf gossip built on
-    // the lie (the dup-fold relabeling class, fb562ed).
-    let sectionNum = 1, walking = false, sectionTry = 1;
-    const sectionPathOf = (n) => (n <= 1 ? '' : 'r' + n);
-    function walkOn() {
-      if (walking) return; // one step at a time — late rosters must not double-bump
-      walking = true;
-      sectionTry++;
-      for (const pid of Array.from(peers.keys())) dropPeer(pid); // old row's links die with the walk
-      net.deriveMeetSess(room, av, sectionPathOf(sectionTry)).then((d) => {
-        sessId = d.sid; sessTok = d.tok;
-        openSock();
-      });
-    }
-
-    // ================= THE UPLINK (docs/rows.md, phases 2–3) =================
-    // A session's delegates (its local-row deacons) and its staged members
-    // open ONE extra socket into the parent space ('u'), and are simply
-    // members there: gossip status, link mates, swap folds. The same peer id
-    // is presented everywhere, so a person is ONE entry in peers/statusOf no
-    // matter how many sessions carry them. Up links are HEADLESS by default —
-    // no tile, no camera attached — folds and stage streams ride them via the
-    // existing composite machinery. In a room that never outgrew row 1 the
-    // uplink never opens: today's meeting, by arithmetic.
-    const UP = { lvl: 1, on: false, num: 1, walking: false, hiTick: 0, idle: 0, ws: null, sessId: null, sessTok: null, defrag: net.makeDefrag(null), roster: [], names: {} };
-    // THE RECURSION: a space is a space is a space. UP2 is the uplink's
-    // uplink — the parent space's roster runs the SAME row arithmetic, and
-    // the deacons among the delegates walk one level higher ('uu', 'uu2', …)
-    // to swap folds of folds. Depth is emergent: every level is these same
-    // lines with a longer path prefix. (Two levels are instantiated here —
-    // depth 4+ repeats the pattern; see docs/rows.md.)
-    const UP2 = { lvl: 2, on: false, num: 1, walking: false, hiTick: 0, idle: 0, ws: null, sessId: null, sessTok: null, defrag: net.makeDefrag(null), roster: [], names: {}, evSeen: 0 };
-    const spacePath = (lvl, num) => 'u'.repeat(lvl) + (num > 1 ? num : '');
-    // The identical first-fit over a SPACE's roster: row 0 is the stage
-    // (anchored in the first level-1 space only), everyone else packs C per
-    // row in sorted-id order — elections and mates by the same functions.
-    function spaceRows(U) {
-      const anchored = U.lvl === 1 && U.num === 1;
-      const stg = new Set(anchored ? U.roster.filter((id) => (id === myId ? !!myStatus.stg : !!((statusOf.get(id) || {}).stg))) : []);
-      const row0 = U.roster.filter((id) => stg.has(id));
-      const ids = [...new Set(U.roster)].filter((id) => id && !stg.has(id)).sort();
-      const rows = [row0];
-      for (const id of ids) {
-        if (rows.length === 1 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
-        else rows[rows.length - 1].push(id);
-      }
-      if (rows.length === 1) rows.push([]);
-      return rows;
-    }
-    const mySpaceRow = (U) => { const r = spaceRows(U); for (let i = 0; i < r.length; i++) if (r[i].includes(myId)) return i; return -1; };
-    const amSpaceDeacon = (U) => { const r = spaceRows(U); const i = mySpaceRow(U); return i > 0 && deaconOf(r[i]) === myId; };
-    const spaceRowMates = (U) => { const r = spaceRows(U); const i = mySpaceRow(U); return i < 0 ? [] : r[i].filter((id) => id !== myId); };
-    const upGossipIds = () => UP.roster.filter((id) => id !== myId);
-    const up2GossipIds = () => UP2.roster.filter((id) => id !== myId);
-    // Every id I gossip with, each exactly once (the lowest shared space wins the route).
-    const allGossipIds = () => [...new Set([...gossipIds(), ...upGossipIds(), ...up2GossipIds()])];
-    // Multi-ness is EVIDENCE, freshly latched: I'm past row 1, my leaf is at
-    // capacity, the parent space visibly has others, or a delegate's leaf
-    // gossip carries a room total bigger than my leaf (how a shrunken leaf's
-    // NEWLY elected deacon learns the tree exists). The 60s latch survives
-    // every delegate dying at once — re-election finishes well inside it.
-    let multiSeen = 0;
-    const roomIsMulti = () => {
-      const evidence = sectionNum > 1 || rosterIds.length >= SCALE.C * SCALE.C
-        || (UP.on && UP.roster.some((id) => id !== myId))
-        || (knownTotal() || 0) > Math.max(1, rosterIds.length);
-      if (evidence) multiSeen = Date.now();
-      return evidence || (Date.now() - multiSeen < 60000);
+    // THE MESH NODE (mesh.js + mesh-wire.js): the ported sim brain that owns
+    // my SEAT — entry (knock/greeters/newcomer dance), healing, and the one
+    // relay socket. There is no walk and no per-section session anymore: one
+    // relay session per stadium (the greeter pool), one tree, coords from
+    // docs/healing-laws.md. meet.html consumes its occ map (renderFromOcc),
+    // its link set (linkTo), and its gossip lane (fanOut).
+    let meshNode = null;
+    const relayUp = () => !!(meshNode && meshNode.relayUp());
+    const relaySendObj = (o) => { if (meshNode) meshNode.relaySend(o); };
+    // Mesh control frames prefer the pair's DataChannel ({k:'mesh'}, sealed
+    // like all DC traffic); the wire falls back to sealed relay {t:'peer'}
+    // when no channel exists yet (greeter first-contact).
+    const meshSendDC = (to, m) => {
+      const p = peers.get(to);
+      if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'mesh', m }); return true; }
+      return false;
     };
-    function buildSpaceUrl(U) {
-      return relayUrl().replace(/\/$/, '') + '/s/' + U.sessId + '?role=mesh&token=' + U.sessTok +
-        '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(myDevHash); // adminship is a SIGNATURE now (§9) — no secret in any URL
-    }
-    function openSpace(U) {
-      if (U.on || !relayUrl()) return;
-      U.on = true;
-      net.deriveMeetSess(room, av, spacePath(U.lvl, U.num)).then((d) => {
-        if (!U.on) return; // closed while deriving
-        U.sessId = d.sid; U.sessTok = d.tok;
-        U.ws = net.steadySocket(() => buildSpaceUrl(U));
-        U.ws.onmessage = (ev) => {
-          let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-          if (m.t === 'roster') {
-            // The SAME seat rule at every level: a space seats C² and a late
-            // delegate walks to the next sibling space. STAGED members never
-            // walk — the stage anchors at the first level-1 space (their
-            // seats ride above the delegate count; at production constants a
-            // full space plus the stage still fits the relay's 64).
-            if (myId && !(U.lvl === 1 && myStatus.stg) && (m.peers || []).indexOf(myId) >= SCALE.C * SCALE.C) { walkSpace(U); return; }
-            U.walking = false;
-            U.roster = m.peers || []; U.names = m.names || {};
-            Object.assign(devOf, m.devs || {});
-            scheduleRowsReconcile(); // react soon — but debounced: join churn must not storm
-          } else if (m.t === 'peer' && m.msg) {
-            const piece = U.defrag(m.msg, 'u' + U.lvl + '|' + m.from);
-            if (!piece) return;
-            rxm(() => net.open(roomE2E, piece).then((inner) => {
-              if (!inner) return;
-              if (inner.kind) onSignal(m.from, inner, m.adm);
-              else if (inner.k) onRemote(m.from, inner);
-            }));
-          } else if (m.t === 'error' && /session is full/.test(m.error || '')) walkSpace(U);
-        };
-      });
-    }
-    function walkSpace(U) {
-      if (U.walking) return;
-      U.walking = true;
-      U.num++;
-      const wasOn = U.on;
-      U.on = false; try { U.ws && U.ws.close(); } catch (e) {}
-      U.ws = null; U.roster = []; U.names = {};
-      if (wasOn) openSpace(U);
-    }
-    function closeSpace(U) {
-      if (!U.on) return;
-      U.on = false;
-      try { U.ws && U.ws.close(); } catch (e) {}
-      U.ws = null; U.idle = 0;
-      U.roster = []; U.names = {};
-      // drop plumbing peers that no OTHER space still carries
-      for (const [pid, p] of Array.from(peers)) {
-        if (p.headless && !UP.roster.includes(pid) && !UP2.roster.includes(pid)) dropPeer(pid);
-      }
-    }
-    const openUpSock = () => openSpace(UP);
-    const closeUp = () => closeSpace(UP);
-    // Open exactly when this session's structure says someone upstairs might
-    // need us: I lead a local row (delegate) or I am staged — and the room is
-    // actually multi-session (row 1 filled, or I'm past it, or the parent
-    // space already has others). Close only when the need is provably gone.
-    // Roster changes want a PROMPT reconcile (heals shouldn't stack 2s sweep
-    // waits) but never a synchronous one per message — join churn fires
-    // rosters in bursts, and a reconcile per burst member is a negotiation
-    // storm. One debounced pass 300ms after the burst settles.
-    let rowsReconT = null;
-    function scheduleRowsReconcile() {
-      clearTimeout(rowsReconT);
-      rowsReconT = setTimeout(() => { reconcileUp(); reconcileComp(); }, 300);
-    }
-    function reconcileUp() {
-      const want = roomIsMulti() && (amDeacon() || !!myStatus.stg);
-      if (want && !UP.on) openUpSock();
-      // HYSTERESIS: elections flap while cap gossip settles, and tearing an
-      // uplink down (socket, links, DCs, folds) to rebuild it two seconds
-      // later is the single most expensive churn in the tree. Losing a
-      // delegation lingers 15s before it closes anything — a flip-back costs
-      // nothing (same socket, same links, same fold stream, same sigs).
-      if (!want && UP.on) {
-        if (!UP.idle) UP.idle = Date.now();
-        if (Date.now() - UP.idle > 15000) closeUp();
-      } else UP.idle = 0;
-      // LEVEL 2 — the recursion: I delegate for my parent space exactly when
-      // its own row arithmetic elects me, and the space is provably plural
-      // (I walked past its first session, it hit capacity, or the level-2
-      // space visibly has others). Same evidence-with-latch rule as level 1.
-      if (UP.on) {
-        const ev2 = UP.num > 1 || UP.roster.length >= SCALE.C * SCALE.C
-          || (UP2.on && UP2.roster.some((id) => id !== myId));
-        if (ev2) UP2.evSeen = Date.now();
-        const plural2 = ev2 || (Date.now() - (UP2.evSeen || 0) < 60000);
-        const want2 = plural2 && amSpaceDeacon(UP);
-        if (want2 && !UP2.on) openSpace(UP2);
-        if (!want2 && UP2.on) {
-          if (!UP2.idle) UP2.idle = Date.now();
-          if (Date.now() - UP2.idle > 15000) closeSpace(UP2);
-        } else UP2.idle = 0;
-      } else if (UP2.on) closeSpace(UP2);
-      // RETREAT: unlike leaves, delegate spaces SHRINK (membership is
-      // derived) — a delegate bumped to a sibling session during transient
-      // crowding must walk back when it stays lonely, or it is exiled with
-      // its announcements reaching nobody. 20s of just-me in a walked-to
-      // session → re-knock from the first (the seat rule re-bounces if the
-      // space is genuinely full).
-      for (const U of [UP, UP2]) {
-        if (!U.on || U.num <= 1) { U.lonely = 0; continue; }
-        if (U.roster.some((id) => id !== myId)) { U.lonely = 0; continue; }
-        U.lonely = U.lonely || Date.now();
-        if (Date.now() - U.lonely > 20000) {
-          U.lonely = 0; U.num = 1; U.walking = false;
-          U.on = false; try { U.ws && U.ws.close(); } catch (e) {}
-          U.ws = null; U.roster = []; U.names = {};
-          openSpace(U);
-        }
-      }
-      // Link my space mates at every level (full mesh within a space session
-      // — each is bounded at C² occupants). Headless unless staged.
-      for (const U of [UP, UP2]) {
-        if (!U.on) continue;
-        for (const pid of U.roster) {
-          if (pid === myId || (devOf[pid] && devOf[pid] === myDevHash)) continue;
-          if (!peers.has(pid) && !rosterIds.includes(pid)) {
-            const p = makePeer(pid, U.names[pid] || null, true);
-            if (iInitiate(pid)) { p.lastKick = Date.now() + Math.random() * 1500; sendOffer(pid); }
-          }
-        }
-      }
-      // A plumbing peer no space still carries is gone.
-      for (const [pid, p] of peers) {
-        if (p.headless && !UP.roster.includes(pid) && !UP2.roster.includes(pid) && !p.absentSince) p.absentSince = Date.now();
-      }
-      syncUpCam();
-      // ANTI-ENTROPY across the bridges: a chat line sent while a delegate
-      // edge was still forming would otherwise be lost to the other branch
-      // forever (send-once + forward-on-first-sight has no second chance).
-      // Every ~8s each delegate union-merges recent history over its up
-      // edges; dedupe-by-id absorbs the repetition — the same discipline
-      // that already heals one session's history on DC open.
-      if (!UP.hiTick) UP.hiTick = 0;
-      if (++UP.hiTick % 4 === 0) {
-        const hi = { k: 'hi', chats: Array.from(chat.values()).slice(-50), trs: Array.from(trs.values()).slice(-30), metas: fileMetas(), tombs: tombObj() };
-        for (const pid of [...new Set([...upGossipIds(), ...up2GossipIds()])]) {
-          const p = peers.get(pid);
-          if (p && p.dc && p.dc.readyState === 'open') dcSend(p, hi);
-        }
-      }
-    }
-    // The stage's OWN feed rides its uplink edges: stepping up adds my cam
-    // tracks onto every headless pc IN PLACE (a rebuild would strand the far
-    // side's m-lines), stepping down removes them — renegotiated glare-free.
-    function syncUpCam() {
-      const want = !!myStatus.stg;
-      if (!localStream) return;
-      const mineTracks = new Set([...localStream.getTracks(), blurPipe && blurPipe.track].filter(Boolean));
-      for (const [pid, p] of peers) {
-        if (!p.headless || !p.pc) continue;
-        const camSenders = p.pc.getSenders().filter((s) => s.track && !auxSenders.has(s) && mineTracks.has(s.track));
-        if (want && !camSenders.length) {
-          // fresh m-lines here too — a reused transceiver's media arrives
-          // with no ontrack, and the stage claim needs the stream identity
-          for (const track of localStream.getAudioTracks()) { try { const t = p.pc.addTransceiver(track, { streams: [localStream] }); } catch (e) {} }
-          const vt = sentVideoTrack();
-          if (vt) { try { p.pc.addTransceiver(vt, { streams: [localStream] }); } catch (e) {} }
-          compKick(pid, 'mesh');
-        } else if (!want && camSenders.length) {
-          for (const s of camSenders) { try { p.pc.removeTrack(s); } catch (e) {} }
-          compKick(pid, 'mesh');
-        }
-      }
-    }
 
     // ---- admin rooms -----------------------------------------------------------
     // The admin verifier V is part of the ROOM'S IDENTITY: /meet/<room>/<V>
@@ -2352,7 +2008,7 @@
         { name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
       return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
-    // AUTHORITY IS A SIGNATURE (mesh-refactor §9). K's PBKDF2 bits seed a
+    // AUTHORITY IS A SIGNATURE (docs/meet-security.md §SIG). K's PBKDF2 bits seed a
     // deterministic Ed25519 keypair; V commits to the PUBLIC key (24-hex
     // prefix of SHA-256(pub)); admins SIGN their moderation orders. Any peer
     // — and the relay itself — checks the same proof: H(pub) startsWith V,
@@ -2463,7 +2119,7 @@
     const pwKey = () => 'gifos_vpw_' + roomKey();
     function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
     function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
-    // THE PASSWORD IS THE KEY (mesh-refactor §8): adopting a password means
+    // THE PASSWORD IS THE KEY (docs/meet-security.md §LOCK): adopting a password means
     // deriving the room key that contains it. Every caller that changes
     // roomPw re-keys; frames sealed under the other side of a rotation drop
     // silently (open() → null) and the next heartbeat re-mints them — the
@@ -2483,147 +2139,108 @@
       return id;
     }
 
-    // The relay-facing URL: sessId is the DERIVED session id (the verifier is
-    // re-appended after the hash so the relay's verifierOf still reads it off
-    // the tail); sessTok and pwProof are derivations too. The relay never sees
-    // the room code or the password. makeUrl re-evaluates on every reconnect,
-    // so a changed password proof or a fresh admin key rides the next attempt.
-    function buildWsUrl() {
-      return relayUrl().replace(/\/$/, '') + '/s/' + sessId + '?role=mesh&token=' + sessTok +
-        '&peer=' + myPeerId() + '&pw=' + encodeURIComponent(pwProof) +
-        '&dev=' + encodeURIComponent(myDevHash); // adminship is a SIGNATURE now (§9) — no secret in any URL
-    }
-    function openSock() {
+    // THE FRONT DOOR (mesh-v2): the wire layer (mesh-wire.js) owns the ONE
+    // relay socket — knock/greeters, founding (R3), greeter registration (E3),
+    // socket-drop when seated deep. meet.html keeps its app-level relay
+    // handlers via the onRelayMsg passthrough below.
+    function startMesh() {
       const relay = relayUrl();
-      if (!relay) { setStatus('No relay configured — cannot exchange invitations.'); return; }
-      if (ws) { try { ws.close(); } catch (e) {} } // a terminal state or credential change replaces the socket
-      ws = net.steadySocket(buildWsUrl); // self-healing: backoff + visibility/online kicks live in the fabric
-      lastVoteSync = null; // a fresh socket re-syncs my standing votes
-      pwReasserted = false; // a fresh socket re-asserts the admin's door lock once
-      ws.onopen = () => { lastVoteSync = null; updateStatus(); };
-      ws.onstate = () => {
-        updateStatus(); // live P2P links stay up; we quietly rejoin the room
-        // Evicted by a NEWER tab of this same room on this same device: the
-        // socket stays down on purpose (reconnecting would evict the newer tab
-        // right back — the ping-pong that once burned 45k relay wakes in a
-        // night). Say so instead of showing an eternal "reconnecting".
-        if (ws.rejected === 4000) setStatus('👋 This meeting is open in a newer tab — this one has stepped back.');
-        // A mid-session CUT carries its verdict in the close code now: a
-        // terminal socket never re-knocks, so the reason can no longer arrive
-        // as a rejection message on the next join. Read it from the code —
-        // exactly what an admin's re-seed ban sends (4004) and a live
-        // vote-off sends (4007).
-        else if (ws.rejected === 4004 && !bannedOut) { bannedOut = true; setStatus('⛔ This device was banned from the room by its admin.'); }
-        else if (ws.rejected === 4007 && !bannedOut) { bannedOut = true; setStatus('⛔ The people in this room have voted not to let this device in.'); }
-      };
-      ws.onmessage = (ev) => {
-        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.t === 'joined') {
-          myId = m.peer; walking = false; // adminship comes from adoptAdmKey (a verified signature), never the relay (§9)
-          // Adopt the section number of the session that just SEATED me —
-          // the only place sectionNum may change (mesh-refactor step 0).
-          if (sectionNum !== sectionTry) {
-            if (typeof clog === 'function') clog('section ' + sectionNum + '>' + sectionTry);
-            sectionNum = sectionTry;
+      if (!relay) { setStatus('No relay configured \u2014 cannot exchange invitations.'); return; }
+      if (meshNode) { try { meshNode.stop(); } catch (e) {} meshNode = null; }
+      myId = myPeerId();
+      lastVoteSync = null;   // a fresh socket re-syncs my standing votes
+      pwReasserted = false;  // a fresh socket re-asserts the admin's door lock once
+      meshNode = GifOS.meshWire.createMeshNode({
+        relayUrl: relay.replace(/\/$/, ''),
+        sid: sessId, tok: sessTok, key: roomE2E, peer: myId, tickMs: 500,
+        urlParams: () => '&pw=' + encodeURIComponent(pwProof) + '&dev=' + encodeURIComponent(myDevHash),
+        sendDC: meshSendDC,
+        // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
+        // counterpart): the same sealed payload shapes as ever, routed to the
+        // same handlers.
+        onGossip: (src, g) => {
+          if (!g || g.a !== 1 || !g.msg) return;
+          if (g.msg.kind) onSignal(src, g.msg);
+          else if (g.msg.k) onRemote(src, g.msg);
+        },
+        onLocked: () => { pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
+        onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
+        onUpdate: () => renderFromOcc(),
+        onRelayMsg: onRelayFrame,
+      });
+      updateStatus(); applyAdminUi();
+    }
+    // App-level relay frames the wire does not consume. The roster here is the
+    // GREETER POOL, never the room \u2014 it drives door moderation only.
+    function onRelayFrame(m) {
+      if (m.t === 'joined') { updateStatus(); broadcastStatus(); applyAdminUi(); }
+      else if (m.t === 'whoami') {
+        // The relay tells me MY OWN address (the one thing it may share with
+        // me, privately). I seal it to peers via the heartbeat; the relay
+        // never stores it or puts it in anyone's roster.
+        myIp = String(m.ip || '').slice(0, 64);
+        if (myId) ipsOf[myId] = myIp;
+        broadcastStatus(); // push my sealed address out now
+      }
+      else if (m.t === 'roster') {
+        roomBan = m.ban || []; // admins[] comes from VERIFIED signatures (adminsNow, \u00a79), never the relay
+        Object.assign(devOf, m.devs || {}); // MERGE (absence grace keeps tiles whose Ban button must work)
+        if (hasAdminRoom() && amAdmin) {
+          if (roomBan.length) saveBans(roomBan);
+          else if (!banSeeded) {
+            // Fresh DO after eviction \u2014 re-seed the ban list from this device
+            // (SIGNED, \u00a79); the relay cuts any listed socket on re-seed.
+            const stored = loadBans();
+            if (stored.length) admSigned('banlist', { devs: stored }).then((w) => { if (w) relaySendObj({ t: 'banlist', devs: stored, w }); });
           }
-          updateStatus(); broadcastStatus(); applyAdminUi();
-        }
-        else if (m.t === 'whoami') {
-          // The relay tells me MY OWN address (the one thing it may share with
-          // me, privately). I seal it to peers via the heartbeat; the relay
-          // never stores it or puts it in anyone's roster.
-          myIp = String(m.ip || '').slice(0, 64);
-          if (myId) ipsOf[myId] = myIp;
-          broadcastStatus(); // push my sealed address out now
-        }
-        else if (m.t === 'roster') {
-          // MULTI-SESSION WALK (docs/rows.md): the roster answers "is this
-          // row full". Seats are the first C² peers in relay join order
-          // (a session holds C local rows of C); landing past them means
-          // this row filled before I arrived — walk to the next one. Join
-          // order is shared state, so racing walkers resolve identically.
-          if (myId && (m.peers || []).indexOf(myId) >= SCALE.C * SCALE.C) { walkOn(); return; }
-          roomBan = m.ban || []; // admins[] comes from VERIFIED signatures now (adminsNow, §9), never the relay
-          // MERGE device mappings (don't replace): a peer inside its absence
-          // grace window still has a tile, and its Ban button must keep
-          // working even though the roster no longer lists it.
-          Object.assign(devOf, m.devs || {});
-          if (hasAdminRoom() && amAdmin) {
-            if (roomBan.length) saveBans(roomBan);
-            else if (!banSeeded) {
-              // The relay's list is empty — a fresh DO after eviction. Re-seed
-              // from this device's copy REGARDLESS of who is already inside:
-              // the no-admin window is exactly when banned devices sneak back
-              // in, and the relay cuts any listed socket on re-seed. Never
-              // save an empty relay list over stored occupancy memory — that
-              // would erase the bans the eviction already tried to lose.
-              // The order is SIGNED — the relay verifies the same Ed25519
-              // proof any peer would (§9); no stamp, no secret presented.
-              const stored = loadBans();
-              if (stored.length) admSigned('banlist', { devs: stored }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'banlist', devs: stored, w })); });
-            }
-            banSeeded = true;
-            // Re-assert the DOOR LOCK. Only an admin may set an admin room's
-            // lock, so after an eviction a non-admin may have (re)opened the
-            // waiting room LOCKLESS. If I hold the room password, re-establish
-            // it via setpw so the relay re-locks — idempotent, and harmless
-            // when the lock already matches. Once per socket. Signed (§9).
-            if (roomPw && pwProof && !pwReasserted) {
-              const proof = pwProof;
-              admSigned('setpw', { pw: proof }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: proof, by: myName(), w })); });
-            }
-            pwReasserted = true;
+          banSeeded = true;
+          // Re-assert the DOOR LOCK once per socket (\u00a79-signed) \u2014 after an
+          // eviction the waiting room may have reopened lockless.
+          if (roomPw && pwProof && !pwReasserted) {
+            const proof = pwProof;
+            admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, by: myName(), w }); });
           }
-          syncVotes(); // my standing vote-offs apply to whoever is here now
-          applyAdminUi();
-          reconcile(m.peers, m.names);
-          reactRoomState();
-          scheduleRowsReconcile(); // membership drives delegation — follow soon, debounced
-          adminWatch(); // start/cancel the host-absence countdown on every roster change
+          pwReasserted = true;
         }
-        else if (m.t === 'peer' && m.msg) {
-          // Sealed gossip: signaling (offers/answers/ice/status/mod) AND
-          // chat-class frames that had to ride the relay because no
-          // DataChannel exists for that pair. The relay's admin stamp rides
-          // the OUTER envelope, so it survives sealing.
-          const from = m.from, adm = m.adm;
-          const piece = meshDefrag(m.msg, from);
-          if (!piece) return;
-          rxm(() => net.open(roomE2E, piece).then((inner) => {
-            if (!inner) return;
-            if (inner.kind) onSignal(from, inner, adm);
-            else if (inner.k) onRemote(from, inner);
-          }));
-        }
-        else if (m.t === 'ban') {
-          // A ban is not just signaling: sever the banned device's live P2P
-          // links too (media otherwise outlives the relay socket by design).
-          for (const pid of Object.keys(devOf)) if (devOf[pid] === m.dev) dropPeer(pid);
-          const voted = m.by === 'the room (vote)';
-          if (m.dev === myDevHash) {
-            bannedOut = true;
-            for (const pid of Array.from(peers.keys())) dropPeer(pid);
-            try { ws.close(); } catch (e) {}
-            setStatus(voted ? '⛔ The people on this meeting voted you off.' : '⛔ You were banned from this room by ' + (m.by || 'an admin'));
-          } else setStatus(voted ? '⛔ ' + (m.name || 'Someone') + ' was voted off the meeting.' : '⛔ ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
-        }
-        else if (m.t === 'unban') setStatus('✅ ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
-        else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
-        else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
-        // (The relay still broadcasts {t:'pw'} with the new PROOF on setpw, but
-        // the plaintext the room needs travels in a SEALED {k:'pwinfo'} frame —
-        // see onDc — so the relay-side broadcast carries nothing to act on.)
-        else if (m.t === 'error') {
-          // Terminal doors: close the steady socket so it stops knocking; the
-          // pw modal (or nothing, for bans) owns any reconnect from here.
-          // A relay-full session (64-socket DO cap) is a WALK signal, not a door.
-          if (/session is full/.test(m.error || '')) { walkOn(); return; }
-          if (/password required/.test(m.error || '')) { pwBlocked = true; try { ws.close(); } catch (e) {} showPwModal(true); }
-          else if (/voted-off/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ The people in this room have voted not to let this device in.'); }
-          else if (/banned/.test(m.error || '')) { bannedOut = true; try { ws.close(); } catch (e) {} setStatus('⛔ This device was banned from the room by its admin.'); }
-          else setStatus('Relay: ' + m.error);
-        }
-      };
+        syncVotes(); // my standing vote-offs apply to whoever holds a socket now
+        applyAdminUi();
+        reactRoomState();
+        adminWatch();
+      }
+      else if (m.t === 'peer' && m.msg) {
+        // Sealed app frames that rode the relay because no DataChannel exists
+        // for that pair yet (first-contact signaling, greeter WHOHOME replies).
+        const from = m.from;
+        const piece = meshDefrag(m.msg, from);
+        if (!piece) return;
+        rxm(() => net.open(roomE2E, piece).then((inner) => {
+          if (!inner) return;
+          if (inner.kind) onSignal(from, inner, m.adm);
+          else if (inner.k) onRemote(from, inner);
+        }));
+      }
+      else if (m.t === 'ban') {
+        // A ban is not just signaling: sever the banned device's live P2P links.
+        for (const pid of Object.keys(devOf)) if (devOf[pid] === m.dev) dropPeer(pid);
+        const voted = m.by === 'the room (vote)';
+        if (m.dev === myDevHash) {
+          bannedOut = true;
+          for (const pid of Array.from(peers.keys())) dropPeer(pid);
+          try { meshNode && meshNode.stop(); } catch (e) {}
+          setStatus(voted ? '\u26d4 The people on this meeting voted you off.' : '\u26d4 You were banned from this room by ' + (m.by || 'an admin'));
+        } else setStatus(voted ? '\u26d4 ' + (m.name || 'Someone') + ' was voted off the meeting.' : '\u26d4 ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
+      }
+      else if (m.t === 'unban') setStatus('\u2705 ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
+      else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
+      else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
+      else if (m.t === 'error') {
+        // Password gate is handled by the wire (onLocked / R6 sealing); bans
+        // and vote-offs land here. No walk \u2014 the session cap is the greeter
+        // pool\u2019s, and newcomers drop their socket after seating anyway.
+        if (/voted-off/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 The people in this room have voted not to let this device in.'); }
+        else if (/banned/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 This device was banned from the room by its admin.'); }
+        else if (!/password required|session is full/.test(m.error || '')) setStatus('Relay: ' + m.error);
+      }
     }
     // The steady socket kicks itself on visibility/online; only the camera
     // still needs a manual revive when the tab comes back.
@@ -2717,8 +2334,6 @@
       // `admins` is a VIEW over signature-verified sightings, and the
       // signature re-mints when the table (or freshness bucket) changed.
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
-      reconcileUp();   // delegates + stage double-home into the parent space
-      reconcileComp(); // fold up, forward down — re-derived from the same arithmetic
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
       renderHandq();   // the room-wide hand queue, freshest fold wins
@@ -2895,7 +2510,7 @@
         // and the key I read the room with now contains it (§8): a wrong
         // password doesn't just bounce at the courtesy gate, it can't decrypt.
         Promise.all([net.meetPwProof(room, av, roomPw), rekeyRoom()])
-          .then(([pr]) => { pwProof = pr; openSock(); }); // wrong password → bounced right back here
+          .then(([pr]) => { pwProof = pr; startMesh(); }); // wrong password → bounced right back here
       } else {
         // Clearing the password opens the room — warn that it also deletes any
         // shared files, then purge them for everyone.
@@ -2914,7 +2529,7 @@
           // SIGNED (§9): the relay verifies the setpw, peers verify the pwinfo.
           const wRelay = hasAdminRoom() ? await admSigned('setpw', { pw: pr }) : undefined;
           const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v }) : undefined;
-          if (ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'setpw', pw: pr, by: myName(), w: wRelay }));
+          relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
           sendAll({ k: 'pwinfo', pw: v, by: myName(), w: wPeers });
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
@@ -2944,7 +2559,7 @@
         const nm = document.createElement('span'); nm.style.flex = '1';
         nm.textContent = (b.n || 'unnamed') + ' · ' + b.d;
         const btn = document.createElement('button'); btn.textContent = 'Unban';
-        btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w && ws && ws.state === 'up') ws.send(JSON.stringify({ t: 'unban', dev: b.d, name: b.n, by: myName(), w })); }); };
+        btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w) relaySendObj({ t: 'unban', dev: b.d, name: b.n, by: myName(), w }); }); };
         row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
       }
     }
@@ -3069,13 +2684,13 @@
       // per-room hash of my device id, so it can enforce bans/votes by equality
       // but can never correlate my device across rooms or back to a person.
       Promise.all([
-        net.deriveMeet(room, av, roomPw), // locked room ⇒ the password IS in the key (mesh-refactor §8)
+        net.deriveMeet(room, av, roomPw), // locked room ⇒ the password IS in the key (docs/meet-security.md §LOCK)
         net.meetPwProof(room, av, roomPw),
         sha256hex('gifos-dev|' + room + '|' + (av || '') + '|' + deviceId()),
       ]).then(([d, pr, dh]) => {
         sessId = d.sid; sessTok = d.tok; roomE2E = d.key; pwProof = pr;
         myDevHash = dh.slice(0, 16);
-        openSock();
+        startMesh();
       });
     }
 
@@ -3384,7 +2999,7 @@
         }
       } else if (m.k === 'sig') {
         // Pair-local signaling on the pair's own DataChannel (see sendSig,
-        // mesh-refactor §3.1): status gossip AND this pair's offers/answers/
+        // docs/meet-security.md §FWD): status gossip AND this pair's offers/answers/
         // trickle ICE — frames that affect only this one connection. adm is
         // NEVER honored on this path (onSignal is called without it), so
         // authority-bearing frames (admin mod tables) still require the
@@ -3422,14 +3037,9 @@
         stopRelayJob(String(m.target || ''), p.id, false);
       } else if (m.k === 'relay-end') {
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
-      } else if (m.k === 'comp-own' || m.k === 'comp-stream') {
-        // A row composite announced: comp-own rides the deacon mesh (the row's
-        // own deacon speaking for its fold), comp-stream is my deacon handing
-        // another row's fold — or the stage — down to me. Idempotent, re-sent
-        // every sweep. Keys pass RAW: numbers for folds, 's:<pid>' for stage.
-        takeComp(m.row, p.id, m);
-      } else if (m.k === 'comp-end') {
-        if ((compOf.get(m.row) || {}).via === p.id) dropComp(m.row);
+      } else if (m.k === 'mesh') {
+        // Mesh control frames (mesh.js) ride the pair's DC like all control.
+        if (meshNode && m.m) meshNode.recvCtl(m.m);
       } else if (m.k === 'rkick') {
         // The far side has a streamless mapping from me: if any of my sender
         // m-lines toward them never negotiated (rolled back in a glare),
@@ -3742,646 +3352,32 @@
       for (const [target, r] of Array.from(relayVia)) if (r.via === pid) stopRelayFor(target, false);
     }
 
-    // ========== ROW COMPOSITES: fold up, forward down (docs/rows.md) ==========
-    // The deacon does double duty. COMPOSITOR: it folds its row into ONE
-    // outbound stream — everyone's video pasted into a down-pixeled grid on a
-    // canvas (captureStream, the blur pipe's primitive), everyone's audio
-    // summed through WebAudio (the recorder's primitive). FORWARDER: it swaps
-    // folds with the other rows' deacons over the deacon mesh and carries what
-    // it receives down to its row members — the volunteer-relay track
-    // machinery doing at every scale what it does today for one blocked pair.
-    // Nothing here asks "is this room big?": a compositor runs exactly when
-    // another populated row exists to watch it, so a one-row room does none of
-    // this — today's meeting, by arithmetic.
+    // ========== STADIUM MEDIA (interim \u2014 3b builds docs/media-plane.md) ======
+    // The deacon/deck FOLD pipeline died with the deacon model. Until the
+    // fractal mosaic lands (3b), media is DIRECT: a room that fits in Section 1
+    // links everyone (linkTo's interim rule) so every face is an ordinary tile,
+    // and Stage members hold direct links. The stadium/stage feed strips and
+    // the compOf store remain \u2014 empty until 3b repopulates them with the
+    // row-head mosaics and the composited Stage strip.
     const stadiumEl = document.getElementById('stadium');
     const stagefeedEl = document.getElementById('stagefeed');
-    // What I DISPLAY of the stadium: rowIndex -> { via, streamId, ids, names,
-    // stream|null }. `via` is who delivers it — that row's own deacon (I'm a
-    // deacon on the mesh) or MY deacon (forwarded down to me). Stream identity
-    // stays EXPLICIT: a composite is claimed by announced streamId, exactly
-    // like relay-stream — never "first stream wins".
-    const compOf = new Map();
-    const compPipe = { on: false, row: -1, canvas: null, ctx: null, stream: null, dest: null, srcs: new Map(), unsub: null };
-    const compSent = new Map(); // fellow-deacon pid -> { senders, sig, row } (my fold, on the mesh)
-    const fwdComp = new Map();  // row + '>' + memberPid -> { senders, sig, member, row } (folds I carry down)
-    // FOLD OF FOLDS (the recursion's media): a level-2 delegate paints every
-    // stream its parent space carries — its own leaf fold plus the folds of
-    // its sibling leaves — into ONE branch composite, and swaps it in the
-    // level-2 space. Same canvas primitive; generational softening is the
-    // crowd's distance cue, by design (docs/rows.md).
-    const deckPipe = { on: false, canvas: null, ctx: null, stream: null, dest: null, srcs: new Map(), unsub: null, idle: 0 };
-    const deckSent = new Map(); // foreign-branch uu-mate pid -> { senders, sig, row }
-    const isDeckKey = (row) => typeof row === 'string' && row.indexOf('b:') === 0;
-    function deckRows() { // the global rows my parent space carries
-      const rows = [];
-      if (compPipe.on && typeof compPipe.row === 'number' && compPipe.row > 0) rows.push(compPipe.row);
-      for (const k of compOf.keys()) if (typeof k === 'number') rows.push(k);
-      return [...new Set(rows)].sort((a, b) => a - b);
-    }
-    function deckMixIn(key, stream) {
-      if (!deckPipe.dest || !stream || deckPipe.srcs.has(key)) return;
-      const track = stream.getAudioTracks()[0];
-      if (!track) return;
-      try {
-        const src = ac.createMediaStreamSource(new MediaStream([track]));
-        const gain = ac.createGain();
-        src.connect(gain); gain.connect(deckPipe.dest);
-        deckPipe.srcs.set(key, { src, gain });
-      } catch (e) {}
-    }
-    function drawDeck() {
-      if (!deckPipe.on) return;
-      const srcs = [];
-      if (compPipe.on && compPipe.canvas) srcs.push({ key: 'self', el: compPipe.canvas, stream: compPipe.dest && compPipe.dest.stream });
-      for (const [k, c] of compOf) {
-        if (typeof k !== 'number' || !c.stream) continue;
-        const el = stadiumEl.querySelector('[data-row="' + k + '"] video');
-        if (el && el.videoWidth) srcs.push({ key: k, el, stream: c.stream });
-      }
-      const canvas = deckPipe.canvas, ctx = deckPipe.ctx;
-      const cols = Math.min(Math.max(1, srcs.length), Math.max(1, Math.round(Math.sqrt(srcs.length * canvas.width / canvas.height)))), rws = Math.max(1, Math.ceil(srcs.length / cols));
-      const cw = canvas.width / cols, ch = canvas.height / rws;
-      ctx.fillStyle = '#0a0a0f';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      srcs.forEach((s, i) => {
-        const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
-        try { ctx.drawImage(s.el, x + 1, y + 1, cw - 2, ch - 2); } catch (e) {}
-        if (s.stream) deckMixIn(s.key, s.stream);
-      });
-    }
-    function startDeck() {
-      if (deckPipe.on) return;
-      const canvas = document.createElement('canvas');
-      canvas.width = SCALE.COMP_W; canvas.height = SCALE.COMP_H;
-      deckPipe.canvas = canvas;
-      deckPipe.ctx = canvas.getContext('2d');
-      deckPipe.stream = new MediaStream();
-      const vt = canvas.captureStream(SCALE.COMP_FPS).getVideoTracks()[0];
-      if (vt) deckPipe.stream.addTrack(vt);
-      if (ensureAc()) {
-        deckPipe.dest = ac.createMediaStreamDestination();
-        for (const tr of deckPipe.dest.stream.getAudioTracks()) deckPipe.stream.addTrack(tr);
-      }
-      deckPipe.on = true;
-      drawDeck();
-      deckPipe.unsub = metroSub(drawDeck);
-    }
-    function stopDeck(kicks) {
-      if (!deckPipe.on) return;
-      if (deckPipe.unsub) deckPipe.unsub();
-      for (const [pid, cur] of Array.from(deckSent)) {
-        for (const sd of cur.senders) auxSenders.delete(sd);
-        const p = peers.get(pid);
-        if (p) {
-          for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
-          dcSend(p, { k: 'comp-end', row: cur.row });
-          if (kicks) kicks.set(pid, 'mesh');
-        }
-      }
-      deckSent.clear();
-      if (deckPipe.stream) for (const tr of deckPipe.stream.getTracks()) { try { tr.stop(); } catch (e) {} }
-      for (const m of deckPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
-      deckPipe.srcs.clear();
-      deckPipe.on = false; deckPipe.stream = null; deckPipe.dest = null; deckPipe.canvas = null; deckPipe.ctx = null; deckPipe.unsub = null; deckPipe.idle = 0;
-    }
-
-    function compMixIn(id, stream) {
-      if (!compPipe.dest || !stream || compPipe.srcs.has(id)) return;
-      const track = stream.getAudioTracks()[0];
-      if (!track) return;
-      try {
-        const src = ac.createMediaStreamSource(new MediaStream([track]));
-        const gain = ac.createGain();
-        src.connect(gain); gain.connect(compPipe.dest);
-        compPipe.srcs.set(id, { src, gain });
-      } catch (e) {}
-    }
-    function drawComp() {
-      if (!compPipe.on) return;
-      const rows = computeRows();
-      const mine = myRowIndex();
-      const rowIds = mine >= 0 ? rows[mine] : [];
-      const canvas = compPipe.canvas, ctx = compPipe.ctx;
-      // aspect-aware packing: a PORTRAIT canvas stacks 2×4, not a letterboxed 3×3
-      const cols = Math.min(Math.max(1, rowIds.length), Math.max(1, Math.round(Math.sqrt(rowIds.length * canvas.width / canvas.height)))), rws = Math.max(1, Math.ceil(rowIds.length / cols));
-      const cw = canvas.width / cols, ch = canvas.height / rws;
-      ctx.filter = 'none';
-      ctx.fillStyle = '#0a0a0f';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      rowIds.forEach((id, i) => {
-        const isMe = id === myId;
-        const p = isMe ? null : peers.get(id);
-        const st = (isMe ? myStatus : statusOf.get(id)) || {};
-        const name = isMe ? myName() : (p && p.name) || rosterNames[id] || '…';
-        const stream = isMe ? localStream : p && p.video.srcObject;
-        const v = isMe ? (meTile && meTile.video) : p && p.video;
-        const x = (i % cols) * cw, y = ((i / cols) | 0) * ch;
-        // Consent SURVIVES the fold: the same receiver-side blur/mute the tiles
-        // enforce is baked into the composite pixels/samples. (My own feed is
-        // already the pre-blurred outbound — WYSIWYG, never re-blurred.)
-        const bl = isMe ? 0 : blurLevelFor(id);
-        const gMute = modOf(id).mute && modOf(id).mute.on;
-        const mix = compPipe.srcs.get(id);
-        if (mix) mix.gain.gain.value = gMute ? 0 : 1;
-        else if (stream) compMixIn(id, stream);
-        if (!st.camOff && v && v.videoWidth) {
-          const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
-          const dw = v.videoWidth * s, dh = v.videoHeight * s;
-          const dx = x + (cw - dw) / 2, dy = y + (ch - dh) / 2;
-          if (bl) blurDraw(ctx, v, dx, dy, dw, dh, bl === 2 ? 22 : 10, bl);
-          else ctx.drawImage(v, dx, dy, dw, dh);
-        } else {
-          ctx.fillStyle = '#14141f';
-          ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
-          ctx.fillStyle = '#3a3a55';
-          ctx.font = 'bold ' + (ch * .4 | 0) + 'px system-ui';
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText((name || '•')[0].toUpperCase(), x + cw / 2, y + ch / 2);
-        }
-      });
-    }
-    function startComp() {
-      if (compPipe.on) return;
-      const canvas = document.createElement('canvas');
-      canvas.width = SCALE.COMP_W; canvas.height = SCALE.COMP_H;
-      compPipe.canvas = canvas;
-      compPipe.ctx = canvas.getContext('2d');
-      compPipe.stream = new MediaStream();
-      const vt = canvas.captureStream(SCALE.COMP_FPS).getVideoTracks()[0];
-      if (vt) compPipe.stream.addTrack(vt);
-      if (ensureAc()) {
-        compPipe.dest = ac.createMediaStreamDestination();
-        for (const tr of compPipe.dest.stream.getAudioTracks()) compPipe.stream.addTrack(tr);
-      }
-      compPipe.on = true;
-      drawComp();
-      // worker metronome: the fold keeps painting when the tab is hidden —
-      // a backgrounded deacon must not freeze its whole row for the stadium
-      compPipe.unsub = metroSub(drawComp);
-    }
-    function stopComp(kicks) {
-      if (!compPipe.on) return;
-      if (compPipe.unsub) compPipe.unsub();
-      for (const [pid, cur] of Array.from(compSent)) {
-        for (const sd of cur.senders) auxSenders.delete(sd);
-        const p = peers.get(pid);
-        if (p) {
-          for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
-          dcSend(p, { k: 'comp-end', row: cur.row });
-          if (kicks) kicks.set(pid, 'mesh');
-        }
-      }
-      compSent.clear();
-      if (compPipe.stream) for (const tr of compPipe.stream.getTracks()) { try { tr.stop(); } catch (e) {} }
-      for (const m of compPipe.srcs.values()) { try { m.src.disconnect(); } catch (e) {} }
-      compPipe.srcs.clear();
-      compPipe.on = false; compPipe.row = -1; compPipe.stream = null; compPipe.dest = null;
-      compPipe.canvas = null; compPipe.ctx = null; compPipe.unsub = null; compPipe.idle = 0;
-    }
-    // Whoever changed their senders re-offers — perfect negotiation resolves
-    // the glare (see renegotiate). The old one-side-offers discipline starved
-    // any fold living on the non-offering side of a pair.
-    function compKick(pid) {
-      const p = peers.get(pid);
-      if (!p || !p.dc || p.dc.readyState !== 'open') return;
-      // A streamless mapping usually means the SENDER's m-lines never made
-      // it into a negotiation (rolled back, or raced). My own offer can't
-      // carry their m-lines — ask them to re-offer. Only renegotiate from MY
-      // side when I hold pending outbound m-lines myself (deacon↔deacon
-      // mutual folds): a receiver's EMPTY re-offer has nothing to say, yet
-      // on a slow box it lands mid-flight against the sender's meaningful
-      // offer every kick, forcing the polite sender to roll its aux m-lines
-      // back each round — the kick loop ITSELF sustained the glare storm
-      // that kept the fold dark.
-      dcSend(p, { k: 'rkick' });
-      if (hasPendingTx(p)) renegotiate(p);
-    }
-    // Any transceiver with a live sender track that is not actually SENDING
-    // needs another offer: no mid means it was rolled back or raced out of
-    // its negotiation entirely; a NULL currentDirection with a mid means our
-    // offer was applied but the answer never was (glare killed the round);
-    // a currentDirection that lost 'send' means a glare interleave negotiated
-    // it recv-only around our track. All three are invisible to the media
-    // path and heal only by re-offering. (The old check treated null
-    // currentDirection as settled — so an rkick against a never-answered
-    // m-line no-opped and the fold stayed dark forever.)
+    const compOf = new Map(); // feed tiles: key -> { via, streamId, ids, names, stream } (3b)
+    const isStageKey = (row) => typeof row === 'string' && row.indexOf('s:') === 0;
+    // Do I hold sender m-lines that never made it into a negotiation? (Rolled
+    // back in a glare, or added while an offer was in flight.)
     const hasPendingTx = (p) => {
       try {
         return p.pc.getTransceivers().some((t) => t.sender && t.sender.track
           && (!t.mid || !t.currentDirection || t.currentDirection.indexOf('send') < 0));
       } catch (e) { return false; }
     };
-    function claimCompStreams() {
-      let changed = false;
-      for (const [row, c] of compOf) {
-        if (c.stream) continue;
-        const viaP = peers.get(c.via);
-        if (!viaP || !viaP.incoming) continue;
-        // exact-id mapping only — and never the carrier's own announced feed,
-        // EXCEPT a stage entry, where the carrier's own feed IS the payload
-        const found = viaP.incoming.find((st) => st.id === c.streamId && (c.own || st.id !== viaP.ownSid));
-        if (!found) {
-          // diagnostic: the id is present but blocked, or plain absent (throttled)
-          if (typeof clog === 'function' && (!c.noclaimAt || Date.now() - c.noclaimAt > 8000)) {
-            c.noclaimAt = Date.now();
-            const ids = viaP.incoming.map((s) => String(s.id).slice(0, 8));
-            clog('noclaim r=' + row + ' want=' + String(c.streamId).slice(0, 8) + ' have=[' + ids.join(',') + '] own=' + String(viaP.ownSid || '').slice(0, 8));
-          }
-          continue;
-        }
-        c.stream = found;
-        changed = true;
-        if (typeof clog === 'function') clog('claim r=' + row + ' ' + String(c.streamId).slice(0, 8));
-      }
-      if (changed) renderStadium();
-    }
-    const compLog = []; // last N composite events — the fold's flight recorder
-    const clog = (ev) => { compLog.push(Date.now() % 100000 + ' ' + ev); if (compLog.length > 60) compLog.shift(); };
-    function takeComp(row, via, m) {
-      // fold keys are GLOBAL row numbers; stage keys 's:<pid>'; branch folds
-      // (a whole parent-space session, folded once more) ride 'b:<sess>'
-      clog('take ' + row + ' via ' + String(via).slice(0, 6));
-      if (!(isStageKey(row) || isDeckKey(row) || (typeof row === 'number' && row > 0)) || via === myId) return;
-      if (isDeckKey(row) && UP.on && row === 'b:' + UP.num) return; // my own branch is the room around me
-      const ids = Array.isArray(m.ids) ? m.ids.slice(0, SCALE.C).map(String) : [];
-      const names = Array.isArray(m.names) ? m.names.slice(0, SCALE.C).map((n) => String(n || '').slice(0, 40)) : [];
-      const rws = Array.isArray(m.rws) ? m.rws.slice(0, 64).map(Number) : undefined;
-      const cnt = m.cnt ? Math.max(0, m.cnt | 0) : undefined;
-      // Which space delivered this decides where it forwards next (down only)
-      const srcU = (UP2.on && UP2.roster.includes(via) && !UP.roster.includes(via) && !rosterIds.includes(via)) ? 2 : 1;
-      const cur = compOf.get(row);
-      if (cur && cur.via === via && cur.streamId === m.streamId) {
-        cur.ids = ids; cur.names = names; cur.rws = rws; cur.cnt = cnt; // manifest refresh on the same stream
-        cur.takeAt = Date.now();
-        renderStadium();
-        return;
-      }
-      if (cur) clog('remap r=' + row + ' ' + String(cur.streamId).slice(0, 8) + '>' + String(m.streamId || '').slice(0, 8) + (cur.via === via ? '' : ' via!'));
-      // ONE key per composite: the announcer's own section number can change
-      // (sectionNum is its local walk counter), and a re-labeled fold would
-      // otherwise live under BOTH its old and new global row — the same faces
-      // painted twice. The stream identity is the truth; retire the old key.
-      for (const [oRow, oc] of Array.from(compOf))
-        if (oRow !== row && oc.via === via && oc.streamId === String(m.streamId || '')) {
-          clog('rekey ' + oRow + '>' + row);
-          compOf.delete(oRow);
-        }
-      compOf.set(row, { via, streamId: String(m.streamId || ''), ids, names, rws, cnt, srcU, stream: null, takeAt: Date.now() });
-      claimCompStreams();
-      renderStadium();
-      // A fresh streamless mapping is NORMAL — the sender's own offer is
-      // usually still in flight. No eager kick here: kicking into that
-      // window just buys a glare-rollback round on every edge. The sweep's
-      // patient retry below covers the genuinely lost interleaves.
-    }
-    function dropComp(row) {
-      if (!compOf.delete(row)) return;
-      clog('drop ' + row);
-      renderStadium();
-    }
-    function endCompRolesFor(pid) { // pid left or its pc died — every composite role
-      const cur = compSent.get(pid);
-      if (cur) { for (const sd of cur.senders) auxSenders.delete(sd); compSent.delete(pid); }
-      for (const [key, job] of Array.from(fwdComp)) {
-        if (job.member !== pid) continue;
-        for (const sd of job.senders) auxSenders.delete(sd);
-        fwdComp.delete(key);
-      }
-      for (const [row, c] of Array.from(compOf)) if (c.via === pid) dropComp(row);
-    }
-    // The driver, on the sweeper's beat. All of it is idempotent arithmetic
-    // over computeRows(): roles are re-derived, announcements re-sent (the
-    // heartbeat idiom — a mapping dropped during a transient row disagreement
-    // heals on the next pass), stale jobs torn down.
-    // Local row index ↔ GLOBAL row number: leaves are numbered by the walk,
-    // rows inside them by the arithmetic — row 5 means the same row on every
-    // phone in the room, whichever session it watches from.
-    const gRowOf = (localIdx) => (sectionNum - 1) * SCALE.C + localIdx;
-    const isStageKey = (row) => typeof row === 'string' && row.indexOf('s:') === 0;
-    function reconcileComp() {
-      if (!myId) return;
-      // Claim on the heartbeat like everything else here. ontrack/takeComp
-      // claim eagerly, but a claim window missed in a race (stream landed
-      // while the mapping still named the previous generation) used to
-      // strand forever — the periodic announce refresh takes the early
-      // manifest-refresh return and never re-claims. Idempotent and cheap.
-      claimCompStreams();
-      const rows = computeRows();
-      const mine = myRowIndex();
-      const populated = rows.filter((r, i) => i > 0 && r.length).length;
-      const kicks = new Map(); // pid -> 'mesh' | 'fwd'
-      // FOLD exactly when someone is watching: another populated row exists
-      // here, the parent space holds other sessions' delegates — or my OWN
-      // branch pipe needs me (a lone leaf in a lone parent space still feeds
-      // the fold of folds it announces one level up).
-      const fold = amDeacon() && (populated > 1 || (UP.on && upGossipIds().length > 0)
-        || (UP2.on && up2GossipIds().length > 0));
-      if (fold && !compPipe.on) startComp();
-      // Same hysteresis as the uplink: a compositor that stops loses its
-      // stream identity, and every consumer pays a full re-announce and
-      // re-negotiation when it returns. Losing the fold lingers 15s — a
-      // flap-back reuses the same stream, so nothing downstream even notices.
-      if (!fold && compPipe.on) {
-        if (!compPipe.idle) compPipe.idle = Date.now();
-        if (Date.now() - compPipe.idle > 15000) stopComp(kicks);
-      } else compPipe.idle = 0;
-      // STAGE, seen from the parent space: an up-mate gossiping stg (who is
-      // not a leaf-mate — those are row 0 right here) becomes a row-0 entry
-      // keyed by who they are, claimed from their OWN announced stream.
-      if (UP.on) {
-        for (const pid of upGossipIds()) {
-          const key = 's:' + pid;
-          const st = statusOf.get(pid) || {};
-          const p = peers.get(pid);
-          if (st.stg && !rosterIds.includes(pid) && p && p.ownSid) {
-            const cur = compOf.get(key);
-            if (!cur || cur.streamId !== p.ownSid) {
-              compOf.set(key, { via: pid, streamId: p.ownSid, own: true, ids: [pid], names: [p.name || UP.names[pid] || '…'], stream: null });
-              claimCompStreams();
-              renderStadium();
-            }
-          }
-        }
-      }
-      // A lingering pipe (fold=false, hysteresis) stays WARM but SILENT: its
-      // senders stay in place for a cheap flap-back, but it must not announce
-      // a row it no longer leads — that would replace the real deacon's
-      // mapping on every receiver, get pruned, and churn until the linger
-      // expires. Announcing is the arithmetic deacon's voice alone.
-      if (compPipe.on && fold) {
-        const g = gRowOf(mine);
-        compPipe.row = g;
-        const man = { ids: rows[mine].slice(), names: rows[mine].map((id) => id === myId ? myName() : ((peers.get(id) || {}).name || rosterNames[id] || '…')) };
-        // sig tracks the STREAM identity only — manifest changes ride the
-        // idempotent re-announce, never a removeTrack/addTrack churn.
-        const sig = compPipe.stream.id + '|' + g;
-        const announce = { k: 'comp-own', row: g, streamId: compPipe.stream.id, ids: man.ids, names: man.names };
-        // My fold's audience: the other local rows' deacons (the in-leaf
-        // mesh), plus everyone in the parent space (the depth-2 regime; the
-        // recursion rows that audience too).
-        const fellows = new Set();
-        rows.forEach((r, i) => { if (i > 0 && i !== mine && r.length) { const d = deaconOf(r); if (d && d !== myId) fellows.add(d); } });
-        if (UP.on) for (const pid of upGossipIds()) fellows.add(pid);
-        for (const pid of fellows) {
-          const p = peers.get(pid);
-          if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
-          const cur = compSent.get(pid);
-          if (cur && cur.sig === sig) { dcSend(p, announce); continue; } // idempotent re-announce
-          if (cur) for (const sd of cur.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
-          const senders = [];
-          for (const tr of compPipe.stream.getTracks()) { try { senders.push(addAux(p.pc, tr, compPipe.stream)); } catch (e) {} }
-          compSent.set(pid, { senders, sig, row: compPipe.row });
-          dcSend(p, announce);
-          kicks.set(pid, 'mesh');
-        }
-        for (const [pid, cur] of Array.from(compSent)) {
-          if (fellows.has(pid) && peers.has(pid)) continue;
-          for (const sd of cur.senders) auxSenders.delete(sd);
-          const p = peers.get(pid);
-          if (p) {
-            for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
-            dcSend(p, { k: 'comp-end', row: cur.row });
-            kicks.set(pid, 'mesh');
-          }
-          compSent.delete(pid);
-        }
-      }
-      // PRUNE what I display. In-leaf folds must come from that row's deacon
-      // (or MY deacon, forwarded); foreign folds from a live up-mate (or MY
-      // deacon); stage entries from the staged person themselves (or MY
-      // deacon). Anything else — spoofed, stale after a re-election, my own
-      // row — dies here within a beat and re-announces heal what should live.
-      const myDeacon = mine > 0 ? deaconOf(rows[mine]) : null;
-      // who is allowed to hand things DOWN to me, per space
-      const myUpRowDeacon = UP.on && mySpaceRow(UP) > 0 ? deaconOf(spaceRows(UP)[mySpaceRow(UP)]) : null;
-      for (const [row, c] of Array.from(compOf)) {
-        // Announcements re-arrive on every carrier beat (~2s). A key the
-        // carrier STOPPED announcing (it re-labeled the fold after a walk,
-        // or dropped the role without a comp-end getting through) would
-        // otherwise pass the via-filters below forever — expiry is the
-        // backstop that keeps every displayed fold on a live heartbeat.
-        if (!c.takeAt) c.takeAt = Date.now();
-        else if (Date.now() - c.takeAt > 20000) { dropComp(row); continue; }
-        let ok = false;
-        if (isDeckKey(row)) {
-          // a folded sibling branch: from a live level-2 mate, or handed down
-          // by my parent-space row's deacon, or by my leaf deacon
-          if (UP.on && row === 'b:' + UP.num) ok = false; // my own branch is the room around me
-          else if (UP2.on && UP2.roster.includes(c.via)) ok = peers.has(c.via);
-          else if (UP.on) ok = !!myUpRowDeacon && c.via === myUpRowDeacon && peers.has(c.via) && !UP2.on;
-          else ok = !!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon();
-        } else if (isStageKey(row)) {
-          const pid = row.slice(2);
-          if (rosterIds.includes(pid)) ok = false; // a leaf-mate on stage is row 0 right here
-          else if (UP.on && UP.roster.includes(pid)) ok = c.via === pid && !!(statusOf.get(pid) || {}).stg && peers.has(pid);
-          else if (UP2.on && UP2.roster.includes(c.via)) ok = peers.has(c.via); // stage crossed the level-2 space
-          else if (UP.on) ok = !!myUpRowDeacon && c.via === myUpRowDeacon && peers.has(c.via);
-          else ok = !!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon();
-        } else {
-          const li = typeof row === 'number' ? row - (sectionNum - 1) * SCALE.C : -1;
-          if (li >= 1 && li < rows.length) {
-            const r = rows[li];
-            const expectVia = amDeacon() ? (r && r.length ? deaconOf(r) : null) : myDeacon;
-            ok = r && r.length && li !== mine && c.via === expectVia && peers.has(c.via);
-          } else if (typeof row === 'number' && row > 0) {
-            ok = UP.on ? (UP.roster.includes(c.via) && peers.has(c.via))
-              : (!!myDeacon && c.via === myDeacon && peers.has(myDeacon) && !amDeacon());
-          }
-        }
-        if (!ok) { dropComp(row); continue; }
-        // A mapping that stays STREAMLESS means a renegotiation was lost in
-        // an interleave (both ends adding tracks at once). The RECEIVER owns
-        // the retry: kick the pair every few seconds until the tracks land.
-        if (!c.stream) {
-          const vp = peers.get(c.via);
-          c.since = c.since || Date.now();
-          // Only kick a SETTLED pair. Kicking one mid-negotiation (non-stable
-          // or an offer in flight) piles a fresh offer onto the in-flight one
-          // and LIVELOCKS perfect-negotiation — the streamless fold never lands.
-          // NEVER rebuild the transport from here: a MEMBER receives EVERY fold
-          // over the one link to its row deacon, so nuking that link to chase a
-          // single streamless fold tears down ALL folds at once — and because a
-          // cold link needs >9s to reconnect and re-forward, the 9s rebuild
-          // timer refires and loops (conn stuck 'new', folds stuck 0). Wedged
-          // transports heal at the CONNECTION layer in the sweeper (ICE restart,
-          // then rebuild), which owns the whole link — not per-fold here.
-          const settled = vp && vp.pc && vp.pc.signalingState === 'stable' && !vp.makingOffer;
-          if (settled && vp.connected && vp.dc && vp.dc.readyState === 'open'
-              && Date.now() - c.since > 2000 && Date.now() - (c.kickAt || 0) > 2500) {
-            c.kickAt = Date.now(); compKick(c.via);
-          }
-        } else c.since = 0;
-      }
-      // FOLD OF FOLDS: a level-2 delegate paints its whole parent space into
-      // one branch stream and swaps it with FOREIGN-branch level-2 mates.
-      // Same-parent-space mates see my branch natively (numerics) — everyone
-      // else in the level-2 space gets the fold, INCLUDING a leaf mate whose
-      // delegation landed in a sibling branch: it cannot see my parent
-      // space's world any other way. (Leaf-mate filters keep being wrong.)
-      const aud2 = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid)) : [];
-      // ONE voice per branch: every phone in my parent space derives the same
-      // announcer (first populated space-row's deacon) — two same-branch
-      // delegates racing the same 'b:' key would churn every receiver.
-      const deckAnnouncer = () => {
-        const ds = spaceRows(UP).filter((r, i) => i > 0 && r.length).map((r) => deaconOf(r)).filter(Boolean).sort();
-        return ds[0] || null;
-      };
-      const fold2 = UP2.on && aud2.length > 0 && deckAnnouncer() === myId;
-      if (fold2 && !deckPipe.on) startDeck();
-      if (!fold2 && deckPipe.on) {
-        if (!deckPipe.idle) deckPipe.idle = Date.now();
-        if (Date.now() - deckPipe.idle > 15000) stopDeck(kicks);
-      } else deckPipe.idle = 0;
-      if (deckPipe.on && fold2) {
-        const bKey = 'b:' + UP.num;
-        const sig2 = deckPipe.stream.id + '|' + UP.num;
-        const announce2 = { k: 'comp-own', row: bKey, streamId: deckPipe.stream.id, ids: [], names: [], rws: deckRows(), cnt: knownDeckCnt() };
-        for (const pid of aud2) {
-          const p = peers.get(pid);
-          if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
-          const cur = deckSent.get(pid);
-          if (cur && cur.sig === sig2) { dcSend(p, announce2); continue; }
-          if (cur) for (const sd of cur.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
-          const senders = [];
-          for (const tr of deckPipe.stream.getTracks()) { try { senders.push(addAux(p.pc, tr, deckPipe.stream)); } catch (e) {} }
-          deckSent.set(pid, { senders, sig: sig2, row: bKey });
-          dcSend(p, announce2);
-          kicks.set(pid, 'mesh');
-        }
-        for (const [pid, cur] of Array.from(deckSent)) {
-          if (aud2.includes(pid) && peers.has(pid)) continue;
-          for (const sd of cur.senders) auxSenders.delete(sd);
-          const p = peers.get(pid);
-          if (p) {
-            for (const sd of cur.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
-            dcSend(p, { k: 'comp-end', row: cur.row });
-            kicks.set(pid, 'mesh');
-          }
-          deckSent.delete(pid);
-        }
-      }
-      // FORWARD DOWN, one level at a time. Three audiences, one machinery:
-      //  - leaf deacon → leaf row members: EVERYTHING I hold (today's rule);
-      //  - parent-space row deacon → its space-row mates: what arrived from
-      //    the level-2 space (sibling branches, the stage crossing branches);
-      //  - level-2 delegate → foreign-branch mates: the stage, verbatim
-      //    (its own branch fold already carries everything else).
-      const carrying = amDeacon() && mine > 0;
-      const leafMembers = carrying ? rows[mine].filter((id) => id !== myId) : [];
-      // NOTE: no leaf-mate filter here — a parent-space row mate can be a
-      // leaf mate WITHOUT being a local-row member, and would fall through
-      // both forwarding nets. The target Set dedupes any true overlap.
-      const uRowTargets = (UP.on && amSpaceDeacon(UP)) ? spaceRowMates(UP) : [];
-      const fwdPlan = []; // { row, c, targets }
-      for (const [row, c] of compOf) {
-        if (!c.stream) continue;
-        const targets = new Set();
-        for (const mid of leafMembers) targets.add(mid);
-        if (c.srcU === 2) for (const mid of uRowTargets) targets.add(mid);
-        if (isStageKey(row) && c.via === String(row).slice(2)) for (const mid of aud2) targets.add(mid);
-        if (targets.size) fwdPlan.push({ row, c, targets });
-      }
-      const wantedFwd = new Set();
-      for (const { row, c, targets } of fwdPlan) {
-        const sig = c.stream.id;
-        for (const mid of targets) {
-          const key = row + '>' + mid;
-          wantedFwd.add(key);
-          const p = peers.get(mid);
-          if (!p || !p.connected || !p.dc || p.dc.readyState !== 'open') continue;
-          const job = fwdComp.get(key);
-          if (job && job.sig === sig) { dcSend(p, { k: 'comp-stream', row, streamId: job.streamId, ids: c.ids, names: c.names, rws: c.rws, cnt: c.cnt }); continue; }
-          if (job) for (const sd of job.senders) { auxSenders.delete(sd); try { p.pc.removeTrack(sd); } catch (e) {} }
-          const container = new MediaStream();
-          const senders = [];
-          for (const tr of c.stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); } catch (e) {} }
-          fwdComp.set(key, { senders, sig, member: mid, row, streamId: container.id });
-          dcSend(p, { k: 'comp-stream', row, streamId: container.id, ids: c.ids, names: c.names, rws: c.rws, cnt: c.cnt });
-          kicks.set(mid, 'fwd');
-        }
-      }
-      for (const [key, job] of Array.from(fwdComp)) {
-        if (wantedFwd.has(key)) continue;
-        for (const sd of job.senders) auxSenders.delete(sd);
-        const p = peers.get(job.member);
-        if (p) {
-          for (const sd of job.senders) { try { p.pc.removeTrack(sd); } catch (e) {} }
-          dcSend(p, { k: 'comp-end', row: job.row });
-          kicks.set(job.member, 'fwd');
-        }
-        fwdComp.delete(key);
-      }
-      for (const [pid, kind] of kicks) compKick(pid, kind);
-    }
-    // The STADIUM strip: one small tile per folded row, labeled with who is in
-    // it (the layout manifest — attribution survives the fold). Hidden when
-    // empty: a one-row room shows exactly today's screen.
-    function renderStadium() {
-      const have = new Set(Array.from(compOf.keys()).map(String));
-      for (const holder of [stagefeedEl, stadiumEl])
-        for (const el of Array.from(holder.children))
-          if (!el.classList.contains('feedband') && !have.has(el.dataset.row)) el.remove(); // bands aren't tiles
-      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C; // my section's row range
-      for (const [row, c] of compOf) {
-        const stage = isStageKey(row);
-        const holder = stage ? stagefeedEl : stadiumEl; // stage feeds top the feed
-        let el = holder.querySelector('[data-row="' + String(row) + '"]');
-        if (!el) {
-          el = document.createElement('div');
-          el.className = 'rowtile' + (stage ? ' stagetile' : '') + (isDeckKey(row) ? ' decktile' : '');
-          el.dataset.row = String(row);
-          const v = document.createElement('video');
-          v.autoplay = true; v.playsInline = true;
-          const lb = document.createElement('div');
-          lb.className = 'rlabel';
-          el.appendChild(v); el.appendChild(lb);
-          // zoom = pick your depth: tap a folded row to grow it, tap again to
-          // hand the space back to the feed
-          el.addEventListener('click', () => el.classList.toggle('zoom'));
-          holder.appendChild(el);
-        }
-        const branch = isDeckKey(row);
-        // FEED ORDER below my row: my section's rows, then my deck's other
-        // sections' rows, then foreign decks at the very bottom — the crowd
-        // recedes with distance, exactly like a stadium.
-        el.style.order = stage ? -1
-          : branch ? 5000 + (+String(row).slice(2) || 0)
-          : (row > lo && row <= hi ? row : 1000 + row);
-        const v = el.querySelector('video');
-        if (c.stream && v.srcObject !== c.stream) {
-          v.srcObject = c.stream;
-          const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
-        }
-        el.querySelector('.rlabel').textContent = stage
-          ? '🎙 ' + (c.names || []).join(', ') + ' — on stage'
-          : branch
-            ? 'Rows ' + ((c.rws || []).join(', ') || '…') + (c.cnt ? ' · ' + c.cnt + ' people' : '')
-            : 'Row ' + row + ((c.names || []).length ? ' — ' + c.names.join(', ') : '');
-      }
-      // Zone bands: name the near/far boundary so the screen matches the
-      // stadium vocabulary and the four-bus mix. "Your section" heads the
-      // in-section rows; "The stadium" heads the far crowd (deck-mate rows +
-      // decks). Orders 0 and 999 bracket the 1000/5000 far-tile order bands —
-      // exact at realistic scale (labels are cosmetic, not load-bearing).
-      let hasSec = false, hasStad = false;
-      for (const key of compOf.keys()) {
-        if (isStageKey(key)) continue;
-        if (isDeckKey(key)) { hasStad = true; continue; }
-        const r = Number(key);
-        if (r > lo && r <= hi) hasSec = true; else hasStad = true;
-      }
-      const band = (id, label, ord, show) => {
-        let el = stadiumEl.querySelector('#' + id);
-        if (!el) { el = document.createElement('div'); el.className = 'feedband'; el.id = id; el.textContent = label; stadiumEl.appendChild(el); }
-        el.style.order = ord;
-        el.style.display = show ? '' : 'none';
-      };
-      // Only badge the section when there's also a far crowd to distinguish it
-      // from — a single-section room's mosaic is ALL your section, no label needed.
-      band('band-sec', 'Your section', 0, hasSec && hasStad);
-      band('band-stad', 'The stadium', 999, hasStad);
-      stadiumEl.classList.toggle('on', compOf.size > 0);
-      applyBuses(); // fresh stadium tiles pick up the Crowd fader immediately
+    // Ask the far side to re-offer when a mapped stream's m-lines never made it
+    // into a negotiation (rolled back / raced) \u2014 used by the aux-track paths.
+    function compKick(pid) {
+      const p = peers.get(pid);
+      if (!p || !p.dc || p.dc.readyState !== 'open') return;
+      dcSend(p, { k: 'rkick' });
+      if (hasPendingTx(p)) renegotiate(p);
     }
 
     // ---- hand raise: float to the top in the order hands went up --------------
@@ -4394,7 +3390,7 @@
       layout();
     };
 
-    // ---- the stage: step up / step down (docs/rows.md governance table) -------
+    // ---- the stage: step up / step down (docs/media-plane.md, Channel St) ------
     // Open room: anyone, while seats remain — attributed, like everything.
     // Admin room: admins + grantees (the same grant that gates apps). Stepping
     // down is everyone's right, always. The button only VOICES the rule; the
@@ -4420,7 +3416,7 @@
       setStage(true);
     };
 
-    // ---- audio: four buses, receiver-side (docs/rows.md) ----------------------
+    // ---- audio: four buses, receiver-side (docs/media-plane.md) ---------------
     // Stage / My row / My section / The stadium are a grouping by LINK CLASS,
     // not a sender tag: your faders are your own volume knobs, as ungovernable
     // as any. Degenerate by arithmetic: a one-row room has no section members
@@ -4472,17 +3468,13 @@
         if (bus === 'section') hasSection = true;
         if (bus === 'stadium') hasStadium = true;
       }
-      // feed tiles: forwarded stage entries are Stage; a fold of one of my own
-      // section's rows is My section; deck folds and other sections' rows are
-      // The stadium — the same predicate that orders the feed.
+      // feed tiles (3b's mosaics): stage strip is Stage; stadium tiles are
+      // The stadium — empty until the fractal mosaic lands.
       for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
-      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C;
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
-        const key = el.dataset.row, num = Number(key);
-        const inSection = !isDeckKey(key) && Number.isFinite(num) && num > lo && num <= hi;
-        busVolume(v, inSection ? mix.section : mix.stadium);
-        if (inSection) hasSection = true; else hasStadium = true;
+        busVolume(v, mix.stadium);
+        hasStadium = true;
       }
       // Progressive disclosure: reveal a bus's fader only once it has members.
       document.getElementById('mixlab-section').style.display = hasSection ? '' : 'none';
@@ -4822,7 +3814,6 @@
     // Every source I can record, grouped by BUS. Direct peers + me are live
     // tiles; folds (compOf) are already consent-baked composites of many people.
     function recSources() {
-      const lo = (sectionNum - 1) * SCALE.C, hi = sectionNum * SCALE.C;
       const stg = new Set(stageIds()), mates = new Set(rowMates());
       const g = { stage: [], row: [], section: [], stadium: [] };
       // my own contribution rides my-row; recorded at full (I keep my own voice)
@@ -4842,13 +3833,11 @@
         if (!c.stream) continue;
         const holder = isStageKey(key) ? stagefeedEl : stadiumEl;
         const el = holder.querySelector('[data-row="' + String(key) + '"] video');
-        const src = { key: 'f:' + key, video: el, stream: c.stream, blur: 0, fold: true, // folds are consent-baked upstream
+        const src = { key: 'f:' + key, video: el, stream: c.stream, blur: 0, fold: true, // mosaics are consent-baked upstream
           label: isStageKey(key) ? ((c.names || []).join(', ') + ' — stage')
-            : isDeckKey(key) ? ('Rows ' + ((c.rws || []).join(', ') || '…'))
-            : ('Row ' + key + ((c.names || []).length ? ' — ' + c.names.join(', ') : '')) };
+            : ('Rows ' + ((c.rws || []).join(', ') || '…')) };
         if (isStageKey(key)) { src.bus = 'stage'; g.stage.push(src); }
-        else if (isDeckKey(key)) { src.bus = 'stadium'; g.stadium.push(src); }
-        else { const r = Number(key); if (r > lo && r <= hi) { src.bus = 'section'; g.section.push(src); } else { src.bus = 'stadium'; g.stadium.push(src); } }
+        else { src.bus = 'stadium'; g.stadium.push(src); }
       }
       return g;
     }
@@ -5235,7 +4224,7 @@
       const wire = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* action unsupported here */ } };
       wire('togglemicrophone', () => micBtn.onclick());
       wire('togglecamera', () => camBtn.onclick());
-      wire('hangup', () => { try { ws && ws.close(); } catch (e) {} location.replace('index.html'); });
+      wire('hangup', () => { try { meshNode && meshNode.leave(); } catch (e) {} location.replace('index.html'); });
       // Chrome auto-enters picture-in-picture for call sites that handle this —
       // flip away and the stage follows you as a floating tile.
       wire('enterpictureinpicture', async () => {
@@ -5460,7 +4449,7 @@
       if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
     };
     document.getElementById('closed-reload').onclick = () => location.reload();
-    window.addEventListener('beforeunload', () => { leaving = true; try { ws && ws.close(); } catch (e) {} });
+    window.addEventListener('beforeunload', () => { leaving = true; try { meshNode && meshNode.leave(); } catch (e) {} });
 
     // ================= App-in-meeting =================
     // Any app can run INSIDE the meeting: one participant hosts it through the
@@ -5569,7 +4558,7 @@
     function stopRoomApp(ad) {
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
-      const fan = (w) => { for (const pid of allGossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName(), w }); };
+      const fan = (w) => { for (const pid of gossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName(), w }); };
       if (hasAdminRoom()) admSigned('appstop', { s: ad.s }).then(fan);
       else fan(undefined);
       setStatus('🧩 You stopped the shared app for everyone here.');
@@ -5772,29 +4761,20 @@
       appIsHost: () => appMode === 'host',
       runAppForTest: (fileId, name) => runApp(fileId, name),
       stopAppForTest: () => stopApp(),
-      // rows bookkeeping (docs/rows.md)
+      // rows bookkeeping (coords — docs/healing-laws.md)
       rows: () => computeRows(),
       myRow: () => myRowIndex(),
-      rowDeacons: () => { const rows = computeRows(); return rows.map((r) => deaconOf(r)); },
-      amDeacon: () => amDeacon(),
       capOf: (id) => capOf(id),
       scale: () => Object.assign({}, SCALE),
-      // composites (fold up, forward down)
-      compActive: () => !!compPipe.on,
-      compSentTo: () => Array.from(compSent.keys()),
-      compFwdJobs: () => fwdComp.size,
-      compFwdKeys: () => Array.from(fwdComp.keys()).map(String),
-      compLog: () => compLog.slice(-40),
-      compSentKeys: () => Array.from(compSent.keys()),
-      // deep fold forensics: expected stream ids vs what actually arrived, and
-      // (on a deacon) each forward job's negotiated state toward its member
-      compTable: () => Array.from(compOf.entries()).map(([row, c]) => ({ row: String(row), via: String(c.via).slice(0, 6), streamId: c.streamId, live: !!c.stream })),
+      // the mesh (mesh.js) — seat, occupancy, links
+      meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
+      meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
+      meshLinks: () => { const s = meshSeat(); return s ? Array.from(s.linkPeers()) : []; },
+      relayUpNow: () => relayUp(),
+      rosterIdsNow: () => rosterIds.slice(),
+      linkToPeer: (pid) => linkTo(pid),
+      iInit: (pid) => iInitiate(pid),
       incomingIds: (pid) => { const p = peers.get(pid); return p && p.incoming ? p.incoming.map((s) => s.id) : null; },
-      fwdState: () => Array.from(fwdComp.entries()).map(([key, job]) => {
-        const p = peers.get(job.member);
-        const tx = p && p.pc ? p.pc.getTransceivers().filter((t) => job.senders.includes(t.sender)).map((t) => (t.mid || '?') + ':' + (t.currentDirection || 'null')) : [];
-        return { key: String(key), streamId: job.streamId, sig: job.sig, tx };
-      }),
       pcState: (pid) => { const p = peers.get(pid); if (!p || !p.pc) return null; return { sig: p.pc.signalingState, conn: p.pc.connectionState,
         tx: p.pc.getTransceivers().map((t) => (t.mid || '?') + ':' + (t.sender && t.sender.track ? t.sender.track.kind : '-') + ':' + t.direction + ':' + (t.currentDirection || '?')) }; },
       stadium: () => Array.from(compOf.entries())
@@ -5802,19 +4782,6 @@
         .sort((a, b) => a.row - b.row),
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
-      // multi-session rows
-      sectionNum: () => sectionNum,
-      upOn: () => UP.on,
-      upNum: () => UP.num,
-      up2On: () => UP2.on,
-      deepState: () => {
-        const aud2x = UP2.on ? up2GossipIds().filter((pid) => !UP.roster.includes(pid) && !rosterIds.includes(pid)) : [];
-        const ds = spaceRows(UP).filter((r, i) => i > 0 && r.length).map((r) => deaconOf(r)).filter(Boolean).sort();
-        return { up2: UP2.on, aud2: aud2x.map((x) => String(x).slice(0, 6)), ann: String(ds[0] || '').slice(0, 6), me: String(myId || '').slice(0, 6), upN: UP.roster.length, up2N: UP2.roster.length, bOn: deckPipe.on };
-      },
-      up2Roster: () => UP2.roster.slice(),
-      deckActive: () => !!deckPipe.on,
-      upRoster: () => UP.roster.slice(),
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
       handqShown: () => handqEl.classList.contains('on'),

@@ -61,10 +61,13 @@
     const relayBase = String(opts.relayUrl || '').replace(/\/+$/, '');
     // gk rides the URL so the CONNECT knock (and every reconnect) presents the
     // freshest key: the genesis key once learned, the throwaway before that.
+    // opts.urlParams() (optional) appends app params — pw proof, device tag —
+    // re-evaluated per reconnect so rotated credentials ride the next attempt.
     const makeUrl = () => relayBase + '/s/' + opts.sid
       + '?role=mesh&token=' + encodeURIComponent(opts.tok || '')
       + '&peer=' + encodeURIComponent(peer)
-      + '&gk=' + encodeURIComponent(seat.genKey || myKey);
+      + '&gk=' + encodeURIComponent(seat.genKey || myKey)
+      + (opts.urlParams ? opts.urlParams() : '');
 
     const env = {
       TICK: 0,
@@ -152,6 +155,7 @@
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.
       relaySend(obj) { relaySend(obj); },
+      relayUp() { return !!(sock && sock.state === 'up'); },
       stats() { return { peer, state: seat.state, coord: seat.hasCoord ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: seat.stranded, tick: env.TICK }; },
       leave() { try { seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
