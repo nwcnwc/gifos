@@ -338,6 +338,15 @@
     if (!pw) return Promise.resolve('');
     return dsHash('meet-pw', roomCode + '|' + (av || '') + '|' + pw);
   }
+  // The GENESIS KEY (healing-laws R3): a throwaway, high-entropy PERSONAL token a
+  // newcomer mints and presents on its first knock. The first knocker to meet an
+  // EMPTY relay registry has H(key) recorded as the meeting INSTANCE's identity;
+  // every Section-1 seat later re-knocks with the learned genesis key to join the
+  // greeter pool. It is NOT derived from the room — arrival order, not the URL,
+  // decides genesis — and carries no decryption power (the URL+pw key seals the
+  // greeter list; this only serialises founding, so one URL-instance has exactly
+  // one home). A fork is a different key. 24 bytes = 192 bits, unforgeable.
+  const mintGenesisKey = () => randHex(24);
 
   // ---- authority is a signature (mesh-refactor §9) ---------------------------
   // Admin power used to exist only as the relay's adm:true stamp — nothing a
@@ -510,7 +519,7 @@
     steadySocket,
     FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex,
-    deriveJoin, deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof,
+    deriveJoin, deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof, mintGenesisKey,
     edKeysFromSeedHex, edSign, edVerify, edProven,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,
