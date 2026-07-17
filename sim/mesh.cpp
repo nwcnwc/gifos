@@ -70,11 +70,12 @@ static double REACH_DENSITY=1.0;  // fraction of NON-spanning subnet pairs that 
 static double NET_QUAL_MIN=1.0;   // netQual drawn uniformly in [NET_QUAL_MIN, 1.0] (1.0 = all perfect)
 static int    NET_SPINE=1;        // 1 = force the subnet graph CONNECTED (spanning chain); 0 = pure density (can partition!)
 static int    RELAY_K=0;          // media relay-assist fan-out cap per node (0 = off; >0 = bounded-degree relay tree). "one taker per giver + chain" ~ small K.
-// Option A dev flag: when ON, a seated seat may only hand a frame to a real
-// owned-link neighbour — sends to a seated non-neighbour ROUTE over the mesh
-// (no teleport). OFF by default until owned-link routing is COMPLETE (Section-1
-// inter-row paths still drop, breaking convergence). Enable with `--route`.
-static bool   ROUTE_ENFORCE=false;
+// Owned-link delivery is now ENFORCED BY DEFAULT: a seated seat may only hand a
+// frame to a real owned-link neighbour; a send to a non-neighbour ROUTES over the
+// mesh (or relays between two socketed greeting-scope peers). A teleport is a bug
+// and DETONATES (teleportExplode). Pass `--allow-teleport` to fall back to the old
+// perfect-bus (teleports counted, not fatal) purely for A/B comparison.
+static bool   ROUTE_ENFORCE=true;
 static uint32_t FSEED=20260714;
 static inline double frnd(){ FSEED=(uint32_t)((FSEED*1103515245u+12345u)&0x7fffffff); return FSEED/2147483648.0; }
 static vector<vector<char>> reachMx;                    // reachMx[a][b]: subnets a<->b directly reachable
@@ -197,9 +198,44 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
+static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"}; return (t>=0&&t<21)?NM[t]:"?"; }
+// A TELEPORT must be IMPOSSIBLE. If a frame is ever about to be delivered to a
+// seat the sender has no honest path to (no owned link, not a socketed greeting
+// pair), the mesh has a routing bug — so we do NOT quietly count it: we detonate,
+// dump everything about the offending hop, and refuse to run one tick further.
+static void teleportExplode(int from,int to,const Msg& m){
+  Seat* sf=seats[from]; Seat* st=seats[to];
+  fflush(stdout);
+  fprintf(stderr,"\n\n");
+  fprintf(stderr,"########################################################################\n");
+  fprintf(stderr,"##                                                                    ##\n");
+  fprintf(stderr,"##   >>>>>>>>>>>>>>>   T E L E P O R T   D E T E C T E D   <<<<<<<<<<   ##\n");
+  fprintf(stderr,"##                                                                    ##\n");
+  fprintf(stderr,"##   A frame is about to reach a seat the sender has NO PATH to.       ##\n");
+  fprintf(stderr,"##   The mesh may NEVER teleport. This is a routing BUG — halting.     ##\n");
+  fprintf(stderr,"##                                                                    ##\n");
+  fprintf(stderr,"########################################################################\n");
+  fprintf(stderr,"TICK=%lld   msg=%s   routing=%d direct=%d rttl=%d rvia=#%d\n",
+    TICK, MT_NAME((int)m.t), m.routing, m.direct, m.rttl, m.rvia);
+  fprintf(stderr,"\nFROM  #%d  state=%d  hasCoord=%d  coord=(%u,%u,%u)  socketed=%d  gateway=#%d\n",
+    from, sf->state, sf->hasCoord, sf->coord.pc,sf->coord.r,sf->coord.i, sf->socketed(), sf->gateway);
+  fprintf(stderr,"   FROM's owned links and who FROM believes sits at each:\n");
+  if(sf->hasCoord){ Coord ol[C+2]; int n=ownedLinks(sf->coord,ol);
+    for(int k=0;k<n;k++){ int occ=sf->occGet(ckey(ol[k])); fprintf(stderr,"      (%u,%u,%u) -> #%d %s\n", ol[k].pc,ol[k].r,ol[k].i, occ, occ==to?"  <-- the TARGET (so why not a neighbor?)":""); } }
+  fprintf(stderr,"\nTO    #%d  state=%d  hasCoord=%d  coord=(%u,%u,%u)  socketed=%d  gateway=#%d\n",
+    to, st->state, st->hasCoord, st->coord.pc,st->coord.r,st->coord.i, st->socketed(), st->gateway);
+  fprintf(stderr,"\nWHY IT WAS NOT ROUTED / RELAYED:\n");
+  fprintf(stderr,"   from-socketed=%d  to-socketed=%d  (both-socketed would be a legal relay hop)\n", sf->socketed(), st->socketed());
+  fprintf(stderr,"   to-hasCoord=%d  to-gateway=#%d  strictNextHop(from -> to.coord)=#%d\n",
+    st->hasCoord, st->gateway, sf->hasCoord? sf->strictNextHop(st->coord) : -999);
+  fprintf(stderr,"########################################################################\n\n");
+  fflush(stderr);
+  abort();
+}
 static void classifyEmit(int from,int to,const Msg& m){
   int mt=(int)m.t;
   if(from<0 || to<0 || from>=(int)seats.size() || to>=(int)seats.size()){ EMIT_BOOTSTRAP++; return; }
+  if(from==to){ EMIT_NEIGHBOR++; return; }   // self-delivery (a routed frame that reached its own destination cell) — local, never a network hop
   Seat* sf=seats[from]; Seat* st=seats[to];
   if(!sf->hasCoord || !st->hasCoord){ EMIT_BOOTSTRAP++; return; }
   // A real link = whom I (the sender) BELIEVE occupies one of my owned-link
@@ -210,6 +246,7 @@ static void classifyEmit(int from,int to,const Msg& m){
   if(sf->socketed() && st->socketed()){ EMIT_RELAY++; return; }   // legit: relay between two socketed peers (greeting scope)
   EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;              // BAD: non-adjacent, neither the relay nor a link could carry it
   TELE_SRC[(m.direct?1:0)|(m.routing?2:0)]++;
+  if(ROUTE_ENFORCE) teleportExplode(from,to,m);                 // enforcement ON ⇒ a teleport is a bug ⇒ detonate
 }
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
@@ -352,7 +389,7 @@ int main(int argc,char**argv){
     if(s=="--service") service=true;
     else if(s.rfind("--threads=",0)==0) wthreads=max(1,atoi(s.c_str()+10));
     else if(s=="--det") DETERM=true;
-    else if(s=="--route") ROUTE_ENFORCE=true; }   // Option A: enforce owned-link-only delivery (route, never teleport)
+    else if(s=="--allow-teleport") ROUTE_ENFORCE=false; }   // A/B only: revert to the old perfect-bus (teleports counted, not fatal)
   tlsResize(wthreads);
   if(!service){
     int n=argc>1?atoi(argv[1]):10000; double lv=argc>2?atof(argv[2]):0;
