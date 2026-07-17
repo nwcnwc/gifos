@@ -107,7 +107,6 @@
     background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
     border-radius: .6rem; overflow: hidden; }
   #stagefeed .rowtile { aspect-ratio: 16 / 9; } /* stage feeds are verbatim cameras */
-  .rowtile.decktile { grid-column: 1 / -1; } /* a deck is the wide shot */
   /* Zone bands: a full-width label naming the near/far boundary in the mosaic. */
   .feedband { grid-column: 1 / -1; font-size: .7rem; letter-spacing: .05em; text-transform: uppercase;
     font-weight: 700; color: var(--muted, #8888aa); padding: .55rem .2rem .15rem; margin-top: .15rem;
@@ -778,25 +777,29 @@
 
     // ================= THE STADIUM (docs/healing-laws.md + docs/media-plane.md) =================
     // One metaphor, all the way down: a SEAT holds a person; a ROW seats C
-    // (row 0 is the STAGE, born empty); a SECTION is C rows — one relay
-    // session, C² seats; a DECK is the group of sections whose deacons share
-    // one level-1 space; LEVELS count the recursion (a section's row deacons
-    // meet one level up, deacons-among-deacons one above that); and the
-    // STADIUM is everything beyond your own row, seen as folds. Everything
+    // (every section has an ordinary row 0 — just its first row, NOT a stage);
+    // a SECTION is an internal C×C block of the tree (NOT its own relay
+    // session); the STADIUM is the whole room — ONE relay session, one URL,
+    // meshed as a no-root tree of sections whose home is Section 1 (path '').
+    // The STAGE is a SEPARATE, decoupled chosen set capped at C (self step-up
+    // in open rooms, admin-granted in admin rooms): the broadcast-to-the-whole-
+    // room tier, never filled by seating and NOT "row 0" of anything. Everything
     // here is PURE, DERIVED BOOKKEEPING — computed on demand from the shared
     // roster by the same arithmetic on every phone, so there is nothing to
     // sync and nothing to invalidate. No code below ever asks "is this room
     // big?".
+    //   (The old deacon / deck / fold / level model is DEAD — git history keeps
+    //    docs/rows.md + docs/mesh-refactor.md. The control plane is now the
+    //    (path, r, i) tree in mesh.js; the relay is the stadium-wide greeter
+    //    registry — healing-laws R2/R3 — never a per-section session.)
     //
     // WIRE GLOSSARY (gossip stays terse; the words above are the meaning):
-    //   st.leaf   = the sender's SECTION number     st.cnt = its section count
-    //   st.branch = the sender's DECK id            st.bl  = deck's per-section counts
-    //   'b:<n>'   = the fold of deck n              's:<pid>' = a stage feed
-    //   global row number = (section-1)*C + local row index — same on every phone.
+    //   st.stg  = the sender's STAGE step-up timestamp (0 = not on stage)
+    //   st.cap  = its capability bucket            st.hand = raised-hand timestamp
     const SCALE = net.SCALE;
-    // Capability score for deacon election: uplink + cores + memory + power,
-    // folded into ONE coarse bucket so jitter can't flap an election. Measured
-    // once at boot (plus one async bump if we learn we're on wall power).
+    // Capability bucket: uplink + cores + memory + power, folded into ONE coarse
+    // score so jitter can't flap it. Measured once at boot (plus one async bump
+    // if we learn we're on wall power).
     (function measureCap() {
       let s = 0;
       try { s += Math.min(8, navigator.hardwareConcurrency || 2); } catch (e) {}
