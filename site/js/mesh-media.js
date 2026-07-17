@@ -65,7 +65,12 @@
     const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
     if (canvas) { canvas.width = W; canvas.height = H; }
     const ctx = canvas ? canvas.getContext('2d') : null;
-    const cells = new Array(N).fill(null); // { el, meta } | null
+    const cells = new Array(N).fill(null); // { el, streamId } | null
+    // Optional AUDIO FOLD: the composite's audio is the summed audio of its
+    // cells' source streams. A nested sub-mosaic's stream already carries its
+    // OWN fold, so folding it re-sums recursively up the tree — a band folds
+    // its row, a frame folds its bands, and so on, by construction.
+    const fold = (opts.ac && createAudioFold(opts.ac)) || null;
     let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0;
 
     function drawCell(i) {
@@ -89,17 +94,28 @@
     const comp = {
       canvas, cells, rects,
       stream: null, track: null,
-      setCell(i, el, meta) { cells[i] = el ? { el, meta: meta || null } : null; },
+      setCell(i, el, stream) {
+        const sid = stream ? stream.id : null;
+        const prev = cells[i];
+        if (fold) {
+          if (prev && prev.streamId !== sid) fold.remove('c' + i);
+          if (sid && (!prev || prev.streamId !== sid)) fold.add('c' + i, stream, opts.gain == null ? 1 : opts.gain);
+        }
+        cells[i] = el ? { el, streamId: sid } : (fold && prev ? (fold.remove('c' + i), null) : null);
+      },
       start() {
         if (timer || !canvas) return comp;
-        comp.stream = canvas.captureStream(fps);
-        comp.track = comp.stream.getVideoTracks()[0];
+        const vTrack = canvas.captureStream(fps).getVideoTracks()[0];
+        const aTrack = fold && fold.track();
+        comp.stream = new MediaStream(aTrack ? [vTrack, aTrack] : [vTrack]);
+        comp.track = vTrack;
         timer = setInterval(paint, Math.max(20, 1000 / fps));
         paint();
         return comp;
       },
       stop() {
         if (timer) { clearInterval(timer); timer = null; }
+        if (fold) fold.clear();
         if (comp.track) { try { comp.track.stop(); } catch (e) {} }
         comp.stream = null; comp.track = null;
       },
