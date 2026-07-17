@@ -92,14 +92,20 @@
      matter how deep the room goes. */
   #feed { flex: 1; min-height: 0; overflow-y: auto; }
   #grid { display: grid; gap: 8px; padding: 8px;
-          grid-template-columns: repeat(auto-fit, minmax(min(240px, 44vw), 1fr));
+          /* rem-based minimum so browser zoom (ctrl +/-) actually resizes tiles:
+             zoom scales rem, the column count drops, tiles grow. (vw is zoom-
+             immune — the old min(240px, 44vw) went inert once 44vw < 240px.)
+             The 94vw guard only matters on true phone widths. */
+          grid-template-columns: repeat(auto-fit, minmax(min(15rem, 94vw), 1fr));
           grid-auto-rows: max-content; }
   #stagefeed { display: grid; gap: 8px; padding: 8px 8px 0; }
   #stagefeed:empty { display: none; }
   /* The STADIUM (docs/media-plane.md): the room beyond your row, folded to one
      composite tile each — a horizontally scrolling strip above your own row's
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
-  #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
+  #stadium { display: none; gap: 8px; padding: 0 8px 8px;
+          /* composite tiles zoom like everything else — not a locked 2-up */
+          grid-template-columns: repeat(auto-fit, minmax(min(24rem, 94vw), 1fr)); }
   #stadium .rowtile { aspect-ratio: 1 / 1; } /* placeholder until the stream's real dims land (trackAspect) */
   #stadium .rowtile video { object-fit: contain; } /* the packed grid shows WHOLE, never cropped */
   #stadium.on { display: grid; }
