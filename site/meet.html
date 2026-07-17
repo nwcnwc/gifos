@@ -5189,6 +5189,22 @@
         if (meshNode) meshNode.gossip({ a: 1, msg: { __probe: 'p' + Date.now() } });
         setTimeout(() => resolve(Object.values(window.__meshCensus)), ms || 4500);
       }),
+      // DEBUG-TREE — REMOVE BEFORE LAUNCH. Teleport my seat to ANY coord (e.g. an
+      // empty one) so the tool can roam the topology and screenshot each vantage.
+      // Announces LEAVE of my current coord (peers free it), then take()s the
+      // target and HELLOs its owned-link neighbours to re-wire; the mesh gossip/
+      // anti-entropy fills the rest. NOT product surface: pure diagnostics.
+      forceSeat: (pc, r, i) => {
+        const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
+        const T = net.topo, target = { pc: +pc, r: +r, i: +i };
+        if (seat.hasCoord) {
+          const cur = seat.coord, ckCur = T.ckey(cur);
+          for (const olc of T.ownedLinks(cur)) { const x = seat.occGet(T.ckey(olc)); if (x != null && x !== seat.id) seat.emit(x, { t: 'LEAVE', ck: ckCur, id: seat.id }); }
+          seat.occ.delete(ckCur);
+        }
+        try { seat.take(target, null, []); } catch (e) { return { err: String(e).slice(0, 80) }; }
+        return { seated: target.pc + '/' + target.r + '.' + target.i };
+      },
       debugDump: () => {
         const s = meshSeat(), c = meshCoord(), now = Date.now();
         const coordOfPeer = new Map(); if (s) for (const [k, v] of s.occ) coordOfPeer.set(v, k);
