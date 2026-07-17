@@ -33,6 +33,7 @@ struct Msg {
   // over a direct link (delivery to an unseated newcomer via its gateway). This
   // is how the protocol reaches a NON-adjacent seat without teleporting.
   bool routing=false; int rfinal=-1,rttl=0,rvia=-1; Coord rdst{0,0,0};
+  bool direct=false;   // set on a gateway→attached-newcomer hand-off: deliver over the direct link, do NOT re-enter routing (breaks the emit↔route loop)
 };
 
 // ---- globals / fabric ----
@@ -174,6 +175,11 @@ struct Seat {
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
   int gateway=-1;                       // the greeter this (unseated) newcomer routes through
+  // A seat HOLDS a relay socket while joining (state!=3) or while seated in
+  // Section 1 (the greeter pool). Deep seats are socketless. The relay may
+  // deliver a frame between two SOCKETED peers — that is the greeting scope,
+  // NOT a mesh comm. Everything else must travel over owned links.
+  bool socketed() const { return state!=3 || (hasCoord && coord.pc==0); }
   void route(Coord rdst,int rfinal,Msg inner);   // send `inner` over the mesh to coord rdst (rfinal>=0 ⇒ hand to that newcomer at the end)
   bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
   int strictNextHop(Coord rdst);        // next hop toward rdst over an OWNED LINK only (-1 if the ideal link is vacant — no teleport)
@@ -188,7 +194,7 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 // TELEPORT = both seated but NOT adjacent — a multi-hop the perfect bus fakes and
 // production can only make via the relay (or real routing). BOOTSTRAP = to/from a
 // not-yet-seated joiner (the greeter/relay path). Goal of Option A: TELEPORT -> 0.
-static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0;
+static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static void classifyEmit(int from,int to,int mt){
   if(from<0 || to<0 || from>=(int)seats.size() || to>=(int)seats.size()){ EMIT_BOOTSTRAP++; return; }
@@ -196,7 +202,8 @@ static void classifyEmit(int from,int to,int mt){
   if(!sf->hasCoord || !st->hasCoord){ EMIT_BOOTSTRAP++; return; }
   Coord ol[C+2]; int n=ownedLinks(sf->coord,ol); uint64_t tk=ckey(st->coord);
   for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ EMIT_NEIGHBOR++; return; }
-  EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;
+  if(sf->socketed() && st->socketed()){ EMIT_RELAY++; return; }   // legit: relay between two socketed peers (greeting scope)
+  EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;              // BAD: non-adjacent, neither the relay nor a link could carry it
 }
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
@@ -229,11 +236,16 @@ void Seat::emit(int to,const Msg& m){
   // frame over the mesh toward its coord instead of teleporting it there. (An
   // already-routing frame is going to its next hop — a neighbor — so it passes
   // through untouched; unseated endpoints are the bootstrap/gateway path.)
-  if(ROUTE_ENFORCE && !m.routing && hasCoord && to>=0 && to<(int)seats.size() && to!=id && seats[to]->hasCoord){
-    Coord tc=seats[to]->coord; uint64_t tk=ckey(tc);
-    Coord ol[C+2]; int n=ownedLinks(coord,ol); bool nbr=false;
-    for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ nbr=true; break; }
-    if(!nbr){ route(tc,-1,m); return; }
+  if(ROUTE_ENFORCE && !m.routing && !m.direct && to>=0 && to<(int)seats.size() && to!=id){
+    Seat* st=seats[to];
+    bool directLink=false;
+    if(hasCoord && st->hasCoord){ uint64_t tk=ckey(st->coord); Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ directLink=true; break; } }
+    if(!directLink){
+      if(socketed() && st->socketed()){ /* relay path — both hold sockets (greeting scope): fall through to direct schedule */ }
+      else if(st->hasCoord){ route(st->coord,-1,m); return; }                                   // deep target ⇒ route over the mesh
+      else if(st->gateway>=0 && st->gateway<(int)seats.size() && seats[st->gateway]->hasCoord){ route(seats[st->gateway]->coord, to, m); return; } // unseated target ⇒ via its gateway
+      else return;                                                                              // unreachable right now ⇒ drop, caller retries
+    }
   }
   if(PAR){ tlsOut[curTid()].push_back({id,to,m}); } else { Msg mm=m; schedule(id,to,move(mm)); }
 }
@@ -341,9 +353,9 @@ int main(int argc,char**argv){
     long long seated,s1c; counts(seated,s1c);
     printf("  after JOIN: %s [seated=%lld/%d, s1=%lld, converged@%lld, %lld ticks, %.2fs, %.0fk ticks/s]\n",
       (seated==n&&s1c==min(25,n))?"OK":"INCOMPLETE", seated,n,s1c,conv,TICK,secs, TICK/secs/1000.0);
-    long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP;
-    printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  TELEPORT(faked multi-hop)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
-      EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
+    long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP+EMIT_RELAY;
+    printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  relay(socketed pair)=%lld (%.1f%%)  TELEPORT(faked)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
+      EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_RELAY, tot?100.0*EMIT_RELAY/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
     { const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"};
       printf("  TELEPORTS BY TYPE:"); for(int i=0;i<21;i++) if(TELE_BY_T[i]) printf(" %s=%lld",NM[i],TELE_BY_T[i]); printf("\n"); }
     return 0;
