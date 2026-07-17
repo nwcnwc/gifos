@@ -359,7 +359,7 @@ async function runCmd(line) {
       console.log('  probing the whole mesh (gossip census, ~5s)…');
       const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), 5000).catch(() => null);
       if (!reps) { console.log('  probeTree hook absent (client too old — redeploy)'); break; }
-      const byId = {}; for (const r of reps) byId[r.from] = r;
+      const byId = {}; for (const r of reps) { byId[r.from] = r; byId[String(r.from).slice(0, 8)] = r; } // conn/link fields are 8-char truncated
       const ck = (c) => { if (!c) return [9, 9, 9]; const [pc, ri] = c.split('/'); const [rr, ii] = ri.split('.'); return [+pc, +rr, +ii]; };
       reps.sort((a, b) => { const A = ck(a.coord), B = ck(b.coord); return A[0] - B[0] || A[1] - B[1] || A[2] - B[2]; });
       const seen = {}, dups = []; for (const r of reps) if (r.coord) { if (seen[r.coord]) dups.push(r.coord + ' (' + seen[r.coord] + ' & ' + r.from + ')'); else seen[r.coord] = r.from; }
@@ -380,10 +380,14 @@ async function runCmd(line) {
       break;
     }
     case 'seat': case 'goto': {
-      // DEBUG-TREE: teleport my seat to ANY coord (e.g. an empty one) to roam.
+      // DEBUG-TREE: teleport my seat to ANY coord. A census runs first and its
+      // coord→id map SEEDS my occ, so the landing HELLOs real neighbours even
+      // across a fragment boundary.
       const mm = /^(\d+)[/_ ](\d+)[._ ](\d+)$/.exec((arg || '').trim());
       if (!mm) { console.log('  usage: seat <pc/r.i>   e.g.  seat 0/2.3   (teleport to any coord; DEBUG)'); break; }
-      const res = await page.evaluate((a) => (window.__gifosVideo.forceSeat ? window.__gifosVideo.forceSeat(a[0], a[1], a[2]) : { err: 'forceSeat hook absent — redeploy' }), [mm[1], mm[2], mm[3]]).catch((e) => ({ err: String(e).slice(0, 100) }));
+      const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), 4000).catch(() => null);
+      const seed = {}; if (reps) for (const r of reps) if (r.coord && r.from) seed[r.coord] = r.from;
+      const res = await page.evaluate((a) => (window.__gifosVideo.forceSeat ? window.__gifosVideo.forceSeat(a[0], a[1], a[2], a[3]) : { err: 'forceSeat hook absent — redeploy' }), [mm[1], mm[2], mm[3], seed]).catch((e) => ({ err: String(e).slice(0, 100) }));
       console.log('  ' + JSON.stringify(res) + (res && res.seated ? '   — give it ~6s to wire, then `state` / `shot`' : ''));
       break;
     }
@@ -400,7 +404,8 @@ async function runCmd(line) {
         let tgt = null; for (let r = 0; r < 5 && !tgt; r++) for (let i = 0; i < 5; i++) if (!filled.has(r + '.' + i)) { tgt = r + '.' + i; break; }
         if (!tgt) tgt = '0.0';
         const [r, i] = tgt.split('.');
-        await page.evaluate((a) => window.__gifosVideo.forceSeat(a[0], a[1], a[2]), [pc, r, i]).catch(() => {});
+        const seed = {}; for (const x of reps) if (x.coord && x.from) seed[x.coord] = x.from;
+        await page.evaluate((a) => window.__gifosVideo.forceSeat(a[0], a[1], a[2], a[3]), [pc, r, i, seed]).catch(() => {});
         console.log('  → section ' + pc + ' @ ' + pc + '/' + tgt + ' … settling ' + settle + 's');
         await sleep(settle * 1000);
         const vp = page.viewportSize();
