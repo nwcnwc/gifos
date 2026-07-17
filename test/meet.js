@@ -46,6 +46,7 @@
  *   links | l     my bounded link set + each link's connection/DC state
  *   net           WHERE traffic travels: relay vs DC vs sponsor-forward (txStats)
  *   mosaic | m    the four media composites: which channels are live
+ *   stage [up|down]  who's on stage + the strip's state; up/down steps me on/off
  *   consent       the clear-video tally (X/N) and exactly who is blocking it
  *   tiles         #grid tiles shown/total (Channel R) + which composites paint
  *   ghosts        peers with NO fresh status (churn residue)
@@ -340,6 +341,21 @@ async function runCmd(line) {
       console.log('  R2: the relay is greeters-only — relay counts should stay LOW and flat once seated (only entry bootstrap).');
       break;
     case 'mosaic': case 'm': console.log('  ' + JSON.stringify(d.mosaic)); break;
+    case 'stage': {
+      // stage            → who's on stage, my rights, the strip's real state
+      // stage up|down    → step my participant on/off the stage
+      if (arg === 'up' || arg === 'down') {
+        const ok = await page.evaluate((on) => (window.__gifosVideo.stageForTest ? window.__gifosVideo.stageForTest(on) : null), arg === 'up').catch(() => null);
+        console.log('  ' + (ok == null ? 'stage hooks absent — redeploy' : ok ? 'now ' + (arg === 'up' ? 'ON stage' : 'off stage') : 'refused (full stage, or admin-gated room)'));
+        break;
+      }
+      const si = await page.evaluate(() => (window.__gifosVideo.stageInfo ? window.__gifosVideo.stageInfo() : null)).catch(() => null);
+      if (!si) { console.log('  stage hooks absent — redeploy'); break; }
+      console.log('  stagers ' + si.stagers.length + '/' + si.cap + (si.stagers.length ? ': ' + si.stagers.map((s) => (s.name || s.id) + (s.me ? ' (me)' : '')).join(', ') : ' (empty)'));
+      console.log('  me: ' + (si.myStg ? 'ON stage since ' + new Date(si.myStg).toLocaleTimeString() : 'off stage') + '  canStage=' + si.canStage);
+      console.log('  feeds held: ' + (si.held.length ? si.held.join(', ') : 'none') + '   strip: ' + (si.strip ? JSON.stringify(si.strip) : 'not compositing') + '   painted=' + si.stripPainted);
+      break;
+    }
     case 'consent':
       console.log('  consent tally: ' + d.consent + '  (clear video needs unanimous camera-on + No blur, room-wide)');
       console.log('  blocking (cam off / blurred / no fresh status):');
