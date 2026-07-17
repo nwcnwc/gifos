@@ -1898,18 +1898,17 @@
     // deacons (the fold/forward edges). At default constants a small room is
     // one row, so this set is EVERYONE — today's mesh, by arithmetic.
     function linkTo(pid) {
-      // The mesh's OWN control links (row + cross + up/down + S1 columns) are
-      // always held — they carry the healing laws and mesh gossip.
+      // BOUNDED DEGREE — the law. A seat holds direct WebRTC links to ONLY its
+      // own bounded neighbourhood: its ROW-mates (the full-mesh row, C-1), its
+      // cross-link, its up/down tree edges, and (in Section 1) its column
+      // neighbours — net ≤ C+2. Full mesh is the ROW, never the section. Every
+      // face beyond your row arrives COMPOSITED over these same links: your
+      // section via the cross-link flow (Channel Se), the far room via the
+      // Stadium fractal — never a direct link. This is what keeps a device's
+      // cost constant as the room grows to millions.
       const s = meshSeat();
-      if (!s || !s.hasCoord) return rosterIds.includes(pid); // pre-seat bootstrap: link who we know
-      if (s.linkPeers().has(pid)) return true;
-      if (stageIds().includes(pid) || stageIds().includes(myId)) return true; // the Stage sees and is seen (direct until 3b's strip)
-      // INTERIM MEDIA RULE (docs/meet-wiring-plan.md, until the 3b mosaic):
-      // when the whole room fits in Section 1 your section IS the room — the
-      // Section tier's degenerate case is direct links to everyone. Bigger
-      // rooms hold mesh links only; out-of-section faces arrive with 3b.
-      if (s.coord.pc === 0 && knownTotal() <= SCALE.C * SCALE.C) return true;
-      return false;
+      if (!s || !s.hasCoord) return rosterIds.includes(pid); // pre-seat bootstrap only
+      return s.linkPeers().has(pid);
     }
     // Establish or retire ONE peer's media link per the row arithmetic. Also
     // run by the sweeper: cap gossip settling can move a deacon election, and
@@ -3418,9 +3417,8 @@
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
     const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
-    let bandComp = null, prodComp = null, sdComp = null, stripComp = null;
+    let rowBandComp = null, prodComp = null, sdComp = null, stripComp = null;
     const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
-    const secSpread = new Set(); // streamIds I have already flooded within my section (dedup)
     let secComp = null;
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
@@ -3486,7 +3484,7 @@
       if (key === 'sd') return 'sd';
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       if (key.indexOf('stg:') === 0) return key; // an individual stager feed (per-stager slot)
-      if (key.indexOf('sec:') === 0) return key; // a section-mate's feed (flood within my section)
+      if (key === 'secband') return (meta && meta.row != null) ? 'secband:' + meta.row : null; // a row's band, keyed by origin row
       return null;
     }
     function claimMos() {
@@ -3552,17 +3550,25 @@
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
       mosAnn.clear();
-      if (bandComp) { bandComp.stop(); bandComp = null; }
+      if (rowBandComp) { rowBandComp.stop(); rowBandComp = null; }
       if (prodComp) { prodComp.stop(); prodComp = null; }
       if (sdComp) { sdComp.stop(); sdComp = null; }
       if (stripComp) { stripComp.stop(); stripComp = null; }
       if (secComp) { secComp.stop(); secComp = null; }
-      stgSpread.clear(); secSpread.clear();
+      stgSpread.clear();
       paintStadiumTile(null); paintStageStrip(null); paintSectionTile(null);
     }
     function reconcileMosaic() {
       const s = meshSeat(), c = meshCoord();
-      if (!s || !c || !multiSection()) { if (mosJobs.size || mosIn.size || bandComp) stopMosaic(); return; }
+      // ACTIVE whenever the room extends beyond my row: section-mates in other
+      // rows (Section channel), deep members (Stadium), or stagers (Stage).
+      // A room that IS just my row costs nothing here — the row mesh shows it.
+      const beyondRow = (() => {
+        if (!s || !c) return false;
+        for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
+        return false;
+      })();
+      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || rowBandComp) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
@@ -3576,22 +3582,27 @@
         const p = peers.get(pid);
         return p ? { el: p.video, stream: p.video.srcObject } : { el: null, stream: null };
       };
+      // EVERY seat composites its OWN row band (cheap: C cells, one canvas).
+      // Heads feed it into their Stadium product; non-heads ship it over their
+      // cross-link — the Section exchange. One band, both channels.
+      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
+      for (let j = 0; j < C; j++) {
+        const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+        const sc = srcFor(pid); rowBandComp.setCell(j, sc.el, sc.stream);
+      }
       if (iAmHead) {
         // PRODUCT = my row band (slot 0) + my row's C sub-products (slots 1..C)
-        if (!bandComp) bandComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
         if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1, ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
-          const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
-          const sc = srcFor(pid); bandComp.setCell(j, sc.el, sc.stream);
           const sub = mosIn.get('sub:' + j);
           prodComp.setCell(1 + j, sub ? sub.el : null, sub ? sub.stream : null);
         }
-        prodComp.setCell(0, bandComp.canvas, bandComp.stream);
-        if (c.pc !== 0) {
+        prodComp.setCell(0, rowBandComp.canvas, rowBandComp.stream);
+        if (c.pc !== 0 && multiSection()) {
           // ship my product UP (the up-seat relays it to ITS head)
           const up = T.up(c); const upPid = up ? occPid(up) : null;
           const jk = shipMos('sub', upPid, prodComp.stream, null); if (jk) wanted.add(jk);
-        } else {
+        } else if (c.pc === 0 && multiSection()) {
           // SECTION-1 FINISH: exchange products (x1 to each row-mate), stack
           // into THE STADIUM, fan it down my down-link + keep my row current.
           for (let j = 1; j < C; j++) {
@@ -3626,28 +3637,39 @@
         const x2 = mosIn.get('x2');
         if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, { row: x2.meta.row }); if (jk) wanted.add(jk); }
       }
-      // ---- SECTION lane: my C×C block, flooded over cross+row, self-composited
-      // Each seat floods its camera within its OWN section (fixed pc) over the
-      // section's row+cross graph (dedup by streamId — the graph is connected
-      // at every section, proven); every seat then composites the C×C block
-      // ITSELF (the near-field around you, slightly behind your live row). Only
-      // useful when the section isn't already fully directly-linked — i.e. deep
-      // seats and rooms past one section; a single-section room's interim rule
-      // shows everyone directly, so it never gets here (multiSection() gate).
+      // ---- SECTION lane: ROW BANDS exchanged over cross-links (bounded) -------
+      // The design (docs/media-plane.md Channel Se): each row's BAND crosses
+      // each cross-link exactly once — seat (r,i) ships its OWN row's band to
+      // its cross partner (row i), and the RECEIVER shares it with its row
+      // over the row mesh. Every seat then self-composites the C×C block:
+      // its own live band + the C-1 received bands, slightly lagged. Cost per
+      // seat: ≤1 cross ship + ≤C-1 row reshares of ONE band — CONSTANT, never
+      // per-person. (The old per-person flood was the full-mesh mistake at the
+      // media layer — ripped.)
       {
-        const secPeers = [...T.rowMates(c).map((m) => occPid(m)), (T.crossLink(c) ? occPid(T.crossLink(c)) : null)].filter(Boolean);
-        const secFlood = (key, stream) => { if (!stream || secSpread.has(stream.id)) return; secSpread.add(stream.id); for (const t of secPeers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); } };
-        const myFeed = mySelfStream(); if (myFeed) secFlood('sec:' + myId, myFeed);
-        for (const k of [...mosIn.keys()].filter((k) => k.indexOf('sec:') === 0)) secFlood(k, mosIn.get(k).stream);
-        // composite my section's C×C block (my own row is the live tiles on top;
-        // the block shows the other rows, self-assembled and lagged).
-        if (!secComp) secComp = MM.createComposite({ kind: 'frame', cells: C * C, ac: (ensureAc(), ac) }).start();
-        for (let rr = 0; rr < C; rr++) for (let ii = 0; ii < C; ii++) {
-          const pid = (rr === c.r && ii === c.i) ? myId : occPid({ pc: c.pc, r: rr, i: ii });
-          const sc = pid == null ? { el: null, stream: null } : srcFor(pid, 'sec:' + pid);
-          secComp.setCell(rr * C + ii, sc.el, sc.stream);
-        }
-        paintSectionTile(secComp.stream);
+        const secMates = (() => { for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc === c.pc && cc.r !== c.r) return true; } return false; })();
+        if (secMates) {
+          // ship my row's band over my cross-link (non-heads only — heads have none)
+          const xc = T.crossLink(c);
+          if (xc) { const xPid = occPid(xc); const jk = shipMos('secband', xPid, rowBandComp.stream, { row: c.r }); if (jk) wanted.add(jk); }
+          // reshare a band that arrived OVER MY CROSS-LINK to my row-mates
+          for (let q = 0; q < C; q++) {
+            const bIn = mosIn.get('secband:' + q);
+            if (!bIn || q === c.r) continue;
+            const xPid2 = xc ? occPid(xc) : null;
+            if (bIn.via === xPid2) { // I am this band's importer for my row
+              for (const m of T.rowMates(c)) { const mp = occPid(m); const jk = shipMos('secband', mp, bIn.stream, { row: q }); if (jk) wanted.add(jk); }
+            }
+          }
+          // self-composite the block: my row live + the received bands
+          if (!secComp) secComp = MM.createComposite({ kind: 'frame', ac: (ensureAc(), ac) }).start();
+          for (let q = 0; q < C; q++) {
+            if (q === c.r) { secComp.setCell(q, rowBandComp.canvas, rowBandComp.stream); continue; }
+            const bIn = mosIn.get('secband:' + q);
+            secComp.setCell(q, bIn ? bIn.el : null, bIn ? bIn.stream : null);
+          }
+          paintSectionTile(secComp.stream);
+        } else paintSectionTile(null);
       }
       // ---- STAGE lane: chosen <=C feeds -> S1 -> composited strip -> fan down --
       // Individual stager feeds ride UP to Section 1 (uncomposited passthrough,
@@ -3669,6 +3691,8 @@
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
         for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
         // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
+        if (!stagers.length) { paintStageStrip(null); }
+        else {
         if (!stripComp) stripComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const sid = stagers[j];
@@ -3677,6 +3701,7 @@
         }
         paintStageStrip(stripComp.stream);
         for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripComp.stream, null); if (jk) wanted.add(jk); }
+        }
       }
       // Every seat: render the received strip and fan it down (heads -> row-mates).
       const sgs = mosIn.get('sgs');
