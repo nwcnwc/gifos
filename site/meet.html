@@ -3929,14 +3929,15 @@
       const mates = new Set(rowMates());
       let hasSection = false, hasStadium = false;
       for (const [pid, p] of peers) {
-        // stage first (a staged row mate is Stage); then my row; a same-section
-        // other-row deacon (deacon mesh, in my relay roster) is My section;
-        // a space mate (another section entirely) is The stadium.
-        const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row'
-          : rosterIds.includes(pid) ? 'section' : 'stadium';
-        busVolume(p.video, mix[bus]);
-        if (bus === 'section') hasSection = true;
-        if (bus === 'stadium') hasStadium = true;
+        // Stage first (a staged row mate is Stage); then MY ROW (the direct
+        // conversation tier). Any OTHER direct link is STRUCTURAL — an up/down/
+        // cross carrier whose tile Channel R hides. Its raw mic must NOT play:
+        // that person's audio reaches me properly SUMMED inside the composite
+        // folds (section band / stadium). Letting the raw track through gave a
+        // disembodied "ghost voice" with no tile (and double-audio once the
+        // composite carried them too).
+        const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row' : null;
+        busVolume(p.video, bus ? mix[bus] : 0);
       }
       // feed tiles (3b's mosaics): stage strip is Stage; stadium tiles are
       // The stadium — empty until the fractal mosaic lands.
