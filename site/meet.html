@@ -1921,7 +1921,11 @@
       // Stadium fractal — never a direct link. This is what keeps a device's
       // cost constant as the room grows to millions.
       const s = meshSeat();
-      if (!s || !s.hasCoord) return rosterIds.includes(pid); // pre-seat bootstrap only
+      // PRE-SEAT: link NOBODY. The join dance rides the relay/greeter path and
+      // needs no DataChannels; media links belong to a SEATED coord only. The
+      // old "bootstrap = whole roster" relic full-meshed a stalled joiner (27
+      // RTCPeerConnections, every tile black) — the last unbounded path, gone.
+      if (!s || !s.hasCoord) return false;
       return s.linkPeers().has(pid);
     }
     // Establish or retire ONE peer's media link per the row arithmetic. Also
