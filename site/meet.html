@@ -1302,7 +1302,10 @@
     const labelFor = (pid) => {
       const isMe = pid === myId;
       const st = (isMe ? myStatus : statusOf.get(pid)) || {};
-      const name = isMe ? (myName() + ' (you)') : (rosterNames[pid] || (peers.get(pid) || {}).name || '…');
+      // NO "(you)" here — a burned label rides the composite up to EVERYONE, so
+      // it must be the person's plain name (my self-tile shows "(you)" via its
+      // own DOM label, not the burn-in).
+      const name = isMe ? myName() : (rosterNames[pid] || (peers.get(pid) || {}).name || '…');
       return { name, hand: !!st.hand, talking: !!speakingOf.get(isMe ? 'me' : pid) };
     };
     function ensureAc() {
