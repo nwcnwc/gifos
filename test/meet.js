@@ -290,7 +290,23 @@ async function runCmd(line) {
       for (const sec of Object.keys(bySec).sort()) console.log('  §' + sec + ': ' + bySec[sec].join(', '));
       break;
     }
-    case 'rows': d.rows.forEach((r, i) => console.log('  row ' + i + ': [' + r.join(', ') + ']')); break;
+    case 'rows': {
+      // The REAL C×C coordinate grid of my section (from occ) — not the legacy
+      // display grouping. `·` = empty seat, `(me)` = my seat. `tree` = whole room.
+      const C = 5;
+      const myPc = d.me.coord ? String(d.me.coord).split('/')[0] : '0';
+      const at = {}; for (const r of d.roster) if (r.coord) at[r.coord] = (r.name || r.peer).split(' ')[0];
+      const meKey = d.me.coord ? String(d.me.coord).replace('/', '_').replace('.', '_') : null;
+      if (meKey) at[meKey] = '(me)';
+      console.log('  section ' + myPc + ' — real coord grid from MY occ (`tree` for the whole room):');
+      console.log('       ' + [0, 1, 2, 3, 4].map((i) => pad('i=' + i, 12)).join(''));
+      for (let r = 0; r < C; r++) {
+        let line = '  r=' + r + '  ';
+        for (let i = 0; i < C; i++) line += pad(at[myPc + '_' + r + '_' + i] || '·', 12);
+        console.log(line);
+      }
+      break;
+    }
     case 'links': case 'l': {
       const mos = d.mosaic || {};
       console.log('  my ' + d.links + ' bounded links (row-mates + cross + up/down):');
