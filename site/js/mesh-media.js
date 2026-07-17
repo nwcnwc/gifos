@@ -176,8 +176,8 @@
   function createPacker(opts) {
     opts = opts || {};
     const shape = opts.shape || 'grid';
-    const cellPref = opts.cell || ((net && net.SCALE.COMP_W) || 756) / ((net && net.SCALE.C) || 5);
-    const maxW = opts.maxW || 1080;
+    const cellPref = opts.cell || 110; // composite face cell px — small secondary tiles, keep encode/ship cheap (was COMP_W/C=151)
+    const maxW = opts.maxW || 640; // cap composite canvas width — bounds encode CPU + bandwidth at scale (was 1080)
     const fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
     const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
     const ctx = canvas ? canvas.getContext('2d') : null;

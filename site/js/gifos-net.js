@@ -465,7 +465,7 @@
     // edge, each way, forever.
     COMP_W: 756,
     COMP_H: 1344,
-    COMP_FPS: 12,
+    COMP_FPS: 8,  // composites are secondary tiles — 8fps halves the packer's CPU vs 12 with no perceptible loss (was 12)
     HB: 4000,         // status heartbeat ms — the gossip pulse everything idempotent rides
   }, root.GIFOS_SCALE || {});
 

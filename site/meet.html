@@ -1557,7 +1557,7 @@
           // Carried media (folds, forwards, relay jobs) is budgeted by the
           // FOLD constants, not the per-face rung — a million-pixel fold at
           // the rung's floor would be soup.
-          prm.encodings[0].maxBitrate = auxSenders.has(sender) ? 2500000 : q.kbps * 1000;
+          prm.encodings[0].maxBitrate = auxSenders.has(sender) ? 900000 : q.kbps * 1000; // composite ships are packed low-detail — 0.9Mbps not 2.5 (bandwidth+encode CPU)
           sender.setParameters(prm).catch(() => {});
         }
       }
