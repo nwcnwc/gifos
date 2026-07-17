@@ -3420,6 +3420,8 @@
     const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
     let bandComp = null, prodComp = null, sdComp = null, stripComp = null;
     const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
+    const secSpread = new Set(); // streamIds I have already flooded within my section (dedup)
+    let secComp = null;
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -3484,6 +3486,7 @@
       if (key === 'sd') return 'sd';
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       if (key.indexOf('stg:') === 0) return key; // an individual stager feed (per-stager slot)
+      if (key.indexOf('sec:') === 0) return key; // a section-mate's feed (flood within my section)
       return null;
     }
     function claimMos() {
@@ -3530,6 +3533,21 @@
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
       compOf.set('sgs', { via: 'stage', streamId: stream.id, stream, names: stageIds() });
     }
+    // The Section block: your C×C neighborhood, self-composited, below your row.
+    function paintSectionTile(stream) {
+      let el = stadiumEl.querySelector('[data-row="sec"]');
+      if (!stream) { if (el) el.remove(); compOf.delete('sec'); stadiumEl.classList.toggle('on', !!stadiumEl.querySelector('.rowtile')); return; }
+      if (!el) {
+        el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sec';
+        const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
+        const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'Your section';
+        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el);
+      }
+      const v = el.querySelector('video');
+      if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      stadiumEl.classList.add('on');
+      compOf.set('sec', { via: 'section', streamId: stream.id, stream });
+    }
     function stopMosaic() {
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
@@ -3538,8 +3556,9 @@
       if (prodComp) { prodComp.stop(); prodComp = null; }
       if (sdComp) { sdComp.stop(); sdComp = null; }
       if (stripComp) { stripComp.stop(); stripComp = null; }
-      stgSpread.clear();
-      paintStadiumTile(null); paintStageStrip(null);
+      if (secComp) { secComp.stop(); secComp = null; }
+      stgSpread.clear(); secSpread.clear();
+      paintStadiumTile(null); paintStageStrip(null); paintSectionTile(null);
     }
     function reconcileMosaic() {
       const s = meshSeat(), c = meshCoord();
@@ -3597,6 +3616,29 @@
         }
         const x2 = mosIn.get('x2');
         if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, { row: x2.meta.row }); if (jk) wanted.add(jk); }
+      }
+      // ---- SECTION lane: my C×C block, flooded over cross+row, self-composited
+      // Each seat floods its camera within its OWN section (fixed pc) over the
+      // section's row+cross graph (dedup by streamId — the graph is connected
+      // at every section, proven); every seat then composites the C×C block
+      // ITSELF (the near-field around you, slightly behind your live row). Only
+      // useful when the section isn't already fully directly-linked — i.e. deep
+      // seats and rooms past one section; a single-section room's interim rule
+      // shows everyone directly, so it never gets here (multiSection() gate).
+      {
+        const secPeers = [...T.rowMates(c).map((m) => occPid(m)), (T.crossLink(c) ? occPid(T.crossLink(c)) : null)].filter(Boolean);
+        const secFlood = (key, stream) => { if (!stream || secSpread.has(stream.id)) return; secSpread.add(stream.id); for (const t of secPeers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); } };
+        const myFeed = mySelfStream(); if (myFeed) secFlood('sec:' + myId, myFeed);
+        for (const k of [...mosIn.keys()].filter((k) => k.indexOf('sec:') === 0)) secFlood(k, mosIn.get(k).stream);
+        // composite my section's C×C block (my own row is the live tiles on top;
+        // the block shows the other rows, self-assembled and lagged).
+        if (!secComp) secComp = MM.createComposite({ kind: 'frame', cells: C * C }).start();
+        for (let rr = 0; rr < C; rr++) for (let ii = 0; ii < C; ii++) {
+          const pid = (rr === c.r && ii === c.i) ? myId : occPid({ pc: c.pc, r: rr, i: ii });
+          const src = pid === myId ? meTile.video : ((mosIn.get('sec:' + pid) || {}).el || (peers.get(pid) || {}).video || null);
+          secComp.setCell(rr * C + ii, src || null);
+        }
+        paintSectionTile(secComp.stream);
       }
       // ---- STAGE lane: chosen <=C feeds -> S1 -> composited strip -> fan down --
       // Individual stager feeds ride UP to Section 1 (uncomposited passthrough,
@@ -5047,7 +5089,8 @@
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
         band: bandComp && bandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
-        strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
+        strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length,
+        section: (() => { const v = stadiumEl.querySelector('[data-row="sec"] video'); return v ? { live: v.videoWidth > 0 } : null; })() }; },
       relayUpNow: () => relayUp(),
       rosterIdsNow: () => rosterIds.slice(),
       linkToPeer: (pid) => linkTo(pid),
