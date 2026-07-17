@@ -2023,6 +2023,14 @@
     const meshSendDC = (to, m) => {
       const p = peers.get(to);
       if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'mesh', m }); return true; }
+      // R2: the relay is greeters-only, NOT a control proxy. Mesh control that
+      // can't ride a direct link hops a MUTUAL FRIEND's DataChannel (one hop,
+      // mirrors fsig), never the relay. Only when no direct link AND no sponsor
+      // exists (the newcomer's first dance to a greeter) does the wire fall back
+      // to the relay bootstrap — the one unavoidable touch.
+      const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
+      const fp = cands.length ? peers.get(cands[0]) : null;
+      if (fp && fp.dc && fp.dc.readyState === 'open') { dcSend(fp, { k: 'fmesh', from: myId, to, m }); return true; }
       return false;
     };
 
@@ -3099,6 +3107,13 @@
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
+      } else if (m.k === 'fmesh') {
+        // Sponsor-forwarded mesh control (one hop, mirrors fsig): mine ⇒ hand to
+        // the mesh node as if it arrived direct; else forward ONLY over a direct
+        // open channel to the target — never re-sponsor.
+        if (m.to === myId) { if (meshNode && m.m) meshNode.recvCtl(m.m); return; }
+        const tp = peers.get(m.to);
+        if (tp && tp.dc && tp.dc.readyState === 'open') dcSend(tp, { k: 'fmesh', from: m.from, to: m.to, m: m.m });
       } else if (m.k === 'rkick') {
         // The far side has a streamless mapping from me: if any of my sender
         // m-lines toward them never negotiated (rolled back in a glare),
