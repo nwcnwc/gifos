@@ -93,6 +93,7 @@ const cfg = {
   chrome: args.chrome || process.env.MEET_CHROME,
   level: args.level || 'info',
   every: Math.max(1, parseFloat(args.every || '3')),
+  settle: Math.max(0, parseFloat(args.settle || '0')), // --once/--watch: wait N s after seating before acting (let composites fill)
   forSecs: args['for'] ? Math.max(1, parseFloat(args['for'])) : Infinity,
   json: !!args.json,
 };
@@ -263,7 +264,21 @@ async function runCmd(line) {
     console.log('  ' + cmd + ' toggled'); return true;
   }
   if (cmd === 'name') { if (arg) await page.evaluate((n) => { try { localStorage.setItem('gifos_name', n); } catch (e) {} const el = document.getElementById('myname'); if (el) el.textContent = n; }, arg); console.log('  name → ' + arg); return true; }
-  if (cmd === 'shot') { const p = arg || ('/tmp/claude-1000/-home-nathan-projects-gifos/1270a1af-99d6-4f5c-b245-2a1eb40656dd/scratchpad/meet-shot.png'); await page.screenshot({ path: p, fullPage: true }); console.log('  screenshot → ' + p); return true; }
+  if (cmd === 'shot') {
+    const p = arg || ('/tmp/claude-1000/-home-nathan-projects-gifos/1270a1af-99d6-4f5c-b245-2a1eb40656dd/scratchpad/meet-shot.png');
+    // Snap NOW (this instant). The meeting scrolls INSIDE #feed, so fullPage
+    // alone only grabs the viewport — grow the viewport to the content height
+    // so the WHOLE window (every tile, below the fold) is in one shot, then
+    // restore. No fixed viewport clip, no lost tiles.
+    const vp = page.viewportSize();
+    const h = await page.evaluate(() => { const f = document.getElementById('feed'); return Math.max(document.documentElement.scrollHeight, f ? f.scrollHeight + 220 : 0, 1000); }).catch(() => 2200);
+    const H = Math.min(Math.round(h), 12000);
+    try { await page.setViewportSize({ width: (vp && vp.width) || 1200, height: H }); await sleep(450); } catch (e) {}
+    await page.screenshot({ path: p, fullPage: true });
+    if (vp) { try { await page.setViewportSize(vp); } catch (e) {} }
+    console.log('  screenshot (whole window, ' + H + 'px tall) → ' + p);
+    return true;
+  }
   if (cmd === 'chat') {
     if (arg) { await page.evaluate((msg) => { const i = document.getElementById('chat-input') || document.querySelector('#chat input,[data-chat-input]'); if (i) { i.value = msg; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } }, arg); console.log('  sent: ' + arg); }
     else { const msgs = await page.evaluate(() => [...document.querySelectorAll('#chat-log .msg,.chat-msg,#chat .msg')].slice(-12).map((m) => m.textContent.trim())); console.log(msgs.length ? '  ' + msgs.join('\n  ') : '  (no chat visible)'); }
@@ -291,20 +306,21 @@ async function runCmd(line) {
       break;
     }
     case 'rows': {
-      // The REAL C×C coordinate grid of my section (from occ) — not the legacy
-      // display grouping. `·` = empty seat, `(me)` = my seat. `tree` = whole room.
+      // The REAL C×C grid of a section, built from the whole-mesh CENSUS (not my
+      // occ — an isolated vantage would show almost nothing and disagree with
+      // `tree`). `rows` = my section, `rows <pc>` = any section. · = empty seat.
       const C = 5;
+      const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), 4500).catch(() => null);
+      const src = reps || d.roster.map((x) => ({ coord: x.coord ? String(x.coord).replace('_', '/').replace('_', '.') : null, name: x.name || x.peer }));
       const myPc = d.me.coord ? String(d.me.coord).split('/')[0] : '0';
-      const at = {}; for (const r of d.roster) if (r.coord) at[r.coord] = (r.name || r.peer).split(' ')[0];
-      const meKey = d.me.coord ? String(d.me.coord).replace('/', '_').replace('.', '_') : null;
-      if (meKey) at[meKey] = '(me)';
-      console.log('  section ' + myPc + ' — real coord grid from MY occ (`tree` for the whole room):');
+      const pc = (rest[0] != null && rest[0] !== '') ? rest[0] : myPc;
+      const at = {};
+      for (const x of src) if (x.coord) { const p = String(x.coord).split('/'); const ri = (p[1] || '').split('.'); at[p[0] + '_' + ri[0] + '_' + ri[1]] = (x.name || x.from || '?').split(' ')[0]; }
+      console.log('  section ' + pc + (reps ? ' — whole-mesh census' : ' — from my occ (census hook absent; redeploy)') + ':');
       console.log('       ' + [0, 1, 2, 3, 4].map((i) => pad('i=' + i, 12)).join(''));
-      for (let r = 0; r < C; r++) {
-        let line = '  r=' + r + '  ';
-        for (let i = 0; i < C; i++) line += pad(at[myPc + '_' + r + '_' + i] || '·', 12);
-        console.log(line);
-      }
+      for (let r = 0; r < C; r++) { let line = '  r=' + r + '  '; for (let i = 0; i < C; i++) line += pad(at[pc + '_' + r + '_' + i] || '·', 12); console.log(line); }
+      const filled = Object.keys(at).filter((k) => k.startsWith(pc + '_')).length;
+      console.log('  ' + filled + '/' + (C * C) + ' seats filled in section ' + pc + '   (`rows <pc>` for another section)');
       break;
     }
     case 'links': case 'l': {
@@ -388,6 +404,7 @@ function printHelp() {
     // wait for a seat (up to 60s) so the first output is meaningful
     const t0 = Date.now();
     while (Date.now() - t0 < 60000) { const c = await page.evaluate(() => { try { return window.__gifosVideo.meshCoord(); } catch (e) { return null; } }).catch(() => null); if (c) { console.error('[meet] seated at ' + c.pc + '/' + c.r + '.' + c.i); break; } await sleep(1500); }
+    if (cfg.settle) { console.error('[meet] settling ' + cfg.settle + 's (letting composites fill)…'); await sleep(cfg.settle * 1000); }
     if (MODE === 'once') { await runCmd(String(args.once)); try { await browser.close(); } catch (e) {} process.exit(0); }
     // watch
     const start = Date.now();
