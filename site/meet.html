@@ -1652,15 +1652,19 @@
           if (m2) { txStats.dcSig++; dcSend(pd, { k: 'sig', msg: m2 }); }
           return; // a blocked pair sends nothing on either path (fault injection)
         }
+        txStats.relaySig++;
       }
-      // 2) SPONSOR-FORWARD (docs/meet-security.md §FWD) is the PRIMARY path for a
-      // not-yet-connected pair. THE RELAY IS FOR GREETERS ONLY — so a MUTUAL
-      // FRIEND's DataChannel carries the frame FIRST, whether or not my socket is
-      // up: lowest-id connected peer reporting a live link to the target, one
-      // hop, sealed end-to-end. Deterministic pick, so retries hop the same
-      // sponsor. Only when NO sponsor exists yet (the very first links, before
-      // the mesh has anyone in common) does anything touch the relay at all.
-      if (msg.kind !== 'status') {
+      // 2) The RELAY is the PRIMARY handshake path (it reliably reaches any
+      // socketed peer). SPONSOR-FORWARD (docs/meet-security.md §FWD) is the
+      // FALLBACK for when my relay path to this peer is DOWN — deep seats run
+      // socketless — a mutual friend's DataChannel carries the frame instead.
+      // (Making sponsor-forward PRIMARY stalled connections at conn=1: a peer
+      // that found one sponsor forwarded through it and never fell back to the
+      // relay, so a failed hop = a lost handshake. Relay-primary is the path
+      // that has always worked; the greeters-only cleanup must not cost
+      // connectivity.)
+      const relayDown = !relayUp();
+      if (relayDown && msg.kind !== 'status') {
         const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
         const fp = cands.length ? peers.get(cands[0]) : null;
         if (fp && fp.dc && fp.dc.readyState === 'open') {
@@ -1669,13 +1673,8 @@
           return;
         }
       }
-      // 3) LAST RESORT — the relay, ONLY to bootstrap the very first links
-      // (no mutual friend exists yet) or a status pulse with no DC. This is the
-      // sole non-greeter traffic the relay ever sees, and it ceases the instant
-      // the mesh has a sponsor for the pair. A heartbeat is re-minted every tick
-      // — never queue a stale one on a down socket.
+      // A heartbeat is re-minted every tick — never queue a stale one on a down socket.
       if (msg.kind === 'status') { if (!relayUp()) return; txStats.relayStatus++; }
-      else txStats.relaySig++;
       msg = sigSansIce(to, msg);
       if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
@@ -2092,14 +2091,11 @@
     const meshSendDC = (to, m) => {
       const p = peers.get(to);
       if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'mesh', m }); return true; }
-      // R2: the relay is greeters-only, NOT a control proxy. Mesh control that
-      // can't ride a direct link hops a MUTUAL FRIEND's DataChannel (one hop,
-      // mirrors fsig), never the relay. Only when no direct link AND no sponsor
-      // exists (the newcomer's first dance to a greeter) does the wire fall back
-      // to the relay bootstrap — the one unavoidable touch.
-      const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
-      const fp = cands.length ? peers.get(cands[0]) : null;
-      if (fp && fp.dc && fp.dc.readyState === 'open') { dcSend(fp, { k: 'fmesh', from: myId, to, m }); return true; }
+      // No sponsor hop here: claiming 'sent' after handing a frame to a friend
+      // means a failed hop is a SILENTLY LOST control message. Return false and
+      // let the wire use the sealed relay fallback — delivery over purity.
+      // (The 'fmesh' receive arm stays: it still forwards frames from clients
+      // that sponsor-send.)
       return false;
     };
 
