@@ -238,9 +238,14 @@ clients; a lost reply causes duplicate writes on reconnect.
   the room — a per-room opaque value, never the raw cross-room id and never
   reversible to a person. The cost is deliberate: because a determined device can
   simply wipe its id and mint a new one, device bans/vote-offs were only ever a
-  soft tool against honest repeat offenders, so binding them per-room (rather than
-  handing the relay a global correlator for every honest user) is the right trade.
-  Personal vote-off lists are therefore per-room, not global.
+  soft tool against honest repeat offenders, so binding the relay's *tag* per-room
+  (rather than handing the relay a global correlator for every honest user) is the
+  right trade. The user's **personal vote-off list is still global** — it lives
+  client-side as raw device ids (`localStorage.gifos_voteoff`, "anywhere, ever")
+  and is **re-salted with the current room** each time it is applied, so a vote
+  follows the person into every meeting *without* the relay ever holding a
+  cross-room identifier. Globalness lives in the client; per-room opacity lives at
+  the relay.
 - A client that joins a hostile app **still crosses boundary A and B** — it runs
   the received app sandboxed and gets the same network acknowledgement — so a
   malicious host can't do more to a client than any other app author could.
