@@ -40,13 +40,13 @@
     for (let r = 0; r < C; r++) out.push({ x: 0, y: Math.round(r * bh), w: W, h: Math.round((r + 1) * bh) - Math.round(r * bh) });
     return out;
   }
-  // Fit a source of (sw×sh) into a cell rect COVER-style (fill, center-crop) —
-  // faces read better cropped than letterboxed at mosaic scale.
+  // A CENTERED SQUARE cut from the source's SHORTEST dimension — the same for a
+  // landscape webcam or a portrait phone (a conference call is a mix of both).
+  // Cells are square, so this square fills the cell with no distortion; faces
+  // sit centered, no nostril-zoom, no flipped aspect.
   function coverBox(sw, sh, rect) {
-    if (!sw || !sh) return { sx: 0, sy: 0, sw: sw || 1, sh: sh || 1 };
-    const s = Math.max(rect.w / sw, rect.h / sh);
-    const cw = rect.w / s, ch = rect.h / s;
-    return { sx: (sw - cw) / 2, sy: (sh - ch) / 2, sw: cw, sh: ch };
+    const side = Math.min(sw, sh) || 1;
+    return { sx: (sw - side) / 2, sy: (sh - side) / 2, sw: side, sh: side };
   }
 
   // ---- the composite engine --------------------------------------------------

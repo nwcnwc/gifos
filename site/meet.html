@@ -100,6 +100,8 @@
      composite tile each — a horizontally scrolling strip above your own row's
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
   #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
+  #stadium .rowtile { aspect-ratio: 1 / 1; } /* section/stadium composites are square (square-cropped cells) */
+  #stadium .rowtile video { object-fit: contain; } /* show the whole grid, not a crop of it */
   #stadium.on { display: grid; }
   .rowtile { position: relative; aspect-ratio: 9 / 16; /* folds are PORTRAIT — phone-width, scroll-tall */
     background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
@@ -3585,14 +3587,14 @@
       // EVERY seat composites its OWN row band (cheap: C cells, one canvas).
       // Heads feed it into their Stadium product; non-heads ship it over their
       // cross-link — the Section exchange. One band, both channels.
-      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_H / SCALE.C, ac: (ensureAc(), ac) }).start();
+      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_W / SCALE.C, ac: (ensureAc(), ac) }).start();
       for (let j = 0; j < C; j++) {
         const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
         const sc = srcFor(pid); rowBandComp.setCell(j, sc.el, sc.stream);
       }
       if (iAmHead) {
         // PRODUCT = my row band (slot 0) + my row's C sub-products (slots 1..C)
-        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1, ac: (ensureAc(), ac) }).start();
+        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1, h: SCALE.COMP_W * (C + 1) / C, ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const sub = mosIn.get('sub:' + j);
           prodComp.setCell(1 + j, sub ? sub.el : null, sub ? sub.stream : null);
@@ -3609,7 +3611,7 @@
             const mate = occPid({ pc: 0, r: c.r, i: j });
             const jk = shipMos('x1', mate, prodComp.stream, { row: c.r }); if (jk) wanted.add(jk);
           }
-          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame', ac: (ensureAc(), ac) }).start();
+          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame', h: SCALE.COMP_W, ac: (ensureAc(), ac) }).start();
           for (let q = 0; q < C; q++) {
             if (q === c.r) { sdComp.setCell(q, prodComp.canvas, prodComp.stream); continue; }
             const rowIn = mosIn.get('sdrow:' + q);
@@ -3662,7 +3664,7 @@
             }
           }
           // self-composite the block: my row live + the received bands
-          if (!secComp) secComp = MM.createComposite({ kind: 'frame', ac: (ensureAc(), ac) }).start();
+          if (!secComp) secComp = MM.createComposite({ kind: 'frame', h: SCALE.COMP_W, ac: (ensureAc(), ac) }).start();
           for (let q = 0; q < C; q++) {
             if (q === c.r) { secComp.setCell(q, rowBandComp.canvas, rowBandComp.stream); continue; }
             const bIn = mosIn.get('secband:' + q);
@@ -3693,7 +3695,7 @@
         // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_H / SCALE.C, ac: (ensureAc(), ac) }).start();
+        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_W / SCALE.C, ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const sid = stagers[j];
           const sc = !sid ? { el: null, stream: null } : srcFor(sid, 'stg:' + sid);
