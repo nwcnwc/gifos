@@ -100,8 +100,8 @@
      composite tile each — a horizontally scrolling strip above your own row's
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
   #stadium { display: none; gap: 8px; padding: 0 8px 8px; grid-template-columns: 1fr 1fr; }
-  #stadium .rowtile { aspect-ratio: 1 / 1; } /* section/stadium composites are square (square-cropped cells) */
-  #stadium .rowtile video { object-fit: contain; } /* show the whole grid, not a crop of it */
+  #stadium .rowtile { aspect-ratio: 1 / 1; } /* placeholder until the stream's real dims land (trackAspect) */
+  #stadium .rowtile video { object-fit: contain; } /* the packed grid shows WHOLE, never cropped */
   #stadium.on { display: grid; }
   .rowtile { position: relative; aspect-ratio: 9 / 16; /* folds are PORTRAIT — phone-width, scroll-tall */
     background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f);
@@ -3110,7 +3110,7 @@
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
       } else if (m.k === 'mx' && typeof m.key === 'string' && m.streamId) {
         // Mosaic ship announced (idempotent, re-sent every sweep) — claim by id.
-        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, at: Date.now() });
+        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, at: Date.now() });
         claimMos();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -3483,9 +3483,9 @@
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
     const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
-    let rowBandComp = null, prodComp = null, sdComp = null, stripComp = null;
+    let rowPack = null, prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
     const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
-    let secComp = null;
+    let secPack = null;
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -3505,6 +3505,7 @@
       const jk = key + '>' + to;
       const cur = mosJobs.get(jk);
       if (cur && cur.sig === stream.id) { // live job — re-announce (idempotent, heals a lost frame)
+        if (meta) cur.meta = meta; // counts change while the stream id doesn't — the fresh {n, cols} must ride each re-announce
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
       }
@@ -3559,14 +3560,21 @@
         const rk = mosResolve(key, ann, from);
         if (!rk) continue;
         const cur = mosIn.get(rk);
-        if (cur && cur.streamId === ann.streamId) continue; // already claimed
+        if (cur && cur.streamId === ann.streamId) { cur.meta = { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols }; continue; } // claimed — refresh {n, cols}
         const p = peers.get(from);
         if (!p || !p.incoming) continue;
         const st = p.incoming.find((s) => s.id === ann.streamId && s.id !== p.ownSid);
         if (!st) continue;
         if (cur) dropMosIn(rk);
-        mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: { col: ann.col, row: ann.row } });
+        mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols } });
       }
+    }
+    // A packed mosaic's tile takes the SHAPE of its content: the packer sizes
+    // its canvas to the gapless grid (k×1 bar, near-square frame), so the tile
+    // just mirrors the stream's real dimensions — no fixed 5×5, no letterbox.
+    function trackAspect(el, v) {
+      const set = () => { if (v.videoWidth && v.videoHeight) el.style.aspectRatio = (v.videoWidth / v.videoHeight).toFixed(4); };
+      v.addEventListener('resize', set); v.addEventListener('loadedmetadata', set); set();
     }
     // The stadium tile (one, keyed 'sd') in the stadium strip.
     function paintStadiumTile(stream) {
@@ -3576,7 +3584,7 @@
         el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sd';
         const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
         const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'The stadium';
-        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el);
+        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el); trackAspect(el, v);
       }
       const v = el.querySelector('video');
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
@@ -3591,7 +3599,7 @@
         el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sgs';
         const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
         const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'On stage';
-        el.appendChild(v); el.appendChild(lb); stagefeedEl.appendChild(el);
+        el.appendChild(v); el.appendChild(lb); stagefeedEl.appendChild(el); trackAspect(el, v);
       }
       const v = el.querySelector('video');
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
@@ -3605,7 +3613,7 @@
         el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sec';
         const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
         const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'Your section';
-        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el);
+        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el); trackAspect(el, v);
       }
       const v = el.querySelector('video');
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
@@ -3616,11 +3624,11 @@
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
       mosAnn.clear();
-      if (rowBandComp) { rowBandComp.stop(); rowBandComp = null; }
-      if (prodComp) { prodComp.stop(); prodComp = null; }
-      if (sdComp) { sdComp.stop(); sdComp = null; }
-      if (stripComp) { stripComp.stop(); stripComp = null; }
-      if (secComp) { secComp.stop(); secComp = null; }
+      if (rowPack) { rowPack.stop(); rowPack = null; }
+      if (prodPack) { prodPack.stop(); prodPack = null; }
+      if (sdPack) { sdPack.stop(); sdPack = null; }
+      if (stripPack) { stripPack.stop(); stripPack = null; }
+      if (secPack) { secPack.stop(); secPack = null; }
       stgSpread.clear();
       paintStadiumTile(null); paintStageStrip(null); paintSectionTile(null);
     }
@@ -3634,7 +3642,7 @@
         for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
         return false;
       })();
-      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || rowBandComp) stopMosaic(); return; }
+      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || rowPack) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
@@ -3648,60 +3656,79 @@
         const p = peers.get(pid);
         return p ? { el: p.video, stream: p.video.srcObject } : { el: null, stream: null };
       };
-      // EVERY seat composites its OWN row band (cheap: C cells, one canvas).
-      // Heads feed it into their Stadium product; non-heads ship it over their
-      // cross-link — the Section exchange. One band, both channels.
-      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_W / SCALE.C, ac: (ensureAc(), ac) }).start();
+      // ---- GAPLESS PACKING (approach A — docs/media-plane.md) ----------------
+      // Every shipped mosaic is a row-major PACKED grid of square faces with NO
+      // internal holes; the announce meta carries {n, cols} so any receiver can
+      // blit faces out by sub-rect and repack. Empty seats are never drawn.
+      const blockMeta = (f) => {
+        if (f && f.meta && f.meta.n) return { n: f.meta.n, cols: f.meta.cols || f.meta.n };
+        const w = f && f.el ? (f.el.videoWidth || 0) : 0, h = f && f.el ? (f.el.videoHeight || 0) : 0;
+        const k = (w && h) ? Math.max(1, Math.round(Math.max(w, h) / Math.min(w, h))) : 1;
+        return { n: k, cols: k }; // legacy bar self-describes via aspect (5 − max/min = free)
+      };
+      const setBlock = (pk, id, ord, f) => { const m = blockMeta(f); pk.setTile(id, ord, f.el, f.stream, m); };
+      // MY ROW as a k-wide BAR of only the PRESENT faces (never padded to C).
+      if (!rowPack) rowPack = MM.createPacker({ shape: 'bar', ac: (ensureAc(), ac) }).start();
       for (let j = 0; j < C; j++) {
         const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
-        const sc = srcFor(pid); rowBandComp.setCell(j, sc.el, sc.stream);
+        const sc = pid ? srcFor(pid) : null;
+        if (sc && sc.el) rowPack.setTile('r' + j, j, sc.el, sc.stream, { n: 1, cols: 1 });
+        else rowPack.delTile('r' + j);
       }
+      const rowMeta = () => ({ n: rowPack.count(), cols: rowPack.cols() });
       if (iAmHead) {
-        // PRODUCT = my row band (slot 0) + my row's C sub-products (slots 1..C)
-        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1, h: SCALE.COMP_W * (C + 1) / C, ac: (ensureAc(), ac) }).start();
+        // PRODUCT = my row's live faces + my row's sub-blocks, PACKED near-square
+        // (no fixed C+1 slots — the tall-product blowup is gone).
+        if (!prodPack) prodPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
+          const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          const sc = pid ? srcFor(pid) : null;
+          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1 });
+          else prodPack.delTile('r' + j);
           const sub = mosIn.get('sub:' + j);
-          prodComp.setCell(1 + j, sub ? sub.el : null, sub ? sub.stream : null);
+          if (sub) setBlock(prodPack, 's' + j, 'b' + j, sub); else prodPack.delTile('s' + j);
         }
-        prodComp.setCell(0, rowBandComp.canvas, rowBandComp.stream);
+        const prodMeta = () => ({ n: prodPack.count(), cols: prodPack.cols() });
         if (c.pc !== 0 && multiSection()) {
           // ship my product UP (the up-seat relays it to ITS head)
           const up = T.up(c); const upPid = up ? occPid(up) : null;
-          const jk = shipMos('sub', upPid, prodComp.stream, null); if (jk) wanted.add(jk);
+          const jk = shipMos('sub', upPid, prodPack.stream, prodMeta()); if (jk) wanted.add(jk);
         } else if (c.pc === 0 && multiSection()) {
-          // SECTION-1 FINISH: exchange products (x1 to each row-mate), stack
+          // SECTION-1 FINISH: exchange products (x1 to each row-mate), PACK
           // into THE STADIUM, fan it down my down-link + keep my row current.
           for (let j = 1; j < C; j++) {
             const mate = occPid({ pc: 0, r: c.r, i: j });
-            const jk = shipMos('x1', mate, prodComp.stream, { row: c.r }); if (jk) wanted.add(jk);
+            const jk = shipMos('x1', mate, prodPack.stream, Object.assign({ row: c.r }, prodMeta())); if (jk) wanted.add(jk);
           }
-          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame', h: SCALE.COMP_W, ac: (ensureAc(), ac) }).start();
+          if (!sdPack) sdPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
           for (let q = 0; q < C; q++) {
-            if (q === c.r) { sdComp.setCell(q, prodComp.canvas, prodComp.stream); continue; }
+            if (q === c.r) { sdPack.setTile('q' + q, q, prodPack.canvas, prodPack.stream, prodMeta()); continue; }
             const rowIn = mosIn.get('sdrow:' + q);
-            sdComp.setCell(q, rowIn ? rowIn.el : null, rowIn ? rowIn.stream : null);
+            if (rowIn) setBlock(sdPack, 'q' + q, q, rowIn); else sdPack.delTile('q' + q);
           }
-          paintStadiumTile(sdComp.stream);
+          paintStadiumTile(sdPack.stream);
+          const sdMeta = () => ({ n: sdPack.count(), cols: sdPack.cols() });
           const downPid = occPid(T.down(c));
-          const jk2 = shipMos('sd', downPid, sdComp.stream, null); if (jk2) wanted.add(jk2);
+          const jk2 = shipMos('sd', downPid, sdPack.stream, sdMeta()); if (jk2) wanted.add(jk2);
           for (let j = 1; j < C; j++) { // S1 row-mates see the stadium too
             const mate = occPid({ pc: 0, r: c.r, i: j });
-            const jk3 = shipMos('sd', mate, sdComp.stream, null); if (jk3) wanted.add(jk3);
+            const jk3 = shipMos('sd', mate, sdPack.stream, sdMeta()); if (jk3) wanted.add(jk3);
           }
         }
       } else {
         // NON-HEAD relays: my down-child's product -> my head (tagged with my
         // column); my head's x1 -> across my cross-link; an x2 -> to my head.
+        // Meta {n, cols} is FORWARDED so the far end can unpack faces.
         const headPid = occPid({ pc: c.pc, r: c.r, i: 0 });
         const subraw = mosIn.get('subraw');
-        if (subraw) { const jk = shipMos('sub', headPid, subraw.stream, { col: c.i }); if (jk) wanted.add(jk); }
+        if (subraw) { const jk = shipMos('sub', headPid, subraw.stream, Object.assign({ col: c.i }, blockMeta(subraw))); if (jk) wanted.add(jk); }
         const x1 = mosIn.get('x1');
         if (x1 && c.pc === 0) {
           const xc = T.crossLink(c); const xPid = xc ? occPid(xc) : null;
-          const jk = shipMos('x2', xPid, x1.stream, { row: x1.meta.row }); if (jk) wanted.add(jk);
+          const jk = shipMos('x2', xPid, x1.stream, Object.assign({ row: x1.meta.row }, blockMeta(x1))); if (jk) wanted.add(jk);
         }
         const x2 = mosIn.get('x2');
-        if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, { row: x2.meta.row }); if (jk) wanted.add(jk); }
+        if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, Object.assign({ row: x2.meta.row }, blockMeta(x2))); if (jk) wanted.add(jk); }
       }
       // ---- SECTION lane: ROW BANDS exchanged over cross-links (bounded) -------
       // The design (docs/media-plane.md Channel Se): each row's BAND crosses
@@ -3715,26 +3742,35 @@
       {
         const secMates = (() => { for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc === c.pc && cc.r !== c.r) return true; } return false; })();
         if (secMates) {
-          // ship my row's band over my cross-link (non-heads only — heads have none)
+          // ship my row's PACKED bar over my cross-link (non-heads only)
           const xc = T.crossLink(c);
-          if (xc) { const xPid = occPid(xc); const jk = shipMos('secband', xPid, rowBandComp.stream, { row: c.r }); if (jk) wanted.add(jk); }
-          // reshare a band that arrived OVER MY CROSS-LINK to my row-mates
+          if (xc) { const xPid = occPid(xc); const jk = shipMos('secband', xPid, rowPack.stream, Object.assign({ row: c.r }, rowMeta())); if (jk) wanted.add(jk); }
+          // reshare a bar that arrived OVER MY CROSS-LINK to my row-mates (meta forwarded)
           for (let q = 0; q < C; q++) {
             const bIn = mosIn.get('secband:' + q);
             if (!bIn || q === c.r) continue;
             const xPid2 = xc ? occPid(xc) : null;
             if (bIn.via === xPid2) { // I am this band's importer for my row
-              for (const m of T.rowMates(c)) { const mp = occPid(m); const jk = shipMos('secband', mp, bIn.stream, { row: q }); if (jk) wanted.add(jk); }
+              for (const m of T.rowMates(c)) { const mp = occPid(m); const jk = shipMos('secband', mp, bIn.stream, Object.assign({ row: q }, blockMeta(bIn))); if (jk) wanted.add(jk); }
             }
           }
-          // self-composite the block: my row live + the received bands
-          if (!secComp) secComp = MM.createComposite({ kind: 'frame', h: SCALE.COMP_W, ac: (ensureAc(), ac) }).start();
-          for (let q = 0; q < C; q++) {
-            if (q === c.r) { secComp.setCell(q, rowBandComp.canvas, rowBandComp.stream); continue; }
-            const bIn = mosIn.get('secband:' + q);
-            secComp.setCell(q, bIn ? bIn.el : null, bIn ? bIn.stream : null);
+          // GAPLESS self-pack: my own live faces + the received bars — faces
+          // only, near-square, no black cells for empty seats. Deterministic
+          // order (row-major by row, then column) so every device draws the
+          // same mosaic.
+          if (!secPack) secPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
+          for (let j = 0; j < C; j++) {
+            const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+            const sc = pid ? srcFor(pid) : null;
+            if (sc && sc.el) secPack.setTile('m' + j, c.r * 10 + j, sc.el, sc.stream, { n: 1, cols: 1 });
+            else secPack.delTile('m' + j);
           }
-          paintSectionTile(secComp.stream);
+          for (let q = 0; q < C; q++) {
+            if (q === c.r) { secPack.delTile('q' + q); continue; }
+            const bIn = mosIn.get('secband:' + q);
+            if (bIn) setBlock(secPack, 'q' + q, q * 10, bIn); else secPack.delTile('q' + q);
+          }
+          paintSectionTile(secPack.stream);
         } else paintSectionTile(null);
       }
       // ---- STAGE lane: chosen <=C feeds -> S1 -> composited strip -> fan down --
@@ -3759,22 +3795,24 @@
         // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_W / SCALE.C, ac: (ensureAc(), ac) }).start();
-        for (let j = 0; j < C; j++) {
-          const sid = stagers[j];
-          const sc = !sid ? { el: null, stream: null } : srcFor(sid, 'stg:' + sid);
-          stripComp.setCell(j, sc.el, sc.stream);
-        }
-        paintStageStrip(stripComp.stream);
-        for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripComp.stream, null); if (jk) wanted.add(jk); }
+        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', ac: (ensureAc(), ac) }).start();
+        const stgKeep = new Set();
+        stagers.forEach((sid, j) => {
+          const sc = srcFor(sid, 'stg:' + sid);
+          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1 }); stgKeep.add(sid); }
+        });
+        for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
+        paintStageStrip(stripPack.stream);
+        const sgsMeta = () => ({ n: stripPack.count(), cols: stripPack.cols() });
+        for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripPack.stream, sgsMeta()); if (jk) wanted.add(jk); }
         }
       }
       // Every seat: render the received strip and fan it down (heads -> row-mates).
       const sgs = mosIn.get('sgs');
       if (sgs && c.pc !== 0) {
         paintStageStrip(sgs.stream);
-        const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, null); if (dj) wanted.add(dj);
-        if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, null); if (jk) wanted.add(jk); }
+        const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
+        if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
       } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
 
       // EVERY seat: the claimed stadium renders and fans DOWN my down-link;
@@ -3783,10 +3821,10 @@
       if (sd && !(iAmHead && c.pc === 0)) {
         paintStadiumTile(sd.stream);
         const downPid = occPid(T.down(c));
-        const jk = shipMos('sd', downPid, sd.stream, null); if (jk) wanted.add(jk);
+        const jk = shipMos('sd', downPid, sd.stream, blockMeta(sd)); if (jk) wanted.add(jk);
         if (iAmHead) for (let j = 1; j < C; j++) {
           const mate = occPid({ pc: c.pc, r: c.r, i: j });
-          const jk2 = shipMos('sd', mate, sd.stream, null); if (jk2) wanted.add(jk2);
+          const jk2 = shipMos('sd', mate, sd.stream, blockMeta(sd)); if (jk2) wanted.add(jk2);
         }
       } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
       for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
@@ -5229,9 +5267,9 @@
       mosaic: () => { const c = meshCoord(); const T = net.topo; const tgt = (co) => { if (!co) return null; const pid = occPid(co); const p = pid && peers.get(pid); return { pid: (pid||'').slice(0,6), has: !!p, conn: p && p.connected, dc: !!(p && p.dc && p.dc.readyState === 'open') }; };
         return { multi: multiSection(), coord: c, head: c && c.i === 0, s1: c && c.pc === 0,
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
-        prodStream: !!(prodComp && prodComp.stream), sdStream: !!(sdComp && sdComp.stream),
+        prodStream: !!(prodPack && prodPack.stream), sdStream: !!(sdPack && sdPack.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
-        band: rowBandComp && rowBandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
+        band: rowPack && rowPack.stats(), prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length,
         section: (() => { const v = stadiumEl.querySelector('[data-row="sec"] video'); return v ? { live: v.videoWidth > 0 } : null; })() }; },

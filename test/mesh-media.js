@@ -51,5 +51,22 @@ check('sub-band survives cover-fit (nonzero crop)', sub.sw > 0 && sub.sh > 0);
 const comp = M.createComposite({ kind: 'band', C: 5 });
 check('createComposite degrades cleanly without DOM', comp.canvas === null && comp.start() === comp && comp.stream === null);
 
+
+// ---- the gapless packer (approach A) ----------------------------------------
+// packGrid: bar = 1×T (aspect self-describes the count); grid = near-square.
+const pg = (t, s) => M.packGrid(t, s);
+check('packGrid bar: 3 faces = 3×1', pg(3, 'bar').cols === 3 && pg(3, 'bar').rows === 1);
+check('packGrid grid: 12 faces = 4×3 (gapless, no fixed 5×5)', pg(12, 'grid').cols === 4 && pg(12, 'grid').rows === 3);
+check('packGrid grid: 25 faces = 5×5', pg(25, 'grid').cols === 5 && pg(25, 'grid').rows === 5);
+check('packGrid grid: 26 faces = 6×5 (tail 4)', pg(26, 'grid').cols === 6 && pg(26, 'grid').rows === 5);
+// faceSrcRect: face j of a packed block is addressable by sub-rect (row-major).
+const fr = M.faceSrcRect(7, 12, 4, 400, 300); // 4×3 block @400×300 → cell 100×100; face 7 = row1,col3
+check('faceSrcRect addresses face 7 of a 4-wide block at (300,100)',
+  Math.abs(fr.sx - 300) < 0.01 && Math.abs(fr.sy - 100) < 0.01 && Math.abs(fr.sw - 100) < 0.01 && Math.abs(fr.sh - 100) < 0.01, fr);
+// Node-degrade: constructs without DOM, refuses to start.
+const pk = M.createPacker({ shape: 'grid' });
+check('packer degrades cleanly without DOM', pk.canvas === null && pk.start() === pk && pk.stream === null);
+pk.setTile('a', 0, null, null, null); pk.delTile('a');
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
 process.exit(fails === 0 ? 0 : 1);
