@@ -183,17 +183,39 @@ is not the actor.
   so it rarely heals over a live cell at all. Formation-prevention atop reliable
   resolution.
 
-### Open decision
-Vertical heal (a) down-child *moves up itself* (fast; cascades a column-collapse) vs
-(b) down-child promotes a *deeper* leaf and stays (minimal churn; must locate the leaf).
-Both keep the fixed designation; pick per disruption-vs-latency when building.
+### No cascade — the mover is always a leaf
+Filling a hole never cascades down a subtree, because **only a leaf ever moves**. A
+down-child that has a subtree promotes a *deep* leaf and **stays put**; it moves itself
+only when it *is* a leaf (nothing below to disturb). So one leaf jumps up into the hole
+and its old frontier slot compacts — **O(1) disruption, never O(depth)**.
+
+### Healing and admission are ONE gatekeeper (closes the 2nd dup source + fragmentation)
+Healing and newcomer-placement are two fillers competing for the same holes. Left
+uncoordinated (today both just read the occ map and take a "free" cell) that gives two
+failures:
+- **A race → a dup.** A promoted leaf and an admitted newcomer can both land in hole X —
+  the *second* dup source ("placed by a healer **or** as a newcomer"), independent of
+  `lowest-survivor`.
+- **Fragmentation.** If a shallow internal hole is reserved for a deep-leaf promotion, a
+  newcomer routed there can't take it and is pushed to a **deeper frontier** — the tree
+  grows deeper than needed even though a shallow hole existed.
+
+Fix: a hole's **fixed authority** (its down-child, else its right-neighbour) gatekeeps
+**all** filling — *admit a newcomer OR promote a leaf, as a single decision*:
+- One authority ⇒ **no race** ⇒ the healer-vs-newcomer dup cannot form.
+- Compaction preserved: if a newcomer is routed to a shallow hole, **admit it** (keep the
+  tree shallow); pull a leaf up from below **only** when no newcomer is coming.
+
+So 11a's fixed-designation rule governs **admission too**, not just healing — otherwise
+removing the `lowest-survivor` dup still leaves the healer-vs-newcomer dup and the
+hole-reservation fragmentation. (This is the mechanism behind increment 29's compaction.)
 
 ## Remaining sim increments
 - **7** — model link establishment explicitly (a neighbor link forms only after a routed SIGNAL handshake / RTT), not implicitly.
 - **8** — harden the entry-gateway: a joiner's first link is the relay handshake to a greeter; everything else routes through it.
 - **9** — earliest relay-socket drop: drop the socket the tick the gateway link is up; re-open only when seated in Section 1.
 - **10** — relay-socket bound (~30/session) + greeter-pool health + flash-crowd join.
-- **11a** — one healing rule, fixed designations (down-child, else right-neighbour; every hole filled by a leaf; parent = foreknowledge not healer). Replaces `lowest-survivor`. Fixes **B** and **A-dups**. Gate: `sever=0.01` and enforced 50%-kill → `dups==0`, heal 1000/1000. *(Full design in the "11a design" section above.)*
+- **11a** — one healing rule, fixed designations (down-child, else right-neighbour; every hole filled by a leaf; parent = foreknowledge not healer). Replaces `lowest-survivor`. **Governs admission too** — a hole's fixed authority admits a newcomer *or* promotes a leaf as one decision (kills the healer-vs-newcomer dup + hole-reservation fragmentation). Fixes **B** and **A-dups**. Gate: `sever=0.01` and enforced 50%-kill → `dups==0`, heal 1000/1000. *(Full design in the "11a design" section above.)*
 - **11b** — routing reliability under churn (retry / alternate owned-link when `strictNextHop`=−1; re-join provably reaches a greeter). Fixes **A-strands**. Gate: enforced 50%-kill → `strands==0`, TELEPORT stays 0.
 - **12** — re-prove under the full impairment matrix (loss / severance / subnets / partition / latency) + scale (100k+): convergence, TELEPORT=0, bounded sockets, ticks/s; gate the diagnostic overhead behind a flag.
 
@@ -224,7 +246,7 @@ Both keep the fixed designation; pick per disruption-vs-latency when building.
 - **28** — App governance over the mesh (open-room anarchy ordered, admin-room control).
 
 ### Healing & topology hardening
-- **29** — Seating compaction: newcomers into Section-1 holes via the echo-immune `live` signal (the fragmentation fix), sim-first.
+- **29** — Seating compaction: newcomers into Section-1 holes via the echo-immune `live` signal (the fragmentation fix), sim-first — built on 11a's one-gatekeeper rule (admission and healing share a hole's fixed authority; prefer admitting a newcomer into a shallow hole over pulling a leaf up).
 - **30** — H8 whole-section death + cousins/heir foreknowledge, re-proven under strict routing.
 - **31** — Signaling under churn/partition: heal routing paths; re-prove convergence (composes with 11a/11b).
 - **32** — Media resilience: P1 friend-relay fallback when a direct media path fails (still no TURN, ever).
