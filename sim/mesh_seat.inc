@@ -112,6 +112,34 @@ int Seat::nextHopToward(Coord target,int exclude){
 }
 void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ckey(coord)==ckey(target)) return; if(nh>=0){ Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=tag;m.ttl=60;m.via=id; emit(nh,m);} }
 
+// ---- mesh routing (Option A) -------------------------------------------------
+// route(): deliver `inner` to coord rdst over LINKS only. If I already sit at
+// rdst it is delivered locally; otherwise it is handed to the next hop toward
+// rdst (or, when I am an unseated newcomer, out through my gateway link). No
+// teleport: if there is no next hop it is simply dropped and the caller retries.
+void Seat::route(Coord rdst,int rfinal,Msg inner){
+  inner.routing=true; inner.rdst=rdst; inner.rfinal=rfinal; inner.rttl=64; inner.rvia=id;
+  if(hasCoord && ckey(coord)==ckey(rdst)){                // I'm the destination cell
+    if(rfinal<0 || rfinal==id){ inner.routing=false; recv(inner); return; }
+    Msg h=inner; h.routing=false; emit(rfinal,h); return; // hand to my attached newcomer
+  }
+  int nh = hasCoord ? nextHopToward(rdst,-1) : gateway;   // unseated ⇒ leave via the gateway link
+  if(nh>=0) emit(nh,inner);
+}
+// routeStep(): a routing frame arrived at me mid-flight. Return true iff it is
+// FOR me (routing cleared, fall through to normal dispatch); false if I forwarded
+// it on (or dropped it — no route / TTL spent).
+bool Seat::routeStep(Msg& m){
+  if(hasCoord && ckey(coord)==ckey(m.rdst)){
+    if(m.rfinal<0 || m.rfinal==id){ m.routing=false; return true; }
+    Msg h=m; h.routing=false; emit(m.rfinal,h); return false;   // deliver to the attached newcomer
+  }
+  if(m.rttl<=0) return false;                              // give up — sender retries
+  int nh = nextHopToward(m.rdst, m.rvia);
+  if(nh<0) return false;                                   // no link toward rdst — drop
+  Msg f=m; f.rttl=m.rttl-1; f.rvia=id; emit(nh,f); return false;
+}
+
 void Seat::onPhone(Msg& m){
   if(!hasCoord || m.tock!=ckey(coord)) return;   // tock is always set for a PHONE; ckey(0,0,0)==0 is a REAL coord, so never skip the check
   uint64_t ck=ckey(m.coord); int prev=occGet(ck);
@@ -154,6 +182,7 @@ void Seat::s1Fill(){
 
 void Seat::recv(Msg& m){
   if(!alive[id]) return;
+  if(m.routing && !routeStep(m)) return;   // Option A: in-transit routing frame — forward it (or drop); only fall through when it is FOR me
   switch(m.t){
     case GREETERS: {
       if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)

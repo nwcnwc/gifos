@@ -27,6 +27,12 @@ struct Msg {
   Coord coord{0,0,0},hole{0,0,0},target{0,0,0};
   bool kids=false;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
+  // ---- mesh routing (Option A) ----------------------------------------------
+  // A frame with routing=true travels hop-by-hop over LINKS (nextHopToward)
+  // until it reaches rdst. If rfinal>=0, the occupant of rdst hands it to rfinal
+  // over a direct link (delivery to an unseated newcomer via its gateway). This
+  // is how the protocol reaches a NON-adjacent seat without teleporting.
+  bool routing=false; int rfinal=-1,rttl=0,rvia=-1; Coord rdst{0,0,0};
 };
 
 // ---- globals / fabric ----
@@ -162,6 +168,9 @@ struct Seat {
   void drainOrReenter(); void reseatViaRoster();
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
+  int gateway=-1;                       // the greeter this (unseated) newcomer routes through
+  void route(Coord rdst,int rfinal,Msg inner);   // send `inner` over the mesh to coord rdst (rfinal>=0 ⇒ hand to that newcomer at the end)
+  bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
   void routeTo(Coord target,int tag);
   void leave();
 };
