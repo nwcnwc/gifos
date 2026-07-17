@@ -30,6 +30,15 @@ falls back to the relay WebSocket automatically:
    session simply keeps flowing through the relay. **No TURN server needed —
    the relay is Plan B.** The app can't tell the difference either way.
 
+The shared transport fabric (`site/js/gifos-net.js`) names these three rungs and
+tries them in order: **P0** — a direct WebRTC DataChannel to the destination;
+**P1** — one hop *through a mutual friend's browser* (`{t:'fwd'}` over two
+DataChannels), the account-free stand-in for TURN; **P2** — the relay WebSocket
+(the bandwidth-capped control plane). App-GIF traffic falls P0 → P1 → P2; in a
+meeting, chat/control fall P0 → P1 → P2 while **media and file bodies ride P0 →
+P1 only and NEVER the relay**. There is **no TURN server anywhere** — the ICE
+config is STUN-only.
+
 ```
 Host browser                relay.gifos.app              Client browser
      │── ws connect ────────────►│◄──────────── ws connect ──│
@@ -76,7 +85,7 @@ A GifOS app runs in its own tab. The desktop (parent/opener window) exposes a **
 The app developer writes against a single database API. The runtime resolves it based on the **launch URL**:
 
 - **No remote session in the URL** → the runtime creates/opens a **local** authoritative DB. The app is the **server**.
-- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB meeting over the relay to the server browser. The app is a **client**.
+- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB operation over the relay to the server browser. The app is a **client**.
 
 ```javascript
 // App-side — identical code whether server or client
@@ -86,7 +95,7 @@ const moves = await db.getAll('moves'); // server: local read; client: relayed r
 db.subscribe('moves', render);          // server broadcasts changes to all clients
 ```
 
-On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the meeting is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
+On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the operation is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
 
 ## Joining a Session (the Shareable URL)
 
@@ -116,10 +125,10 @@ The **join token (`k`)** is a capability: it authorizes access to exactly one se
 
 ## State, Resume, and Failover (networking view)
 
-- **Server state is authoritative and lives with the desktop icon.** Closing the tab suspends the session; reopening the icon restores the DB and issues a fresh session.
-- **On close, the server chooses** *lock* (suspend clients until reopened) or *continue* (clients keep going while the server browser stays online — because that browser still owns the DB).
+- **Server state is authoritative and lives with the desktop icon.** Closing the tab suspends the session; reopening the icon restores the DB and resumes (or re-mints) the link.
+- **Two dials, set at Invite** (see [architecture.md](architecture.md) → *Multiplayer & data*): **Lifetime** (how long the link admits *new* joiners: `close`/`1h`/`24h`/`forever`) and **Resilience** (`heal` — whether a still-connected guest may take over if the host drops). They are orthogonal, so a `1h` game can still be resilient.
 - **Clients can snapshot** the shared state to a self-contained GIF at any time.
-- **Failover:** if the server browser dies, a client holding a snapshot can **Become Server** — its runtime loads the snapshot as a new central DB and the relay issues a new join URL for the remaining clients to reconnect. Recovery is only as fresh as the newest snapshot, so periodic client snapshots add resilience.
+- **Failover (resilient links only):** with resilience **on**, guests mirror the full state; if the host stays gone (~25s) the freshest mirror **automatically takes over** hosting on the *same* link — no clicks. The host slot at the relay is guarded by an **epoch** (connection state only), so a stale original host coming back rejoins as a guest. With resilience **off** there is exactly one host by design and the session ends with it.
 
 ## The Relay Bandwidth Guard — control plane only, enforced server-side
 
@@ -214,7 +223,10 @@ The Meeting system app (`meet.html`) is the proof of the guard:
 - Every participant holds one `RTCPeerConnection` per other participant. For
   each pair, exactly one side initiates, chosen by peer-id order — the same
   deterministic rule for joins, rejoins, and reloads, so there is no glare.
-- **Peer relay — a volunteer TURN made of friends.** Every participant
+- **Peer relay (P1) — a volunteer bridge made of friends, never a TURN
+  server.** GifOS configures **STUN only, no TURN, ever** (`site/js/gifos-net.js`
+  ice servers) — a TURN server is a media relay, which the whole design forbids.
+  Instead every participant
   gossips its connectivity map; when a pair can't form (both ends behind
   strict NATs), the requester elects the smallest-id mutual friend, who
   re-sends the target's tracks over its own working connection
@@ -419,16 +431,16 @@ wrangler deploy
 # optionally map to proxy.gifos.app via a custom domain
 ```
 
-## Two Relays, One Domain
+## The edge functions, one domain
 
-`gifos.app` hosts two stateless edge functions with distinct jobs — neither stores user data:
+`gifos.app` fronts a handful of stateless edge functions with distinct jobs — none stores user data:
 
 | Endpoint | Job | Part |
 |----------|-----|------|
 | `gifos.app` (GitHub Pages) | Serve the static desktop + runtime — byte-for-byte what's in the public repo, so anyone can audit it | — |
-| `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | WebRTC signaling, mesh peer routing, and fallback transport when P2P can't be established — bandwidth-guarded, stores nothing but the session/room token | Part 1 |
+| `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | For app sessions: WebRTC signaling, peer routing, and bandwidth-guarded fallback transport (**never media**). For meetings: a **zero-knowledge greeter registry** only (`docs/healing-laws.md` R2). Stores nothing but per-connection socket state | Part 1 |
 | `0.gifos.app` … `9.gifos.app` (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so each digit subdomain is an isolated computer (per-origin storage); ten explicit routes, so other subdomains never invoke (or bill) the Worker | — |
-| `proxy.gifos.app` (Worker, future) | Add CORS headers so apps can reach header-stingy third-party APIs | Part 2 |
+| `cors-proxy.gifos.app` (Worker, deployed from [`cors-proxy/`](../cors-proxy)) | Add CORS headers so apps can reach header-stingy third-party APIs — gated to `gifos.app` origins and an allow-list of hosts, stores nothing | Part 2 |
 
 Deploys: the site auto-publishes from `main` via GitHub Actions; the Workers
 are manual (`npx wrangler deploy` inside `relay/` or `mirror/`) — **changing
@@ -438,6 +450,6 @@ relay code requires a redeploy**, pushing to GitHub is not enough.
 
 - **Network activity log** — the runtime shows users a DevTools-style request log.
 - **Rate limiting** — per-app request caps enforced by the runtime.
-- **Response caching** — respect `Cache-Control` for repeated external meetings.
+- **Response caching** — respect `Cache-Control` for repeated external requests.
 - **Credential manager** — the runtime stores API keys and injects them by reference, so apps never see raw keys.
 - **End-to-end encrypted sessions** — encrypt relay payloads so even a compromised relay learns nothing.
