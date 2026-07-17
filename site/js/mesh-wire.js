@@ -10,8 +10,10 @@
  *
  * Everything seat-to-seat is SEALED under the room key (deriveMeetKey — the
  * password is mixed in). The greeter address blob a Section-1 seat registers
- * is Seal(key, {p: peerId}); a knocker that can't decrypt any blob has the
- * wrong password (R6) — surfaced via onLocked, never sent to the relay.
+ * is a real Seal(key, address) — address = {p: peerId, c: coord} — so a knocker
+ * that opens it learns WHERE the greeter sits, not just who; a knocker that
+ * can't decrypt any blob has the wrong password (R6) — surfaced via onLocked,
+ * never sent to the relay.
  *
  * FOUNDING is decided by the relay's `founded` flag, not list emptiness: a
  * founder is admitted to the registry at KNOCK time but registers its sealed
@@ -80,7 +82,11 @@
         const k = gk || myKey; // never knock keyless
         if (seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) {
           // Seated Section-1 seat: register my SEALED address in the pool (E3).
-          net.seal(opts.key, { p: peer }).then((b) => relaySend({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
+          // The greeter blob is a REAL Seal(K, address): the address is this
+          // seated Section-1 greeter's {peerId, coord}, not a bare id — sealed
+          // under the room key the relay never holds (R2). A knocker that opens
+          // it learns WHERE the greeter sits, not just who it is.
+          net.seal(opts.key, { p: peer, c: seat.coord }).then((b) => relaySend({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
             .catch(() => relaySend({ t: 'knock', gk: k }));
         } else relaySend({ t: 'knock', gk: k });
       },

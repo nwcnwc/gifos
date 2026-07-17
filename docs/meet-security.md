@@ -22,7 +22,8 @@ property of the ciphertext, not a check someone enforces.
   whoever doesn't learn it falls out of the ciphertext. In a locked room,
   vote-off + re-key = HARD exclusion, achieved entirely P2P.
 - The greeter list the relay stores is sealed under this same key
-  (healing-laws R2/R6): each entry is `Seal(K, address)`. A knocker that can't
+  (healing-laws R2/R6): each entry is `Seal(K, address)`, where the address is
+  the greeter's `{peerId, coord}` (a real sealed address, not a bare id). A knocker that can't
   decrypt any entry has the wrong password — that undecryptability IS the
   "wrong password, prompt for it" signal (R6). The relay's own pw check
   remains a courtesy gate only (fail fast with a clear error).

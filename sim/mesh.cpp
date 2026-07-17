@@ -39,7 +39,8 @@ static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7ffff
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
 // R2 zero-knowledge relay: a per-hashed-URL registry holding ONLY H(genesis key)
-// + a TTL'd list of SEALED greeter entries (in production each is Seal(K,address)
+// + a TTL'd list of SEALED greeter entries (in production each is a REAL
+// Seal(K, address) — address = {peerId, coord} of a seated Section-1 greeter —
 // under the meeting-URL key K the relay never holds; here the id MODELS that
 // opaque blob — the relay only stores & hands it back, never reads it). Admits a
 // knocker iff the list is empty (mint) or H(presented key)==stored hash.

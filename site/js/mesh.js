@@ -318,7 +318,7 @@
           if (!m.list.length) { if (this.state === 0) { this.genKey = this.myKey; this.take({ pc: 0, r: 0, i: 0 }, null, []); } return; } // R3 mint / R6 take-over
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL) { this.stranded = true; return; } // R6 stranded
           this.lastGreeters = m.list;
-          if (this.state === 0) { this.emit(m.list[0], { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 1; this.retryAt = TICK; }
+          if (this.state === 0) { const g = m.list[(this.rng() * m.list.length) | 0]; this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 1; this.retryAt = TICK; } // RANDOM greeter, not list[0]: spread the intro load across the S1 pool
           return;
         }
         case 'WHOHOME': {
