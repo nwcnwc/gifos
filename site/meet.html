@@ -861,27 +861,9 @@
       for (let j = 0; j < SCALE.C; j++) { const v = (j === c.i) ? myId : meshOccAt({ pc: c.pc, r: c.r, i: j }); if (v) out.push(v); }
       return out;
     }
-    // Grid shape (render order): the Stage strip, then MY row, then the rest
-    // of the known room packed C per row. Same return shape as before so the
-    // tile layout keeps working; the SEMANTICS moved to the tree.
-    function computeRows() {
-      const onStage = new Set(stageIds());
-      const mine = myRowIds().filter((id) => !onStage.has(id));
-      const inMine = new Set([...onStage, ...mine]);
-      const rest = [...new Set([myId, ...rosterIds])].filter((id) => id && !inMine.has(id)).sort();
-      const rows = [stageIds(), mine];
-      for (const id of rest) {
-        if (rows.length === 2 || rows[rows.length - 1].length >= SCALE.C) rows.push([id]);
-        else rows[rows.length - 1].push(id);
-      }
-      return rows;
-    }
-    const rowIndexOf = (id) => {
-      const rows = computeRows();
-      for (let i = 0; i < rows.length; i++) if (rows[i].includes(id)) return i;
-      return -1;
-    };
-    const myRowIndex = () => rowIndexOf(myId);
+    // (DELETED computeRows/rowIndexOf/myRowIndex — a legacy relay-roster display
+    // packing that returned a variable, coord-meaningless row count. Tiles come
+    // from renderFromOcc/reconcileGrid; rows are a fact of the SEAT below.)
     const rowMates = () => myRowIds().filter((id) => id !== myId);
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
@@ -5193,9 +5175,6 @@
       appIsHost: () => appMode === 'host',
       runAppForTest: (fileId, name) => runApp(fileId, name),
       stopAppForTest: () => stopApp(),
-      // rows bookkeeping (coords — docs/healing-laws.md)
-      rows: () => computeRows(),
-      myRow: () => myRowIndex(),
       capOf: (id) => capOf(id),
       scale: () => Object.assign({}, SCALE),
       // the mesh (mesh.js) — seat, occupancy, links
@@ -5225,7 +5204,7 @@
           me: { peer: myId, name: myName(), coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null,
             state: (meshSeat() || {}).state, links: s ? [...s.linkPeers()].length : 0, occ: s ? s.occ.size : 0 },
           participants: participantCount(), inMeeting: rosterIds.length + 1,
-          rows: computeRows().map((r) => r.map((x) => String(x).slice(0, 8))),
+          rows: (() => { if (!c) return []; const g = []; for (let r = 0; r < SCALE.C; r++) { const row = []; for (let i = 0; i < SCALE.C; i++) { const pid = meshOccAt({ pc: c.pc, r, i }); row.push(pid ? String(pid).slice(0, 8) : null); } g.push(row); } return g; })(), // real C×C section grid
           ghosts: ghosts.map((p) => String(p).slice(0, 12)), dups,
           consent: (typeof allConsent === 'function' ? allConsent() : null),
           mosaic: mos, roster: rosterIds.map(info),
