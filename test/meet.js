@@ -395,7 +395,7 @@ async function runCmd(line) {
       for (const r of reps) {
         const s = r.coord ? r.coord.split('/')[0] : '?';
         if (s !== sec) { sec = s; console.log('  ── section ' + sec + ' ──'); }
-        const half = r.conn.filter((x) => byId[x] && !byId[x].conn.includes(r.from));
+        const me8 = String(r.from).slice(0, 8); const half = r.conn.filter((x) => byId[x] && !byId[x].conn.includes(me8)); // compare 8-char to 8-char (conn lists are truncated)
         console.log('    ' + pad(r.coord || 'unseated', 9) + pad((r.name || r.from).split(' ')[0], 12) + 'occ=' + pad(r.occ, 3) + ' links=' + r.links.length + ' conn=' + r.conn.length + ' up=' + pad(r.up || '-', 9) + 'down=' + pad(r.down || '-', 9) + (r.vid ? '📹' : '  ') + (r.camOff ? ' camoff' : '') + (half.length ? '  ⚠half-link→' + half.join(',') : ''));
       }
       if (dups.length) console.log('  ⚠ DUP COORDS: ' + dups.join(' | '));
