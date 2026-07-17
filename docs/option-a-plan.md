@@ -21,9 +21,44 @@ into production. `sim/mesh.cpp` + `sim/mesh_seat.inc` are the source of truth.
 - **6** — enforce by default + **detonate on teleport**; fixed self-delivery misclassification.
 - **churn wiring** — batch `leaveFrac` was a DEAD no-op; wired `killFraction` so `./mesh N f` really does JOIN→kill→heal.
 
-## Bugs found, must fix before production
-- **A — enforcement heal gap.** Clean 50%-kill heals to 995/1000 under enforcement vs 1000/1000 perfect-bus: routing drops some heal-critical frames (a few seats never re-seat). No teleport (guarantee holds), but heal must reach 100%.
-- **B — pre-existing thrash under packet loss/severance.** `drain/reseat` fires at `lastAck>80`, but `sever` lasts 40–200 ticks, so a merely-severed link is misread as a dead parent → needless reseat → double-book → unbounded dups → `converge()` never terminates (the "perfect bus timeout"). Predates Option A (original sim is worse). Fix: self-reseat must be patient beyond max severance / backoff; distinguish transient severance from death.
+## THE crux bug: healing is not loss-tolerant (unifies A + B)
+
+Bugs A and B are one problem. The **perfect bus never drops a frame** (it teleports),
+so occupancy is always consistent and dups always resolve. **Routing drops frames**
+legitimately — through a transient hole in the path, or a severed link — and the
+healing protocol assumes reliable delivery, so:
+
+- A dropped/severed CLAIM or liveness ack makes a live-but-silent seat look **dead**
+  → `heal` promotes another seat into its cell → **double-book (dup)** when it
+  reappears.
+- Dedup is **pairwise** (`HELLO`→`CHALLENGE`→`YIELD` between the two claimants) and
+  **not periodic** — if the two dup-holders aren't linked, or the dedup frames also
+  drop, the dup **never resolves**. Under sustained drops, dups form faster than
+  they clear → `dups` grows without bound → `converge()` never terminates.
+
+Evidence: `sever=0.01` (perfect bus) → dups 140→479 growing, never converges (the
+"timeout"). Enforced clean 50%-kill → dups=88, 5 stranded (routing's own transient
+drops). `loss`-only and `subnets`-only converge fine (retries cover pure loss; the
+killer is **severance / heal-over**, worse under routing).
+
+- **A — enforcement heal gap.** Clean 50%-kill heals to 995/1000 (+dups) under
+  enforcement vs 1000/1000 perfect-bus. The churn-time face of the crux.
+- **B — pre-existing severance thrash.** `sever` breaks liveness → heal-over → dups.
+  Predates Option A (original sim thrashes worse).
+
+**Tried and FAILED (do not repeat as-is):** raising self-reseat `lastAck>80→230`;
+periodic `announce()` dedup; raising `heal` `lastAck>40→230`. None stopped the dup
+growth (formation via heal-over persists at any threshold once *some* ack-timeout
+is crossed), and raising `heal` broke clean-churn heal (too slow). All reverted.
+
+**Real fix direction (increment 11, needs focused design):** make healing
+loss-tolerant — (1) **positive death confirmation** before heal-over (multiple
+independent probes / require a cell be observed empty, not just ack-silent);
+(2) **third-party-driven dedup** — any seat that observes two claimants for one
+coord (via `S1SYNC`/`PONG`/occ) forces a resolution, instead of relying on the two
+claimants being directly linked; (3) dedup must be periodic + survive loss. This is
+the gate for enforcement-under-churn and must land before the production port
+carries routing into `meet.html`.
 
 ## Remaining sim increments
 - **7** — model link establishment explicitly (a neighbor link forms only after a routed SIGNAL handshake / RTT), not implicitly.
