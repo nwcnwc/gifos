@@ -327,7 +327,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       fakeCam(idx, FPS, person) });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
-    p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '')).catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
+    p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
     pages.push({ idx, p });
     if (RAMP) await sleep(RAMP);
     if ((i + 1) % 10 === 0) console.log('[swarm] ' + (i + 1) + '/' + N + ' launched');
