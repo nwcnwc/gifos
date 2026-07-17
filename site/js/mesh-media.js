@@ -295,6 +295,76 @@
     return pk;
   }
 
+  // ---- the PER-LINK BUNDLE (approach A: one stream per link) ------------------
+  // A seat owes a neighbour several composites (its band, the stadium, a product
+  // to forward…). Encoding each as its own track is one WebRTC encode PER
+  // composite PER peer — the 10-15-encodes blowup. A bundle packs all the
+  // composites bound for ONE peer into ONE canvas (stacked, each scaled to a
+  // fixed width by its own aspect) and ships ONE stream; a MANIFEST of normalised
+  // rects + each part's {key,n,cols} rides the announce so the receiver crops
+  // each part back out (a cheap draw, no decode-per-part). Encodes now = LINKS.
+  function createBundle(opts) {
+    opts = opts || {};
+    const W = opts.w || 512, fps = opts.fps || (net && net.SCALE.COMP_FPS) || 8;
+    const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const parts = new Map(); // key -> { el, n, cols, ord }
+    const fold = (opts.ac && createAudioFold(opts.ac)) || null;
+    let timer = null, last = 0, cost = 0, active = true;
+    const layout = () => { // vertical stack, each part W wide, h = W/aspect
+      const ps = [...parts.entries()].sort((a, b) => (a[1].ord < b[1].ord ? -1 : 1));
+      let y = 0; const rects = []; let H = 0;
+      for (const [key, p] of ps) {
+        const sw = p.el ? (p.el.videoWidth || p.el.width || 1) : 1, sh = p.el ? (p.el.videoHeight || p.el.height || 1) : 1;
+        const h = Math.max(1, Math.round(W * sh / sw));
+        rects.push({ key, x: 0, y, w: W, h, n: p.n, cols: p.cols, el: p.el }); y += h; H = y;
+      }
+      return { rects, H: Math.max(1, H) };
+    };
+    function paint() {
+      if (!ctx || !active) return;
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (now - last < Math.max(1000 / fps, cost * 3)) return;
+      const { rects, H } = layout();
+      if (canvas.width !== W) canvas.width = W;
+      if (canvas.height !== H) canvas.height = H;
+      ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, W, H);
+      for (const r of rects) { const sw = r.el && (r.el.videoWidth || r.el.width), sh = r.el && (r.el.videoHeight || r.el.height);
+        if (sw && sh) { try { ctx.drawImage(r.el, 0, 0, sw, sh, r.x, r.y, r.w, r.h); } catch (e) {} } }
+      last = now; cost = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - now;
+    }
+    const bd = {
+      canvas, stream: null, track: null,
+      setPart(key, ord, el, stream, meta) {
+        const prev = parts.get(key);
+        if (fold) { if (prev && prev.sid !== (stream && stream.id)) fold.remove('p' + key); if (stream && (!prev || prev.sid !== stream.id)) fold.add('p' + key, stream, 1); }
+        if (!el) { if (fold && prev) fold.remove('p' + key); parts.delete(key); return; }
+        parts.set(key, { el, ord, sid: stream && stream.id, n: (meta && meta.n) || 1, cols: (meta && meta.cols) || 1 });
+      },
+      has: (key) => parts.has(key), keys: () => [...parts.keys()], count: () => parts.size,
+      // The manifest that rides the announce: normalised rects + per-part meta.
+      manifest() { const { rects, H } = layout(); return rects.map((r) => ({ key: r.key, y: r.y / H, h: r.h / H, n: r.n, cols: r.cols })); },
+      setActive(on) { active = on !== false; },
+      start() { if (timer || !canvas) return bd; const v = canvas.captureStream(fps).getVideoTracks()[0]; const a = fold && fold.track(); bd.stream = new MediaStream(a ? [v, a] : [v]); bd.track = v; timer = setInterval(paint, Math.max(20, 1000 / fps)); paint(); return bd; },
+      stop() { if (timer) { clearInterval(timer); timer = null; } if (fold) fold.clear(); if (bd.track) { try { bd.track.stop(); } catch (e) {} } bd.stream = null; },
+    };
+    return bd;
+  }
+  // Receiver side: a cropped view of one part of a bundle — a tiny <canvas> that
+  // redraws the bundle video's normalised {y,h} band each frame, so downstream
+  // code can treat it exactly like a standalone composite source element.
+  function cropView(bundleVideo, band, fps) {
+    const c = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+    if (!c) return { el: null, stop() {} };
+    const ctx = c.getContext('2d'); let timer = null;
+    const draw = () => { const vw = bundleVideo.videoWidth || 0, vh = bundleVideo.videoHeight || 0; if (!vw || !vh) return;
+      const sy = Math.round(band.y * vh), sh = Math.max(1, Math.round(band.h * vh));
+      if (c.width !== vw) c.width = vw; if (c.height !== sh) c.height = sh;
+      try { ctx.drawImage(bundleVideo, 0, sy, vw, sh, 0, 0, vw, sh); } catch (e) {} };
+    timer = setInterval(draw, Math.max(20, 1000 / (fps || 8))); draw();
+    return { el: c, stop() { if (timer) clearInterval(timer); } };
+  }
+
   // ---- audio fold (WebAudio sum, bounded) ------------------------------------
   // A band's audio = the sum of its cells' audio tracks through per-cell gains
   // (the recorder's primitive). Callers own the AudioContext lifecycle.
@@ -319,5 +389,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, faceSrcRect, createPacker };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, faceSrcRect, createPacker, createBundle, cropView };
 })(typeof window !== 'undefined' ? window : globalThis);
