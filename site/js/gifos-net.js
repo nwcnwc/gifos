@@ -47,6 +47,14 @@
   const ICE_SERVERS = [
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
+    // TURN — relay of LAST RESORT for peers behind symmetric NAT (typical home
+    // routers), who otherwise seat but can't open a single DataChannel. WebRTC
+    // only falls back to it when a direct/reflexive path fails, so P2P stays the
+    // norm and bandwidth cost is bounded to the truly-stuck pairs. (Demo-grade:
+    // one box, static creds — see docs/roadmap for the proper per-user
+    // time-limited-credential TURN tier.)
+    { urls: 'turn:54.82.96.72:3478?transport=udp', username: 'gifos', credential: 'swarmturn2026' },
+    { urls: 'turn:54.82.96.72:3478?transport=tcp', username: 'gifos', credential: 'swarmturn2026' },
   ];
   const hasP2P = () => typeof root.RTCPeerConnection === 'function';
 
