@@ -75,14 +75,27 @@
 
     function drawCell(i) {
       const r = rects[i], c = cells[i];
-      const sw = c && c.el ? (c.el.videoWidth || c.el.width || 0) : 0;   // <video> or <canvas> source
-      const sh = c && c.el ? (c.el.videoHeight || c.el.height || 0) : 0;
+      const el = c && c.el;
+      const sw = el ? (el.videoWidth || el.width || 0) : 0;   // <video> or <canvas> source
+      const sh = el ? (el.videoHeight || el.height || 0) : 0;
       if (!sw || !sh) {
         ctx.fillStyle = '#101418'; ctx.fillRect(r.x, r.y, r.w, r.h);
         return;
       }
+      // A NESTED composite (a <canvas> — a row band, a sub-product, the stadium)
+      // is ALREADY laid out as its own grid; draw it WHOLE, aspect-preserved
+      // (contain), so its cells never get square-cropped into a smear. Only a
+      // LEAF camera (<video>) gets the centered-square crop that squares faces.
+      const isCanvas = el.tagName === 'CANVAS' || el.nodeName === 'CANVAS';
+      if (isCanvas) {
+        const s = Math.min(r.w / sw, r.h / sh);
+        const dw = sw * s, dh = sh * s, dx = r.x + (r.w - dw) / 2, dy = r.y + (r.h - dh) / 2;
+        ctx.fillStyle = '#101418'; ctx.fillRect(r.x, r.y, r.w, r.h);
+        try { ctx.drawImage(el, 0, 0, sw, sh, dx, dy, dw, dh); } catch (e) {}
+        return;
+      }
       const b = coverBox(sw, sh, r);
-      try { ctx.drawImage(c.el, b.sx, b.sy, b.sw, b.sh, r.x, r.y, r.w, r.h); } catch (e) {}
+      try { ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, r.x, r.y, r.w, r.h); } catch (e) {}
     }
     function paint() {
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
