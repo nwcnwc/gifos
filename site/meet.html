@@ -1991,9 +1991,12 @@
     // └─────────────────────────────────────────────────────────────────────┘
     function meshSelfReport() { // DEBUG-TREE
       const c = meshCoord(), s = meshSeat();
+      // `from` is the FULL peer id — the census doubles as an occ seed for the
+      // forceSeat teleport (truncated ids can't address peers). Display fields
+      // (links/conn/up/down) stay truncated.
       const occAt = (co) => { const ss = meshSeat(); return ss ? ss.occGet(net.topo.ckey(co)) : null; };
       const nb = (co) => { const pid = co && occAt(co); return pid ? String(pid).slice(0, 8) : null; };
-      return { from: String(myId).slice(0, 8), name: myName(),
+      return { from: String(myId), name: myName(),
         coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null, occ: s ? s.occ.size : 0, state: s ? s.state : 0,
         links: s ? [...s.linkPeers()].map((x) => String(x).slice(0, 8)) : [],
         conn: [...peers.values()].filter((p) => p.connected).map((p) => String(p.id).slice(0, 8)),
@@ -5232,7 +5235,7 @@
       // Announces LEAVE of my current coord (peers free it), then take()s the
       // target and HELLOs its owned-link neighbours to re-wire; the mesh gossip/
       // anti-entropy fills the rest. NOT product surface: pure diagnostics.
-      forceSeat: (pc, r, i) => {
+      forceSeat: (pc, r, i, occSeed) => {
         const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
         const T = net.topo, target = { pc: +pc, r: +r, i: +i };
         if (seat.hasCoord) {
@@ -5240,8 +5243,18 @@
           for (const olc of T.ownedLinks(cur)) { const x = seat.occGet(T.ckey(olc)); if (x != null && x !== seat.id) seat.emit(x, { t: 'LEAVE', ck: ckCur, id: seat.id }); }
           seat.occ.delete(ckCur);
         }
+        // occSeed ({'pc/r.i': fullPeerId, …} — e.g. from the probeTree census)
+        // teaches this seat the room BEFORE it takes the target, so take()'s
+        // HELLOs address real neighbours even across a fragment boundary
+        // (S1 seats hold relay sockets, so the bootstrap path can carry them).
+        let seeded = 0;
+        if (occSeed) for (const k of Object.keys(occSeed)) {
+          const mm = /^(\d+)\/(\d+)\.(\d+)$/.exec(k); if (!mm) continue;
+          const key = T.ckey({ pc: +mm[1], r: +mm[2], i: +mm[3] });
+          if (occSeed[k] && occSeed[k] !== seat.id) { seat.occ.set(key, occSeed[k]); seeded++; }
+        }
         try { seat.take(target, null, []); } catch (e) { return { err: String(e).slice(0, 80) }; }
-        return { seated: target.pc + '/' + target.r + '.' + target.i };
+        return { seated: target.pc + '/' + target.r + '.' + target.i, seeded };
       },
       debugDump: () => {
         const s = meshSeat(), c = meshCoord(), now = Date.now();
