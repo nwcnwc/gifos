@@ -196,18 +196,24 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 // not-yet-seated joiner (the greeter/relay path). Goal of Option A: TELEPORT -> 0.
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
-static void classifyEmit(int from,int to,int mt){
+static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
+static void classifyEmit(int from,int to,const Msg& m){
+  int mt=(int)m.t;
   if(from<0 || to<0 || from>=(int)seats.size() || to>=(int)seats.size()){ EMIT_BOOTSTRAP++; return; }
   Seat* sf=seats[from]; Seat* st=seats[to];
   if(!sf->hasCoord || !st->hasCoord){ EMIT_BOOTSTRAP++; return; }
-  Coord ol[C+2]; int n=ownedLinks(sf->coord,ol); uint64_t tk=ckey(st->coord);
-  for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ EMIT_NEIGHBOR++; return; }
+  // A real link = whom I (the sender) BELIEVE occupies one of my owned-link
+  // coords. That is my DataChannel peer, and it stays my peer even if their coord
+  // is momentarily stale in the global view — so check MY occ map, not live coords.
+  Coord ol[C+2]; int n=ownedLinks(sf->coord,ol);
+  for(int k=0;k<n;k++) if(sf->occGet(ckey(ol[k]))==to){ EMIT_NEIGHBOR++; return; }
   if(sf->socketed() && st->socketed()){ EMIT_RELAY++; return; }   // legit: relay between two socketed peers (greeting scope)
   EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;              // BAD: non-adjacent, neither the relay nor a link could carry it
+  TELE_SRC[(m.direct?1:0)|(m.routing?2:0)]++;
 }
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
-  classifyEmit(from,to,(int)m.t);
+  classifyEmit(from,to,m);
   bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
   if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
     Seat* sf=seats[from]; Seat* st=seats[to];
@@ -239,7 +245,10 @@ void Seat::emit(int to,const Msg& m){
   if(ROUTE_ENFORCE && !m.routing && !m.direct && to>=0 && to<(int)seats.size() && to!=id){
     Seat* st=seats[to];
     bool directLink=false;
-    if(hasCoord && st->hasCoord){ uint64_t tk=ckey(st->coord); Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ directLink=true; break; } }
+    // Do I BELIEVE `to` occupies one of my owned links? Then I hold a link (DC) to
+    // them — deliver direct. Uses MY occ view (matches the faithfulness metric), so
+    // a stale global coord never turns a real link-send into a route or a teleport.
+    if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++) if(occGet(ckey(ol[k]))==to){ directLink=true; break; } }
     if(!directLink){
       if(socketed() && st->socketed()){ /* relay path — both hold sockets (greeting scope): fall through to direct schedule */ }
       else if(st->hasCoord){ route(st->coord,-1,m); return; }                                   // deep target ⇒ route over the mesh
@@ -358,6 +367,7 @@ int main(int argc,char**argv){
       EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_RELAY, tot?100.0*EMIT_RELAY/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
     { const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"};
       printf("  TELEPORTS BY TYPE:"); for(int i=0;i<21;i++) if(TELE_BY_T[i]) printf(" %s=%lld",NM[i],TELE_BY_T[i]); printf("\n"); }
+    printf("  TELEPORT SOURCE: plain=%lld direct(handoff)=%lld routing=%lld direct+routing=%lld\n", TELE_SRC[0],TELE_SRC[1],TELE_SRC[2],TELE_SRC[3]);
     return 0;
   }
   // ---- SERVICE: read commands on stdin, answer on stdout ----
