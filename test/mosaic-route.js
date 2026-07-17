@@ -81,6 +81,21 @@ function invariants(env) {
   }
   const comps = new Set(s1.map((k) => find(idx.get(k)))).size;
 
+  // (D) EVERY populated section (not just Section 1) is one connected cross+row
+  //     mesh — the Section channel floods within a section, so each must be
+  //     internally connected for the block to reach all section-mates.
+  const bySec = new Map(); // pc -> [ckeys]
+  for (const c of nodes) { const a = bySec.get(c.pc) || []; a.push(ck(c)); bySec.set(c.pc, a); }
+  let secBad = 0, secTotal = 0;
+  for (const [pc, keys] of bySec) {
+    if (keys.length < 2) continue; secTotal++;
+    const im = new Map(keys.map((k, i) => [k, i])); const u = keys.map((_, i) => i);
+    const fnd = (x) => { while (u[x] !== x) { u[x] = u[u[x]]; x = u[x]; } return x; };
+    const jn = (a, b) => { if (im.has(a) && im.has(b)) u[fnd(im.get(a))] = fnd(im.get(b)); };
+    for (const k of keys) { const cc = T.unck(k); for (const m of T.rowMates(cc)) if (has(m)) jn(k, ck(m)); const x = T.crossLink(cc); if (x && has(x)) jn(k, ck(x)); }
+    if (new Set(keys.map((k) => fnd(im.get(k)))).size !== 1) secBad++;
+  }
+
   // (C) bounded ship fan-out: the union of a seat's mosaic targets.
   let maxFan = 0, argFan = null;
   for (const c of nodes) {
@@ -90,7 +105,7 @@ function invariants(env) {
     for (const m of T.rowMates(c)) add(m);
     if (tg.size > maxFan) { maxFan = tg.size; argFan = ck(c); }
   }
-  return { total: nodes.length, reachS1, stranded, s1: s1.length, comps, maxFan, argFan };
+  return { total: nodes.length, reachS1, stranded, s1: s1.length, comps, maxFan, argFan, secBad, secTotal };
 }
 
 function run(Nn) {
@@ -103,6 +118,8 @@ function run(Nn) {
     r.comps === 1);
   check(`N=${Nn}: (C) mosaic ship fan-out bounded (max ${r.maxFan} <= 2C=${2 * C})`,
     r.maxFan <= 2 * C, { at: r.argFan });
+  check(`N=${Nn}: (D) every populated section is one connected cross+row mesh (${r.secTotal - r.secBad}/${r.secTotal})`,
+    r.secBad === 0);
 }
 
 run(30);
