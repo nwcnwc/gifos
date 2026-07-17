@@ -1051,14 +1051,25 @@
     // Nothing else. No room-wide guest blur, no floors, no pinning.
     const consents = (st) => !!st && !st.camOff && blurLevel(st.blur) === 0;
     const adminPresent = () => hasAdminRoom() && admins.length > 0;
+    // Clear video is a ROOM-WIDE unanimity, so it MUST be tallied over shared
+    // state (rosterIds = occ ∪ fresh status gossip), NOT over `peers` — my
+    // bounded link set (row-mates + cross-link + S1 columns). Two seats hold
+    // DIFFERENT `peers` maps, so tallying `peers` split-brains the room: one
+    // section decides "everyone consents" and shows clear while another, whose
+    // members it never links, stays blurred — exactly the divergence the one-
+    // rule doctrine (above) forbids. A peer with no FRESH status (churn residue,
+    // a ghost) counts as NOT consenting: clear is the deliberate unanimous
+    // state, never the default. Same 15s freshness renderFromOcc uses.
+    const roomConsentIds = () => (typeof rosterIds !== 'undefined' && Array.isArray(rosterIds)) ? rosterIds : Array.from(peers.keys());
+    const freshConsent = (pid) => { const st = statusOf.get(pid); return !!st && Date.now() - (st.at || 0) < 15000 && consents(st); };
     function allConsent() {
       if (!consents(myStatus)) return false;
-      for (const pid of peers.keys()) { if (!consents(statusOf.get(pid))) return false; }
+      for (const pid of roomConsentIds()) { if (!freshConsent(pid)) return false; }
       return true;
     }
     function consentCount() {
       let n = consents(myStatus) ? 1 : 0;
-      for (const pid of peers.keys()) { if (consents(statusOf.get(pid))) n++; }
+      for (const pid of roomConsentIds()) { if (freshConsent(pid)) n++; }
       return n;
     }
     function blurLevelFor(id) {
@@ -3375,13 +3386,15 @@
       for (const [target, r] of Array.from(relayVia)) if (r.via === pid) stopRelayFor(target, false);
     }
 
-    // ========== STADIUM MEDIA (interim \u2014 3b builds docs/media-plane.md) ======
-    // The deacon/deck FOLD pipeline died with the deacon model. Until the
-    // fractal mosaic lands (3b), media is DIRECT: a room that fits in Section 1
-    // links everyone (linkTo's interim rule) so every face is an ordinary tile,
-    // and Stage members hold direct links. The stadium/stage feed strips and
-    // the compOf store remain \u2014 empty until 3b repopulates them with the
-    // row-head mosaics and the composited Stage strip.
+    // ========== STADIUM MEDIA (docs/media-plane.md) ============================
+    // Bounded-degree media. A seat holds DIRECT links only to seat.linkPeers()
+    // (row-mates + one cross-link + up/down) \u2014 degree \u2264 C+1, NOT a section
+    // mesh. Everything past the row arrives COMPOSITED, never as direct links:
+    // the Section band travels one hop over each cross-link and is self-
+    // composited into the C\u00d7C block; the Stage is a composited \u2264C strip; the
+    // Stadium is the fractal (product up \u2192 S1 exchange \u2192 fan down). reconcile-
+    // Mosaic (below) wires all four channels; the compOf store holds the feed
+    // tiles those composites produce.
     const stadiumEl = document.getElementById('stadium');
     const stagefeedEl = document.getElementById('stagefeed');
     const compOf = new Map(); // feed tiles: key -> { via, streamId, ids, names, stream } (3b)
