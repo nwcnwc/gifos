@@ -188,6 +188,34 @@
 
     const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
 
+    // Burn identity onto a leaf face cell: a green TALKING frame, the NAME on a
+    // bottom strip, a HAND glyph top-right. Baked at the leaf so it travels the
+    // tree inside the one blended stream — no extra bandwidth, no receiver-side
+    // identity (approach A). lbl = { name, hand, talking } | null.
+    function drawOverlay(dx, dy, cell, lbl) {
+      if (!lbl) return;
+      if (lbl.talking) {
+        const lw = Math.max(2, cell * 0.035);
+        ctx.strokeStyle = '#37d67a'; ctx.lineWidth = lw;
+        ctx.strokeRect(dx + lw / 2, dy + lw / 2, cell - lw, cell - lw);
+      }
+      if (lbl.name) {
+        const fs = Math.max(8, Math.round(cell * 0.11)), pad = Math.round(cell * 0.03);
+        const bh = fs + pad * 2;
+        ctx.fillStyle = 'rgba(10,10,15,0.62)'; ctx.fillRect(dx, dy + cell - bh, cell, bh);
+        ctx.fillStyle = '#eef'; ctx.font = '600 ' + fs + 'px system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        let nm = String(lbl.name); const maxW = cell - pad * 2;
+        while (nm.length > 1 && ctx.measureText(nm).width > maxW) nm = nm.slice(0, -1);
+        if (nm !== String(lbl.name)) nm = nm.slice(0, -1) + '…';
+        ctx.fillText(nm, dx + pad, dy + cell - bh / 2);
+      }
+      if (lbl.hand) {
+        const r = Math.max(6, cell * 0.12);
+        ctx.font = (r * 1.4 | 0) + 'px system-ui'; ctx.textBaseline = 'top';
+        ctx.fillText('✋', dx + cell - r * 1.6, dy + r * 0.3);
+      }
+    }
     function paint() {
       if (!ctx) return;
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -212,8 +240,9 @@
             if (t.n === 1 && t.cols === 1) {
               const b = coverBox(sw, sh, { w: cell, h: cell });      // leaf camera → centered square
               ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+              drawOverlay(dx, dy, cell, t.lbl);                       // BURN IN name/hand/talking (approach A: baked once at the leaf, rides pixels up the tree)
             } else {
-              const s = faceSrcRect(j, t.n, t.cols, sw, sh);         // block face → straight blit
+              const s = faceSrcRect(j, t.n, t.cols, sw, sh);         // block face → straight blit (overlay already baked by the sender)
               ctx.drawImage(el, s.sx, s.sy, s.sw, s.sh, dx, dy, cell, cell);
             }
           } catch (e) {}
@@ -234,8 +263,11 @@
         if (!el) { if (fold && prev) fold.remove('t' + id); tiles.delete(id); return; }
         const n = Math.max(1, (meta && meta.n) | 0 || 1);
         const cols = Math.max(1, (meta && meta.cols) | 0 || n); // a bar's cols = n
-        tiles.set(id, { ord, el, streamId: sid, n, cols });
+        tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null });
       },
+      // Update just the overlay (name/hand/talking) without touching the source
+      // — called every tick from status/audio so the frame tracks speech live.
+      label(id, lbl) { const t = tiles.get(id); if (t) t.lbl = lbl; },
       delTile(id) { if (fold) fold.remove('t' + id); tiles.delete(id); },
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],

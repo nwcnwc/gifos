@@ -1295,6 +1295,16 @@
     // ---- who's talking: per-stream audio meters → glowing tile border --------
     let ac = null;
     const meters = new Map(); // id -> { an, src, data }
+    const speakingOf = new Map(); // id ('me'|pid) -> bool, for the composite overlay
+    // The identity BURNED onto a person's face in every composite (approach A):
+    // name strip, hand glyph, live green talking frame. Computed the same on
+    // every device from shared status + the local audio meter.
+    const labelFor = (pid) => {
+      const isMe = pid === myId;
+      const st = (isMe ? myStatus : statusOf.get(pid)) || {};
+      const name = isMe ? (myName() + ' (you)') : (rosterNames[pid] || (peers.get(pid) || {}).name || '…');
+      return { name, hand: !!st.hand, talking: !!speakingOf.get(isMe ? 'me' : pid) };
+    };
     function ensureAc() {
       if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
       if (ac.state === 'suspended') ac.resume().catch(() => {});
@@ -1328,6 +1338,7 @@
           speaking = Math.sqrt(dev / m.data.length) > 5;
         }
         t.tile.classList.toggle('speaking', speaking);
+        speakingOf.set(id, speaking); // fed to the packer overlay (green talking frame on composite faces)
       }
     }, 180);
     function tileNote(t, msg) {
@@ -3702,7 +3713,7 @@
       for (let j = 0; j < C; j++) {
         const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
         const sc = pid ? srcFor(pid) : null;
-        if (sc && sc.el) rowPack.setTile('r' + j, j, sc.el, sc.stream, { n: 1, cols: 1 });
+        if (sc && sc.el) rowPack.setTile('r' + j, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
         else rowPack.delTile('r' + j);
       }
       const rowMeta = () => ({ n: rowPack.count(), cols: rowPack.cols() });
@@ -3713,7 +3724,7 @@
         for (let j = 0; j < C; j++) {
           const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
           const sc = pid ? srcFor(pid) : null;
-          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1 });
+          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
           else prodPack.delTile('r' + j);
           const sub = mosIn.get('sub:' + j);
           if (sub) setBlock(prodPack, 's' + j, 'b' + j, sub); else prodPack.delTile('s' + j);
@@ -3792,7 +3803,7 @@
           for (let j = 0; j < C; j++) {
             const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
             const sc = pid ? srcFor(pid) : null;
-            if (sc && sc.el) secPack.setTile('m' + j, c.r * 10 + j, sc.el, sc.stream, { n: 1, cols: 1 });
+            if (sc && sc.el) secPack.setTile('m' + j, c.r * 10 + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
             else secPack.delTile('m' + j);
           }
           for (let q = 0; q < C; q++) {
@@ -3829,7 +3840,7 @@
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
-          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1 }); stgKeep.add(sid); }
+          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid) }); stgKeep.add(sid); }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
         paintStageStrip(stripPack.stream);
