@@ -117,13 +117,26 @@ void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ck
 // rdst it is delivered locally; otherwise it is handed to the next hop toward
 // rdst (or, when I am an unseated newcomer, out through my gateway link). No
 // teleport: if there is no next hop it is simply dropped and the caller retries.
+// strictNextHop: the ideal step toward rdst, but ONLY if it is one of MY owned
+// links and occupied. Unlike nextHopToward it never falls back to a non-link
+// (a row-mate's cross-link) — a vacant ideal returns -1 and the frame is dropped
+// so healing fills the gap and the sender retries. This is what makes routed
+// delivery travel strictly over real DataChannels (no teleport).
+int Seat::strictNextHop(Coord rdst){
+  if(!hasCoord) return -1;
+  Coord ideal; if(!nextHopCoord(rdst,ideal)) return -1;   // already at rdst / no direction
+  uint64_t ik=ckey(ideal);
+  Coord ol[C+2]; int n=ownedLinks(coord,ol);
+  for(int k=0;k<n;k++) if(ckey(ol[k])==ik){ int x=occGet(ik); return (x>=0&&x!=id)?x:-1; }
+  return -1;                                               // ideal isn't a direct link — drop
+}
 void Seat::route(Coord rdst,int rfinal,Msg inner){
   inner.routing=true; inner.rdst=rdst; inner.rfinal=rfinal; inner.rttl=64; inner.rvia=id;
   if(hasCoord && ckey(coord)==ckey(rdst)){                // I'm the destination cell
     if(rfinal<0 || rfinal==id){ inner.routing=false; recv(inner); return; }
     Msg h=inner; h.routing=false; emit(rfinal,h); return; // hand to my attached newcomer
   }
-  int nh = hasCoord ? nextHopToward(rdst,-1) : gateway;   // unseated ⇒ leave via the gateway link
+  int nh = hasCoord ? strictNextHop(rdst) : gateway;      // unseated ⇒ leave via the gateway link
   if(nh>=0) emit(nh,inner);
 }
 // routeStep(): a routing frame arrived at me mid-flight. Return true iff it is
@@ -135,7 +148,7 @@ bool Seat::routeStep(Msg& m){
     Msg h=m; h.routing=false; emit(m.rfinal,h); return false;   // deliver to the attached newcomer
   }
   if(m.rttl<=0) return false;                              // give up — sender retries
-  int nh = nextHopToward(m.rdst, m.rvia);
+  int nh = strictNextHop(m.rdst);
   if(nh<0) return false;                                   // no link toward rdst — drop
   Msg f=m; f.rttl=m.rttl-1; f.rvia=id; emit(nh,f); return false;
 }
