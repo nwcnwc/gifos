@@ -183,7 +183,7 @@
     const ctx = canvas ? canvas.getContext('2d') : null;
     const tiles = new Map(); // id -> { ord, el, streamId, n, cols }
     const fold = (opts.ac && createAudioFold(opts.ac)) || null;
-    let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0;
+    let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0, active = true;
     let G = 1, R = 1;
 
     const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
@@ -217,10 +217,11 @@
       }
     }
     function paint() {
-      if (!ctx) return;
+      if (!ctx || active === false) return;                                    // demand-gated: a composite nobody ships or shows isn't painted (static canvas ⇒ ~0 encode too)
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       if (now - last < Math.max(1000 / fps, cost * 3)) { dropped++; return; } // GOVERNOR: drop, never queue
       const T = total();
+      if (T === 0) { if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; } // empty packer — don't paint a grid of nothing
       const g = packGrid(T, shape); G = g.cols; R = g.rows;
       const cell = Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
       const W = Math.max(1, G * cell), H = Math.max(1, R * cell);
@@ -269,6 +270,7 @@
       // — called every tick from status/audio so the frame tracks speech live.
       label(id, lbl) { const t = tiles.get(id); if (t) t.lbl = lbl; },
       delTile(id) { if (fold) fold.remove('t' + id); tiles.delete(id); },
+      setActive(on) { active = on !== false; }, // meet.html gates a composite that has no consumer (not shipped, not displayed)
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],
       count: total, cols: () => G, rows: () => R,
