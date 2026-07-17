@@ -37,6 +37,8 @@
  *   state | s     my seat, mesh state, links, occ, participants, consent
  *   roster | r    every peer: name · coord · ip · cam · blur · age · conn · vid
  *   who           compact who-is-here (name @ coord), grouped by section
+ *   tree|census   probe EVERY seat (gossip) and rebuild the WHOLE mesh — coords,
+ *                 links, up/down, flags half-links/dup-coords/orphans (DEBUG)
  *   rows          the row layout (my section)
  *   links | l     my bounded link set + each link's connection/DC state
  *   net           WHERE traffic travels: relay vs DC vs sponsor-forward (txStats)
@@ -316,6 +318,32 @@ async function runCmd(line) {
     case 'ghosts': console.log(d.ghostList.length ? '  GHOSTS (no fresh status): ' + d.ghostList.join(', ') : '  no ghosts'); break;
     case 'dups': console.log(d.dupList.length ? d.dupList.map((x) => '  DUP ' + x.coord + ': ' + x.a + ' & ' + x.b).join('\n') : '  no duplicate coords'); break;
     case 'dump': console.log(JSON.stringify(d.me)); console.log(JSON.stringify({ tx: d.tx, mosaic: d.mosaic, ghosts: d.ghostList, dups: d.dupList })); console.log(JSON.stringify(d.roster, null, 1)); break;
+    case 'tree': case 'census': {
+      // DEBUG-TREE: gossip a probe so EVERY seat self-reports, then rebuild the
+      // whole mesh from the replies — not limited to my own occ.
+      console.log('  probing the whole mesh (gossip census, ~5s)…');
+      const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), 5000).catch(() => null);
+      if (!reps) { console.log('  probeTree hook absent (client too old — redeploy)'); break; }
+      const byId = {}; for (const r of reps) byId[r.from] = r;
+      const ck = (c) => { if (!c) return [9, 9, 9]; const [pc, ri] = c.split('/'); const [rr, ii] = ri.split('.'); return [+pc, +rr, +ii]; };
+      reps.sort((a, b) => { const A = ck(a.coord), B = ck(b.coord); return A[0] - B[0] || A[1] - B[1] || A[2] - B[2]; });
+      const seen = {}, dups = []; for (const r of reps) if (r.coord) { if (seen[r.coord]) dups.push(r.coord + ' (' + seen[r.coord] + ' & ' + r.from + ')'); else seen[r.coord] = r.from; }
+      console.log('  === MESH CENSUS: ' + reps.length + ' seats replied ===');
+      let sec = null;
+      for (const r of reps) {
+        const s = r.coord ? r.coord.split('/')[0] : '?';
+        if (s !== sec) { sec = s; console.log('  ── section ' + sec + ' ──'); }
+        const half = r.conn.filter((x) => byId[x] && !byId[x].conn.includes(r.from));
+        console.log('    ' + pad(r.coord || 'unseated', 9) + pad((r.name || r.from).split(' ')[0], 12) + 'occ=' + pad(r.occ, 3) + ' links=' + r.links.length + ' conn=' + r.conn.length + ' up=' + pad(r.up || '-', 9) + 'down=' + pad(r.down || '-', 9) + (r.vid ? '📹' : '  ') + (r.camOff ? ' camoff' : '') + (half.length ? '  ⚠half-link→' + half.join(',') : ''));
+      }
+      if (dups.length) console.log('  ⚠ DUP COORDS: ' + dups.join(' | '));
+      const ref = new Set(); for (const r of reps) { r.links.forEach((x) => ref.add(x)); if (r.up) ref.add(r.up); if (r.down) ref.add(r.down); }
+      const orphan = [...ref].filter((x) => !byId[x]);
+      const unseated = reps.filter((r) => !r.coord).length;
+      if (orphan.length) console.log('  ⚠ referenced but SILENT (unreachable/orphan): ' + orphan.length + ' — ' + orphan.slice(0, 14).join(','));
+      console.log('  totals: ' + reps.length + ' replied · ' + unseated + ' unseated · ' + dups.length + ' dup-coords · ' + orphan.length + ' orphaned refs');
+      break;
+    }
     case 'watch': {
       const [secsRaw, lvl] = rest; const secs = parseFloat(secsRaw) || 3; const level = lvl && LEVELS[lvl] != null ? lvl : 'info';
       console.log('  watching every ' + secs + 's at level ' + level + ' — press enter to stop');
