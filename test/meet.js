@@ -39,6 +39,9 @@
  *   who           compact who-is-here (name @ coord), grouped by section
  *   tree|census   probe EVERY seat (gossip) and rebuild the WHOLE mesh — coords,
  *                 links, up/down, flags half-links/dup-coords/orphans (DEBUG)
+ *   seat <pc/r.i> teleport my seat to any coord (grab an empty one to roam) DEBUG
+ *   tour [prefix] teleport into an empty seat of EVERY section + whole-window
+ *                 shot each — screenshots the composite from all over (DEBUG)
  *   rows          the row layout (my section)
  *   links | l     my bounded link set + each link's connection/DC state
  *   net           WHERE traffic travels: relay vs DC vs sponsor-forward (txStats)
@@ -374,6 +377,41 @@ async function runCmd(line) {
       const unseated = reps.filter((r) => !r.coord).length;
       if (orphan.length) console.log('  ⚠ referenced but SILENT (unreachable/orphan): ' + orphan.length + ' — ' + orphan.slice(0, 14).join(','));
       console.log('  totals: ' + reps.length + ' replied · ' + unseated + ' unseated · ' + dups.length + ' dup-coords · ' + orphan.length + ' orphaned refs');
+      break;
+    }
+    case 'seat': case 'goto': {
+      // DEBUG-TREE: teleport my seat to ANY coord (e.g. an empty one) to roam.
+      const mm = /^(\d+)[/_ ](\d+)[._ ](\d+)$/.exec((arg || '').trim());
+      if (!mm) { console.log('  usage: seat <pc/r.i>   e.g.  seat 0/2.3   (teleport to any coord; DEBUG)'); break; }
+      const res = await page.evaluate((a) => (window.__gifosVideo.forceSeat ? window.__gifosVideo.forceSeat(a[0], a[1], a[2]) : { err: 'forceSeat hook absent — redeploy' }), [mm[1], mm[2], mm[3]]).catch((e) => ({ err: String(e).slice(0, 100) }));
+      console.log('  ' + JSON.stringify(res) + (res && res.seated ? '   — give it ~6s to wire, then `state` / `shot`' : ''));
+      break;
+    }
+    case 'tour': {
+      // DEBUG-TREE: teleport into an EMPTY seat of every occupied section and
+      // whole-window-shot each vantage, so we see the composite from all over.
+      const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), 4500).catch(() => null);
+      if (!reps) { console.log('  census hook absent — redeploy'); break; }
+      const secs = [...new Set(reps.map((r) => r.coord && String(r.coord).split('/')[0]).filter((x) => x != null))].sort();
+      const dir = (arg || '/tmp/tour').replace(/\/$/, ''); const settle = 12;
+      console.log('  touring sections ' + secs.join(',') + ' — empty seat each, ' + settle + 's settle, whole-window shot');
+      for (const pc of secs) {
+        const filled = new Set(reps.filter((r) => r.coord && String(r.coord).split('/')[0] === pc).map((r) => String(r.coord).split('/')[1]));
+        let tgt = null; for (let r = 0; r < 5 && !tgt; r++) for (let i = 0; i < 5; i++) if (!filled.has(r + '.' + i)) { tgt = r + '.' + i; break; }
+        if (!tgt) tgt = '0.0';
+        const [r, i] = tgt.split('.');
+        await page.evaluate((a) => window.__gifosVideo.forceSeat(a[0], a[1], a[2]), [pc, r, i]).catch(() => {});
+        console.log('  → section ' + pc + ' @ ' + pc + '/' + tgt + ' … settling ' + settle + 's');
+        await sleep(settle * 1000);
+        const vp = page.viewportSize();
+        const h = await page.evaluate(() => { const f = document.getElementById('feed'); return Math.max(document.documentElement.scrollHeight, f ? f.scrollHeight + 220 : 0, 1000); }).catch(() => 2200);
+        const H = Math.min(Math.round(h), 12000);
+        try { await page.setViewportSize({ width: (vp && vp.width) || 1200, height: H }); await sleep(450); } catch (e) {}
+        const path = dir + '-sec' + pc + '.png'; await page.screenshot({ path, fullPage: true });
+        if (vp) { try { await page.setViewportSize(vp); } catch (e) {} }
+        console.log('    shot → ' + path);
+      }
+      console.log('  tour done.');
       break;
     }
     case 'watch': {
