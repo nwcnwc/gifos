@@ -379,6 +379,18 @@ static void initSim(int n,double leave){
   TICK=0; nextId=0;
   FSEED=20260714; severedUntil.clear(); buildReach();   // reset fabric rng + reachability for a reproducible conditioned run
 }
+// Kill a fraction of live seats (the REAL departure path — leave() unless
+// silent). Shared by the service `kill` command and batch churn, so `./mesh N f`
+// finally does what the README always claimed: JOIN then heal a real departure.
+static long long killFraction(double frac,const string& mode){
+  vector<int> ids; for(int q=0;q<nextId;q++) if(alive[q]) ids.push_back(q);
+  int nk=(int)(N*frac); vector<int> pick; { unordered_set<int> u; while((int)pick.size()<nk && pick.size()<ids.size()){ int j=(int)(grnd()*ids.size()); if(!u.count(j)){u.insert(j);pick.push_back(ids[j]);} } }
+  unordered_set<int> ks(pick.begin(),pick.end());
+  if(mode=="s1row"){ int rr=(int)(grnd()*C); for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0&&seats[q]->coord.r==rr)ks.insert(q); }
+  if(mode=="s1all"){ for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0)ks.insert(q); }
+  if(mode=="silent"){ for(int q:ks){ alive[q]=0; active.erase(q); } } else for(int q:ks) seats[q]->leave();
+  N-=(int)ks.size(); return (long long)ks.size();
+}
 // advance until converged (seated==N && s1 full) or cap; returns ticks used
 static long long converge(long long cap){ long long seated,s1c; long long start=TICK; long long tgt=min((long long)25,(long long)N); long long best=-1, bestT=TICK; long long goodSince=-1; while(TICK<start+cap){ doTick(); TICK++; if(TICK%64==0){ counts(seated,s1c); if(seated==N && s1c==tgt && DUPS_G==0) return TICK; bool good=(s1c==tgt && seated>=(long long)(N*0.99)); if(good){ if(goodSince<0)goodSince=TICK; if(TICK-goodSince>6000) return TICK; } else goodSince=-1; } } return TICK; }
 
@@ -399,6 +411,13 @@ int main(int argc,char**argv){
     long long seated,s1c; counts(seated,s1c);
     printf("  after JOIN: %s [seated=%lld/%d, s1=%lld, converged@%lld, %lld ticks, %.2fs, %.0fk ticks/s]\n",
       (seated==n&&s1c==min(25,n))?"OK":"INCOMPLETE", seated,n,s1c,conv,TICK,secs, TICK/secs/1000.0);
+    if(lv>0){   // REAL churn: kill lv-fraction, then heal (leaveFrac used to be a dead no-op — this is the actual departure test)
+      long long killed=killFraction(lv,""); auto h0=chrono::steady_clock::now();
+      long long hconv=converge(MAXP); double hsecs=chrono::duration<double>(chrono::steady_clock::now()-h0).count();
+      counts(seated,s1c);
+      printf("  after HEAL: %s [killed=%lld, seated=%lld/%d, s1=%lld, healed@%lld, %.2fs]\n",
+        (seated==N && s1c==min((long long)25,(long long)N) && DUPS_G==0)?"OK":"INCOMPLETE", killed, seated, N, s1c, hconv, hsecs);
+    }
     long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP+EMIT_RELAY;
     printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  relay(socketed pair)=%lld (%.1f%%)  TELEPORT(faked)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
       EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_RELAY, tot?100.0*EMIT_RELAY/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
