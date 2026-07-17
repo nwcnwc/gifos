@@ -82,12 +82,14 @@
         ctx.fillStyle = '#101418'; ctx.fillRect(r.x, r.y, r.w, r.h);
         return;
       }
-      // A NESTED composite (a <canvas> — a row band, a sub-product, the stadium)
-      // is ALREADY laid out as its own grid; draw it WHOLE, aspect-preserved
-      // (contain), so its cells never get square-cropped into a smear. Only a
-      // LEAF camera (<video>) gets the centered-square crop that squares faces.
-      const isCanvas = el.tagName === 'CANVAS' || el.nodeName === 'CANVAS';
-      if (isCanvas) {
+      // WHAT a cell holds depends on the KIND, not on <video> vs <canvas> (a
+      // received sub-mosaic arrives as a <video> too, so tag-name can't tell):
+      //   BAND cells  = LEAF faces → centered-square crop, so every face is square.
+      //   FRAME cells = NESTED composites (a row band, a sub-product, the stadium)
+      //                 → draw WHOLE, aspect-preserved (contain), NEVER cropped —
+      //                 else a 756×151 strip of 5 faces gets its centre square cut
+      //                 out and smeared across the cell (the stretched bands bug).
+      if (opts.kind === 'frame') {
         const s = Math.min(r.w / sw, r.h / sh);
         const dw = sw * s, dh = sh * s, dx = r.x + (r.w - dw) / 2, dy = r.y + (r.h - dh) / 2;
         ctx.fillStyle = '#101418'; ctx.fillRect(r.x, r.y, r.w, r.h);
