@@ -328,7 +328,11 @@ export class Session {
 
     // ---- abuse guards ----
     const sockets = this.all();
-    if (sockets.length >= MAX_SOCKETS_PER_SESSION) return reject('this session is full', 1013);
+    // 1013 = RFC 6455 "Try Again Later" (the client backs off + retries). The
+    // ROOM is never full — deep seats drop their sockets, so a stadium holds
+    // billions; it's the relay's bootstrap socket slots that are momentarily
+    // saturated by simultaneous joiners.
+    if (sockets.length >= MAX_SOCKETS_PER_SESSION) return reject('too many joining right now — try again in a moment', 1013);
     const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
     const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
     let mine = 0;

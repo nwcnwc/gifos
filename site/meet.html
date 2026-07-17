@@ -860,6 +860,11 @@
     // the room; rosterIds is refreshed from the mesh each tick (renderFromOcc).
     let rosterIds = [], rosterNames = {};
     const gossipIds = () => rosterIds.filter((id) => id !== myId);
+    // The relay's OWN roster: the set of peers currently holding a relay socket
+    // (the greeter pool + in-flight joiners). This is exactly "who the relay can
+    // reach right now" — a target NOT in this set is a socketless deep seat the
+    // relay would silently drop, so signaling to it must sponsor-forward (§FWD).
+    let relaySocketed = new Set();
     // ---- rows from COORDS (no more roster arithmetic, no deacons) ----------
     // My row is a fact of my SEAT: the occupants of (pc, r, 0..C-1). The old
     // computeRows derived rows from relay-roster join order with row 0 as the
@@ -1654,17 +1659,19 @@
         }
         txStats.relaySig++;
       }
-      // 2) The RELAY is the PRIMARY handshake path (it reliably reaches any
-      // socketed peer). SPONSOR-FORWARD (docs/meet-security.md §FWD) is the
-      // FALLBACK for when my relay path to this peer is DOWN — deep seats run
-      // socketless — a mutual friend's DataChannel carries the frame instead.
-      // (Making sponsor-forward PRIMARY stalled connections at conn=1: a peer
-      // that found one sponsor forwarded through it and never fell back to the
-      // relay, so a failed hop = a lost handshake. Relay-primary is the path
-      // that has always worked; the greeters-only cleanup must not cost
-      // connectivity.)
+      // 2) The RELAY is the PRIMARY handshake path — but only for a peer it can
+      // actually REACH (one holding a socket: the greeter pool + in-flight
+      // joiners). SPONSOR-FORWARD (docs/meet-security.md §FWD) is the fallback
+      // whenever the relay can't carry this frame to this peer — either my own
+      // relay path is DOWN, or the TARGET is socketless (a deep seat: the relay
+      // would peerSock→null and SILENTLY DROP it — the old conn=1 stall). A
+      // mutual friend's DataChannel carries the frame instead. If no sponsor
+      // exists we still fall through to the relay: best-effort, never worse, and
+      // for a socketed target + live relay this path is unchanged (no sponsor,
+      // straight to the relay — the config that has always worked).
       const relayDown = !relayUp();
-      if (relayDown && msg.kind !== 'status') {
+      const targetUnreachable = !relaySocketed.has(to); // socketless deep seat ⇒ relay drops it
+      if ((relayDown || targetUnreachable) && msg.kind !== 'status') {
         const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
         const fp = cands.length ? peers.get(cands[0]) : null;
         if (fp && fp.dc && fp.dc.readyState === 'open') {
@@ -2311,6 +2318,7 @@
         broadcastStatus(); // push my sealed address out now
       }
       else if (m.t === 'roster') {
+        relaySocketed = new Set(m.peers || []); // who the relay can reach right now (socketed peers) \u2014 drives \u00a7FWD sponsor fallback
         roomBan = m.ban || []; // admins[] comes from VERIFIED signatures (adminsNow, \u00a79), never the relay
         Object.assign(devOf, m.devs || {}); // MERGE (absence grace keeps tiles whose Ban button must work)
         if (hasAdminRoom() && amAdmin) {
