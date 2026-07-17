@@ -60,26 +60,29 @@
     const W = opts.w || (net && net.SCALE.COMP_W) || 756;
     const H = opts.h || (net && net.SCALE.COMP_H) || 1344;
     const fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
-    const rects = (opts.kind === 'frame' ? frameRects : bandRects)(C, W, H);
+    const N = opts.cells || C; // a head's product = band + C subs = C+1 slots
+    const rects = (opts.kind === 'frame' ? frameRects : bandRects)(N, W, H);
     const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
     if (canvas) { canvas.width = W; canvas.height = H; }
     const ctx = canvas ? canvas.getContext('2d') : null;
-    const cells = new Array(C).fill(null); // { el, meta } | null
+    const cells = new Array(N).fill(null); // { el, meta } | null
     let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0;
 
     function drawCell(i) {
       const r = rects[i], c = cells[i];
-      if (!c || !c.el || !(c.el.videoWidth > 0)) {
+      const sw = c && c.el ? (c.el.videoWidth || c.el.width || 0) : 0;   // <video> or <canvas> source
+      const sh = c && c.el ? (c.el.videoHeight || c.el.height || 0) : 0;
+      if (!sw || !sh) {
         ctx.fillStyle = '#101418'; ctx.fillRect(r.x, r.y, r.w, r.h);
         return;
       }
-      const b = coverBox(c.el.videoWidth, c.el.videoHeight, r);
+      const b = coverBox(sw, sh, r);
       try { ctx.drawImage(c.el, b.sx, b.sy, b.sw, b.sh, r.x, r.y, r.w, r.h); } catch (e) {}
     }
     function paint() {
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       if (now - last < Math.max(1000 / fps, cost * 3)) { dropped++; return; } // GOVERNOR: drop, never queue
-      for (let i = 0; i < C; i++) drawCell(i);
+      for (let i = 0; i < N; i++) drawCell(i);
       last = now; cost = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - now; drawn++;
     }
 
