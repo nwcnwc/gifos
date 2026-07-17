@@ -69,6 +69,11 @@ static double REACH_DENSITY=1.0;  // fraction of NON-spanning subnet pairs that 
 static double NET_QUAL_MIN=1.0;   // netQual drawn uniformly in [NET_QUAL_MIN, 1.0] (1.0 = all perfect)
 static int    NET_SPINE=1;        // 1 = force the subnet graph CONNECTED (spanning chain); 0 = pure density (can partition!)
 static int    RELAY_K=0;          // media relay-assist fan-out cap per node (0 = off; >0 = bounded-degree relay tree). "one taker per giver + chain" ~ small K.
+// Option A dev flag: when ON, a seated seat may only hand a frame to a real
+// owned-link neighbour — sends to a seated non-neighbour ROUTE over the mesh
+// (no teleport). OFF by default until owned-link routing is COMPLETE (Section-1
+// inter-row paths still drop, breaking convergence). Enable with `--route`.
+static bool   ROUTE_ENFORCE=false;
 static uint32_t FSEED=20260714;
 static inline double frnd(){ FSEED=(uint32_t)((FSEED*1103515245u+12345u)&0x7fffffff); return FSEED/2147483648.0; }
 static vector<vector<char>> reachMx;                    // reachMx[a][b]: subnets a<->b directly reachable
@@ -171,6 +176,7 @@ struct Seat {
   int gateway=-1;                       // the greeter this (unseated) newcomer routes through
   void route(Coord rdst,int rfinal,Msg inner);   // send `inner` over the mesh to coord rdst (rfinal>=0 ⇒ hand to that newcomer at the end)
   bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
+  int strictNextHop(Coord rdst);        // next hop toward rdst over an OWNED LINK only (-1 if the ideal link is vacant — no teleport)
   void routeTo(Coord target,int tag);
   void leave();
 };
@@ -183,17 +189,18 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 // production can only make via the relay (or real routing). BOOTSTRAP = to/from a
 // not-yet-seated joiner (the greeter/relay path). Goal of Option A: TELEPORT -> 0.
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0;
-static void classifyEmit(int from,int to){
+static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
+static void classifyEmit(int from,int to,int mt){
   if(from<0 || to<0 || from>=(int)seats.size() || to>=(int)seats.size()){ EMIT_BOOTSTRAP++; return; }
   Seat* sf=seats[from]; Seat* st=seats[to];
   if(!sf->hasCoord || !st->hasCoord){ EMIT_BOOTSTRAP++; return; }
   Coord ol[C+2]; int n=ownedLinks(sf->coord,ol); uint64_t tk=ckey(st->coord);
   for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ EMIT_NEIGHBOR++; return; }
-  EMIT_TELEPORT++;
+  EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;
 }
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
-  classifyEmit(from,to);
+  classifyEmit(from,to,(int)m.t);
   bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
   if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
     Seat* sf=seats[from]; Seat* st=seats[to];
@@ -216,7 +223,20 @@ static void schedule(int from,int to,Msg m){
   m.to=to; m.from=from; SEQ++;
   bus[TICK+d].push_back(move(m));
 }
-void Seat::emit(int to,const Msg& m){ if(PAR){ tlsOut[curTid()].push_back({id,to,m}); } else { Msg mm=m; schedule(id,to,move(mm)); } }
+void Seat::emit(int to,const Msg& m){
+  // Option A: a seated seat may only hand a frame to a seat it holds a real
+  // owned-link (DataChannel) to. If `to` is a seated NON-neighbor, ROUTE the
+  // frame over the mesh toward its coord instead of teleporting it there. (An
+  // already-routing frame is going to its next hop — a neighbor — so it passes
+  // through untouched; unseated endpoints are the bootstrap/gateway path.)
+  if(ROUTE_ENFORCE && !m.routing && hasCoord && to>=0 && to<(int)seats.size() && to!=id && seats[to]->hasCoord){
+    Coord tc=seats[to]->coord; uint64_t tk=ckey(tc);
+    Coord ol[C+2]; int n=ownedLinks(coord,ol); bool nbr=false;
+    for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ nbr=true; break; }
+    if(!nbr){ route(tc,-1,m); return; }
+  }
+  if(PAR){ tlsOut[curTid()].push_back({id,to,m}); } else { Msg mm=m; schedule(id,to,move(mm)); }
+}
 static void relayKnock(int id,uint64_t presentedKey);
 void Seat::emitRelay(uint64_t presentedKey){ if(PAR){ tlsRelay[curTid()].push_back({id,presentedKey}); } else { relayKnock(id, presentedKey); } }
 static void relayKnock(int id,uint64_t presentedKey){
@@ -310,7 +330,8 @@ int main(int argc,char**argv){
   for(int a=1;a<argc;a++){ string s=argv[a];
     if(s=="--service") service=true;
     else if(s.rfind("--threads=",0)==0) wthreads=max(1,atoi(s.c_str()+10));
-    else if(s=="--det") DETERM=true; }
+    else if(s=="--det") DETERM=true;
+    else if(s=="--route") ROUTE_ENFORCE=true; }   // Option A: enforce owned-link-only delivery (route, never teleport)
   tlsResize(wthreads);
   if(!service){
     int n=argc>1?atoi(argv[1]):10000; double lv=argc>2?atof(argv[2]):0;
@@ -323,6 +344,8 @@ int main(int argc,char**argv){
     long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP;
     printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  TELEPORT(faked multi-hop)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
       EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
+    { const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"};
+      printf("  TELEPORTS BY TYPE:"); for(int i=0;i<21;i++) if(TELE_BY_T[i]) printf(" %s=%lld",NM[i],TELE_BY_T[i]); printf("\n"); }
     return 0;
   }
   // ---- SERVICE: read commands on stdin, answer on stdout ----
