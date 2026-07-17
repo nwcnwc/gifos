@@ -56,7 +56,7 @@ Press **Invite** in a running app: your browser becomes the host and the tab sho
 - **Your invite links are yours by default.** An app invite is an **owned** link: only your copy can host it, because holding the host slot takes a secret your app generated and keeps to itself — never in the link, never shown to you, never on any server. The link carries only the secret's *verifier* (a hash), which lets the relay recognize the real host and admit guests **without letting any of them take over or impersonate you**. A signed app's link reads `/join/<app-name>/…`; an unsigned one reads `/join/<app-name>-anon/…` — same ownership, the `-anon` only flags that nobody vouched for who built it.
 - **…or hand the room to everyone.** Toggle **"Let a friend keep it going"** at Invite and you mint the opposite on purpose: an **anyone-owns**, self-healing link — no secret, no owner, a *dotless* id. Anyone holding it can host, and if you drop off, a still-connected friend's browser takes over automatically so the session never dies. You're trading the ownership guarantee for a room that outlives any one host. It's a deliberate, labeled choice, never the default — and the same shape a plain meeting link has.
 - **Failover (anyone-owns links only).** On a self-healing link, clients mirror the host's state; if the host stays gone (~25s), the freshest mirror **takes over automatically** and the same link keeps working — no clicks. An owned link has exactly one host — yours — by design, so there's nothing to take over.
-- **Meeting** (front and center on the Home Screen) is strictly P2P mesh — the relay only performs introductions and its **bandwidth guard refuses to carry media**. Quality auto-steps (720p → 480p → 360p → 240p) as more people join, and back up as they leave; the tile wall scrolls, so any number fit. Audio-only is fine — the camera is always optional.
+- **Meeting** (front and center on the Home Screen) is strictly P2P mesh with **no size limit** — two people or two million, it runs the same. The relay is only a **zero-knowledge greeter** that introduces browsers; its **bandwidth guard refuses to carry media**. It scales by folding the crowd into itself (the **stadium** model): you're directly wired only to the handful in your **row**, and the rest of the room composites into **Section** and **Stadium** tiers, so your phone only ever carries its own corner. Quality auto-steps (720p → 480p → 360p → 240p) within a tier as neighbours join and back up as they leave. Audio-only is fine — the camera is always optional. How it all fits together: [docs/meeting.md](docs/meeting.md).
 - **Run an app inside a meeting.** Press **Run app** and everyone on the meeting shares one live app on stage — same state, same moves, exactly like joining an app by link, now with voice, video and recording around it. Two doors, one room: start a meeting and load an app, or open an app and hit **Meeting** in its tab to turn it into one. The app runs as an ordinary host/client session (its join info rides the status heartbeat, so late joiners auto-mount); the app never touches the camera, which stays with the trusted meeting page.
 - **A front door, not a cold plunge.** Opening Meeting no longer drops you straight into a random room with the camera already on — it opens a **lobby** that asks what you came to do: **start a meeting** (open room, random id), **start a room you run** (pick a name and admin password right there), **join a link** (paste a full invite URL *or* just a meeting id), or reopen a **recent** meeting — most-recent-first, with the ones you keep coming back to kept as ★ bookmarks. The camera stays off until you choose, so there's no light and no permission prompt just to read the menu. A real invite link (or `/meet/<room>`) skips the lobby and takes you straight in — the link already says why you came.
 - **A meeting is a permanent, host-less room.** The room IS its URL: nobody owns it, the creator leaving changes nothing, an emptied room revives on the next join — a meeting link works forever. Sockets self-heal, broken pairs re-offer with ICE restarts, and a locked phone keeps its tile through a grace window.
@@ -202,7 +202,7 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 - ✅ Hardened app sandbox: opaque origin + injected CSP + neutered WebRTC + per-icon DB namespacing
 - ✅ Multiplayer: P2P DataChannels with automatic relay fallback, screen names, lock-until-reopen, snapshot failover (Become Host)
 - ✅ Deployed: GitHub Pages (`gifos.app`), Cloudflare relay (`relay.gifos.app`) with server-side bandwidth guard + mesh peer routing, numbered-subdomain mirror
-- ✅ P2P Meeting: permanent host-less rooms (a link works forever), mesh media, adaptive quality, quiet joins, sender-enforced blur, attributed group moderation, occupant-held room passwords — relay-refuses-media by design
+- ✅ P2P Meeting: permanent host-less rooms (a link works forever), no-root **stadium mesh** (Section 1 = 25 uniform seats, bounded degree, greeter-only relay), mesh media, adaptive quality, quiet joins, sender-enforced blur, attributed group moderation, occupant-held room passwords — relay-refuses-media by design
 - ✅ Meeting safety: unblurred video requires a room password (plus unanimous consent in plain rooms / a connected admin); personal GLOBAL vote-off lists (majority-of-devices boot, no forgeable ban list); who-is-here address transparency
 - ✅ IRL party games: secret roles, hidden ballots, and simultaneous reveals dealt to each player's own phone; the drama happens in the room
 - ✅ Provenance signatures: sign app GIFs by domain (Ed25519) or email (OpenPGP — Ed25519 or RSA keys); verified against real gpg in CI
@@ -215,9 +215,17 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 ## Architecture
 
 - [docs/architecture.md](docs/architecture.md) — the desktop, the GIF filesystem format, execution model, sandbox security, computer images, versioning.
-- [docs/cors-and-networking.md](docs/cors-and-networking.md) — browser-as-server, the transport ladder, the relay bandwidth guard, mesh signaling, video, and the external-API bridge.
+- [docs/cors-and-networking.md](docs/cors-and-networking.md) — browser-as-server, the transport ladder (P0/P1/P2), the relay bandwidth guard, mesh signaling, video, and the external-API bridge.
 - [docs/threat-model.md](docs/threat-model.md) — what GifOS defends against and what it deliberately doesn't: trust boundaries, adversaries, mitigations, and non-goals.
 - [mirror/README.md](mirror/README.md) — how numbered subdomains are served.
+
+**The meeting mesh** (the no-root, no-server-in-the-middle stadium):
+
+- [docs/meeting.md](docs/meeting.md) — the map: what a participant sees and does, and how the four planes below fit together.
+- [docs/healing-laws.md](docs/healing-laws.md) — the control plane: the greeter registry, seating, and the self-healing laws (canonical).
+- [docs/media-plane.md](docs/media-plane.md) — the four media channels (Row, Section, Stage, Stadium) and how composites fan up and down the tree.
+- [docs/meet-security.md](docs/meet-security.md) — the door lock, signed admin authority, and sponsor-forwarded signaling.
+- [docs/app-mesh.md](docs/app-mesh.md) — apps as mesh sessions: sharing app state over the same tree (design).
 
 ## License
 
