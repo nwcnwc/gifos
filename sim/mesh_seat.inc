@@ -136,7 +136,8 @@ void Seat::route(Coord rdst,int rfinal,Msg inner){
   if(hasCoord && ckey(coord)==ckey(rdst)){                // I'm the destination cell
     inner.routing=false;
     if(rfinal<0 || rfinal==id){ emit(id,inner); return; } // deliver to MYSELF via the bus (never re-entrant recv → no stack blowup)
-    inner.direct=true; emit(rfinal,inner); return;        // hand to my attached newcomer over the direct link (bypass routing)
+    if(rfinal<(int)seats.size() && seats[rfinal]->hasCoord && ckey(seats[rfinal]->coord)!=ckey(coord)){ emit(rfinal,inner); return; } // rfinal SEATED since — route to its coord (no teleport)
+    inner.direct=true; emit(rfinal,inner); return;        // still an unseated newcomer (or a dup at my cell) — direct hand-off
   }
   int nh = hasCoord ? strictNextHop(rdst) : gateway;      // unseated ⇒ leave via the gateway link
   if(nh>=0) emit(nh,inner);
@@ -147,7 +148,9 @@ void Seat::route(Coord rdst,int rfinal,Msg inner){
 bool Seat::routeStep(Msg& m){
   if(hasCoord && ckey(coord)==ckey(m.rdst)){
     if(m.rfinal<0 || m.rfinal==id){ m.routing=false; return true; }
-    Msg h=m; h.routing=false; h.direct=true; emit(m.rfinal,h); return false;   // deliver to the attached newcomer over the direct link (bypass routing)
+    Msg h=m; h.routing=false;
+    if(m.rfinal<(int)seats.size() && seats[m.rfinal]->hasCoord && ckey(seats[m.rfinal]->coord)!=ckey(coord)){ emit(m.rfinal,h); return false; } // rfinal SEATED since — route to it (no teleport)
+    h.direct=true; emit(m.rfinal,h); return false;   // still unseated (or dup at my cell) — direct hand-off over the link
   }
   if(m.rttl<=0) return false;                              // give up — sender retries
   int nh = strictNextHop(m.rdst);
