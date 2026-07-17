@@ -1981,14 +1981,17 @@
     }
 
     // ┌─────────────────────────────────────────────────────────────────────┐
-    // │ DEBUG-TREE — REMOVE BEFORE LAUNCH. Whole-mesh census for test/meet.js. │
-    // │ grep "DEBUG-TREE" to delete every piece (this helper, the onGossip     │
+    // │ DEBUG-TREE — gated by DEBUG=on in the URL (e.g. #v=room&DEBUG=on), so  │
+    // │ production clients ship the code INERT: they never reply to probes,   │
+    // │ never accept a forceSeat. The meeting CLI adds the param itself.      │
+    // │ grep "DEBUG-TREE" to find every piece (this helper, the onGossip       │
     // │ __probe/__ack arms, and the probeTree hook in window.__gifosVideo).    │
     // │ A seat's self-report: coord, bounded links, live connections, up/down. │
     // │ One probe gossips the room; every seat replies with this; the tool     │
     // │ reconstructs the ENTIRE tree — exposing link asymmetry / orphans / dup │
     // │ coords no single occ can show. NOT product surface: pure diagnostics.  │
     // └─────────────────────────────────────────────────────────────────────┘
+    const DEBUG_ON = /(?:^|[#&?])debug=(?:on|1|true)/i.test(location.hash + location.search); // DEBUG-TREE gate
     function meshSelfReport() { // DEBUG-TREE
       const c = meshCoord(), s = meshSeat();
       // `from` is the FULL peer id — the census doubles as an occ seed for the
@@ -2229,9 +2232,9 @@
         // same handlers.
         onGossip: (src, g) => {
           if (!g || g.a !== 1 || !g.msg) return;
-          // DEBUG-TREE — REMOVE BEFORE LAUNCH (two arms below).
-          if (g.msg.__probe) { if (meshNode) meshNode.gossip({ a: 1, msg: { __ack: g.msg.__probe, r: meshSelfReport() } }); return; }
-          if (g.msg.__ack) { const M = (window.__meshCensus = window.__meshCensus || {}); if (g.msg.r && g.msg.r.from) M[g.msg.r.from] = g.msg.r; return; }
+          // DEBUG-TREE (inert unless DEBUG=on rides the URL).
+          if (g.msg.__probe) { if (DEBUG_ON && meshNode) meshNode.gossip({ a: 1, msg: { __ack: g.msg.__probe, r: meshSelfReport() } }); return; }
+          if (g.msg.__ack) { if (DEBUG_ON) { const M = (window.__meshCensus = window.__meshCensus || {}); if (g.msg.r && g.msg.r.from) M[g.msg.r.from] = g.msg.r; } return; }
           // end DEBUG-TREE
           if (g.msg.kind) onSignal(src, g.msg);
           else if (g.msg.k) onRemote(src, g.msg);
@@ -5234,6 +5237,7 @@
       // DEBUG-TREE — REMOVE BEFORE LAUNCH. Gossip a probe; every seat self-
       // reports; resolve the whole-mesh census (array of meshSelfReport()).
       probeTree: (ms) => new Promise((resolve) => {
+        if (!DEBUG_ON) { resolve({ err: 'DEBUG=on not in URL' }); return; }
         window.__meshCensus = {};
         const self = meshSelfReport(); window.__meshCensus[self.from] = self; // I won't hear my own flood
         if (meshNode) meshNode.gossip({ a: 1, msg: { __probe: 'p' + Date.now() } });
@@ -5245,6 +5249,7 @@
       // target and HELLOs its owned-link neighbours to re-wire; the mesh gossip/
       // anti-entropy fills the rest. NOT product surface: pure diagnostics.
       forceSeat: (pc, r, i, occSeed) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
         const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
         const T = net.topo, target = { pc: +pc, r: +r, i: +i };
         if (seat.hasCoord) {
