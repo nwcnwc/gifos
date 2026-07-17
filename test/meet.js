@@ -48,6 +48,7 @@
  *   links | l     my bounded link set + each link's connection/DC state
  *   net           WHERE traffic travels: relay vs DC vs sponsor-forward (txStats)
  *   mosaic | m    the four media composites: which channels are live
+ *   feeds         every CLAIMED feed: dims, frames, track mute — sender vs receiver
  *   stage [up|down]  who's on stage + the strip's state; up/down steps me on/off
  *   consent       the clear-video tally (X/N) and exactly who is blocking it
  *   tiles         #grid tiles shown/total (Channel R) + which composites paint
@@ -343,6 +344,14 @@ async function runCmd(line) {
       console.log('  R2: the relay is greeters-only — relay counts should stay LOW and flat once seated (only entry bootstrap).');
       break;
     case 'mosaic': case 'm': console.log('  ' + JSON.stringify(d.mosaic)); break;
+    case 'feeds': {
+      const ff = await page.evaluate(() => (window.__gifosVideo.feedsInfo ? window.__gifosVideo.feedsInfo() : null)).catch(() => null);
+      if (!ff) { console.log('  feedsInfo hook absent — redeploy'); break; }
+      console.log('  ' + pad('key', 12) + pad('via', 10) + pad('n/cols', 8) + pad('vw×vh', 10) + pad('rdy', 4) + pad('paused', 7) + pad('frames', 8) + pad('vTrk', 5) + pad('muted', 6) + 'state');
+      for (const f of ff) console.log('  ' + pad(f.key, 12) + pad(f.via, 10) + pad((f.meta && f.meta.n) ? f.meta.n + '/' + f.meta.cols : '—', 8) + pad(f.vw + '×' + f.vh, 10) + pad(f.ready, 4) + pad(f.paused, 7) + pad(f.frames, 8) + pad(f.vTracks, 5) + pad(f.vMuted, 6) + f.vState);
+      console.log('  (' + ff.length + ' claimed feeds; vw=0 or muted=true ⇒ no frames arriving from that sender)');
+      break;
+    }
     case 'stage': {
       // stage            → who's on stage, my rights, the strip's real state
       // stage up|down    → step my participant on/off the stage
