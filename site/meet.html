@@ -1533,8 +1533,13 @@
       // jobs, row composites, forwarded folds). Only MY OWN outbound video is
       // ever swapped for the blur pipe — a blur toggle must never overwrite the
       // stream a deacon or relayer is forwarding.
-      for (const p of peers.values()) for (const s of p.pc.getSenders()) {
-        if (s.track && s.track.kind === 'video' && s.track !== vt && !auxSenders.has(s)) s.replaceTrack(vt).catch(() => {});
+      for (const p of peers.values()) {
+        const cam = camPeer(p.id) || !!myStatus.stg; // structural link ⇒ no raw camera encode
+        for (const s of p.pc.getSenders()) {
+          if (!s.track || s.track.kind !== 'video' || auxSenders.has(s)) continue;
+          if (!cam) { if (s.track) s.replaceTrack(null).catch(() => {}); } // stop encoding the camera to a non-row-mate (no renegotiation)
+          else if (s.track !== vt) s.replaceTrack(vt).catch(() => {});
+        }
       }
       adapt(); // re-apply bitrate/resolution to the (possibly new) sender track
     }
@@ -1729,6 +1734,17 @@
     // mobile browsers kill pcs on hard network changes / long freezes), the
     // sweeper wires a fresh one into the SAME peer record — the tile, name and
     // claimed streams survive; only the transport is replaced.
+    // Is pid a ROW-MATE (same section+row) — the only class that gets my raw
+    // camera? Unknown coord / pre-seat ⇒ true (carry, safe; the sweeper trims
+    // once the coord lands). meshOccAt reverses occ.
+    function isRowMate(pid) {
+      const c = meshCoord(), s = meshSeat(); if (!c || !s) return true;
+      let k = null; for (const [kk, v] of s.occ) if (v === pid) { k = kk; break; }
+      if (!k) return true;
+      const cc = net.topo.unck(k);
+      return cc.pc === c.pc && cc.r === c.r;
+    }
+    const camPeer = (pid) => isRowMate(pid);
     function newPcFor(p) {
       try { p.pc && p.pc.close(); } catch (e) {}
       // A rebuilt transport starts with NO senders: forget every composite role
@@ -1737,10 +1753,12 @@
       if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
-      // Uplink edges carry no personal camera — folds and forwards only —
-      // UNLESS I am staged: the stage's own feed is exactly what the parent
-      // space exists to carry (row 0, encoded once, subscribed by all).
-      const carryCam = !p.headless || !!myStatus.stg;
+      // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
+      // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
+      // down) already receive my face INSIDE the composited band/product/
+      // stadium, so a raw camera there is a duplicate encode. (Staged: my feed
+      // is exactly what the parent space carries, so a stager still uplinks it.)
+      const carryCam = (camPeer(p.id) && !p.headless) || !!myStatus.stg;
       if (localStream && carryCam) {
         for (const track of localStream.getAudioTracks()) pc.addTrack(track, localStream);
         // Send the blur-canvas track when any blur applies — never the raw camera.
