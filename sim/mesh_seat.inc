@@ -88,21 +88,22 @@ void Seat::reseatViaRoster(){ bumpMoves(); if(hasCoord){ Coord ol[C+2]; int n=ow
 bool Seat::nextHopCoord(Coord t, Coord& out){
   Coord c=coord;
   if(c.pc==t.pc&&c.r==t.r&&c.i==t.i) return false;
-  if(c.r!=t.r){ if(c.pc!=0){ if(c.i!=0){out={c.pc,c.r,0};return true;} return up(c,out); }
-    for(int j=1;j<C;j++){ Coord x; if(crossLink({0,c.r,(uint8_t)j},x)&&x.r==t.r){ out= (c.i==j)? x : Coord{0,c.r,(uint8_t)j}; return true; } } return false; }
-  // same row: navigate by path
-  if(c.pc!=t.pc){ // climb to common ancestor or descend
-    // build depth of each via repeated parent
-    // find if t is descendant of c or vice versa by comparing path prefixes:
-    // simpler: if depth(c) > depth via LCA... emulate JS: compare path strings.
-    // Reconstruct digit paths:
-    auto digs=[&](uint32_t pc,vector<int>&v){ while(pc){ v.push_back(lastDigit(pc)); pc=parentPath(pc);} for(int a=0,b=(int)v.size()-1;a<b;a++,b--)swap(v[a],v[b]); };
-    vector<int> pa,pb; digs(c.pc,pa); digs(t.pc,pb);
-    int l=0; while(l<(int)pa.size()&&l<(int)pb.size()&&pa[l]==pb[l])l++;
-    if(l<(int)pa.size()){ if(c.i!=0){out={c.pc,c.r,0};return true;} return up(c,out); }
-    if((int)pa.size()<(int)pb.size()){ int d=pb[pa.size()]; if(c.i!=d){out={c.pc,c.r,(uint8_t)d};return true;} out=down(c); return true; }
+  if(c.pc==t.pc){                                    // SAME section — stay inside it, over owned links only
+    if(c.r==t.r){ out={c.pc,c.r,t.i}; return true; } // same row: row-mate straight to the target column
+    // Different row: reach row t.r via ONE transpose cross-link. crossLink(pc,r,col)
+    // lands in row: (col==r ⇒ 0), (r==0 ⇒ col), else col. So the column whose
+    // cross-link lands in row t.r is t.r itself, except when t.r==0 use my diagonal (col r).
+    int tcol = (t.r==0)? c.r : t.r;                   // never 0 (t.r!=c.r), so my cross-link exists there
+    if(c.i!=tcol){ out={c.pc,c.r,(uint8_t)tcol}; return true; }   // hop 1: row-mate to that column
+    Coord x; crossLink(c,x); out=x; return true;      // hop 2: transpose across to row t.r (then row-mate to t.i)
   }
-  out={c.pc,c.r,t.i}; return true;
+  // DIFFERENT section: climb to the common ancestor, or descend toward t (up/down
+  // preserve the row, so the same-section logic fixes the row once we arrive).
+  auto digs=[&](uint32_t pc,vector<int>&v){ while(pc){ v.push_back(lastDigit(pc)); pc=parentPath(pc);} for(int a=0,b=(int)v.size()-1;a<b;a++,b--)swap(v[a],v[b]); };
+  vector<int> pa,pb; digs(c.pc,pa); digs(t.pc,pb);
+  int l=0; while(l<(int)pa.size()&&l<(int)pb.size()&&pa[l]==pb[l])l++;
+  if(l<(int)pa.size()){ if(c.i!=0){out={c.pc,c.r,0};return true;} return up(c,out); }   // climb: to col 0, then up
+  int d=pb[pa.size()]; if(c.i!=d){out={c.pc,c.r,(uint8_t)d};return true;} out=down(c); return true;  // descend toward child digit d
 }
 int Seat::nextHopToward(Coord target,int exclude){
   if(!hasCoord) return -1; Coord ideal; if(nextHopCoord(target,ideal)){ int x=occGet(ckey(ideal)); if(x>=0&&x!=id&&x!=exclude) return x; }
