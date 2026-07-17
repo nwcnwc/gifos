@@ -670,6 +670,7 @@
   <script src="js/gifos-net.js"></script>
   <script src="js/mesh.js"></script>
   <script src="js/mesh-wire.js"></script>
+  <script src="js/mesh-media.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
   <script src="js/gifos-perms.js"></script>
@@ -1730,6 +1731,7 @@
         if (p.incoming.length > 8) p.incoming.shift(); // dead renegotiation leftovers
         claimOwnStream(p);     // proven-own media → their tile
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
+        claimMos();            // explicitly mapped mosaic hops → bands/frames (3b)
       };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -2346,6 +2348,7 @@
       // `admins` is a VIEW over signature-verified sightings, and the
       // signature re-mints when the table (or freshness bucket) changed.
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
+      reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
       renderHandq();   // the room-wide hand queue, freshest fold wins
@@ -3049,6 +3052,13 @@
         stopRelayJob(String(m.target || ''), p.id, false);
       } else if (m.k === 'relay-end') {
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
+      } else if (m.k === 'mx' && typeof m.key === 'string' && m.streamId) {
+        // Mosaic ship announced (idempotent, re-sent every sweep) — claim by id.
+        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, at: Date.now() });
+        claimMos();
+      } else if (m.k === 'mx-end' && typeof m.key === 'string') {
+        mosAnn.delete(p.id + '|' + m.key);
+        for (const [rk, c] of [...mosIn]) if (c.via === p.id && c.streamId === m.streamId) dropMosIn(rk);
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
@@ -3390,6 +3400,196 @@
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
       dcSend(p, { k: 'rkick' });
       if (hasPendingTx(p)) renegotiate(p);
+    }
+
+    // ================== THE FRACTAL MOSAIC (3b, docs/media-plane.md) =========
+    // The Stadium channel, distributed: every ROW HEAD composites its PRODUCT
+    // — its row's camera band (H) + the up-to-C sub-products its row's
+    // down-links deliver (stacked V) — and ships it up. Section-1 heads
+    // exchange products over the row+cross fabric (3 bounded hops, full
+    // coverage by construction: mate i's cross partner is row i for i≠r and
+    // row 0 for i===r), stack them into THE STADIUM, and fan it back down
+    // every down-link. One mechanism carries every hop: a keyed aux-stream
+    // ship ({k:'mx'}) announced by streamId, claimed on ontrack — the exact
+    // friend-relay discipline. All of it gates on multiSection(): a room that
+    // fits in Section 1 renders everyone directly (the interim rule) and pays
+    // nothing here.
+    const MM = GifOS.meshMedia;
+    const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
+    const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
+    const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
+    let bandComp = null, prodComp = null, sdComp = null;
+    const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
+    const occPid = (c) => { const s = meshSeat(); return s ? s.occGet(net.topo.ckey(c)) : null; };
+    // A hidden, playing <video> for a claimed stream — the drawImage source.
+    function mosVideo(stream) {
+      const v = document.createElement('video');
+      v.muted = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+      v.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
+      v.srcObject = stream; document.body.appendChild(v);
+      const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+      return v;
+    }
+    function shipMos(key, to, stream, meta) {
+      if (!to || !stream) return null;
+      const p = peers.get(to);
+      const jk = key + '>' + to;
+      const cur = mosJobs.get(jk);
+      if (cur && cur.sig === stream.id) { // live job — re-announce (idempotent, heals a lost frame)
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+        return jk;
+      }
+      if (cur) unshipMos(jk, false);
+      if (!p || !p.pc || !p.connected) return null; // not linked yet — next sweep retries
+      const container = new MediaStream();
+      const senders = [];
+      for (const tr of stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); } catch (e) {} }
+      if (!senders.length) return null;
+      mosJobs.set(jk, { senders, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
+      if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
+      compKick(to);
+      return jk;
+    }
+    function unshipMos(jk, notify) {
+      const job = mosJobs.get(jk); if (!job) return;
+      mosJobs.delete(jk);
+      const p = peers.get(job.to);
+      for (const sd of job.senders) auxSenders.delete(sd);
+      if (p && p.pc) { for (const sd of job.senders) { try { p.pc.removeTrack(sd); } catch (e) {} } if (notify !== false && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'mx-end', key: job.key, streamId: job.streamId }); compKick(job.to); }
+    }
+    function dropMosIn(rk) {
+      const c = mosIn.get(rk); if (!c) return;
+      mosIn.delete(rk);
+      try { c.el.srcObject = null; c.el.remove(); } catch (e) {}
+    }
+    // Claim announced streams off the announcing peer's incoming list, and
+    // RESOLVE each to its routing slot (the mosaic's whole routing table):
+    //   sub (+col from a relaying row-mate) -> a head's stack slot
+    //   sub (no col, from my down-child)    -> head: slot 0 / non-head: relay it
+    //   x1 -> cross it; x2 -> hand to my head; sdrow:q -> stadium slot q
+    //   sd -> THE STADIUM (render + fan down)
+    function mosResolve(key, meta, from) {
+      const c = meshCoord(); if (!c) return null;
+      const iAmHead = c.i === 0;
+      if (key === 'sub') {
+        if (meta && meta.col != null) return iAmHead ? 'sub:' + meta.col : null;
+        return iAmHead ? 'sub:0' : 'subraw';
+      }
+      if (key === 'x1') return iAmHead ? null : 'x1';
+      if (key === 'x2') return iAmHead ? null : 'x2';
+      if (key === 'sdrow') return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
+      if (key === 'sd') return 'sd';
+      return null;
+    }
+    function claimMos() {
+      for (const [ak, ann] of mosAnn) {
+        const from = ak.slice(0, ak.indexOf('|')), key = ak.slice(ak.indexOf('|') + 1);
+        const rk = mosResolve(key, ann, from);
+        if (!rk) continue;
+        const cur = mosIn.get(rk);
+        if (cur && cur.streamId === ann.streamId) continue; // already claimed
+        const p = peers.get(from);
+        if (!p || !p.incoming) continue;
+        const st = p.incoming.find((s) => s.id === ann.streamId && s.id !== p.ownSid);
+        if (!st) continue;
+        if (cur) dropMosIn(rk);
+        mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: { col: ann.col, row: ann.row } });
+      }
+    }
+    // The stadium tile (one, keyed 'sd') in the stadium strip.
+    function paintStadiumTile(stream) {
+      let el = stadiumEl.querySelector('[data-row="sd"]');
+      if (!stream) { if (el) el.remove(); stadiumEl.classList.toggle('on', !!stadiumEl.querySelector('.rowtile')); compOf.delete('sd'); return; }
+      if (!el) {
+        el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sd';
+        const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
+        const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'The stadium';
+        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el);
+      }
+      const v = el.querySelector('video');
+      if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      stadiumEl.classList.add('on');
+      compOf.set('sd', { via: 'mosaic', streamId: stream.id, stream, names: [], rws: [], cnt: knownTotal() });
+    }
+    function stopMosaic() {
+      for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
+      for (const rk of [...mosIn.keys()]) dropMosIn(rk);
+      mosAnn.clear();
+      if (bandComp) { bandComp.stop(); bandComp = null; }
+      if (prodComp) { prodComp.stop(); prodComp = null; }
+      if (sdComp) { sdComp.stop(); sdComp = null; }
+      paintStadiumTile(null);
+    }
+    function reconcileMosaic() {
+      const s = meshSeat(), c = meshCoord();
+      if (!s || !c || !multiSection()) { if (mosJobs.size || mosIn.size || bandComp) stopMosaic(); return; }
+      claimMos();
+      const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
+      const T = net.topo;
+      if (iAmHead) {
+        // PRODUCT = my row band (slot 0) + my row's C sub-products (slots 1..C)
+        if (!bandComp) bandComp = MM.createComposite({ kind: 'band' }).start();
+        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1 }).start();
+        for (let j = 0; j < C; j++) {
+          const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          const pj = pid === myId ? meTile : peers.get(pid);
+          bandComp.setCell(j, pj ? pj.video : null);
+          const sub = mosIn.get('sub:' + j);
+          prodComp.setCell(1 + j, sub ? sub.el : null);
+        }
+        prodComp.setCell(0, bandComp.canvas);
+        if (c.pc !== 0) {
+          // ship my product UP (the up-seat relays it to ITS head)
+          const up = T.up(c); const upPid = up ? occPid(up) : null;
+          const jk = shipMos('sub', upPid, prodComp.stream, null); if (jk) wanted.add(jk);
+        } else {
+          // SECTION-1 FINISH: exchange products (x1 to each row-mate), stack
+          // into THE STADIUM, fan it down my down-link + keep my row current.
+          for (let j = 1; j < C; j++) {
+            const mate = occPid({ pc: 0, r: c.r, i: j });
+            const jk = shipMos('x1', mate, prodComp.stream, { row: c.r }); if (jk) wanted.add(jk);
+          }
+          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame' }).start();
+          for (let q = 0; q < C; q++) {
+            if (q === c.r) { sdComp.setCell(q, prodComp.canvas); continue; }
+            const rowIn = mosIn.get('sdrow:' + q);
+            sdComp.setCell(q, rowIn ? rowIn.el : null);
+          }
+          paintStadiumTile(sdComp.stream);
+          const downPid = occPid(T.down(c));
+          const jk2 = shipMos('sd', downPid, sdComp.stream, null); if (jk2) wanted.add(jk2);
+          for (let j = 1; j < C; j++) { // S1 row-mates see the stadium too
+            const mate = occPid({ pc: 0, r: c.r, i: j });
+            const jk3 = shipMos('sd', mate, sdComp.stream, null); if (jk3) wanted.add(jk3);
+          }
+        }
+      } else {
+        // NON-HEAD relays: my down-child's product -> my head (tagged with my
+        // column); my head's x1 -> across my cross-link; an x2 -> to my head.
+        const headPid = occPid({ pc: c.pc, r: c.r, i: 0 });
+        const subraw = mosIn.get('subraw');
+        if (subraw) { const jk = shipMos('sub', headPid, subraw.stream, { col: c.i }); if (jk) wanted.add(jk); }
+        const x1 = mosIn.get('x1');
+        if (x1 && c.pc === 0) {
+          const xc = T.crossLink(c); const xPid = xc ? occPid(xc) : null;
+          const jk = shipMos('x2', xPid, x1.stream, { row: x1.meta.row }); if (jk) wanted.add(jk);
+        }
+        const x2 = mosIn.get('x2');
+        if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, { row: x2.meta.row }); if (jk) wanted.add(jk); }
+      }
+      // EVERY seat: the claimed stadium renders and fans DOWN my down-link;
+      // heads hand it to their row-mates as well (they have no other source).
+      const sd = mosIn.get('sd');
+      if (sd && !(iAmHead && c.pc === 0)) {
+        paintStadiumTile(sd.stream);
+        const downPid = occPid(T.down(c));
+        const jk = shipMos('sd', downPid, sd.stream, null); if (jk) wanted.add(jk);
+        if (iAmHead) for (let j = 1; j < C; j++) {
+          const mate = occPid({ pc: c.pc, r: c.r, i: j });
+          const jk2 = shipMos('sd', mate, sd.stream, null); if (jk2) wanted.add(jk2);
+        }
+      } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
+      for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
     }
 
     // ---- hand raise: float to the top in the order hands went up --------------
@@ -4782,6 +4982,13 @@
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
       meshLinks: () => { const s = meshSeat(); return s ? Array.from(s.linkPeers()) : []; },
+      mosaic: () => { const c = meshCoord(); const T = net.topo; const tgt = (co) => { if (!co) return null; const pid = occPid(co); const p = pid && peers.get(pid); return { pid: (pid||'').slice(0,6), has: !!p, conn: p && p.connected, dc: !!(p && p.dc && p.dc.readyState === 'open') }; };
+        return { multi: multiSection(), coord: c, head: c && c.i === 0, s1: c && c.pc === 0,
+        up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
+        prodStream: !!(prodComp && prodComp.stream), sdStream: !!(sdComp && sdComp.stream),
+        jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
+        band: bandComp && bandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
+        tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })() }; },
       relayUpNow: () => relayUp(),
       rosterIdsNow: () => rosterIds.slice(),
       linkToPeer: (pid) => linkTo(pid),
