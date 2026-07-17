@@ -131,7 +131,6 @@ struct Seat {
   inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies)
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
-  inline bool s1Corpse(uint64_t ck){ if(!occ.count(ck)) return false; auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second>40; } // occupied but SILENT past ~5 phone beats — the admit-time liveness horizon (shorter than the 120-tick roster horizon; a corpse must not turn newcomers away, but a live slow seat must not be evicted — E2/CHALLENGE settles the boundary)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
   void rosterCells(Coord out[C]){ Coord h=ownedRowHead(); for(int c=0;c<C;c++) out[c]={h.pc,h.r,(uint8_t)c}; }
   bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++) if(!occ.count(ckey(rc[c]))){f=rc[c];return true;} return false; }

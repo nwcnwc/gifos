@@ -83,6 +83,7 @@ function spawn(env, N) {
   for (let k = 0; k < N; k++) plan[(grnd() * win) | 0].push(k);
   env._plan = plan; env._spawned = 0; env._N = N;
 }
+function spawnOne(env) { const id = 'q' + (env._spawned++); const s = new mesh.Seat(id, env); env.seats.set(id, s); s.alive = true; s.join(); return s; }
 function spawnDue(env) {
   const plan = env._plan; if (env.TICK < plan.length) { for (const k of plan[env.TICK]) { const id = 'p' + k; const s = new mesh.Seat(id, env); env.seats.set(id, s); s.join(); env._spawned++; } }
 }
