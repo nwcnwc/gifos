@@ -134,8 +134,9 @@ int Seat::strictNextHop(Coord rdst){
 void Seat::route(Coord rdst,int rfinal,Msg inner){
   inner.routing=true; inner.rdst=rdst; inner.rfinal=rfinal; inner.rttl=64; inner.rvia=id;
   if(hasCoord && ckey(coord)==ckey(rdst)){                // I'm the destination cell
-    if(rfinal<0 || rfinal==id){ inner.routing=false; recv(inner); return; }
-    Msg h=inner; h.routing=false; emit(rfinal,h); return; // hand to my attached newcomer
+    inner.routing=false;
+    if(rfinal<0 || rfinal==id){ emit(id,inner); return; } // deliver to MYSELF via the bus (never re-entrant recv → no stack blowup)
+    inner.direct=true; emit(rfinal,inner); return;        // hand to my attached newcomer over the direct link (bypass routing)
   }
   int nh = hasCoord ? strictNextHop(rdst) : gateway;      // unseated ⇒ leave via the gateway link
   if(nh>=0) emit(nh,inner);
@@ -146,7 +147,7 @@ void Seat::route(Coord rdst,int rfinal,Msg inner){
 bool Seat::routeStep(Msg& m){
   if(hasCoord && ckey(coord)==ckey(m.rdst)){
     if(m.rfinal<0 || m.rfinal==id){ m.routing=false; return true; }
-    Msg h=m; h.routing=false; emit(m.rfinal,h); return false;   // deliver to the attached newcomer
+    Msg h=m; h.routing=false; h.direct=true; emit(m.rfinal,h); return false;   // deliver to the attached newcomer over the direct link (bypass routing)
   }
   if(m.rttl<=0) return false;                              // give up — sender retries
   int nh = strictNextHop(m.rdst);
@@ -202,7 +203,7 @@ void Seat::recv(Msg& m){
       if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)
       if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL){ stranded=true; return; }   // R6: greeters exist (meeting alive) but I've reached none for a full TTL => voted off, or on an unreachable subnet (indistinguishable). Give up: "network settings won't let you connect."
       lastGreeters=m.list;
-      if(state==0){ int g=m.list[(int)(rng()*m.list.size())]; Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w); state=1; retryAt=(int)TICK; }   // pick a RANDOM greeter, not list[0]: spreads the introduction load across the whole Section-1 pool instead of hammering one seat
+      if(state==0){ int g=m.list[(int)(rng()*m.list.size())]; gateway=g; Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w); state=1; retryAt=(int)TICK; }   // pick a RANDOM greeter (spreads intro load); it is my ENTRY GATEWAY — replies route back through it while I'm unseated
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
       // greeter in the pool (anti-poison floor); it IGNORES the greeters it gets
       // back. The roster self-audit is gone — genesis/fork convergence is E4/R5.
