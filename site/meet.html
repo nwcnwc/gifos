@@ -1957,7 +1957,13 @@
       const s = meshSeat();
       if (!s) return;
       const ids = new Set();
-      for (const v of s.occ.values()) if (v && v !== myId) ids.add(v);
+      // An occ id is a PARTICIPANT only with a liveness signal: a fresh status
+      // (15s — the one rule everywhere) or a live connection. A DEPARTED seat
+      // lingering in occ until healing evicts it must not be a roster member —
+      // it drew a black tile in somebody's row and, as a non-consenter, held
+      // the whole room blurred (the "2 black squares" ghosts).
+      const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); return !!(p && p.connected); };
+      for (const v of s.occ.values()) if (v && v !== myId && alive(v)) ids.add(v);
       for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000) ids.add(pid);
       rosterIds = Array.from(ids);
       for (const pid of rosterIds) {
