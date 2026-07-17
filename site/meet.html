@@ -5243,6 +5243,17 @@
         strip: (typeof stripPack !== 'undefined' && stripPack) ? stripPack.stats() : null,
         stripPainted: !!document.querySelector('[data-row="sgs"] video'),
       }),
+      // Per-feed ground truth: every claimed mosaic feed's element + track state.
+      feedsInfo: () => [...mosIn.entries()].map(([rk, f]) => ({
+        key: rk, via: String(f.via).slice(0, 8), meta: f.meta || null,
+        vw: f.el ? f.el.videoWidth : -1, vh: f.el ? f.el.videoHeight : -1,
+        ready: f.el ? f.el.readyState : -1, paused: f.el ? f.el.paused : null,
+        frames: (f.el && f.el.getVideoPlaybackQuality) ? f.el.getVideoPlaybackQuality().totalVideoFrames : -1,
+        vTracks: f.stream ? f.stream.getVideoTracks().length : 0,
+        aTracks: f.stream ? f.stream.getAudioTracks().length : 0,
+        vMuted: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].muted : null,
+        vState: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].readyState : null,
+      })),
       stageForTest: (on) => { if (!!on === !!myStatus.stg) return stageIds().includes(myId); if (on && (!canStage(myId) || stageIds().length >= SCALE.C)) return false; setStage(!!on); return true; },
       // the mesh (mesh.js) — seat, occupancy, links
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
