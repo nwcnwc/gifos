@@ -159,7 +159,7 @@ void Seat::recv(Msg& m){
       if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)
       if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL){ stranded=true; return; }   // R6: greeters exist (meeting alive) but I've reached none for a full TTL => voted off, or on an unreachable subnet (indistinguishable). Give up: "network settings won't let you connect."
       lastGreeters=m.list;
-      if(state==0){ Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(m.list[0],w); state=1; retryAt=(int)TICK; }
+      if(state==0){ int g=m.list[(int)(rng()*m.list.size())]; Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w); state=1; retryAt=(int)TICK; }   // pick a RANDOM greeter, not list[0]: spreads the introduction load across the whole Section-1 pool instead of hammering one seat
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
       // greeter in the pool (anti-poison floor); it IGNORES the greeters it gets
       // back. The roster self-audit is gone — genesis/fork convergence is E4/R5.
