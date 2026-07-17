@@ -134,9 +134,34 @@ inherits the same dup/strand failures under real churn.
 - **14** — bind `site/js/mesh-wire.js` `env.send` + `site/meet.html` `sendSig` to **DC → mesh-route → relay-only-if-not-yet-in-mesh**; entry gateway; earliest socket drop; DELETE the relay fallback for seated members.
 - **15** — verify: syntax + `mesh-harness` + penguin/swarm e2e — relay proven to carry ONLY knock + first-greeter handshake.
 
-## Broader roadmap (16–35)
-- **16–19** — sharded greeter registry for 1M flash-crowd; client shard-select+backoff; move `ban`/`setpw`/`votekick` off the relay onto signed mesh gossip; final relay audit → greeting-only.
-- **20–25** — media plane on the mesh: wire the per-link bundle engine (encodes=links ≤7); gapless composite packer; burned-in overlays; Section / Stadium composites; Stage channel + audio folds.
-- **26–28** — app-run on the mesh: standalone app-share → headless mesh node; in-meeting app-run; app governance (open-room anarchy / admin control).
-- **29–32** — seating compaction (echo-immune `live` signal); H8 + cousins under strict routing; signaling under churn/partition; media P1 friend-relay fallback (never TURN).
-- **33–35** — full swarm verification (500-bot multi-region); home-LAN/penguin real-device; cut a versioned release.
+## Broader roadmap (16–35) — one line per increment
+
+### Bootstrap scale + relay truly greeting-only
+- **16** — Sharded greeter registry: N bootstrap DOs with a consistent shared genesis, so a 1M flash-crowd fans across shards instead of funneling through one ~30-socket DO.
+- **17** — Client shard-select + backoff; model the thundering-herd join in the sim and prove the admission rate.
+- **18** — Move `ban` / `setpw` / `votekick` off the relay onto the mesh as signed governance gossip (the door verbs).
+- **19** — Final relay audit → greeting-only: delete every remaining non-greeting relay path; prove the relay carries ONLY knock + first-greeter handshake.
+
+### Media plane on the mesh
+- **20** — Wire the per-link bundle engine (`createBundle` / `cropView`, built-but-unwired) — encodes = links, ≤7 per node.
+- **21** — Gapless composite packer end-to-end: one blended stream per link, aspect-ratio encodes the count.
+- **22** — Burned-in overlays at the leaf (name / status / hand / green talking-frame), verified on real tiles.
+- **23** — Section composite over the proven tree (composited strip).
+- **24** — Stadium composite (cross-section aggregation).
+- **25** — Stage channel (the decoupled broadcast tier) + audio folds (summed audio per tier) over the mesh.
+
+### App-run on the mesh
+- **26** — Standalone app-share → headless mesh node (`deriveMeet(appSessionSecret)`); kill relay-as-transport-proxy.
+- **27** — In-meeting app-run on the same fabric (host-authoritative bus → mesh gossip).
+- **28** — App governance over the mesh (open-room anarchy ordered, admin-room control).
+
+### Healing & topology hardening
+- **29** — Seating compaction: newcomers into Section-1 holes via the echo-immune `live` signal (the fragmentation fix), sim-first.
+- **30** — H8 whole-section death + cousins/heir foreknowledge, re-proven under strict routing.
+- **31** — Signaling under churn/partition: heal routing paths; re-prove convergence (composes with 11a/11b).
+- **32** — Media resilience: P1 friend-relay fallback when a direct media path fails (still no TURN, ever).
+
+### Production hardening & verification
+- **33** — Full swarm verification (500-bot multi-region) of the routed mesh — greeting-only relay confirmed at scale.
+- **34** — Home-LAN / penguin real-device verification (the demo path that failed).
+- **35** — Cut a versioned release (`archive-version.sh`, bump `GIFOS_VERSION`) once the routed mesh is proven end-to-end.
