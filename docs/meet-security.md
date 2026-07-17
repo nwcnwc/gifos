@@ -60,9 +60,15 @@ blast radius. This is an accepted limit, not an oversight.
 
 The relay holds: live sockets, opaque peer ids, room-salted device tags, a
 salted IP hash for abuse caps, `H(genesis key)`, and TTL'd sealed greeter
-blobs. It can *reach* every open socket (fan-out is blind to identity), but
-members hold sockets only while joining or serving as Section-1 greeters — the
-mesh, not sealing, is what removes the relay from the room's life. It never
-holds: the room code, the password, the E2E key, a name, a readable address, a
-coord, or any notion of who is seated (healing-laws R2). Arrival order alone
-decides genesis (R3).
+blobs. It reaches a greeter's socket **directly by that greeter's opaque peer
+id** — that is how an introduction is delivered, and there is nothing to hide
+in it: greeters are the room's public front door, every newcomer touches one,
+and a newcomer ends up reachable through them anyway. (Earlier drafts demanded
+the relay be *blind to which greeter* and fan every frame out to all sockets;
+that bought no real privacy and cost O(sockets) per frame, so it is gone —
+targeted delivery to a greeter is fine.) What actually keeps the relay out of
+the room's life is **scope**, not blindness: members hold sockets only while
+joining or serving as Section-1 greeters; once seated in the mesh they drop the
+socket and the relay never hears from them again. It never holds: the room
+code, the password, the E2E key, a name, an IP, a coord, or any notion of who
+is seated (healing-laws R2). Arrival order alone decides genesis (R3).

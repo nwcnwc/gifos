@@ -29,8 +29,8 @@ Today they are two different transports; they must become one.
    GifOS app opened outside a meeting syncs its collections over the **relay
    WebSocket (P2)** as a bandwidth-capped broadcast bus, with DataChannels (P1)
    as an opportunistic fast path. This is exactly the relay-as-transport-proxy
-   R2 forbids: the relay routes every delta, sees who talks to whom, and is a
-   DoS/scale ceiling. It must go.
+   R2 forbids: the relay routes every delta (ongoing room traffic, not just the
+   greeting introduction it is scoped to) and is a DoS/scale ceiling. It must go.
 
 ## Target architecture
 
