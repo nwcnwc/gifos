@@ -26,8 +26,11 @@ for (const C of [2, 5, 8]) {
 const box = M.coverBox(1280, 720, { x: 0, y: 0, w: 100, h: 100 });
 check('coverBox crops a 16:9 source to a square center cut',
   Math.abs(box.sw - box.sh) < 0.01 && Math.abs(box.sh - 720) < 0.01 && Math.abs(box.sx - (1280 - 720) / 2) < 0.01, box);
+// A portrait source is ALSO cut to a centered square from its shortest side
+// (the width here), centered vertically — same rule, landscape or portrait.
 const box2 = M.coverBox(720, 1280, { x: 0, y: 0, w: 200, h: 100 });
-check('coverBox crops a tall source to a wide cut', Math.abs(box2.sw / box2.sh - 2) < 0.01, box2);
+check('coverBox crops a tall source to a centered square (shortest side)',
+  Math.abs(box2.sw - 720) < 0.01 && Math.abs(box2.sh - 720) < 0.01 && Math.abs(box2.sx) < 0.01 && Math.abs(box2.sy - (1280 - 720) / 2) < 0.01, box2);
 
 // The fractal-space invariant: one band cell = 1/C of a band; a band = 1/C of
 // a frame; recursing d levels, a seat's pixels = W*H / C^(2d+1) regardless of
