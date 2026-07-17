@@ -339,7 +339,9 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     for (const { p } of pages) {
       try {
         const s = await p.evaluate(() => window.__gifosVideo
-          ? { sec: window.__gifosVideo.sectionNum(), n: window.__gifosVideo.participants() } : null);
+          ? (() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              return { sec: g(() => { const c = window.__gifosVideo.meshCoord(); return c ? String(c.pc) : '?'; }, '?'),
+                       n: g(() => window.__gifosVideo.participants(), 0) }; })() : null);
         if (s) { up++; bySection[s.sec] = (bySection[s.sec] || 0) + 1; parts = Math.max(parts, s.n); }
       } catch (e) { /* page mid-navigation or gone */ }
     }
