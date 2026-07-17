@@ -3418,7 +3418,10 @@
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
     const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
-    let bandComp = null, prodComp = null, sdComp = null;
+    let bandComp = null, prodComp = null, sdComp = null, stripComp = null;
+    const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
+    // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
+    const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
     const occPid = (c) => { const s = meshSeat(); return s ? s.occGet(net.topo.ckey(c)) : null; };
     // A hidden, playing <video> for a claimed stream — the drawImage source.
@@ -3479,6 +3482,8 @@
       if (key === 'x2') return iAmHead ? null : 'x2';
       if (key === 'sdrow') return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
       if (key === 'sd') return 'sd';
+      if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
+      if (key.indexOf('stg:') === 0) return key; // an individual stager feed (per-stager slot)
       return null;
     }
     function claimMos() {
@@ -3511,6 +3516,20 @@
       stadiumEl.classList.add('on');
       compOf.set('sd', { via: 'mosaic', streamId: stream.id, stream, names: [], rws: [], cnt: knownTotal() });
     }
+    // The Stage strip: one wide tile at the top of the stage feed.
+    function paintStageStrip(stream) {
+      let el = stagefeedEl.querySelector('[data-row="sgs"]');
+      if (!stream) { if (el) el.remove(); compOf.delete('sgs'); return; }
+      if (!el) {
+        el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sgs';
+        const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
+        const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'On stage';
+        el.appendChild(v); el.appendChild(lb); stagefeedEl.appendChild(el);
+      }
+      const v = el.querySelector('video');
+      if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      compOf.set('sgs', { via: 'stage', streamId: stream.id, stream, names: stageIds() });
+    }
     function stopMosaic() {
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
@@ -3518,7 +3537,9 @@
       if (bandComp) { bandComp.stop(); bandComp = null; }
       if (prodComp) { prodComp.stop(); prodComp = null; }
       if (sdComp) { sdComp.stop(); sdComp = null; }
-      paintStadiumTile(null);
+      if (stripComp) { stripComp.stop(); stripComp = null; }
+      stgSpread.clear();
+      paintStadiumTile(null); paintStageStrip(null);
     }
     function reconcileMosaic() {
       const s = meshSeat(), c = meshCoord();
@@ -3577,6 +3598,43 @@
         const x2 = mosIn.get('x2');
         if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, { row: x2.meta.row }); if (jk) wanted.add(jk); }
       }
+      // ---- STAGE lane: chosen <=C feeds -> S1 -> composited strip -> fan down --
+      // Individual stager feeds ride UP to Section 1 (uncomposited passthrough,
+      // per-stager key); at S1 they FLOOD the row+cross mesh (dedup by streamId,
+      // exactly like mesh gossip) so every S1 seat holds every stager; each S1
+      // seat composites the strip itself and fans it down the SAME tree as 'sd'.
+      const stagers = stageIds();               // gossiped, ordered, <=C
+      const amStager = stagers.includes(myId);
+      const heldStg = [...mosIn.keys()].filter((k) => k.indexOf('stg:') === 0);
+      if (c.pc !== 0) {
+        // relay every stage feed I hold (and my own) UP toward Section 1
+        const upTgt = iAmHead ? (T.up(c) ? occPid(T.up(c)) : null) : occPid({ pc: c.pc, r: c.r, i: 0 });
+        if (amStager) { const st = mySelfStream(); if (st) { const jk = shipMos('stg:' + myId, upTgt, st, null); if (jk) wanted.add(jk); } }
+        for (const k of heldStg) { const f = mosIn.get(k); const jk = shipMos(k, upTgt, f.stream, null); if (jk) wanted.add(jk); }
+      } else {
+        // SECTION 1: flood each stage feed across row+cross ONCE per streamId
+        const s1peers = [...T.rowMates(c).map((m) => occPid(m)), (T.crossLink(c) ? occPid(T.crossLink(c)) : null)].filter(Boolean);
+        const floodOne = (key, stream) => { if (!stream || stgSpread.has(stream.id)) return; stgSpread.add(stream.id); for (const t of s1peers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); } };
+        if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
+        for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
+        // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
+        if (!stripComp) stripComp = MM.createComposite({ kind: 'band' }).start();
+        for (let j = 0; j < C; j++) {
+          const sid = stagers[j];
+          const el = !sid ? null : (sid === myId ? meTile.video : ((mosIn.get('stg:' + sid) || {}).el || (peers.get(sid) || {}).video || null));
+          stripComp.setCell(j, el || null);
+        }
+        paintStageStrip(stripComp.stream);
+        for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripComp.stream, null); if (jk) wanted.add(jk); }
+      }
+      // Every seat: render the received strip and fan it down (heads -> row-mates).
+      const sgs = mosIn.get('sgs');
+      if (sgs && c.pc !== 0) {
+        paintStageStrip(sgs.stream);
+        const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, null); if (dj) wanted.add(dj);
+        if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, null); if (jk) wanted.add(jk); }
+      } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
+
       // EVERY seat: the claimed stadium renders and fans DOWN my down-link;
       // heads hand it to their row-mates as well (they have no other source).
       const sd = mosIn.get('sd');
@@ -4988,7 +5046,8 @@
         prodStream: !!(prodComp && prodComp.stream), sdStream: !!(sdComp && sdComp.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
         band: bandComp && bandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
-        tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })() }; },
+        tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
+        strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
       relayUpNow: () => relayUp(),
       rosterIdsNow: () => rosterIds.slice(),
       linkToPeer: (pid) => linkTo(pid),
