@@ -1626,6 +1626,7 @@
       // relay wake. The relay remains the path whenever no DC is open: first
       // handshakes, and heals of a transport whose DC died with it (§3.3 —
       // the sweeper's recovery offers NEED a path that survives the pair).
+      // 1) A CONNECTED pair negotiates on its OWN channel (renegotiation, ICE).
       if (msg.kind === 'offer' || msg.kind === 'answer' || msg.kind === 'ice') {
         const pd = peers.get(to);
         if (pd && pd.dc && pd.dc.readyState === 'open') {
@@ -1633,17 +1634,15 @@
           if (m2) { txStats.dcSig++; dcSend(pd, { k: 'sig', msg: m2 }); }
           return; // a blocked pair sends nothing on either path (fault injection)
         }
-        txStats.relaySig++;
       }
-      // SPONSOR-FORWARDED SIGNALING (docs/meet-security.md §FWD): when my relay
-      // path to this peer is down or absent — the exact moment a heal offer
-      // matters most — a MUTUAL FRIEND's DataChannel carries the frame instead:
-      // lowest-id connected peer who reports a live link to the target, one
-      // hop, sealed end-to-end the whole way. Deterministic pick, so retries
-      // hop the same sponsor. With deep seats running SOCKETLESS by design,
-      // this is a first-class path now, not a degraded one.
-      const relayDown = !relayUp();
-      if (relayDown && msg.kind !== 'status') {
+      // 2) SPONSOR-FORWARD (docs/meet-security.md §FWD) is the PRIMARY path for a
+      // not-yet-connected pair. THE RELAY IS FOR GREETERS ONLY — so a MUTUAL
+      // FRIEND's DataChannel carries the frame FIRST, whether or not my socket is
+      // up: lowest-id connected peer reporting a live link to the target, one
+      // hop, sealed end-to-end. Deterministic pick, so retries hop the same
+      // sponsor. Only when NO sponsor exists yet (the very first links, before
+      // the mesh has anyone in common) does anything touch the relay at all.
+      if (msg.kind !== 'status') {
         const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
         const fp = cands.length ? peers.get(cands[0]) : null;
         if (fp && fp.dc && fp.dc.readyState === 'open') {
@@ -1652,10 +1651,13 @@
           return;
         }
       }
-      // A heartbeat is re-minted every tick — never queue a stale one on a down
-      // socket (a queued backlog would blast on reconnect, and the queue-wake
-      // used to defeat the reconnect backoff entirely).
+      // 3) LAST RESORT — the relay, ONLY to bootstrap the very first links
+      // (no mutual friend exists yet) or a status pulse with no DC. This is the
+      // sole non-greeter traffic the relay ever sees, and it ceases the instant
+      // the mesh has a sponsor for the pair. A heartbeat is re-minted every tick
+      // — never queue a stale one on a down socket.
       if (msg.kind === 'status') { if (!relayUp()) return; txStats.relayStatus++; }
+      else txStats.relaySig++;
       msg = sigSansIce(to, msg);
       if (!msg) return;
       txm(() => net.seal(roomE2E, msg).then((env) =>
