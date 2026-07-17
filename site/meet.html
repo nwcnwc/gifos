@@ -3566,18 +3566,27 @@
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
+      // { el, stream } for a cell: my own live view, a claimed mosaic feed, or a
+      // directly-linked peer. Stream carries the audio the fold sums; el is the
+      // drawImage source (a <video> or a nested composite's <canvas>).
+      const srcFor = (pid, feedKey) => {
+        if (pid === myId) return { el: meTile.video, stream: meTile.video.srcObject || localStream };
+        const f = feedKey ? mosIn.get(feedKey) : null;
+        if (f) return { el: f.el, stream: f.stream };
+        const p = peers.get(pid);
+        return p ? { el: p.video, stream: p.video.srcObject } : { el: null, stream: null };
+      };
       if (iAmHead) {
         // PRODUCT = my row band (slot 0) + my row's C sub-products (slots 1..C)
-        if (!bandComp) bandComp = MM.createComposite({ kind: 'band' }).start();
-        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1 }).start();
+        if (!bandComp) bandComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
+        if (!prodComp) prodComp = MM.createComposite({ kind: 'frame', cells: C + 1, ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
-          const pj = pid === myId ? meTile : peers.get(pid);
-          bandComp.setCell(j, pj ? pj.video : null);
+          const sc = srcFor(pid); bandComp.setCell(j, sc.el, sc.stream);
           const sub = mosIn.get('sub:' + j);
-          prodComp.setCell(1 + j, sub ? sub.el : null);
+          prodComp.setCell(1 + j, sub ? sub.el : null, sub ? sub.stream : null);
         }
-        prodComp.setCell(0, bandComp.canvas);
+        prodComp.setCell(0, bandComp.canvas, bandComp.stream);
         if (c.pc !== 0) {
           // ship my product UP (the up-seat relays it to ITS head)
           const up = T.up(c); const upPid = up ? occPid(up) : null;
@@ -3589,11 +3598,11 @@
             const mate = occPid({ pc: 0, r: c.r, i: j });
             const jk = shipMos('x1', mate, prodComp.stream, { row: c.r }); if (jk) wanted.add(jk);
           }
-          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame' }).start();
+          if (!sdComp) sdComp = MM.createComposite({ kind: 'frame', ac: (ensureAc(), ac) }).start();
           for (let q = 0; q < C; q++) {
-            if (q === c.r) { sdComp.setCell(q, prodComp.canvas); continue; }
+            if (q === c.r) { sdComp.setCell(q, prodComp.canvas, prodComp.stream); continue; }
             const rowIn = mosIn.get('sdrow:' + q);
-            sdComp.setCell(q, rowIn ? rowIn.el : null);
+            sdComp.setCell(q, rowIn ? rowIn.el : null, rowIn ? rowIn.stream : null);
           }
           paintStadiumTile(sdComp.stream);
           const downPid = occPid(T.down(c));
@@ -3632,11 +3641,11 @@
         for (const k of [...mosIn.keys()].filter((k) => k.indexOf('sec:') === 0)) secFlood(k, mosIn.get(k).stream);
         // composite my section's C×C block (my own row is the live tiles on top;
         // the block shows the other rows, self-assembled and lagged).
-        if (!secComp) secComp = MM.createComposite({ kind: 'frame', cells: C * C }).start();
+        if (!secComp) secComp = MM.createComposite({ kind: 'frame', cells: C * C, ac: (ensureAc(), ac) }).start();
         for (let rr = 0; rr < C; rr++) for (let ii = 0; ii < C; ii++) {
           const pid = (rr === c.r && ii === c.i) ? myId : occPid({ pc: c.pc, r: rr, i: ii });
-          const src = pid === myId ? meTile.video : ((mosIn.get('sec:' + pid) || {}).el || (peers.get(pid) || {}).video || null);
-          secComp.setCell(rr * C + ii, src || null);
+          const sc = pid == null ? { el: null, stream: null } : srcFor(pid, 'sec:' + pid);
+          secComp.setCell(rr * C + ii, sc.el, sc.stream);
         }
         paintSectionTile(secComp.stream);
       }
@@ -3660,11 +3669,11 @@
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
         for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
         // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
-        if (!stripComp) stripComp = MM.createComposite({ kind: 'band' }).start();
+        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const sid = stagers[j];
-          const el = !sid ? null : (sid === myId ? meTile.video : ((mosIn.get('stg:' + sid) || {}).el || (peers.get(sid) || {}).video || null));
-          stripComp.setCell(j, el || null);
+          const sc = !sid ? { el: null, stream: null } : srcFor(sid, 'stg:' + sid);
+          stripComp.setCell(j, sc.el, sc.stream);
         }
         paintStageStrip(stripComp.stream);
         for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripComp.stream, null); if (jk) wanted.add(jk); }
@@ -3785,8 +3794,10 @@
       for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
-        busVolume(v, mix.stadium);
-        hasStadium = true;
+        // The 'Your section' composite is the SECTION bus; the Stadium composite
+        // (and any other far tile) is the STADIUM bus — the near/far split.
+        if (el.dataset.row === 'sec') { busVolume(v, mix.section); hasSection = true; }
+        else { busVolume(v, mix.stadium); hasStadium = true; }
       }
       // Progressive disclosure: reveal a bus's fader only once it has members.
       document.getElementById('mixlab-section').style.display = hasSection ? '' : 'none';
