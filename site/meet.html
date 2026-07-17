@@ -5218,6 +5218,15 @@
       stopAppForTest: () => stopApp(),
       capOf: (id) => capOf(id),
       scale: () => Object.assign({}, SCALE),
+      // The Stage (Channel St) — inspect + drive it from the meeting CLI.
+      stageInfo: () => ({
+        stagers: stageIds().map((id) => ({ id: String(id).slice(0, 12), name: id === myId ? myName() : (rosterNames[id] || null), me: id === myId })),
+        myStg: myStatus.stg || 0, canStage: canStage(myId), cap: SCALE.C,
+        held: [...mosIn.keys()].filter((k) => k.indexOf('stg:') === 0),
+        strip: (typeof stripPack !== 'undefined' && stripPack) ? stripPack.stats() : null,
+        stripPainted: !!document.querySelector('[data-row="sgs"] video'),
+      }),
+      stageForTest: (on) => { if (!!on === !!myStatus.stg) return stageIds().includes(myId); if (on && (!canStage(myId) || stageIds().length >= SCALE.C)) return false; setStage(!!on); return true; },
       // the mesh (mesh.js) — seat, occupancy, links
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
