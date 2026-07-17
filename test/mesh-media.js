@@ -70,3 +70,9 @@ pk.setTile('a', 0, null, null, null); pk.delTile('a');
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
 process.exit(fails === 0 ? 0 : 1);
+
+// ---- per-link bundle (approach A: one stream per link) ----------------------
+const bd = M.createBundle({ w: 400 });
+check('bundle degrades cleanly without DOM', bd.canvas === null && bd.start() === bd && bd.stream === null);
+bd.setPart('sd', 0, null, null, null); bd.delTile && bd.delTile('sd');
+check('bundle manifest empty when no parts', bd.manifest().length === 0);
