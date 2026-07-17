@@ -3585,7 +3585,7 @@
       // EVERY seat composites its OWN row band (cheap: C cells, one canvas).
       // Heads feed it into their Stadium product; non-heads ship it over their
       // cross-link — the Section exchange. One band, both channels.
-      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
+      if (!rowBandComp) rowBandComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_H / SCALE.C, ac: (ensureAc(), ac) }).start();
       for (let j = 0; j < C; j++) {
         const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
         const sc = srcFor(pid); rowBandComp.setCell(j, sc.el, sc.stream);
@@ -3693,7 +3693,7 @@
         // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', ac: (ensureAc(), ac) }).start();
+        if (!stripComp) stripComp = MM.createComposite({ kind: 'band', h: SCALE.COMP_H / SCALE.C, ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
           const sid = stagers[j];
           const sc = !sid ? { el: null, stream: null } : srcFor(sid, 'stg:' + sid);
@@ -5118,12 +5118,33 @@
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
       meshLinks: () => { const s = meshSeat(); return s ? Array.from(s.linkPeers()) : []; },
+      debugDump: () => {
+        const s = meshSeat(), c = meshCoord(), now = Date.now();
+        const coordOfPeer = new Map(); if (s) for (const [k, v] of s.occ) coordOfPeer.set(v, k);
+        const info = (pid) => { const st = statusOf.get(pid) || null; const p = peers.get(pid);
+          return { peer: String(pid).slice(0, 12), name: rosterNames[pid] || null, coord: coordOfPeer.get(pid) || null,
+            ip: ipsOf[pid] || null, camOff: st ? !!st.camOff : null, blur: st ? st.blur : null,
+            stAge: st ? Math.round((now - (st.at || 0)) / 1000) : null,
+            conn: p ? !!p.connected : false, vid: !!(p && p.video && p.video.srcObject && p.video.videoWidth > 0) }; };
+        const ghosts = rosterIds.filter((pid) => { const st = statusOf.get(pid); return !st || now - (st.at || 0) > 15000; });
+        const at = new Map(); const dups = []; for (const [pid, k] of coordOfPeer) { if (at.has(k)) dups.push({ coord: k, a: at.get(k).slice(0, 8), b: String(pid).slice(0, 8) }); else at.set(k, String(pid)); }
+        let mos = null; try { mos = window.__gifosVideo.mosaic(); } catch (e) { mos = { err: String(e).slice(0, 60) }; }
+        return {
+          me: { peer: myId, name: myName(), coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null,
+            state: (meshSeat() || {}).state, links: s ? [...s.linkPeers()].length : 0, occ: s ? s.occ.size : 0 },
+          participants: participantCount(), inMeeting: rosterIds.length + 1,
+          rows: computeRows().map((r) => r.map((x) => String(x).slice(0, 8))),
+          ghosts: ghosts.map((p) => String(p).slice(0, 12)), dups,
+          consent: (typeof allConsent === 'function' ? allConsent() : null),
+          mosaic: mos, roster: rosterIds.map(info),
+        };
+      },
       mosaic: () => { const c = meshCoord(); const T = net.topo; const tgt = (co) => { if (!co) return null; const pid = occPid(co); const p = pid && peers.get(pid); return { pid: (pid||'').slice(0,6), has: !!p, conn: p && p.connected, dc: !!(p && p.dc && p.dc.readyState === 'open') }; };
         return { multi: multiSection(), coord: c, head: c && c.i === 0, s1: c && c.pc === 0,
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
         prodStream: !!(prodComp && prodComp.stream), sdStream: !!(sdComp && sdComp.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
-        band: bandComp && bandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
+        band: rowBandComp && rowBandComp.stats(), prod: prodComp && prodComp.stats(), sd: sdComp && sdComp.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length,
         section: (() => { const v = stadiumEl.querySelector('[data-row="sec"] video'); return v ? { live: v.videoWidth > 0 } : null; })() }; },
