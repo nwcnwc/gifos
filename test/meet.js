@@ -85,6 +85,7 @@ const cfg = {
   name: args.name || 'meet-cli',
   videoIdx: args.video === true ? -1 : (args.video !== undefined ? parseInt(args.video, 10) : null), // null=no video
   solidCam: !!args.cam,
+  observe: !!args.observe, // camera OFF — WARNING: blocks the room's clear-video consent
   videosDir: args.videos || path.join(__dirname, 'swarm-videos'),
   headful: !!args.headful,
   chrome: args.chrome || process.env.MEET_CHROME,
@@ -126,10 +127,12 @@ function loadPeople() {
 const dataUrl = (file, mime) => 'data:' + mime + ';base64,' + fs.readFileSync(file).toString('base64');
 
 function camInitScript() {
-  // camera OFF observer: a light solid swatch cam so we still hold a seat, but
-  // do NOT auto-enable camera/mic.
-  const wantVideo = cfg.videoIdx !== null, wantSolid = cfg.solidCam;
-  if (!wantVideo && !wantSolid) {
+  // DEFAULT = a CONSENTING participant (camera on + No blur) so the tool never
+  // blocks the room's unanimous clear-video gate. --observe opts into a quiet
+  // camera-OFF seat (which DOES block clear video — that's the design).
+  const wantVideo = cfg.videoIdx !== null;
+  const wantSolid = cfg.solidCam || (!wantVideo && !cfg.observe); // consenting solid cam unless observing
+  if (cfg.observe && !wantVideo && !cfg.solidCam) {
     return `(() => { const mk = async () => { const c=document.createElement('canvas');c.width=240;c.height=426;const x=c.getContext('2d');
       const paint=()=>{x.fillStyle='#223';x.fillRect(0,0,c.width,c.height);x.fillStyle='#8ab';x.font='bold 20px system-ui';x.textAlign='center';x.fillText(${JSON.stringify(cfg.name)},c.width/2,c.height/2);};
       paint();setInterval(paint,1000);const s=c.captureStream(2);try{const ac=new AudioContext();const d=ac.createMediaStreamDestination();for(const t of d.stream.getAudioTracks())s.addTrack(t);}catch(e){}return s;};
