@@ -98,18 +98,21 @@ sustained severance, heal-over fires and dedup can't keep up — moving a thresh
 just moves *where* it breaks (and slows clean healing).
 
 ### The fix — increment 11, split into 11a and 11b
-**11a — loss-tolerant healing** *(fixes B and A-dups):*
-  1. **Positive death confirmation before heal-over** — don't treat a cell as empty
-     on *silence alone*. Require it be *observed* empty (its occupant seen leaving,
-     or its coord seen taken by someone else) or confirmed dead by *multiple
-     independent* observers, on a horizon **longer than max severance (200)**.
-  2. **Third-party (owner-arbitrated) dedup** — the owner of a coord sees every
-     `CLAIM` for it; if it sees two different claimants, it forces the loser to
-     `YIELD`. This no longer depends on the two duplicates being directly linked.
-  3. **Periodic, loss-surviving dedup** — re-assert occupancy each cycle so a single
-     lost frame can't leave a permanent duplicate.
-  *Pass/fail gate:* under `sever=0.01` and enforced 50%-kill, `dups` stays bounded
-  and `converge` reaches `dups == 0`; heal reaches 1000/1000.
+**11a — one healing rule, fixed designations** *(fixes B and A-dups)* — detailed
+in the next section. In one line:
+
+> Every hole is filled by a **leaf** from the healer's subtree (the healer itself
+> when it is a leaf), initiated by a **fixed-coordinate** healer: your **down-child**
+> if you have one; else your **direct right-neighbour** in the row; if you have
+> neither, a right-neighbour arrives after later rounds (or the row is gone and no
+> heal is needed).
+
+The dup came from the *one* healer designation that was a **computed opinion**
+(`lowest-survivor`, decided from a divergent occ map → two self-appointed healers →
+double-book). Every designation above is instead a **fixed coordinate**, so there is
+provably one healer per cell — the ambiguity can't arise.
+*Pass/fail gate:* under `sever=0.01` and enforced 50%-kill, `dups` stays bounded and
+`converge` reaches `dups == 0`; heal reaches 1000/1000.
 
 **11b — routing reliability under churn** *(fixes A-strands):*
   When `strictNextHop` returns −1 (next hop vacant), don't just drop — retry / try an
@@ -120,12 +123,77 @@ Both 11a and 11b must land (and pass their gates in the sim) **before** the
 production port (13–14) carries routing into `meet.html` — otherwise production
 inherits the same dup/strand failures under real churn.
 
+## 11a design — the fixed-designation healing rule (in full)
+
+The one rule, restated:
+
+> **Every hole is filled by a leaf from the healer's subtree (the healer itself when
+> the healer is a leaf), initiated by a fixed-coordinate healer: your down-child if
+> you have one; else your direct right-neighbour in the row if you have one. If you
+> have neither, you get a right-neighbour after later rounds of healing — or the row
+> is genuinely gone and no heal is needed.**
+
+### Two fixed directions, no computed roles
+- **Vertical — down-child.** A cell `X` with an occupied down-child `down(X) =
+  {childPath(pc,i), r, 0}` is healed by that down-child, which promotes a **leaf**
+  from its own subtree up into `X`, pre-wired from `X`'s phone-home. If the down-child
+  is *itself* a leaf, it is the mover (base case). **This subsumes H8.**
+- **Horizontal — right-neighbour.** A **childless head** `{pc,r,0}` has no down-child,
+  but its row depends on it (non-head cells have no `up` of their own — the head is
+  the row's sole up-link). Its healer is its fixed right-neighbour `{pc,r,1}`, which
+  promotes a leaf from *its* subtree into the head (or, if it is a leaf, scooches in),
+  reconnecting the head upward using the parent id it holds as pre-load.
+
+### Only leaves move (P) — nothing is orphaned
+The mover is **always a leaf**. A healer that has a subtree promotes the nearest leaf
+in it and **stays put**; only a healer that is itself a leaf moves. So a subtree-bearing
+right-neighbour never slides sideways (which would change its `down` coord and orphan
+its subtree) — it lends a leaf instead.
+
+### "Neither" → wait a round; the row left-packs itself (= compaction, free)
+Holes fill *from the right*, so each fill migrates the hole one column rightward; the
+row **left-packs**, holes collect at the rightmost column (the sink — a newcomer fills
+it or the row runs shorter). If a hole's right-neighbour is momentarily empty, it
+**waits**: as occupants migrate left, a right-neighbour arrives and heals it. The head
+returns as long as *any* cell in the row survives. If the **whole row** dies: cells
+with subtrees are re-seeded from below by the down-child rule; a wholly childless dead
+row has no dependents and simply **vanishes** (the section shrinks) — no heal needed.
+
+### The parent is FOREKNOWLEDGE, not the healer
+Healing is directional — leaves live at the bottom and promote **up**. A childless head
+has nothing below to pull up, and its parent is *above*, where there are no leaves to
+push down. The parent also (a) has no leaf — its only subtree, through the head, is the
+empty one — and (b) is cut off from the row the instant the head dies (the head is the
+row's sole `up`-link; it holds only a stale roster). So the parent can't act. Its value
+is **pre-load**: the head hands the row the parent's id downward (so the healing
+row-mate reconnects up with zero discovery), and the parent's roster feeds the cousin
+foreknowledge a deep re-seed uses. Parent = knows everything, enables the instant heal,
+is not the actor.
+
+### Why this fixes the dup
+- **One healer per cell** (a fixed coordinate) ⇒ two nodes can't both heal the same
+  hole ⇒ the `lowest-survivor` double-book cannot occur. This alone bounds formation.
+- If a healer *does* heal over a live-but-severed occupant, the dup is between the
+  original and the leaf it promoted — and the healer is **directly linked to both**
+  (both occupy the healed coord, one of the healer's owned links), so on recovery the
+  **same** healer resolves it over direct links. ≤1 per cell, self-cleaning, no
+  multi-hop dedup needed.
+- **Refinement (optional) — positive death confirmation:** have the healer act only
+  after the cell is silent past a horizon **longer than max severance** (cross-checked),
+  so it rarely heals over a live cell at all. Formation-prevention atop reliable
+  resolution.
+
+### Open decision
+Vertical heal (a) down-child *moves up itself* (fast; cascades a column-collapse) vs
+(b) down-child promotes a *deeper* leaf and stays (minimal churn; must locate the leaf).
+Both keep the fixed designation; pick per disruption-vs-latency when building.
+
 ## Remaining sim increments
 - **7** — model link establishment explicitly (a neighbor link forms only after a routed SIGNAL handshake / RTT), not implicitly.
 - **8** — harden the entry-gateway: a joiner's first link is the relay handshake to a greeter; everything else routes through it.
 - **9** — earliest relay-socket drop: drop the socket the tick the gateway link is up; re-open only when seated in Section 1.
 - **10** — relay-socket bound (~30/session) + greeter-pool health + flash-crowd join.
-- **11a** — loss-tolerant healing (positive death confirmation + owner-arbitrated periodic dedup). Fixes **B** and **A-dups**. Gate: `sever=0.01` and enforced 50%-kill → `dups==0`, heal 1000/1000. *(See the crux section above — this is the hard one.)*
+- **11a** — one healing rule, fixed designations (down-child, else right-neighbour; every hole filled by a leaf; parent = foreknowledge not healer). Replaces `lowest-survivor`. Fixes **B** and **A-dups**. Gate: `sever=0.01` and enforced 50%-kill → `dups==0`, heal 1000/1000. *(Full design in the "11a design" section above.)*
 - **11b** — routing reliability under churn (retry / alternate owned-link when `strictNextHop`=−1; re-join provably reaches a greeter). Fixes **A-strands**. Gate: enforced 50%-kill → `strands==0`, TELEPORT stays 0.
 - **12** — re-prove under the full impairment matrix (loss / severance / subnets / partition / latency) + scale (100k+): convergence, TELEPORT=0, bounded sockets, ticks/s; gate the diagnostic overhead behind a flag.
 
