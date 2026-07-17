@@ -1969,7 +1969,30 @@
       }
       for (const [pid, p] of peers) if (!ids.has(pid) && !p.absentSince) p.absentSince = Date.now();
       for (const pid of Object.keys(rosterNames)) if (!ids.has(pid)) delete rosterNames[pid];
+      reconcileGrid();
       updateStatus();
+    }
+
+    // The ordinary #grid is CHANNEL R ONLY (docs/media-plane.md): me + my C-1
+    // ROW-MATES, so the row is never more than C tiles. A peer I KNOW sits in
+    // another row or section — my cross-link partner, an up/down structural
+    // link — is a FEED for the Section/Stadium composites (which read the aux
+    // 'secband'/'sd' streams, NOT these tiles), never an ordinary face. I only
+    // ever HIDE a peer I can positively classify as non-row-mate from its occ
+    // coord; a peer whose coord I don't yet know stays visible (don't hide the
+    // unclassifiable — a not-yet-synced row-mate must not blink out).
+    function reconcileGrid() {
+      const s = meshSeat(), c = meshCoord();
+      if (!s || !c) return; // pre-seat: show whatever linked (bootstrap)
+      const coordOfPeer = new Map(); for (const [k, v] of s.occ) coordOfPeer.set(v, k);
+      for (const [pid, p] of peers) {
+        if (p.headless || !p.tile) continue;
+        const k = coordOfPeer.get(pid);
+        if (!k) { p.tile.style.display = ''; continue; } // unknown coord ⇒ show
+        const cc = net.topo.unck(k);
+        const rowMate = cc.pc === c.pc && cc.r === c.r; // same section + row (≠ me)
+        p.tile.style.display = rowMate ? '' : 'none';
+      }
     }
 
     // ---- the room: a reconnecting relay socket (signaling only) ---------------
