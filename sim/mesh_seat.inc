@@ -26,8 +26,13 @@ void Seat::serveFind(Msg& mm){
   if(coord.pc==0){
     int ar=(coord.r-1+C)%C; bool empty=true; for(int j=0;j<C;j++) if(s1Fresh(ckey({0,(uint8_t)ar,(uint8_t)j}))){empty=false;break;}
     if(empty){ admit({0,(uint8_t)ar,coord.i},mm.nc); return; }
-    if(coord.i==0){ for(int j=1;j<C;j++){ Coord rc={0,coord.r,(uint8_t)j}; uint64_t rck=ckey(rc); if(!occ.count(rck) && TICK-(healTry.count(rck)?healTry[rck]:-999)>45){ healTry[rck]=(int)TICK; admit(rc,mm.nc); return; } } }
+    if(coord.i==0){ for(int j=1;j<C;j++){ Coord rc={0,coord.r,(uint8_t)j}; uint64_t rck=ckey(rc); if((!occ.count(rck)||s1Corpse(rck)) && TICK-(healTry.count(rck)?healTry[rck]:-999)>45){ healTry[rck]=(int)TICK; admit(rc,mm.nc); return; } } }   // ADMIT LIVENESS: a cell whose occupant went silent past the S1SYNC freshness horizon is FREE — a corpse must not turn newcomers away (silent churn made S1 look full; E2/CHALLENGE settles the rare alive-after-all race)
   }
+  if(coord.pc==0){ // S1 COMPACTION ROUTE: W5 hands every S1 seat the whole S1 freshness map — a CORPSE cell (occupied but silent past the detection horizon) under a live head means the newcomer belongs THERE (H1-S1: heads fill their rows). Admit directly when that head is me, else forward the FIND one hop to it. Corpses must not push newcomers down-tree.
+    for(int rr=0;rr<C;rr++){ uint64_t hk=ckey({0,(uint8_t)rr,0}); int h=occGet(hk); if(h<0||s1Corpse(hk)) continue;
+      for(int j=1;j<C;j++){ uint64_t k=ckey({0,(uint8_t)rr,(uint8_t)j}); if(s1Corpse(k)){
+        if(h==id){ if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)rr,(uint8_t)j},mm.nc); return; } }
+        else { Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(h,m); return; } } } } }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm.nc); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
   for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
