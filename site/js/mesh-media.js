@@ -139,6 +139,128 @@
     return comp;
   }
 
+  // ---- the GAPLESS PACKER (docs/media-plane.md, approach A) -------------------
+  // Every shipped mosaic is a ROW-MAJOR PACKED GRID of square faces: n faces in
+  // a cols-wide grid, NO internal holes — only a computable tail gap at the
+  // bottom-right ((cols*rows − n) cells). The announce meta carries {n, cols}
+  // (two ints on the existing control frame — zero video bandwidth), so a
+  // receiver knows exactly where every face sits and can BLIT any face out of a
+  // received block by sub-rect (pixels are addressable even though the stream
+  // is one blended video — approach A: one stream per link, never per-face
+  // fan-out). The packer lays ALL faces it holds — received blocks + its own
+  // live leaves — into ONE gapless grid, which self-describes for the next
+  // level up. Empty seats are simply never drawn: no black cells, no fixed C×C.
+  //
+  // packGrid(T, shape): the grid for T faces — 'bar' ⇒ 1×T; 'grid' ⇒ near-square
+  // (cols = ceil(sqrt(T))), the tail gap always < cols.
+  function packGrid(T, shape) {
+    if (T <= 0) return { cols: 1, rows: 1 };
+    if (shape === 'bar') return { cols: T, rows: 1 };
+    const cols = Math.ceil(Math.sqrt(T));
+    return { cols, rows: Math.ceil(T / cols) };
+  }
+  // faceSrcRect(j, n, cols, sw, sh): source rect of face j inside a packed block
+  // (row-major). Cells are square by construction; derive size from the block.
+  function faceSrcRect(j, n, cols, sw, sh) {
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const cw = sw / cols, ch = sh / rows;
+    return { sx: (j % cols) * cw, sy: Math.floor(j / cols) * ch, sw: cw, sh: ch };
+  }
+
+  // createPacker({ shape:'bar'|'grid', cell, maxW, fps, ac, gain }) →
+  //   { canvas, stream, setTile(id, ord, el, stream, {n, cols}), delTile(id),
+  //     count(), cols(), rows(), start(), stop(), stats() }
+  // A tile is a leaf face ({n:1, cols:1} — center-square cropped) or a packed
+  // block (n faces, cols wide — faces blitted through). Tiles draw in ord
+  // order, so the layout is deterministic on every device.
+  function createPacker(opts) {
+    opts = opts || {};
+    const shape = opts.shape || 'grid';
+    const cellPref = opts.cell || ((net && net.SCALE.COMP_W) || 756) / ((net && net.SCALE.C) || 5);
+    const maxW = opts.maxW || 1080;
+    const fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
+    const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const tiles = new Map(); // id -> { ord, el, streamId, n, cols }
+    const fold = (opts.ac && createAudioFold(opts.ac)) || null;
+    let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0;
+    let G = 1, R = 1;
+
+    const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
+
+    function paint() {
+      if (!ctx) return;
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (now - last < Math.max(1000 / fps, cost * 3)) { dropped++; return; } // GOVERNOR: drop, never queue
+      const T = total();
+      const g = packGrid(T, shape); G = g.cols; R = g.rows;
+      const cell = Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
+      const W = Math.max(1, G * cell), H = Math.max(1, R * cell);
+      if (canvas.width !== W) canvas.width = W;
+      if (canvas.height !== H) canvas.height = H;
+      ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, W, H);
+      const order = [...tiles.values()].sort((a, b) => (a.ord < b.ord ? -1 : a.ord > b.ord ? 1 : 0));
+      let f = 0;
+      for (const t of order) {
+        const el = t.el;
+        const sw = el ? (el.videoWidth || el.width || 0) : 0;
+        const sh = el ? (el.videoHeight || el.height || 0) : 0;
+        for (let j = 0; j < t.n; j++, f++) {
+          const dx = (f % G) * cell, dy = Math.floor(f / G) * cell;
+          if (!sw || !sh) { continue; } // source not ready — leave dark, next paint fills
+          try {
+            if (t.n === 1 && t.cols === 1) {
+              const b = coverBox(sw, sh, { w: cell, h: cell });      // leaf camera → centered square
+              ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+            } else {
+              const s = faceSrcRect(j, t.n, t.cols, sw, sh);         // block face → straight blit
+              ctx.drawImage(el, s.sx, s.sy, s.sw, s.sh, dx, dy, cell, cell);
+            }
+          } catch (e) {}
+        }
+      }
+      last = now; cost = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - now; drawn++;
+    }
+
+    const pk = {
+      canvas, stream: null, track: null,
+      setTile(id, ord, el, stream, meta) {
+        const sid = stream ? stream.id : null;
+        const prev = tiles.get(id);
+        if (fold) {
+          if (prev && prev.streamId !== sid) fold.remove('t' + id);
+          if (sid && (!prev || prev.streamId !== sid)) fold.add('t' + id, stream, opts.gain == null ? 1 : opts.gain);
+        }
+        if (!el) { if (fold && prev) fold.remove('t' + id); tiles.delete(id); return; }
+        const n = Math.max(1, (meta && meta.n) | 0 || 1);
+        const cols = Math.max(1, (meta && meta.cols) | 0 || n); // a bar's cols = n
+        tiles.set(id, { ord, el, streamId: sid, n, cols });
+      },
+      delTile(id) { if (fold) fold.remove('t' + id); tiles.delete(id); },
+      clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
+      ids: () => [...tiles.keys()],
+      count: total, cols: () => G, rows: () => R,
+      start() {
+        if (timer || !canvas) return pk;
+        const vTrack = canvas.captureStream(fps).getVideoTracks()[0];
+        const aTrack = fold && fold.track();
+        pk.stream = new MediaStream(aTrack ? [vTrack, aTrack] : [vTrack]);
+        pk.track = vTrack;
+        timer = setInterval(paint, Math.max(20, 1000 / fps));
+        paint();
+        return pk;
+      },
+      stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (fold) fold.clear();
+        if (pk.track) { try { pk.track.stop(); } catch (e) {} }
+        pk.stream = null; pk.track = null;
+      },
+      stats() { return { drawn, dropped, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R }; },
+    };
+    return pk;
+  }
+
   // ---- audio fold (WebAudio sum, bounded) ------------------------------------
   // A band's audio = the sum of its cells' audio tracks through per-cell gains
   // (the recorder's primitive). Callers own the AudioContext lifecycle.
@@ -163,5 +285,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, faceSrcRect, createPacker };
 })(typeof window !== 'undefined' ? window : globalThis);
