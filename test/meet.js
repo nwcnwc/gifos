@@ -15,6 +15,8 @@
  *      a chosen chattiness (`--level quiet|info|verbose|debug`, or -q/-v/-vv/-d),
  *      forever or `--for <secs>`. `--json` for one JSON object per tick.
  *   3. ONE-SHOT (`--once <cmd>`): run a single command, print it, exit.
+ *   4. SCRIPT (`--script "seat 0/1.1; sleep 45; state; shot /tmp/x.png"`):
+ *      run ';'-separated commands in order (sleep <secs> waits), then exit.
  *
  * PARTICIPATE (hold a real seat, help other tiles go clear):
  *   --video [n]   play a talking-head clip (test/swarm-videos/ pack) as my
@@ -101,7 +103,7 @@ const cfg = {
   forSecs: args['for'] ? Math.max(1, parseFloat(args['for'])) : Infinity,
   json: !!args.json,
 };
-const MODE = args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
+const MODE = args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
 
 // ---- playwright + chromium resolution -------------------------------------
@@ -457,14 +459,24 @@ function printHelp() {
 (async () => {
   process.on('SIGINT', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
 
-  if (MODE === 'watch' || MODE === 'once') {
-    if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once'); process.exit(1); }
+  if (MODE === 'watch' || MODE === 'once' || MODE === 'script') {
+    if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once/--script'); process.exit(1); }
     await join(cfg.room);
     // wait for a seat (up to 60s) so the first output is meaningful
     const t0 = Date.now();
     while (Date.now() - t0 < 60000) { const c = await page.evaluate(() => { try { return window.__gifosVideo.meshCoord(); } catch (e) { return null; } }).catch(() => null); if (c) { console.error('[meet] seated at ' + c.pc + '/' + c.r + '.' + c.i); break; } await sleep(1500); }
     if (cfg.settle) { console.error('[meet] settling ' + cfg.settle + 's (letting composites fill)…'); await sleep(cfg.settle * 1000); }
     if (MODE === 'once') { await runCmd(String(args.once)); try { await browser.close(); } catch (e) {} process.exit(0); }
+    if (MODE === 'script') {
+      // ';'-separated commands, run in order; `sleep <secs>` is a builtin.
+      for (const step of String(args.script).split(';').map((x) => x.trim()).filter(Boolean)) {
+        const sm = /^sleep\s+([\d.]+)$/.exec(step);
+        if (sm) { console.error('[meet] sleep ' + sm[1] + 's'); await sleep(parseFloat(sm[1]) * 1000); continue; }
+        console.error('[meet] > ' + step);
+        try { await runCmd(step); } catch (e) { console.log('  ! ' + String(e).slice(0, 160)); }
+      }
+      try { await browser.close(); } catch (e) {} process.exit(0);
+    }
     // watch
     const start = Date.now();
     while ((Date.now() - start) / 1000 < cfg.forSecs) {
