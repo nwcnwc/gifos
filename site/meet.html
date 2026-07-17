@@ -837,7 +837,15 @@
     // filter — the open/admin room principle, unchanged.
     const canStage = (id) => !hasAdminRoom() || admins.includes(id) || !!(modOf(id).app && modOf(id).app.on);
     const stageIds = () => {
-      const stgOf = (id) => (id === myId ? (myStatus.stg || 0) : ((statusOf.get(id) || {}).stg || 0));
+      // A stage seat needs a FRESH status (same 15s rule as consent/roster):
+      // a departed stager's lingering stg flag must not hold a seat — everyone
+      // would keep painting a strip whose feed is gone (a big black tile).
+      const stgOf = (id) => {
+        if (id === myId) return myStatus.stg || 0;
+        const st = statusOf.get(id);
+        if (!st || Date.now() - (st.at || 0) > 15000) return 0;
+        return st.stg || 0;
+      };
       const out = [];
       for (const id of new Set([myId, ...rosterIds])) {
         if (!id) continue;
