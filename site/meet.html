@@ -1998,6 +1998,28 @@
       }
     }
 
+    // ┌─────────────────────────────────────────────────────────────────────┐
+    // │ DEBUG-TREE — REMOVE BEFORE LAUNCH. Whole-mesh census for test/meet.js. │
+    // │ grep "DEBUG-TREE" to delete every piece (this helper, the onGossip     │
+    // │ __probe/__ack arms, and the probeTree hook in window.__gifosVideo).    │
+    // │ A seat's self-report: coord, bounded links, live connections, up/down. │
+    // │ One probe gossips the room; every seat replies with this; the tool     │
+    // │ reconstructs the ENTIRE tree — exposing link asymmetry / orphans / dup │
+    // │ coords no single occ can show. NOT product surface: pure diagnostics.  │
+    // └─────────────────────────────────────────────────────────────────────┘
+    function meshSelfReport() { // DEBUG-TREE
+      const c = meshCoord(), s = meshSeat();
+      const occAt = (co) => { const ss = meshSeat(); return ss ? ss.occGet(net.topo.ckey(co)) : null; };
+      const nb = (co) => { const pid = co && occAt(co); return pid ? String(pid).slice(0, 8) : null; };
+      return { from: String(myId).slice(0, 8), name: myName(),
+        coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null, occ: s ? s.occ.size : 0, state: s ? s.state : 0,
+        links: s ? [...s.linkPeers()].map((x) => String(x).slice(0, 8)) : [],
+        conn: [...peers.values()].filter((p) => p.connected).map((p) => String(p.id).slice(0, 8)),
+        up: c ? nb(net.topo.up(c)) : null, down: c ? nb(net.topo.down(c)) : null,
+        camOff: !!myStatus.camOff, blur: myStatus.blur,
+        vid: !!(localStream && localStream.getVideoTracks && localStream.getVideoTracks().length) };
+    }
+
     // ---- the room: a reconnecting relay socket (signaling only) ---------------
     function relayUrl() {
       let u = null; try { u = localStorage.getItem('gifos_relay'); } catch (e) {}
@@ -2222,6 +2244,10 @@
         // same handlers.
         onGossip: (src, g) => {
           if (!g || g.a !== 1 || !g.msg) return;
+          // DEBUG-TREE — REMOVE BEFORE LAUNCH (two arms below).
+          if (g.msg.__probe) { if (meshNode) meshNode.gossip({ a: 1, msg: { __ack: g.msg.__probe, r: meshSelfReport() } }); return; }
+          if (g.msg.__ack) { const M = (window.__meshCensus = window.__meshCensus || {}); if (g.msg.r && g.msg.r.from) M[g.msg.r.from] = g.msg.r; return; }
+          // end DEBUG-TREE
           if (g.msg.kind) onSignal(src, g.msg);
           else if (g.msg.k) onRemote(src, g.msg);
         },
@@ -5176,6 +5202,14 @@
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
       meshLinks: () => { const s = meshSeat(); return s ? Array.from(s.linkPeers()) : []; },
+      // DEBUG-TREE — REMOVE BEFORE LAUNCH. Gossip a probe; every seat self-
+      // reports; resolve the whole-mesh census (array of meshSelfReport()).
+      probeTree: (ms) => new Promise((resolve) => {
+        window.__meshCensus = {};
+        const self = meshSelfReport(); window.__meshCensus[self.from] = self; // I won't hear my own flood
+        if (meshNode) meshNode.gossip({ a: 1, msg: { __probe: 'p' + Date.now() } });
+        setTimeout(() => resolve(Object.values(window.__meshCensus)), ms || 4500);
+      }),
       debugDump: () => {
         const s = meshSeat(), c = meshCoord(), now = Date.now();
         const coordOfPeer = new Map(); if (s) for (const [k, v] of s.occ) coordOfPeer.set(v, k);
