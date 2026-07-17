@@ -168,8 +168,23 @@ struct Seat {
 
 // ---- fabric send/route/relay ----
 static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint32_t)b) : ((uint64_t)b<<32|(uint32_t)a); }
+// DIAGNOSTIC (increment 0): classify every emit by whether it COULD travel over
+// a real P2P DataChannel. NEIGHBOR = to is a tree-link of from (a genuine hop).
+// TELEPORT = both seated but NOT adjacent — a multi-hop the perfect bus fakes and
+// production can only make via the relay (or real routing). BOOTSTRAP = to/from a
+// not-yet-seated joiner (the greeter/relay path). Goal of Option A: TELEPORT -> 0.
+static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0;
+static void classifyEmit(int from,int to){
+  if(from<0 || to<0 || from>=(int)seats.size() || to>=(int)seats.size()){ EMIT_BOOTSTRAP++; return; }
+  Seat* sf=seats[from]; Seat* st=seats[to];
+  if(!sf->hasCoord || !st->hasCoord){ EMIT_BOOTSTRAP++; return; }
+  Coord ol[C+2]; int n=ownedLinks(sf->coord,ol); uint64_t tk=ckey(st->coord);
+  for(int k=0;k<n;k++) if(ckey(ol[k])==tk){ EMIT_NEIGHBOR++; return; }
+  EMIT_TELEPORT++;
+}
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
+  classifyEmit(from,to);
   bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
   if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
     Seat* sf=seats[from]; Seat* st=seats[to];
@@ -296,6 +311,9 @@ int main(int argc,char**argv){
     long long seated,s1c; counts(seated,s1c);
     printf("  after JOIN: %s [seated=%lld/%d, s1=%lld, converged@%lld, %lld ticks, %.2fs, %.0fk ticks/s]\n",
       (seated==n&&s1c==min(25,n))?"OK":"INCOMPLETE", seated,n,s1c,conv,TICK,secs, TICK/secs/1000.0);
+    long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP;
+    printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  TELEPORT(faked multi-hop)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
+      EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
     return 0;
   }
   // ---- SERVICE: read commands on stdin, answer on stdout ----
