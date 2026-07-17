@@ -38,9 +38,9 @@ mirrors how the mesh already thinks about identity (an unforgeable key, not a
 login).
 
 **Sketch.**
-- **Charging side (server):** a facilitator-backed 402 gate. The TURN-cred
+- **Charging side (server):** a facilitator-backed 402 gate. A metered-service cred
   Worker (item 1) is the first customer — answer `402` with the price, verify the
-  `X-PAYMENT` settlement, then mint the ephemeral TURN creds. Same pattern
+  `X-PAYMENT` settlement, then mint the ephemeral service credential. Same pattern
   generalises to any future metered GifOS service.
 - **Consuming side (apps):** a small runtime shim so an App GIF can call an
   x402-gated endpoint — on a `402`, surface the payment requirement to the user,
@@ -59,5 +59,5 @@ login).
   whether to run our own facilitator or use a hosted one.
 - **No-custody guarantee.** Keep GifOS entirely out of the money path — it
   brokers a 402 and verifies a receipt; it never holds funds or keys.
-- Relationship to item 1: TURN is the pilot service; prove the charging half of
+- (item 1 was rejected; the first pilot service is TBD — any metered GifOS endpoint fits this pattern.)
   x402 there before generalising to app-to-app metered calls.
