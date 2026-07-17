@@ -47,9 +47,12 @@ deterministic — earliest timestamp wins, ties by coord), and joining is just
 flipping your own flag.
 
 **Assembly — the Stage is a "row fold" assembled at Section 1, not down-tree:**
-1. **Collect (1 hop).** Each stager opens **one direct link** to a Section-1 seat
-   it already knows (its entry greeter / any S1 seat on the roster) and pushes
-   its raw feed there. Only ≤C such off-tree links exist — cheap, stagers are few.
+1. **Collect.** Each stager's raw feed relays **up the tree** to Section 1 — a
+   deep stager ships it to its row-head, a head ships it up its up-link, hop by
+   hop (`shipMos('stg:<id>', upTgt)` in `meet.html`) — until it reaches Section 1.
+   (An earlier design had the stager open one direct off-tree link to a known S1
+   seat; the deployed code relays it up the tree instead, so the collect leg is a
+   single up-chain, not a 1-hop link.)
 2. **Spread (~2 hops).** That S1 seat relays the feed across the Section-1
    row+cross mesh (the W5 roster fabric), so **every** S1 seat holds all ≤C feeds.
 3. **Composite + fan down.** Each Section-1 seat composites the ≤C feeds into
@@ -61,6 +64,18 @@ One composited strip, **not** ≤C separate streams — fan-out is one cheap str
 and a fixed panel is what a broadcast tier wants. Latency = 1 (to S1) + ~2
 (spread) + tree depth (down); less than Stadium (no per-level composite on the
 way up), as befits the live tier.
+
+**Where the redundancy is — and isn't.** The redundancy sits entirely at Section
+1: the strip is composited **in parallel by every S1 seat** (no election), and the
+raw feeds spread across the **row+cross** Section-1 mesh — so losing S1 seats
+degrades gracefully. But **both delivery legs are single-path.** The collect leg
+is one up-chain per stager; the fan-down is a plain tree, and at depth a
+**non-head** seat receives the strip **only from its row-head** (heads fan it to
+their row-mates; non-heads and cross-links do **not** carry it below Section 1),
+while a head receives it only from its parent. So a mid-tree failure interrupts
+the Stage for the whole subtree beneath it until the control plane heals — there
+is **no lateral backup outside Section 1**. (Same shape as Channel Sd/Stadium's
+fan-down.)
 
 **An APP on Stage carries a DATA stream, not A/V.** Running an app occupies one
 of the ≤C Stage seats (it counts toward the cap), but instead of camera pixels
