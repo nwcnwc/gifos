@@ -268,7 +268,9 @@ compose the two session shapes above rather than merging them:
 The media mesh and the app's data channels are independent peer connections
 within the one meeting (the relay is only the stadium's front door —
 docs/healing-laws.md R2); the app never touches the camera (that stays with the
-trusted meeting page), so the sandbox guarantees are unchanged.
+trusted meeting page), so the sandbox guarantees are unchanged. For the meeting
+system as a whole see [meeting.md](./meeting.md); the plan to carry app state
+fully over the mesh (retiring the relay app-broadcast) is [app-mesh.md](./app-mesh.md).
 
 **Who runs the stage** follows the room principle — anarchy is unavoidable in
 open rooms (so DOM hackers gain nothing over the honest buttons), complete
