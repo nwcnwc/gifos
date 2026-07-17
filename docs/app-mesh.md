@@ -57,6 +57,32 @@ keyed by the app-session id:
 Result: the relay is a pure greeter registry for apps too. Deltas ride the mesh;
 the operator sees ciphertext + a hash.
 
+## Concrete seam (traced 2026-07-17 — the migration is a BUS swap, not a rewrite)
+
+The app transport is **host-authoritative over a relay bus**, and the two are
+orthogonal — so gossip replaces the bus with the consistency model untouched:
+
+- **Host** (`runtime.js` `boot`→`becomeHost`): holds the DB, broadcasts state
+  deltas with `ws.send({ t:'bcast', msg })` (lines ~1707, ~1900); the relay fans
+  to every client. Opportunistic P2P DCs (`createOffer` ~1652, `channel.onmessage`
+  ~1639) are a fast path over the same logical bus.
+- **Client** (`bootClient`, ~1978): a `steadySocket(role=client)`; receives the
+  host's `bcast`, sends writes UP to the host with `ws.send({ t:'to', to:host })`.
+- **The seam:** abstract `{ bcast(msg), to(peer,msg), onMessage(cb) }` out of the
+  raw socket. Default binding = today's relay socket (zero behaviour change).
+  Injected binding (in a meeting) = `bcast → meshNode.gossip({app:sid, m})`,
+  `to → a directed mesh control send to the host seat`, `onMessage → onGossip`
+  filtered by `app:sid`. **Host stays the sole writer** — gossip is just the pipe.
+
+This means the risky part is NOT the distributed-systems model (unchanged); it's
+the mechanical extraction of the socket seam across host+client+DC-fast-path
+without regressing the ~100s of existing apps. That extraction needs a real
+multi-participant app-sync e2e test (two `meet.js` participants, one
+`runAppForTest`, assert the other's DB converges over gossip with NO new relay
+`role=host` session) — runnable headless, but it must exist and pass BEFORE this
+ships, because runtime.js is the whole app platform. Not something to land
+unverified at the tail of an autonomous run.
+
 ## Migration steps (do NOT do at 4am — sequence for a fresh session)
 
 1. **Extract the app-state lane.** In `runtime.js`, replace the relay-broadcast

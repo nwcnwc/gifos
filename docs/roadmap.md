@@ -11,53 +11,13 @@ the wrong shape until it's reworked to fit.
 
 ---
 
-## 1. Paid TURN relay tier (media over UDP-blocked / symmetric-NAT networks)
+## 1. (removed) TURN relay tier
 
-**What.** Offer a TURN relay as an opt-in **paid add-on** so audio/video
-survives the networks where the mesh can't reach directly. Today `ICE_SERVERS`
-(`site/js/gifos-net.js`) is **STUN-only, no TURN** — by design: *"Media gets a
-friend or nothing."* Data/control degrades to a friend-hop (`fmesh`/`fsig`) and
-then the ws relay, but two peers who are both behind symmetric NAT or on a
-UDP-blocked network (common on corporate / school / hospital WiFi) and share no
-mutual forwarder simply can't connect media. TURN is the missing rescue.
-
-**Why it fits.** TURN is the *only* piece of the stack with a real marginal
-cost (relayed bandwidth). STUN, the ws control relay, and the P2P mesh are
-nearly free. Charging only for the relay aligns cost with revenue and keeps the
-default experience free and account-free. One paying **host** offering a
-`turns:` candidate can rescue connectivity for a whole pair (ICE uses a relay
-candidate offered by *either* side), which matches the host/admin-room model —
-"the host upgrades the room, guests just benefit."
-
-**Sketch.**
-- Stand up (or resell) a TURN server on `turns:…:443` — TURN-over-TLS on the
-  HTTPS port so it passes DPI firewalls. **Cloudflare Realtime** (managed TURN,
-  pay-as-you-go, cheap egress) is the low-ops path and fits the existing stack
-  (we already point STUN at `stun.cloudflare.com` and run a Cloudflare Worker
-  for the mirror). Self-hosted **coturn** is the alternative for full control.
-- **Ephemeral credentials only.** Never ship a static TURN username/password —
-  it would be scraped and used for free. A tiny Worker endpoint mints short-TTL
-  HMAC creds (coturn `use-auth-secret` / TURN REST API, RFC 7635) for a holder
-  of a valid entitlement.
-- Client change in `gifos-net.js`: when the user holds an entitlement token,
-  fetch creds and append the `turns:` entry to `ICE_SERVERS` before building the
-  `RTCPeerConnection`; with no token, fall straight back to today's STUN-only
-  behaviour (zero regression).
-
-**Open questions.**
-- **Privacy honesty.** TURN relays DTLS/SRTP *ciphertext* (operator can't see
-  media — consistent with R2), but it *must* see both peers' IP addresses to
-  relay. That's more than the ws relay learns today. Say so plainly in the
-  product copy.
-- **Keep it account-free.** Payment introduces a customer identity. Decouple it:
-  a purchase buys an *opaque* entitlement token that only the TURN-cred Worker
-  ever sees — never presented to the relay, never carried into the meeting, never
-  tied to the genesis key. Meetings stay account-free; only the credential path
-  knows a customer exists.
-- Metering/quota per credential for billing; abuse limits on the cred endpoint.
-- Payment rail → see item 2 (x402 is the natural fit — a wallet, not an account).
-
----
+A paid TURN tier was sketched here and REJECTED: TURN is a media relay
+SERVER, and GifOS media goes peer-to-peer, never through a server — the
+meeting footer's promise and the design's non-negotiable. The connectivity
+answer for hard NATs stays within the rules: the P1 friend-relay (media
+through a MUTUAL FRIEND's browser) and better ICE, not a server.
 
 ## 2. General x402 support (HTTP-native, account-free payments)
 
@@ -67,8 +27,7 @@ machine-readable payment requirements, the client pays (typically a stablecoin
 like USDC on an L2 such as Base) and retries with an `X-PAYMENT` header, and a
 facilitator verifies settlement before the resource is returned. "General
 support" means both **consuming** x402 (a GifOS app pays a metered API per
-request) and **charging** via x402 (a GifOS service — starting with the TURN
-tier — gates access behind a 402).
+request) and **charging** via x402 (a GifOS service).
 
 **Why it fits.** x402 is the most *GifOS-shaped* way to charge for anything:
 payment is a **wallet signature, not an account**. No signup, no stored billing
