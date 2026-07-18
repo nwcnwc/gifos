@@ -89,13 +89,16 @@
   // pubkey-derived verifier tail (`room.<sha256(pk) prefix>` — the owned-link
   // shape), the pin is additionally bound to the sid so even the FIRST frame
   // must come from the key the link commits to (closing the TOFU race). For a
-  // healing-link sid (opaque tail) the pin is trust-on-first-valid-frame; see
-  // the doc note — the clean close is carrying the owner pk in the app ad.
-  function makeVerifier(sid) {
+  // healing-link sid (opaque tail) the pin is trust-on-first-valid-frame —
+  // UNLESS the caller passes `ownerPk` (the pk carried in the app ad, the
+  // clean close of that race): then the pin is fixed up front, and a stale
+  // retained frame from an earlier share of the same sid (old key) can never
+  // capture the verifier.
+  function makeVerifier(sid, ownerPk) {
     const dot = String(sid || '').indexOf('.');
     const sidTail = dot >= 0 ? String(sid).slice(dot + 1) : null;
     const boundable = !!(sidTail && /^[0-9a-f]{8,}$/.test(sidTail));
-    let pinned = null;
+    let pinned = (typeof ownerPk === 'string' && /^[0-9a-f]{16,}$/.test(ownerPk)) ? ownerPk : null;
     let lastN = 0;
     return {
       get pinnedPk() { return pinned; },

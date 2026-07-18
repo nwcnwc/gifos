@@ -5468,13 +5468,21 @@
         // (roadmap 26–28) the ad still carries the relay session, and clients
         // pick the mesh lane iff the host actually drives it (mesh flag).
         const meshBus = !!(r && r.attachStageBus);
-        if (meshBus) r.attachStageBus({
-          send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
-          subscribe: (cb) => stageData.subscribe(sess.sid, cb),
-        });
+        let meshPk = null;
+        if (meshBus) {
+          const att = await r.attachStageBus({
+            send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
+            subscribe: (cb) => stageData.subscribe(sess.sid, cb),
+          });
+          // The owner pk travels IN THE AD (docs note: "the clean close is
+          // carrying the owner pk in the app ad") — clients pre-pin it, so a
+          // stale retained snap from an earlier share of this sid (old key)
+          // can't TOFU-pin the verifier and a fresh share re-keys cleanly.
+          meshPk = (att && att.pk) || null;
+        }
         // ts outbids any standing tombstone for this sid — a re-share is a
         // deliberate act and must win even against a skewed stopper's clock.
-        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus,
+        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus, pk: meshPk,
           ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
         broadcastStatus();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
@@ -5494,6 +5502,7 @@
           const sidNow = app.s;
           GifOS.runtime.bootClientBus(appMountEl, {
             s: app.s,
+            pk: app.pk || null, // owner pk from the ad — pre-pins the verifier
             send: (kind, d) => stageData.broadcast(app.s, kind, d),
             subscribe: (cb) => stageData.subscribe(app.s, cb),
           }, null, {}).then((c) => {

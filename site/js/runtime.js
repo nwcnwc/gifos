@@ -2710,7 +2710,7 @@
     const itemsOf = (c) => (c && mirror.collections[c] && mirror.collections[c].items) || {};
 
     return appOwnerLib().then((AO) => {
-      const ver = AO.makeVerifier(sid);
+      const ver = AO.makeVerifier(sid, (params && params.pk) || null);
       // Wire codec (mirror of the host's packState): revive the store's ONE
       // binary format — {$bin: b64} → Uint8Array — after signature checks,
       // and pack outgoing act-proposals the same way.
