@@ -56,13 +56,28 @@ flipping your own flag.
    single up-chain, not a 1-hop link.)
 2. **Spread (~2 hops).** That S1 seat relays the feed across the Section-1
    row+cross mesh (the W5 roster fabric), so **every** S1 seat holds all ≤C feeds.
-3. **Composite + fan down.** Each Section-1 seat composites the ≤C feeds into
-   **one** horizontal Stage strip **itself** (redundant, parallel, no election —
-   the Stadium doctrine) and fans that **single** stream down its subtree; heads
-   forward it down.
+3. **Composite + fan down (video).** Each Section-1 seat composites the ≤C feeds
+   into **one** horizontal Stage strip **itself** (redundant, parallel, no
+   election — the Stadium doctrine) and fans that single **video-only** stream
+   down its subtree; heads forward it down.
+4. **Audio folds at the edge (mix-minus).** The strip carries **no audio**. The
+   ≤C individual stager feeds fan **down** the same path as the strip (tiny
+   streams), and every device folds the Stage audio **locally, skipping its own
+   feed** — a stager never hears their own voice come back. Mixed audio is mixed
+   paint: once summed a voice can never be removed, so exclusion must happen at
+   the LAST mix, which is why the last mix is at the ear (see Channel Sd's
+   mix-minus law).
 
-One composited strip, **not** ≤C separate streams — fan-out is one cheap stream
-and a fixed panel is what a broadcast tier wants. Latency = 1 (to S1) + ~2
+**Stagers live on the Stage ONLY.** While on Stage, a stager's face and mic are
+**excluded from their row's product** (and therefore from every Stadium mix),
+and row-mates play no direct stager audio — everyone sees and hears a stager
+through the Stage channel alone. No double appearance; no voice arriving twice
+at two different latencies (the reverb-smear bug); and the broadcaster's
+row-facing load drops away exactly when they take on the fan-up cost.
+
+One composited strip for the picture, **not** ≤C separate video streams —
+fan-out is one cheap stream and a fixed panel is what a broadcast tier wants
+(audio is the exception above, and ≤C Opus tracks are near-free). Latency = 1 (to S1) + ~2
 (spread) + tree depth (down); less than Stadium (no per-level composite on the
 way up), as befits the live tier.
 
@@ -91,9 +106,10 @@ price of a data stream instead of a video one.
 The novel tier: the entire room assembled into a single mosaic by the
 participants themselves, **up** the tree and back **down**. Every person is an
 **equal-size square** — a subtree of 100 people is **100 equal squares**, never
-one shrunken cell. It is still ONE stream composited up the tree and fanned down
-(the efficient, election-free transport is unchanged); only the **packing** is
-equal-square, not fractal.
+one shrunken cell. It is ONE stream **per link**, composited up the tree and re-mixed on the way
+down (election-free, same transport discipline); the packing is equal-square,
+not fractal — and the down-flow is **per-branch mix-minus** (below): nobody
+ever receives a mix containing their own row.
 
 ### Up-assembly (every row head, recursively) — gapless equal-square packing
 The compositing core is the **gapless packer** (`site/js/mesh-media.js`:
@@ -133,20 +149,54 @@ signal that its audio is blended into the mix.
 Section 1 (`pc=0`) has **no up-links** — it is the top. Each Section-1 head has
 assembled everything beneath its own subtree; it then exchanges its assembled
 block with the other Section-1 rows over the **cross-links** (`x1`→`x2`→`sdrow`)
-and packs them all into the **whole Stadium** (`'stad'`). **Every** Section-1
-head does this independently. It is deliberately redundant: computing it C times in parallel
+and from those blocks packs the mix-minus **views** below (`'stad'` shape) —
+its own row's view and one down-ingredient per child branch — rather than one
+identical whole-Stadium for everyone. **Every** Section-1 head does this
+independently. It is deliberately redundant: computing it C times in parallel
 costs wall-clock nothing extra, and it means the room never has to *elect* one
 seat to assemble the Stadium for everyone (an election is a single point of
 failure and a scaling bottleneck). This is the same doctrine as the healing
 plane's parallel greeters — no chosen coordinator, ever.
 
-### Down-flow and the latency offset
-The finished Stadium flows **down** every `down`-link (and over the cross-link —
-see redundancy below), the reverse of the assembly. It necessarily lags Stage
-(and the live Row) by exactly the time the bottom-up assembly took —
-**physically unavoidable**: you cannot show a composite of the whole room before
-the whole room has been composited. Stage stays live; Stadium is the (slightly
-behind) crowd behind it.
+### Mix-minus (the down-flow) — nobody ever receives a mix containing their own row
+Two physical facts force the down-flow's shape:
+1. **Mixed audio is mixed paint** — once summed, a voice can never be removed.
+   Exclusion must happen at mix time, never after.
+2. Each row must not receive itself (self-echo through the Stadium; row-mates
+   are already heard live on Channel R) — and different rows need different
+   exclusions, so **one shared down-stream cannot serve everyone**.
+
+So every down-mix is built **additively from pieces the head already holds
+separately** — nothing is ever subtracted, so nothing ever comes down empty:
+- **The row's view (`sdm`).** Each head packs [everything outside my branch] +
+  [each child's block] — everyone except its own row's faces — paints it as THE
+  Stadium tile and fans it to its row-mates. Your row is never in your Stadium;
+  your row is the Channel R tiles on the same screen. **Every face on screen
+  exactly once.** At Section 1, "outside my branch" = the other rows' `sdrow`
+  blocks; deeper, it is the `sdn` ingredient received from above.
+- **Per-child down ingredients (`sdx` → `sdn`).** For each seat of its row with
+  a down-child, the head packs [outside my branch] + [my row's faces] + [every
+  OTHER child's block] — the one piece left out is that child's own branch —
+  ships it to that seat (`sdx`), which relays it down as `sdn`, where it becomes
+  the child head's "outside my branch". Each hop **adds** what the branch below
+  hasn't heard; the walk down never empties.
+
+Video and audio ride the same per-branch stream: each link encodes its own copy
+anyway (there is no free shared broadcast), so per-branch streams cost no extra
+encodes, and each packer's audio fold sums exactly its own tiles — the audio
+mix-minus falls out of the video packing for free.
+
+**Redundancy trade.** The up legs keep their link-disjoint x1/x2 backup, but a
+per-branch mix has exactly ONE producer (the head): lateral copies are
+impossible *by construction* — a neighbour branch's mix contains YOUR row. A
+dead head leaves its row Stadium-dark until healing (C3) refills seat 0 —
+seconds — while Channel R and Stage are unaffected.
+
+### The latency offset
+The Stadium necessarily lags Stage (and the live Row) by exactly the time the
+bottom-up assembly took — **physically unavoidable**: you cannot show a
+composite of the whole room before the whole room has been composited. Stage
+stays live; Stadium is the (slightly behind) crowd behind it.
 
 ### Equal-square, not fractal (the change)
 The Stadium used to divide space by **tree position** — a lone seat and a seat
@@ -161,9 +211,11 @@ fanned down, election-free) is unchanged; only the packing flattened.
 ### Cross-link redundancy (up + down) — closing the mid-tree freeze
 The down-fan used to be **single-path**: a non-head got the Stadium (and Stage)
 strip only from its **row head**; if that head's feed stalled, the seat froze
-with no lateral backup. Fixed: `sd` (Stadium) and `sgs` (Stage) now also fan
+with no lateral backup. `sgs` (Stage strip) and the per-stager audio feeds fan
 over the **cross-link at every level**, and the Stage **collect** leg pushes a
-redundant copy up the cross-link too. A cross-link peer sits in a **different
+redundant copy up the cross-link too. (The Stadium's per-branch mixes CANNOT be
+laterally backed up — see the mix-minus redundancy trade above — only their
+up-leg ingredients, `sdrow` via x1/x2, are.) A cross-link peer sits in a **different
 row fed by a different up-link**, so it is an *independent* second source. Dedup
 keeps it from looping: a fan is **not** sent back to the peer it was received
 from (`via`), the stage copy carries a `^x` tag that resolves to the **same**
