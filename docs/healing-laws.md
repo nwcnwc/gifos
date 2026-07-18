@@ -110,11 +110,19 @@ childless — a leaf. **Only leaves move. No exceptions.**
   slides left into the hole. It is childless — a leaf — so even this move
   strands nobody. (The old "scooch is the one non-leaf exception" is gone:
   nothing non-leaf ever moves.)
-- **C3. Exactly ONE healer per hole, known in advance.** The down-child (H1)
-  if the seat owned one; otherwise the right-neighbour (H2); the backfiller
-  (H7) and the Section-1 backstop (H1-S1) own only cells no other rule
-  covers. Because the designation is fixed, no two healers ever race for one
-  hole — the only races left are placement races, and E2 settles those.
+- **C3. Exactly ONE healer per hole, known in advance — and ONLY it may fill
+  the hole.** The down-child (H1) if the seat owned one; otherwise the
+  right-neighbour (H2); the backfiller (H7) and the Section-1 backstop (H1-S1)
+  own only cells no other rule covers. Because the designation is fixed, no
+  two healers ever race for one hole. And the designation is **exclusive**: a
+  seat's occupant is changed ONLY by that hole's designated healer, delivering
+  the fill **over the healer's existing live link** to the neighbour (W1/W4).
+  A bare claim for a hole from anyone else — routed, relayed, or injected — is
+  **REJECTED, not adjudicated.** There is no race for E2's tie-break to
+  decide, so the tie-break can never be abused to *capture* a seat (see the
+  security frame). This is "no action at a distance": to change seat X you
+  must already hold a link into X's neighbourhood, which only its neighbours
+  and its one healer do.
 
 ## W — the healer wires with live knowledge, never stale gossip
 
@@ -151,8 +159,12 @@ childless — a leaf. **Only leaves move. No exceptions.**
   home.** (When the home itself is torn in two, the E3 audit *detects* it but
   there is no safe reunion rule yet — see E3's open problem — so no home seat
   is currently made to drain.)
-- **E2. Duplicates: the race loser yields.** Two ids on one seat ⇒ one must
-  yield, decided the same way everywhere:
+- **E2. Duplicates: the race loser yields.** E2 does NOT decide who may TAKE a
+  seat — C3 does that (only the designated healer fills a hole; a raw claim is
+  rejected). E2 exists only to settle a duplicate between two *legitimate*
+  occupants — chiefly the **severance-revival** case: a seat looked dead, its
+  healer filled the hole, then the original revived. Both were placed
+  honestly; one must now yield, decided the same way everywhere:
   - Only between **LIVE** claimants — and "live" means **first-hand only**: a
     claimant counts as present only if I have heard it MYSELF, directly, on a
     link it holds to me. Second-hand gossip may inform routing, but it can
@@ -162,8 +174,13 @@ childless — a leaf. **Only leaves move. No exceptions.**
     own seating can outrank me.
   - Ties break deterministically: **lower id wins, higher id yields** — one
     convention, used by every rule in this file (two mixed conventions
-    oscillate and never settle; also proven in the sim). A losing head that
-    nobody would otherwise contact is told over the YIELD back-channel.
+    oscillate and never settle; also proven in the sim).
+  - **The tie-break is a last resort between two legitimate seats, never a way
+    IN.** Because C3 already rejects any un-healer-authorized claim, an
+    attacker cannot manufacture an E2 contest for a seat it has no legitimate
+    healer claim to — so a forgeable id can no longer *capture* a seat, only
+    lose a genuine revival race. (Before C3's exclusivity this was a hole:
+    client-set ids let an attacker win a fresh turnover race. Closed.)
   - E2 requires a live witness — some seat directly linked to both claimants.
     Inside one connected mesh that witness always exists (the row is a full
     mesh and the parent owns the head). Across a full partition it does NOT,
@@ -284,12 +301,69 @@ childless — a leaf. **Only leaves move. No exceptions.**
 
 ---
 
+## S — the security frame (an attacker's harm ≈ its FANOUT)
+
+With one shared key, anyone admitted (URL + password — the only trust
+boundary) can lie to whoever they are connected to; we cannot stop that. So
+the goal is never "prevent lying," it is **bound the blast radius**: an
+attacker's harm is roughly the number of people it is connected to — its
+seats plus the paths that run through it. Every mechanism is judged by one
+test: *does it let a peer's reach grow faster than slow, tenure-gated,
+rate-limited honest work?* Anything that lets influence jump discontinuously
+is the bug.
+
+- **S1. No action at a distance (C3 exclusivity).** A seat's occupant changes
+  only via that hole's one designated healer, over an existing link. You can
+  only affect seats you are already wired near — your own neighbourhood. An
+  attacker cannot reach across the tree to seize a high-fanout seat, because
+  it neither knows a deep seat's live wiring (private — only the healer and
+  neighbours hold it) nor can address its socketless neighbours.
+- **S2. No turnover capture (C3 + E2 scoping).** When a seat churns, only its
+  designated healer may fill it; a raw claim is rejected. So the moment of
+  turnover is no longer an open race a forgeable id can win. E2's tie-break
+  decides only genuine revival races between two *legitimate* seats — never a
+  way in.
+- **S3. No chokepoint monopoly (media redundancy).** Even a captured seat
+  cannot dominate a downstream view, because every viewer pulls Stage/Stadium
+  from *several* independent sources (multi-subscribe, cross-links —
+  docs/media-plane.md). Poison is one feed among many, dropped or deduped.
+  So a local capture stays local.
+
+**The one dependency this rests on — and its open edge.** "Only the healer may
+fill" is airtight only if a witness can't be FOOLED about *who* the healer is.
+Deep in the tree that is free: an attacker is not on the link and does not
+know the ids. But **Section 1** is the exposed layer — its wiring is gossiped
+(W5/W6), its topology is fixed, and its seats are socketed greeters an
+attacker can reach — so there an attacker could try to **impersonate** the
+designated healer, and client-set ids let it. The hardening C3 depends on:
+- **A lightweight per-seat identity, pinned on first contact (TOFU).** When a
+  seat takes a coord it mints a throwaway keypair and announces the pubkey to
+  its neighbours; every later promotion it authors is signed by it. An
+  impostor cannot sign as the real heir, so "I am the healer" stops being
+  forgeable — no accounts, no cost, minted at seating. **STATUS: specified
+  here, not yet implemented.** Until it lands, Section-1 healer-identity rests
+  on the healer's structural head start (it detects a death in seconds via the
+  heartbeat, D1; an attacker learns of it only at relay/TTL speed) — a real
+  edge, not a proof.
+
+**Still open (named honestly):** the **Sybil** attack — one attacker wearing
+many masks — is not solved, because we deliberately have no accounts and no
+per-person identity. C3/S1/S2 keep a Sybil from *reaching* seats it is not
+wired to; per-seat TOFU keeps it from *impersonating* a healer; but nothing
+yet stops an insider from being *many legitimate-looking seats at once*. This
+is the same gap that leaves the torn-home reunion (E3) unsolved.
+
+---
+
 ## The two hard cases — one closed, one open
 
-1. **Two nodes claim the same seat (CLOSED).** Inside one connected mesh a
-   live witness always exists, and E2 settles it deterministically —
-   first-hand liveness only, tenure first, lower id wins, one convention
-   everywhere.
+1. **Two nodes claim the same seat (CLOSED).** Only the one designated healer
+   may fill a hole; any other claim is rejected (C3), so no attacker can
+   *contest* a seat. A duplicate only arises between two *legitimate* seats
+   (severance-revival), and E2 settles that deterministically — first-hand
+   liveness only, tenure first, lower id wins. (The one residual: at the
+   public Section-1 ring, healer-identity needs the per-seat TOFU key of S —
+   specified, not yet built.)
 2. **Churn shatters the meeting into disconnected pieces (PARTLY OPEN).**
    Severed subtrees drain back in (E1); dead home cells are rebuilt from
    below (H1/H1-S1/H7, key preserved); a lone cut-off member gets an honest
