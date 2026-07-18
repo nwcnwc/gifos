@@ -1813,6 +1813,13 @@
       connsOf.delete(peerId);
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
+      // Media plane: forget this peer's mosaic announces/demand and fail any feed
+      // it fed us over to the hot standby IMMEDIATELY (don't wait for the sweep).
+      if (typeof mosAnn !== 'undefined') {
+        for (const k of [...mosAnn.keys()]) if (k.slice(0, k.indexOf('|')) === peerId) mosAnn.delete(k);
+        for (const k of [...subWant.keys()]) if (k.slice(0, k.indexOf('|')) === peerId) subWant.delete(k);
+        try { claimMos(); } catch (e) {}
+      }
       if (focusId === peerId) focusId = null;
       layout();
       adapt();
@@ -3176,6 +3183,14 @@
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
         for (const [rk, c] of [...mosIn]) if (c.via === p.id && c.streamId === m.streamId) dropMosIn(rk);
+        for (const [rk, c] of [...mosStandby]) if (c.via === p.id && c.streamId === m.streamId) dropStandby(rk);
+        claimMos(); // promote a hot standby into any slot just vacated (no sweep wait)
+      } else if (m.k === 'mx-want' && typeof m.key === 'string') {
+        // A receiver wants this redundant feed HOT — wake its (dormant) job.
+        setJobActive(m.key + '>' + p.id, true);
+      } else if (m.k === 'mx-idle' && typeof m.key === 'string') {
+        // A receiver already has 2 hot feeds — park this spare at zero bandwidth.
+        setJobActive(m.key + '>' + p.id, false);
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
@@ -3542,8 +3557,18 @@
     // nothing here.
     const MM = GifOS.meshMedia;
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
-    const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
-    const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
+    const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed PRIMARY — rendered + re-shipped)
+    // MULTI-SUBSCRIBE (docs/media-plane.md): for the fanned-down redundant
+    // channels ('sd', 'sgs', per-stager 'stg:*') a receiver keeps TWO hot feeds
+    // — the PRIMARY (mosIn, rendered) and a hot STANDBY (mosStandby, decoding but
+    // not shown) — over two INDEPENDENT paths, and pre-subscribes to every other
+    // announcer as a DORMANT spare (zero bandwidth: the sender replaceTrack(null)s
+    // its transceiver on demand). On a primary death the standby promotes with NO
+    // flicker (its stream is already decoding), and a dormant spare is woken back
+    // to standby via mx-want (replaceTrack — no renegotiation, instant).
+    const mosStandby = new Map(); // resolvedKey -> { via, streamId, stream, el, meta } (hot 2nd feed)
+    const subWant = new Map();    // from + '|' + key + '|' + sid -> 'w'|'i' (last demand sent — debounce)
+    const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
     const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
@@ -3573,12 +3598,28 @@
       if (!p || !p.pc || !p.connected) return null; // not linked yet — next sweep retries
       const container = new MediaStream();
       const senders = [];
-      for (const tr of stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); } catch (e) {} }
+      const trackList = [];
+      for (const tr of stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); trackList.push(tr); } catch (e) {} }
       if (!senders.length) return null;
-      mosJobs.set(jk, { senders, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
+      mosJobs.set(jk, { senders, trackList, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
       if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
       compKick(to);
       return jk;
+    }
+    // DEMAND-DRIVEN DORMANCY: a receiver asks a redundant feed to go hot
+    // ('mx-want') or dormant ('mx-idle'). Dormant = replaceTrack(null) on every
+    // sender of the job — the transceiver (m-line) stays negotiated so waking it
+    // is a pure replaceTrack with NO renegotiation, but it carries ZERO media. So
+    // a seat encodes only the feeds someone actually keeps hot (steady state: 2
+    // per receiver); every other pre-allocated spare costs nothing until needed.
+    function setJobActive(jk, on) {
+      const job = mosJobs.get(jk); if (!job) return;
+      if (!!job.active === !!on) return;
+      job.active = !!on;
+      for (let i = 0; i < job.senders.length; i++) {
+        try { job.senders[i].replaceTrack(on ? (job.trackList[i] || null) : null); } catch (e) {}
+      }
+      compKick(job.to);
     }
     function unshipMos(jk, notify) {
       const job = mosJobs.get(jk); if (!job) return;
@@ -3590,6 +3631,11 @@
     function dropMosIn(rk) {
       const c = mosIn.get(rk); if (!c) return;
       mosIn.delete(rk);
+      try { c.el.srcObject = null; c.el.remove(); } catch (e) {}
+    }
+    function dropStandby(rk) {
+      const c = mosStandby.get(rk); if (!c) return;
+      mosStandby.delete(rk);
       try { c.el.srcObject = null; c.el.remove(); } catch (e) {}
     }
     // Claim announced streams off the announcing peer's incoming list, and
@@ -3622,19 +3668,84 @@
       const p = peers.get(via);
       return !!(p && p.incoming && p.incoming.find((s) => s.id === sid && s.id !== p.ownSid));
     }
+    // A resolved slot is REDUNDANT (multi-subscribe) if several independent paths
+    // fan the same logical feed to me: the Stadium, the Stage strip, and each
+    // individual stager. Structural relay slots (sub/x1/x2/sdrow) keep the plain
+    // single sticky claim.
+    const isRedun = (rk) => rk === 'sd' || rk === 'sgs' || rk.indexOf('stg:') === 0;
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
+    // Send a want/idle demand to a redundant feed's announcer, debounced so the
+    // message only rides the DC when the state actually flips.
+    function demand(from, key, sid, want) {
+      const dk = from + '|' + key + '|' + sid, st = want ? 'w' : 'i';
+      if (subWant.get(dk) === st) return;
+      subWant.set(dk, st);
+      const p = peers.get(from);
+      if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: want ? 'mx-want' : 'mx-idle', key, streamId: sid });
+    }
+    function repaintRedun(rk, stream) {
+      // Respect the same position guards reconcileMosaic paints under, so an
+      // instant-failover repaint never clobbers a locally-ORIGINATED composite:
+      // the Section-1 head owns the Stadium (sdPack); every S1 seat owns its own
+      // Stage strip (stripPack). Those seats manage their own <video>.
+      const c = meshCoord();
+      if (rk === 'sd') { if (c && c.i === 0 && c.pc === 0) return; paintStadiumTile(stream); }
+      else if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
+      // stg:* has no direct <video> — the S1 strip compositor re-reads mosIn.
+    }
+    // MULTI-SUBSCRIBE for one redundant slot: keep PRIMARY + hot STANDBY over two
+    // independent announcers, pre-subscribe to the rest as DORMANT spares.
+    function claimRedun(rk, arr) {
+      // Resolve every announcer to its (possibly muted) incoming stream.
+      const cand = [];
+      for (const a of arr) {
+        const p = peers.get(a.from);
+        const st = (p && p.incoming) ? p.incoming.find((s) => s.id === a.ann.streamId && s.id !== p.ownSid) : null;
+        cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
+      }
+      if (!cand.length) { if (mosIn.has(rk)) { dropMosIn(rk); repaintRedun(rk, null); } dropStandby(rk); return; }
+      const inCand = (e) => e && cand.some((c) => c.from === e.via && c.sid === e.streamId && c.live);
+      let pri = mosIn.get(rk), std = mosStandby.get(rk);
+      // FAILOVER: primary gone → promote the (already-decoding) standby, no flicker.
+      if (pri && !inCand(pri)) {
+        dropMosIn(rk);
+        if (std && inCand(std)) { mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null; repaintRedun(rk, pri.stream); }
+        else { pri = null; repaintRedun(rk, null); }
+      }
+      if (std && !inCand(std)) { dropStandby(rk); std = null; }
+      // Fill PRIMARY from a live candidate (distinct from the standby's path).
+      if (!pri) {
+        const pick = cand.find((c) => c.live && !(std && c.from === std.via && c.sid === std.streamId));
+        if (pick) { pri = { via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann) }; mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
+      }
+      // Refresh primary meta from its own announcer (counts change, id doesn't).
+      if (pri) { const own = cand.find((c) => c.from === pri.via && c.sid === pri.streamId); if (own) pri.meta = annMeta(own.ann); }
+      // Fill STANDBY from another live candidate over a DIFFERENT path.
+      if (pri && !std) {
+        const pick = cand.find((c) => c.live && !(c.from === pri.via && c.sid === pri.streamId));
+        if (pick) { std = { via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann) }; mosStandby.set(rk, std); }
+      }
+      // DEMAND: keep primary + standby HOT; every other announcer is a dormant
+      // spare (idle). If I still owe a standby (only one live path so far), keep an
+      // extra candidate wanted so a spare wakes toward 2 rather than all going idle.
+      const hot = new Set();
+      if (pri) hot.add(pri.via + '|' + pri.streamId);
+      if (std) hot.add(std.via + '|' + std.streamId);
+      if (hot.size < 2) { const extra = cand.find((c) => !hot.has(c.from + '|' + c.sid)); if (extra) hot.add(extra.from + '|' + extra.sid); }
+      for (const c of cand) demand(c.from, c.key, c.sid, hot.has(c.from + '|' + c.sid));
+    }
     function claimMos() {
+      const redun = new Map(); // rk -> [{from,key,ann}]
       for (const [ak, ann] of mosAnn) {
         const from = ak.slice(0, ak.indexOf('|')), key = ak.slice(ak.indexOf('|') + 1);
         const rk = mosResolve(key, ann, from);
         if (!rk) continue;
+        if (isRedun(rk)) { let a = redun.get(rk); if (!a) { a = []; redun.set(rk, a); } a.push({ from, key, ann }); continue; }
         const cur = mosIn.get(rk);
-        // STICKY: while the CURRENT source is alive, keep it — only its own
-        // announcer refreshes meta; a redundant second announcer (the new
-        // cross-link fan of 'sd'/'sgs'/'stg') is ignored, so the <video> never
-        // thrashes between two live sources. When the current source dies, the
-        // next live announcer we meet is claimed → automatic ~2s cross-link failover.
+        // STICKY single claim for structural relay slots: keep the live source,
+        // only its own announcer refreshes meta.
         if (cur && mosLive(cur.via, cur.streamId)) {
-          if (cur.via === from && cur.streamId === ann.streamId) cur.meta = { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols };
+          if (cur.via === from && cur.streamId === ann.streamId) cur.meta = annMeta(ann);
           continue;
         }
         const p = peers.get(from);
@@ -3642,8 +3753,9 @@
         const st = p.incoming.find((s) => s.id === ann.streamId && s.id !== p.ownSid);
         if (!st) continue;
         if (cur) dropMosIn(rk);
-        mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols } });
+        mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: annMeta(ann) });
       }
+      for (const [rk, arr] of redun) claimRedun(rk, arr);
     }
     // A packed mosaic's tile takes the SHAPE of its content: the packer sizes
     // its canvas to the gapless grid (k×1 bar, near-square frame), so the tile
@@ -3687,6 +3799,8 @@
     function stopMosaic() {
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
+      for (const rk of [...mosStandby.keys()]) dropStandby(rk);
+      subWant.clear();
       mosAnn.clear();
       if (prodPack) { prodPack.stop(); prodPack = null; }
       if (sdPack) { sdPack.stop(); sdPack = null; }
@@ -3704,7 +3818,7 @@
         for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
         return false;
       })();
-      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || prodPack || sdPack || stripPack) stopMosaic(); return; }
+      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || mosStandby.size || prodPack || sdPack || stripPack) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
