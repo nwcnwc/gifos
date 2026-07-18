@@ -5708,9 +5708,18 @@
     }
     // Second entry point: an app tab's "Meeting" toggle opens meet.html#app=<fileId>.
     // Auto-host that app once we're set up (its state lives in this same browser).
+    // canIRunApp() needs myId, which S4 mints ASYNCHRONOUSLY — a fixed 900ms
+    // timer can fire before identity lands, and runApp would then silently
+    // no-op ("only admins can run an app"). Poll until we CAN run, exactly as
+    // the Run-app button is gated, then host.
     (function () {
       const wantApp = params.get('app');
-      if (wantApp) setTimeout(() => runApp(wantApp), 900);
+      if (!wantApp) return;
+      let tries = 0;
+      const t = setInterval(() => {
+        if (canIRunApp()) { clearInterval(t); runApp(wantApp); }
+        else if (++tries > 120) clearInterval(t); // ~24s ceiling, then give up quietly
+      }, 200);
     })();
 
     // Test hook: lets the e2e suite observe mesh + quality state.
