@@ -97,7 +97,11 @@ client's manual retry), so once its side's greeter pool stabilises it re-seats.
 
 `check` fails LOUDLY on any stranded seat, surviving duplicate, teleport>0, or
 non-convergence (Section 1 ≠ 25, seated ≠ N). A teleport is independently fatal
-(`teleportExplode` aborts). Sweep harness: `sweep.sh`.
+(`teleportExplode` aborts). Sweep harness: `sim/sweep.sh` (quick, or `full`).
+NOTE: service-mode `init` does NOT revive killed seats or reset `TICK`, so each
+(seed, kill) must run in its OWN process — the sweep does exactly this. Reusing
+one `--service` session across seed+kill cycles leaks state and reports bogus
+failures. The port's test harness must respect the same reset boundary.
 
 ### Verified (this sim, C=5, N=400 unless noted)
 - **Node loss, seeds 1..50 × kill {0.1,0.2,0.3,0.4,0.5,0.6} = 300/300 PASS**:
