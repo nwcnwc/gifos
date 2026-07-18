@@ -123,6 +123,20 @@ childless — a leaf. **Only leaves move. No exceptions.**
   security frame). This is "no action at a distance": to change seat X you
   must already hold a link into X's neighbourhood, which only its neighbours
   and its one healer do.
+  - **And only into a seat that is genuinely EMPTY — healing fills holes, it
+    never makes them.** Being the designated healer is permission to fill an
+    *empty* seat, never to declare a *full* one empty. Each neighbour accepts
+    a fill only for a coord where IT has itself, first-hand, stopped hearing
+    the prior occupant (D4 / E2 liveness); a fill aimed at a coord the
+    neighbour still hears alive is REJECTED. So a healer that turns attacker
+    **cannot evict a living, rightful occupant**: the occupant's OTHER
+    neighbours still hear it, keep it (tenure, E2), and refuse the
+    replacement. An attacker who enters as a leaf is the rightful healer of
+    the seat above it, and one at a head is the rightful healer of its parent
+    — but in neither case can that role be used to unseat a live owner.
+    (A rogue healer's remaining power is only to *decline* to heal a seat that
+    really did die, or to mis-fill a hole that really is empty — a bounded,
+    local liveness nuisance, never an eviction.)
 
 ## W — the healer wires with live knowledge, never stale gossip
 
@@ -326,6 +340,13 @@ is the bug.
   from *several* independent sources (multi-subscribe, cross-links —
   docs/media-plane.md). Poison is one feed among many, dropped or deduped.
   So a local capture stays local.
+- **S5. No eviction by a rogue healer (C3 empty-only rule).** Being a seat's
+  designated healer is not a licence to unseat its live owner: a fill is
+  accepted only by a neighbour that has itself lost the prior occupant
+  first-hand. A leaf is its parent's rightful healer, a head is *its* parent's
+  — yet neither can evict a living seat, because that seat's other neighbours
+  still hear it and refuse the replacement. Healing fills holes; it never
+  makes them.
 - **S4. No climb (one stable identity per PERSON, established at join).** S1
   is not enough by itself: an attacker doesn't stay put, it tries to climb
   toward fanout, one level at a time. And climbing is exactly what the mesh
