@@ -72,6 +72,12 @@
   //                   fresh S4 identity and use peer-id = H(pubkey).
   //   tickMs          logical tick (default 500 — the canonical mapping)
   //   dropDeepSocket  drop the relay socket when seated deep (default true)
+  //   wired()         optional: does this node hold at least one OPEN
+  //                   DataChannel? While false, the deep-socket drop waits (a
+  //                   freshly deep-seated newcomer with no channels yet MUST
+  //                   stay relay-reachable or inbound signaling answers die —
+  //                   the late-join deadlock), up to a hard cap so R2 scope
+  //                   still wins for a node that never manages to wire.
   //   sendDC(to, m)   preferred path: deliver control object m to peer `to`
   //                   over an existing DataChannel; return false if no channel
   //                   (falls back to a sealed relay {t:'peer'})
@@ -219,7 +225,10 @@
         const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0);
         if (needsRelay) deepSince = -1;
         else if (deepSince < 0) deepSince = env.TICK;
-        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
+        // Grace: 20 ticks once wired (≥1 open DC); an UNWIRED deep seat keeps
+        // its socket up to 240 ticks (~2min) — it is unreachable any other way.
+        const dropAfter = (!opts.wired || opts.wired()) ? 20 : 240;
+        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > dropAfter) { try { sock.close(); } catch (e) {} sock = null; }
         if (opts.onUpdate) opts.onUpdate(node);
       }, tickMs);
     }
