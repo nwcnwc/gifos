@@ -24,7 +24,7 @@ lands.
 
 **Enrichment (2026-07-18): "Port FROM the sim" layer added.** The green,
 stress-validated reference sim is now on `main` (`sim/topo.h`, `sim/mesh.cpp`,
-`sim/mesh_seat.inc`, `sim/split-brain.md`; commits e0a4a13, 440f189, 5ab7088,
+`sim/mesh_seat.inc`, `docs/sim-split-brain.md`; commits e0a4a13, 440f189, 5ab7088,
 6d89b24 — node loss 0.1–0.6 → ONE home, 0 dups / 0 stranded / 0 teleport; total
 partition → two clean homes). The audit's status verdicts below are UNCHANGED and
 correct. What is added: a **"Port from → to"** block on each control-plane item
@@ -49,7 +49,7 @@ later one assumes the earlier one's invariant.
    computed opinions." Until `lowestSurvivor()` is gone, the tie-break is still
    a way *in*, not just a way to settle a revival. ~~**BLOCKED on A+B being
    green in the sim**~~ **UNBLOCKED (2026-07-18)** — the sim proof is now green on
-   `main` (`sim/split-brain.md`): port FROM the sim (see §2 "Port from → to").
+   `main` (`docs/sim-split-brain.md`): port FROM the sim (see §2 "Port from → to").
    (Was: option-a-plan increments 13–14.)
 2. **W7 rook's graph — degree-9 Section 1 (§1).** The load-bearing topology
    change. Small, self-contained, and it is what H1-S1 conservatism and the
@@ -200,7 +200,7 @@ JS call sites (`mesh.js:357`, `:412`, `:420`) and the definition (`mesh.js:89`).
 **Size/risk:** **Large, high risk** — this is the core healing rewrite. The plan
 gated it (increments 13–14) on the sim's A+B being green; **as of 2026-07-18 that
 gate is CLEARED** — the sim converges to ONE home with 0 dups / 0 stranded /
-0 teleport across the full kill sweep (`sim/split-brain.md`), superseding the
+0 teleport across the full kill sweep (`docs/sim-split-brain.md`), superseding the
 earlier `option-a-plan.md:28` "not yet achieved" (dups ~340) report. It is now a
 translation task, not a research one — port FROM the sim above, mirror the 7-bug
 fixes, and keep the sim's `check` invariant as the green light.
@@ -298,8 +298,8 @@ tuned for **C=5, single-threaded** mode. RING_HOLD=220 in particular is
 "much longer than the deep-tree 60 because the rook has many paths to exhaust" —
 it is a *swept* value, not a derived one. Change C, the heartbeat cadence
 (`lastPhone>=8`), or the churn model and these need re-sweeping in the sim FIRST (the sim's sweep
-harness — `sim/split-brain.md` names `sweep.sh`, not yet committed to the repo:
-**needs a human eye during the port** to locate/commit it), never hand-tuned in
+harness `sim/sweep.sh` — quick, or `full` for seeds 1-50 × kills 0.1-0.6; one
+process per (seed,kill), asserts 0 dups/stranded/teleport), never hand-tuned in
 production.
 
 **Size/risk:** Medium; **depends on §1** (needs the redundant paths to exist)
@@ -417,7 +417,7 @@ column under W7; freshness must become first-hand). No standalone work.
 
 The production port is a **fresh translation** of the green sim, not a diff
 against it. Every one of these was a real, sweat-earned failure the sim hit and
-fixed (see `sim/split-brain.md` and commits e0a4a13 / 440f189 / 5ab7088). A
+fixed (see `docs/sim-split-brain.md` and commits e0a4a13 / 440f189 / 5ab7088). A
 from-scratch JS port will re-open each one unless it mirrors the sim's fix. Treat
 this list as a regression checklist for the port.
 
@@ -665,7 +665,7 @@ Flagged inline above; consolidated:
 4. ~~**Sim A+B gate**~~ **RESOLVED (2026-07-18):** the sim's 11a is now green on
    `main` — ONE home, 0 dups / 0 stranded / 0 teleport across seeds 1..50 ×
    kill {0.1..0.6}, and two clean homes under total partition
-   (`sim/split-brain.md`), superseding the `option-a-plan.md:28` "not green /
+   (`docs/sim-split-brain.md`), superseding the `option-a-plan.md:28` "not green /
    dups ~340" report. §2/§3/§4 are now cleared to port FROM the sim.
 5. **Whether any deep test depends on the current `crossLink` shape** — YES,
    confirmed and captured as **§13**: `test/topo.js:58-62` degree assertions FAIL
