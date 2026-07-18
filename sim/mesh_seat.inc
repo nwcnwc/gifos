@@ -24,9 +24,64 @@ void Seat::admit(Coord c,int nc){
 void Seat::serveFind(Msg& mm){
   if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
   if(coord.pc==0){
-    int ar=(coord.r-1+C)%C; bool empty=true; for(int j=0;j<C;j++) if(s1Fresh(ckey({0,(uint8_t)ar,(uint8_t)j}))){empty=false;break;}
-    if(empty){ admit({0,(uint8_t)ar,coord.i},mm.nc); return; }
-    if(coord.i==0){ for(int j=1;j<C;j++){ Coord rc={0,coord.r,(uint8_t)j}; uint64_t rck=ckey(rc); if(!occ.count(rck) && occGet(ckey(down(rc)))<0 && TICK-(healTry.count(rck)?healTry[rck]:-999)>45){ healTry[rck]=(int)TICK; admit(rc,mm.nc); return; } } }   // 11a FRONTIER admit-liveness: admit a newcomer into a free Section-1 cell ONLY when its down-child is empty (a true frontier). If the cell still owns a subtree, its down-child (Rule V) fills it — admitting a newcomer there would race the healer, and the loser requeues OUT of Section 1, leaving a stale gossip PHANTOM that permanently blocks refill. A never-occupied cell has an EMPTY down-child, so it is NOT blocked here.
+    // H7 ROW-FILL seating (replaces the old column backfill): Section 1 fills
+    // ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first C people
+    // in a room are ROW-MATES (the media plane's near field is row-scoped: a
+    // 2-person meeting must be a direct conversation, never column-mates).
+    // Admission keeps the C3 fixed-designation discipline: every S1 cell has
+    // ONE designated admitter —
+    //   (0,t,j>0): its row head (0,t,0);
+    //   (0,t,0):   the head of the row ABOVE, (0,(t-1+C)%C,0) — the old H7
+    //              seat relation inverted (growth seeds DOWNWARD row by row;
+    //              the wrap still lets ordinary arrival traffic resurrect a
+    //              fully-dead row, H7's original purpose).
+    // Scan row-major for the first admissible cell: free AND a true FRONTIER
+    // (11a: a free cell with a live down-child is an INTERNAL hole owned by
+    // its fixed healer, the VERTICAL down-child — admitting there would race
+    // it and mint a phantom). Admit if I am the cell's designated admitter,
+    // else hand the FIND to the admitter — my row head or a fellow head, a
+    // rook link; and every S1 seat is a socketed greeter, so the hand-off is
+    // always deliverable.
+    for(int t=0;t<C;t++){
+      bool liveRow=false, everSeen=false;
+      for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) liveRow=true; if(s1seen.count(k)) everSeen=true; }
+      if(!liveRow && everSeen){
+        // RESURRECTION (old H7, row-targeted): this row LIVED and is now
+        // entirely silent — a whole-row death. Its subtrees drain (anchor dead
+        // at lastAck>80, long before the RING_HOLD vertical heal) and re-enter
+        // as newcomers, and THIS is what re-seeds the row: stale occ corpses /
+        // childOf must NOT block it (they linger for a wiped row — nobody left
+        // to sweep them). Old H7's no-race discipline is kept exactly: the
+        // admitters are the greeters of the row BELOW ((t+1)%C — the old
+        // "row above me is dead" relation), each admitting at its OWN column,
+        // so no two admitters ever target one cell. Anyone else hands the FIND
+        // to its column-mate in that row — a direct rook link. Adjacent dead
+        // rows resolve bottom-up (the scan just moves to the next row), the
+        // same upward cascade the old H7 wrap produced.
+        if(coord.r==(uint8_t)((t+1)%C)){ uint64_t k=ckey({0,(uint8_t)t,coord.i});
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm.nc); return; }
+          continue; }
+        int aid=occGet(ckey({0,(uint8_t)((t+1)%C),coord.i}));
+        if(aid<0||aid==id) aid=occGet(ckey({0,(uint8_t)((t+1)%C),0}));   // my column-mate there is a hole — hand to that row's head instead
+        if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
+        continue;                                      // that row is dead too — resolve bottom-up
+      }
+      for(int j=0;j<C;j++){
+        Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
+        if(occ.count(k)) continue;                     // taken (or a stale phantom — the heal machinery clears those)
+        if(hasDownChild(cell)) continue;               // internal hole — its down-child heals it (C1 frontier rule)
+        Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
+        if(coord.i==0 && coord.r==adm.r){              // I am the designated admitter
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm.nc); return; }
+          continue;                                    // admit gate cooling — consider the next cell
+        }
+        int aid=occGet(ckey(adm));
+        if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
+        // admitter unknown/dead: its own cell sits earlier in the scan (or is
+        // being healed) — keep scanning so growth never deadlocks on one head
+      }
+    }
+    // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
   }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm.nc); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
