@@ -5455,6 +5455,10 @@
         standby: [...mosStandby.keys()],
         jobsActive: [...mosJobs.entries()].map(([k, j]) => k + (j.active ? '+' : '·')),
         demand: [...subWant.entries()].map(([k, v]) => k + '=' + v),
+        // per-slot primary/standby VIA (peer id) — lets a probe kill the exact
+        // feeding peer and watch the hot standby promote with no black-out.
+        claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
+        standbyVia: [...mosStandby.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
