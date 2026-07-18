@@ -2478,7 +2478,10 @@
       // Admin presence + the signed mod table re-derive on the beat (§9):
       // `admins` is a VIEW over signature-verified sightings, and the
       // signature re-mints when the table (or freshness bucket) changed.
-      if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
+      // adminWatch rides the SAME beat: presence decays here (admSeen 30s),
+      // so the absence grace/countdown must be armed here too — a roster
+      // frame alone never reaches a quiet or socketless member.
+      if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); adminWatch(); }
       reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
