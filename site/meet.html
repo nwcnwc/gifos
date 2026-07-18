@@ -5450,6 +5450,11 @@
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
         prodStream: !!(prodPack && prodPack.stream), sdStream: !!(sdPack && sdPack.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
+        // multi-subscribe forensics: hot standby slots, outbound jobs' active/dormant
+        // state, and the last want/idle demand I sent per announcer.
+        standby: [...mosStandby.keys()],
+        jobsActive: [...mosJobs.entries()].map(([k, j]) => k + (j.active ? '+' : '·')),
+        demand: [...subWant.entries()].map(([k, v]) => k + '=' + v),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
