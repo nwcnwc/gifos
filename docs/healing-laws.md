@@ -99,10 +99,43 @@ childless — a leaf. **Only leaves move. No exceptions.**
   "unreachable on every path" is strong evidence of true death — so this only
   ever hesitates during a genuine partition, which is exactly when hesitating
   is correct.
-- **H7. Column backfill.** A Section-1 seat that is handed a newcomer first
-  checks the row directly above it (wrapping around); if that whole row is
-  dead, it seats the newcomer straight above itself. Ordinary arrival traffic
-  is what resurrects fully-dead Section-1 rows.
+- **H7. Row-fill seating (newcomer admission).** Section 1 fills ROW-MAJOR:
+  row 0 seats 0..C-1, then row 1, and so on — so the first C people in a room
+  are ROW-MATES. This is load-bearing for the media plane: the near field
+  (raw camera + row-bus audio alignment) is ROW-scoped, so a 2-person meeting
+  must seat both people in one row — a direct conversation — never as
+  column-mates. Admission keeps the C3 fixed-designation discipline — every
+  home cell has ONE designated admitter, so admissions never race:
+  - cell `(0,t,j>0)` is admitted by its row head `(0,t,0)`;
+  - a row head `(0,t,0)` is admitted by the head of the row above,
+    `(0,(t-1+C)%C,0)` — growth seeds downward row by row.
+  A seat handed a FIND scans the home row-major for the first admissible cell
+  (free AND a true frontier — a free cell that still owns a subtree is an
+  internal hole belonging to its designated healer, C1) and either admits (if
+  it is that cell's admitter) or hands the FIND to the admitter — always a
+  rook link, and all home seats are socketed greeters besides.
+  **The resurrection clause (H7's original job, kept).** A row that LIVED and
+  is now entirely silent — a whole-row death, distinguished from a never-born
+  row by any `s1seen` memory of it — is re-seeded by ARRIVAL traffic, not by
+  the frontier scan: when a whole home row dies, its subtrees drain (the
+  anchor is confirmed dead at ~80 ticks, long before the RING_HOLD vertical
+  heal at 220) and re-enter as newcomers, and those arrivals are seated
+  straight back into the dead row, ignoring the stale occ corpses / childOf
+  entries that linger for a wiped row (nobody is left to sweep them). The
+  no-race discipline of the old rule is kept exactly: the admitters are the
+  greeters of the row BELOW the dead row ((t+1)%C — the old "row above me is
+  dead" relation), each admitting at its OWN column, so no two admitters ever
+  target one cell; other seats hand the FIND toward that row. Adjacent dead
+  rows resolve bottom-up, the same upward cascade the old wrap produced.
+  *(History: H7 used to be "column backfill" — a seat parked each newcomer in
+  the empty row above itself. Its resurrection half is exactly the clause
+  above; but in a YOUNG room it also fired on never-occupied rows and spread
+  the first arrivals heads-first down column 0 — a 2-person room seated its
+  two people in different rows, and the row-scoped media plane gave them no
+  direct media. The never-born/once-lived distinction (`s1seen`) removes the
+  misfire; the spread was never load-bearing — under the W7 rook's graph rows
+  and columns are symmetric for connectivity/density, so row-major fill is
+  equally dense.)*
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
   special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a
@@ -192,8 +225,11 @@ childless — a leaf. **Only leaves move. No exceptions.**
     the sparse transpose cross-link; the rook meshing is gated on `pc==0`. The
     extra links are a *fixed* cost (25 seats, ~9 links each) that never grows,
     and most are cheap control/roster redundancy, not media fan-out.
-  - **Keep the home DENSE (compaction).** Column-major seating + compaction
+  - **Keep the home DENSE (compaction).** Row-major seating (H7) + compaction
     keeps rows and columns full, where the rook connectivity is strongest.
+    (Rows and columns are symmetric in the rook's graph, so row-major fill is
+    exactly as dense as the old column-major — and it additionally puts early
+    joiners in ONE row, which the row-scoped media near field requires.)
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
   **STATUS: specified, NOT yet implemented** — `crossLink` still returns the
@@ -332,7 +368,10 @@ childless — a leaf. **Only leaves move. No exceptions.**
   URL-instance ⇒ no founding storms; the key is the member-held INSTANCE
   IDENTITY of this particular meeting (a different key = a different meeting).
 - **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
-  descend its tree, dense-before-deep, to a definitive vacancy (H7 first).
+  descend its tree, dense-before-deep, to a definitive vacancy — with the home
+  itself filled row-major first (H7): while Section 1 has an admissible cell,
+  the FIND converges on that cell's designated admitter; only a full home
+  spills newcomers into the deep tree.
 - **R5. A genuine fork is a HUMAN decision.** Two meetings with DIFFERENT
   genesis keys under one URL (a real relay-level split, or an adversarial
   decoy whose sealed dance fails) are never auto-merged: the client surfaces
