@@ -35,10 +35,11 @@ departures — and are covered at the end.
 ## P — the one principle
 
 **Holes are filled by promoting a leaf.** A leaf has no dependents, so moving
-it strands nobody. Every rule below is this same idea at a different level:
-a row keeps itself whole by pulling up a leaf from its own subtree;
-child-heals-parent is the same motion one level up. Only leaves move —
-the sole exception is the scooch (C2).
+it strands nobody. Every fill below is that one move at some level: a dead
+seat is refilled from its own subtree — its down-child walks FINDLEAF down to
+a leaf, and the leaf promotes into the hole; a seat with nothing below it
+anywhere is packed sideways by the scooch (C2), and even the scoocher must be
+childless — a leaf. **Only leaves move. No exceptions.**
 
 ## D — how a dead seat gets noticed
 
@@ -48,47 +49,72 @@ the sole exception is the scooch (C2).
   from its whole row, and each row-mate hears back from its head.
 - **D2. Goodbyes are instant.** A seat that announces it is LEAVING is marked
   empty immediately.
-- **D3. The sweep.** Each head periodically sweeps its row for seats that went
-  silent (quiet more than 50 ticks) without saying goodbye.
-- **D4. Silence upward.** If my own calls stop being answered, the seat I
-  report to is dead: start healing after 40 quiet ticks; if still nothing by
-  80, treat myself as cut off and fall back to the drain (E1).
+- **D3. The sweep is cleanup, not healing.** Each head periodically forgets
+  row seats that went silent past the horizon without saying goodbye, so a
+  corpse stops riding the head's roster answers. Healing is NOT triggered
+  here — that is the designated healer's job (H1/H2). A severed-but-alive
+  seat that gets forgotten simply re-announces itself when it recovers.
+- **D4. Healers act on CONFIRMED death, not mere silence.** A healer moves
+  only when the seat's occ entry is gone (an announced LEAVE, D2) or its
+  phone has been quiet past a settled window — never on a transient glitch,
+  which would manufacture duplicate seats during a mass heal. A seat whose
+  own upward chain is confirmed dead and stays unhealed falls back to the
+  drain (E1).
 
-## H — who fills a hole
+## H — who fills a hole (fixed designation: every hole has ONE pre-named healer)
 
-- **H1. The head fills holes in its own row** — but only if the dead seat had
-  children below it (a childless hole is left empty, C1). **Exception, H1-S1:**
-  in Section 1 the head refills ANY empty cell of its row, childless or not —
-  the home is always kept whole.
-- **H2. Row-mates replace a dead head.** The surviving row-mate with the
-  lowest column number does it — deterministic, so there is exactly one healer
-  and no race. Applies to Section-1 rows like any other.
+- **H1. Your down-child heals you (the vertical rule).** Every seat that owns
+  a row below it is healed, when it dies, by that row's head — its
+  **down-child**. The child is the natural healer: it phones the seat every
+  beat (D1), so it notices death first; and it already holds the cousins
+  (W6), so it wires the replacement with zero discovery. On confirmed death
+  (D4) it runs FINDLEAF down its OWN subtree and a LEAF promotes into the
+  hole, pre-wired. If the child is itself childless, it IS the leaf and
+  promotes directly. This applies to every level — including Section-1 cells,
+  each refilled from below by its own down-child, which is what rebuilds a
+  wiped home while keeping the meeting's key (the motion once catalogued as
+  H8).
+- **H2. A childless seat is healed sideways (left-pack).** A seat that dies
+  with nothing below it has no down-child; its fixed healer is its
+  **right-neighbour** in the row. That neighbour pulls a leaf from its own
+  subtree if it has one — and if it too is childless, it scooches left into
+  the hole itself (C2). Rows pack LEFT, so rows stay dense and newcomers
+  always land at the right edge. A childless HEAD works the same way: its
+  fixed healer is seat `(p,r,1)`. Fixed designation ⇒ exactly one healer, no
+  race.
+- **H1-S1. Section 1 stays full; its heads are the BACKSTOP.** A Section-1
+  cell is normally refilled from below (H1) like any other seat. The row head
+  steps in only for a cell whose whole subtree is gone — nothing below to
+  promote — and it is also the only thing that clears a Section-1 PHANTOM (a
+  stale gossip echo squatting on a cell), acting on direct evidence only:
+  liveness is set by a real phone call, never by gossip (E2).
 - **H7. Column backfill.** A Section-1 seat that is handed a newcomer first
   checks the row directly above it (wrapping around); if that whole row is
   dead, it seats the newcomer straight above itself. Ordinary arrival traffic
   is what resurrects fully-dead Section-1 rows.
-- **H8. Whole-section death (relay-free reconstruction).** A section head
-  whose owner cell `O` is dead — and `O`'s whole row is empty (no H2 healer)
-  and the cell below `O` is empty too (no H7 backfill) — heals `O` itself: it
-  promotes a LEAF from its own subtree into `O` (the head stays put; only
-  leaves move, P). It hands the leaf its **cousins** (W6) as the ready-made
-  neighbour list, so the leaf lands pre-wired with no relay involved. This is
-  what rebuilds a totally wiped Section 1: each surviving section head refills
-  its own Section-1 cell from below, and the heads themselves are the
-  connective tissue that carries the new roster to the promoted leaves.
-- *(H6 folded into E3; H3/H4/H5 retired — they healed a special root seat that
-  no longer exists.)*
+- *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
+  survivor" — replaced by the fixed designation above. H8 is no longer
+  special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a
+  special root seat that no longer exists.)*
 
 ## C — rules that stop healing from making things worse
 
-- **C1. Childless holes stay empty.** Nobody below depends on them, so filling
-  them buys nothing and risks a cascade — except in Section 1 (H1-S1), and
-  heads, which are always refilled.
-- **C2. The scooch is the last resort** — and the ONLY time a non-leaf ever
-  moves: the head of a childless frontier row, healed sideways per H2.
-- **C3. Exactly ONE healer per hole.** The head (H1), the lowest-column
-  survivor (H2), the backfiller (H7), or the down-child (H8) — never two
-  rules racing for the same hole.
+- **C1. Never heal on a maybe.** A seat filled while its occupant still lives
+  is exactly the duplicate E2 then has to kill — so healing waits for
+  confirmed death (D4), heal attempts are spaced out (cooldowns per hole),
+  and newcomers are admitted only at the FRONTIER (a cell whose down-child is
+  empty — a true edge), so an admission never races a healer for the same
+  hole. Under a mass departure it is better to heal a beat late than to boil.
+- **C2. The scooch packs rows left — and even the scoocher is a leaf.** When
+  a hole's healer has nothing below it anywhere, the childless right-neighbour
+  slides left into the hole. It is childless — a leaf — so even this move
+  strands nobody. (The old "scooch is the one non-leaf exception" is gone:
+  nothing non-leaf ever moves.)
+- **C3. Exactly ONE healer per hole, known in advance.** The down-child (H1)
+  if the seat owned one; otherwise the right-neighbour (H2); the backfiller
+  (H7) and the Section-1 backstop (H1-S1) own only cells no other rule
+  covers. Because the designation is fixed, no two healers ever race for one
+  hole — the only races left are placement races, and E2 settles those.
 
 ## W — the healer wires with live knowledge, never stale gossip
 
@@ -114,8 +140,9 @@ the sole exception is the scooch (C2).
 
 ## E — when ordinary healing isn't enough
 
-- **E1. The drain.** A seat whose entire chain upward is dead (>80 ticks,
-  unhealed) does NOT stampede the relay. It fetches the home roster over the
+- **E1. The drain.** A seat whose anchor upward is CONFIRMED dead (a definite
+  departure, not mere silence — severance alone never triggers a drain, D4)
+  and stays unhealed does NOT stampede the relay. It fetches the home roster over the
   mesh sideways (cross-links walk around the dead chain), then acts as the
   greeter for its own subtree: DRAIN fans down, every member re-seats as a
   newcomer, and the initiator re-seats last. Only if NO mesh route to
@@ -249,9 +276,9 @@ the sole exception is the scooch (C2).
    always exists, and E2 settles it deterministically — first-hand liveness
    only, tenure first, lower id wins, one convention everywhere.
 2. **Churn shatters the meeting into disconnected pieces.** Severed subtrees
-   drain back in (E1); dead home rows are rebuilt from below (H2/H7/H8, key
-   preserved); a torn home reunites through the front door it never stopped
-   sharing (E5); a lone cut-off member gets an honest answer (R6). Only a
+   drain back in (E1); dead home cells are rebuilt from below (H1/H1-S1/H7,
+   key preserved); a torn home reunites through the front door it never
+   stopped sharing (E5); a lone cut-off member gets an honest answer (R6). Only a
    genuinely DIFFERENT meeting — a different genesis key — is ever put to a
    human being (R5).
 
