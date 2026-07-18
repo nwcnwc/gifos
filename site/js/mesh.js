@@ -172,13 +172,23 @@
 
     // ---- S4 identity hook (seam) --------------------------------------------
     // verifyFill(msg): is this occupancy-changing frame (PLACE / CLAIM /
-    // FINDLEAF) from a source authorized to author it? A later identity agent
-    // plugs Ed25519 signature verification in here (fills signed with the
-    // designated healer's stable per-participant key, peer-id = H(pubkey)).
-    // Until then it returns true — the C3 STRUCTURE (one fixed healer per hole)
-    // already serializes fills; this seam is what makes it enforceable against
-    // a forged peer id once identity lands.
-    verifyFill(msg) { return true; } // S4 identity hook
+    // FINDLEAF) from a source authorized to author it? The C3 STRUCTURE (one
+    // fixed healer per hole) serializes fills; S4 identity (mesh-identity.js)
+    // makes WHO the healer is unforgeable, so a forged peer id can't capture a
+    // seat, race a turnover, or climb.
+    //
+    // Ed25519 verification is ASYNC (WebCrypto), but this seam is synchronous
+    // and transport-agnostic — so the actual signing/verifying is done at the
+    // wire boundary (mesh-wire.js), exactly where mesh.js already delegates all
+    // crypto/transport to `env`. The wire verifies the fill's signature against
+    // the TOFU-pinned participant key BEFORE delivering, and stamps the verdict
+    // as m.s4ok. This seam is the enforcement gate:
+    //   - `this.s4` UNSET (the structural harness, which has no identities) ⇒
+    //     permissive, so the coord-based control-plane tests pass unchanged. The
+    //     crypto is strictly ADDITIVE.
+    //   - `this.s4` SET (production, identity minted at join) ⇒ a fill is
+    //     accepted only if the wire verified its signature (m.s4ok === true).
+    verifyFill(msg) { return !this.s4 || msg.s4ok === true; } // S4 identity hook
 
     // ---- entry (R1/R3/R4) ----
     // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis;
