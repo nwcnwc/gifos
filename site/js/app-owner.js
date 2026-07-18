@@ -53,8 +53,19 @@
   // Deterministic serialization: object keys sorted recursively, so the exact
   // same bytes are signed and re-hashed on every device (a signature over a
   // JS-default key order would verify only by luck).
+  //
+  // BINARY: an app record can hold a Uint8Array/ArrayBuffer (My Media's photo
+  // or video bytes). The mesh transport (gifos-net seal/open) round-trips it
+  // as a real typed array on BOTH ends — so canonical() must serialize it to a
+  // STABLE token (hex behind a tag), identical host-side (raw) and guest-side
+  // (transport-revived). Enumerating a Uint8Array as a plain object instead
+  // would make the two ends disagree the instant either holds the revived form
+  // vs the {$bin} form — the bad-sig that blanked shared blobs.
   function canonical(v) {
     if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (v instanceof Uint8Array) return JSON.stringify('$u8:' + hex(v));
+    if (v instanceof ArrayBuffer) return JSON.stringify('$u8:' + hex(new Uint8Array(v)));
+    if (ArrayBuffer.isView(v)) return JSON.stringify('$u8:' + hex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)));
     if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
     const keys = Object.keys(v).sort();
     return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
