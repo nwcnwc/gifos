@@ -1769,7 +1769,7 @@
       const envl = { k: kind, from: m.from, to: m.to, tc: m.tc, id: m.id, ttl, m: m.m };
       const hp = nextHopDc(m.to, m.tc);
       if (hp && hp.id !== viaPid) { txStats.hopFwd++; dcSend(hp, envl); return; }
-      if (m.ttl != null && relayUp()) {
+      if (m.ttl != null) { // the wire recreates the socket on demand — a socketless seat can always SEND
         txStats.hopRelay++;
         txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: m.to, msg: piece }))));
       }
