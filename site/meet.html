@@ -3888,11 +3888,11 @@
           if (sub) setBlock(prodPack, 's' + j, 'b' + j, sub); else prodPack.delTile('s' + j);
         }
         const prodMeta = () => ({ n: prodPack.count(), cols: prodPack.cols() });
-        if (c.pc !== 0 && multiSection()) {
+        if (c.pc !== 0 && beyondRow) {
           // ship my product UP (the up-seat relays it to ITS head)
           const up = T.up(c); const upPid = up ? occPid(up) : null;
           const jk = shipMos('sub', upPid, prodPack.stream, prodMeta()); if (jk) wanted.add(jk);
-        } else if (c.pc === 0 && multiSection()) {
+        } else if (c.pc === 0 && beyondRow) { // Stadium forms whenever the room is MULTI-ROW (not just multi-section) — the Section channel is gone, so cross-row visibility relies entirely on this
           // SECTION-1 FINISH (W7 rook): my product goes DIRECT to every other
           // head over the head column — colMates of a head ARE the other heads
           // — the 1-hop primary. A second, fully link-disjoint copy relays
