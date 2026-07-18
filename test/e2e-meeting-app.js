@@ -31,7 +31,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const aDesk = await aCtx.newPage();
   aDesk.on('pageerror', (e) => console.log('  [a desk pageerror]', e.message));
   await aDesk.goto(BASE + '/index.html');
-  await aDesk.waitForSelector('.icon');
+  // 90s: first-visit desktop seed GIF-encodes the sample apps — CPU-bound and
+  // legitimately slow on a saturated shared box (measured ~60s at load 40).
+  await aDesk.waitForSelector('.icon', { timeout: 90000 });
   // grab a normal (non-system) app fileId from the seeded store
   const appId = await aDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
@@ -89,7 +91,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // seed d's desktop, then open the app in run.html and toggle it into a meeting
   const dDesk = await dCtx.newPage();
   await dDesk.goto(BASE + '/index.html');
-  await dDesk.waitForSelector('.icon');
+  await dDesk.waitForSelector('.icon', { timeout: 90000 }); // same seed cost as above
   const dAppId = await dDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
     const app = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');

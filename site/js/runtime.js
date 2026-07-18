@@ -1955,10 +1955,17 @@
               return { collections: cols };
             };
             let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null;
+            // WIRE CODEC: app-state crosses the mesh lane in the store's ONE
+            // binary format — a Uint8Array inside a record (My Media's photo /
+            // video bytes) becomes {$bin: b64}: compact, canonical-signable,
+            // and revivable at the far end. Left raw, JSON would silently
+            // explode it into a million-numeric-key plain object (huge to
+            // sign/seal, and never a Uint8Array again for the client).
+            const packState = (s) => JSON.parse(store.packJSON(s));
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               return db.getFullState().then((s) => {
-                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s) };
+                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: packState(filterForGuests(s)) };
                 return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
               }).catch(() => {});
             };
@@ -1969,7 +1976,7 @@
               // short debounce so late joiners stay current without paying the
               // app-byte cost on every keystroke.
               return db.getFullState().then((s) => {
-                const body = { state: filterForGuests(s) };
+                const body = { state: packState(filterForGuests(s)) };
                 return stageSigner.sign(sid, 'delta', body).then((f) => stageBus.send('delta', f));
               }).catch(() => {});
             };
@@ -1979,6 +1986,7 @@
             // room adopts — a non-owner can propose but never author state.
             const onAct = (op) => {
               if (!op || (op.op !== 'put' && op.op !== 'delete')) return;
+              try { op = store.unpackJSON(JSON.stringify(op)); } catch (e) { return; } // revive {$bin} → Uint8Array
               const targetId = op.op === 'put' ? (op.value && op.value.id) : op.key;
               if (meshLead.on && targetId != null && meshLead.keys.has(op.collection + '::' + targetId)) return;
               const storedP = (targetId != null) ? db.op('get', op.collection, targetId) : Promise.resolve(null);
@@ -2698,6 +2706,11 @@
 
     return appOwnerLib().then((AO) => {
       const ver = AO.makeVerifier(sid);
+      // Wire codec (mirror of the host's packState): revive the store's ONE
+      // binary format — {$bin: b64} → Uint8Array — after signature checks,
+      // and pack outgoing act-proposals the same way.
+      const unpackWire = (o) => store.unpackJSON(JSON.stringify(o));
+      const packWire = (o) => JSON.parse(store.packJSON(o));
 
       // Reads: from the owner-verified mirror. Writes: an optimistic local apply
       // (so the app sees its own change at once) PLUS an `act` proposal to the
@@ -2715,7 +2728,7 @@
             if (priv) { localOf(collection).set(rec.id, rec); notify(collection); return Promise.resolve(rec); }
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
-            try { send('act', { op: 'put', collection: collection, value: rec }); } catch (e) {}
+            try { send('act', { op: 'put', collection: collection, value: packWire(rec) }); } catch (e) {}
             return Promise.resolve({ id: rec.id });
           }
           if (op === 'delete') {
@@ -2738,7 +2751,7 @@
       };
 
       const onSnap = (body) => {
-        if (body && body.state && body.state.collections) mirror = JSON.parse(JSON.stringify(body.state));
+        if (body && body.state && body.state.collections) mirror = unpackWire(body.state);
         if (!mounted && body && body.app) {
           appBytes = gif.b64decode(body.app);
           return gif.decode(appBytes).then((archive) => {
@@ -2758,8 +2771,8 @@
           if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
-            if (r.body && r.body.state && r.body.state.collections) { mirror = JSON.parse(JSON.stringify(r.body.state)); notify('*'); }
-            else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
+            if (r.body && r.body.state && r.body.state.collections) { mirror = unpackWire(r.body.state); notify('*'); }
+            else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, unpackWire(r.body)); notify(r.body.collection); }
           }
         }).catch(() => {});
       });
