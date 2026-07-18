@@ -146,14 +146,15 @@ const LED_APP = {
   const D = await newUser('Dana'); const dPage = await D.newPage();
   dPage.on('pageerror', (e) => console.log('  [d pageerror]', e.message));
   await dPage.goto(BASE + '/meet.html');
-  // derive the admin key + verifier exactly like the lobby does, and stash the
-  // key so Dana arrives as the signed-in admin
+  // derive the admin key + verifier exactly like the lobby does (§SIG: V
+  // commits to the PUBLIC key K seeds, NOT to K itself — the old SHA-256(K)
+  // form predates the signature-authority port), and stash the key so Dana
+  // arrives as the signed-in admin
   const av = await dPage.evaluate(async (roomId) => {
     const km = await crypto.subtle.importKey('raw', new TextEncoder().encode('hunter2!'), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
     const K = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(K));
-    const V = Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+    const V = (await GifOS.net.edKeysFromSeedHex(K)).verifier;
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, admRoom);
