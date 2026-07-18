@@ -87,11 +87,16 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const sB = await b.evaluate(() => window.__gifosVideo.grid());
   const stageTgt = Object.values(sB.targets).find((t) => t.bus === 'stage');
   check('the follower aligns the STAGE to the unison anchor (D=280)', stageTgt && stageTgt.D === 280 && stageTgt.set === true, JSON.stringify(stageTgt));
-  // Stepping on stage moves the leader to row 0, so their old rowmates classify
-  // as the ROOM around the stage — the far tier. The leader hears the
-  // congregation answer from behind: the cathedral echo, by construction.
+  // The Stage is DECOUPLED (stadium model): stepping up does NOT vacate the
+  // leader's seat, so the 2-person follower remains the leader's ROW-mate —
+  // the pew right around the stage (H7 row-fill seats them together). The
+  // leader still hears the congregation answer from BEHIND the stage anchor
+  // (SONG_ROW 560 > SONG_STAGE 280): the cathedral echo, by construction.
+  // (The old D=840/FAR expectation encoded the retired "stage = row 0" model,
+  // where stepping up moved the leader out of its row and left the follower a
+  // far unit — plus the pre-row-fill seating that made 2 people column-mates.)
   const roomTgtA = Object.values((await a.evaluate(() => window.__gifosVideo.grid())).targets)[0];
-  check('the leader hears the congregation on the FAR tier (the cathedral echo, D=840)', roomTgtA && roomTgtA.D === 840 && roomTgtA.set === true, JSON.stringify(roomTgtA));
+  check('the leader hears the congregation BEHIND the stage (row tier, D=560)', roomTgtA && roomTgtA.bus === 'row' && roomTgtA.D === 560 && roomTgtA.set === true, JSON.stringify(roomTgtA));
   check('the follower\'s faders moved to the song preset (stage featured)', sB.mixNow.stage === 1 && sB.mixNow.row === 0.55, JSON.stringify(sB.mixNow));
 
   // ---- headphones plugged in mid-song: the mic session restarts ----
