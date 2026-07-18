@@ -152,13 +152,37 @@
   // level up. Empty seats are simply never drawn: no black cells, no fixed C×C.
   //
   // packGrid(T, shape): the grid for T faces — 'bar' ⇒ 1×T; 'grid' ⇒ near-square
-  // (cols = ceil(sqrt(T))), the tail gap always < cols.
+  // (cols = ceil(sqrt(T))), the tail gap always < cols; 'stad' ⇒ the STADIUM
+  // packing (see stadiumGrid) — ~STAD_COLS wide, grows DOWNWARD, caps + densifies.
   function packGrid(T, shape) {
     if (T <= 0) return { cols: 1, rows: 1 };
     if (shape === 'bar') return { cols: T, rows: 1 };
+    if (shape === 'stad') { const g = stadiumGrid(T); return { cols: g.cols, rows: g.rows }; }
     const cols = Math.ceil(Math.sqrt(T));
     return { cols, rows: Math.ceil(T / cols) };
   }
+
+  // ---- the STADIUM packing (docs/media-plane.md, Channel Sd) ------------------
+  // Every person is an EQUAL-SIZE SQUARE (never a fractal cell): the whole room
+  // is one flat gapless grid. It grows DOWNWARD (for vertical scroll), ~STAD_COLS
+  // columns wide in the readable range: square-ish near 25 (5×5), a tall ~1:4
+  // rectangle by STAD_CAP (~5×20). Past STAD_CAP the FOOTPRINT caps — the grid
+  // subdivides further (more, SMALLER squares) so pixels/person shrink while the
+  // footprint stays fixed. stadiumGrid gives the grid; createPacker('stad') sizes
+  // the square against the fixed footprint width so the cap/densify falls out.
+  const STAD_COLS = 5, STAD_CAP = 100;
+  function stadiumGrid(T) {
+    if (T <= 0) return { cols: 1, rows: 1, dense: false };
+    if (T <= 25) { const cols = Math.max(1, Math.ceil(Math.sqrt(T))); return { cols, rows: Math.ceil(T / cols), dense: false }; }
+    if (T <= STAD_CAP) return { cols: STAD_COLS, rows: Math.ceil(T / STAD_COLS), dense: false };
+    // DENSE: hold the capped rectangle's ~1:4 aspect and subdivide (rows ≈ 4·cols).
+    const capRows = Math.ceil(STAD_CAP / STAD_COLS); // the capped footprint's rows (~20)
+    const cols = Math.max(STAD_COLS, Math.round(Math.sqrt(T * STAD_COLS / capRows)));
+    return { cols, rows: Math.ceil(T / cols), dense: true };
+  }
+  // Overlay threshold: past STAD_CAP each square is too small for a burned
+  // name/frame — drop the overlay, show the raw tapestry + a small audio dot.
+  function stadiumTiny(T) { return T > STAD_CAP; }
   // faceSrcRect(j, n, cols, sw, sh): source rect of face j inside a packed block
   // (row-major). Cells are square by construction; derive size from the block.
   function faceSrcRect(j, n, cols, sw, sh) {
@@ -194,6 +218,17 @@
     // identity (approach A). lbl = { name, hand, talking } | null.
     function drawOverlay(dx, dy, cell, lbl) {
       if (!lbl) return;
+      // TAPESTRY mode (stadium past the overlay threshold): no name/frame — too
+      // small to read — just a small light-green shaded dot when the seat is
+      // talking, so you can see whose audio is blended into the mix.
+      if (lbl.dot) {
+        if (lbl.talking) {
+          const rr = Math.max(2, cell * 0.16);
+          ctx.beginPath(); ctx.arc(dx + cell - rr * 1.4, dy + rr * 1.4, rr, 0, 7);
+          ctx.fillStyle = 'rgba(120,231,150,0.9)'; ctx.fill();
+        }
+        return;
+      }
       if (lbl.talking) {
         const lw = Math.max(2, cell * 0.035);
         ctx.strokeStyle = '#37d67a'; ctx.lineWidth = lw;
@@ -223,7 +258,13 @@
       const T = total();
       if (T === 0) { if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; } // empty packer — don't paint a grid of nothing
       const g = packGrid(T, shape); G = g.cols; R = g.rows;
-      const cell = Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
+      // STADIUM: size the square against a FIXED footprint width (STAD_COLS·cellPref)
+      // so ≤STAD_COLS columns render at full cellPref and a denser grid shrinks the
+      // square (footprint fixed, pixels/person fall — the cap/densify rule). Other
+      // shapes keep the plain maxW cap.
+      const cell = (shape === 'stad')
+        ? Math.max(6, Math.min(cellPref, Math.floor((STAD_COLS * cellPref) / G)))
+        : Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
       const W = Math.max(1, G * cell), H = Math.max(1, R * cell);
       if (canvas.width !== W) canvas.width = W;
       if (canvas.height !== H) canvas.height = H;
@@ -389,5 +430,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, faceSrcRect, createPacker, createBundle, cropView };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, faceSrcRect, createPacker, createBundle, cropView };
 })(typeof window !== 'undefined' ? window : globalThis);
