@@ -62,7 +62,31 @@ dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNO
 | e2e-contrast.js | GREEN | |
 | e2e-add-url.js | GREEN | (was RED only due to my server-dir setup slip — see note) |
 | e2e-run-param.js | GREEN | (same server-dir slip) |
+| e2e-update-erase.js | GREEN | |
+| e2e-join-prettyurl.js | GREEN | |
+| e2e-perms-share.js | GREEN | |
+| e2e-owned-app.js | GREEN | |
+| e2e-mymedia.js | GREEN | |
+| e2e-invite-lifetime.js | FIXED | app-share warning copy refined ("a copy of the data this app shares (private stays on device)" vs old "full copy of everything"); updated the assertion. |
+| e2e-mymedia-meet.js | FIXED + REAL-BUG | host mount was a stale myId race (S4 async identity) — FIXED by waiting for canRunApp(). Now surfaces the SAME late-join bug: the guest (joins after the app is already running) never auto-adopts it. See BUG-2. |
+| e2e-app-governance.js | REAL-BUG (candidate) | open-room live share mounts for ALL (incl 3rd person) — PASS. But B's "latest-wins" TAKEOVER (B shares a 2nd app) fails: B never becomes appIsHost, with `[b] Cannot read properties of null (reading 'postMessage')` (posting to a torn-down/not-ready iframe contentWindow). App-runtime-on-mesh takeover path. Not fixed; needs site owner. |
 | (remaining browser tests) | PENDING | |
+
+### BUG-2 — late joiner does not adopt an app already running in a meeting
+Reproduced in TWO suites:
+- e2e-meeting-app: the 3rd participant (joins after the app is running) never
+  mounts `#appmount iframe` (3/3).
+- e2e-mymedia-meet: after fixing the host-mount myId race, the guest (joins
+  after the host already shared My Media) never auto-mounts it.
+
+Participants PRESENT when the app is shared mount it fine (live). Only LATE
+joiners fail. Presence/status floods to every node via `meshNode.gossip`
+(fanOut, meet.html:1699), but app STATE (`sga`) floods only to STRUCTURAL
+neighbours (`sgaTargets`/`sgaFan`, meet.html:4053/4066) and the retained snap
+(`sgaSnap`, replayed on subscribe, 4102) is only held by nodes that already
+received it — so a newcomer can learn an app is running yet never receive the
+snapshot to render it. Not fixed (site/ owned by another session). Left failing
+as a regression guard. (Distinct from BUG-1, which is media, not app state.)
 
 ### Setup note (my error, now fixed — no product/test defect)
 e2e-add-url / e2e-run-param write their fixture GIF into the WORKTREE's `site/`
