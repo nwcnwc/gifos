@@ -2023,8 +2023,8 @@
     // The ordinary #grid is CHANNEL R ONLY (docs/media-plane.md): me + my C-1
     // ROW-MATES, so the row is never more than C tiles. A peer I KNOW sits in
     // another row or section — my cross-link partner, an up/down structural
-    // link — is a FEED for the Section/Stadium composites (which read the aux
-    // 'secband'/'sd' streams, NOT these tiles), never an ordinary face. I only
+    // link — is a FEED for the Stadium/Stage composites (which read the aux
+    // 'sd'/'sgs' streams, NOT these tiles), never an ordinary face. I only
     // ever HIDE a peer I can positively classify as non-row-mate from its occ
     // coord; a peer whose coord I don't yet know stays visible (don't hide the
     // unclassifiable — a not-yet-synced row-mate must not blink out).
@@ -3549,9 +3549,8 @@
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed)
     const mosJobs = new Map();  // key + '>' + to -> { senders, sig, to, key, meta } (outbound ships)
-    let rowPack = null, prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
+    let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
     const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
-    let secPack = null;
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -3616,9 +3615,17 @@
       if (key === 'sdrow') return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
       if (key === 'sd') return 'sd';
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
-      if (key.indexOf('stg:') === 0) return key; // an individual stager feed (per-stager slot)
-      if (key === 'secband') return (meta && meta.row != null) ? 'secband:' + meta.row : null; // a row's band, keyed by origin row
+      // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
+      // arriving over a cross-link — it resolves to the SAME slot so it just backs
+      // up the primary up-path (sticky claimMos keeps one, fails over if it dies).
+      if (key.indexOf('stg:') === 0) { const q = key.indexOf('^'); return q < 0 ? key : key.slice(0, q); }
       return null;
+    }
+    // Is a claimed source still LIVE? (its announcer still connected and still
+    // offering that stream.) The basis for STICKINESS below.
+    function mosLive(via, sid) {
+      const p = peers.get(via);
+      return !!(p && p.incoming && p.incoming.find((s) => s.id === sid && s.id !== p.ownSid));
     }
     function claimMos() {
       for (const [ak, ann] of mosAnn) {
@@ -3626,7 +3633,15 @@
         const rk = mosResolve(key, ann, from);
         if (!rk) continue;
         const cur = mosIn.get(rk);
-        if (cur && cur.streamId === ann.streamId) { cur.meta = { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols }; continue; } // claimed — refresh {n, cols}
+        // STICKY: while the CURRENT source is alive, keep it — only its own
+        // announcer refreshes meta; a redundant second announcer (the new
+        // cross-link fan of 'sd'/'sgs'/'stg') is ignored, so the <video> never
+        // thrashes between two live sources. When the current source dies, the
+        // next live announcer we meet is claimed → automatic ~2s cross-link failover.
+        if (cur && mosLive(cur.via, cur.streamId)) {
+          if (cur.via === from && cur.streamId === ann.streamId) cur.meta = { col: ann.col, row: ann.row, n: ann.n, cols: ann.cols };
+          continue;
+        }
         const p = peers.get(from);
         if (!p || !p.incoming) continue;
         const st = p.incoming.find((s) => s.id === ann.streamId && s.id !== p.ownSid);
@@ -3671,32 +3686,18 @@
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
       compOf.set('sgs', { via: 'stage', streamId: stream.id, stream, names: stageIds() });
     }
-    // The Section block: your C×C neighborhood, self-composited, below your row.
-    function paintSectionTile(stream) {
-      let el = stadiumEl.querySelector('[data-row="sec"]');
-      if (!stream) { if (el) el.remove(); compOf.delete('sec'); stadiumEl.classList.toggle('on', !!stadiumEl.querySelector('.rowtile')); return; }
-      if (!el) {
-        el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sec';
-        const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
-        const lb = document.createElement('div'); lb.className = 'rlabel'; lb.textContent = 'Your section';
-        el.appendChild(v); el.appendChild(lb); stadiumEl.appendChild(el); trackAspect(el, v);
-      }
-      const v = el.querySelector('video');
-      if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
-      stadiumEl.classList.add('on');
-      compOf.set('sec', { via: 'section', streamId: stream.id, stream });
-    }
+    // (Channel Se — the C×C Section composite — was DROPPED to free its cross-link
+    // budget for the Stadium/Stage cross-link redundancy. Section-mates now fold
+    // into the Stadium. docs/media-plane.md.)
     function stopMosaic() {
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
       mosAnn.clear();
-      if (rowPack) { rowPack.stop(); rowPack = null; }
       if (prodPack) { prodPack.stop(); prodPack = null; }
       if (sdPack) { sdPack.stop(); sdPack = null; }
       if (stripPack) { stripPack.stop(); stripPack = null; }
-      if (secPack) { secPack.stop(); secPack = null; }
       stgSpread.clear();
-      paintStadiumTile(null); paintStageStrip(null); paintSectionTile(null);
+      paintStadiumTile(null); paintStageStrip(null);
     }
     function reconcileMosaic() {
       const s = meshSeat(), c = meshCoord();
@@ -3708,10 +3709,16 @@
         for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
         return false;
       })();
-      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || rowPack) stopMosaic(); return; }
+      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || prodPack || sdPack || stripPack) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
+      // STADIUM overlay threshold: past ~STAD_CAP people every square is too
+      // small for a burned name/frame — bake only the tapestry + a talking dot.
+      // Driven by the gossiped room size, so every seat AND every up-tree
+      // compositor (where a face's overlay is burned) agrees on tiny-or-not.
+      const stadTiny = MM.stadiumTiny(knownTotal());
+      const stadLbl = (pid) => stadTiny ? { dot: true, talking: labelFor(pid).talking } : labelFor(pid);
       // { el, stream } for a cell: my own live view, a claimed mosaic feed, or a
       // directly-linked peer. Stream carries the audio the fold sums; el is the
       // drawImage source (a <video> or a nested composite's <canvas>).
@@ -3733,15 +3740,6 @@
         return { n: k, cols: k }; // legacy bar self-describes via aspect (5 − max/min = free)
       };
       const setBlock = (pk, id, ord, f) => { const m = blockMeta(f); pk.setTile(id, ord, f.el, f.stream, m); };
-      // MY ROW as a k-wide BAR of only the PRESENT faces (never padded to C).
-      if (!rowPack) rowPack = MM.createPacker({ shape: 'bar', ac: (ensureAc(), ac) }).start();
-      for (let j = 0; j < C; j++) {
-        const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
-        const sc = pid ? srcFor(pid) : null;
-        if (sc && sc.el) rowPack.setTile('r' + j, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
-        else rowPack.delTile('r' + j);
-      }
-      const rowMeta = () => ({ n: rowPack.count(), cols: rowPack.cols() });
       if (iAmHead) {
         // PRODUCT = my row's live faces + my row's sub-blocks, PACKED near-square
         // (no fixed C+1 slots — the tall-product blowup is gone).
@@ -3749,7 +3747,7 @@
         for (let j = 0; j < C; j++) {
           const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
           const sc = pid ? srcFor(pid) : null;
-          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
+          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(pid) });
           else prodPack.delTile('r' + j);
           const sub = mosIn.get('sub:' + j);
           if (sub) setBlock(prodPack, 's' + j, 'b' + j, sub); else prodPack.delTile('s' + j);
@@ -3766,7 +3764,7 @@
             const mate = occPid({ pc: 0, r: c.r, i: j });
             const jk = shipMos('x1', mate, prodPack.stream, Object.assign({ row: c.r }, prodMeta())); if (jk) wanted.add(jk);
           }
-          if (!sdPack) sdPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
+          if (!sdPack) sdPack = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start();
           for (let q = 0; q < C; q++) {
             if (q === c.r) { sdPack.setTile('q' + q, q, prodPack.canvas, prodPack.stream, prodMeta()); continue; }
             const rowIn = mosIn.get('sdrow:' + q);
@@ -3796,49 +3794,9 @@
         const x2 = mosIn.get('x2');
         if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, Object.assign({ row: x2.meta.row }, blockMeta(x2))); if (jk) wanted.add(jk); }
       }
-      // ---- SECTION lane: ROW BANDS exchanged over cross-links (bounded) -------
-      // The design (docs/media-plane.md Channel Se): each row's BAND crosses
-      // each cross-link exactly once — seat (r,i) ships its OWN row's band to
-      // its cross partner (row i), and the RECEIVER shares it with its row
-      // over the row mesh. Every seat then self-composites the C×C block:
-      // its own live band + the C-1 received bands, slightly lagged. Cost per
-      // seat: ≤1 cross ship + ≤C-1 row reshares of ONE band — CONSTANT, never
-      // per-person. (The old per-person flood was the full-mesh mistake at the
-      // media layer — ripped.)
-      {
-        const secMates = (() => { for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc === c.pc && cc.r !== c.r) return true; } return false; })();
-        if (secMates) {
-          // ship my row's PACKED bar over my cross-link (non-heads only)
-          const xc = T.crossLink(c);
-          if (xc) { const xPid = occPid(xc); const jk = shipMos('secband', xPid, rowPack.stream, Object.assign({ row: c.r }, rowMeta())); if (jk) wanted.add(jk); }
-          // reshare a bar that arrived OVER MY CROSS-LINK to my row-mates (meta forwarded)
-          for (let q = 0; q < C; q++) {
-            const bIn = mosIn.get('secband:' + q);
-            if (!bIn || q === c.r) continue;
-            const xPid2 = xc ? occPid(xc) : null;
-            if (bIn.via === xPid2) { // I am this band's importer for my row
-              for (const m of T.rowMates(c)) { const mp = occPid(m); const jk = shipMos('secband', mp, bIn.stream, Object.assign({ row: q }, blockMeta(bIn))); if (jk) wanted.add(jk); }
-            }
-          }
-          // GAPLESS self-pack: my own live faces + the received bars — faces
-          // only, near-square, no black cells for empty seats. Deterministic
-          // order (row-major by row, then column) so every device draws the
-          // same mosaic.
-          if (!secPack) secPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
-          for (let j = 0; j < C; j++) {
-            const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
-            const sc = pid ? srcFor(pid) : null;
-            if (sc && sc.el) secPack.setTile('m' + j, c.r * 10 + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(pid) });
-            else secPack.delTile('m' + j);
-          }
-          for (let q = 0; q < C; q++) {
-            if (q === c.r) { secPack.delTile('q' + q); continue; }
-            const bIn = mosIn.get('secband:' + q);
-            if (bIn) setBlock(secPack, 'q' + q, q * 10, bIn); else secPack.delTile('q' + q);
-          }
-          paintSectionTile(secPack.stream);
-        } else paintSectionTile(null);
-      }
+      // (Channel Se — the C×C Section composite — is DROPPED. Its cross-link
+      // budget now backs up the Stadium/Stage fans below; section-mates fold
+      // into the Stadium. docs/media-plane.md.)
       // ---- STAGE lane: chosen <=C feeds -> S1 -> composited strip -> fan down --
       // Individual stager feeds ride UP to Section 1 (uncomposited passthrough,
       // per-stager key); at S1 they FLOOD the row+cross mesh (dedup by streamId,
@@ -3848,10 +3806,19 @@
       const amStager = stagers.includes(myId);
       const heldStg = [...mosIn.keys()].filter((k) => k.indexOf('stg:') === 0);
       if (c.pc !== 0) {
-        // relay every stage feed I hold (and my own) UP toward Section 1
+        // relay every stage feed I hold (and my own) UP toward Section 1, plus a
+        // REDUNDANT copy over my cross-link ('^x' → same slot at the far end). The
+        // cross partner is a different row fed by a different up-link, so it is an
+        // INDEPENDENT second path to S1; the S1 flood dedups by streamId, so the
+        // copy only backs up a failed up-link — it never double-composites.
         const upTgt = iAmHead ? (T.up(c) ? occPid(T.up(c)) : null) : occPid({ pc: c.pc, r: c.r, i: 0 });
-        if (amStager) { const st = mySelfStream(); if (st) { const jk = shipMos('stg:' + myId, upTgt, st, null); if (jk) wanted.add(jk); } }
-        for (const k of heldStg) { const f = mosIn.get(k); const jk = shipMos(k, upTgt, f.stream, null); if (jk) wanted.add(jk); }
+        const xUp = T.crossLink(c); const xUpPid = xUp ? occPid(xUp) : null;
+        const relayStg = (key, stream, via) => {
+          let jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk);
+          if (xUpPid && xUpPid !== upTgt && xUpPid !== via) { jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
+        };
+        if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null); }
+        for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via); }
       } else {
         // SECTION 1: flood each stage feed across row+cross ONCE per streamId
         const s1peers = [...T.rowMates(c).map((m) => occPid(m)), (T.crossLink(c) ? occPid(T.crossLink(c)) : null)].filter(Boolean);
@@ -3873,16 +3840,22 @@
         for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripPack.stream, sgsMeta()); if (jk) wanted.add(jk); }
         }
       }
-      // Every seat: render the received strip and fan it down (heads -> row-mates).
+      // Every seat: render the received strip and fan it down (heads -> row-mates),
+      // AND over the cross-link — a peer in a different row fed by a different
+      // up-link, an INDEPENDENT second source. Dedup: skip the peer I received it
+      // from (via); sticky claimMos keeps one live source and fails over in ~2s.
       const sgs = mosIn.get('sgs');
       if (sgs && c.pc !== 0) {
         paintStageStrip(sgs.stream);
         const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
         if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
+        const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
+        if (xgPid && xgPid !== sgs.via) { const xj = shipMos('sgs', xgPid, sgs.stream, blockMeta(sgs)); if (xj) wanted.add(xj); }
       } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
 
-      // EVERY seat: the claimed stadium renders and fans DOWN my down-link;
-      // heads hand it to their row-mates as well (they have no other source).
+      // EVERY seat: the claimed stadium renders and fans DOWN my down-link; heads
+      // hand it to their row-mates; and over the cross-link as an independent
+      // backup (same dedup as 'sgs' above — closes the mid-tree freeze).
       const sd = mosIn.get('sd');
       if (sd && !(iAmHead && c.pc === 0)) {
         paintStadiumTile(sd.stream);
@@ -3892,6 +3865,8 @@
           const mate = occPid({ pc: c.pc, r: c.r, i: j });
           const jk2 = shipMos('sd', mate, sd.stream, blockMeta(sd)); if (jk2) wanted.add(jk2);
         }
+        const xd = T.crossLink(c); const xdPid = xd ? occPid(xd) : null;
+        if (xdPid && xdPid !== sd.via) { const xj = shipMos('sd', xdPid, sd.stream, blockMeta(sd)); if (xj) wanted.add(xj); }
       } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
       for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
     }
@@ -3973,7 +3948,7 @@
     function applyBuses() {
       const stg = new Set(stageIds());
       const mates = new Set(rowMates());
-      let hasSection = false, hasStadium = false;
+      let hasStadium = false;
       for (const [pid, p] of peers) {
         // Stage first (a staged row mate is Stage); then MY ROW (the direct
         // conversation tier). Any OTHER direct link is STRUCTURAL — an up/down/
@@ -3990,13 +3965,11 @@
       for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
-        // The 'Your section' composite is the SECTION bus; the Stadium composite
-        // (and any other far tile) is the STADIUM bus — the near/far split.
-        if (el.dataset.row === 'sec') { busVolume(v, mix.section); hasSection = true; }
-        else { busVolume(v, mix.stadium); hasStadium = true; }
+        busVolume(v, mix.stadium); hasStadium = true; // the only stadium-area tile now is the Stadium composite
       }
-      // Progressive disclosure: reveal a bus's fader only once it has members.
-      document.getElementById('mixlab-section').style.display = hasSection ? '' : 'none';
+      // Section A/V is dropped — its fader has no composite to drive (section-mates
+      // fold into the Stadium). Progressive disclosure for the stadium fader.
+      document.getElementById('mixlab-section').style.display = 'none';
       document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
     }
     const mixPanel = document.getElementById('mixpanel');
@@ -5368,10 +5341,9 @@
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
         prodStream: !!(prodPack && prodPack.stream), sdStream: !!(sdPack && sdPack.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
-        band: rowPack && rowPack.stats(), prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
+        prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
-        strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length,
-        section: (() => { const v = stadiumEl.querySelector('[data-row="sec"] video'); return v ? { live: v.videoWidth > 0 } : null; })() }; },
+        strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
       relayUpNow: () => relayUp(),
       rosterIdsNow: () => rosterIds.slice(),
       linkToPeer: (pid) => linkTo(pid),

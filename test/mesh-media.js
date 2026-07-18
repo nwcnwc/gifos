@@ -59,6 +59,14 @@ check('packGrid bar: 3 faces = 3×1', pg(3, 'bar').cols === 3 && pg(3, 'bar').ro
 check('packGrid grid: 12 faces = 4×3 (gapless, no fixed 5×5)', pg(12, 'grid').cols === 4 && pg(12, 'grid').rows === 3);
 check('packGrid grid: 25 faces = 5×5', pg(25, 'grid').cols === 5 && pg(25, 'grid').rows === 5);
 check('packGrid grid: 26 faces = 6×5 (tail 4)', pg(26, 'grid').cols === 6 && pg(26, 'grid').rows === 5);
+// STADIUM packing: equal squares that grow DOWNWARD, ~5 wide, capping+densifying.
+check('stadiumGrid 25 = 5×5 (square-ish)', M.stadiumGrid(25).cols === 5 && M.stadiumGrid(25).rows === 5);
+check('stadiumGrid 100 = 5×20 (tall ~1:4, grows downward)', M.stadiumGrid(100).cols === 5 && M.stadiumGrid(100).rows === 20 && !M.stadiumGrid(100).dense);
+check('stadiumGrid 400 densifies (cols grow past 5, footprint capped)', M.stadiumGrid(400).cols === 10 && M.stadiumGrid(400).dense === true);
+check('stadiumGrid small stays square-ish (9 = 3×3)', M.stadiumGrid(9).cols === 3 && M.stadiumGrid(9).rows === 3);
+check('packGrid stad routes to stadiumGrid', pg(100, 'stad').cols === 5 && pg(100, 'stad').rows === 20);
+// Overlay threshold: below cap keep overlays, above go tapestry+dot.
+check('stadiumTiny: <=100 keeps overlay, >100 drops it', M.stadiumTiny(100) === false && M.stadiumTiny(101) === true);
 // faceSrcRect: face j of a packed block is addressable by sub-rect (row-major).
 const fr = M.faceSrcRect(7, 12, 4, 400, 300); // 4×3 block @400×300 → cell 100×100; face 7 = row1,col3
 check('faceSrcRect addresses face 7 of a 4-wide block at (300,100)',
