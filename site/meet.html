@@ -3592,6 +3592,7 @@
     const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
     let mosBeyondAt = 0; // last time beyondRow was RAW-true (teardown hysteresis)
+    let sdEmptyAt = 0;   // since when a head's sdPack has been EMPTY (blank-tile grace)
     const sdnPacks = new Map(); // col -> packer: per-child DOWN ingredients (mix-minus)
     // STAGE AUDIO folds AT THE EAR (mix-minus): the strip is video-only; every
     // device sums the per-stager feeds it holds, skipping its OWN — a stager
@@ -4011,7 +4012,12 @@
           if (!sdPack) sdPack = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start();
           setOutside(sdPack);
           for (let j = 0; j < C; j++) { const sub = mosIn.get('sub:' + j); if (sub) setBlock(sdPack, 's' + j, 20 + j, sub); else sdPack.delTile('s' + j); }
-          paintStadiumTile(sdPack.stream);
+          // An EMPTY view (fragmented mesh, nothing claimable beyond the row
+          // yet — the live 175s-black-tile signature) paints NO tile rather
+          // than an eternal 2×2 black one; under MOS_GRACE so a transient
+          // empty beat never flaps the tile off/on.
+          if (sdPack.count() > 0) { sdEmptyAt = 0; paintStadiumTile(sdPack.stream); }
+          else { if (!sdEmptyAt) sdEmptyAt = Date.now(); paintStadiumTile(Date.now() - sdEmptyAt > MOS_GRACE ? null : sdPack.stream); }
           const sdMeta = () => ({ n: sdPack.count(), cols: sdPack.cols() });
           for (let j = 1; j < C; j++) {
             const mate = occPid({ pc: c.pc, r: c.r, i: j });
