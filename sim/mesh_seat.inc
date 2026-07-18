@@ -26,7 +26,7 @@ void Seat::serveFind(Msg& mm){
   if(coord.pc==0){
     int ar=(coord.r-1+C)%C; bool empty=true; for(int j=0;j<C;j++) if(s1Fresh(ckey({0,(uint8_t)ar,(uint8_t)j}))){empty=false;break;}
     if(empty){ admit({0,(uint8_t)ar,coord.i},mm.nc); return; }
-    if(coord.i==0){ for(int j=1;j<C;j++){ Coord rc={0,coord.r,(uint8_t)j}; uint64_t rck=ckey(rc); if(!occ.count(rck) && TICK-(healTry.count(rck)?healTry[rck]:-999)>45){ healTry[rck]=(int)TICK; admit(rc,mm.nc); return; } } }   // ADMIT LIVENESS: a cell whose occupant went silent past the S1SYNC freshness horizon is FREE — a corpse must not turn newcomers away (silent churn made S1 look full; E2/CHALLENGE settles the rare alive-after-all race)
+    if(coord.i==0){ for(int j=1;j<C;j++){ Coord rc={0,coord.r,(uint8_t)j}; uint64_t rck=ckey(rc); if(!occ.count(rck) && occGet(ckey(down(rc)))<0 && TICK-(healTry.count(rck)?healTry[rck]:-999)>45){ healTry[rck]=(int)TICK; admit(rc,mm.nc); return; } } }   // 11a FRONTIER admit-liveness: admit a newcomer into a free Section-1 cell ONLY when its down-child is empty (a true frontier). If the cell still owns a subtree, its down-child (Rule V) fills it — admitting a newcomer there would race the healer, and the loser requeues OUT of Section 1, leaving a stale gossip PHANTOM that permanently blocks refill. A never-occupied cell has an EMPTY down-child, so it is NOT blocked here.
   }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm.nc); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
@@ -47,7 +47,7 @@ void Seat::heal(Coord hole){
   if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);}
     for(int q:ri){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(x,m); return; } } }
   if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); vector<KV> rr; for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) rr.push_back(e); if(!rr.empty()){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(rr[(int)(rng()*rr.size())].v,m); return; } }
-  if(hole.i==0 && coord.i>0 && !hasChildren()) promoteInto(hole,nbrs);
+  if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1) promoteInto(hole,nbrs);   // 11a: childless right-neighbour SCOOCHES left into its left-neighbour hole (head when coord.i==1) — left-pack base case (only a leaf moves)
 }
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
   if(!hasCoord) return;
@@ -59,7 +59,7 @@ void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
 void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
   if(coord.pc==0 && hole.pc!=0) return;
-  if(coord.pc==0 && hole.pc==0 && !(hole.i==0&&hole.r==coord.r)) return;
+  if(coord.pc==0 && hole.pc==0 && !(hole.r==coord.r && hole.i<coord.i)) return;   // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), not just into the head
   bumpMoves();
   Coord oldC=coord; Coord ol[C+2]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(oldC);m.id=id; emit(x,m);} }
@@ -188,12 +188,26 @@ void Seat::s1Sync(){
   for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent; emit(t,m); }
 }
 void Seat::rowSweep(){
+  // 11a: the head no longer HEALS its row cells (each is healed by its own
+  // down-child (VERTICAL) or its right-neighbour (LEFT-PACK) — a fixed unique
+  // designation). rowSweep is now pure cleanup: forget a row cell gone silent
+  // past the horizon so a corpse stops riding the head's PONG. A severed-but-alive
+  // cell that gets forgotten here re-announces (PHONE/HELLO) on recovery.
   if(coord.i!=0) return;
   vector<uint64_t> del;
-  for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0){ bool kids=kidful.count(e.first)&&kidful[e.first]; del.push_back(e.first); if(kids||c.pc==0){ heal(c); } } }
+  for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0) del.push_back(e.first); }
   for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); }
 }
 void Seat::s1Fill(){
+  // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from below
+  // by its down-child (VERTICAL Rule V). s1Fill is the head's backstop AND the only
+  // thing that clears a Section-1 PHANTOM (a stale gossip echo of an occupant that
+  // requeued OUT of Section 1 — its claim keeps re-circulating and never expires,
+  // blocking the cell from ever refilling; the echo-immune live signal is inc 29).
+  // It fires on DIRECT-evidence staleness: `live[]` is set only by a real PHONE
+  // (not by gossip), so a genuine occupant keeps it fresh, a phantom or a corpse
+  // does not. (A severed-but-alive cell can trip this too — the rare re-heal is
+  // ≤1 per cell and the head, linked to both claimants, resolves it via onPhone.)
   if(TICK-seatedAt<80) return;
   for(int j=1;j<C;j++){ Coord c={0,coord.r,(uint8_t)j}; uint64_t ck=ckey(c); auto it=live.find(ck); if(it!=live.end()&&TICK-it->second<=60) continue; if(occ.count(ck)){occ.erase(ck);live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} heal(c); return; }
 }
@@ -239,9 +253,11 @@ void Seat::recv(Msg& m){
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck) requeue(); return;
     case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
     case LEAVE: {
-      bool hadKids=kidful.count(m.ck)&&kidful[m.ck];
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); }
-      if(HEALING&&hasCoord&&state==3){ Coord c=unck(m.ck); if(c.pc==coord.pc&&c.r==coord.r&&c.i!=coord.i){ if(c.i==0&&coord.i>0&&lowestSurvivor()){ heal({c.pc,c.r,0}); return; } if(c.i>0&&coord.i==0&&(hadKids||c.pc==0)){ heal(c); return; } } }
+      // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just LEFT; I am
+      // its fixed right-neighbour healer. I heal it UNLESS it owns a down-child
+      // (then the VERTICAL rule — that down-child — heals it, so I defer).
+      if(HEALING&&hasCoord&&state==3){ Coord c=unck(m.ck); if(c.pc==coord.pc&&c.r==coord.r&&c.i==0&&coord.i==1&&!hasDownChild(c)){ heal(c); return; } }
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
@@ -278,8 +294,8 @@ void Seat::tick(){
   if(evil) attack();
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); s1Sync(); }
-    if(coord.i==0 && (TICK%12)==0){ rowSweep(); s1Fill(); }
-    if(coord.i>0 && TICK-lastAck>40 && TICK-healAt>20 && lowestSurvivor()) heal({0,coord.r,0});
+    if(coord.i==0 && (TICK%12)==0){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race
+    if(coord.i==1 && TICK-healAt>20 && TICK-lastAck>60){ Coord hd={0,coord.r,0}; if(occGet(ckey(hd))<0 && !hasDownChild(hd)) heal(hd); }   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A head WITH a subtree is healed by its down-child (VERTICAL, below). occGet<0 = definite LEAVE, so severance never false-heals.
     if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
     if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);
     if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
@@ -287,27 +303,34 @@ void Seat::tick(){
   }
   if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
   if(coord.i==0 && (TICK%12)==0) rowSweep();
-  if(coord.i>0 && TICK-lastAck>40 && TICK-healAt>20 && lowestSurvivor()) heal({coord.pc,coord.r,0});
+  if(coord.i==1 && TICK-healAt>20 && TICK-lastAck>60){ Coord hd={coord.pc,coord.r,0}; if(occGet(ckey(hd))<0 && !hasDownChild(hd)) heal(hd); }   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A head WITH a subtree is healed by its down-child (VERTICAL, below). occGet<0 = definite LEAVE, so severance never false-heals.
   if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
   if(drainAt && TICK>=drainAt){ reseatViaRoster(); return; }
-  // H8 (whole-section death): my owner cell O is DEAD, its whole ROW is empty (so
-  // no H2 row-mate can heal it) and the cell BELOW it is empty (so no H7 backfill
-  // from below). I am O's sole down-child, so I HEAL O by promoting a LEAF from my
-  // subtree (I stay put — P: only leaves promote), wiring it with my cousins.
-  bool didH8=false;
-  if(coord.i==0 && !cousins.empty() && TICK-lastAck>150){ Coord oc;
-    if(ownerCoord(oc) && occGet(ckey(oc))<0){
-      bool rowEmpty=true; for(int j=0;j<C;j++) if(occGet(ckey({oc.pc,oc.r,(uint8_t)j}))>=0){rowEmpty=false;break;}
-      bool belowEmpty = occGet(ckey({oc.pc,(uint8_t)((oc.r+1)%C),oc.i}))<0;
-      if(rowEmpty && belowEmpty && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
-        healTry[ckey(oc)]=(int)TICK; healAt=(int)TICK; didH8=true;
-        vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
-        Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
-        bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }
-        if(!sent) promoteInto(oc,nb);   // I'm childless => I AM the leaf
-      }
+  // 11a VERTICAL (down-child is the fixed healer of its owner; generalizes H8):
+  // I am a head, so my owner cell O = up(me) is the cell whose down-child I am. If
+  // O is DEAD (occGet<0 — a definite LEAVE cleared it, NOT mere severance), I HEAL
+  // O by promoting a LEAF from my subtree up into it (I stay put — P: only leaves
+  // move; I move only when I am childless), wired with my cousins (O's heir
+  // neighbourhood, learned from O's PONG). This is the primary heal for every cell
+  // that owns a subtree; the row-mate LEFT-PACK covers only childless holes.
+  bool didHeal=false;
+  if(coord.i==0 && !cousins.empty() && TICK-healAt>20 && TICK-lastAck>60){ Coord oc;   // TICK-lastAck>60: POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
+    if(ownerCoord(oc) && occGet(ckey(oc))<0 && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
+      healTry[ckey(oc)]=(int)TICK; healAt=(int)TICK; didHeal=true;
+      vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
+      Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
+      bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }
+      if(!sent) promoteInto(oc,nb);   // I'm childless => I AM the leaf
     }
   }
-  if(!didH8 && TICK-lastAck>80) drainOrReenter();
+  // 11a: draining is severance-immune, like healing. A seat drains (vacates its
+  // healthy seat to re-enter) only when its ANCHOR is CONFIRMED dead (occGet<0 —
+  // a LEAVE cleared it), not merely silent: a severed-but-alive anchor stays
+  // occupied here, so a 40-200-tick severance window recovers WITHOUT the seat
+  // churning out and back (the old lastAck>80 alone made every severance a drain →
+  // reseat → LEAVE → heal cascade). The lastAck>220 E1 last-resort still catches a
+  // genuinely orphaned seat whose anchor died without a deliverable LEAVE.
+  bool ancDead=false; if(hasCoord){ Coord anc; if(coord.i!=0){ ancDead = occGet(ckey({coord.pc,coord.r,0}))<0; } else if(ownerCoord(anc)){ ancDead = occGet(ckey(anc))<0; } }
+  if(!didHeal && TICK-lastAck>80 && (ancDead || TICK-lastAck>220)) drainOrReenter();
   wake(id);
 }
