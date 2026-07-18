@@ -2189,8 +2189,14 @@
     // trigger early, the beat guarantees.
     let modSigW = null, modSigSrc = '', modWSeen = null, modWSeenTs = 0;
     function refreshModSig() {
-      if (!admKeys || !hasAdminRoom()) return;
-      const src = JSON.stringify(modTable) + '|' + Math.floor(Date.now() / 120000);
+      // WAIT for the S4 identity: `by` (my peer id) is INSIDE the signed
+      // statement, and receivers only credit admin PRESENCE from it (admSeen).
+      // Signing before myId exists mints an unattributed table that guests
+      // verify but can't attribute — the room looks adminless for a whole
+      // 2-minute bucket. myId is part of the fingerprint so the first beat
+      // after identity arrives re-mints.
+      if (!admKeys || !hasAdminRoom() || !myId) return;
+      const src = JSON.stringify(modTable) + '|' + myId + '|' + Math.floor(Date.now() / 120000);
       if (src === modSigSrc) return;
       modSigSrc = src;
       admSigned('mod', { mod: modTable }).then((w) => { modSigW = w; });
