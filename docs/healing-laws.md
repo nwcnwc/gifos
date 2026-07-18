@@ -19,13 +19,16 @@ boss. Every other seat hangs somewhere below: a row's column-0 seat (its
 **head**) connects UP to the seat that owns the row, one level above; a **leaf**
 is a seat with nobody below it.
 
-Two hard problems drive everything in this file:
-
-1. **Two people end up claiming the same seat.** (Healing races make this
-   possible.) → settled by **E2**.
-2. **So many people vanish at once that the meeting breaks into disconnected
-   pieces.** → put back together by **E1, H7, H8, and E5**; only a genuinely
-   *different* meeting is ever put to a human (**R5**).
+What the laws are for: in a big meeting, people leave constantly — every
+departure is a hole in the tree, and every hole must be filled quickly,
+by exactly one healer, without stale information, and without the fix
+knocking over anything else. There is no server and no boss seat to
+coordinate any of it, so every rule below is something each seat can decide
+on its own from what it directly knows. Most of this file is that everyday
+machinery: noticing a death (D), filling the hole (H), not making it worse
+(C), wiring the replacement with live knowledge (W), and the front door (R).
+The fallback laws (E) handle the rare extremes — botched races and mass
+departures — and are covered at the end.
 
 ---
 
