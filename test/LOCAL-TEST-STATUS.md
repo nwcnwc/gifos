@@ -172,3 +172,43 @@ Stadium in a genuinely multi-section room; and/or carry the direct camera to all
 peers (not just row-mates) while the room fits in one section. These tests
 (e2e-video, e2e-media-recovery, e2e-mosaic) are left FAILING on purpose as
 regression guards — they assert the correct invariant (every seat sees the room).
+
+## Admin/open-meeting review additions (branch worktree-agent-ad61f0617d9b11522, 2026-07-18)
+
+New suites (all GREEN at authoring; browser runs at loadavg ≤ 25):
+| test | verdict | covers |
+|---|---|---|
+| relay-voteoff.js | GREEN | vote-off relay mechanics: majority(min-2) boot 4007, single/self-vote guards, standing-vote door gate, withdrawal readmits, ADMIN rooms never vote-kick |
+| relay-adminban.js | GREEN | §SIG ban surface: forged ban ignored, signed ban cuts+gates door, signed unban readmits, banlist re-seed cuts listed device, plain rooms have no ban list |
+| e2e-meet-mod.js | GREEN (44 checks) | open-room group blur/mute + UNDO + target-lockout + attribution; stage step-up/down; client vote loop; consent clear-video + re-blur; admin room: guest powerlessness, Blur-guests/Video-off apply+release, stage grant/revoke, ban/unban round-trip, sign-in wrong/right, blurred waiting room (no admin ⇒ never clears), absence countdown + cancel-on-sign-in |
+| e2e-meet-password.js | GREEN | client password lifecycle e2e: set, prompt, wrong bounced, right admits, live re-key via sealed pwinfo, STALE password refused at door, new admits; admin room signed setpw + guest lock-managed |
+
+Product bugs found AND fixed during this review (see git history for diffs):
+1. blurLevelFor cleared video in an ADMIN room with NO admin present (fell to
+   the open-room allConsent path) — contradicted the status line + docs. Now
+   `hasAdminRoom() ? adminPresent() && consents : allConsent()`.
+2. adminWatch (absence countdown) was armed only by relay `roster` frames —
+   quiet/socketless members never started it. Now armed on the 2s presence beat.
+3. refreshModSig signed the mod table BEFORE the async S4 identity minted →
+   `by:null` signature made the admin invisible to guests (adminless-looking
+   room, spurious countdown) for a 2-min re-sign bucket. Now waits for myId.
+4. Password re-key never reached the WIRE (mesh-wire captured opts.key at
+   creation): S1 greeters kept re-sealing registry blobs under the OLD key, so
+   a newcomer holding the NEW password read R6 "wrong password" forever.
+   Now meshNode.setKey(k) + immediate greeter re-knock on rekeyRoom.
+
+Suite updates:
+- e2e-app-governance.js: admin-room verifier derivation was pre-§SIG
+  (SHA-256(K)); fixed to `edKeysFromSeedHex(K).verifier`. With that, the admin
+  block runs: guest-cannot-run / nothing-mounts-from-guest / admin-mounts-for-
+  everyone / leading-default all PASS. Two remaining REAL-BUG candidates for
+  the app-runtime owner: (a) the open-room "latest-wins takeover" is FLAKY
+  (passed 1/3 runs; B never becomes appIsHost, null contentWindow postMessage);
+  (b) in the ADMIN room the GUEST's client app iframe never renders its
+  content under the mesh Stage data lane (appActive true, iframe body never
+  appears) — BUG-2 family, blocks the led-record/grant/stop tail of the suite.
+- ENV note: relay-owned.js (port 8792) and relay-device-dedupe.js (8791)
+  hardcode ports that collide with fake-keyapi/fake-ai if another session runs
+  them; both are GREEN on a free port (verified via patched copies).
+- Re-verified after the mesh-wire setKey change: flood.js GREEN,
+  mesh-harness.js GREEN, e2e-meet-invite.js GREEN, e2e-meet-lobby.js GREEN.
