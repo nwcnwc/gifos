@@ -241,12 +241,17 @@ preference.)
 - **19** — Final relay audit → greeting-only: delete every remaining non-greeting relay path; prove the relay carries ONLY knock + first-greeter handshake.
 
 ### Media plane on the mesh
+Three channels ride the tree: **Row** (direct, full quality), **Stage** (chosen
+≤C broadcasters, a composited strip), **Stadium** (everyone, one equal-square
+mosaic composited up the tree and fanned down). Section (the old C×C block) was
+**dropped** — its cross-link budget now pays for the Stadium/Stage redundancy.
+Design of record: `docs/media-plane.md`.
 - **20** — Wire the per-link bundle engine (`createBundle` / `cropView`, built-but-unwired) — encodes = links, ≤7 per node.
-- **21** — Gapless composite packer end-to-end: one blended stream per link, aspect-ratio encodes the count.
-- **22** — Burned-in overlays at the leaf (name / status / hand / green talking-frame), verified on real tiles.
-- **23** — Section composite over the proven tree (composited strip).
-- **24** — Stadium composite (cross-section aggregation).
-- **25** — Stage channel (the decoupled broadcast tier) + audio folds (summed audio per tier) over the mesh.
+- **21** — Gapless composite packer end-to-end: one blended stream per link, the announce `{n, cols}` meta lets any receiver blit faces out by sub-rect and repack (`packGrid` / `faceSrcRect`).
+- **22** — Burned-in overlays at the leaf (name / status / hand / green talking-frame), verified on real tiles. Past the Stadium overlay threshold the burn drops to a **tapestry + green audio-dot** (`stadiumTiny`, `drawOverlay` dot mode).
+- **23** — ~~Section composite~~ **DROPPED.** Channel Se (the self-composited C×C block, `secband`/`secPack`/`paintSectionTile`) is removed; section-mates fold into the Stadium. The freed cross-link budget funds increment 25's redundancy.
+- **24** — Stadium composite: an **equal-square** mosaic (every person one equal square — a subtree of 100 is 100 squares, never one shrunken fractal cell), composited up the tree and fanned down as ONE stream. It grows **downward** (~5 wide in the readable range: square-ish near 25, a tall ~1:4 rectangle by ~100), then the footprint **caps** and squares **shrink** to densify (`stadiumGrid`, `'stad'` pack shape).
+- **25** — Stage channel (the decoupled broadcast tier, a horizontal strip composited at Section 1 and fanned down) + audio folds (summed audio per tier) over the mesh. **Cross-link redundancy** (up + down): `sd`/`sgs` fan over the cross-link at every level, and the stage-collect gets a redundant cross-path — an independent second source (different row, different up-link), deduped by `via`/`streamId`, giving ~2s failover via sticky `claimMos`.
 
 ### App-run on the mesh
 - **26** — Standalone app-share → headless mesh node (`deriveMeet(appSessionSecret)`); kill relay-as-transport-proxy.

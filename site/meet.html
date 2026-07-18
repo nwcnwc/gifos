@@ -87,8 +87,8 @@
   /* The wall of tiles wraps into rows and SCROLLS once it outgrows the
      screen — any number of people fit; you scroll the crowd like a feed. */
   /* THE FEED: one endless vertical scroll, phone-first — the stage up top,
-     your row's live faces, your section's rows, then the stadium falling
-     away below. Every fold is constant-cost, so the scroll stays light no
+     your row's live faces, then the stadium of equal squares growing downward
+     below. Every fold is constant-cost, so the scroll stays light no
      matter how deep the room goes. */
   #feed { flex: 1; min-height: 0; overflow-y: auto; }
   #grid { display: grid; gap: 8px; padding: 8px;
@@ -406,7 +406,7 @@
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
-    <button id="mixbtn" title="Your personal sound mix — the stage, your row, your section and the far stadium, plus Timing and leading a song">Mix</button>
+    <button id="mixbtn" title="Your personal sound mix — the stage, your row and the far stadium, plus Timing and leading a song">Mix</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, singing together, and the dream">Help</button>
     <span class="status" id="status">Starting camera…</span>
@@ -556,38 +556,33 @@
           by <i>everyone</i> in the whole stadium (the reader, a speaker, a shared app).</li>
           <li><b>Row</b> — the handful of people right next to you. This is your real
           conversation — you're directly connected to them.</li>
-          <li><b>Section</b> — the rows near you. You see them as a live mosaic, not as
-          a wall of individual faces.</li>
-          <li><b>The stadium</b> — everyone beyond your section, folded down into a
-          shimmering backdrop and a single summed roar. A million-voice “Amen” reaches
-          you as one sound.</li>
+          <li><b>The stadium</b> — everyone beyond your row, packed into one mosaic of
+          equal-size squares that grows downward as the room fills, plus a single summed
+          roar. A million-voice “Amen” reaches you as one sound.</li>
         </ul>
         <p class="help-note">How does it scale? Each row automatically combines its
-        members' video and voices into <b>one tile and one sound</b>, and rows combine
-        again into sections. You always see how many people are here — but no single
-        phone ever has to carry more than its own little corner of the room, which is
-        why two people and two million feel exactly the same.</p>
+        members' video and voices, and rows fold up the tree into <b>one</b> Stadium
+        mosaic. You always see how many people are here — but no single phone ever has to
+        carry more than its own little corner of the room, which is why two people and
+        two million feel exactly the same.</p>
 
         <h4>The screen — one endless scroll</h4>
         <p>Top to bottom, <b>nearest first</b>: the <b>stage</b>, then <b>your row</b>,
-        then the rest of <b>your section</b> — the folded rows around you — and finally
-        <b>the far stadium</b>, the other sections and decks, folded smaller the farther
-        out they sit. In a room that fits one section, the mosaic simply <i>is</i> your
-        section; the far stadium only appears once the room grows past it. Keep scrolling
-        to wander outward. <b>Tap any folded tile to zoom</b> it larger; tap again to
-        fold it back.</p>
+        and finally <b>the stadium</b> — everyone else as equal squares, each person the
+        same size, the grid growing taller the more people arrive. Past about a hundred
+        people the squares shrink into a live <i>tapestry</i> (a small green dot marks who
+        is speaking). <b>Tap any folded tile to zoom</b> it larger; tap again to fold it
+        back.</p>
 
-        <h4>The sound mix — four faders that grow in</h4>
+        <h4>The sound mix — faders that grow in</h4>
         <p>Tap <b>Mix</b> for your own private sound board (it only changes what
         <i>you</i> hear — like your own volume knob). Faders appear as the room gets big enough
         to need them:</p>
         <ul class="help-list">
           <li><b>Stage</b> — the front of the room.</li>
           <li><b>My row</b> — the people right beside you.</li>
-          <li><b>My section</b> — the near-field murmur around you (appears once there's
-          more than your row).</li>
           <li><b>The stadium</b> — the far roar of everyone else (appears once the room
-          spans past your section). Turn it down during a quiet reading, then push it up
+          spans past your row). Turn it down during a quiet reading, then push it up
           to let the whole crowd's response wash in.</li>
         </ul>
         <p>Below the faders sits <b>Timing</b>. Sound takes a moment to cross the
@@ -4511,7 +4506,7 @@
         '<div class="rec-sec"><b>What to capture</b>' +
         opt('stage', 'rec-scope', 'The stage', 'Just the front — the reader or speaker, verbatim. One clean feed.') +
         opt('row', 'rec-scope', 'Stage + my row', 'The stage plus the people right around you.') +
-        opt('all', 'rec-scope', 'Everything I see', 'The whole screen — stage, your row, your section, the stadium. The crowd is folded, as shown.') +
+        opt('all', 'rec-scope', 'Everything I see', 'The whole screen — stage, your row, the stadium. The crowd is folded, as shown.') +
         (hasApp ? opt('app', 'rec-scope', 'With the shared app', 'Capture this tab so the app and tiles record together.') : '') +
         '</div>' +
         '<div class="rec-sec"><b>Quality</b>' +

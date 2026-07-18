@@ -4,7 +4,10 @@ How audio/video flows over the no-root introducer mesh (`docs/healing-laws.md`).
 The **one principle**: *distribute the media processing across every participant,
 with zero dedicated infrastructure.* No media server, no elected relays, no
 "beefy node" — every seat composites and forwards its fair share, using only the
-links it already holds for control. Four channels ride the same topology.
+links it already holds for control. **Three** channels ride the same topology:
+**Row**, **Stage**, **Stadium**. (A fourth, the C×C **Section** composite, was
+dropped — see the note under Channel R — to free its cross-link budget for the
+Stadium/Stage cross-link redundancy.)
 
 The whole geometry derives from `C` (`site/js/gifos-net.js` SCALE, C=5) and the
 link primitives in `sim/topo.h` (ported to `net.topo`):
@@ -26,16 +29,14 @@ Direct, full quality: the `C` seats of a row are already fully meshed, so each
 holds every row-mate's stream directly. No compositing, no forwarding. This is
 the tightest, lowest-latency tier — the people you're "sitting with."
 
-## Channel Se — Section (your C×C block, self-composited below your row)
-You see your own **Row** live (Channel R, on top), and beneath it a **composite
-of the other C-1 rows** of your section — assembled **by you**, from feeds
-arriving over your **cross-links**. A non-head's cross-link plus the row meshes
-make the section one connected graph, so section feeds **flood** it (bounded
-fan-out — row + one cross-link — kept **off the busy heads**); each seat receives
-the other rows and composites them itself into the block under its live row. That
-block runs slightly **behind** your row (the compositing lag) — everyone does
-their own, no central assembler. (A separate media path for now; may later feed
-the Stadium.)
+### Channel Se — Section — DROPPED
+The old C×C Section composite (the self-assembled block of your section's other
+rows, exchanged over cross-links) has been **removed**. Its per-seat compositing
+and its use of the cross-link were the price it cost; that budget now pays for
+the **cross-link redundancy** the Stadium and Stage need (below). Section-mates
+are not lost — they fold into the **Stadium** like everyone else, and your own
+row stays live and full-quality on Channel R. The cross-link is freed to carry a
+*second, independent* copy of the Stadium/Stage fans instead of a section block.
 
 ## Channel St — Stage (the chosen ≤C broadcasters)
 A decoupled, deliberately-chosen set (never row 0 — STADIUM vocabulary in
@@ -65,17 +66,16 @@ and a fixed panel is what a broadcast tier wants. Latency = 1 (to S1) + ~2
 (spread) + tree depth (down); less than Stadium (no per-level composite on the
 way up), as befits the live tier.
 
-**Where the redundancy is — and isn't.** The redundancy sits entirely at Section
-1: the strip is composited **in parallel by every S1 seat** (no election), and the
-raw feeds spread across the **row+cross** Section-1 mesh — so losing S1 seats
-degrades gracefully. But **both delivery legs are single-path.** The collect leg
-is one up-chain per stager; the fan-down is a plain tree, and at depth a
-**non-head** seat receives the strip **only from its row-head** (heads fan it to
-their row-mates; non-heads and cross-links do **not** carry it below Section 1),
-while a head receives it only from its parent. So a mid-tree failure interrupts
-the Stage for the whole subtree beneath it until the control plane heals — there
-is **no lateral backup outside Section 1**. (Same shape as Channel Sd/Stadium's
-fan-down.)
+**Where the redundancy is.** At Section 1 the strip is composited **in parallel
+by every S1 seat** (no election) and the raw feeds spread across the **row+cross**
+Section-1 mesh — so losing S1 seats degrades gracefully. And now the delivery
+legs are **no longer single-path**: the fan-down `sgs` and the collect leg both
+ride the **cross-link at every level** in addition to the tree (see Channel Sd's
+"Cross-link redundancy" — the mechanism is shared). A non-head that loses its
+row-head's strip picks it up from its cross-link peer (a different row, a
+different up-link) in ~2s via sticky `claimMos`, and a stager's feed reaches S1
+by two independent up-paths (the S1 flood dedups the copy). The mid-tree freeze
+is closed.
 
 **An APP on Stage carries a DATA stream, not A/V.** Running an app occupies one
 of the ≤C Stage seats (it counts toward the cap), but instead of camera pixels
@@ -87,74 +87,106 @@ data stream. This reuses GifOS's P2P app-state machinery, now broadcast
 stadium-wide — a collaborative app on the Stage, crisp and interactive, for the
 price of a data stream instead of a video one.
 
-## Channel Sd — Stadium (everyone, as one fractal mosaic)
+## Channel Sd — Stadium (everyone, as one equal-square mosaic)
 The novel tier: the entire room assembled into a single mosaic by the
-participants themselves, **up** the tree and back **down**.
+participants themselves, **up** the tree and back **down**. Every person is an
+**equal-size square** — a subtree of 100 people is **100 equal squares**, never
+one shrunken cell. It is still ONE stream composited up the tree and fanned down
+(the efficient, election-free transport is unchanged); only the **packing** is
+equal-square, not fractal.
 
-### Up-assembly (every row head, recursively)
-Each seat's **down-link delivers it one finished sub-mosaic** — everything
-beneath that link, already composited into one `COMP_W×COMP_H` frame. A non-head
-has no up-link, so it hands its down-mosaic to its **row head** over the row
-mesh. A **row head** therefore holds up to `C` incoming sub-mosaics — *its "up
-to C children" are the C down-links of its row* — which it composites into one
-frame and sends **up** its up-link. The axis **alternates by level**:
-row-layout is **horizontal**, the stack of down-link sub-mosaics is **vertical**
-— so the picture grows by ×C in one dimension each level, ×C² every two levels.
-Up one level the frame arrives (via a parent seat's down-link) at the parent's
-row, and *that* row's head does the next gather. The compositor is **always a
-row head gathering its row's down-links** — no other coordination exists.
+### Up-assembly (every row head, recursively) — gapless equal-square packing
+The compositing core is the **gapless packer** (`site/js/mesh-media.js`:
+`packGrid` / `faceSrcRect` / `createPacker`). A face is a centered-square crop of
+a camera (`coverBox`); a received sub-mosaic is a **packed block** of `n` faces
+in `cols` columns, and the block's `{n, cols}` rides the announce (two ints on
+the existing control frame — zero video bandwidth). A row **head** lays its
+row's live faces **plus** each down-link's received block into ONE gapless grid,
+**blitting every face of a received block out by sub-rect** and repacking it flat
+— so faces never nest; the whole subtree contributes its people as equal squares,
+not as one contained cell. That flat block is what it sends **up**. Up one level
+the parent does the same with its row's blocks. The compositor is **always a row
+head gathering its row's down-links** — no other coordination exists — and its
+forward cost is one fixed-budget canvas regardless of how deep the tree runs.
+
+### Shape — grows DOWNWARD, ~5 wide, then caps + densifies
+The final mosaic (`stadiumGrid`, the `'stad'` pack shape) is packed for a
+**vertical** surface (scroll down, never sideways):
+- **Readable range** (≤ ~STAD_CAP≈100): ~**5 columns** wide, growing **downward**
+  — square-ish near 25 (5×5), a tall ~**1:4** rectangle by ~100 (5×20).
+- **Cap + densify** (> ~100): the **footprint stops growing** (held at the
+  ~100-person tall rectangle) and each person's **square shrinks** to pack more
+  in — pixels/person fall, footprint fixed. `createPacker('stad')` sizes the
+  square against a fixed footprint width, so `cols > 5 ⇒ smaller square` falls
+  out automatically.
+
+### Overlay threshold — tapestry + green audio-dot
+Each square burns its info overlay (name / status / hand + green talking-frame)
+at the **leaf** (it rides the pixels up the tree — `drawOverlay`), **except**
+once the squares drop below a size threshold (past the cap — `stadiumTiny`,
+driven by the gossiped room size so every up-tree compositor agrees). Then the
+overlay is **dropped** and the square shows just the raw video **tapestry**, with
+only a small **light-green shaded dot** when that seat is talking — the minimal
+signal that its audio is blended into the mix.
 
 ### The Section-1 finish (redundant, parallel, no election)
 Section 1 (`pc=0`) has **no up-links** — it is the top. Each Section-1 head has
-assembled everything beneath its own subtree; it then does **one extra
-cross-link pass** to fold in the other Section-1 rows' assembled frames,
-producing the **whole Stadium**. **Every** Section-1 head does this
-independently. It is deliberately redundant: computing it C times in parallel
+assembled everything beneath its own subtree; it then exchanges its assembled
+block with the other Section-1 rows over the **cross-links** (`x1`→`x2`→`sdrow`)
+and packs them all into the **whole Stadium** (`'stad'`). **Every** Section-1
+head does this independently. It is deliberately redundant: computing it C times in parallel
 costs wall-clock nothing extra, and it means the room never has to *elect* one
 seat to assemble the Stadium for everyone (an election is a single point of
 failure and a scaling bottleneck). This is the same doctrine as the healing
 plane's parallel greeters — no chosen coordinator, ever.
 
 ### Down-flow and the latency offset
-The finished Stadium flows **down** every `down`-link, the reverse of the
-assembly. It necessarily lags Stage (and live Row/Section) by exactly the time
-the bottom-up assembly took — **physically unavoidable**: you cannot show a
-composite of the whole room before the whole room has been composited. Stage
-stays live; Stadium is the (slightly behind) crowd behind it.
+The finished Stadium flows **down** every `down`-link (and over the cross-link —
+see redundancy below), the reverse of the assembly. It necessarily lags Stage
+(and the live Row) by exactly the time the bottom-up assembly took —
+**physically unavoidable**: you cannot show a composite of the whole room before
+the whole room has been composited. Stage stays live; Stadium is the (slightly
+behind) crowd behind it.
 
-### The fractal-space property (named, accepted — not a bug)
-Because each level divides its frame into equal parts by **tree position, not
-by population**, a lone Section-1 seat and a Section-1 seat rooting a subtree of
-tens of thousands occupy the **same** 1/C² of the final mosaic — the entire
-subtree is composited down into that one cell. Space shrinks fractally with
-depth (a seat two levels down holds 1/C⁴ of the frame, and so on). This is
-inherent to equal recursive division and is **accepted by design**: it is the
-price of a fully-distributed, election-free assembly, and for a
-million-person "crowd" overview it reads correctly — the Stadium is the shape
-of the room, not a fair-share gallery. (Row/Section/Stage are the tiers where
-individuals are seen at fair size.)
+### Equal-square, not fractal (the change)
+The Stadium used to divide space by **tree position** — a lone seat and a seat
+rooting a subtree of thousands got the same 1/C² cell (the subtree fractally
+composited into it). That "fractal-space" property is **gone**: the packer
+blits every leaf out by sub-rect and lays them all into one flat gapless grid
+(`packGrid`/`faceSrcRect`), so **every person is one equal square**, sized by
+`stadiumGrid` and the cap/densify rule above — a fair-size tapestry of the whole
+room, not a position-weighted one. The transport (one stream, up the tree and
+fanned down, election-free) is unchanged; only the packing flattened.
 
-### Concrete rendering recursion
-`sectionFrame(pc)` is a C×C grid; cell `(r,i)` shows the sub-mosaic contributed
-by seat `(pc,r,i)` — its own camera if it is a **leaf** (no occupied down-child),
-else `sectionFrame(childPath(pc,i))` (its subtree). Distributed evaluation: each
-row head builds its row's horizontal band from its C down-link sub-mosaics and
-sends it up; the parent stacks bands vertically; Section-1 heads union the C
-bands over cross-links. Frame budget per hop is fixed at `COMP_W×COMP_H`
-(SCALE), so a seat's forward cost is constant regardless of how deep the tree
-below it runs.
+### Cross-link redundancy (up + down) — closing the mid-tree freeze
+The down-fan used to be **single-path**: a non-head got the Stadium (and Stage)
+strip only from its **row head**; if that head's feed stalled, the seat froze
+with no lateral backup. Fixed: `sd` (Stadium) and `sgs` (Stage) now also fan
+over the **cross-link at every level**, and the Stage **collect** leg pushes a
+redundant copy up the cross-link too. A cross-link peer sits in a **different
+row fed by a different up-link**, so it is an *independent* second source. Dedup
+keeps it from looping: a fan is **not** sent back to the peer it was received
+from (`via`), the stage copy carries a `^x` tag that resolves to the **same**
+slot, and the S1 collect flood dedups by `streamId`. Because `claimMos` is
+**sticky** — it keeps a live source and only switches when that source dies — the
+second announcer sits idle until it's needed, then takes over in ~2s (no thrash
+between two live sources). This is exactly what the dropped Section channel's
+cross-link budget was freed to pay for.
 
 ---
 
 ## Load & distribution
-Every seat: holds its row (C-1), one cross-link or one up-link, one down-link —
-degree ≤ C+1. Every **row head** additionally composites **one** frame per
-Stadium tick (its row's C down-mosaics) — O(C) tiles, constant work, and heads
-are 1-in-C seats so the compositing load is spread evenly. No seat's cost grows
-with room size; the room scales by getting **deeper**, and depth adds latency
-(the accepted Stadium offset), never per-seat load. This is why the fractal
-assembly is chosen over any assemble-for-everyone scheme: it is the arrangement
-that distributes the processing the most evenly with no dedicated node.
+Every seat: holds its row (C-1), one cross-link and (heads) one up-link, one
+down-link — degree ≤ C+1. Every **row head** additionally composites **one**
+frame per Stadium tick (its row's live faces + its down-links' blocks, repacked
+flat) — O(C) tiles, constant work, and heads are 1-in-C seats so the compositing
+load is spread evenly. The cross-link now also carries a **redundant** copy of
+the Stadium/Stage fans (the budget freed by dropping Section), still within the
+≤ C+1 degree. No seat's cost grows with room size; the room scales by getting
+**deeper**, and depth adds latency (the accepted Stadium offset), never per-seat
+load. This distributed, election-free assembly is chosen over any
+assemble-for-everyone scheme: it spreads the processing the most evenly with no
+dedicated node.
 
 ## Relation to the control plane
 The media plane is a pure consumer of the healing mesh: it reads the same occ
