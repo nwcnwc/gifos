@@ -2201,9 +2201,20 @@
       if (!msg.modw) return;
       admVerify(msg.modw, 'mod').then((o) => {
         if (!o || !o.mod) return;
+        // admVerify is async, so this resolves AFTER the status handler already
+        // ran reconcileApp for this tick. When it FIRST recognizes an admin,
+        // refresh the `admins` view and re-reconcile now — otherwise a guest
+        // wouldn't adopt that admin's already-shared app until a later periodic
+        // beat recomputed `admins` and a still-later status tick re-ran
+        // reconcileApp (2-3 heartbeats of an empty stage).
+        const newlyAdmin = o.by && !admins.includes(o.by);
         if (o.by) admSeen.set(o.by, Date.now()); // the SIGNED claim, not the re-gossiper
         if (o.ts > modWSeenTs) { modWSeen = msg.modw; modWSeenTs = o.ts; }
         mergeMod(o.mod);
+        if (newlyAdmin) {
+          admins = adminsNow();
+          if (typeof reconcileApp === 'function') reconcileApp();
+        }
       });
     }
     // The RAW device id never leaves this browser: it is only ever the input
