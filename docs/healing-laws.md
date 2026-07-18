@@ -321,7 +321,13 @@ childless — a leaf. **Only leaves move. No exceptions.**
   no IPs, no room contents, and arbitrates nothing — arrival order alone
   decides genesis. A URL-holder decrypts the list and reaches a RANDOMLY
   chosen greeter (spreads the load); the operator sees only ciphertext and a
-  hash. Entries expire on TTL; an empty list forgets the key.
+  hash. Entries expire on TTL; an empty list forgets the key. Routing stays
+  TARGETED and honest: a `{t:'peer'}` frame addressed to a peer with no socket
+  is answered to the sender with `{t:'nosock'}` (no silent drop, nothing
+  stored, nothing new revealed — the roster already says who holds a socket);
+  the sender then sponsor-forwards through the mesh instead
+  (docs/meet-security.md §FWD — the greeter pool doubles as the DOOR a
+  channel-less newcomer's signaling enters the mesh through).
 - **R3. Genesis via the key.** A newcomer knocks with a throwaway personal
   key. The first knocker to meet an EMPTY list has its key recorded as the
   meeting's genesis key and founds seat `('',0,0)`. The relay records it at
