@@ -10,7 +10,7 @@ never learns the room code or password, and stores nothing.
 This doc is the **map**. It describes what a participant sees and does, then
 points at the four canonical docs that specify each layer:
 
-- **Control plane** (who connects to whom, joining, healing) — [`healing-laws.md`](healing-laws.md); the detailed healing rule now in flux is tracked in [`option-a-plan.md`](option-a-plan.md).
+- **Control plane** (who connects to whom, joining, healing) — [`healing-laws.md`](healing-laws.md).
 - **Media plane** (how audio/video is composited and fanned) — [`media-plane.md`](media-plane.md).
 - **Security** (the door lock, admin authority, sponsor forwarding) — [`meet-security.md`](meet-security.md).
 - **Apps in a meeting** (a shared app on the mesh) — [`app-mesh.md`](app-mesh.md).
@@ -87,9 +87,9 @@ There is **no stored home**: a live walk of the mesh reaches a Section-1 seat an
 returns the current roster. When seats die, rows heal themselves by promoting a
 leaf from their own subtree, and orphaned subtrees either refill in place or drain
 and re-seat — all P2P, with the relay untouched. The full set of detection,
-healing, anti-cascade, and entry laws is [`healing-laws.md`](healing-laws.md).
-**The detailed designation rule is mid-redesign** — track it in
-[`option-a-plan.md`](option-a-plan.md), not here.
+healing, anti-cascade, and entry laws is [`healing-laws.md`](healing-laws.md);
+`site/js/mesh.js` is the faithful port of the reference sim (`sim/`) that
+implements them (fixed-designation healing, first-hand liveness, S4 identity).
 
 **Efficiency note:** encodes = links. A seat only ever encodes media for the
 bounded links it holds; deep seats that have dropped their relay socket cost the
@@ -159,7 +159,10 @@ A meeting's URL declares its governance, and **the address is the contract**:
   orders (mute/blur, ban, set/re-key password, grant the `app` right) travel
   **individually Ed25519-signed** and are verified identically by every peer and
   by the relay for its door duties. No socket is "an admin socket"; no transport
-  confers authority. Bans sever live media and refuse rejoins.
+  confers authority. Bans sever live media and refuse rejoins. An admin room
+  **only lives while an admin is present**: without one it is a blurred waiting
+  room (nothing clears), and after a 10-second grace a visible 5-minute
+  countdown runs and then evacuates everyone — the admin returning cancels it.
 
 **The lock is cryptography, not a gate.** A locked room's end-to-end key mixes the
 password into its derivation, so without the password you cannot *read* the room —
