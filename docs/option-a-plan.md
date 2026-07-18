@@ -21,6 +21,17 @@ into production. `sim/mesh.cpp` + `sim/mesh_seat.inc` are the source of truth.
 - **6** — enforce by default + **detonate on teleport**; fixed self-delivery misclassification.
 - **churn wiring** — batch `leaveFrac` was a DEAD no-op; wired `killFraction` so `./mesh N f` really does JOIN→kill→heal.
 
+## Status — where we are (parallel tracks)
+
+**Control plane** (the founding-rule payoff — "never through a server"):
+- **0–6 + churn wiring: DONE** — faithful transport, teleport impossible (enforced + detonates), routing converges, real churn wired.
+- **11a / bugs A+B: IMPLEMENTED but NOT green** (commit `a4286a5`). Clean 2000/3000 converge, TELEPORT=0, source of truth preserved; bug B's churn-collapse is FIXED and dups are now BOUNDED (~340, was unbounded); **but dups do not reach 0**, and bug A shows a small churn regression (seated ~979 vs 995, strands ~21 vs 5). **Blocker:** under mass churn a split-brain forms two **disjoint cliques** (each seat only messages its own clique via its divergent occ map), so a dup at X has **no shared arbiter** and freezes — the true arbiter is X's anchor-above, itself dupped, cascading to the **Section-1 heads** (no anchor; dedup only via weak `S1SYNC` gossip, which also has an **echo-phantom** that blocks refills). Needs **echo-immune liveness** (incr. 29) + a **cross-clique / top-down dedup authority** — beyond tuning; the four forbidden tweaks are confirmed dead ends. *See the KNOWN GAP note under "Why this fixes the dup".*
+- **Production port (13–14): GATED on A+B.** Not started — the biggest remaining win.
+
+**Media plane** (parallel; deploying to production now, independent of the control-plane port): Section A/V **dropped**; Stadium is an **equal-square, downward-growing grid** (cap/densify; overlay → tapestry + green audio dot past ~100); Stage stays a strip; **cross-link + multi-subscribe** (2-active / max-dormant, no-flicker) redundancy for Stage/Stadium. Reshapes increments **20–25**; being swarm-tested in production.
+
+**Redundancy-fabric topology tasks** (control-plane; NOT started — were gated on A+B green): head cross-link, column-major seating, redundancy healing (increments **F1–F3** below). They make heads + sparse sections actually *hold* the cross-links the media redundancy relies on.
+
 ## THE crux bug: healing breaks when control frames get dropped
 
 **In one sentence:** the mesh's self-healing assumes every control message is
@@ -178,6 +189,14 @@ is not the actor.
   (both occupy the healed coord, one of the healer's owned links), so on recovery the
   **same** healer resolves it over direct links. ≤1 per cell, self-cleaning, no
   multi-hop dedup needed.
+  - **KNOWN GAP (found in `a4286a5`):** this "self-cleaning" assumes both dup-holders
+    stay reachable to a shared arbiter. Under **mass churn** the mesh splits into
+    **disjoint cliques** with divergent occ maps — the two claimants of X land in
+    different cliques, the healer/anchor that should arbitrate is itself dupped
+    (cascading up to the Section-1 heads, which dedup only via weak `S1SYNC` gossip
+    with an echo-phantom), and the dup **freezes**. Closing this needs **echo-immune
+    liveness** + a **top-down / cross-clique dedup authority**, not just the local
+    direct-link resolution above. This is the open blocker on A+B.
 - **Refinement (optional) — positive death confirmation:** have the healer act only
   after the cell is silent past a horizon **longer than max severance** (cross-checked),
   so it rarely heals over a live cell at all. Formation-prevention atop reliable
@@ -258,6 +277,12 @@ preference.)
 - **30** — H8 whole-section death + cousins/heir foreknowledge, re-proven under strict routing.
 - **31** — Signaling under churn/partition: heal routing paths; re-prove convergence (composes with 11a/11b).
 - **32** — Media resilience: P1 friend-relay fallback when a direct media path fails (still no TURN, ever).
+
+### Redundancy fabric (control-plane cross-links for Stage/Stadium — sim-first; NOT started, was gated on A+B green)
+These make heads and sparse sections actually *hold* the cross-links the media plane's Stage/Stadium redundancy depends on.
+- **F1 — Head cross-link.** A row-head (no cross-link normally) temporarily holds the cross-link each EMPTY row-seat would hold, and hands it off when a newcomer/leaf fills that seat — so a head has cross-link redundancy while its row is sparse. Residual gap: a head that has lost all row-mates AND all section-mates (→ F2/F3).
+- **F2 — Column-major section seating.** Fill a section breadth-first (all heads, then column 1, then column 2, …) so inter-row cross-links form as early as possible, instead of filling one row deep before the next.
+- **F3 — Redundancy healing.** A node whose cross-linked section-mate has a subtree but whose own side is under-populated treats that as a redundancy hole and fills it by **promoting a strictly-deeper leaf** — a section-mate with no children must NOT offer itself (no lateral shuffle; only genuine surplus depth) — proactively, not waiting for newcomers.
 
 ### Production hardening & verification
 - **33** — Full swarm verification (500-bot multi-region) of the routed mesh — greeting-only relay confirmed at scale.
