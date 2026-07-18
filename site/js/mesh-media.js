@@ -208,7 +208,7 @@
     const tiles = new Map(); // id -> { ord, el, streamId, n, cols }
     const fold = (opts.ac && createAudioFold(opts.ac)) || null;
     let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0, active = true;
-    let G = 1, R = 1;
+    let G = 1, R = 1, lastNonEmpty = 0; // lastNonEmpty: empty-packer linger (see paint)
 
     const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
 
@@ -256,7 +256,16 @@
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       if (now - last < Math.max(1000 / fps, cost * 3)) { dropped++; return; } // GOVERNOR: drop, never queue
       const T = total();
-      if (T === 0) { if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; } // empty packer — don't paint a grid of nothing
+      if (T === 0) {
+        // EMPTY-PACKER LINGER: tiles flap transiently (a claim mid-failover, a
+        // gossip beat) — collapsing the canvas to 2×2 at once makes every
+        // receiver's decoder see the dimensions implode (a visible black/tiny
+        // flash), then re-negotiate the size back up. Freeze the last frame +
+        // dims for a few seconds; only a packer EMPTY for that long collapses.
+        if (lastNonEmpty && now - lastNonEmpty < 5000) { last = now; return; }
+        if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; // long-empty packer — don't paint a grid of nothing
+      }
+      lastNonEmpty = now;
       const g = packGrid(T, shape); G = g.cols; R = g.rows;
       // STADIUM: size the square against a FIXED footprint width (STAD_COLS·cellPref)
       // so ≤STAD_COLS columns render at full cellPref and a denser grid shrinks the
