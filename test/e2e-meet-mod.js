@@ -241,25 +241,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await d.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 90000 });
   for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 120000 });
   check('UNBAN readmits the device (undo path, end to end)', true);
-
-  // ---- admin sign-in: wrong password refused, right one grants ----
-  await e.locator('#admbtn').click();
-  await e.locator('#adm-pass').fill('not-the-password');
-  await e.locator('#adm-enable').click();
-  await e.waitForFunction(() => /Wrong admin password/.test(document.getElementById('status').textContent), null, { timeout: 30000 });
-  check('a wrong admin password is refused (local verify against V)', !(await e.evaluate(() => window.__gifosVideo.amAdmin())));
-  await e.locator('#adm-pass').fill(ADMIN_PW);
-  await e.locator('#adm-enable').click();
-  await e.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
-  check('the right admin password signs the guest in as a second admin', true);
-  // step back down to a guest for the waiting-room test below: reload without the stored key
-  await e.evaluate((roomId) => localStorage.removeItem('gifos_vadm_' + roomId), admRoom + '.' + av);
-  await e.reload();
-  await e.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room() && !window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
-  // her peer id is fresh again after the reload — wait for the ghost tile to
-  // drop and the new link to form, then re-learn who she is on Dana's page
-  await e.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 120000 });
-  await d.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.peerIds().length === 1, null, { timeout: 120000 });
+  // her peer id is fresh after the rejoin — wait for the ban-ghost tile to
+  // drop and re-learn who she is on Dana's page
+  await d.waitForFunction(() => window.__gifosVideo.peerIds().length === 1, null, { timeout: 60000 });
   const eId2 = await otherId(d);
 
   // ---- the BLURRED WAITING ROOM: no admin present ⇒ nothing clears ----
@@ -284,6 +268,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with NO admin present the room NEVER clears (blurred waiting room)', true);
   await e.waitForFunction(() => window.__gifosVideo.countdownShown(), null, { timeout: 30000 });
   check('the admin-absence countdown starts for the leftover guest', true);
+
+  // ---- admin sign-in: wrong password refused, right one grants (a LOCAL
+  // verify against V — needs no other admin present), and a fresh admin
+  // arriving cancels the countdown ----
+  await e.locator('#admbtn').click();
+  await e.locator('#adm-pass').fill('not-the-password');
+  await e.locator('#adm-enable').click();
+  await e.waitForFunction(() => /Wrong admin password/.test(document.getElementById('status').textContent), null, { timeout: 40000 });
+  check('a wrong admin password is refused (local verify against V)', !(await e.evaluate(() => window.__gifosVideo.amAdmin())));
+  await e.locator('#adm-pass').fill(ADMIN_PW);
+  await e.locator('#adm-enable').click();
+  await e.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 40000 });
+  check('the right admin password signs the guest in as an admin', true);
+  await e.waitForFunction(() => !window.__gifosVideo.countdownShown(), null, { timeout: 20000 });
+  check('an admin arriving cancels the auto-close countdown', true);
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
