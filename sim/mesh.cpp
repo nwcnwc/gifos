@@ -56,6 +56,13 @@ static inline uint64_t keyHash(uint64_t k){ k^=k>>33; k*=0xff51afd7ed558ccdull; 
 static const long long RELAY_TTL=500; static const int RELAY_CAP=72;
 static const long long E3_PERIOD=200;   // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
 static const long long STRAND_TTL=500;   // R6: a newcomer that cannot reach any greeter for this long (=RELAY_TTL) re-checks: empty list => take over, else => stranded (voted off / unreachable subnet)
+// H1-S1 RING-HEAL CONSERVATISM (W7): a HOME (Section-1) cell is refilled only after
+// its occupant has been unreachable via ALL its rook-redundant paths for this
+// settled window — a far higher bar than an ordinary hole. A wrong ring-heal is the
+// one act that mints a divergent home; holding the coord as a temporary hole is a
+// recoverable availability dip, so the ring always chooses the hole. Much longer
+// than the deep-tree confirmation (60), because the rook has many paths to exhaust.
+static const long long RING_HOLD=220;
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
 // Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
@@ -126,7 +133,7 @@ static inline void wake(int id){ if(PAR) tlsWake[curTid()].push_back(id); else n
 struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
-  Occ occ, live, s1seen, healTry, cousins; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
+  Occ occ, live, s1seen, healTry, cousins, holeSince; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   long long greetAt=-1,s1CheckAt=-1;
@@ -145,6 +152,13 @@ struct Seat {
   inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies)
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
+  // E2 FIRST-HAND liveness: `live[]` is set ONLY by direct contact — a PHONE I
+  // answered (onPhone), a HELLO/CLAIM its occupant sent me, a PONG from my head.
+  // GOSSIP (S1SYNC) never sets it. So firstHandLive is the ONLY signal that may
+  // evict/tie-break: a phantom (a stale gossip echo of a seat that has moved) is
+  // NOT first-hand live, so it can never yield a live healer out of a hole. This
+  // is the echo-immune fix — gossip informs routing, never liveness.
+  inline bool firstHandLive(uint64_t ck){ auto it=live.find(ck); return it!=live.end() && TICK-it->second<=60; }
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
   void rosterCells(Coord out[C]){ Coord h=ownedRowHead(); for(int c=0;c<C;c++) out[c]={h.pc,h.r,(uint8_t)c}; }
   // 11a FRONTIER-ONLY ADMISSION: admit a newcomer only into a TRUE frontier slot
@@ -181,7 +195,8 @@ struct Seat {
   void serveFind(Msg& m);
   void admit(Coord c,int nc);
   void onPhone(Msg& m);
-  void phoneHome(); void s1Sync(); void rowSweep(); void s1Fill(); void attack();
+  void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack();
+  bool ringConfirmDead(Coord h);   // H1-S1: true only after home cell h is unreachable via ALL rook paths for the full ring window (probe-gated)
   void drainOrReenter(); void reseatViaRoster();
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
@@ -230,7 +245,7 @@ static void teleportExplode(int from,int to,const Msg& m){
   fprintf(stderr,"\nFROM  #%d  state=%d  hasCoord=%d  coord=(%u,%u,%u)  socketed=%d  gateway=#%d\n",
     from, sf->state, sf->hasCoord, sf->coord.pc,sf->coord.r,sf->coord.i, sf->socketed(), sf->gateway);
   fprintf(stderr,"   FROM's owned links and who FROM believes sits at each:\n");
-  if(sf->hasCoord){ Coord ol[C+2]; int n=ownedLinks(sf->coord,ol);
+  if(sf->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(sf->coord,ol);
     for(int k=0;k<n;k++){ int occ=sf->occGet(ckey(ol[k])); fprintf(stderr,"      (%u,%u,%u) -> #%d %s\n", ol[k].pc,ol[k].r,ol[k].i, occ, occ==to?"  <-- the TARGET (so why not a neighbor?)":""); } }
   fprintf(stderr,"\nTO    #%d  state=%d  hasCoord=%d  coord=(%u,%u,%u)  socketed=%d  gateway=#%d\n",
     to, st->state, st->hasCoord, st->coord.pc,st->coord.r,st->coord.i, st->socketed(), st->gateway);
@@ -251,7 +266,7 @@ static void classifyEmit(int from,int to,const Msg& m){
   // A real link = whom I (the sender) BELIEVE occupies one of my owned-link
   // coords. That is my DataChannel peer, and it stays my peer even if their coord
   // is momentarily stale in the global view — so check MY occ map, not live coords.
-  Coord ol[C+2]; int n=ownedLinks(sf->coord,ol);
+  Coord ol[MAXLINKS]; int n=ownedLinks(sf->coord,ol);
   for(int k=0;k<n;k++) if(sf->occGet(ckey(ol[k]))==to){ EMIT_NEIGHBOR++; return; }
   if(sf->socketed() && st->socketed()){ EMIT_RELAY++; return; }   // legit: relay between two socketed peers (greeting scope)
   EMIT_TELEPORT++; if(mt>=0&&mt<32) TELE_BY_T[mt]++;              // BAD: non-adjacent, neither the relay nor a link could carry it
@@ -295,7 +310,7 @@ void Seat::emit(int to,const Msg& m){
     // Do I BELIEVE `to` occupies one of my owned links? Then I hold a link (DC) to
     // them — deliver direct. Uses MY occ view (matches the faithfulness metric), so
     // a stale global coord never turns a real link-send into a route or a teleport.
-    if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++) if(occGet(ckey(ol[k]))==to){ directLink=true; break; } }
+    if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++) if(occGet(ckey(ol[k]))==to){ directLink=true; break; } }
     if(!directLink){
       if(socketed() && st->socketed()){ /* relay path — both hold sockets (greeting scope): fall through to direct schedule */ }
       else if(st->hasCoord){ route(st->coord,-1,m); return; }                                   // deep target ⇒ route over the mesh
@@ -470,7 +485,7 @@ int main(int argc,char**argv){
       // so it must route around). Reports per-tier: effective latency (hops), reachability gaps, forwarder load.
       unordered_map<uint64_t,int> at; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) at[ckey(seats[q]->coord)]=q;
       auto rmedia=[&](int a,int b){ return reachable(seats[a]->subnet, seats[b]->subnet); };   // can this edge carry media?
-      auto nbrs=[&](int q, vector<int>&out){ out.clear(); Coord ol[C+2]; int n=ownedLinks(seats[q]->coord,ol); for(int k=0;k<n;k++){ auto it=at.find(ckey(ol[k])); if(it!=at.end()&&it->second!=q&&rmedia(q,it->second)) out.push_back(it->second); } };
+      auto nbrs=[&](int q, vector<int>&out){ out.clear(); Coord ol[MAXLINKS]; int n=ownedLinks(seats[q]->coord,ol); for(int k=0;k<n;k++){ auto it=at.find(ckey(ol[k])); if(it!=at.end()&&it->second!=q&&rmedia(q,it->second)) out.push_back(it->second); } };
       // --- STAGE / STADIUM: broadcast BFS from (0,0,0) over the reachable media graph ---
       int src = at.count(ckey({0,0,0}))? at[ckey({0,0,0})] : -1;
       int seatedN=(int)at.size(), maxDepth=0, cutoff=0, maxFan=0; double weakFanQual=1.0; int weakFanFan=0;
@@ -541,7 +556,7 @@ int main(int argc,char**argv){
         rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++; printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq); }
-    else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[C+2]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
+    else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
       string a=tk.size()>1?tk[1]:""; size_t sl=a.find('/'),dt=a.find('.',sl); if(sl==string::npos||dt==string::npos){printf("ERR usage: find <path>/<r>.<i>\n");continue;} string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps) pc=childPath(pc,ch-'0'); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()), i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); int who=-1; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&ckey(seats[q]->coord)==k){who=q;break;} printf("FIND %s -> seat %d\n",a.c_str(),who); }
@@ -549,7 +564,7 @@ int main(int argc,char**argv){
     else if(op=="spawn"){ int k=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<k;q++){ int id=nextId++; if(id>=(int)seats.size()){ seats.resize(id+1); alive.resize(id+1); } seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } N+=k; printf("OK spawned %d (ids %d..%d), N now %d\n",k,nextId-k,nextId-1,N); }
     else if(op=="where"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]) printf("WHERE %d dead\n",id); else printf("WHERE %d state=%d coord=%s\n",id,seats[id]->state,seats[id]->hasCoord?coordStr(seats[id]->coord).c_str():"-"); }
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }
-    else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d auditAt=%lld(in %lld)\n",id,a.c_str(),v,age,se->s1CheckAt,se->s1CheckAt-TICK);} }
+    else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; int liveAge=se->live.count(k)?(int)(TICK-se->live[k]):-1; int holeAge=se->holeSince.count(k)?(int)(TICK-se->holeSince[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d liveAge=%d holeSinceAge=%d fhLive=%d\n",id,a.c_str(),v,age,liveAge,holeAge,(int)se->firstHandLive(k));} }
     else if(op=="hist"){ unordered_map<uint64_t,int> cnt; int s1seats=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ cnt[ckey(seats[q]->coord)]++; if(seats[q]->coord.pc==0)s1seats++; } int h1=0,h2=0,h3=0,mx=0; uint64_t mxk=0; for(auto&e:cnt){ if(e.second==1)h1++; else if(e.second==2)h2++; else h3++; if(e.second>mx){mx=e.second;mxk=e.first;} } printf("HIST cells:1=%d 2=%d 3+=%d maxDup=%d@%s s1seats=%d\n",h1,h2,h3,mx,coordStr(unck(mxk)).c_str(),s1seats); }
     else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) H(genesisKey)=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }

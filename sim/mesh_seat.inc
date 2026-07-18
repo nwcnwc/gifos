@@ -11,11 +11,11 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.pc==0){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3: a Section-1 seat registers as a greeter on seating (present the MEETING genesis key)
   announce(); wake(id);
 }
-void Seat::announce(){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
+void Seat::announce(){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
 
 void Seat::admit(Coord c,int nc){
   occ[ckey(c)]=nc; noteS1(ckey(c));
-  vector<KV> nbrs; Coord ol[C+2]; int n=ownedLinks(c,ol);
+  vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[k]),x}); }
   bool selfNb=false; for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(coord)) selfNb=true;
   if(selfNb) nbrs.push_back({ckey(coord),id});
@@ -38,15 +38,21 @@ void Seat::heal(Coord hole){
   if(!hasCoord||state!=3||TICK-healAt<12) return;
   uint64_t hk=ckey(hole); if(TICK-(healTry.count(hk)?healTry[hk]:-999)<45) return;
   healAt=(int)TICK; healTry[hk]=(int)TICK;
-  vector<KV> nbrs; Coord ol[C+2]; int n=ownedLinks(hole,ol);
+  vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(hole,ol);
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id) nbrs.push_back({ckey(ol[k]),x}); }
   bool selfNb=false; for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(coord)) selfNb=true; if(selfNb) nbrs.push_back({ckey(coord),id});
   Coord oc; if(ownerCoordOf(hole,oc)){ int oid=occGet(ckey(oc)); bool has=false; for(auto&x:nbrs) if(x.k==ckey(oc))has=true; if(oid>=0&&!has) nbrs.push_back({ckey(oc),oid}); }
-  Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
-  for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(x,m); return; } }
-  if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);}
-    for(int q:ri){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(x,m); return; } } }
-  if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); vector<KV> rr; for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) rr.push_back(e); if(!rr.empty()){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(rr[(int)(rng()*rr.size())].v,m); return; } }
+  // Gather EVERY candidate leaf-source, then pick ONE at random. A single fixed
+  // source (my one known down-child) can have a broken/stale deep chain that
+  // silently swallows the FINDLEAF forever — the stuck-home-hole bug. Diversifying
+  // across my subtree children, my kidful row-mates, AND (for a home hole) other
+  // Section-1 seats' subtrees means repeated heals eventually reach a live leaf; a
+  // rare double-promotion is culled by E2's first-hand HELLO yield.
+  vector<int> src;
+  { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) src.push_back(x); } }
+  if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id) src.push_back(x); } }
+  if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) src.push_back(e.v); }
+  if(!src.empty()){ int who=src[(int)(rng()*src.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
   if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1) promoteInto(hole,nbrs);   // 11a: childless right-neighbour SCOOCHES left into its left-neighbour hole (head when coord.i==1) — left-pack base case (only a leaf moves)
 }
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
@@ -61,14 +67,14 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(coord.pc==0 && hole.pc!=0) return;
   if(coord.pc==0 && hole.pc==0 && !(hole.r==coord.r && hole.i<coord.i)) return;   // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), not just into the head
   bumpMoves();
-  Coord oldC=coord; Coord ol[C+2]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
+  Coord oldC=coord; Coord ol[MAXLINKS]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(oldC);m.id=id; emit(x,m);} }
   occ.clear(); s1seen.clear(); cousins.clear();   // moving levels: old cousins are stale; rebuild fresh at the new position
   take(hole,-1,nbrs);
   lastAck=(int)TICK; lastPhone=(int)TICK-100;
 }
-void Seat::attack(){ if(!hasCoord) return; Coord ol[C+2]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
+void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
@@ -81,7 +87,7 @@ void Seat::drainOrReenter(){
   if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
 }
-void Seat::reseatViaRoster(){ bumpMoves(); if(hasCoord){ Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::reseatViaRoster(){ bumpMoves(); if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
@@ -89,6 +95,10 @@ bool Seat::nextHopCoord(Coord t, Coord& out){
   Coord c=coord;
   if(c.pc==t.pc&&c.r==t.r&&c.i==t.i) return false;
   if(c.pc==t.pc){                                    // SAME section — stay inside it, over owned links only
+    if(c.pc==0){                                     // W7: Section 1 = 5x5 ROOK'S GRAPH — row+column are all owned links
+      if(c.r==t.r){ out={0,c.r,t.i}; return true; }  // same row: one hop to the target column
+      out={0,t.r,c.i}; return true;                  // else: column-mate straight into the target row (then a row-mate to t.i)
+    }
     if(c.r==t.r){ out={c.pc,c.r,t.i}; return true; } // same row: row-mate straight to the target column
     // Different row: reach row t.r via ONE transpose cross-link. crossLink(pc,r,col)
     // lands in row: (col==r ⇒ 0), (r==0 ⇒ col), else col. So the column whose
@@ -107,6 +117,11 @@ bool Seat::nextHopCoord(Coord t, Coord& out){
 }
 int Seat::nextHopToward(Coord target,int exclude){
   if(!hasCoord) return -1; Coord ideal; if(nextHopCoord(target,ideal)){ int x=occGet(ckey(ideal)); if(x>=0&&x!=id&&x!=exclude) return x; }
+  if(coord.pc==0){   // W7: Section 1 rook — many redundant paths; any live column- or row-mate can carry it onward
+    Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++){ int x=occGet(ckey(cm[q])); if(x>=0&&x!=id&&x!=exclude) return x; }
+    Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ int x=occGet(ckey(rm[q])); if(x>=0&&x!=id&&x!=exclude) return x; }
+    return -1;
+  }
   Coord xc; if(crossLink(coord,xc)){ int x=occGet(ckey(xc)); if(x>=0&&x!=id&&x!=exclude) return x; }
   Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ Coord cx; if(!crossLink(rm[q],cx))continue; int x=occGet(ckey(cx)); if(x>=0&&x!=id&&x!=exclude) return x; }
   return -1;
@@ -127,7 +142,7 @@ int Seat::strictNextHop(Coord rdst){
   if(!hasCoord) return -1;
   Coord ideal; if(!nextHopCoord(rdst,ideal)) return -1;   // already at rdst / no direction
   uint64_t ik=ckey(ideal);
-  Coord ol[C+2]; int n=ownedLinks(coord,ol);
+  Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
   for(int k=0;k<n;k++) if(ckey(ol[k])==ik){ int x=occGet(ik); return (x>=0&&x!=id)?x:-1; }
   return -1;                                               // ideal isn't a direct link — drop
 }
@@ -167,13 +182,15 @@ void Seat::onPhone(Msg& m){
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
   vector<KV> cous;
-  if(ckey(m.coord)==ckey(down(coord))){   // my DOWN-CHILD is phoning: teach it the heirs at its FUTURE owned-links (= my row-mates + cross-link), so if I die it promotes into me and re-links with no relay
+  if(ckey(m.coord)==ckey(down(coord))){   // my DOWN-CHILD is phoning: teach it the heirs at its FUTURE owned-links, so if I die it promotes into me and re-links with no relay
     Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ auto it=childOf.find(ckey(rm[q])); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(rm[q]),it->second}); }
-    Coord xl; if(crossLink(coord,xl)){ auto it=childOf.find(ckey(xl)); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(xl),it->second}); }
+    if(coord.pc==0){   // W7: my future owned-links are my whole ROW + whole COLUMN (rook) — teach the column heirs too
+      Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++){ auto it=childOf.find(ckey(cm[q])); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(cm[q]),it->second}); }
+    } else { Coord xl; if(crossLink(coord,xl)){ auto it=childOf.find(ckey(xl)); if(it!=childOf.end()&&it->second>=0) cous.push_back({ckey(xl),it->second}); } }
   } else if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){   // a ROW-MATE phoned me (the head): share MY cousins, so if it scooches/heals into head (H2/C2) it inherits the relay-free promote-up neighborhood
     for(auto&c:cousins) cous.push_back({c.first,c.second});
   }
-  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous; emit(m.id,p);
+  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous;p.coord=coord; emit(m.id,p);   // p.coord: my coord, so the phoner gains FIRST-HAND liveness for me (bidirectional heartbeat)
   if(prev>=0&&prev!=m.id){ Msg y;y.t=YIELD;y.ck=ck; emit(prev,y); }
 }
 void Seat::phoneHome(){
@@ -181,10 +198,27 @@ void Seat::phoneHome(){
   if(!have) return; int tid=occGet(ckey(tc)); if(tid<0) return;
 Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m);
 }
+// D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live rook
+// neighbour — its whole row AND whole column — each beat, so first-hand liveness is
+// maintained across all redundant home paths. This is what lets phantoms decay
+// (no heartbeat ⇒ not first-hand ⇒ probed and cleared) and lets ringConfirmDead /
+// the head-vacancy test rely on first-hand truth instead of gossip. The deep
+// down-link is still covered by the deep child phoning UP (phoneHome).
+void Seat::s1Heartbeat(){
+  if(!hasCoord || coord.pc!=0) return;
+  Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
+  for(int k=0;k<n;k++){ Coord t=ol[k]; if(t.pc!=0) continue;   // rook (Section-1) links only
+    int tid=occGet(ckey(t)); if(tid<0||tid==id) continue;
+    Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(t);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m); }
+}
 void Seat::s1Sync(){
   vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord)))});   // carry MY heir (my down-child)
   for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1}); } }
-  unordered_set<int> tg; Coord x; if(crossLink(coord,x)){int t=occGet(ckey(x)); if(t>=0&&t!=id)tg.insert(t);} Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){int t=occGet(ckey(rm[q])); if(t>=0&&t!=id)tg.insert(t);} int ab=occGet(ckey({0,(uint8_t)((coord.r-1+C)%C),coord.i})); if(ab>=0&&ab!=id)tg.insert(ab); int be=occGet(ckey({0,(uint8_t)((coord.r+1)%C),coord.i})); if(be>=0&&be!=id)tg.insert(be);
+  // W7: sync S1SYNC over the whole rook neighbourhood — every live row-mate AND
+  // column-mate (heads included). This is the S1SYNC that keeps the full C^2 home
+  // roster consistent across the richly-meshed section.
+  unordered_set<int> tg; Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){int t=occGet(ckey(rm[q])); if(t>=0&&t!=id)tg.insert(t);}
+  Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++){int t=occGet(ckey(cm[q])); if(t>=0&&t!=id)tg.insert(t);}
   for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent; emit(t,m); }
 }
 void Seat::rowSweep(){
@@ -209,7 +243,28 @@ void Seat::s1Fill(){
   // does not. (A severed-but-alive cell can trip this too — the rare re-heal is
   // ≤1 per cell and the head, linked to both claimants, resolves it via onPhone.)
   if(TICK-seatedAt<80) return;
-  for(int j=1;j<C;j++){ Coord c={0,coord.r,(uint8_t)j}; uint64_t ck=ckey(c); auto it=live.find(ck); if(it!=live.end()&&TICK-it->second<=60) continue; if(occ.count(ck)){occ.erase(ck);live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} heal(c); return; }
+  // The HEAD is the row backstop: it refills each of its row cells (0,r,1..4). Every
+  // fill is probe-gated (ringConfirmDead) so a merely-unreachable occupant is held as
+  // a hole, never duplicated. One heal per pass.
+  for(int j=1;j<C;j++){ Coord c={0,coord.r,(uint8_t)j}; uint64_t ck=ckey(c);
+    if(ringConfirmDead(c)){ if(occ.count(ck)){occ.erase(ck);live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} holeSince.erase(ck); heal(c); return; }
+  }
+}
+// H1-S1 RING-HEAL CONSERVATISM, probe-gated (NOT gossip-gated). A home cell I don't
+// hear first-hand is a hole, a phantom (a stale gossip echo — s1Fresh can NEVER
+// distinguish it from life, so it is useless as a liveness test), or an occupant
+// merely unreachable to me. So I actively PROBE it across the whole rook (routeTo
+// walks every redundant path): a live-and-reachable occupant answers with a HELLO
+// and becomes first-hand next round (=> not dead); a true hole / phantom / genuinely
+// -partitioned occupant stays silent. Only after the occupant is unreachable via ALL
+// paths for the full ring window is it declared dead. Holding a home coord as a
+// temporary hole is a recoverable dip; duplicating it is an unrecoverable divergence.
+bool Seat::ringConfirmDead(Coord h){
+  uint64_t hk=ckey(h);
+  if(firstHandLive(hk)){ holeSince.erase(hk); return false; }
+  routeTo(h,1);                                             // probe across the rook
+  int since = live.count(hk)? live[hk] : (holeSince.count(hk)? holeSince[hk] : (holeSince[hk]=(int)TICK));
+  return TICK-since>RING_HOLD;
 }
 
 void Seat::recv(Msg& m){
@@ -244,11 +299,16 @@ void Seat::recv(Msg& m){
     case PLACE: if(state==2) take(m.coord,m.owner,m.nbrs); return;
     case NOROOM: if(state==2){ retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
+      // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
+      // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
       if(hasCoord&&state==3&&m.ck==ckey(coord)&&m.id!=id&&m.id<id){ if(TICK-challAt>20){ challAt=(int)TICK; Msg c;c.t=CHALLENGE;c.ck=m.ck;c.from=id; emit(m.id,c);} return; }
       int prev=occGet(m.ck);
-      bool prevFresh=false; if(prev>=0){ if((m.ck>>16)==0) prevFresh=s1Fresh(m.ck); else prevFresh = live.count(m.ck)? (TICK-live[m.ck]<=40) : true; }
-      if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }
+      // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
+      // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.
+      bool prevFresh = (prev>=0) && firstHandLive(m.ck);
+      if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
+      live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck); return; }
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck) requeue(); return;
     case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
@@ -261,10 +321,14 @@ void Seat::recv(Msg& m){
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
+      // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts a seat
+      // and NEVER overwrites a cell I hold FIRST-HAND. (E2: gossip may inform
+      // routing, but liveness is first-hand only. The old gossip-requeue and
+      // gossip-YIELD were phantom weapons — a stale echo could evict a live seat.)
       for(auto&e:m.ent){ uint64_t ck=e.k; int eid=e.v; int age=e.age;
         if(e.ch>=0) childOf[ck]=e.ch;   // learn this Section-1 cell's heir (its down-child) — feeds cousins-in-PONG
-        if(hasCoord&&ck==ckey(coord)&&eid!=id){ int seen=(int)TICK-age-2; if(eid<id&&seen>seatedAt+4){ requeue(); return; } continue; }
-        if(age==0&&hasCoord){ int cur=occGet(ck); if(cur>=0&&cur!=eid&&cur<eid && TICK-(s1seen.count(ck)?s1seen[ck]:-999)<60){ Msg y;y.t=YIELD;y.ck=ck; emit(eid,y);} }
+        if(hasCoord&&ck==ckey(coord)&&eid!=id) continue;   // gossip claims MY seat: IGNORE. A genuine duplicate is settled by a first-hand witness (onPhone/HELLO), never by an echo.
+        if(firstHandLive(ck)) continue;                    // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
         int seen=(int)TICK-age-2; int cur=occGet(ck); int curSeen=s1seen.count(ck)?s1seen[ck]:-999;
         if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur)){ s1seen[ck]=max(curSeen,seen); if(cur!=eid)setOcc(ck,eid); }
         else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); }
@@ -275,7 +339,8 @@ void Seat::recv(Msg& m){
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id) requeue(); return;
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
+    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
+      if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;
       if(ckey(coord)==ckey(m.target)){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
@@ -286,17 +351,24 @@ void Seat::recv(Msg& m){
     default: return;
   }
 }
-void Seat::leave(){ alive[id]=0; active.erase(id); if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[C+2]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
+void Seat::leave(){ alive[id]=0; active.erase(id); if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
 void Seat::tick(){
   if(!alive[id]){ return; }
   if(state!=3){ if(stranded) return;   // R6: stranded => stop retrying (final error state; a real client would show the message + a manual retry)
     if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
   if(evil) attack();
   if(coord.pc==0){
-    if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); s1Sync(); }
+    if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
     if(coord.i==0 && (TICK%12)==0){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race
-    if(coord.i==1 && TICK-healAt>20 && TICK-lastAck>60){ Coord hd={0,coord.r,0}; if(occGet(ckey(hd))<0 && !hasDownChild(hd)) heal(hd); }   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A head WITH a subtree is healed by its down-child (VERTICAL, below). occGet<0 = definite LEAVE, so severance never false-heals.
-    if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
+    // H2 LEFT-PACK backstop (probe-gated): when my row has NO live head, the head
+    // can't run its row backstop, so the row rebuilds itself leftward — I heal my
+    // immediate LEFT neighbour (the head if I am column 1). This cascades toward the
+    // head: (0,r,3)->heals(0,r,2)->heals(0,r,1)->heals(0,r,0), each only once its
+    // left is confirmed dead. Restricted to headless rows so it never races the
+    // head's s1Fill. This is what rebuilds an all-heads-dead column-0.
+    if(coord.i>=1 && TICK-healAt>20 && !firstHandLive(ckey({0,coord.r,0}))){ Coord lft={0,coord.r,(uint8_t)(coord.i-1)}; uint64_t lk=ckey(lft);   // head NOT first-hand alive (phantom-proof) ⇒ headless row ⇒ rebuild leftward
+      if(ringConfirmDead(lft)){ if(occ.count(lk)){occ.erase(lk);live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
+    if(TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++) if(occGet(ckey(cm[q]))<0) routeTo(cm[q],1); }   // W7: keep column links live — re-ping any vacant column-mate (standby path, cross-links heal fast)
     if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);
     if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
     wake(id); return;
@@ -315,7 +387,12 @@ void Seat::tick(){
   // that owns a subtree; the row-mate LEFT-PACK covers only childless holes.
   bool didHeal=false;
   if(coord.i==0 && !cousins.empty() && TICK-healAt>20 && TICK-lastAck>60){ Coord oc;   // TICK-lastAck>60: POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
-    if(ownerCoord(oc) && occGet(ckey(oc))<0 && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
+    // H1-S1 CONSERVATISM: promoting into a SECTION-1 owner (oc.pc==0) is the one
+    // move that can mint a divergent home, so it waits the full ring-hold window —
+    // far longer than a deep hole (60). Under the rook, an owner unreachable this
+    // long really is gone; a merely-unreachable-but-alive owner recovers first.
+    long long confirm = (ownerCoord(oc)&&oc.pc==0) ? RING_HOLD : 60;
+    if(ownerCoord(oc) && occGet(ckey(oc))<0 && TICK-lastAck>confirm && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
       healTry[ckey(oc)]=(int)TICK; healAt=(int)TICK; didHeal=true;
       vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
       Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
