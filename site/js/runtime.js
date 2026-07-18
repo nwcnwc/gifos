@@ -1955,13 +1955,12 @@
               return { collections: cols };
             };
             let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null;
-            // WIRE CODEC: app-state crosses the mesh lane in the store's ONE
-            // binary format — a Uint8Array inside a record (My Media's photo /
-            // video bytes) becomes {$bin: b64}: compact, canonical-signable,
-            // and revivable at the far end. Left raw, JSON would silently
-            // explode it into a million-numeric-key plain object (huge to
-            // sign/seal, and never a Uint8Array again for the client).
-            const packState = (s) => JSON.parse(store.packJSON(s));
+            // Binary (My Media's photo/video Uint8Array) rides the state RAW:
+            // the mesh transport (gifos-net seal/open) already round-trips a
+            // typed array losslessly, and canonical() signs it to a stable
+            // token — so no {$bin} pre-encode here. Pre-encoding would sign the
+            // {$bin} form while the guest verifies the transport-revived typed
+            // array — the bad-sig that blanked shared blobs.
             // The LEAD fence rides inside every signed body: the mesh act lane
             // is fire-and-forget (no per-op reply like the relay host's), so a
             // client must refuse a led write LOCALLY — and it may only trust a
@@ -1970,7 +1969,7 @@
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               return db.getFullState().then((s) => {
-                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: packState(filterForGuests(s)), lead: leadBody() };
+                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s), lead: leadBody() };
                 return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
               }).catch(() => {});
             };
@@ -1981,7 +1980,7 @@
               // short debounce so late joiners stay current without paying the
               // app-byte cost on every keystroke.
               return db.getFullState().then((s) => {
-                const body = { state: packState(filterForGuests(s)), lead: leadBody() };
+                const body = { state: filterForGuests(s), lead: leadBody() };
                 return stageSigner.sign(sid, 'delta', body).then((f) => stageBus.send('delta', f));
               }).catch(() => {});
             };
@@ -1991,7 +1990,8 @@
             // room adopts — a non-owner can propose but never author state.
             const onAct = (op) => {
               if (!op || (op.op !== 'put' && op.op !== 'delete')) return;
-              try { op = store.unpackJSON(JSON.stringify(op)); } catch (e) { return; } // revive {$bin} → Uint8Array
+              // op.value already carries real Uint8Array bytes — the transport
+              // revived them; no {$bin} decode needed.
               const targetId = op.op === 'put' ? (op.value && op.value.id) : op.key;
               if (meshLead.on && targetId != null && meshLead.keys.has(op.collection + '::' + targetId)) return;
               const storedP = (targetId != null) ? db.op('get', op.collection, targetId) : Promise.resolve(null);
@@ -2711,11 +2711,10 @@
 
     return appOwnerLib().then((AO) => {
       const ver = AO.makeVerifier(sid, (params && params.pk) || null);
-      // Wire codec (mirror of the host's packState): revive the store's ONE
-      // binary format — {$bin: b64} → Uint8Array — after signature checks,
-      // and pack outgoing act-proposals the same way.
-      const unpackWire = (o) => store.unpackJSON(JSON.stringify(o));
-      const packWire = (o) => JSON.parse(store.packJSON(o));
+      // Binary rides raw: the transport revives typed arrays losslessly, so the
+      // verified body already holds real Uint8Array bytes — assign it straight
+      // into the mirror (a JSON re-clone would mangle the blob into a
+      // numeric-key object and break My Media's shared video).
       // The owner-signed LEAD fence (see leadBody in the host): while on, a
       // write to a fenced (collection,id) is refused HERE — the mesh act lane
       // has no per-op host reply, so the honest refusal must be local. The
@@ -2747,7 +2746,7 @@
             if (fenced(collection, rec.id)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
-            try { send('act', { op: 'put', collection: collection, value: packWire(rec) }); } catch (e) {}
+            try { send('act', { op: 'put', collection: collection, value: rec }); } catch (e) {}
             return Promise.resolve({ id: rec.id });
           }
           if (op === 'delete') {
@@ -2774,7 +2773,7 @@
       };
 
       const onSnap = (body) => {
-        if (body && body.state && body.state.collections) mirror = unpackWire(body.state);
+        if (body && body.state && body.state.collections) mirror = body.state;
         if (!mounted && body && body.app) {
           appBytes = gif.b64decode(body.app);
           return gif.decode(appBytes).then((archive) => {
@@ -2795,8 +2794,8 @@
           takeLead(r.body); // the signed lead fence rides every canonical frame
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
-            if (r.body && r.body.state && r.body.state.collections) { mirror = unpackWire(r.body.state); notify('*'); }
-            else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, unpackWire(r.body)); notify(r.body.collection); }
+            if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; notify('*'); }
+            else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
           }
         }).catch(() => {});
       });
