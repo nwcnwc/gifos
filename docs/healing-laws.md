@@ -326,29 +326,33 @@ is the bug.
   from *several* independent sources (multi-subscribe, cross-links —
   docs/media-plane.md). Poison is one feed among many, dropped or deduped.
   So a local capture stays local.
-- **S4. No climb (per-seat identity, TOFU, ALL the way down).** S1 is not
-  enough by itself: an attacker doesn't stay put, it tries to climb toward
-  fanout, one level at a time. And climbing is exactly what the mesh
+- **S4. No climb (one stable identity per PERSON, established at join).** S1
+  is not enough by itself: an attacker doesn't stay put, it tries to climb
+  toward fanout, one level at a time. And climbing is exactly what the mesh
   pre-wires it for — W6 hands every seat the live wiring of the layer *above*
   it (cousins) so it can promote up, and it already holds links to those
   cousins. So an attacker CAN reach and address the neighbours of the seat
   right above it. If healer-identity were forgeable there, it would
   impersonate that seat's designated healer, capture it, and repeat — rising
-  to poison ever more people. This is why "only the healer may fill" is
-  airtight ONLY if a witness can't be FOOLED about *who* the healer is — and
-  that must hold at **every level, not just the public Section-1 ring.** The
-  hardening:
-  - **A lightweight per-seat identity, minted at seating, pinned on first
-    contact (TOFU) — tree-wide.** When a seat takes a coord it mints a
-    throwaway keypair and its pubkey is pinned by its neighbours; every fill
-    or promotion it authors is signed by it, so an impostor cannot claim "I
-    am the healer of the seat above you." No accounts, no cost.
-  - **Trust is CHAINED, not raw per seat.** A new seat's key is introduced by
-    the healer that placed it — whose key was pinned when *it* was placed —
-    so there is no fresh unauthenticated first-contact to race: the
-    just-promoted occupant is vouched by an already-trusted healer, down to
-    frontier admission (vouched by the gatekeeper) and up to the genesis
-    founder. The delegation follows the same tree the healing does.
+  to poison ever more people. So "only the healer may fill" is airtight only
+  if a witness can't be FOOLED about *who* the healer is, at **every level.**
+  The hardening is small, and the key insight is that we only ever need to
+  make **first contact** unforgeable — everything after is free:
+  - **Identity is one keypair per PARTICIPANT, minted once at join — NOT per
+    seat.** The person's public key IS their name, and it does not change when
+    they move. (Minting a fresh key at every seat, as an earlier draft said,
+    would re-pin constantly under churn — the fragility this avoids.)
+    Promotion moves your *coord*, never your *identity*.
+  - **The links already carry identity; the key only makes it portable.** Every
+    mesh link is DTLS-secured, so once a neighbour has a link to you, "who is
+    on this link" is unforgeable for free. The keypair adds the one thing DTLS
+    doesn't: a *stable name across links and moves*. A fill is authored by the
+    healer, signed with its stable key; any neighbour that has ever seen that
+    key — or holds a live link to the healer's coord — recognises it. No
+    per-hop signature chain to maintain: just a stable name that travels with
+    the person. A seat's peer id can simply BE (the hash of) this key, which
+    also retires the old client-set-id hole (E2's tie-break can no longer be
+    hand-picked to impersonate someone).
   - **STATUS: specified here, not yet implemented.** Until it lands,
     healer-identity rests only on the healer's structural head start (it
     detects a death in seconds via the heartbeat D1; an attacker learns of a
@@ -356,14 +360,19 @@ is the bug.
     exposure is worst at Section 1, where wiring is fully public (W5/W6) and
     seats are relay-reachable.
 
-**Still open (named honestly):** the **Sybil** attack — one attacker wearing
-many masks — is not solved, because we deliberately have no accounts and no
-per-person identity. C3/S1/S2/S4 keep a Sybil from *reaching* or *climbing*
-into seats it has no legitimate healer claim to, and tree-wide TOFU keeps it
-from *impersonating* a healer at any level; but nothing yet stops an insider
-from being *many legitimate-looking seats at once*, nor from racing the very
-first pin of a brand-new key before the real healer announces. These are the
-same gap that leaves the torn-home reunion (E3) unsolved.
+**Still open (named honestly):** the whole scheme has ONE unforgeable-first-
+contact moment it rests on — join (and a total-reconnect where nobody
+remembers your key). That moment is authenticated only by the shared room key
+`K`, which proves "*a* member," not "*which* member." So two things stay
+unsolved there: the **Sybil** attack — one insider being many legitimate-
+looking participants at once (we deliberately have no accounts, so `K` can't
+tell one member from fifty) — and the **first-pin race**, an impostor claiming
+a brand-new (or a departed participant's) identity at that first contact
+before anyone can vouch for the real one. S4's per-person key makes identity
+unforgeable *everywhere except* that single moment; C3/S1/S2 keep an attacker
+from reaching or climbing into seats it has no legitimate claim to. But the
+first-contact gap is real, it is exactly one place, and it is the same gap
+that leaves the torn-home reunion (E3) unsolved.
 
 ---
 
@@ -374,8 +383,9 @@ same gap that leaves the torn-home reunion (E3) unsolved.
    *contest* a seat. A duplicate only arises between two *legitimate* seats
    (severance-revival), and E2 settles that deterministically — first-hand
    liveness only, tenure first, lower id wins. (The one residual: proving
-   *who* the healer is at every level needs the tree-wide per-seat TOFU key of
-   S4 — worst at the public Section-1 ring — specified, not yet built.)
+   *who* the healer is needs S4's per-person identity key, established at join
+   and stable as you move — worst-exposed at the public Section-1 ring —
+   specified, not yet built.)
 2. **Churn shatters the meeting into disconnected pieces (PARTLY OPEN).**
    Severed subtrees drain back in (E1); dead home cells are rebuilt from
    below (H1/H1-S1/H7, key preserved); a lone cut-off member gets an honest
