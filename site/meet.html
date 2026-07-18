@@ -3546,14 +3546,18 @@
     // ================== THE FRACTAL MOSAIC (3b, docs/media-plane.md) =========
     // The Stadium channel, distributed: every ROW HEAD composites its PRODUCT
     // — its row's camera band (H) + the up-to-C sub-products its row's
-    // down-links deliver (stacked V) — and ships it up. Section-1 heads
-    // exchange products over the row+cross fabric (3 bounded hops, full
-    // coverage by construction: mate i's cross partner is row i for i≠r and
-    // row 0 for i===r), stack them into THE STADIUM, and fan it back down
-    // every down-link. One mechanism carries every hop: a keyed aux-stream
-    // ship ({k:'mx'}) announced by streamId, claimed on ontrack — the exact
-    // friend-relay discipline. All of it gates on multiSection(): a room that
-    // fits in Section 1 renders everyone directly (the interim rule) and pays
+    // down-links deliver (stacked V) — and ships it up. Section 1 is the 5×5
+    // ROOK'S GRAPH (healing-laws W7): every S1 seat — heads included — links
+    // its whole row AND its whole column, so S1 heads exchange products
+    // DIRECTLY over the head column (1 hop), with a fully link-disjoint
+    // backup relayed through the row+column fabric (x1 → column carrier →
+    // sdrow). Each head stacks all C products into THE STADIUM and fans it
+    // back down every down-link. The deep tree (pc≠0) keeps the sparse
+    // single-transpose crossLink — only Section-1 routing is rook-wired. One
+    // mechanism carries every hop: a keyed aux-stream ship ({k:'mx'})
+    // announced by streamId, claimed on ontrack — the exact friend-relay
+    // discipline. All of it gates on multiSection(): a room that fits in
+    // Section 1 renders everyone directly (the interim rule) and pays
     // nothing here.
     const MM = GifOS.meshMedia;
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
@@ -3575,6 +3579,15 @@
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
     const occPid = (c) => { const s = meshSeat(); return s ? s.occGet(net.topo.ckey(c)) : null; };
+    // W7 rook: my deterministic column partner at Section 1 — the first
+    // OCCUPIED seat in my column, scanning rows cyclically below mine. Ring
+    // coverage: with full rows every seat receives exactly one column copy
+    // (from its cyclic predecessor), so each S1 seat holds a second sd source
+    // from a DIFFERENT row's compositor chain.
+    const nextColMate = (c) => {
+      for (let d = 1; d < SCALE.C; d++) { const co = { pc: 0, r: (c.r + d) % SCALE.C, i: c.i }; if (occPid(co)) return co; }
+      return null;
+    };
     // A hidden, playing <video> for a claimed stream — the drawImage source.
     function mosVideo(stream) {
       const v = document.createElement('video');
@@ -3642,7 +3655,8 @@
     // RESOLVE each to its routing slot (the mosaic's whole routing table):
     //   sub (+col from a relaying row-mate) -> a head's stack slot
     //   sub (no col, from my down-child)    -> head: slot 0 / non-head: relay it
-    //   x1 -> cross it; x2 -> hand to my head; sdrow:q -> stadium slot q
+    //   x1 -> carry it down my column (W7); x2:q -> hand to my head as sdrow:q
+    //   sdrow:q -> a head's stadium slot q (direct from head q, or relayed)
     //   sd -> THE STADIUM (render + fan down)
     function mosResolve(key, meta, from) {
       const c = meshCoord(); if (!c) return null;
@@ -3652,8 +3666,10 @@
         return iAmHead ? 'sub:0' : 'subraw';
       }
       if (key === 'x1') return iAmHead ? null : 'x1';
-      if (key === 'x2') return iAmHead ? null : 'x2';
-      if (key === 'sdrow') return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
+      // x2 is per-origin-row now (W7): one carrier delivers several rows'
+      // products through the same column, so the slots must not collide.
+      if (key === 'x2') return !iAmHead && meta && meta.row != null ? 'x2:' + meta.row : null;
+      if (key.indexOf('sdrow') === 0) return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
       if (key === 'sd') return 'sd';
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
@@ -3669,10 +3685,12 @@
       return !!(p && p.incoming && p.incoming.find((s) => s.id === sid && s.id !== p.ownSid));
     }
     // A resolved slot is REDUNDANT (multi-subscribe) if several independent paths
-    // fan the same logical feed to me: the Stadium, the Stage strip, and each
-    // individual stager. Structural relay slots (sub/x1/x2/sdrow) keep the plain
-    // single sticky claim.
-    const isRedun = (rk) => rk === 'sd' || rk === 'sgs' || rk.indexOf('stg:') === 0;
+    // fan the same logical feed to me: the Stadium, the Stage strip, each
+    // individual stager, and (W7) each stadium row product — a head receives
+    // sdrow:q both DIRECT from head q over the column link and relayed through
+    // the row+column fabric, two link-disjoint paths. Structural relay slots
+    // (sub/x1/x2) keep the plain single sticky claim.
+    const isRedun = (rk) => rk === 'sd' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
     const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
     // message only rides the DC when the state actually flips.
@@ -3867,8 +3885,18 @@
           const up = T.up(c); const upPid = up ? occPid(up) : null;
           const jk = shipMos('sub', upPid, prodPack.stream, prodMeta()); if (jk) wanted.add(jk);
         } else if (c.pc === 0 && multiSection()) {
-          // SECTION-1 FINISH: exchange products (x1 to each row-mate), PACK
-          // into THE STADIUM, fan it down my down-link + keep my row current.
+          // SECTION-1 FINISH (W7 rook): my product goes DIRECT to every other
+          // head over the head column — colMates of a head ARE the other heads
+          // — the 1-hop primary. A second, fully link-disjoint copy relays
+          // through the row+column fabric: x1 to each row-mate, who carries it
+          // down its COLUMN to the destination row (x2), whose holder hands it
+          // to its head (sdrow). Both announce the same sdrow:q slot; the
+          // receiving head multi-subscribes (primary + hot standby, S3). Then
+          // PACK into THE STADIUM, fan it down my down-link + keep my row
+          // current.
+          for (const hm of T.colMates(c)) {
+            const jk0 = shipMos('sdrow:' + c.r, occPid(hm), prodPack.stream, Object.assign({ row: c.r }, prodMeta())); if (jk0) wanted.add(jk0);
+          }
           for (let j = 1; j < C; j++) {
             const mate = occPid({ pc: 0, r: c.r, i: j });
             const jk = shipMos('x1', mate, prodPack.stream, Object.assign({ row: c.r }, prodMeta())); if (jk) wanted.add(jk);
@@ -3890,18 +3918,27 @@
         }
       } else {
         // NON-HEAD relays: my down-child's product -> my head (tagged with my
-        // column); my head's x1 -> across my cross-link; an x2 -> to my head.
-        // Meta {n, cols} is FORWARDED so the far end can unpack faces.
+        // column); my head's x1 -> down my COLUMN to its destination row (W7:
+        // the transpose cross-link is GONE at Section 1); any x2:q I hold ->
+        // to my head as sdrow:q. Meta {n, cols} is FORWARDED so the far end
+        // can unpack faces.
         const headPid = occPid({ pc: c.pc, r: c.r, i: 0 });
         const subraw = mosIn.get('subraw');
         if (subraw) { const jk = shipMos('sub', headPid, subraw.stream, Object.assign({ col: c.i }, blockMeta(subraw))); if (jk) wanted.add(jk); }
         const x1 = mosIn.get('x1');
         if (x1 && c.pc === 0) {
-          const xc = T.crossLink(c); const xPid = xc ? occPid(xc) : null;
+          // As mate i of my row I carry my head's product to DEST row i (row 0
+          // when i===r — my column's seat there covers the wrap), via my
+          // COLUMN-mate sitting in that row, who hands it to its head. This is
+          // the link-disjoint backup for the direct head-column ship above.
+          const dest = (c.i === c.r) ? 0 : c.i; // never my own row: i===r ⇒ r≥1 here, dest 0
+          const xPid = occPid({ pc: 0, r: dest, i: c.i });
           const jk = shipMos('x2', xPid, x1.stream, Object.assign({ row: x1.meta.row }, blockMeta(x1))); if (jk) wanted.add(jk);
         }
-        const x2 = mosIn.get('x2');
-        if (x2 && c.pc === 0) { const jk = shipMos('sdrow', headPid, x2.stream, Object.assign({ row: x2.meta.row }, blockMeta(x2))); if (jk) wanted.add(jk); }
+        if (c.pc === 0) for (const [mk, xf] of mosIn) {
+          if (mk.indexOf('x2:') !== 0 || !xf.meta || xf.meta.row == null) continue;
+          const jk = shipMos('sdrow:' + xf.meta.row, headPid, xf.stream, Object.assign({ row: xf.meta.row }, blockMeta(xf))); if (jk) wanted.add(jk);
+        }
       }
       // (Channel Se — the C×C Section composite — is DROPPED. Its cross-link
       // budget now backs up the Stadium/Stage fans below; section-mates fold
@@ -3929,12 +3966,16 @@
         if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null); }
         for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via); }
       } else {
-        // SECTION 1: flood each stage feed across row+cross ONCE per streamId
-        const s1peers = [...T.rowMates(c).map((m) => occPid(m)), (T.crossLink(c) ? occPid(T.crossLink(c)) : null)].filter(Boolean);
+        // SECTION 1 (W7 rook): flood each stage feed across the FULL row+column
+        // fabric ONCE per streamId — 8 independent neighbours, heads included,
+        // so any single dead S1 seat cannot starve the spread. Receivers keep
+        // 2 hot + dormant spares (multi-subscribe), so the extra announces
+        // cost nothing until demanded.
+        const s1peers = [...T.rowMates(c), ...T.colMates(c)].map((m) => occPid(m)).filter(Boolean);
         const floodOne = (key, stream) => { if (!stream || stgSpread.has(stream.id)) return; stgSpread.add(stream.id); for (const t of s1peers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); } };
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
         for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
-        // composite the strip in stage order; fan 'sgs' down my subtree + row-mates
+        // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
         if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', ac: (ensureAc(), ac) }).start();
@@ -3945,8 +3986,10 @@
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
         paintStageStrip(stripPack.stream);
-        const sgsMeta = () => ({ n: stripPack.count(), cols: stripPack.cols() });
-        for (const t of [occPid(T.down(c)), ...s1peers]) { const jk = shipMos('sgs', t, stripPack.stream, sgsMeta()); if (jk) wanted.add(jk); }
+        // Fan the strip DOWN only: every S1 seat composites its OWN strip from
+        // the flooded stg feeds, so sideways sgs ships between S1 seats were
+        // dead weight (receivers own stripPack and never paint them) — gone.
+        const jgs = shipMos('sgs', occPid(T.down(c)), stripPack.stream, { n: stripPack.count(), cols: stripPack.cols() }); if (jgs) wanted.add(jgs);
         }
       }
       // Every seat: render the received strip and fan it down (heads -> row-mates),
@@ -3963,8 +4006,11 @@
       } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
 
       // EVERY seat: the claimed stadium renders and fans DOWN my down-link; heads
-      // hand it to their row-mates; and over the cross-link as an independent
-      // backup (same dedup as 'sgs' above — closes the mid-tree freeze).
+      // hand it to their row-mates; and laterally as an independent backup —
+      // the cross-link in the deep tree, the next live COLUMN-mate at Section 1
+      // (W7: the transpose is gone there; the column partner sits in a
+      // different row fed by a different compositor). Same dedup as 'sgs'
+      // above — closes the mid-tree freeze.
       const sd = mosIn.get('sd');
       if (sd && !(iAmHead && c.pc === 0)) {
         paintStadiumTile(sd.stream);
@@ -3974,7 +4020,7 @@
           const mate = occPid({ pc: c.pc, r: c.r, i: j });
           const jk2 = shipMos('sd', mate, sd.stream, blockMeta(sd)); if (jk2) wanted.add(jk2);
         }
-        const xd = T.crossLink(c); const xdPid = xd ? occPid(xd) : null;
+        const xd = c.pc === 0 ? nextColMate(c) : T.crossLink(c); const xdPid = xd ? occPid(xd) : null;
         if (xdPid && xdPid !== sd.via) { const xj = shipMos('sd', xdPid, sd.stream, blockMeta(sd)); if (xj) wanted.add(xj); }
       } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
       for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
