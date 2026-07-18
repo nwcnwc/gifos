@@ -315,9 +315,7 @@ is the bug.
 - **S1. No action at a distance (C3 exclusivity).** A seat's occupant changes
   only via that hole's one designated healer, over an existing link. You can
   only affect seats you are already wired near — your own neighbourhood. An
-  attacker cannot reach across the tree to seize a high-fanout seat, because
-  it neither knows a deep seat's live wiring (private — only the healer and
-  neighbours hold it) nor can address its socketless neighbours.
+  attacker cannot reach across the tree to a *far* seat it has no link into.
 - **S2. No turnover capture (C3 + E2 scoping).** When a seat churns, only its
   designated healer may fill it; a raw claim is rejected. So the moment of
   turnover is no longer an open race a forgeable id can win. E2's tie-break
@@ -328,30 +326,44 @@ is the bug.
   from *several* independent sources (multi-subscribe, cross-links —
   docs/media-plane.md). Poison is one feed among many, dropped or deduped.
   So a local capture stays local.
-
-**The one dependency this rests on — and its open edge.** "Only the healer may
-fill" is airtight only if a witness can't be FOOLED about *who* the healer is.
-Deep in the tree that is free: an attacker is not on the link and does not
-know the ids. But **Section 1** is the exposed layer — its wiring is gossiped
-(W5/W6), its topology is fixed, and its seats are socketed greeters an
-attacker can reach — so there an attacker could try to **impersonate** the
-designated healer, and client-set ids let it. The hardening C3 depends on:
-- **A lightweight per-seat identity, pinned on first contact (TOFU).** When a
-  seat takes a coord it mints a throwaway keypair and announces the pubkey to
-  its neighbours; every later promotion it authors is signed by it. An
-  impostor cannot sign as the real heir, so "I am the healer" stops being
-  forgeable — no accounts, no cost, minted at seating. **STATUS: specified
-  here, not yet implemented.** Until it lands, Section-1 healer-identity rests
-  on the healer's structural head start (it detects a death in seconds via the
-  heartbeat, D1; an attacker learns of it only at relay/TTL speed) — a real
-  edge, not a proof.
+- **S4. No climb (per-seat identity, TOFU, ALL the way down).** S1 is not
+  enough by itself: an attacker doesn't stay put, it tries to climb toward
+  fanout, one level at a time. And climbing is exactly what the mesh
+  pre-wires it for — W6 hands every seat the live wiring of the layer *above*
+  it (cousins) so it can promote up, and it already holds links to those
+  cousins. So an attacker CAN reach and address the neighbours of the seat
+  right above it. If healer-identity were forgeable there, it would
+  impersonate that seat's designated healer, capture it, and repeat — rising
+  to poison ever more people. This is why "only the healer may fill" is
+  airtight ONLY if a witness can't be FOOLED about *who* the healer is — and
+  that must hold at **every level, not just the public Section-1 ring.** The
+  hardening:
+  - **A lightweight per-seat identity, minted at seating, pinned on first
+    contact (TOFU) — tree-wide.** When a seat takes a coord it mints a
+    throwaway keypair and its pubkey is pinned by its neighbours; every fill
+    or promotion it authors is signed by it, so an impostor cannot claim "I
+    am the healer of the seat above you." No accounts, no cost.
+  - **Trust is CHAINED, not raw per seat.** A new seat's key is introduced by
+    the healer that placed it — whose key was pinned when *it* was placed —
+    so there is no fresh unauthenticated first-contact to race: the
+    just-promoted occupant is vouched by an already-trusted healer, down to
+    frontier admission (vouched by the gatekeeper) and up to the genesis
+    founder. The delegation follows the same tree the healing does.
+  - **STATUS: specified here, not yet implemented.** Until it lands,
+    healer-identity rests only on the healer's structural head start (it
+    detects a death in seconds via the heartbeat D1; an attacker learns of a
+    turnover only at gossip/relay speed) — a real edge, not a proof — and the
+    exposure is worst at Section 1, where wiring is fully public (W5/W6) and
+    seats are relay-reachable.
 
 **Still open (named honestly):** the **Sybil** attack — one attacker wearing
 many masks — is not solved, because we deliberately have no accounts and no
-per-person identity. C3/S1/S2 keep a Sybil from *reaching* seats it is not
-wired to; per-seat TOFU keeps it from *impersonating* a healer; but nothing
-yet stops an insider from being *many legitimate-looking seats at once*. This
-is the same gap that leaves the torn-home reunion (E3) unsolved.
+per-person identity. C3/S1/S2/S4 keep a Sybil from *reaching* or *climbing*
+into seats it has no legitimate healer claim to, and tree-wide TOFU keeps it
+from *impersonating* a healer at any level; but nothing yet stops an insider
+from being *many legitimate-looking seats at once*, nor from racing the very
+first pin of a brand-new key before the real healer announces. These are the
+same gap that leaves the torn-home reunion (E3) unsolved.
 
 ---
 
@@ -361,9 +373,9 @@ is the same gap that leaves the torn-home reunion (E3) unsolved.
    may fill a hole; any other claim is rejected (C3), so no attacker can
    *contest* a seat. A duplicate only arises between two *legitimate* seats
    (severance-revival), and E2 settles that deterministically — first-hand
-   liveness only, tenure first, lower id wins. (The one residual: at the
-   public Section-1 ring, healer-identity needs the per-seat TOFU key of S —
-   specified, not yet built.)
+   liveness only, tenure first, lower id wins. (The one residual: proving
+   *who* the healer is at every level needs the tree-wide per-seat TOFU key of
+   S4 — worst at the public Section-1 ring — specified, not yet built.)
 2. **Churn shatters the meeting into disconnected pieces (PARTLY OPEN).**
    Severed subtrees drain back in (E1); dead home cells are rebuilt from
    below (H1/H1-S1/H7, key preserved); a lone cut-off member gets an honest
