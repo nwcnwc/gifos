@@ -49,8 +49,15 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
   await page.locator('#set-close').click();
 
   // ---- Erase clears IndexedDB AND the shell cache, then re-seeds fresh ----
+  // Erase moved OUT of the system context menu INTO Settings → Advanced settings
+  // → "Erase this computer" (a collapsed danger-zone disclosure, #set-erase in
+  // desktop.js) so it can't be hit by accident; #set-erase fires the same
+  // resetFlow() confirm with the "Erase without backup" action.
   await page.locator('#sys-menu-btn').click();
-  await page.locator('.ctx button', { hasText: 'Erase This Computer…' }).click();
+  await page.locator('.ctx button', { hasText: 'Settings…' }).click();
+  await page.locator('details.adv summary', { hasText: 'Advanced settings' }).click();
+  await page.locator('.danger-zone summary', { hasText: 'Erase this computer' }).click();
+  await page.locator('#set-erase').click();
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'load' }),
     page.locator('.modal-actions button', { hasText: 'Erase without backup' }).click(),
