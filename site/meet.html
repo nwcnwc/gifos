@@ -3563,14 +3563,13 @@
     // single-transpose crossLink — only Section-1 routing is rook-wired. One
     // mechanism carries every hop: a keyed aux-stream ship ({k:'mx'})
     // announced by streamId, claimed on ontrack — the exact friend-relay
-    // discipline. All of it gates on multiSection(): a room that fits in
-    // Section 1 renders everyone directly (the interim rule) and pays
-    // nothing here.
+    // discipline. All of it gates on beyondRow: a room that IS just my row
+    // renders everyone directly on Channel R and pays nothing here.
     const MM = GifOS.meshMedia;
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed PRIMARY — rendered + re-shipped)
     // MULTI-SUBSCRIBE (docs/media-plane.md): for the fanned-down redundant
-    // channels ('sd', 'sgs', per-stager 'stg:*') a receiver keeps TWO hot feeds
+    // channels ('sgs', per-stager 'stg:*', and the W7 sdrow products) a receiver keeps TWO hot feeds
     // — the PRIMARY (mosIn, rendered) and a hot STANDBY (mosStandby, decoding but
     // not shown) — over two INDEPENDENT paths, and pre-subscribes to every other
     // announcer as a DORMANT spare (zero bandwidth: the sender replaceTrack(null)s
@@ -3581,7 +3580,20 @@
     const subWant = new Map();    // from + '|' + key + '|' + sid -> 'w'|'i' (last demand sent — debounce)
     const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
-    const stgSpread = new Set(); // streamIds I have already spread across Section 1 (flood dedup)
+    const sdnPacks = new Map(); // col -> packer: per-child DOWN ingredients (mix-minus)
+    // STAGE AUDIO folds AT THE EAR (mix-minus): the strip is video-only; every
+    // device sums the per-stager feeds it holds, skipping its OWN — a stager
+    // never hears their own voice come back.
+    let stageEar = null;
+    function ensureStageEar() {
+      if (stageEar) return;
+      ensureAc(); if (!ac) return;
+      const fold = MM.createAudioFold(ac);
+      const el = new Audio(); el.autoplay = true;
+      el.srcObject = fold.dest.stream;
+      const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
+      stageEar = { fold, el, sids: new Map() };
+    }
     // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
     const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -3677,7 +3689,10 @@
       // products through the same column, so the slots must not collide.
       if (key === 'x2') return !iAmHead && meta && meta.row != null ? 'x2:' + meta.row : null;
       if (key.indexOf('sdrow') === 0) return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
-      if (key === 'sd') return 'sd';
+      // MIX-MINUS streams (docs/media-plane.md): per-branch, single-producer.
+      if (key === 'sdm') return iAmHead ? null : 'sdm'; // my head's finished row view — my Stadium
+      if (key === 'sdx') return !iAmHead ? 'sdx' : null; // my column's child-branch ingredient — relay DOWN
+      if (key === 'sdn') return iAmHead ? 'sdn' : null;  // my branch's outside-world ingredient (from above)
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
       // arriving over a cross-link — it resolves to the SAME slot so it just backs
@@ -3697,7 +3712,7 @@
     // sdrow:q both DIRECT from head q over the column link and relayed through
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
-    const isRedun = (rk) => rk === 'sd' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
+    const isRedun = (rk) => rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
     const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
     // message only rides the DC when the state actually flips.
@@ -3711,11 +3726,10 @@
     function repaintRedun(rk, stream) {
       // Respect the same position guards reconcileMosaic paints under, so an
       // instant-failover repaint never clobbers a locally-ORIGINATED composite:
-      // the Section-1 head owns the Stadium (sdPack); every S1 seat owns its own
+      // every head owns its row's Stadium view (sdPack); every S1 seat owns its own
       // Stage strip (stripPack). Those seats manage their own <video>.
       const c = meshCoord();
-      if (rk === 'sd') { if (c && c.i === 0 && c.pc === 0) return; paintStadiumTile(stream); }
-      else if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
+      if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
       // stg:* has no direct <video> — the S1 strip compositor re-reads mosIn.
     }
     // MULTI-SUBSCRIBE for one redundant slot: keep PRIMARY + hot STANDBY over two
@@ -3829,8 +3843,10 @@
       mosAnn.clear();
       if (prodPack) { prodPack.stop(); prodPack = null; }
       if (sdPack) { sdPack.stop(); sdPack = null; }
+      for (const pk of sdnPacks.values()) pk.stop();
+      sdnPacks.clear();
       if (stripPack) { stripPack.stop(); stripPack = null; }
-      stgSpread.clear();
+      if (stageEar) { stageEar.fold.clear(); stageEar.sids.clear(); }
       paintStadiumTile(null); paintStageStrip(null);
     }
     function reconcileMosaic() {
@@ -3843,7 +3859,7 @@
         for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
         return false;
       })();
-      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || mosStandby.size || prodPack || sdPack || stripPack) stopMosaic(); return; }
+      if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || mosStandby.size || prodPack || sdPack || sdnPacks.size || stripPack) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
       const T = net.topo;
@@ -3853,6 +3869,8 @@
       // compositor (where a face's overlay is burned) agrees on tiny-or-not.
       const stadTiny = MM.stadiumTiny(knownTotal());
       const stadLbl = (pid) => stadTiny ? { dot: true, talking: labelFor(pid).talking } : labelFor(pid);
+      const stagers = stageIds();               // gossiped, ordered, <=C
+      const amStager = stagers.includes(myId);
       // { el, stream } for a cell: my own live view, a claimed mosaic feed, or a
       // directly-linked peer. Stream carries the audio the fold sums; el is the
       // drawImage source (a <video> or a nested composite's <canvas>).
@@ -3879,7 +3897,8 @@
         // (no fixed C+1 slots — the tall-product blowup is gone).
         if (!prodPack) prodPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
         for (let j = 0; j < C; j++) {
-          const pid = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          const pid0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          const pid = pid0 && stagers.includes(pid0) ? null : pid0; // stagers live on the Stage ONLY (docs/media-plane.md)
           const sc = pid ? srcFor(pid) : null;
           if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(pid) });
           else prodPack.delTile('r' + j);
@@ -3908,20 +3927,70 @@
             const mate = occPid({ pc: 0, r: c.r, i: j });
             const jk = shipMos('x1', mate, prodPack.stream, Object.assign({ row: c.r }, prodMeta())); if (jk) wanted.add(jk);
           }
+        }
+        // ---- MIX-MINUS down-flow (docs/media-plane.md): every mix is built
+        // ADDITIVELY from pieces this head already holds separately; nobody
+        // ever receives a mix containing their own row.
+        if (beyondRow) {
+          // "Outside my branch": at S1 the other rows' sdrow blocks; deeper,
+          // the sdn ingredient my up-seat relayed down.
+          const setOutside = (pk) => {
+            if (c.pc === 0) {
+              pk.delTile('dn');
+              for (let q = 0; q < C; q++) {
+                if (q === c.r) { pk.delTile('q' + q); continue; }
+                const rowIn = mosIn.get('sdrow:' + q);
+                if (rowIn) setBlock(pk, 'q' + q, 1 + q, rowIn); else pk.delTile('q' + q);
+              }
+            } else {
+              for (let q = 0; q < C; q++) pk.delTile('q' + q);
+              const dn = mosIn.get('sdn');
+              if (dn) setBlock(pk, 'dn', 0, dn); else pk.delTile('dn');
+            }
+          };
+          // MY ROW'S VIEW ('sdm'): outside + my child blocks. My own row's
+          // faces are ABSENT — they are the Channel R tiles on the same
+          // screen. Every face on screen exactly once; audio matches video.
           if (!sdPack) sdPack = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start();
-          for (let q = 0; q < C; q++) {
-            if (q === c.r) { sdPack.setTile('q' + q, q, prodPack.canvas, prodPack.stream, prodMeta()); continue; }
-            const rowIn = mosIn.get('sdrow:' + q);
-            if (rowIn) setBlock(sdPack, 'q' + q, q, rowIn); else sdPack.delTile('q' + q);
-          }
+          setOutside(sdPack);
+          for (let j = 0; j < C; j++) { const sub = mosIn.get('sub:' + j); if (sub) setBlock(sdPack, 's' + j, 20 + j, sub); else sdPack.delTile('s' + j); }
           paintStadiumTile(sdPack.stream);
           const sdMeta = () => ({ n: sdPack.count(), cols: sdPack.cols() });
-          const downPid = occPid(T.down(c));
-          const jk2 = shipMos('sd', downPid, sdPack.stream, sdMeta()); if (jk2) wanted.add(jk2);
-          for (let j = 1; j < C; j++) { // S1 row-mates see the stadium too
-            const mate = occPid({ pc: 0, r: c.r, i: j });
-            const jk3 = shipMos('sd', mate, sdPack.stream, sdMeta()); if (jk3) wanted.add(jk3);
+          for (let j = 1; j < C; j++) {
+            const mate = occPid({ pc: c.pc, r: c.r, i: j });
+            const jk3 = shipMos('sdm', mate, sdPack.stream, sdMeta()); if (jk3) wanted.add(jk3);
           }
+          // PER-CHILD DOWN INGREDIENTS ('sdx' -> 'sdn'): outside + MY row's
+          // faces + every OTHER child's block. The one piece left out is the
+          // receiving branch itself — built by adding, never subtracting.
+          for (let i = 0; i < C; i++) {
+            const childPid = occPid(T.down({ pc: c.pc, r: c.r, i }));
+            if (!childPid) { const old = sdnPacks.get(i); if (old) { old.stop(); sdnPacks.delete(i); } continue; }
+            let pk = sdnPacks.get(i);
+            if (!pk) { pk = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start(); sdnPacks.set(i, pk); }
+            setOutside(pk);
+            for (let j = 0; j < C; j++) {
+              const fp0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+              const fp = fp0 && stagers.includes(fp0) ? null : fp0;
+              const sc = fp ? srcFor(fp) : null;
+              if (sc && sc.el) pk.setTile('f' + j, 10 + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(fp) });
+              else pk.delTile('f' + j);
+            }
+            for (let j = 0; j < C; j++) {
+              if (j === i) { pk.delTile('s' + j); continue; }
+              const sub = mosIn.get('sub:' + j);
+              if (sub) setBlock(pk, 's' + j, 20 + j, sub); else pk.delTile('s' + j);
+            }
+            const m = { n: pk.count(), cols: pk.cols() };
+            const jk4 = i === c.i ? shipMos('sdn', childPid, pk.stream, m)
+              : shipMos('sdx', occPid({ pc: c.pc, r: c.r, i }), pk.stream, Object.assign({ col: i }, m));
+            if (jk4) wanted.add(jk4);
+          }
+        } else {
+          if (sdPack) { sdPack.stop(); sdPack = null; }
+          for (const pk of sdnPacks.values()) pk.stop();
+          sdnPacks.clear();
+          paintStadiumTile(null);
         }
       } else {
         // NON-HEAD relays: my down-child's product -> my head (tagged with my
@@ -3946,6 +4015,11 @@
           if (mk.indexOf('x2:') !== 0 || !xf.meta || xf.meta.row == null) continue;
           const jk = shipMos('sdrow:' + xf.meta.row, headPid, xf.stream, Object.assign({ row: xf.meta.row }, blockMeta(xf))); if (jk) wanted.add(jk);
         }
+        // MIX-MINUS relay: my column's child-branch ingredient — my head built
+        // it, I hand it to my down-child, where it becomes that head's
+        // "outside my branch" ('sdn').
+        const sdx = mosIn.get('sdx');
+        if (sdx) { const jn = shipMos('sdn', occPid(T.down(c)), sdx.stream, blockMeta(sdx)); if (jn) wanted.add(jn); }
       }
       // (Channel Se — the C×C Section composite — is DROPPED. Its cross-link
       // budget now backs up the Stadium/Stage fans below; section-mates fold
@@ -3955,8 +4029,6 @@
       // per-stager key); at S1 they FLOOD the row+cross mesh (dedup by streamId,
       // exactly like mesh gossip) so every S1 seat holds every stager; each S1
       // seat composites the strip itself and fans it down the SAME tree as 'sd'.
-      const stagers = stageIds();               // gossiped, ordered, <=C
-      const amStager = stagers.includes(myId);
       const heldStg = [...mosIn.keys()].filter((k) => k.indexOf('stg:') === 0);
       if (c.pc !== 0) {
         // relay every stage feed I hold (and my own) UP toward Section 1, plus a
@@ -3967,11 +4039,19 @@
         const upTgt = iAmHead ? (T.up(c) ? occPid(T.up(c)) : null) : occPid({ pc: c.pc, r: c.r, i: 0 });
         const xUp = T.crossLink(c); const xUpPid = xUp ? occPid(xUp) : null;
         const relayStg = (key, stream, via) => {
-          let jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk);
-          if (xUpPid && xUpPid !== upTgt && xUpPid !== via) { jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
+          if (upTgt && upTgt !== via) { const jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk); }
+          if (xUpPid && xUpPid !== upTgt && xUpPid !== via) { const jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
+          // and DOWN: the strip is video-only — the per-stager feeds must
+          // reach EVERY subtree so Stage audio can fold at each ear.
+          const dnP = occPid(T.down(c));
+          if (dnP && dnP !== via && dnP !== upTgt) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
         };
         if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null); }
         for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via); }
+        if (iAmHead) for (const k of heldStg) { // my row folds at its ears too
+          const f = mosIn.get(k);
+          for (let j = 1; j < C; j++) { if (occPid({ pc: c.pc, r: c.r, i: j }) === f.via) continue; const jm = shipMos(k, occPid({ pc: c.pc, r: c.r, i: j }), f.stream, null); if (jm) wanted.add(jm); }
+        }
       } else {
         // SECTION 1 (W7 rook): flood each stage feed across the FULL row+column
         // fabric ONCE per streamId — 8 independent neighbours, heads included,
@@ -3979,13 +4059,20 @@
         // 2 hot + dormant spares (multi-subscribe), so the extra announces
         // cost nothing until demanded.
         const s1peers = [...T.rowMates(c), ...T.colMates(c)].map((m) => occPid(m)).filter(Boolean);
-        const floodOne = (key, stream) => { if (!stream || stgSpread.has(stream.id)) return; stgSpread.add(stream.id); for (const t of s1peers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); } };
+        const flooded = new Set(); // PER-SWEEP dedup (one feed may resolve via two keys). The old
+        // persistent stgSpread let the sweep-end reaper kill flood jobs after one sweep.
+        const floodOne = (key, stream) => {
+          if (!stream || flooded.has(stream.id)) return; flooded.add(stream.id);
+          for (const t of s1peers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); }
+          const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
+          if (dnP) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
+        };
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
         for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
         // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', ac: (ensureAc(), ac) }).start();
+        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar' }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus)
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
@@ -4012,24 +4099,20 @@
         if (xgPid && xgPid !== sgs.via) { const xj = shipMos('sgs', xgPid, sgs.stream, blockMeta(sgs)); if (xj) wanted.add(xj); }
       } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
 
-      // EVERY seat: the claimed stadium renders and fans DOWN my down-link; heads
-      // hand it to their row-mates; and laterally as an independent backup —
-      // the cross-link in the deep tree, the next live COLUMN-mate at Section 1
-      // (W7: the transpose is gone there; the column partner sits in a
-      // different row fed by a different compositor). Same dedup as 'sgs'
-      // above — closes the mid-tree freeze.
-      const sd = mosIn.get('sd');
-      if (sd && !(iAmHead && c.pc === 0)) {
-        paintStadiumTile(sd.stream);
-        const downPid = occPid(T.down(c));
-        const jk = shipMos('sd', downPid, sd.stream, blockMeta(sd)); if (jk) wanted.add(jk);
-        if (iAmHead) for (let j = 1; j < C; j++) {
-          const mate = occPid({ pc: c.pc, r: c.r, i: j });
-          const jk2 = shipMos('sd', mate, sd.stream, blockMeta(sd)); if (jk2) wanted.add(jk2);
-        }
-        const xd = c.pc === 0 ? nextColMate(c) : T.crossLink(c); const xdPid = xd ? occPid(xd) : null;
-        if (xdPid && xdPid !== sd.via) { const xj = shipMos('sd', xdPid, sd.stream, blockMeta(sd)); if (xj) wanted.add(xj); }
-      } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
+      // Non-heads: my head's finished row view ('sdm') IS my Stadium — it
+      // already excludes my row. Per-branch mixes are single-producer by
+      // construction (a neighbour's mix would contain MY row), so the old
+      // verbatim re-fan of the shared 'sd' is gone with the shared 'sd'.
+      if (!iAmHead) { const sdm = mosIn.get('sdm'); paintStadiumTile(sdm ? sdm.stream : null); }
+      // STAGE EAR: sum the per-stager feeds I hold, skipping my own.
+      if (stagers.length) ensureStageEar();
+      if (stageEar) {
+        const want2 = new Map();
+        for (const [k2, f2] of mosIn) if (k2.indexOf('stg:') === 0 && k2 !== 'stg:' + myId && f2.stream) want2.set(k2, f2.stream);
+        for (const [k2, sid] of [...stageEar.sids]) { const st2 = want2.get(k2); if (!st2 || st2.id !== sid) { stageEar.fold.remove(k2); stageEar.sids.delete(k2); } }
+        for (const [k2, st2] of want2) if (!stageEar.sids.has(k2)) { stageEar.fold.add(k2, st2, 1); stageEar.sids.set(k2, st2.id); }
+        stageEar.el.volume = mix.stage;
+      }
       for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
     }
 
@@ -4191,7 +4274,9 @@
         // folds (section band / stadium). Letting the raw track through gave a
         // disembodied "ghost voice" with no tile (and double-audio once the
         // composite carried them too).
-        const bus = stg.has(pid) ? 'stage' : mates.has(pid) ? 'row' : null;
+        // Stagers' direct tracks are muted too: their voice arrives via the
+        // per-stager feeds folded at the ear — the direct link would double it.
+        const bus = stg.has(pid) ? null : mates.has(pid) ? 'row' : null;
         busVolume(p.video, bus ? mix[bus] : 0);
       }
       // feed tiles (3b's mosaics): stage strip is Stage; stadium tiles are
@@ -4204,6 +4289,7 @@
       // Section A/V + audio are dropped; section-mates fold into the Stadium.
       // Progressive disclosure for the stadium fader.
       document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
+      if (stageEar) stageEar.el.volume = mix.stage; // the Stage fader drives the ear fold
     }
     const mixPanel = document.getElementById('mixpanel');
     document.getElementById('mixbtn').onclick = () => {
@@ -4344,7 +4430,7 @@
         singWas = on;
         if (on) {
           singPrevMix = Object.assign({}, mix);
-          Object.assign(mix, { stage: 1, row: 0.55, section: 0.4, stadium: 0.3 }); // feature the leader; the room sings around you
+          Object.assign(mix, { stage: 1, row: 0.55, stadium: 0.3 }); // feature the leader; the room sings around you
           paintFaders(); applyBuses();
           if (myStatus.sing && stageIds().includes(myId)) setMicMode('music');
           else setStatus('🎵 ' + esc(singLeaderName()) + ' is leading a song — sing along! (earbuds make your voice part of the choir)');
