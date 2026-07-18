@@ -4066,6 +4066,14 @@
           paintStadiumTile(null);
         }
       } else {
+        // ROLE-CHANGE hygiene: a seat that moved head → non-head (heal,
+        // teleport) must not keep its head packers painting + encoding
+        // forever. Receivers of the old streams re-claim the new head's mixes.
+        if (prodPack) { prodPack.stop(); prodPack = null; }
+        if (sdPack) { sdPack.stop(); sdPack = null; }
+        for (const pk of sdnPacks.values()) pk.stop();
+        sdnPacks.clear();
+        sdEmptyAt = 0;
         // NON-HEAD relays: my down-child's product -> my head (tagged with my
         // column); my head's x1 -> down my COLUMN to its destination row (W7:
         // the transpose cross-link is GONE at Section 1); any x2:q I hold ->
@@ -4122,6 +4130,7 @@
       // exactly like mesh gossip) so every S1 seat holds every stager; each S1
       // seat composites the strip itself and fans it down the SAME tree as 'sd'.
       const heldStg = [...mosIn.keys()].filter((k) => k.indexOf('stg:') === 0);
+      if (c.pc !== 0 && stripPack) { stripPack.stop(); stripPack = null; } // role-change hygiene: left Section 1
       if (c.pc !== 0) {
         // relay every stage feed I hold (and my own) UP toward Section 1, plus a
         // REDUNDANT copy over my cross-link ('^x' → same slot at the far end). The
