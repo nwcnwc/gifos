@@ -68,12 +68,24 @@ flipping your own flag.
    the LAST mix, which is why the last mix is at the ear (see Channel Sd's
    mix-minus law).
 
-**Stagers live on the Stage ONLY.** While on Stage, a stager's face and mic are
-**excluded from their row's product** (and therefore from every Stadium mix),
-and row-mates play no direct stager audio — everyone sees and hears a stager
-through the Stage channel alone. No double appearance; no voice arriving twice
-at two different latencies (the reverb-smear bug); and the broadcaster's
-row-facing load drops away exactly when they take on the fan-up cost.
+**Stagers live on the Stage ONLY — and the exclusion is now complete, on the
+sender side too.** While on Stage, a stager's face and mic are **excluded from
+their row's product** (and therefore from every Stadium mix), row-mates play no
+direct stager audio, **and the stager's own MAIN camera+mic senders are
+parked** — `replaceTrack(null)` on every direct peer link the moment the
+gossiped stage set includes them (the m-lines stay negotiated, so stepping
+down restores the current tracks with a pure `replaceTrack`, no
+renegotiation). The stager's `stg:` aux feed — the blurred/raw video **plus
+the mic** — is the one thing that leaves their device; every ear folds that
+audio via the stageEar (skipping its own), and row-mates **hide the stager's
+direct grid tile** (it would be a black square) — the stager appears in the
+Stage strip like everyone else, and the tile returns on step-down. No double
+appearance; no voice arriving twice at two different latencies (the
+reverb-smear bug); no duplicate upload; and the broadcaster's row-facing load
+drops away exactly when they take on the fan-up cost. Track swaps mid-stage
+(blur pipe on/off, mic-mode/camera re-grab) never resurrect the parked main
+senders — the fresh track reaches the room through the `stg:` ship, which
+re-ships exactly when a track actually changes.
 
 One composited strip for the picture, **not** ≤C separate video streams —
 fan-out is one cheap stream and a fixed panel is what a broadcast tier wants
