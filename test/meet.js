@@ -48,6 +48,19 @@
  *   links | l     my bounded link set + each link's connection/DC state
  *   net           WHERE traffic travels: relay vs DC vs sponsor-forward (txStats)
  *   mosaic | m    the four media composites: which channels are live
+ *   mon [secs] [intervalMs]  A/V FEED MONITOR (default 120s / 1000ms): samples
+ *                 the Stadium+Stage tiles (present/src/dims/frame progress),
+ *                 the mosaic machinery (claims/standby/jobs/demand from the
+ *                 debug hooks) and per-receiver WebRTC stats (video frame +
+ *                 audio packet/energy deltas), and logs every TRANSITION as a
+ *                 greppable `MON t+.. EV <type> <detail>` line — tile off/on,
+ *                 srcObject switches, black/live flips, claim gain/loss/
+ *                 via-switch, standby changes, job ship/unship/dormancy flips,
+ *                 demand (mx-want/mx-idle) flips, video pipe stalls >2s, audio
+ *                 pipe stalls, stage-ear input changes, packer canvas resizes.
+ *                 Ends with a `MON SUM` flap-count summary + event timeline.
+ *                 Works (degraded: no WebRTC stats) against builds without the
+ *                 monInfo/avStats hooks. THE regression tool for tile flap.
  *   feeds         every CLAIMED feed: dims, frames, track mute — sender vs receiver
  *   stage [up|down]  who's on stage + the strip's state; up/down steps me on/off
  *   consent       the clear-video tally (X/N) and exactly who is blocking it
@@ -248,6 +261,158 @@ async function join(room, opts) {
 }
 const D = () => page.evaluate(snapshotInPage).catch((e) => ({ err: String(e).slice(0, 140) }));
 
+// ---- the A/V feed monitor (`mon`) -----------------------------------------
+// One in-page sample: the monInfo()/avStats() hooks when present (this repo's
+// build), else a degraded rebuild from mosaic() + DOM (deployed builds).
+function monSampleInPage() {
+  const V = window.__gifosVideo;
+  const g = (f, d) => { try { const v = f(); return v === undefined ? d : v; } catch (e) { return d; } };
+  const vidInfo = (v) => v ? { sid: v.srcObject ? String(v.srcObject.id).slice(0, 8) : null,
+    w: v.videoWidth, h: v.videoHeight, paused: v.paused,
+    frames: v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality().totalVideoFrames : -1 } : null;
+  if (!V) return { err: 'no __gifosVideo hook yet' };
+  let mon = V.monInfo ? g(() => V.monInfo(), null) : null;
+  if (mon) { // shorten tile sids to match the degraded path
+    for (const k of ['sd', 'sgs']) if (mon.tiles[k] && mon.tiles[k].sid) mon.tiles[k].sid = String(mon.tiles[k].sid).slice(0, 8);
+  } else {
+    const m = g(() => V.mosaic(), null) || {};
+    const c = m.coord;
+    mon = { t: Date.now(), degraded: true, coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null, head: !!m.head, s1: !!m.s1,
+      tiles: { sd: vidInfo(document.querySelector('[data-row="sd"] video')), sgs: vidInfo(document.querySelector('[data-row="sgs"] video')) },
+      claims: (m.claimVia || []).map((x) => ({ rk: x.rk, via: String(x.via).slice(0, 8), sid: String(x.sid).slice(0, 8) })),
+      standby: (m.standbyVia || []).map((x) => ({ rk: x.rk, via: String(x.via).slice(0, 8), sid: String(x.sid).slice(0, 8) })),
+      jobs: (m.jobsActive || []).map((s) => ({ jk: s.slice(0, -1), active: s.slice(-1) === '+' })),
+      demand: (m.demand || []).map((s) => { const q = s.lastIndexOf('='); return { k: s.slice(0, q), v: s.slice(q + 1) }; }),
+      ear: [], packs: { prod: m.prod || null, sd: m.sd || null }, stagers: m.stagers || 0 };
+  }
+  const fin = (stats) => ({ mon, stats: stats || null });
+  return (V.avStats ? V.avStats().then(fin, () => fin(null)) : fin(null));
+}
+// Diff two samples; push `[t, type, detail]` events. st holds per-key trackers.
+function monDiff(st, cur, t, ev) {
+  const mon = cur.mon;
+  // --- tiles: present / src / black / frame progress (stall) ---
+  for (const k of ['sd', 'sgs']) {
+    const tv = mon.tiles[k];
+    let pv = st.tiles[k];
+    if (!pv) { pv = { present: false, sid: null, black: null, frames: null, lastProgT: null, stalledAt: null }; st.tiles[k] = pv; }
+    const present = !!tv;
+    if (present !== pv.present) { const c = 'tile.' + k + (present ? '.on' : '.off'); ev.push([t, 'tile', k + (present ? ' ON' : ' OFF') + (tv && tv.sid ? ' sid=' + tv.sid : '')]); st.n[c] = (st.n[c] || 0) + 1; }
+    if (present) {
+      if (pv.present && tv.sid !== pv.sid) { ev.push([t, 'tile', k + ' SRC ' + pv.sid + '→' + tv.sid]); st.n['tile.' + k + '.src'] = (st.n['tile.' + k + '.src'] || 0) + 1; }
+      const black = !(tv.w > 0);
+      if (pv.present && pv.black != null && black !== pv.black) { ev.push([t, 'tile', k + (black ? ' BLACK' : ' LIVE ' + tv.w + 'x' + tv.h)]); if (black) st.n['tile.' + k + '.black'] = (st.n['tile.' + k + '.black'] || 0) + 1; }
+      // frame progress → stall detection (>2s without a new frame while live)
+      if (!black && tv.frames >= 0) {
+        if (pv.lastProgT == null) pv.lastProgT = t;
+        if (pv.frames != null && tv.frames > pv.frames) { // progressing
+          if (pv.stalledAt != null) { const dur = t - pv.stalledAt; ev.push([t, 'stall', k + ' RESUMED after ' + dur.toFixed(1) + 's']); st.n['stall.' + k] = (st.n['stall.' + k] || 0) + 1; if (dur > (st.maxStall[k] || 0)) st.maxStall[k] = dur; }
+          pv.lastProgT = t; pv.stalledAt = null;
+        } else if (pv.frames != null && t - pv.lastProgT > 2 && pv.stalledAt == null) {
+          pv.stalledAt = pv.lastProgT; ev.push([t, 'stall', k + ' STALLED (no frames since t+' + pv.lastProgT.toFixed(1) + ')']);
+        }
+      } else { pv.lastProgT = t; pv.stalledAt = null; } // black/absent-frames handled by BLACK events
+      pv.sid = tv.sid; pv.black = black; pv.frames = tv.frames;
+    } else { pv.sid = null; pv.black = null; pv.frames = null; pv.lastProgT = null; pv.stalledAt = null; }
+    pv.present = present;
+  }
+  // --- claims / standby: gain, loss, via-switch ---
+  const diffSet = (name, prevMap, arr, keyF, valF) => {
+    const now = new Map(arr.map((x) => [keyF(x), valF(x)]));
+    for (const [k, v] of now) {
+      const p = prevMap.get(k);
+      if (p == null) { ev.push([t, name, '+' + k + '@' + v]); st.n[name + '.gain'] = (st.n[name + '.gain'] || 0) + 1; }
+      else if (p !== v) { ev.push([t, name, k + ' ' + p + '→' + v]); st.n[name + '.switch'] = (st.n[name + '.switch'] || 0) + 1; }
+    }
+    for (const k of prevMap.keys()) if (!now.has(k)) { ev.push([t, name, '-' + k]); st.n[name + '.loss'] = (st.n[name + '.loss'] || 0) + 1; }
+    return now;
+  };
+  st.claims = diffSet('claim', st.claims, mon.claims, (x) => x.rk, (x) => x.via + '/' + x.sid);
+  st.standby = diffSet('standby', st.standby, mon.standby, (x) => x.rk, (x) => x.via + '/' + x.sid);
+  st.jobs = diffSet('job', st.jobs, mon.jobs, (x) => x.jk, (x) => (x.active ? 'hot' : 'dormant'));
+  st.demand = diffSet('demand', st.demand, mon.demand, (x) => x.k, (x) => x.v);
+  st.ear = diffSet('ear', st.ear, (mon.ear || []).map((k) => ({ k })), (x) => x.k, () => 'in');
+  // --- packer canvas dimension churn (decoder-visible resizes) ---
+  if (mon.packs && mon.packs.sd) {
+    const d = mon.packs.sd.w + 'x' + mon.packs.sd.h;
+    if (st.sdDims && d !== st.sdDims) { ev.push([t, 'pack', 'sd canvas ' + st.sdDims + '→' + d]); st.n['pack.resize'] = (st.n['pack.resize'] || 0) + 1; }
+    if (mon.packs.sd.w != null) st.sdDims = d;
+  }
+  if (st.coord && mon.coord !== st.coord) { ev.push([t, 'seat', st.coord + '→' + mon.coord]); st.n['seat.move'] = (st.n['seat.move'] || 0) + 1; }
+  st.coord = mon.coord;
+  // --- per-pipe WebRTC stats: video frame + audio packet deltas ---
+  if (cur.stats) {
+    const seen = new Set();
+    for (const s of cur.stats) {
+      if (s.dir !== 'in') continue;
+      const key = s.pid + '/' + (s.slot || s.kind + ':' + String(s.trk).slice(0, 6));
+      seen.add(key);
+      const p = st.pipes.get(key) || { lastProgT: t, stalledAt: null };
+      const prog = s.kind === 'video' ? s.fdec : s.pkts;
+      const labelled = !!s.slot; // only claimed/labelled pipes are worth events
+      if (p.prog != null && prog > p.prog) {
+        if (p.stalledAt != null && labelled) { ev.push([t, 'pipe', s.kind + ' ' + key + ' RESUMED after ' + (t - p.stalledAt).toFixed(1) + 's']); st.n['pipe.' + s.kind + '.stall'] = (st.n['pipe.' + s.kind + '.stall'] || 0) + 1; }
+        p.lastProgT = t; p.stalledAt = null;
+      } else if (p.prog != null && p.lastProgT != null && t - p.lastProgT > 2 && p.stalledAt == null) {
+        p.stalledAt = p.lastProgT;
+        if (labelled) ev.push([t, 'pipe', s.kind + ' ' + key + ' STALLED']);
+      }
+      p.prog = prog; p.ae = s.ae; st.pipes.set(key, p);
+    }
+    for (const k of [...st.pipes.keys()]) if (!seen.has(k)) st.pipes.delete(k);
+  }
+}
+async function runMon(secs, intervalMs) {
+  const T = secs || 120, iv = Math.max(200, intervalMs || 1000);
+  console.log('MON start ' + T + 's @ ' + iv + 'ms — transitions only; MON SUM at the end');
+  const st = { tiles: {}, claims: new Map(), standby: new Map(), jobs: new Map(), demand: new Map(), ear: new Map(), pipes: new Map(), n: {}, maxStall: {}, coord: null };
+  const events = [];
+  const t0 = Date.now();
+  let first = true, degraded = false, hbAt = 0;
+  while ((Date.now() - t0) / 1000 < T) {
+    const tick = Date.now();
+    const cur = await page.evaluate(monSampleInPage).catch((e) => ({ err: String(e).slice(0, 120) }));
+    const t = (Date.now() - t0) / 1000;
+    if (cur && cur.err) { console.log('MON t+' + t.toFixed(1) + ' ERR ' + cur.err); }
+    else if (cur && cur.mon) {
+      degraded = !!cur.mon.degraded;
+      const ev = [];
+      monDiff(st, cur, t, ev);
+      if (first) { // baseline snapshot, not transitions
+        events.length = 0; first = false;
+        const sd = cur.mon.tiles.sd;
+        console.log('MON t+' + t.toFixed(1) + ' BASE seat=' + cur.mon.coord + ' head=' + cur.mon.head
+          + ' sd=' + (sd ? (sd.w + 'x' + sd.h + ' sid=' + sd.sid) : 'ABSENT')
+          + ' claims=[' + cur.mon.claims.map((c) => c.rk).join(',') + '] jobs=' + cur.mon.jobs.length
+          + ' standby=[' + cur.mon.standby.map((c) => c.rk).join(',') + ']'
+          + (degraded ? ' (degraded: no monInfo hooks)' : ''));
+      } else {
+        for (const e of ev) { events.push(e); console.log('MON t+' + e[0].toFixed(1) + ' EV ' + e[1] + ' ' + e[2]); }
+        if (t - hbAt >= 15) { // periodic heartbeat so a healthy run is visibly healthy
+          hbAt = t;
+          const sd = cur.mon.tiles.sd;
+          console.log('MON t+' + t.toFixed(1) + ' HB seat=' + cur.mon.coord + ' sd=' + (sd ? (sd.w + 'x' + sd.h + ' f=' + sd.frames) : 'ABSENT')
+            + ' claims=' + cur.mon.claims.length + ' standby=' + cur.mon.standby.length + ' jobs=' + cur.mon.jobs.filter((j) => j.active).length + '/' + cur.mon.jobs.length + ' stg=' + cur.mon.stagers);
+        }
+      }
+    }
+    const spent = Date.now() - tick;
+    if (spent < iv) await sleep(iv - spent);
+  }
+  // ---- summary ----
+  const keys = Object.keys(st.n).sort();
+  console.log('MON SUM secs=' + T + (degraded ? ' (degraded)' : '') + ' events=' + events.length);
+  console.log('MON SUM counts ' + (keys.length ? keys.map((k) => k + '=' + st.n[k]).join(' ') : '(none — clean run)'));
+  const flap = (st.n['tile.sd.off'] || 0) + (st.n['tile.sd.on'] || 0) + (st.n['tile.sd.black'] || 0) + (st.n['tile.sd.src'] || 0);
+  console.log('MON SUM stadium-flaps=' + flap + ' stalls.sd=' + (st.n['stall.sd'] || 0) + ' maxStall.sd=' + ((st.maxStall.sd || 0).toFixed ? (st.maxStall.sd || 0).toFixed(1) : 0) + 's claimChurn=' + ((st.n['claim.gain'] || 0) + (st.n['claim.loss'] || 0) + (st.n['claim.switch'] || 0)));
+  if (events.length) {
+    console.log('MON SUM timeline:');
+    for (const e of events.slice(0, 200)) console.log('  t+' + e[0].toFixed(1) + ' ' + e[1] + ' ' + e[2]);
+    if (events.length > 200) console.log('  … +' + (events.length - 200) + ' more');
+  }
+  return { counts: st.n, events: events.length, flap };
+}
+
 // ---- commands -------------------------------------------------------------
 async function runCmd(line) {
   const [cmd, ...rest] = line.trim().split(/\s+/);
@@ -292,6 +457,12 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'eval') { const v = await page.evaluate((code) => { try { return JSON.stringify(eval(code)); } catch (e) { return 'ERR ' + e; } }, arg).catch((e) => String(e)); console.log('  ' + v); return true; }
+
+  if (cmd === 'mon') {
+    const secs = parseFloat(rest[0]) || 120, ivMs = parseFloat(rest[1]) || 1000;
+    await runMon(secs, ivMs);
+    return true;
+  }
 
   const d = await D();
   if (d.err) { console.log('  ! ' + d.err); return true; }
