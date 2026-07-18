@@ -1528,20 +1528,40 @@
           const pr = meTile.video.play(); if (pr && pr.catch) pr.catch(() => {});
         }
       }
-      if (!vt) return;
-      // Skip AUX senders: tracks we carry on someone ELSE's behalf (friend-relay
-      // jobs, row composites, forwarded folds). Only MY OWN outbound video is
-      // ever swapped for the blur pipe — a blur toggle must never overwrite the
-      // stream a deacon or relayer is forwarding.
+      // MAIN senders only (p.mainV / p.mainA — aux senders carry other
+      // people's media and are never touched here). Two rules bound what my
+      // camera+mic ride on: (1) the raw camera is CHANNEL R only — row-mates;
+      // (2) while I am ON STAGE (the gossiped stageIds set) even those PARK at
+      // replaceTrack(null): "stagers live on the Stage ONLY"
+      // (docs/media-plane.md) — the room sees and hears me through my 'stg:'
+      // aux feed alone, so the main encodes stop exactly when I take on the
+      // Stage fan-up cost. Stepping down swaps the CURRENT tracks back in
+      // (pure replaceTrack, no renegotiation — the m-lines never left).
+      const staged = stageIds().includes(myId);
+      const at = (localStream && localStream.getAudioTracks()[0]) || null;
       for (const p of peers.values()) {
-        const cam = camPeer(p.id) || !!myStatus.stg; // structural link ⇒ no raw camera encode
-        for (const s of p.pc.getSenders()) {
-          if (!s.track || s.track.kind !== 'video' || auxSenders.has(s)) continue;
-          if (!cam) { if (s.track) s.replaceTrack(null).catch(() => {}); } // stop encoding the camera to a non-row-mate (no renegotiation)
-          else if (s.track !== vt) s.replaceTrack(vt).catch(() => {});
+        const cam = camPeer(p.id) && !staged; // structural link OR staged ⇒ no raw camera encode
+        if (p.mainV) {
+          if (!cam || !vt) { if (p.mainV.track) p.mainV.replaceTrack(null).catch(() => {}); }
+          else if (p.mainV.track !== vt) p.mainV.replaceTrack(vt).catch(() => {});
+        }
+        if (p.mainA) {
+          if (staged) { if (p.mainA.track) p.mainA.replaceTrack(null).catch(() => {}); }
+          else if (at && p.mainA.track !== at) p.mainA.replaceTrack(at).catch(() => {});
         }
       }
       adapt(); // re-apply bitrate/resolution to the (possibly new) sender track
+    }
+    // Stage membership is DERIVED (the gossiped stageIds set), so the
+    // sender-side reaction rides the same 2s beat as everything else — and the
+    // step-up/step-down click for immediacy. Idempotent: it only acts when the
+    // staged bit actually flips.
+    let stagedSelfWas = false;
+    function reactStageSelf() {
+      const staged = stageIds().includes(myId);
+      if (staged === stagedSelfWas) return;
+      stagedSelfWas = staged;
+      refreshOutbound(); // park (staged) or restore (stepped down) my MAIN senders
     }
 
     // ---- adaptive quality ----------------------------------------------------
@@ -1561,11 +1581,20 @@
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
           const prm = sender.getParameters();
-          if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
+          // A sender whose media channel isn't (or is no longer) negotiated
+          // reports ZERO encodings. Fabricating one and calling setParameters
+          // hits a Chromium FATAL (rtp_sender.cc CHECK: current_parameters >=
+          // init_parameters) that kills the WHOLE renderer — reproduced by a
+          // blur toggle while staged (the stg re-ship renegotiates aux
+          // m-lines right as adapt() sweeps). Skip it; the next adapt() (every
+          // connect + every sweep) catches it once negotiation lands.
+          if (!prm.encodings || !prm.encodings.length) continue;
           // Carried media (folds, forwards, relay jobs) is budgeted by the
           // FOLD constants, not the per-face rung — a million-pixel fold at
           // the rung's floor would be soup.
-          prm.encodings[0].maxBitrate = auxSenders.has(sender) ? 900000 : q.kbps * 1000; // composite ships are packed low-detail — 0.9Mbps not 2.5 (bandwidth+encode CPU)
+          const want = auxSenders.has(sender) ? 900000 : q.kbps * 1000; // composite ships are packed low-detail — 0.9Mbps not 2.5 (bandwidth+encode CPU)
+          if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
+          prm.encodings[0].maxBitrate = want;
           sender.setParameters(prm).catch(() => {});
         }
       }
@@ -1757,14 +1786,23 @@
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
       // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
       // down) already receive my face INSIDE the composited band/product/
-      // stadium, so a raw camera there is a duplicate encode. (Staged: my feed
-      // is exactly what the parent space carries, so a stager still uplinks it.)
-      const carryCam = (camPeer(p.id) && !p.headless) || !!myStatus.stg;
+      // stadium, so a raw camera there is a duplicate encode. (Staged:
+      // "stagers live on the Stage ONLY" — docs/media-plane.md — so the MAIN
+      // senders are PARKED at replaceTrack(null) the moment they're made; the
+      // room sees and hears a stager through its 'stg:' aux feed alone. The
+      // m-lines still negotiate, so stepping down is a pure replaceTrack.)
+      const carryCam = camPeer(p.id) && !p.headless;
+      p.mainV = p.mainA = null; // MY main outbound senders (never aux) — refreshOutbound owns their tracks
       if (localStream && carryCam) {
-        for (const track of localStream.getAudioTracks()) pc.addTrack(track, localStream);
+        const at = localStream.getAudioTracks()[0];
+        if (at) p.mainA = pc.addTrack(at, localStream);
         // Send the blur-canvas track when any blur applies — never the raw camera.
         const vt = sentVideoTrack();
-        if (vt) pc.addTrack(vt, localStream);
+        if (vt) p.mainV = pc.addTrack(vt, localStream);
+        if (stageIds().includes(myId)) {
+          if (p.mainA) p.mainA.replaceTrack(null).catch(() => {});
+          if (p.mainV) p.mainV.replaceTrack(null).catch(() => {});
+        }
       } else if (!localStream) { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
       // chat + pinned files travel on a DataChannel — browser to browser only
       if (iInitiate(p.id)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
@@ -2033,9 +2071,15 @@
     function reconcileGrid() {
       const s = meshSeat(), c = meshCoord();
       if (!s || !c) return; // pre-seat: show whatever linked (bootstrap)
+      const stg = new Set(stageIds());
       const coordOfPeer = new Map(); for (const [k, v] of s.occ) coordOfPeer.set(v, k);
       for (const [pid, p] of peers) {
         if (p.headless || !p.tile) continue;
+        // A STAGER's direct tile hides even for row-mates: they appear in the
+        // Stage strip instead ("stagers live on the Stage ONLY",
+        // docs/media-plane.md) — their main tracks are parked anyway, so the
+        // tile would be a black square. It returns the moment they step down.
+        if (stg.has(pid)) { p.tile.style.display = 'none'; continue; }
         const k = coordOfPeer.get(pid);
         if (!k) { p.tile.style.display = ''; continue; } // unknown coord ⇒ show
         const cc = net.topo.unck(k);
@@ -2476,6 +2520,8 @@
       // `admins` is a VIEW over signature-verified sightings, and the
       // signature re-mints when the table (or freshness bucket) changed.
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
+      reactStageSelf(); // staged (gossiped stageIds) ⇒ my MAIN senders park; step-down restores them
+      reconcileGrid();  // stager tiles hide/return as the gossiped stage set changes
       reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
@@ -2506,7 +2552,13 @@
           // fresh tracks come back live — restore the user's actual choices
           if (nv) nv.enabled = !myStatus.camOff;
           if (na) na.enabled = !myStatus.muted;
+          // MAIN mic senders only: aux senders carry OTHER people's audio
+          // (relay jobs, fold mixes) — never overwrite those with my mic. And
+          // a PARKED sender (track null — I'm on stage) stays parked: the
+          // fresh mic reaches the room via the 'stg:' aux feed instead
+          // (mySelfStream picks it up on the next sweep).
           for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
+            if (auxSenders.has(sender)) continue;
             if (sender.track && sender.track.kind === 'audio' && na) sender.replaceTrack(na).catch(() => {});
           }
           // Mutate the SAME MediaStream rather than swapping it: its id is
@@ -2580,7 +2632,11 @@
         micMode = mode;
         na.enabled = !myStatus.muted; // the swap must never un-mute anyone
         const old = localStream.getAudioTracks()[0] || null;
+        // Same discipline as regrabCamera: never an aux sender, and a PARKED
+        // main sender (track null — on stage) stays parked; the stg aux feed
+        // carries the fresh mic to the room instead.
         for (const p of peers.values()) for (const sender of p.pc.getSenders()) {
+          if (auxSenders.has(sender)) continue;
           if (sender.track && sender.track.kind === 'audio' && (!old || sender.track === old)) sender.replaceTrack(na).catch(() => {});
         }
         if (old) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
@@ -3594,8 +3650,22 @@
       const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
       stageEar = { fold, el, sids: new Map() };
     }
-    // My own outbound feed as a fresh MediaStream (what I broadcast — blurred/raw).
-    const mySelfStream = () => { const v = sentVideoTrack(); return v ? new MediaStream([v]) : null; };
+    // My own outbound feed as a STABLE MediaStream (what I broadcast — the
+    // blurred/raw video plus my mic). While staged this aux feed is the ONLY
+    // way my face and voice leave this device (the main senders are parked —
+    // refreshOutbound), so it must carry audio: every ear folds it via
+    // stageEar, skipping its own. MEMOIZED per track pair: the stream id only
+    // changes when a track actually changes (blur-pipe swap, mic-mode/camera
+    // re-grab) — which is exactly when shipMos must re-ship. A fresh
+    // MediaStream every sweep used to churn the stg ships with an
+    // unship+reship (renegotiation) every 2s.
+    let selfShipMemo = null;
+    const mySelfStream = () => {
+      const v = sentVideoTrack(); if (!v) return null;
+      const a = (localStream && localStream.getAudioTracks()[0]) || null;
+      if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+      return selfShipMemo.stream;
+    };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
     const occPid = (c) => { const s = meshSeat(); return s ? s.occGet(net.topo.ckey(c)) : null; };
     // W7 rook: my deterministic column partner at Section 1 — the first
@@ -4250,6 +4320,7 @@
       broadcastStatus();
       refreshAllTiles();
       applyBuses();
+      reactStageSelf(); // don't wait for the beat: park/restore my MAIN senders now
     }
     stageBtn.onclick = () => {
       if (myStatus.stg) { setStage(false); return; }
@@ -4669,7 +4740,13 @@
           mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: !!st.camOff };
         // Same bus classification as applyBuses: stage / my row / same-section
         // deacon-mesh (My section) / cross-section space mate (The stadium).
-        if (stg.has(pid)) { src.bus = 'stage'; g.stage.push(src); }
+        if (stg.has(pid)) {
+          // A stager's direct-link tracks are PARKED (stagers live on the
+          // Stage ONLY) — record the 'stg:' aux feed we actually receive.
+          const f = mosIn.get('stg:' + pid);
+          if (f && f.stream) { src.video = f.el; src.stream = f.stream; }
+          src.bus = 'stage'; g.stage.push(src);
+        }
         else if (mates.has(pid)) { src.bus = 'row'; g.row.push(src); }
         else { src.bus = 'stadium'; g.stadium.push(src); }
       }
@@ -4993,11 +5070,17 @@
           // it, and the fresh m-lines guarantee an ontrack on the far side.
           for (const [pid, p] of peers) {
             if (!p.pc) continue;
-            const have = new Set(p.pc.getSenders().map((sd) => sd.track && sd.track.kind).filter(Boolean));
             let added = false;
             for (const tr of localStream.getTracks()) {
-              if (have.has(tr.kind)) continue;
-              try { p.pc.addTransceiver(tr, { streams: [localStream] }); added = true; } catch (e) {}
+              // Register as MAIN senders (p.mainV/p.mainA), the set
+              // refreshOutbound owns — a late-added track must obey the same
+              // rules (row-mates only; parked while staged) as a join-time one.
+              if (tr.kind === 'video' ? p.mainV : p.mainA) continue;
+              try {
+                const t = p.pc.addTransceiver(tr, { streams: [localStream] });
+                if (tr.kind === 'video') p.mainV = t.sender; else p.mainA = t.sender;
+                added = true;
+              } catch (e) {}
             }
             if (added) { if (p.dc && p.dc.readyState === 'open') compKick(pid); else renegotiate(p); }
           }
@@ -5650,6 +5733,14 @@
         vState: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].readyState : null,
       })),
       stageForTest: (on) => { if (!!on === !!myStatus.stg) return stageIds().includes(myId); if (on && (!canStage(myId) || stageIds().length >= SCALE.C)) return false; setStage(!!on); return true; },
+      // Stager upload collapse: my MAIN senders (v/a) per peer — 'parked'
+      // while I'm staged — plus each peer tile's visibility.
+      mainSenders: () => Array.from(peers.values()).map((p) => ({
+        id: String(p.id).slice(0, 8), name: p.name || null,
+        v: p.mainV ? (p.mainV.track ? 'live' : 'parked') : 'none',
+        a: p.mainA ? (p.mainA.track ? 'live' : 'parked') : 'none',
+        tile: p.tile ? (p.tile.style.display === 'none' ? 'hidden' : 'shown') : null,
+      })),
       // the mesh (mesh.js) — seat, occupancy, links
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
