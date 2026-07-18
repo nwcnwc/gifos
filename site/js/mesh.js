@@ -266,7 +266,12 @@
           for (let j = 0; j < C(); j++) {
             const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
             if (this.occ.has(k)) continue;               // taken (or a stale phantom — the heal machinery clears those)
-            if (this.hasDownChild(cell)) continue;       // internal hole — its down-child heals it (C1 frontier rule)
+            // Frontier test by DIRECT knowledge only (the old 11a admit-
+            // liveness: occGet(down)==null) — NOT hasDownChild, whose childOf
+            // arm never expires: a stale heir entry would permanently steer
+            // arrivals away from a clear cell, leaving it to the much slower
+            // leaf-promotion backstop.
+            if (this.occGet(ck(topo.down(cell))) != null) continue; // internal hole — its down-child heals it (C1 frontier rule)
             const admR = j > 0 ? t : (t - 1 + C()) % C(); // the designated admitter's row (admitter is always a head)
             if (this.coord.i === 0 && this.coord.r === admR) { // I am the designated admitter
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm.nc); return; }

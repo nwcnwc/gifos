@@ -69,7 +69,11 @@ void Seat::serveFind(Msg& mm){
       for(int j=0;j<C;j++){
         Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
         if(occ.count(k)) continue;                     // taken (or a stale phantom — the heal machinery clears those)
-        if(hasDownChild(cell)) continue;               // internal hole — its down-child heals it (C1 frontier rule)
+        // Frontier test by DIRECT knowledge only (the old 11a admit-liveness:
+        // occGet(down)<0) — NOT hasDownChild, whose childOf arm never expires:
+        // a stale heir entry would permanently steer arrivals away from a
+        // clear cell, leaving it to the much slower leaf-promotion backstop.
+        if(occGet(ckey(down(cell)))>=0) continue;      // internal hole — its down-child heals it (C1 frontier rule)
         Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
         if(coord.i==0 && coord.r==adm.r){              // I am the designated admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm.nc); return; }
