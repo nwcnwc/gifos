@@ -2732,8 +2732,24 @@
         op(op, collection, key, value) {
           if (op === 'dump') return Promise.resolve(mirror);
           const priv = collection && isPrivate(collection);
-          if (op === 'get') { if (priv) return Promise.resolve(localOf(collection).get(key) || null); return Promise.resolve(itemsOf(collection)[key] || null); }
-          if (op === 'getAll') { if (priv) return Promise.resolve([...localOf(collection).values()]); return Promise.resolve(Object.values(itemsOf(collection))); }
+          // The owner-verified mirror only ever holds records the host SHARED
+          // (it stripped private ones), so it is always safe to read — even for
+          // a collection whose DEFAULT is private but into which the host opted
+          // a few records (read-only), which is exactly how My Media shares one
+          // video. Read the mirror first; for a private-default collection also
+          // merge this tab's own local writes (mirrors the relay guest).
+          if (op === 'get') {
+            if (priv) { const loc = localOf(collection); if (loc.has(key)) return Promise.resolve(loc.get(key)); }
+            return Promise.resolve(itemsOf(collection)[key] || null);
+          }
+          if (op === 'getAll') {
+            const shared = Object.values(itemsOf(collection));
+            if (!priv) return Promise.resolve(shared);
+            const seen = new Set(shared.map((r) => r && r.id));
+            const out = shared.slice();
+            for (const rec of localOf(collection).values()) if (!seen.has(rec.id)) out.push(rec);
+            return Promise.resolve(out);
+          }
           if (op === 'put') {
             const rec = safeRecord(value); if (rec.id == null) rec.id = AO.newRecordId(collection); delete rec._vis;
             if (priv) { localOf(collection).set(rec.id, rec); notify(collection); return Promise.resolve(rec); }
