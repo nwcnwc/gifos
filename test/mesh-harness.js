@@ -14,8 +14,46 @@ const RELAY_TTL = mesh.RELAY_TTL, RELAY_CAP = mesh.RELAY_CAP, keyHash = mesh.key
 // plan) — separate from each seat's own PRNG, mirroring the sim's grnd/rng split.
 let GSEED = 20260714 >>> 0;
 const grnd = () => { GSEED = (Math.imul(GSEED, 1103515245) + 12345) & 0x7fffffff; return GSEED / 2147483648; };
-const seedRng = (s) => { GSEED = s >>> 0; }; // reset per scenario ⇒ each is independent + reproducible
+const seedRng = (s) => { GSEED = s >>> 0; IDC = 0; }; // reset per scenario ⇒ each is independent + reproducible
 const pairKey = (a, b) => (String(a) < String(b) ? a + '#' + b : b + '#' + a);
+
+// ── S4 identity, run ON in the harness (synchronous Node Ed25519) ────────────
+// We test identity-based security AT SCALE, no bypass: every seat has a REAL
+// keypair, its id IS H(pubkey), fills are SIGNED on send and VERIFIED on
+// delivery (m.s4ok stamped) — and mesh.js's verifyFill is fail-closed, so an
+// unsigned/forged/tampered fill is dropped. Mirrors site/js/mesh-identity.js's
+// statement binding exactly, but synchronous + deterministic (keys derived from
+// the seeded RNG, so scenarios stay reproducible).
+const ncrypto = require('crypto');
+const H_SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO']);
+const ED_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+const sha40 = (s) => 'k_' + ncrypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 40);
+function mintId(seed32) {
+  const priv = ncrypto.createPrivateKey({ key: Buffer.concat([ED_PKCS8_PREFIX, seed32]), format: 'der', type: 'pkcs8' });
+  const pub = ncrypto.createPublicKey(priv).export({ type: 'spki', format: 'der' }).toString('base64');
+  return { priv, pub, peerId: sha40(pub) };
+}
+const idSign = (priv, str) => ncrypto.sign(null, Buffer.from(str), priv).toString('base64');
+const idVerify = (pubB64, sigB64, str) => { try { return ncrypto.verify(null, Buffer.from(str), ncrypto.createPublicKey({ key: Buffer.from(pubB64, 'base64'), format: 'der', type: 'spki' }), Buffer.from(sigB64, 'base64')); } catch (e) { return false; } };
+const fillKeyOf = (m) => m.hole ? 'h:' + ck(m.hole) : (m.coord ? 'c:' + ck(m.coord) : (m.ck ? 'k:' + m.ck : '-'));
+const statement = (from, m) => JSON.stringify({ v: 1, t: m.t, k: fillKeyOf(m), id: (m.id != null ? m.id : null), from });
+function newPins() { const map = new Map(); return { pin(id, pub) { const c = map.get(id); if (c === undefined) { map.set(id, pub); return true; } return c === pub; } }; }
+function signFill(identity, m) { const sp = statement(identity.peerId, m); m.s4 = { sp, sig: idSign(identity.priv, sp), pub: identity.pub }; }
+// Verify a delivered SIGNED fill against the RECEIVER's pins; return ok (caller
+// stamps m.s4ok / drops). Same rejects as mesh-identity.verifyFill.
+function verifyDelivered(pins, m) {
+  const s = m.s4; if (!s || typeof s.sp !== 'string' || !s.sig || !s.pub) return false;
+  let sp; try { sp = JSON.parse(s.sp); } catch (e) { return false; }
+  const from = sp.from; if (!from) return false;
+  if (sha40(s.pub) !== from) return false;             // id bound to key
+  if (statement(from, m) !== s.sp) return false;       // no cross-frame replay / tamper
+  if (m.id != null && m.id !== from) return false;     // occupant frame signed BY that occupant
+  if (!idVerify(s.pub, s.sig, s.sp)) return false;     // signer holds the private key
+  return pins.pin(from, s.pub);                        // TOFU: reject a key-swap
+}
+// Deterministic per-seat seed from the scenario RNG (reproducible).
+function seatSeed() { return ncrypto.createHash('sha256').update('s4id|' + GSEED + '|' + (IDC++)).digest().subarray(0, 32); }
+let IDC = 0;
 
 // Owned-link transport classifier (the sim's classifyEmit): every frame is a
 // NEIGHBOR hop (to occupies one of from's owned-link coords, per FROM's own occ
@@ -46,6 +84,7 @@ function makeFabric() {
     // (route a seated non-neighbour over the mesh instead of teleporting).
     peek(id) { const s = env.seats.get(id); if (!s) return null; return { hasCoord: s.hasCoord, coord: s.coord, socketed: s.socketed(), gateway: s.gateway }; },
     send(from, to, m) {
+      if (H_SIGNED.has(m.t) && !m.s4) { const sf = env.seats.get(from); if (sf && sf.identity) signFill(sf.identity, m); }
       classifyEmit(env, from, to, m);
       const pk = pairKey(from, to); let d;
       if (env.openPairs.has(pk)) d = 1 + (env.seq & 1);
@@ -83,7 +122,7 @@ function counts(env) {
 
 function doTick(env) {
   const q = env.bus.get(env.TICK);
-  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (s && s.alive) s.recv(m); } env.bus.delete(env.TICK); }
+  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (!s || !s.alive) continue; if (H_SIGNED.has(m.t)) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; } s.recv(m); } env.bus.delete(env.TICK); }
   for (const s of env.seats.values()) if (s.alive) s.tick();
   env.TICK++;
 }
@@ -107,9 +146,9 @@ function spawn(env, N) {
   for (let k = 0; k < N; k++) plan[(grnd() * win) | 0].push(k);
   env._plan = plan; env._spawned = 0; env._N = N;
 }
-function spawnOne(env) { const id = 'q' + (env._spawned++); const s = new mesh.Seat(id, env); env.seats.set(id, s); s.alive = true; s.join(); return s; }
+function spawnOne(env) { env._spawned++; const idn = mintId(seatSeed()); const s = new mesh.Seat(idn.peerId, env); s.identity = idn; s.pins = newPins(); env.seats.set(idn.peerId, s); s.alive = true; s.join(); return s; }
 function spawnDue(env) {
-  const plan = env._plan; if (env.TICK < plan.length) { for (const k of plan[env.TICK]) { const id = 'p' + k; const s = new mesh.Seat(id, env); env.seats.set(id, s); s.join(); env._spawned++; } }
+  const plan = env._plan; if (env.TICK < plan.length) { for (const k of plan[env.TICK]) { const idn = mintId(seatSeed()); const s = new mesh.Seat(idn.peerId, env); s.identity = idn; s.pins = newPins(); env.seats.set(idn.peerId, s); s.join(); env._spawned++; } }
 }
 // Drive ticks including spawns until everyone has arrived + FULLY converged.
 function runJoin(env, N, cap) {
@@ -170,6 +209,28 @@ function scenario(N, killSpec) {
   }
   if (env.emitTeleport) console.log('  TELEPORTS:', JSON.stringify(env.teleportLog));
 }
+
+// ---- S4 attack-rejection (the security gate, asserted here too) ----
+function impostorCheck() {
+  seedRng(20260714);
+  const V = mintId(seatSeed()), E = mintId(seatSeed()); // legit occupant vs attacker
+  const coord = { pc: 0, r: 1, i: 2 };
+  const legit = { t: 'CLAIM', ck: ck(coord), id: V.peerId }; signFill(V, legit);
+  check('S4: legit signed fill ACCEPTED', verifyDelivered(newPins(), legit) === true);
+  const un = { t: 'CLAIM', ck: ck(coord), id: V.peerId }; // unsigned
+  check('S4: unsigned fill REJECTED', verifyDelivered(newPins(), un) === false);
+  const imp = { t: 'CLAIM', ck: ck(coord), id: V.peerId }; signFill(E, imp); // E claims V's seat
+  check('S4: attacker claiming occupant V REJECTED', verifyDelivered(newPins(), imp) === false);
+  const swap = { t: 'CLAIM', ck: ck(coord), id: E.peerId }; signFill(E, swap); swap.s4.pub = V.pub; // V pubkey + E sig
+  check('S4: V pubkey + E signature REJECTED', verifyDelivered(newPins(), swap) === false);
+  const tam = { t: 'FINDLEAF', hole: { pc: 0, r: 2, i: 3 } }; signFill(V, tam); tam.hole = { pc: 0, r: 2, i: 4 }; // coord rewritten post-sign
+  check('S4: tampered fill REJECTED', verifyDelivered(newPins(), tam) === false);
+  const ks = { t: 'CLAIM', ck: ck(coord), id: E.peerId }; signFill(E, ks); const kp = newPins(); kp.pin(E.peerId, V.pub);
+  check('S4: key-swap vs TOFU pin REJECTED', verifyDelivered(kp, ks) === false);
+  const seat = new mesh.Seat('k_gate', makeFabric());
+  check('S4 gate: verifyFill FAIL-CLOSED (no s4ok ⇒ reject)', seat.verifyFill({ t: 'CLAIM' }) === false && seat.verifyFill({ t: 'CLAIM', s4ok: true }) === true);
+}
+impostorCheck();
 
 // Robust regime is N>=500: at small N the S1 fill is arrival-rng-sensitive.
 // We pin the sim's numbers: JOIN converges, then kill {0.4, 0.5} + the

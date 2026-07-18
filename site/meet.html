@@ -671,6 +671,7 @@
   <script src="js/gifos-store.js"></script>
   <script src="js/gifos-net.js"></script>
   <script src="js/mesh.js"></script>
+  <script src="js/mesh-identity.js"></script>
   <script src="js/mesh-wire.js"></script>
   <script src="js/mesh-media.js"></script>
   <script src="js/relay-config.js"></script>
@@ -2276,16 +2277,19 @@
     // relay socket — knock/greeters, founding (R3), greeter registration (E3),
     // socket-drop when seated deep. meet.html keeps its app-level relay
     // handlers via the onRelayMsg passthrough below.
+    let myIdentity = null; // S4: one per-participant Ed25519 key, minted once, reused across reconnects
+    function ensureIdentity() { return myIdentity ? Promise.resolve(myIdentity) : GifOS.meshIdentity.mint().then((id) => (myIdentity = id)); }
     function startMesh() {
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured \u2014 cannot exchange invitations.'); return; }
       if (meshNode) { try { meshNode.stop(); } catch (e) {} meshNode = null; }
-      myId = myPeerId();
+      ensureIdentity().then((identity) => {
+      myId = identity.peerId; // S4: peer id = H(pubkey), unforgeable
       lastVoteSync = null;   // a fresh socket re-syncs my standing votes
       pwReasserted = false;  // a fresh socket re-asserts the admin's door lock once
       meshNode = GifOS.meshWire.createMeshNode({
         relayUrl: relay.replace(/\/$/, ''),
-        sid: sessId, tok: sessTok, key: roomE2E, peer: myId, tickMs: 500,
+        sid: sessId, tok: sessTok, key: roomE2E, identity, tickMs: 500,
         urlParams: () => '&pw=' + encodeURIComponent(pwProof) + '&dev=' + encodeURIComponent(myDevHash),
         sendDC: meshSendDC,
         // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
@@ -2306,6 +2310,7 @@
         onRelayMsg: onRelayFrame,
       });
       updateStatus(); applyAdminUi();
+      });
     }
     // App-level relay frames the wire does not consume. The roster here is the
     // GREETER POOL, never the room \u2014 it drives door moderation only.
