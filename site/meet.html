@@ -1581,7 +1581,14 @@
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
           const prm = sender.getParameters();
-          if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
+          // A sender whose media channel isn't (or is no longer) negotiated
+          // reports ZERO encodings. Fabricating one and calling setParameters
+          // hits a Chromium FATAL (rtp_sender.cc CHECK: current_parameters >=
+          // init_parameters) that kills the WHOLE renderer — reproduced by a
+          // blur toggle while staged (the stg re-ship renegotiates aux
+          // m-lines right as adapt() sweeps). Skip it; the next adapt() (every
+          // connect + every sweep) catches it once negotiation lands.
+          if (!prm.encodings || !prm.encodings.length) continue;
           // Carried media (folds, forwards, relay jobs) is budgeted by the
           // FOLD constants, not the per-face rung — a million-pixel fold at
           // the rung's floor would be soup.
