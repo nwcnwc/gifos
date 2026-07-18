@@ -1747,9 +1747,17 @@
       if (hp) { dcSend(hp, envl); return true; }
       // 3) the DOOR (the friendless-newcomer bootstrap): sealed over the relay
       // to a socketed seat wired near the target, else a greeter, which
-      // hop-forwards it onward over its own channels.
+      // hop-forwards it onward over its own channels. Throttled per target —
+      // door frames wake the billed relay, and everything that rides this path
+      // is beat-retried, so a stuck target must not turn into a frame hose.
       const doors = doorPeers(to, envl.tc);
       if (doors.length) {
+        if (envl.k === 'fmesh') { // beat-retried control only — fsig (offers/answers/one-shot ICE) is never swallowed
+          const now = Date.now(), last = doorLast.get(to) || 0;
+          if (now - last < 300) return true; // swallowed: the next beat re-mints it
+          doorLast.set(to, now);
+          if (doorLast.size > 256) { for (const [k, at] of doorLast) if (now - at > 30000) doorLast.delete(k); }
+        }
         txStats.doorSig++;
         const d = doors[0];
         txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: d, msg: piece }))));
@@ -1757,6 +1765,7 @@
       }
       return false;
     }
+    const doorLast = new Map(); // per-target door-send throttle (§FWD)
     // fwdOnward: an fsig/fmesh envelope reached me but names someone else —
     // pass it one bounded step onward: direct channel, else my mesh next hop,
     // else (last resort) the relay addressed to the TARGET itself — it may be

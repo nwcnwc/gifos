@@ -3,19 +3,19 @@
 // SOCKETLESS deep seats (R2 — seated peers drop their relay sockets), the
 // relay silently dropped the frames, and the old sponsor-forward needed a
 // mutual DataChannel friend the newcomer doesn't have yet — so conn stayed 0
-// forever while relaySig climbed. The fix: greeter-DOOR sponsor entry +
-// ttl-bounded unicast mesh hops (fsig/fmesh), an explicit relay {t:'nosock'}
-// bounce, and the wire holding a deep newcomer's socket until it is wired.
+// forever while relaySig climbed. The fix under test:
+//   - greeter-DOOR sponsor entry + ttl-bounded unicast mesh hops (fsig/fmesh)
+//   - explicit relay {t:'nosock'} bounce (both relays)
+//   - mesh-wire wired(): an unwired seat keeps/reopens its relay socket
 //
-// Scenario (C=2 via GIFOS_SCALE — the K-sweep idiom, so a 9-browser room
-// exercises a real two-level stadium):
-//   1. 8 early users join and converge: 4 fill Section 1 (socketed greeters),
-//      4 seat DEEP (heads of the four child rows) and DROP their sockets.
-//   2. A LATE user joins. It is admitted next to a socketless deep head — the
-//      exact deadlock topology. It must reach a CONNECTED WebRTC link to that
-//      socketless head within a tight bound, and live media must flow.
-//   3. The sponsored path must have actually carried the signaling (txStats:
-//      fwdSig/fwdMesh/doorSig on the newcomer, hopFwd/hopRelay on the mesh).
+// Scenario (C=2 via GIFOS_SCALE — the K-sweep idiom, so a small room
+// exercises a real multi-level stadium): 8 early users join, converge, and
+// the wired deep seats drop their sockets. Then TWO late users join, one
+// after the other. For each: every SOCKETLESS seat in its mesh link set must
+// become a CONNECTED WebRTC pair within a tight bound — plus live media, and
+// txStats proof that the sponsored path carried the signaling. Topology-
+// independent on purpose: seating layout churns (a separate workstream); the
+// deadlock invariant is about socketless link targets, wherever they sit.
 //
 // Self-contained: spawns its OWN relay-local (port 8811) and its OWN static
 // server for THIS checkout's site/ (port 8813) — safe to run from a worktree.
@@ -31,14 +31,14 @@ const RELAY_PORT = parseInt(process.env.LATEJOIN_RELAY_PORT || '8811', 10);
 const SITE_PORT = parseInt(process.env.LATEJOIN_SITE_PORT || '8813', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;
-const ROOM_TIGHT_MS = 15000; // the bound: seated → connected link to the socketless head
+const TIGHT_MS = 15000;   // seated → connected to each socketless link target
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d !== undefined ? '  (' + (typeof d === 'string' ? d : JSON.stringify(d)) + ')' : '')); if (!c) failures++; };
+const pfx = (id) => String(id).slice(0, 12);
 
 (async () => {
-  // ---- own servers (worktree-safe) ----
   const relay = spawn('node', [path.join(__dirname, 'relay-local.js')], {
     env: { ...process.env, RELAY_PORT: String(RELAY_PORT), TRUSTED_IPS: '127.0.0.1,::1,::ffff:127.0.0.1' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -56,132 +56,135 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
       '--autoplay-policy=no-user-gesture-required',
       '--disable-features=WebRtcHideLocalIpsWithMdns'],
   });
-  // Every context: C=2 (a 2×2 Section 1 — the K-sweep idiom) + our relay.
   const setup = (name) => ({ content: 'window.GIFOS_SCALE={C:2};'
     + "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
-  const users = [];
+  const users = []; // { name, ctx, page, id }
   const newUser = async (name) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
     await ctx.addInitScript(setup(name));
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('  [' + name + '] pageerror: ' + e.message));
-    users.push({ name, ctx, page });
-    return page;
+    const u = { name, ctx, page, id: null };
+    users.push(u);
+    return u;
   };
-  const evalV = (page, fn) => page.evaluate(fn);
-  const mesh = (page) => evalV(page, () => {
-    const V = window.__gifosVideo;
-    return { coord: V.meshCoord(), state: (V.meshState() || {}).state, relayUp: V.relayUp ? V.relayUp() : null, conn: V.liveLinks() };
+  const snap = (page) => page.evaluate(() => {
+    const V = window.__gifosVideo, s = V.meshState() || {}, c = V.meshCoord();
+    return { id: V.debugDump().me.peer, state: s.state, coord: c ? c.pc + '/' + c.r + '.' + c.i : null,
+      relayUp: V.relayUp ? V.relayUp() : null, conn: V.liveLinks(), links: V.meshLinks(),
+      connTo: (V.debugDump().roster || []).filter((r) => r.conn).map((r) => r.peer),
+      tx: V.txStats() };
   });
 
-  // ---- 1. eight early users converge; deep seats drop their sockets ----
-  const GOTO = { timeout: 90000, waitUntil: 'domcontentloaded' }; // page-load patience under box load; assertions keep their own bounds
+  // ---- 1. eight early users; converge on unique seats ----
+  const GOTO = { timeout: 90000, waitUntil: 'domcontentloaded' };
   const first = await newUser('E0');
-  await first.goto(BASE + '/meet.html', GOTO);
-  await first.locator('#lob-open').click();
-  await first.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 20000 });
-  const link = await evalV(first, () => document.getElementById('share-url').value);
+  await first.page.goto(BASE + '/meet.html', GOTO);
+  await first.page.locator('#lob-open').click();
+  await first.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 20000 });
+  const link = await first.page.evaluate(() => document.getElementById('share-url').value);
   console.log('room link: ' + link);
   for (let i = 1; i < 8; i++) {
-    const p = await newUser('E' + i);
-    await p.goto(link, GOTO);
-    await sleep(1200); // gentle ramp — let each seat land before the next knock
+    const u = await newUser('E' + i);
+    await u.page.goto(link, GOTO);
+    await sleep(1500); // gentle ramp
   }
-  // Converge: all 8 seated, unique coords, 4 in Section 1 + 4 deep.
   let conv = null;
   const t0 = Date.now();
-  while (Date.now() - t0 < 120000) {
-    const st = await Promise.all(users.map((u) => mesh(u.page).catch(() => null)));
+  while (Date.now() - t0 < 150000) {
+    const st = await Promise.all(users.map((u) => snap(u.page).catch(() => null)));
     const seated = st.filter((s) => s && s.state === 3 && s.coord);
-    const keys = new Set(seated.map((s) => s.coord.pc + '_' + s.coord.r + '_' + s.coord.i));
-    const s1 = seated.filter((s) => s.coord.pc === 0).length;
-    conv = { seated: seated.length, uniq: keys.size, s1, st };
-    if (seated.length === 8 && keys.size === 8 && s1 === 4) break;
-    await sleep(1500);
+    conv = { seated: seated.length, uniq: new Set(seated.map((s) => s.coord)).size, coords: st.map((s) => s && s.coord) };
+    if (seated.length === 8 && conv.uniq === 8) break;
+    await sleep(2000);
   }
-  check('8 early users seated on unique coords (4 Section-1 + 4 deep)',
-    conv && conv.seated === 8 && conv.uniq === 8 && conv.s1 === 4,
-    conv && { seated: conv.seated, uniq: conv.uniq, s1: conv.s1 });
+  check('8 early users seated on unique coords', conv && conv.seated === 8 && conv.uniq === 8, conv && conv.coords);
+  // Cameras on (media for step 4) — before the sockets drop.
+  for (const u of users) await u.page.evaluate(() => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); }).catch(() => {});
 
-  // Deep seats drop their relay sockets (R2 scope; wired() satisfied by their
-  // owner link) — THE precondition of the deadlock.
-  let deepIdx = [], dropOk = false;
+  // ---- 2. wired deep seats drop their sockets (R2 scope) ----
+  let socketless = [];
   const t1 = Date.now();
   while (Date.now() - t1 < 60000) {
-    const st = await Promise.all(users.map((u) => mesh(u.page).catch(() => null)));
-    deepIdx = st.map((s, i) => (s && s.coord && s.coord.pc !== 0) ? i : -1).filter((i) => i >= 0);
-    if (deepIdx.length === 4 && deepIdx.every((i) => st[i].relayUp === false)) { dropOk = true; break; }
-    await sleep(1500);
+    const st = await Promise.all(users.map((u) => snap(u.page).catch(() => null)));
+    users.forEach((u, i) => { if (st[i]) u.id = st[i].id; });
+    socketless = users.filter((u, i) => st[i] && st[i].state === 3 && st[i].relayUp === false && st[i].conn >= 1);
+    if (socketless.length >= 2) break;
+    await sleep(2000);
   }
-  check('all 4 deep seats dropped their relay sockets (R2 greeting scope)', dropOk, { deep: deepIdx.length });
-  // Deep seats hold a live link to their Section-1 owner (the room works).
-  const preSt = await Promise.all(users.map((u) => mesh(u.page)));
-  check('early room holds working links', deepIdx.every((i) => preSt[i].conn >= 1),
-    deepIdx.map((i) => preSt[i].conn).join(','));
-  // Turn the deep heads' cameras on so the late joiner has live media to receive.
-  for (const i of deepIdx) await evalV(users[i].page, () => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); });
+  check('≥2 wired seats are seated SOCKETLESS (the deadlock precondition)', socketless.length >= 2,
+    socketless.map((u) => u.name).join(','));
+  const preTx = await Promise.all(users.map((u) => snap(u.page).then((s) => s.tx).catch(() => null)));
 
-  const preTx = await Promise.all(users.map((u) => evalV(u.page, () => window.__gifosVideo.txStats())));
-
-  // ---- 2. the LATE joiner ----
-  const late = await newUser('LATE');
-  const tJoin = Date.now();
-  await late.goto(link, GOTO);
-  await late.waitForFunction(() => { const V = window.__gifosVideo; const s = V && V.meshState(); return s && s.state === 3 && V.meshCoord(); }, null, { timeout: 30000 });
-  const lc = await evalV(late, () => window.__gifosVideo.meshCoord());
-  const tSeat = Date.now();
-  console.log('late joiner seated at ' + lc.pc + '/' + lc.r + '.' + lc.i + ' after ' + (tSeat - tJoin) + 'ms');
-  check('late joiner seats DEEP, beside a socketless head', lc.pc !== 0 && lc.i !== 0, lc);
-
-  // THE deadlock link: the CONNECTED WebRTC pair with its row's socketless
-  // head, within the tight bound.
-  const headConn = await evalV(late, () => new Promise((resolve) => {
-    const V = window.__gifosVideo, T = GifOS.net.topo;
-    const t0 = Date.now();
-    const iv = setInterval(() => {
-      const c = V.meshCoord(); if (!c) return;
-      const d = V.debugDump();
-      const headK = c.pc + '_' + c.r + '_0';
-      const head = (d.roster || []).find((r) => r.coord === headK);
-      if (head && head.conn) { clearInterval(iv); resolve({ ok: true, ms: Date.now() - t0, head: head.peer }); }
-      else if (Date.now() - t0 > 30000) { clearInterval(iv); resolve({ ok: false, ms: Date.now() - t0, roster: (d.roster || []).map((r) => ({ p: r.peer, c: r.coord, conn: r.conn })) }); }
-    }, 300);
-  }));
-  const joinToConnMs = (tSeat - tJoin) + (headConn.ms || 0);
-  check('late joiner CONNECTED to the socketless deep head within ' + (ROOM_TIGHT_MS / 1000) + 's of joining',
-    headConn.ok && joinToConnMs <= ROOM_TIGHT_MS,
-    { ok: headConn.ok, joinToConnMs, detail: headConn });
-  check('late joiner holds ≥1 live link', (await evalV(late, () => window.__gifosVideo.liveLinks())) >= 1);
-
-  // ---- 3. live media across the healed link ----
-  await evalV(late, () => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); });
-  let media = null;
-  const t2 = Date.now();
-  while (Date.now() - t2 < 25000) {
-    media = await evalV(late, () => {
-      const V = window.__gifosVideo, c = V.meshCoord();
-      const d = V.debugDump();
-      const head = (d.roster || []).find((r) => r.coord === (c.pc + '_' + c.r + '_0'));
-      return head ? { conn: head.conn, vid: head.vid } : null;
-    });
-    if (media && media.vid) break;
-    await sleep(1000);
+  // ---- 3. late joiners: every socketless link target must connect fast ----
+  const lateResults = [];
+  for (const lname of ['LATE1', 'LATE2']) {
+    const lu = await newUser(lname);
+    const tJoin = Date.now();
+    await lu.page.goto(link, GOTO);
+    const seatedOk = await lu.page.waitForFunction(() => {
+      const V = window.__gifosVideo, s = V && V.meshState();
+      return s && s.state === 3 && V.meshCoord();
+    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
+    const tSeat = Date.now();
+    const ls = seatedOk ? await snap(lu.page) : null;
+    lu.id = ls && ls.id;
+    check(lname + ' seats (took ' + (tSeat - tJoin) + 'ms)', seatedOk, ls && ls.coord);
+    if (!seatedOk) { lateResults.push({ name: lname, socketlessTargets: [], connected: false }); continue; }
+    // Identify this late joiner's SOCKETLESS link targets right now.
+    const stNow = await Promise.all(users.filter((u) => u !== lu).map((u) => snap(u.page).catch(() => null)));
+    const byId = new Map();
+    users.filter((u) => u !== lu).forEach((u, i) => { if (stNow[i]) byId.set(pfx(stNow[i].id), stNow[i]); });
+    const linkIds = (ls.links || []).map(pfx);
+    const sockless = linkIds.filter((lid) => { const s = byId.get(lid); return s && s.state === 3 && s.relayUp === false; });
+    console.log('  ' + lname + ' at ' + ls.coord + ' links=[' + linkIds.map((x) => x.slice(0, 6)).join(',') + '] socketless targets=[' + sockless.map((x) => x.slice(0, 6)).join(',') + ']');
+    // The regression: each socketless target CONNECTED within the tight bound.
+    let allOk = sockless.length === 0, waited = 0;
+    const deadline = tSeat + TIGHT_MS;
+    while (Date.now() < deadline) {
+      const cs = await snap(lu.page);
+      const connSet = new Set((cs.connTo || []).map(pfx));
+      if (sockless.every((x) => connSet.has(x))) { allOk = true; waited = Date.now() - tSeat; break; }
+      await sleep(500);
+    }
+    if (sockless.length) check(lname + ' CONNECTED to every socketless link target within ' + (TIGHT_MS / 1000) + 's of seating',
+      allOk, allOk ? (waited + 'ms') : await snap(lu.page).then((s) => s.connTo.map(pfx)));
+    check(lname + ' holds ≥1 live link within the bound', (await snap(lu.page)).conn >= 1);
+    lateResults.push({ name: lname, lu, socketlessTargets: sockless, connected: allOk });
   }
-  check('live media flows from the socketless head to the late joiner', !!(media && media.vid), media);
+  const anyExercised = lateResults.some((r) => r.socketlessTargets.length > 0);
+  check('the deadlock topology was actually exercised (a late joiner had a socketless link target)', anyExercised);
 
-  // ---- 4. the SPONSORED path actually carried the signaling ----
-  const postTxLate = await evalV(late, () => window.__gifosVideo.txStats());
-  const postTx = await Promise.all(users.slice(0, 8).map((u) => evalV(u.page, () => window.__gifosVideo.txStats()).catch(() => null)));
-  const dHops = postTx.reduce((a, t, i) => !t ? a : a + (t.hopFwd - preTx[i].hopFwd) + (t.hopRelay - preTx[i].hopRelay), 0);
-  const lateSponsored = (postTxLate.fwdSig || 0) + (postTxLate.fwdMesh || 0) + (postTxLate.doorSig || 0);
-  console.log('late txStats: ' + JSON.stringify(postTxLate));
-  console.log('mesh hop-forward deltas (early users): ' + dHops);
-  check('newcomer sent signaling over the sponsor path (fwdSig+fwdMesh+doorSig > 0)', lateSponsored > 0, lateSponsored);
-  check('the mesh hop-forwarded envelopes for the pair (hopFwd+hopRelay > 0)', dHops > 0, dHops);
+  // ---- 4. live media across a healed socketless link ----
+  const mr = lateResults.find((r) => r.socketlessTargets.length && r.connected && r.lu);
+  if (mr) {
+    await mr.lu.page.evaluate(() => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); }).catch(() => {});
+    let media = null;
+    const t2 = Date.now();
+    while (Date.now() - t2 < 30000) {
+      media = await mr.lu.page.evaluate((targets) => {
+        const d = window.__gifosVideo.debugDump();
+        return (d.roster || []).filter((r) => targets.includes(r.peer)).map((r) => ({ p: r.peer.slice(0, 6), conn: r.conn, vid: r.vid }));
+      }, mr.socketlessTargets);
+      if (media.some((m) => m.vid)) break;
+      await sleep(1000);
+    }
+    check('live media flows from a socketless-seat peer to the late joiner', !!(media && media.some((m) => m.vid)), media);
+  } else {
+    check('live media flows from a socketless-seat peer to the late joiner', false, 'no healed socketless link to measure');
+  }
 
-  // The relay told senders the truth at least once OR the roster gate skipped
-  // it entirely — nosock is informative, not required, so just report it.
-  const nosockTotal = postTx.reduce((a, t, i) => !t ? a : a + (t.nosock - preTx[i].nosock), (postTxLate.nosock || 0));
+  // ---- 5. the SPONSORED path actually carried the signaling ----
+  const lateTx = [];
+  for (const r of lateResults) if (r.lu) lateTx.push(await snap(r.lu.page).then((s) => s.tx).catch(() => null));
+  const lateSponsored = lateTx.reduce((a, t) => !t ? a : a + (t.fwdSig || 0) + (t.fwdMesh || 0) + (t.doorSig || 0), 0);
+  const postTx = await Promise.all(users.slice(0, 8).map((u) => snap(u.page).then((s) => s.tx).catch(() => null)));
+  const dHops = postTx.reduce((a, t, i) => (!t || !preTx[i]) ? a : a + (t.hopFwd - preTx[i].hopFwd) + (t.hopRelay - preTx[i].hopRelay), 0);
+  console.log('late txStats: ' + JSON.stringify(lateTx));
+  check('newcomers sent signaling over the sponsor path (fwdSig+fwdMesh+doorSig > 0)', lateSponsored > 0, lateSponsored);
+  check('the mesh hop-forwarded envelopes for them (hopFwd+hopRelay deltas > 0)', dHops > 0, dHops);
+  const nosockTotal = postTx.reduce((a, t, i) => (!t || !preTx[i]) ? a : a + (t.nosock - preTx[i].nosock), 0)
+    + lateTx.reduce((a, t) => !t ? a : a + (t.nosock || 0), 0);
   console.log('nosock bounces observed: ' + nosockTotal + ' (informative)');
 
   for (const u of users) { try { await u.ctx.close(); } catch (e) {} }

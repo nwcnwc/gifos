@@ -73,11 +73,12 @@
   //   tickMs          logical tick (default 500 — the canonical mapping)
   //   dropDeepSocket  drop the relay socket when seated deep (default true)
   //   wired()         optional: does this node hold at least one OPEN
-  //                   DataChannel? While false, the deep-socket drop waits (a
-  //                   freshly deep-seated newcomer with no channels yet MUST
-  //                   stay relay-reachable or inbound signaling answers die —
-  //                   the late-join deadlock), up to a hard cap so R2 scope
-  //                   still wins for a node that never manages to wire.
+  //                   DataChannel? While false, a deep seat NEEDS the relay —
+  //                   it keeps (and reopens) its socket until its first
+  //                   channel opens. A channel-less socketless seat is
+  //                   unreachable by anything (§FWD: the late-join deadlock's
+  //                   terminal case), so R2's greeting scope reads "joining,
+  //                   greeting, or not yet wired".
   //   sendDC(to, m)   preferred path: deliver control object m to peer `to`
   //                   over an existing DataChannel; return false if no channel
   //                   (falls back to a sealed relay {t:'peer'})
@@ -221,14 +222,19 @@
         seat.tick();
         if (seat.stranded && !strandedFired) { strandedFired = true; if (opts.onStranded) opts.onStranded(); }
         // Socket lifecycle: deep-seated ⇒ the relay is done with me; drop after a
-        // grace (Section-1 seats and joiners keep theirs — knock traffic).
-        const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0);
+        // grace (Section-1 seats and joiners keep theirs — knock traffic). An
+        // UNWIRED deep seat (opts.wired() false: not one open DataChannel) is
+        // unreachable any other way, so it NEEDS the relay — it keeps its
+        // socket, and REOPENS it if a channel death left it both socketless and
+        // channel-less. A seat nobody can reach serves nobody (§FWD: the
+        // late-join deadlock's terminal case — two adjacent socketless seats
+        // with no channel between them could otherwise never exchange the
+        // signaling that would wire them).
+        const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0) || !(!opts.wired || opts.wired());
         if (needsRelay) deepSince = -1;
         else if (deepSince < 0) deepSince = env.TICK;
-        // Grace: 20 ticks once wired (≥1 open DC); an UNWIRED deep seat keeps
-        // its socket up to 240 ticks (~2min) — it is unreachable any other way.
-        const dropAfter = (!opts.wired || opts.wired()) ? 20 : 240;
-        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > dropAfter) { try { sock.close(); } catch (e) {} sock = null; }
+        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
+        if (needsRelay && (!sock || sock.rejected)) makeSock(); // re-arm reachability
         if (opts.onUpdate) opts.onUpdate(node);
       }, tickMs);
     }
