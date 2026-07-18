@@ -1962,10 +1962,15 @@
             // explode it into a million-numeric-key plain object (huge to
             // sign/seal, and never a Uint8Array again for the client).
             const packState = (s) => JSON.parse(store.packJSON(s));
+            // The LEAD fence rides inside every signed body: the mesh act lane
+            // is fire-and-forget (no per-op reply like the relay host's), so a
+            // client must refuse a led write LOCALLY — and it may only trust a
+            // fence that arrives owner-signed.
+            const leadBody = () => ({ on: !!meshLead.on, keys: [...meshLead.keys] });
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               return db.getFullState().then((s) => {
-                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: packState(filterForGuests(s)) };
+                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: packState(filterForGuests(s)), lead: leadBody() };
                 return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
               }).catch(() => {});
             };
@@ -1976,7 +1981,7 @@
               // short debounce so late joiners stay current without paying the
               // app-byte cost on every keystroke.
               return db.getFullState().then((s) => {
-                const body = { state: packState(filterForGuests(s)) };
+                const body = { state: packState(filterForGuests(s)), lead: leadBody() };
                 return stageSigner.sign(sid, 'delta', body).then((f) => stageBus.send('delta', f));
               }).catch(() => {});
             };
@@ -2711,6 +2716,13 @@
       // and pack outgoing act-proposals the same way.
       const unpackWire = (o) => store.unpackJSON(JSON.stringify(o));
       const packWire = (o) => JSON.parse(store.packJSON(o));
+      // The owner-signed LEAD fence (see leadBody in the host): while on, a
+      // write to a fenced (collection,id) is refused HERE — the mesh act lane
+      // has no per-op host reply, so the honest refusal must be local. The
+      // host's own onAct fence stays authoritative against dishonest clients.
+      let leadState = { on: false, keys: new Set() };
+      const takeLead = (b) => { if (b && b.lead) leadState = { on: !!b.lead.on, keys: new Set(Array.isArray(b.lead.keys) ? b.lead.keys.map(String) : []) }; };
+      const fenced = (collection, id) => leadState.on && id != null && leadState.keys.has(collection + '::' + id);
 
       // Reads: from the owner-verified mirror. Writes: an optimistic local apply
       // (so the app sees its own change at once) PLUS an `act` proposal to the
@@ -2726,6 +2738,13 @@
           if (op === 'put') {
             const rec = safeRecord(value); if (rec.id == null) rec.id = AO.newRecordId(collection); delete rec._vis;
             if (priv) { localOf(collection).set(rec.id, rec); notify(collection); return Promise.resolve(rec); }
+            // Honest local refusal, mirroring what the host would do to the act
+            // anyway (read-only visibility / the signed lead fence) — otherwise
+            // the optimistic apply would show a write the room never adopts.
+            const stored = itemsOf(collection)[rec.id];
+            const eff = stored ? visOf(dataVis, collection, stored) : collVis(dataVis, collection);
+            if (eff !== 'read-write') return Promise.reject(new Error('read-only for guests'));
+            if (fenced(collection, rec.id)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
             try { send('act', { op: 'put', collection: collection, value: packWire(rec) }); } catch (e) {}
@@ -2733,6 +2752,10 @@
           }
           if (op === 'delete') {
             if (priv) { localOf(collection).delete(key); notify(collection); return Promise.resolve(true); }
+            const stored0 = itemsOf(collection)[key];
+            const eff0 = stored0 ? visOf(dataVis, collection, stored0) : collVis(dataVis, collection);
+            if (eff0 !== 'read-write') return Promise.reject(new Error('read-only for guests'));
+            if (fenced(collection, key)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection]; if (c && c.items) delete c.items[key]; notify(collection);
             try { send('act', { op: 'delete', collection: collection, key: key }); } catch (e) {}
             return Promise.resolve(true);
@@ -2769,6 +2792,7 @@
         if (!m || m.kind === 'act') return; // acts are the client→owner direction
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
+          takeLead(r.body); // the signed lead fence rides every canonical frame
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
             if (r.body && r.body.state && r.body.state.collections) { mirror = unpackWire(r.body.state); notify('*'); }
