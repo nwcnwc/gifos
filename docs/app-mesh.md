@@ -1,9 +1,16 @@
 # Apps on the mesh (migration design)
 
-Status: **DESIGN — not yet implemented.** Written during the overnight run of
-2026-07-17 per the directive: *"update the app-run functionality of the meeting
-to ride the meeting infrastructure, and completely update app-run to have the
-exact same mesh even when not running inside a meeting."* Companion:
+Status: **PARTIALLY IMPLEMENTED (2026-07-18).** The IN-MEETING half shipped:
+the runtime's host+client adapters for the mesh Stage DATA lane
+(`runtime.js` `attachStageBus`/`bootClientBus`, used by `meet.html` `runApp`/
+`mountClientApp`) and the signed owner-authority module — an app shared inside
+a meeting rides the meeting's own mesh. The STANDALONE half is still open:
+an app shared outside a meeting still syncs over the relay broadcast bus
+(`runtime.js` `t:'bcast'`, `role=host`) — the bus swap below remains the plan
+of record (see also `roadmap.md` §3). Originally written during the overnight
+run of 2026-07-17 per the directive: *"update the app-run functionality of the
+meeting to ride the meeting infrastructure, and completely update app-run to
+have the exact same mesh even when not running inside a meeting."* Companion:
 `docs/healing-laws.md` (the mesh), `docs/media-plane.md` (media over it),
 `docs/meet-security.md` (R2: the relay is a greeter registry, not a transport).
 

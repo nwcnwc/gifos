@@ -61,3 +61,31 @@ login).
   brokers a 402 and verifies a receipt; it never holds funds or keys.
 - (item 1 was rejected; the first pilot service is TBD — any metered GifOS endpoint fits this pattern.)
   x402 there before generalising to app-to-app metered calls.
+
+## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
+
+The mesh-v2 plan doc (`docs/option-a-plan.md`, in git history) is retired: its
+design (11a fixed-designation healing, W7 rook's graph, first-hand liveness,
+S4 identity) shipped — `site/js/mesh.js` is the faithful port of the green sim,
+and the media plane (Stage/Stadium, cross-link + multi-subscribe redundancy,
+mix-minus) is live. What it still owed, verbatim but renumbered:
+
+- **Sharded greeter registry** — N bootstrap Durable Objects sharing one
+  genesis so a flash crowd fans across shards instead of one ~30-socket DO;
+  client shard-select + backoff, thundering-herd proof in the sim first.
+- **Door verbs off the relay** — move `ban` / `setpw` / `votekick` onto the
+  mesh as signed governance gossip; today they are the relay's last
+  non-greeting duties (they don't violate R2's "arbitrates nothing", but they
+  are a residual path to retire).
+- **Standalone app-share bus swap** — standalone (outside-a-meeting) app
+  sharing still rides the relay broadcast bus (`runtime.js` `t:'bcast'`);
+  swap it to a headless mesh node per `app-mesh.md`. In-meeting apps already
+  ride the mesh Stage DATA lane.
+- **Final greeting-only relay audit** — after the two items above, delete every
+  remaining non-greeting relay path and prove the relay carries only knock +
+  first-greeter handshake.
+- **Seating compaction** — route newcomers to the shallowest hole via the
+  echo-immune live signal (sim-first; the fragmentation fix).
+- **Scale verification + release** — 500-bot multi-region swarm of the routed
+  mesh, home-LAN real-device pass, then cut a versioned release
+  (`scripts/archive-version.sh`).
