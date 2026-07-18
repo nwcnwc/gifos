@@ -3191,6 +3191,9 @@
       } else if (m.k === 'mx-idle' && typeof m.key === 'string') {
         // A receiver already has 2 hot feeds — park this spare at zero bandwidth.
         setJobActive(m.key + '>' + p.id, false);
+      } else if (m.k === 'sga' && typeof m.sid === 'string') {
+        // Stage data lane (§11): app-state frame — dedup, deliver, re-fan.
+        sgaRecv(p.id, m);
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
@@ -4025,6 +4028,78 @@
       } else if (!sd && !(iAmHead && c.pc === 0)) paintStadiumTile(null);
       for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
     }
+
+    // ============ THE STAGE DATA LANE (§11 — docs/media-plane.md, Channel St):
+    // "An APP on Stage carries a DATA stream, not A/V." Small app-state frames
+    // ride the SAME topology as the Stage strip — up the tree toward Section 1
+    // (plus the lateral second path), across the S1 row+column rook fabric
+    // (W7), and down every down-link — as DC frames deduped by frame id. Every
+    // frame travels each tree+lateral link at most once, so any single dead
+    // upstream cannot starve a subtree of app state (S3 for data), and each
+    // client renders the shared app LOCALLY from the stream — no video tile,
+    // no app relay-session. 'snap' frames (full state) are retained and
+    // replayed to late subscribers; 'delta'/'act' frames are fire-and-forget.
+    const sgaSeen = new Map();  // sid|seq -> at (flood dedup)
+    const sgaSnap = new Map();  // sid -> latest full-state frame (late-joiner replay)
+    const sgaSubs = new Map();  // sid -> Set(cb)
+    let sgaSeq = 0;
+    // The same neighbour set the media fans ride: deep — up (head or parent),
+    // cross-link, down, and a head's row; Section 1 — the full rook row+column.
+    function sgaTargets() {
+      const c = meshCoord(); if (!c) return [];
+      const T = net.topo, out = new Set();
+      const add = (co) => { const pid = co ? occPid(co) : null; if (pid && pid !== myId) out.add(pid); };
+      if (c.pc === 0) { for (const m of T.rowMates(c)) add(m); for (const m of T.colMates(c)) add(m); }
+      else {
+        add(c.i === 0 ? T.up(c) : { pc: c.pc, r: c.r, i: 0 });
+        if (c.i === 0) for (const m of T.rowMates(c)) add(m);
+        add(T.crossLink(c));
+      }
+      add(T.down(c));
+      return [...out];
+    }
+    function sgaFan(m, fromPid) {
+      for (const pid of sgaTargets()) {
+        if (pid === fromPid) continue;
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, m);
+      }
+    }
+    function sgaDeliver(m) {
+      if (m.kind === 'snap') sgaSnap.set(m.sid, m);
+      const subs = sgaSubs.get(m.sid);
+      if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
+    }
+    function sgaRecv(fromPid, m) {
+      if (!m.sid || m.seq == null) return;
+      const dk = m.sid + '|' + m.seq;
+      if (sgaSeen.has(dk)) return;
+      sgaSeen.set(dk, Date.now());
+      if (sgaSeen.size > 4096) { const cut = Date.now() - 120000; for (const [k2, at] of sgaSeen) if (at < cut) sgaSeen.delete(k2); }
+      sgaDeliver(m);
+      sgaFan(m, fromPid);
+    }
+    // The bus a mesh-native app runtime plugs into. Host side broadcasts state
+    // ('snap' periodically, 'delta' per change); clients render from subscribe
+    // and send inputs back as 'act' frames on the same lane (the host is just
+    // another subscriber). Exposed as GifOS.meetStageData for the runtime
+    // adapter (roadmap 26–28).
+    const stageData = {
+      broadcast(sid, kind, d) {
+        const m = { k: 'sga', sid, seq: myId + ':' + (++sgaSeq), kind: kind || 'delta', d, at: Date.now() };
+        sgaSeen.set(sid + '|' + m.seq, Date.now());
+        sgaDeliver(m); sgaFan(m, null);
+        return m.seq;
+      },
+      subscribe(sid, cb) {
+        let s = sgaSubs.get(sid); if (!s) { s = new Set(); sgaSubs.set(sid, s); }
+        s.add(cb);
+        const snap = sgaSnap.get(sid); if (snap) { try { cb(snap); } catch (e) {} }
+        return () => { s.delete(cb); if (!s.size) sgaSubs.delete(sid); };
+      },
+      drop(sid) { sgaSnap.delete(sid); sgaSubs.delete(sid); },
+    };
+    if (window.GifOS) GifOS.meetStageData = stageData;
 
     // ---- hand raise: float to the top in the order hands went up --------------
     const handBtn = document.getElementById('hand');
@@ -5176,9 +5251,19 @@
         appLeadOn = lead && appLeadable;
         if (appLeadSet) appLeadSet(appLeadOn);
         appHiddenSid = null;
+        // §11 (docs/media-plane.md): a mesh-native runtime taps the STAGE DATA
+        // LANE — app state fans down the Stage path as small DC frames, no app
+        // relay-session. Feature-detected: until the runtime grows the adapter
+        // (roadmap 26–28) the ad still carries the relay session, and clients
+        // pick the mesh lane iff the host actually drives it (mesh flag).
+        const meshBus = !!(r && r.attachStageBus);
+        if (meshBus) r.attachStageBus({
+          send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
+          subscribe: (cb) => stageData.subscribe(sess.sid, cb),
+        });
         // ts outbids any standing tombstone for this sid — a re-share is a
         // deliberate act and must win even against a skewed stopper's clock.
-        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name,
+        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus,
           ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
         broadcastStatus();
         reconcileApp();
@@ -5188,11 +5273,24 @@
     function mountClientApp(app) {
       appMode = 'client'; appKey = app.s;
       showAppPane(app.name, '· shared with the meeting' + (app.byName ? ' by ' + app.byName : ''));
-      try { GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {}); }
+      try {
+        // §11: when the host drives the mesh Stage data lane (app.mesh) and the
+        // runtime has the client adapter, render the app LOCALLY from the data
+        // stream — actions ride back up the same lane as 'act' frames. The
+        // relay session below is the transport until the runtime adapter lands.
+        if (app.mesh && GifOS.runtime.bootClientBus) {
+          GifOS.runtime.bootClientBus(appMountEl, {
+            s: app.s,
+            send: (kind, d) => stageData.broadcast(app.s, kind, d),
+            subscribe: (cb) => stageData.subscribe(app.s, cb),
+          }, null, {});
+        } else GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {});
+      }
       catch (e) { clearAppView(); }
     }
     function stopApp() { // withdraw MY OWN share
       const wasHost = appMode === 'host' || !!myStatus.app;
+      if (myStatus.app && myStatus.app.s) stageData.drop(myStatus.app.s);
       myStatus.app = null;
       appLeadSet = null; appLeadable = false; appLeadOn = false;
       clearAppView();
