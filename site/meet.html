@@ -5440,7 +5440,11 @@
     async function runApp(fileId, name) {
       if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
       if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
+      appBooting = true;
       try {
+        // Taking over from a client mount: unsubscribe its lane before the
+        // host boot replaces the DOM (the iframe goes with it either way).
+        if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
         const rec = await GifOS.store.getFile(fileId);
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
