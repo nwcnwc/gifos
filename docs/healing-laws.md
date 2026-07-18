@@ -170,32 +170,35 @@ childless — a leaf. **Only leaves move. No exceptions.**
   holds its parent-layer neighbourhood in advance, and an H8 promotion lands
   into an already-wired mesh — no relay, no discovery delay. (Bounded: ~C²
   addresses per seat, always the immediate aunt/uncle layer.)
-- **W7. The home is kept ONE connected component (ring integrity).** This is
-  the load-bearing invariant: E1+W5 already guarantee that everything *below*
-  the home re-seats into the one home, so the ONLY way a divergent home can
-  arise is the home itself splitting into two disconnected pieces. So Section 1
-  is wired to be hard to split:
-  - **A head carries a cross-link only when its row is SPARSE (dynamic).** In a
-    full row the non-head row-mates carry the cross-links — C-1 independent
-    cross-paths out of the row — so the head needs none and stays at degree C.
-    But when its row has empty seats (the row-mates that would carry those
-    cross-links are missing), the head holds a cross-link ITSELF to keep the
-    row attached, and DROPS it — it is "replaced" — as row-mates fill in and
-    bring their own. So a head spends the extra degree only when sparsity would
-    otherwise leave it single-attached, never in the healthy dense case.
-    **STATUS: designed, NOT yet implemented** — `crossLink` still returns none
-    for column 0 in both `sim/topo.h` and `site/js/gifos-net.js`.
-  - **Keep the home DENSE (compaction).** The dynamic head cross-link covers
-    sparsity, but the real fix for sparsity is to not be sparse: seat
-    column-major and compact the home so rows stay full, where the C-1 non-head
-    cross-paths per row already give strong inter-row connectivity. (Whether a
-    *permanent* second cross-path is also worth a modestly higher fixed degree
-    — Section 1 is a fixed C²-seat core, so it costs nothing asymptotically —
-    is an open topo call; the dynamic head link + density may already suffice.)
+- **W7. The home is kept ONE connected component (ring integrity) — Section 1
+  is the 5×5 ROOK'S GRAPH.** This is the load-bearing invariant: E1+W5 already
+  guarantee that everything *below* the home re-seats into the one home, so the
+  ONLY way a divergent home can arise is the home itself splitting. Section 1 —
+  and Section 1 ONLY, because it is a fixed C²-seat core that never grows with
+  the meeting — is therefore meshed far more richly than the deep tree:
+  - **Every home seat meshes its whole ROW and its whole COLUMN.** On top of
+    its C-1 row-mates, each seat links all C-1 **column-mates** (the seats in
+    its column, across the other rows). Uniform **degree 9** per home seat
+    (C-1 row + C-1 column + 1 down = 4 + 4 + 1). This is the 5×5 rook's graph:
+    **8-edge-connected** (you must cut 8 links to detach any seat), and every
+    pair of rows now shares **C independent links** instead of 1. Only a
+    genuine transport-level network partition — never any pattern of node loss
+    — can split it.
+  - **Heads stop being special.** They gain column-mates like everyone else, so
+    the old single-attach head weakness is gone by construction. This
+    **subsumes and retires the dynamic head cross-link (F1)** — no conditional
+    logic needed.
+  - **Section 1 ONLY.** Deep sections keep the strict `C+1` degree bound and
+    the sparse transpose cross-link; the rook meshing is gated on `pc==0`. The
+    extra links are a *fixed* cost (25 seats, ~9 links each) that never grows,
+    and most are cheap control/roster redundancy, not media fan-out.
+  - **Keep the home DENSE (compaction).** Column-major seating + compaction
+    keeps rows and columns full, where the rook connectivity is strongest.
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
-  The target: no loss short of a genuine transport-level network partition can
-  split the home into two components.
+  **STATUS: specified, NOT yet implemented** — `crossLink` still returns the
+  sparse transpose (and none for heads) in both `sim/topo.h` and
+  `site/js/gifos-net.js`.
 
 ## E — when ordinary healing isn't enough
 
