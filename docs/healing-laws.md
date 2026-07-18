@@ -175,18 +175,23 @@ childless — a leaf. **Only leaves move. No exceptions.**
   the home re-seats into the one home, so the ONLY way a divergent home can
   arise is the home itself splitting into two disconnected pieces. So Section 1
   is wired to be hard to split:
-  - **Heads carry a cross-link too.** A head otherwise hangs off its row alone
-    (its most single-attached point); it has a spare degree slot (heads sit at
-    C links, the budget is C+1), so it spends it on a cross-link to another
-    row. No head is one row-failure from isolation.
-  - **Redundant inter-row cross-paths.** The weakest cut in the home is
-    *between* rows, so the home carries more than one independent cross-path
-    per row (the exact set is topo.h's `crossLink`). Because Section 1 is a
-    FIXED C²-seat core — it never grows with the meeting — it may run a
-    modestly higher degree than the strict C+1 the deep tree keeps for
-    scaling; the extra links buy resilience where it matters most and cost
-    nothing asymptotically. (Exact degree = a topo decision; see the topology
-    note wherever `crossLink` is defined.)
+  - **A head carries a cross-link only when its row is SPARSE (dynamic).** In a
+    full row the non-head row-mates carry the cross-links — C-1 independent
+    cross-paths out of the row — so the head needs none and stays at degree C.
+    But when its row has empty seats (the row-mates that would carry those
+    cross-links are missing), the head holds a cross-link ITSELF to keep the
+    row attached, and DROPS it — it is "replaced" — as row-mates fill in and
+    bring their own. So a head spends the extra degree only when sparsity would
+    otherwise leave it single-attached, never in the healthy dense case.
+    **STATUS: designed, NOT yet implemented** — `crossLink` still returns none
+    for column 0 in both `sim/topo.h` and `site/js/gifos-net.js`.
+  - **Keep the home DENSE (compaction).** The dynamic head cross-link covers
+    sparsity, but the real fix for sparsity is to not be sparse: seat
+    column-major and compact the home so rows stay full, where the C-1 non-head
+    cross-paths per row already give strong inter-row connectivity. (Whether a
+    *permanent* second cross-path is also worth a modestly higher fixed degree
+    — Section 1 is a fixed C²-seat core, so it costs nothing asymptotically —
+    is an open topo call; the dynamic head link + density may already suffice.)
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
   The target: no loss short of a genuine transport-level network partition can
