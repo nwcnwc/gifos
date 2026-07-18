@@ -81,7 +81,7 @@ const LED_APP = {
   const C = await newUser('Cyd'); const cPage = await C.newPage();
   cPage.on('pageerror', (e) => console.log('  [c pageerror]', e.message));
   await cPage.goto(BASE + '/meet.html#v=' + room);
-  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 25000 });
+  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 40000 });
 
   // A shares; everyone mounts
   const aFile = await seedApp(aPage);
@@ -159,13 +159,15 @@ const LED_APP = {
   }, admRoom);
   await dPage.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
   await dPage.reload(); // hash-only navigation doesn't re-boot the page
-  await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
+  // 45s: admin boot = meeting boot + a 310k-round PBKDF2 + Ed25519 key
+  // adoption, CPU-heavy and slow on a saturated shared box.
+  await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 45000 });
   check('admin room up; Dana is its admin', true);
 
   const E = await newUser('Eve'); const ePage = await E.newPage();
   ePage.on('pageerror', (e) => console.log('  [e pageerror]', e.message));
   await ePage.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
-  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 25000 });
+  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 40000 });
 
   // Guest may NOT run an app
   check('guest cannot run apps in an admin room', !(await ePage.evaluate(() => window.__gifosVideo.canRunApp())));
