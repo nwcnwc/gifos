@@ -19,7 +19,9 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const aCtx = await newUser('Ada');
   const aDesk = await aCtx.newPage();
   aDesk.on('pageerror', (e) => console.log('  [a desk] ' + e.message));
-  await aDesk.goto(BASE + '/index.html'); await aDesk.waitForSelector('.icon', { timeout: 20000 });
+  // 90s: first-visit desktop seed GIF-encodes the sample apps — CPU-bound and
+  // legitimately slow on a saturated shared box (measured ~60s at load 40).
+  await aDesk.goto(BASE + '/index.html'); await aDesk.waitForSelector('.icon', { timeout: 90000 });
   const mmId = await aDesk.evaluate(async () => { const f = (await GifOS.store.allFiles()).find((x) => x.appId === 'mymedia'); return f ? f.id : null; });
   check('My Media seeded', !!mmId, mmId);
 
