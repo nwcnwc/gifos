@@ -32,6 +32,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   // Host shares My Media into the meeting, then stores a video — but leaves it
   // PRIVATE for now (mark-visible happens live, after the guest is watching).
+  // Wait until we CAN run an app first: canIRunApp() needs myId, and S4 mints the
+  // per-participant identity ASYNCHRONOUSLY, so myId lands a beat after room() is
+  // truthy. Firing runApp too early silently no-ops ("only admins can run an app"
+  // — misleading; the real reason is we aren't mesh-identified yet). The real
+  // Run-app button is gated on canRunApp too, so this mirrors the UI.
+  await aMeet.waitForFunction(() => window.__gifosVideo.canRunApp && window.__gifosVideo.canRunApp(), null, { timeout: 15000 });
   await aMeet.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'My Media'), mmId);
   await aMeet.waitForSelector('#appmount iframe', { timeout: 15000 });
   await sleep(800);
