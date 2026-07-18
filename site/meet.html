@@ -1775,7 +1775,15 @@
         if (!stream) return;
         p.incoming = p.incoming || [];
         if (!p.incoming.includes(stream)) p.incoming.push(stream);
-        if (p.incoming.length > 8) p.incoming.shift(); // dead renegotiation leftovers
+        // Cap dead renegotiation leftovers — but a busy mosaic link legitimately
+        // carries MANY live aux streams (sdm + sdx + sdxc + sgs + stg:* + the
+        // camera); the old cap of 8 evicted still-LIVE streams, which made
+        // mosLive() false for a healthy pipe → claim drop → tile flap. Evict
+        // streams with no live tracks first; only then trim by age.
+        if (p.incoming.length > 24) {
+          const dead = p.incoming.findIndex((s) => !s.getTracks().some((t) => t.readyState === 'live'));
+          if (dead >= 0) p.incoming.splice(dead, 1); else p.incoming.shift();
+        }
         claimOwnStream(p);     // proven-own media → their tile
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
         claimMos();            // explicitly mapped mosaic hops → bands/frames (3b)
@@ -3186,7 +3194,10 @@
         claimMos();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
-        for (const [rk, c] of [...mosIn]) if (c.via === p.id && c.streamId === m.streamId) dropMosIn(rk);
+        // Structural slots drop hard; REDUNDANT slots go through claimMos so the
+        // multi-subscribe machinery promotes the hot standby instantly — or
+        // lingers the last frame under MOS_GRACE — instead of tearing down.
+        for (const [rk, c] of [...mosIn]) if (c.via === p.id && c.streamId === m.streamId && !isRedun(rk)) dropMosIn(rk);
         for (const [rk, c] of [...mosStandby]) if (c.via === p.id && c.streamId === m.streamId) dropStandby(rk);
         claimMos(); // promote a hot standby into any slot just vacated (no sweep wait)
       } else if (m.k === 'mx-want' && typeof m.key === 'string') {
@@ -3580,6 +3591,7 @@
     const subWant = new Map();    // from + '|' + key + '|' + sid -> 'w'|'i' (last demand sent — debounce)
     const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
+    let mosBeyondAt = 0; // last time beyondRow was RAW-true (teardown hysteresis)
     const sdnPacks = new Map(); // col -> packer: per-child DOWN ingredients (mix-minus)
     // STAGE AUDIO folds AT THE EAR (mix-minus): the strip is video-only; every
     // device sums the per-stager feeds it holds, skipping its OWN — a stager
@@ -3739,7 +3751,16 @@
     }
     // MULTI-SUBSCRIBE for one redundant slot: keep PRIMARY + hot STANDBY over two
     // independent announcers, pre-subscribe to the rest as DORMANT spares.
+    // MOS_GRACE (claim linger): a primary that goes dark with NO live
+    // replacement is NOT torn down for a few seconds — renegotiation glare, a
+    // transport rebuild (p.incoming reset) or an announce beat all resolve
+    // within a sweep or two, and tearing the tile down and rebuilding it for
+    // each is exactly the user-visible flap. A frozen last frame for a beat,
+    // never a torn-down tile; the mix-minus law holds (the lingering stream IS
+    // my legitimate mix — never a neighbour's).
+    const MOS_GRACE = 5000;
     function claimRedun(rk, arr) {
+      const now = Date.now();
       // Resolve every announcer to its (possibly muted) incoming stream.
       const cand = [];
       for (const a of arr) {
@@ -3747,20 +3768,28 @@
         const st = (p && p.incoming) ? p.incoming.find((s) => s.id === a.ann.streamId && s.id !== p.ownSid) : null;
         cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
       }
-      if (!cand.length) { if (mosIn.has(rk)) { dropMosIn(rk); repaintRedun(rk, null); } dropStandby(rk); return; }
       const inCand = (e) => e && cand.some((c) => c.from === e.via && c.sid === e.streamId && c.live);
+      const mkClaim = (pick) => ({ via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
       let pri = mosIn.get(rk), std = mosStandby.get(rk);
-      // FAILOVER: primary gone → promote the (already-decoding) standby, no flicker.
+      if (std && !inCand(std)) { dropStandby(rk); std = null; } // standby is invisible — no linger needed
+      if (pri && inCand(pri)) pri.deadAt = 0;
+      // FAILOVER: primary gone → promote the (already-decoding) standby, else
+      // claim any live candidate, else LINGER (grace) before tearing down.
       if (pri && !inCand(pri)) {
-        dropMosIn(rk);
-        if (std && inCand(std)) { mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null; repaintRedun(rk, pri.stream); }
-        else { pri = null; repaintRedun(rk, null); }
+        if (std) { dropMosIn(rk); mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null; pri.deadAt = 0; repaintRedun(rk, pri.stream); }
+        else {
+          const pick = cand.find((c) => c.live);
+          if (pick) { dropMosIn(rk); pri = mkClaim(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
+          else if (!pri.deadAt) pri.deadAt = now;
+          else if (now - pri.deadAt > MOS_GRACE) { dropMosIn(rk); pri = null; repaintRedun(rk, null); }
+          // else: linger — keep the last stream painted while a replacement negotiates
+        }
       }
-      if (std && !inCand(std)) { dropStandby(rk); std = null; }
+      if (!cand.length) return; // nothing announced: linger handled above, nothing to claim/demand
       // Fill PRIMARY from a live candidate (distinct from the standby's path).
       if (!pri) {
         const pick = cand.find((c) => c.live && !(std && c.from === std.via && c.sid === std.streamId));
-        if (pick) { pri = { via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann) }; mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
+        if (pick) { pri = mkClaim(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
       }
       // Refresh primary meta from its own announcer (counts change, id doesn't).
       if (pri) { const own = cand.find((c) => c.from === pri.via && c.sid === pri.streamId); if (own) pri.meta = annMeta(own.ann); }
@@ -3779,7 +3808,22 @@
       for (const c of cand) demand(c.from, c.key, c.sid, hot.has(c.from + '|' + c.sid));
     }
     function claimMos() {
+      // ANNOUNCE AGEING: a live job re-announces every sweep (~2s); an entry
+      // not refreshed for 12s has a dead sender (silent DC death — mx-end never
+      // came). Reap it, and prune its demand-debounce entries, so stale
+      // announcers stop being claim candidates / demand targets forever.
+      const nowA = Date.now();
+      for (const [ak, ann] of mosAnn) if (nowA - (ann.at || 0) > 12000) mosAnn.delete(ak);
+      for (const dk of [...subWant.keys()]) {
+        const a = dk.indexOf('|'), b = dk.lastIndexOf('|');
+        const ann = mosAnn.get(dk.slice(0, a) + '|' + dk.slice(a + 1, b));
+        if (!ann || ann.streamId !== dk.slice(b + 1)) subWant.delete(dk);
+      }
       const redun = new Map(); // rk -> [{from,key,ann}]
+      // A redundant slot we HOLD but nobody announces any more must still run
+      // claimRedun (with zero candidates) so its claim-linger grace expires —
+      // otherwise an orphaned claim would paint a dead frame forever.
+      for (const rk of new Set([...mosIn.keys(), ...mosStandby.keys()])) if (isRedun(rk)) redun.set(rk, []);
       for (const [ak, ann] of mosAnn) {
         const from = ak.slice(0, ak.indexOf('|')), key = ak.slice(ak.indexOf('|') + 1);
         const rk = mosResolve(key, ann, from);
@@ -3841,6 +3885,7 @@
     // budget for the Stadium/Stage cross-link redundancy. Section-mates now fold
     // into the Stadium. docs/media-plane.md.)
     function stopMosaic() {
+      mosBeyondAt = 0;
       for (const jk of [...mosJobs.keys()]) unshipMos(jk, true);
       for (const rk of [...mosIn.keys()]) dropMosIn(rk);
       for (const rk of [...mosStandby.keys()]) dropStandby(rk);
@@ -3859,11 +3904,18 @@
       // ACTIVE whenever the room extends beyond my row: section-mates in other
       // rows (Section channel), deep members (Stadium), or stagers (Stage).
       // A room that IS just my row costs nothing here — the row mesh shows it.
-      const beyondRow = (() => {
+      const beyondRowRaw = (() => {
         if (!s || !c) return false;
         for (const [k, v] of s.occ) { if (v === myId) continue; const cc = net.topo.unck(k); if (cc.pc !== c.pc || cc.r !== c.r) return true; }
         return false;
       })();
+      // HYSTERESIS: beyondRow reads occ, and occ flickers during heals/gossip
+      // churn. A single false beat used to stopMosaic() — every packer torn
+      // down, every stream id changed, every receiver forced through a full
+      // re-claim + renegotiation (a room-wide tile flap). Only tear down after
+      // the condition has held false for MOS_GRACE.
+      if (beyondRowRaw) mosBeyondAt = Date.now();
+      const beyondRow = beyondRowRaw || (!!mosBeyondAt && Date.now() - mosBeyondAt < MOS_GRACE && !!s && !!c);
       if (!s || !c || (!beyondRow && !stageIds().length)) { if (mosJobs.size || mosIn.size || mosStandby.size || prodPack || sdPack || sdnPacks.size || stripPack) stopMosaic(); return; }
       claimMos();
       const C = SCALE.C, iAmHead = c.i === 0, wanted = new Set();
@@ -4147,7 +4199,20 @@
         for (const [k2, st2] of want2) if (!stageEar.sids.has(k2)) { stageEar.fold.add(k2, st2, 1); stageEar.sids.set(k2, st2.id); }
         stageEar.el.volume = mix.stage;
       }
-      for (const jk of [...mosJobs.keys()]) if (!wanted.has(jk)) unshipMos(jk, true);
+      // DEBOUNCED UNSHIP: the wanted set is rebuilt from occ every sweep, and
+      // occ flickers during gossip churn (a seat transiently unknown, a heal in
+      // flight). Ripping a live pipe on ONE missed sweep sends mx-end + a
+      // renegotiation — a visible outage on that branch — and then rebuilds the
+      // same pipe two seconds later. A job must stay unwanted for MOS_GRACE
+      // before it is really unshipped. (A job to a DEPARTED peer drops at once;
+      // dropPeer already cleaned the far side.)
+      const nowU = Date.now();
+      for (const [jk, job] of [...mosJobs]) {
+        if (wanted.has(jk)) { job.unwantedAt = 0; continue; }
+        if (!peers.has(job.to)) { unshipMos(jk, true); continue; }
+        if (!job.unwantedAt) job.unwantedAt = nowU;
+        else if (nowU - job.unwantedAt > MOS_GRACE) unshipMos(jk, true);
+      }
     }
 
     // ============ THE STAGE DATA LANE (§11 — docs/media-plane.md, Channel St):
