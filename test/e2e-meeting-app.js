@@ -46,7 +46,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   aMeet.on('pageerror', (e) => console.log('  [a meet pageerror]', e.message));
   await aMeet.goto(BASE + '/meet.html');
   await aMeet.locator('#lob-open').click(); // cold open → lobby → start an open meeting
-  await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 }); // meeting boot is CPU-heavy under a saturated box
   check('meeting page loaded the app runtime', await aMeet.evaluate(() => !!(window.GifOS && window.GifOS.runtime)));
   check('meeting bar shows the Run-app control', await aMeet.locator('#appbtn').isVisible());
   const link = await aMeet.evaluate(() => window.__gifosVideo && document.getElementById('share-url').value);
@@ -56,8 +56,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bMeet = await bCtx.newPage();
   bMeet.on('pageerror', (e) => console.log('  [b meet pageerror]', e.message));
   await bMeet.goto(link);
-  await aMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await bMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await aMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  await bMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
   check('both participants are meshed in the meeting', true);
 
   // ---- A runs an app into the meeting; B should mount it live ----
