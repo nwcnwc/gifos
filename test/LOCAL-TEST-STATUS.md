@@ -50,8 +50,28 @@ dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNO
 | e2e-mosaic.js | REAL-BUG | see BUG-1 below (S1 seat Stadium) |
 | e2e-video.js | REAL-BUG | see BUG-1 (2 people, column-mates, no video) |
 | e2e-media-recovery.js | REAL-BUG | see BUG-1 (late camera never publishes) |
-| e2e-meeting-app.js | INVESTIGATING | host+guest app mount PASS; the LATE (3rd) joiner never mounts `#appmount iframe` (2/2 timeout at line 77). App state rides mesh gossip. Candidate real bug in late-join app adoption. |
+| e2e-meeting-app.js | REAL-BUG (candidate) | host+guest live app mount PASS; the LATE (3rd) joiner never mounts `#appmount iframe` (3/3 timeout at line 77). Presence/status floods to ALL nodes (`meshNode.gossip`), but app STATE rides the structural-neighbour `sga` flood (`sgaTargets`, meet.html:4053/4066) — a newcomer can see the host's app-status yet never receive the retained app snapshot. Not fixed; needs site owner. |
+| e2e-boot.js | GREEN | |
+| e2e-store.js | GREEN | |
+| e2e-version.js | FIXED | Erase moved from the system context menu into Settings → Advanced settings → "Erase this computer" disclosure (`#set-erase`, desktop.js:1737). Rewrote the erase navigation. |
+| e2e-required.js | GREEN | (one transient first-load `.icon` flake; green on retry) |
+| e2e-visibility.js | GREEN | |
+| e2e-mirror.js | GREEN | |
+| e2e-theme-wallpaper.js | FIXED | sw.js precaches `/themes/<hostname-label>/wallpaper.js`; on 127.0.0.1 the "127" octet reads as a subdomain label (the SW can't see the page-only GIFOS_THEME), tripping "default requests no wallpaper" — a localhost artifact (real default host has empty label). Block the SW to isolate the page theme cascade under test. |
+| e2e-icon-rotate.js | GREEN | |
+| e2e-contrast.js | GREEN | |
+| e2e-add-url.js | GREEN | (was RED only due to my server-dir setup slip — see note) |
+| e2e-run-param.js | GREEN | (same server-dir slip) |
 | (remaining browser tests) | PENDING | |
+
+### Setup note (my error, now fixed — no product/test defect)
+e2e-add-url / e2e-run-param write their fixture GIF into the WORKTREE's `site/`
+(`__dirname/../site/__X.gif`), but I had started `python3 -m http.server 8099`
+from the MAIN checkout's `site/`, so the fixture 404'd (and the SW served the
+404 back). Restarting the server with `-d site` from the worktree fixed both.
+The site content is byte-identical between the two checkouts (only `test/*.js`
+changed), so every non-fixture test — including the BUG-1 media suites, which
+reproduce on the correct server — is unaffected.
 
 ## REAL BUGS found (production — NOT fixed, another session owns site/)
 
