@@ -335,17 +335,17 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   console.log('[swarm] all launched — census every 20s (Ctrl-C to end the shard)');
   setInterval(async () => {
     const bySection = {};
-    let up = 0, parts = 0;
+    let up = 0, maxSeen = 0; // maxSeen = the most participants ANY single bot sees; == N ⇒ all converged into ONE room
     for (const { p } of pages) {
       try {
         const s = await p.evaluate(() => window.__gifosVideo
           ? (() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
               return { sec: g(() => { const c = window.__gifosVideo.meshCoord(); return c ? String(c.pc) : '?'; }, '?'),
                        n: g(() => window.__gifosVideo.participants(), 0) }; })() : null);
-        if (s) { up++; bySection[s.sec] = (bySection[s.sec] || 0) + 1; parts = Math.max(parts, s.n); }
+        if (s) { up++; bySection[s.sec] = (bySection[s.sec] || 0) + 1; maxSeen = Math.max(maxSeen, s.n); }
       } catch (e) { /* page mid-navigation or gone */ }
     }
-    console.log('[swarm] up=' + up + '/' + N + ' sections=' + JSON.stringify(bySection) + ' roomCount=' + parts);
+    console.log('[swarm] up=' + up + '/' + N + ' sections=' + JSON.stringify(bySection) + ' maxSeen=' + maxSeen + '/' + N + (maxSeen === N ? ' (all converged)' : ' (NOT converged)'));
   }, 20000);
 
   // ---- deep per-bot topology diagnostic (docs/healing-laws.md) -------------
