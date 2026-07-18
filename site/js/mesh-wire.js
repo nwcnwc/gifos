@@ -29,16 +29,47 @@
  * after a grace period (the relay session cap is C²+C: the greeter pool plus
  * knock churn, not the room); it is recreated on demand the moment the seat
  * needs the relay again (a knock, or a control send with no DataChannel).
+ *
+ * ── S4 PER-PARTICIPANT IDENTITY (healing-laws.md S4/S5, mesh-identity.js) ──────
+ * The keypair is minted HERE, once, at join. Ed25519 verification is async
+ * (WebCrypto) but mesh.js's verifyFill seam is synchronous and transport-
+ * agnostic, so the wire is exactly where identity belongs — the same boundary
+ * that already owns all sealing/transport:
+ *   - MINT: on createMeshNode we mint a per-participant identity (unless the
+ *     caller supplies opts.identity, or a legacy client-set opts.peer). The
+ *     peer id is peer-id = H(pubkey) — retiring the client-set-id hole.
+ *   - SIGN: every occupancy-authoring frame the seat emits (FINDLEAF / PLACE /
+ *     CLAIM) and the HELLO announce is signed with the participant's stable key
+ *     before it goes on the wire — the signature (m.s4 = {sp,sig,pub}) is the
+ *     participant's portable name, valid across links and moves.
+ *   - VERIFY + PIN: an inbound signed frame is verified against the TOFU-pinned
+ *     key for its signer BEFORE it reaches the seat. A good frame is delivered
+ *     with m.s4ok stamped (mesh.js's verifyFill gate passes) and its key pinned;
+ *     a forged/impostor/key-swapped frame is DROPPED. Verification is chained
+ *     FIFO so crypto never reorders a sender's frames.
+ * S4 is OPT-IN by identity presence: a legacy caller that passes opts.peer (the
+ * structural harness shape, and meet.html today) runs with S4 OFF — no signing,
+ * no verification — so the coord-based control plane is unchanged. The crypto
+ * is strictly ADDITIVE.
  */
 (function (root) {
   const GifOS = root.GifOS = root.GifOS || {};
   const net = GifOS.net, mesh = GifOS.mesh;
 
+  // Occupancy-authoring frames + the announce: signed on the way out, verified
+  // on the way in when S4 is active. FINDLEAF/PLACE/CLAIM are the verifyFill-
+  // gated fills; HELLO carries the announce (pubkey exchange + move recognition).
+  const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO']);
+
   // createMeshNode(opts):
   //   relayUrl        ws(s)://host:port of the relay (no path)
   //   sid, tok        relay session id + token (net.deriveMeet)
   //   key             room E2E key (net.deriveMeetKey — pw mixed in)
-  //   peer            my peer id (default: fresh 'c_'+hex)
+  //   identity        (S4) a pre-minted per-participant identity {priv,pubB64,peerId};
+  //                   peer id = its peerId = H(pubkey). Overrides opts.peer.
+  //   peer            LEGACY client-set peer id — S4 stays OFF (structural/compat).
+  //                   Default when neither identity nor peer is given: mint a
+  //                   fresh S4 identity and use peer-id = H(pubkey).
   //   tickMs          logical tick (default 500 — the canonical mapping)
   //   dropDeepSocket  drop the relay socket when seated deep (default true)
   //   sendDC(to, m)   preferred path: deliver control object m to peer `to`
@@ -54,11 +85,23 @@
   //                   handlers while the wire OWNS the one socket.
   function createMeshNode(opts) {
     const tickMs = opts.tickMs || 500;
-    const peer = opts.peer || 'c_' + net.randHex(6);
     const myKey = net.mintGenesisKey();
     const dropDeep = opts.dropDeepSocket !== false;
+    const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
     let sock = null, deepSince = -1;
+
+    // S4 identity mode: use a supplied identity, else mint one, unless a legacy
+    // client-set peer id is given (then S4 is OFF). If mesh-identity.js isn't
+    // loaded we degrade to a random legacy id (S4 OFF) rather than fail.
+    let identity = opts.identity || null;
+    const wantMint = !identity && !opts.peer && !!ident;
+    let peer = identity ? identity.peerId : (opts.peer || (ident ? null : 'c_' + net.randHex(6)));
+    const s4on = !!identity || wantMint;
+    const verifyChain = net.makeChain();
+
+    let seat = null, timer = null;
+    let readyResolve; const ready = new Promise((r) => { readyResolve = r; });
 
     const relayBase = String(opts.relayUrl || '').replace(/\/+$/, '');
     // gk rides the URL so the CONNECT knock (and every reconnect) presents the
@@ -71,12 +114,25 @@
       + '&gk=' + encodeURIComponent(seat.genKey || myKey)
       + (opts.urlParams ? opts.urlParams() : '');
 
+    // deliver(to, m): the raw transport step — DataChannel first, sealed relay
+    // {t:'peer'} fallback. (Signing, when S4 is on, happens in env.send before
+    // this is reached.)
+    function deliver(to, m) {
+      if (opts.sendDC && opts.sendDC(to, m)) return;
+      net.seal(opts.key, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
+    }
     const env = {
       TICK: 0,
       HEALING: true,
       send(from, to, m) {
-        if (opts.sendDC && opts.sendDC(to, m)) return;
-        net.seal(opts.key, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
+        // S4: sign the participant's own occupancy-authoring frames before they
+        // leave. The signature is the same for every recipient (it commits to
+        // the frame, not the destination), so signing once and reusing is safe.
+        if (s4on && identity && SIGNED.has(m.t) && !m.s4) {
+          ident.signFill(identity, m).then((s) => { if (!stopped) { m.s4 = s; deliver(to, m); } }).catch(() => {});
+          return;
+        }
+        deliver(to, m);
       },
       knock(from, gk) {
         const k = gk || myKey; // never knock keyless
@@ -92,9 +148,24 @@
       },
       wake() {},
     };
-    const seat = new mesh.Seat(peer, env);
-    seat.myKey = myKey;
-    if (opts.onGossip) seat.onGossip = (src, m) => { if (!stopped) opts.onGossip(src, m); };
+
+    // ingest(m): the S4 verification gate on the way IN. A signed fill is
+    // verified against the TOFU-pinned participant key (FIFO-chained so crypto
+    // never reorders a sender's frames); a good frame is delivered with m.s4ok
+    // stamped and its key pinned, a forged one is dropped. Non-signed frames and
+    // S4-off nodes pass straight through — the structural path is untouched.
+    function ingest(m) {
+      if (stopped || !seat || !m) return;
+      if (s4on && SIGNED.has(m.t)) {
+        verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
+          if (stopped) return;
+          if (v && v.ok) { m.s4ok = true; seat.recv(m); }
+          // else: unsigned / forged / impostor / key-swapped fill — DROP it.
+        }).catch(() => {}));
+        return;
+      }
+      seat.recv(m);
+    }
 
     function makeSock() {
       sock = net.steadySocket(makeUrl);
@@ -107,7 +178,7 @@
           // app signaling, fragments, unopenable — is the app's to handle.
           net.open(opts.key, m.msg).then((o) => {
             if (stopped) return;
-            if (o && o.mw === 1 && o.m) seat.recv(o.m);
+            if (o && o.mw === 1 && o.m) ingest(o.m);
             else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
@@ -129,46 +200,73 @@
       for (const s of list) {
         try { const o = await net.open(opts.key, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
       }
-      if (stopped) return;
+      if (stopped || !seat) return;
       if (list.length && !ids.length) { fireLocked(); return; }        // R6: sealed list I can't read — wrong password
       if (!ids.length && !m.founded) return;                            // the mint gap — hold; the join loop re-knocks
       seat.recv({ t: 'GREETERS', list: ids });                          // empty+founded ⇒ the seat founds (R3/R6 take-over)
     }
 
-    const timer = setInterval(() => {
-      if (stopped) return;
-      env.TICK++;
-      seat.tick();
-      if (seat.stranded && !strandedFired) { strandedFired = true; if (opts.onStranded) opts.onStranded(); }
-      // Socket lifecycle: deep-seated ⇒ the relay is done with me; drop after a
-      // grace (Section-1 seats and joiners keep theirs — knock traffic).
-      const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0);
-      if (needsRelay) deepSince = -1;
-      else if (deepSince < 0) deepSince = env.TICK;
-      if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
-      if (opts.onUpdate) opts.onUpdate(node);
-    }, tickMs);
+    function startLoop() {
+      timer = setInterval(() => {
+        if (stopped) return;
+        env.TICK++;
+        seat.tick();
+        if (seat.stranded && !strandedFired) { strandedFired = true; if (opts.onStranded) opts.onStranded(); }
+        // Socket lifecycle: deep-seated ⇒ the relay is done with me; drop after a
+        // grace (Section-1 seats and joiners keep theirs — knock traffic).
+        const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0);
+        if (needsRelay) deepSince = -1;
+        else if (deepSince < 0) deepSince = env.TICK;
+        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
+        if (opts.onUpdate) opts.onUpdate(node);
+      }, tickMs);
+    }
+
+    // Build the seat once the peer id (and, for S4, the identity) is known, then
+    // start the socket + join loop. Deferred when we must mint the keypair
+    // first (WebCrypto is async); otherwise runs synchronously.
+    function build() {
+      seat = new mesh.Seat(peer, env);
+      seat.myKey = myKey;
+      if (s4on) { seat.s4 = true; seat.identity = identity; seat.pins = ident.newPins(); }
+      if (opts.onGossip) seat.onGossip = (src, m) => { if (!stopped) opts.onGossip(src, m); };
+      node.seat = seat;
+      makeSock();
+      seat.join();
+      startLoop();
+      readyResolve(node);
+    }
 
     const node = {
-      peer, seat, env,
+      peer, seat: null, env, whenReady: ready,
+      // The per-participant identity (S4). pub key + peer-id = H(pubkey); the
+      // private key never leaves. null when S4 is off (legacy peer).
+      get identity() { return identity; },
       // DataChannel ingestion: the DC layer hands OPENED control objects here
       // (production unwraps its own sealed frames; {mw:1, m} envelopes route m).
-      recvCtl(m) { if (!stopped && m) seat.recv(m); },
+      recvCtl(m) { if (!stopped && seat && m) ingest(m); },
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
-      gossip(payload) { if (!stopped) seat.gossip(payload); },
+      gossip(payload) { if (!stopped && seat) seat.gossip(payload); },
       // App access to the wire's relay socket (the ONE socket): signaling
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.
       relaySend(obj) { relaySend(obj); },
       relayUp() { return !!(sock && sock.state === 'up'); },
-      stats() { return { peer, state: seat.state, coord: seat.hasCoord ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: seat.stranded, tick: env.TICK }; },
-      leave() { try { seat.leave(); } catch (e) {} node.stop(); },
-      stop() { stopped = true; clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
+      stats() { return { peer, state: seat ? seat.state : 0, coord: (seat && seat.hasCoord) ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: !!(seat && seat.stranded), tick: env.TICK }; },
+      leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
+      stop() { stopped = true; if (timer) clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
     };
 
-    makeSock();
-    seat.join();
+    if (wantMint) {
+      ident.mint().then((id) => {
+        if (stopped) return;
+        identity = id; peer = id.peerId; node.peer = peer;
+        build();
+      }).catch(() => {});
+    } else {
+      build();
+    }
     return node;
   }
 
