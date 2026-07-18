@@ -55,11 +55,53 @@ const rm = topo.rowMates({ pc: 4, r: 2, i: 3 });
 check('rowMates has C-1 entries', rm.length === C - 1, rm.length);
 check('rowMates excludes self, shares row', rm.every((m) => m.pc === 4 && m.r === 2 && m.i !== 3));
 
-// bounded degree: <= C+1 everywhere; Section-1 head = C (no up, no cross).
-let maxDeg = 0;
-for (const s of seats) maxDeg = Math.max(maxDeg, topo.ownedLinks(s).length);
-check('max ownedLinks degree <= C+1', maxDeg <= C + 1, maxDeg);
-check('Section-1 head degree === C (row + down only)', topo.ownedLinks({ pc: 0, r: 1, i: 0 }).length === C, topo.ownedLinks({ pc: 0, r: 1, i: 0 }).length);
+// W7: colMates — Section 1 only: C-1 of them, none is self, all share (pc,i).
+const cm = topo.colMates({ pc: 0, r: 2, i: 3 });
+check('colMates(pc==0) has C-1 entries', cm.length === C - 1, cm.length);
+check('colMates excludes self, shares column', cm.every((m) => m.pc === 0 && m.i === 3 && m.r !== 2));
+ok = true;
+for (const s of seats) if (s.pc !== 0 && topo.colMates(s).length !== 0) { ok = false; break; }
+check('colMates(pc!=0) is empty (deep tree keeps the sparse transpose)', ok);
+
+// W7: Section 1 (pc==0) is the 5x5 ROOK'S GRAPH — uniform degree 2C-1 = 9
+// (C-1 row + C-1 column + 1 down), heads included; structure is EXACTLY
+// full row + full column + down, nothing else; no up-link. (sim/topo_test.cpp)
+check('MAXLINKS === 2C-1', topo.MAXLINKS() === 2 * C - 1, topo.MAXLINKS());
+let rookDeg = true, rookStruct = true, rookNoUp = true;
+for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) {
+  const s = { pc: 0, r, i }; const ol = topo.ownedLinks(s);
+  if (ol.length !== 2 * C - 1) rookDeg = false;
+  let rowCnt = 0, colCnt = 0, downCnt = 0, other = 0;
+  for (const o of ol) {
+    if (o.pc === 0 && o.r === r && o.i !== i) rowCnt++;
+    else if (o.pc === 0 && o.i === i && o.r !== r) colCnt++;
+    else if (o.pc === topo.childPath(0, i) && o.r === r && o.i === 0) downCnt++;
+    else other++;
+  }
+  if (rowCnt !== C - 1 || colCnt !== C - 1 || downCnt !== 1 || other !== 0) rookStruct = false;
+  if (topo.up(s) !== null) rookNoUp = false;
+}
+check('Section-1 rook degree === 9 (all 25 seats, heads too)', rookDeg);
+check('Section-1 rook structure (full row + full column + down, nothing else)', rookStruct);
+check('Section-1 no up-link', rookNoUp);
+
+// rook is symmetric: b in ownedLinks(a) <=> a in ownedLinks(b), across Section 1.
+let sym = true;
+for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) {
+  const a = { pc: 0, r, i };
+  for (const b of topo.ownedLinks(a)) {
+    if (b.pc !== 0) continue;
+    if (!topo.ownedLinks(b).some((q) => q.pc === 0 && q.r === a.r && q.i === a.i)) sym = false;
+  }
+}
+check('Section-1 rook symmetric', sym);
+
+// bounded degree, DEEP tree only: <= C+1 (the sparse tree bound is load-bearing
+// for scale); Section-1 seats are uniformly 2C-1 (asserted above).
+let maxDeepDeg = 0;
+for (const s of seats) if (s.pc !== 0) maxDeepDeg = Math.max(maxDeepDeg, topo.ownedLinks(s).length);
+check('max DEEP ownedLinks degree <= C+1', maxDeepDeg <= C + 1, maxDeepDeg);
+check('deep head degree === C+1 (row + up + down, no cross)', topo.ownedLinks({ pc: 4, r: 1, i: 0 }).length === C + 1, topo.ownedLinks({ pc: 4, r: 1, i: 0 }).length);
 
 // ckey/unck round-trip.
 check('ckey/unck round-trip', topo.eq(topo.unck(topo.ckey({ pc: 31, r: 4, i: 2 })), { pc: 31, r: 4, i: 2 }));

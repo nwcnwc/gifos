@@ -503,10 +503,27 @@
       return { pc: s.pc, r: s.i, i: s.r };
     };
     const rowMates = (s) => { const out = []; const C = Cn(); for (let j = 0; j < C; j++) if (j !== s.i) out.push({ pc: s.pc, r: s.r, i: j }); return out; };
-    // ownedLinks: rowMates(C-1) + cross?(1) + up?(1) + down(1). Bounded degree.
-    const ownedLinks = (s) => { const out = rowMates(s); const x = crossLink(s); if (x) out.push(x); const u = up(s); if (u) out.push(u); out.push(down(s)); return out; };
+    // W7: column-mates — every seat sharing my column across the OTHER rows
+    // (heads included, no diagonal). This is the extra half of the Section-1
+    // rook's graph. Section 1 (pc==0) ONLY — deep sections keep the sparse
+    // transpose (crossLink), so colMates is EMPTY for pc!=0. (sim/topo.h colMates)
+    const colMates = (s) => { const out = []; if (s.pc !== 0) return out; const C = Cn(); for (let j = 0; j < C; j++) if (j !== s.r) out.push({ pc: s.pc, r: j, i: s.i }); return out; };
+    // Max owned-link degree of any seat: Section 1 is the C×C ROOK'S GRAPH (W7):
+    // C-1 row + C-1 column + 1 down = 2C-1 = 9. Deep sections keep the sparse
+    // C+1 bound. 2C-1 dominates. (sim/topo.h MAXLINKS)
+    const MAXLINKS = () => 2 * Cn() - 1;
+    // ownedLinks:
+    //  Section 1 (pc==0): the C×C ROOK'S GRAPH — rowMates(C-1) + colMates(C-1) +
+    //    down. Uniform degree 2C-1 = 9, 8-edge-connected, no up (nothing above
+    //    the home), no sparse cross-link. Heads are NOT special.
+    //  Deep (pc!=0): rowMates(C-1) + cross?(1) + up?(1) + down — sparse, C+1 bound.
+    const ownedLinks = (s) => {
+      const out = rowMates(s);
+      if (s.pc === 0) { for (const m of colMates(s)) out.push(m); out.push(down(s)); return out; }
+      const x = crossLink(s); if (x) out.push(x); const u = up(s); if (u) out.push(u); out.push(down(s)); return out;
+    };
     const isHead = (s) => s.i === 0;
-    return { childPath, parentPath, lastDigit, isRoot, isHead, ckey, unck, eq, up, down, crossLink, rowMates, ownedLinks };
+    return { childPath, parentPath, lastDigit, isRoot, isHead, ckey, unck, eq, up, down, crossLink, rowMates, colMates, ownedLinks, MAXLINKS };
   })();
 
   // ---- P1: single-hop forwarding through a friend -----------------------------
