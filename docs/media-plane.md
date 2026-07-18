@@ -186,11 +186,19 @@ anyway (there is no free shared broadcast), so per-branch streams cost no extra
 encodes, and each packer's audio fold sums exactly its own tiles — the audio
 mix-minus falls out of the video packing for free.
 
-**Redundancy trade.** The up legs keep their link-disjoint x1/x2 backup, but a
-per-branch mix has exactly ONE producer (the head): lateral copies are
-impossible *by construction* — a neighbour branch's mix contains YOUR row. A
-dead head leaves its row Stadium-dark until healing (C3) refills seat 0 —
-seconds — while Channel R and Stage are unaffected.
+**Redundancy — two pipes moving bits, the rest on standby.** A per-branch mix
+has exactly ONE producer (the head) — a *neighbour's* mix can never substitute
+(it contains YOUR row) — but the SAME mix rides **two link-disjoint pipes**
+under the multi-subscribe discipline (primary + hot standby; every further
+announcer idles at zero media until demanded): `sdm` re-fans laterally
+mate→mate (a mate that loses the head's direct pipe promotes the standby with
+no flicker), and each `sdx` ingredient also travels head → carrier row-mate →
+target seat (`sdxc` → `sdx^x`, same slot). The up legs keep their x1/x2
+backup. What remains single: the head as PRODUCER (a dead head leaves its row
+Stadium-dark until healing (C3) refills seat 0 — seconds — while Channel R and
+Stage are unaffected), and the final parent-seat → child-head `sdn` hop (the
+one physical edge into a branch; a down-mirror of x1/x2 through a sibling
+branch is possible future work).
 
 ### The latency offset
 The Stadium necessarily lags Stage (and the live Row) by exactly the time the

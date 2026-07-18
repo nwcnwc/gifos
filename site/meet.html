@@ -3691,7 +3691,11 @@
       if (key.indexOf('sdrow') === 0) return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
       // MIX-MINUS streams (docs/media-plane.md): per-branch, single-producer.
       if (key === 'sdm') return iAmHead ? null : 'sdm'; // my head's finished row view — my Stadium
-      if (key === 'sdx') return !iAmHead ? 'sdx' : null; // my column's child-branch ingredient — relay DOWN
+      // sdx: my column's child-branch ingredient (direct or the '^x' carrier
+      // copy — same slot, second link-disjoint pipe). sdxc: a NEIGHBOUR
+      // column's copy I carry sideways to its target seat.
+      if (key === 'sdx' || key === 'sdx^x') return !iAmHead && meta && meta.col === c.i ? 'sdx' : null;
+      if (key === 'sdxc') return !iAmHead && meta && meta.col != null && meta.col !== c.i ? 'sdxc:' + meta.col : null;
       if (key === 'sdn') return iAmHead ? 'sdn' : null;  // my branch's outside-world ingredient (from above)
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
@@ -3712,7 +3716,7 @@
     // sdrow:q both DIRECT from head q over the column link and relayed through
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
-    const isRedun = (rk) => rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
+    const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
     const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
     // message only rides the DC when the state actually flips.
@@ -3729,7 +3733,8 @@
       // every head owns its row's Stadium view (sdPack); every S1 seat owns its own
       // Stage strip (stripPack). Those seats manage their own <video>.
       const c = meshCoord();
-      if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
+      if (rk === 'sdm') { if (c && c.i === 0) return; paintStadiumTile(stream); }
+      else if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
       // stg:* has no direct <video> — the S1 strip compositor re-reads mosIn.
     }
     // MULTI-SUBSCRIBE for one redundant slot: keep PRIMARY + hot STANDBY over two
@@ -3985,6 +3990,16 @@
             const jk4 = i === c.i ? shipMos('sdn', childPid, pk.stream, m)
               : shipMos('sdx', occPid({ pc: c.pc, r: c.r, i }), pk.stream, Object.assign({ col: i }, m));
             if (jk4) wanted.add(jk4);
+            // >2-REDUNDANCY (the control-plane discipline, on the media budget):
+            // the SAME mix over a second link-disjoint pipe — me → a carrier
+            // row-mate → seat i ('sdxc' → 'sdx^x', same slot). claimRedun keeps
+            // at most TWO pipes moving bits; every further announcer idles at
+            // zero media (dormant replaceTrack(null)) until demanded.
+            if (i !== c.i) {
+              let carrier = null;
+              for (let d = 1; d < C; d++) { const k2 = (i + d) % C; if (k2 === 0 || k2 === i) continue; const cp = occPid({ pc: c.pc, r: c.r, i: k2 }); if (cp) { carrier = cp; break; } }
+              if (carrier) { const jk6 = shipMos('sdxc', carrier, pk.stream, Object.assign({ col: i }, m)); if (jk6) wanted.add(jk6); }
+            }
           }
         } else {
           if (sdPack) { sdPack.stop(); sdPack = null; }
@@ -4020,6 +4035,25 @@
         // "outside my branch" ('sdn').
         const sdx = mosIn.get('sdx');
         if (sdx) { const jn = shipMos('sdn', occPid(T.down(c)), sdx.stream, blockMeta(sdx)); if (jn) wanted.add(jn); }
+        // Carrier leg of the sdx redundancy: hand my head's 'sdxc' copies to
+        // their target seat as 'sdx^x' — the same slot over a second pipe.
+        for (const [mk, xc] of mosIn) {
+          if (mk.indexOf('sdxc:') !== 0) continue;
+          const tcol = +mk.slice(5);
+          const jc = shipMos('sdx^x', occPid({ pc: c.pc, r: c.r, i: tcol }), xc.stream, Object.assign({ col: tcol }, blockMeta(xc))); if (jc) wanted.add(jc);
+        }
+        // Lateral second pipe for the row view: re-fan my claimed 'sdm' to my
+        // row-mates (skip the head, skip whoever it came from). Same mix over
+        // a second link-disjoint path — a mate that loses the head's direct
+        // pipe promotes this standby with NO flicker; while both pipes live,
+        // claimRedun keeps the spare dormant (zero media).
+        const sdmH = mosIn.get('sdm');
+        if (sdmH) for (let j = 1; j < C; j++) {
+          if (j === c.i) continue;
+          const mate = occPid({ pc: c.pc, r: c.r, i: j });
+          if (!mate || mate === sdmH.via) continue;
+          const jr = shipMos('sdm', mate, sdmH.stream, blockMeta(sdmH)); if (jr) wanted.add(jr);
+        }
       }
       // (Channel Se — the C×C Section composite — is DROPPED. Its cross-link
       // budget now backs up the Stadium/Stage fans below; section-mates fold
