@@ -82,12 +82,23 @@ childless — a leaf. **Only leaves move. No exceptions.**
   always land at the right edge. A childless HEAD works the same way: its
   fixed healer is seat `(p,r,1)`. Fixed designation ⇒ exactly one healer, no
   race.
-- **H1-S1. Section 1 stays full; its heads are the BACKSTOP.** A Section-1
-  cell is normally refilled from below (H1) like any other seat. The row head
-  steps in only for a cell whose whole subtree is gone — nothing below to
-  promote — and it is also the only thing that clears a Section-1 PHANTOM (a
-  stale gossip echo squatting on a cell), acting on direct evidence only:
-  liveness is set by a real phone call, never by gossip (E2).
+- **H1-S1. Section 1 stays full; its heads are the BACKSTOP — but it heals a
+  ring cell only on STRONG confirmation.** A Section-1 cell is normally
+  refilled from below (H1) like any other seat, and the row head is the
+  backstop for a cell whose whole subtree is gone; the head is also the only
+  thing that clears a Section-1 PHANTOM (a stale gossip echo squatting on a
+  cell), acting on direct evidence only — liveness is set by a real phone
+  call, never by gossip (E2). **Ring-heal conservatism:** a wrong ring-heal
+  is the *one* act that can mint a divergent home (heal a cell whose occupant
+  is merely unreachable, not dead, and you have duplicated it into a second
+  ring). So a home cell is healed only after its occupant is unreachable via
+  **all** its redundant paths (W7) for a settled window — a much higher bar
+  than an ordinary hole. Holding a home coord as a temporary hole is a
+  recoverable availability dip; duplicating it is an unrecoverable
+  divergence, so the ring always chooses the hole. With W7's redundancy,
+  "unreachable on every path" is strong evidence of true death — so this only
+  ever hesitates during a genuine partition, which is exactly when hesitating
+  is correct.
 - **H7. Column backfill.** A Section-1 seat that is handed a newcomer first
   checks the row directly above it (wrapping around); if that whole row is
   dead, it seats the newcomer straight above itself. Ordinary arrival traffic
@@ -159,6 +170,27 @@ childless — a leaf. **Only leaves move. No exceptions.**
   holds its parent-layer neighbourhood in advance, and an H8 promotion lands
   into an already-wired mesh — no relay, no discovery delay. (Bounded: ~C²
   addresses per seat, always the immediate aunt/uncle layer.)
+- **W7. The home is kept ONE connected component (ring integrity).** This is
+  the load-bearing invariant: E1+W5 already guarantee that everything *below*
+  the home re-seats into the one home, so the ONLY way a divergent home can
+  arise is the home itself splitting into two disconnected pieces. So Section 1
+  is wired to be hard to split:
+  - **Heads carry a cross-link too.** A head otherwise hangs off its row alone
+    (its most single-attached point); it has a spare degree slot (heads sit at
+    C links, the budget is C+1), so it spends it on a cross-link to another
+    row. No head is one row-failure from isolation.
+  - **Redundant inter-row cross-paths.** The weakest cut in the home is
+    *between* rows, so the home carries more than one independent cross-path
+    per row (the exact set is topo.h's `crossLink`). Because Section 1 is a
+    FIXED C²-seat core — it never grows with the meeting — it may run a
+    modestly higher degree than the strict C+1 the deep tree keeps for
+    scaling; the extra links buy resilience where it matters most and cost
+    nothing asymptotically. (Exact degree = a topo decision; see the topology
+    note wherever `crossLink` is defined.)
+  - **Cross-links heal fast, with a standby path**, so a transient break
+    doesn't linger and compound into a cut.
+  The target: no loss short of a genuine transport-level network partition can
+  split the home into two components.
 
 ## E — when ordinary healing isn't enough
 
@@ -170,9 +202,12 @@ childless — a leaf. **Only leaves move. No exceptions.**
   newcomer, and the initiator re-seats last. Only if NO mesh route to
   Section 1 exists at all (>220 ticks) does it fall back to re-entering
   through the relay. **Section-1 seats never drain or requeue — you ARE the
-  home.** (When the home itself is torn in two, the E3 audit *detects* it but
-  there is no safe reunion rule yet — see E3's open problem — so no home seat
-  is currently made to drain.)
+  home.** This exemption is exactly why divergence reduces to *ring integrity*:
+  E1+W5 pull every fragment *below* the home back into the one home, so the
+  only way a divergent home can form is the home itself splitting (which W7 +
+  H1-S1 conservatism prevent short of a true network partition). (When the home
+  *is* genuinely torn — a real partition — the E3 audit detects it but there is
+  no safe P2P reunion, and no home seat is made to drain; see E3.)
 - **E2. Duplicates: the race loser yields.** E2 does NOT decide who may TAKE a
   seat — C3 does that (only the designated healer fills a hole; a raw claim is
   rejected). E2 exists only to settle a duplicate between two *legitimate*
@@ -209,8 +244,12 @@ childless — a leaf. **Only leaves move. No exceptions.**
   back — and the knocker READS it. *(History: when the genesis key killed
   duplicate foundings we also cut E3's old self-audit — one cut too deep. The
   key prevents two foundings; it cannot prevent the ONE founded home from
-  being TORN by mass churn into self-sufficient halves, each healing itself
-  whole, both still registered under the same key.)*
+  being TORN, each half healing itself whole under the same key.)* **Scope
+  note:** with W7 (ring integrity) and H1-S1 conservatism, a tear no longer
+  arises from ordinary churn — it takes a genuine transport-level network
+  partition. So the audit is a rare-event detector, not a routine one, and
+  what it detects is by construction the ONE case P2P cannot fix (the halves
+  share no link).
   - **What the audit reliably tells us (detection — SAFE).** A tear mints
     freshly promoted home seats on both sides, and a fresh seat knocks the
     moment it sits down, so the first knock after a tear already carries the
@@ -407,16 +446,19 @@ that leaves the torn-home reunion (E3) unsolved.
    *who* the healer is needs S4's per-person identity key, established at join
    and stable as you move — worst-exposed at the public Section-1 ring —
    specified, not yet built.)
-2. **Churn shatters the meeting into disconnected pieces (PARTLY OPEN).**
-   Severed subtrees drain back in (E1); dead home cells are rebuilt from
-   below (H1/H1-S1/H7, key preserved); a lone cut-off member gets an honest
-   answer (R6). But the hardest sub-case — the HOME ITSELF torn into two
-   self-sufficient, same-key pieces — is only DETECTED (the E3 audit), NOT
-   yet safely reunited: every automatic reunion rule we have tried is a Sybil
-   takeover weapon, and with no per-person identity we cannot yet tell one
-   big real piece from one attacker in many masks. This is the open problem.
-   (Separately, a genuinely DIFFERENT meeting — a different genesis key — is
-   put to a human being, R5.)
+2. **Churn shatters the meeting into disconnected pieces (SOURCE-PREVENTED,
+   with one accepted edge).** Everything *below* the home re-seats into the
+   one home (E1 + W5), so divergence can only come from the HOME splitting —
+   and the home is wired to be one connected component (W7: heads carry
+   cross-links, redundant cross-paths, fast healing) and heals its cells only
+   on strong confirmation (H1-S1 conservatism). So no ordinary loss, however
+   severe, produces a divergent home. The one thing left is a **genuine
+   transport-level network partition** — physics, unpreventable by any P2P
+   topology — and that is honestly *two real rooms*: the E3 audit detects it,
+   but with no shared link there is no P2P reunion (and no relay tie-break, by
+   choice), so it stays two rooms until the network heals or people rejoin by
+   URL. (Separately, a genuinely DIFFERENT meeting — a different genesis key —
+   is put to a human, R5.)
 
 There is no root to fight over and no arbiter to trust — every verdict above
 is computed independently by clients. But the open sub-case is a real one:
