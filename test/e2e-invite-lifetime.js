@@ -62,7 +62,10 @@ async function openGuestbook(ctx) {
 
   await openModal(hostRun);
   const warnTxt = await hostRun.locator('#invite-modal .warn').textContent();
-  check('modal warns the link copies the whole app dataset', /download a full copy/i.test(warnTxt));
+  // The warning now distinguishes SHARED data (copied to guests) from PRIVATE
+  // data (stays on-device) — the app-state-on-mesh model. Old copy said
+  // "download a full copy of everything in this app".
+  check('modal warns the link copies the app\'s shared data', /download a copy of the data this app shares/i.test(warnTxt) && /private data stays on your device/i.test(warnTxt));
   for (const v of ['close', '1h', '24h', 'forever']) {
     const n = await hostRun.locator('#invite-modal input[value="' + v + '"]').count();
     if (n !== 1) { check('lifetime option present: ' + v, false); }
