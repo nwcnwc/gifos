@@ -170,8 +170,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---- what a GUEST sees / can do ----
   check('guest knows the room is administered but is not admin',
     (await e.evaluate(() => window.__gifosVideo.hasAdmin())) && !(await e.evaluate(() => window.__gifosVideo.amAdmin())));
-  check('guest sees the admin present (signed heartbeats)',
-    (await e.evaluate(() => window.__gifosVideo.adminsHere().length)) >= 1);
+  await e.waitForFunction(() => window.__gifosVideo.adminsHere().length >= 1, null, { timeout: 30000 });
+  check('guest sees the admin present (signed heartbeats)', true);
   check('guest\'s modbar is hidden (no group-moderation powers)',
     await e.evaluate(() => { const m = document.querySelector('.tile:not(.me) .modbar'); return !m || getComputedStyle(m).display === 'none'; }));
   check('no vote-off in an admin room (the admin bans instead)',
@@ -235,7 +235,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await d.waitForFunction(() => window.__gifosVideo.banList().length === 0, null, { timeout: 20000 });
   await e.reload();
   await e.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room() && !window.__gifosVideo.bannedOut(), null, { timeout: 30000 });
-  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  // Each reload mints a fresh S4 identity, and the banned ghost's old seat only
+  // frees after ring-confirmed death (RING_HOLD) — the rejoin link forms, just
+  // slowly. Gate on the roster first, then the mesh link, generously.
+  await d.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 90000 });
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 120000 });
   check('UNBAN readmits the device (undo path, end to end)', true);
 
   // ---- admin sign-in: wrong password refused, right one grants ----
@@ -252,6 +256,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await e.evaluate((roomId) => localStorage.removeItem('gifos_vadm_' + roomId), admRoom + '.' + av);
   await e.reload();
   await e.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room() && !window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
+  // her peer id is fresh again after the reload — wait for the ghost tile to
+  // drop and the new link to form, then re-learn who she is on Dana's page
+  await e.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 120000 });
+  await d.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1 && window.__gifosVideo.peerIds().length === 1, null, { timeout: 120000 });
+  const eId2 = await otherId(d);
 
   // ---- the BLURRED WAITING ROOM: no admin present ⇒ nothing clears ----
   // The admin locks the room (the key to clear video) and everyone consents.
@@ -266,7 +275,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await pg.evaluate(() => window.__gifosVideo.setBlur(0)); // No blur
   }
   // with the admin PRESENT, a consenting guest's tile clears on the admin's screen
-  await d.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) === 0, eId, { timeout: 20000 });
+  await d.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) === 0, eId2, { timeout: 30000 });
   check('admin present + password + guest consent ⇒ that guest\'s tile is CLEAR', true);
   // the admin leaves — the guest must fall back to blurred, and see the countdown
   await d.close();
