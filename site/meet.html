@@ -881,10 +881,9 @@
     const rowMates = () => myRowIds().filter((id) => id !== myId);
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
-    // Admin "blur all guests": a room-wide level applied to every NON-admin,
-    // enforced on every receiver. In an admin room it DEFAULTS to 1 (plain),
-    // so guests are always at least softly blurred until an admin decides
-    // otherwise — the ungovernable-but-admin rooms can't show clear obscenity.
+    // (There is NO room-wide guest-blur level: the admin "Blur guests" button
+    // is a per-tile mod-table shortcut — see blurAllBtn — and the ≥Min-blur
+    // floor comes from THE BLUR RULE below, identical in every room.)
     // Vote-off-the-island (non-admin rooms): every user carries ONE personal,
     // GLOBAL vote-off list (device ids) across all meetings, in their own
     // browser. The here-relevant slice syncs to the relay, which boots any
@@ -1019,8 +1018,8 @@
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
     // An admin can turn a guest's VIDEO off room-wide (stronger than blur): the
-    // directive is a per-target mod.cam entry, relay-stamped like every other
-    // admin action. Enforced on BOTH sides — an honest guest whose cam an admin
+    // directive is a per-target mod.cam entry, signature-verified (§SIG) like
+    // every other admin action. Enforced on BOTH sides — an honest guest whose cam an admin
     // killed stops transmitting (below), and every receiver hides the tile —
     // so a DOM-hacked guest who keeps sending is still invisible to everyone
     // honest; only two colluding hackers could see each other, which no P2P
@@ -1044,8 +1043,12 @@
     //   consent(tile)  = tile owner's camera is ON and their blur is No blur
     //   clear(tile)    = room password is set
     //                    AND no moderator block on the tile
-    //                    AND ( admin present ? consent(tile) : EVERYONE consents )
+    //                    AND ( admin ROOM ? an admin is present AND consent(tile)
+    //                                     : EVERYONE consents )
     //   otherwise      → show max( Min blur, tile owner's own selection )
+    // An admin room with NO admin present never clears — it is a blurred
+    // waiting room (the status line and docs/meeting.md say so; this rule is
+    // where that promise is enforced).
     //
     // Nothing else. No room-wide guest blur, no floors, no pinning.
     const consents = (st) => !!st && !st.camOff && blurLevel(st.blur) === 0;
@@ -1075,7 +1078,7 @@
       const isMe = id === 'me';
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
       const blocked = !!(modOf(id).blur && modOf(id).blur.on);
-      const clear = !!roomPw && !blocked && (adminPresent() ? consents(st) : allConsent());
+      const clear = !!roomPw && !blocked && (hasAdminRoom() ? (adminPresent() && consents(st)) : allConsent());
       if (clear) return 0;
       return Math.max(1, blurLevel(st.blur));
     }
@@ -1086,7 +1089,7 @@
       refreshAllTiles();
       refreshOutbound();
       paintControls();
-      if (!adminPresent()) {
+      if (!hasAdminRoom()) { // consent unanimity is the PLAIN-room path only — an admin room clears per-tile, admin present
         const c = allConsent();
         if (c !== lastCons) {
           if (lastCons !== null && participantCount() > 1 && roomPw) {
@@ -1583,8 +1586,8 @@
       let extra = '';
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
-        else if (!adminPresent() && !allConsent()) extra = ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
+        else if (!adminPresent() && !allConsent()) extra = ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
       }
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
         : n + ' in the meeting · ' + q.label) + link + extra;
@@ -2119,10 +2122,10 @@
     // work, hopelessly infeasible for a chat room; the extra length of a full
     // hash bought nothing but a longer URL. Admin power is KNOWING THE
     // PASSWORD, typed on the device, never in any URL and never on any server.
-    // The relay admits a socket as admin iff SHA-256(presented K) starts with
-    // V, and stamps its routed signals (adm:true) — receivers honor group
-    // moderation ONLY from
-    // stamped messages, so nobody can spoof an admin. Devices are identified
+    // No socket is ever "an admin socket" (§SIG): privileged orders travel
+    // individually Ed25519-signed by the keypair K seeds, and every peer — and
+    // the relay, for its door duties — verifies the same proof, so nobody can
+    // spoof an admin over any transport. Devices are identified
     // by a random locally-persisted token (honest limitation: wiping site
     // data mints a new device — bans deter, they don't imprison).
     let av = null; // the room's admin verifier — set at join, immutable
@@ -5096,6 +5099,8 @@
         setStatus('A moderator has blurred you for everyone — your video stays blurred until it is lifted.');
       } else if (myStatus.camOff) {
         setStatus('No blur picked — turn your camera on to be ready for clear video.');
+      } else if (hasAdminRoom() && !adminPresent()) {
+        setStatus('No admin is here — the room stays blurred until an admin returns.');
       } else if (!adminPresent() && !allConsent()) {
         setStatus('You are ready for clear video — it shows when everyone here is (camera on, No blur: ' + consentCount() + ' of ' + participantCount() + ').');
       } else {
@@ -5310,7 +5315,7 @@
     //   winner ONE app, deterministically: newest authorized ad (ts, then
     //          peer-id) that isn't tombstoned — the room can never split
     //   stop   open: anyone, attributed + reversible (sharer just re-shares)
-    //          admin: sharer or a relay-stamped admin
+    //          admin: sharer or a signed admin order (§SIG)
     //   hide   everyone, always — personal opt-out, commandeers nobody
     //   lead   the sharer's toggle over the app's manifest-declared ledRecords,
     //          enforced in the SHARER'S OWN runtime (host-authoritative — the
@@ -5806,7 +5811,6 @@
       consensus: () => allConsent(),
       consentCount: () => consentCount(),
       adminPresent: () => adminPresent(),
-      adminsHere: () => admins.slice(),
       ips: () => Object.assign({}, ipsOf),
       // ---- stream-identity + gossip-health hooks (glitch hunting) ----
       peerIds: () => Array.from(peers.keys()),
