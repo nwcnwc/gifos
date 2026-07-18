@@ -148,8 +148,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
   newcomer, and the initiator re-seats last. Only if NO mesh route to
   Section 1 exists at all (>220 ticks) does it fall back to re-entering
   through the relay. **Section-1 seats never drain or requeue — you ARE the
-  home** — with ONE exception: E5, when the home itself has been torn in two
-  and this piece lost the coin-flip.
+  home** — with ONE exception: when the home itself has been torn in two and
+  the E3 audit rules this piece the guest.
 - **E2. Duplicates: the race loser yields.** Two ids on one seat ⇒ one must
   yield, decided the same way everywhere:
   - Only between **LIVE** claimants — and "live" means **first-hand only**: a
@@ -166,53 +166,64 @@ childless — a leaf. **Only leaves move. No exceptions.**
   - E2 requires a live witness — some seat directly linked to both claimants.
     Inside one connected mesh that witness always exists (the row is a full
     mesh and the parent owns the head). Across a full partition it does NOT —
-    that case is E5's, and after E5 reunites the pieces, any momentary
-    duplicates raised by the re-seating crowd are ordinary witnessed races
-    that E2 settles normally.
-- **E3. Greeter registration.** Every Section-1 seat knocks at the front door
-  when it takes its seat and re-knocks every ~TTL, presenting the meeting's
-  genesis key (R3), which admits it to the greeter list. The Section-1 seats
-  ARE the greeter pool. No roster comparison, no stitching — admission is by
-  the key. When every Section-1 seat stops re-knocking for one full TTL, the
-  list empties and the room is open for a fresh genesis.
+    that case is the E3 audit's, and after the audit reunites the pieces,
+    any momentary duplicates raised by the re-seating crowd are ordinary
+    witnessed races that E2 settles normally.
+- **E3. Greeter registration — and the AUDIT: every knock reply gets read.**
+  Every Section-1 seat knocks at the front door when it takes its seat and
+  re-knocks every ~TTL, presenting the meeting's genesis key (R3), which
+  admits it to the greeter pool (the Section-1 seats ARE the pool; when all
+  of them fall silent for one TTL, the list empties and the room reopens for
+  a fresh genesis). Each knock brings the sealed greeter list back — and the
+  knocker READS it. *(History: when the genesis key killed duplicate
+  foundings we also cut E3's old self-audit — one cut too deep. The key
+  prevents two foundings; it cannot prevent the ONE founded home from being
+  TORN by mass churn into self-sufficient halves, each healing itself whole,
+  both still registered under the same key. The audit is what notices — and
+  it is the only law that ever needs to.)*
+  - **The evidence arrives at the moment of the tear, for free.** A tear
+    mints freshly promoted home seats on BOTH sides (each half heals the
+    cells it lost), and a fresh seat knocks the moment it sits down — so the
+    very first knock after a tear already carries the proof: a same-key
+    greeter claiming a coord my own roster (W5) assigns to a DIFFERENT id.
+  - **One ping confirms — and doubles as the alarm.** Ping the conflicting
+    greeter through the relay (legal: both hold sockets — greeting scope,
+    R2). A live seat in another piece answers; the stale entry of a dead
+    seat never answers and TTLs out — the answer IS the blip filter, no
+    repeat-observation window needed. And being pinged is itself evidence,
+    so the other piece starts its own audit at once instead of waiting for
+    its next beat.
+  - **The verdict is measured, not trusted.** Bigger live home wins: compare
+    the home-mates I can reach over the mesh against the conflicting
+    greeters that answer via relay; equal counts fall back to lower
+    founding-seat id (E2's tie-break; ids are unforgeable). Both sides
+    compute the same comparison from symmetric observations and reach the
+    same verdict alone — no arbiter, no negotiation. (A lone severed seat
+    the room healed over counts ~0 against ~24 and simply drains itself —
+    the right outcome, free.)
+  - **The loser reunites by draining — staggered, never a war.** Each guest
+    home seat does the one thing home seats otherwise never do (E1's sole
+    exception): it fans DRAIN down its subtree, handing down the WINNER'S
+    sealed greeter entries it already holds from its own knock reply — so
+    members go straight to a canonical greeter (via the relay; no mesh route
+    exists yet) and re-seat as newcomers (R4), leaves first, the home seat
+    last; it stops re-knocking and its entry lapses. Because guest seats
+    audit on their own staggered beats, re-entry spreads over the front
+    door's capacity instead of stampeding it: a small piece is home in
+    seconds, a big one in minutes — never frozen forever. Any duplicate that
+    flickers while the crowd re-seats is a local, witnessed race — E2 mops
+    it up.
+  - **Newcomers self-serve.** A newcomer whose list shows the same coord
+    claimed twice applies the same verdict rule and prefers a greeter from
+    the winning side.
+  - **The relay stays dumb throughout (R2).** It serves the same sealed list
+    it always served and arbitrates nothing; every verdict is computed by
+    clients from unforgeable ids and what actually answers. If the relay is
+    down, the pieces stay apart until it returns — exactly as tolerable as
+    new joins being blocked — and the next knock heals the room.
 - *(E4 — a genesis-storm resolver — is DISSOLVED: R2/R3's key prevents the
-  storm at admission.)*
-- **E5. Same-key partition reunion (the torn home).** Extreme churn can tear
-  ONE meeting into two (or more) disconnected pieces in a single instant —
-  same URL, same password, same genesis key — each piece keeping or rebuilding
-  (H2/H7/H8) its own copy of Section 1. R2/R3 prevents two *foundings*; it
-  cannot prevent the one founded home from being torn. This is NOT a fork
-  (nothing here is a different meeting), so R5's human choice does not apply.
-  The pieces reunite like this:
-  - **Noticing costs nothing new.** Section-1 seats already re-knock every
-    ~TTL (E3) and get the sealed greeter list back. A partition shows up as a
-    same-key greeter on that list who is NOT in my home roster (W5) and whom
-    the mesh cannot reach. Confirm it first-hand, never by gossip: message
-    that greeter THROUGH the relay (legal — both hold sockets; greeting scope,
-    R2). A live seat in another piece answers; a stale entry of a dead seat
-    never answers and simply TTLs out. Answers-via-relay + unreachable-via-mesh,
-    observed on two consecutive knocks, = the meeting is in pieces. (Two
-    knocks so a momentary churn blip never triggers it.)
-  - **Choosing sides needs no arbiter.** Every piece sees the SAME sealed
-    list, so every piece applies the same rule and reaches the same verdict
-    without exchanging a word: compare the pieces' claimants of the founding
-    seat `('',0,0)` — **lower id wins** (E2's own tie-break; ids are
-    unforgeable). The winner's piece is CANONICAL; the rest are guests. A
-    piece with no founding-seat claimant on the list is automatically a guest.
-  - **Reunion is a drain, not a war.** The guest piece's Section-1 seats do
-    the one thing Section-1 seats otherwise never do: they drain (E1). Each
-    fans DRAIN down its subtree; every member walks back in through the front
-    door of its own meeting — knock, sealed list, a canonical greeter, a seat
-    (R4) — leaves first, the Section-1 seat itself last, and it stops
-    re-knocking so its greeter entry lapses. Nobody is evicted, no messages
-    battle across the seam, no id war: the guest side simply rejoins. Any
-    duplicate that flickers while the crowd re-seats is a local, witnessed
-    race — E2 mops it up.
-  - **The relay stays dumb.** It learns nothing and arbitrates nothing (R2) —
-    it only keeps serving the same sealed list it always served; the verdict
-    is computed by clients FROM that list. If the relay is down, the pieces
-    simply stay apart until it returns — exactly as tolerable as new joins
-    being blocked — and the next knock after it returns heals the room.
+  storm at admission. E5 — a standalone partition-reunion law — is DISSOLVED
+  into the E3 audit above: it was E3's missing sentence, not new machinery.)*
 
 ## R — the front door
 
@@ -247,7 +258,7 @@ childless — a leaf. **Only leaves move. No exceptions.**
   decoy whose sealed dance fails) are never auto-merged: the client surfaces
   the unforgeable FACES on each tree's Stage and the human chooses which room
   to be in. Counts can be inflated; a face cannot. — A same-key split is NOT a
-  fork: it auto-reunites by E5 and no human is ever asked.
+  fork: it auto-reunites via the E3 audit and no human is ever asked.
 - **R6. The stranded newcomer** (pure client logic, zero relay presence). The
   greeter list is sealed under `K = derive(url, pw)` — URL secret AND password
   — so in a locked room even the guest list is invisible without the password.
@@ -278,7 +289,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
 2. **Churn shatters the meeting into disconnected pieces.** Severed subtrees
    drain back in (E1); dead home cells are rebuilt from below (H1/H1-S1/H7,
    key preserved); a torn home reunites through the front door it never
-   stopped sharing (E5); a lone cut-off member gets an honest answer (R6). Only a
+   stopped sharing (the E3 audit); a lone cut-off member gets an honest
+   answer (R6). Only a
    genuinely DIFFERENT meeting — a different genesis key — is ever put to a
    human being (R5).
 
