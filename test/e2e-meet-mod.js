@@ -91,6 +91,53 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await a.waitForFunction(() => !window.__gifosVideo.micMuted(), null, { timeout: 10000 });
   check('after UNMUTE-for-everyone the target unmutes herself', true);
 
+  // ---- STAGE in an open room: anyone steps up (and down) ----
+  check('open room: anyone may take the stage', await a.evaluate(() => window.__gifosVideo.canStageNow()));
+  await a.evaluate(() => window.__gifosVideo.setStageForTest(true));
+  await b.waitForFunction((id) => window.__gifosVideo.stageIds().includes(id), aId, { timeout: 15000 });
+  check('a self step-up seats her on every receiver\'s stage', true);
+  await a.evaluate(() => window.__gifosVideo.setStageForTest(false));
+  await b.waitForFunction((id) => !window.__gifosVideo.stageIds().includes(id), aId, { timeout: 15000 });
+  check('stepping down clears the stage everywhere', true);
+
+  // ---- the client VOTE loop (the relay majority itself is relay-voteoff.js) ----
+  const bId = await otherId(a);
+  await a.evaluate((id) => {
+    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votebtn');
+    if (btn) btn.click();
+  }, bId);
+  await a.waitForFunction((id) => window.__gifosVideo.votesAgainst(id) === 1, bId, { timeout: 15000 });
+  check('a vote syncs to the relay and tallies (1 against, threshold ' + (await a.evaluate(() => window.__gifosVideo.voteNeed())) + ')',
+    (await a.evaluate(() => window.__gifosVideo.voteNeed())) >= 2
+    && (await a.evaluate(() => window.__gifosVideo.myVoteCount())) === 1);
+  check('one vote of two devices boots nobody (min-2 majority)',
+    await b.evaluate(() => window.__gifosVideo.room() && !window.__gifosVideo.bannedOut()));
+  await a.evaluate((id) => {
+    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votebtn');
+    if (btn) btn.click(); // withdraw
+  }, bId);
+  await a.waitForFunction((id) => window.__gifosVideo.votesAgainst(id) === 0, bId, { timeout: 15000 });
+  check('withdrawing the vote clears the tally (and the personal global list)',
+    (await a.evaluate(() => window.__gifosVideo.myVoteCount())) === 0);
+
+  // ---- OPEN-room clear video: password + EVERYONE ready, withdrawal re-blurs ----
+  await a.locator('#pwbtn').click();
+  await a.locator('#pw-new').fill('open-key');
+  await a.locator('#pw-save').click();
+  await b.waitForFunction(() => window.__gifosVideo.roomPw() === 'open-key', null, { timeout: 20000 });
+  for (const pg of [a, b]) {
+    await pg.locator('#cam').click();
+    await pg.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 20000 });
+    await pg.evaluate(() => window.__gifosVideo.setBlur(0));
+  }
+  await a.waitForFunction(() => window.__gifosVideo.consensus(), null, { timeout: 25000 });
+  await a.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) === 0, bId, { timeout: 20000 });
+  await b.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) === 0, aId, { timeout: 20000 });
+  check('open room: password + unanimous consent ⇒ clear video on every tile', true);
+  await a.evaluate(() => window.__gifosVideo.setBlur(2)); // one withdrawal re-blurs the room
+  await b.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) >= 1, aId, { timeout: 20000 });
+  check('one consent withdrawn ⇒ the room falls back to blurred', true);
+
   await a.close(); await b.close();
 
   // ============================ ADMIN ROOM ============================
@@ -168,6 +215,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await d.waitForFunction((id) => !window.__gifosVideo.stageIds().includes(id), eId, { timeout: 15000 });
   await e.waitForFunction(() => !window.__gifosVideo.canStageNow(), null, { timeout: 15000 });
   check('REVOKING the grant pulls her off stage everywhere, by arithmetic', true);
+
+  // ---- BAN / UNBAN through the page (the client's signed order, §SIG) ----
+  await d.evaluate((id) => {
+    const btn = document.querySelector('.tile[data-peer="' + id + '"] .modbar button[data-adm="ban"]');
+    if (btn) btn.click();
+  }, eId);
+  await e.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 20000 });
+  check('the admin\'s Ban severs the guest (bannedOut on her device)', true);
+  await d.waitForFunction(() => window.__gifosVideo.banList().length === 1, null, { timeout: 20000 });
+  check('the ban list reaches the admin\'s panel', true);
+  await e.reload();
+  await e.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.bannedOut(), null, { timeout: 30000 });
+  check('a banned device is refused on rejoin (the door remembers)', true);
+  // UNDO: unban from the Admin panel, and she walks back in
+  await d.locator('#admbtn').click();
+  await d.locator('#adm-banned .brow button').click();
+  await d.locator('#adm-close').click();
+  await d.waitForFunction(() => window.__gifosVideo.banList().length === 0, null, { timeout: 20000 });
+  await e.reload();
+  await e.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room() && !window.__gifosVideo.bannedOut(), null, { timeout: 30000 });
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  check('UNBAN readmits the device (undo path, end to end)', true);
 
   // ---- admin sign-in: wrong password refused, right one grants ----
   await e.locator('#admbtn').click();
