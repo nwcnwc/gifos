@@ -465,3 +465,114 @@ closed) by directing ops to the host as unicast + per-source gossip rate limits,
 and it is the reason model (B) is unsafe until S4 lands. The unification's
 safety therefore **depends on the in-flight control-plane port delivering W7 and
 S4** before the host-heal step ships.
+
+---
+
+## DECIDED (implemented)
+
+The open decisions above are now **made and built** (branch `app-mesh-unify`).
+The unified model shipped as a runtime-side adapter over the existing `sga`
+Stage DATA lane — `meet.html` and the mesh control plane were NOT touched.
+
+### The model, settled
+
+- **A room = a mesh session. An app-share = a media-less room. A meeting =
+  that room with the media plane switched on.** App state rides the mesh's
+  Stage DATA lane (`GifOS.meetStageData`), never a second relay session.
+- **App authority is a SIGNATURE SCOPE over app-state — owner-authoritative
+  (model A), enforced by the app's OWNER key.** The owner (the seat that shared
+  the app) holds an Ed25519 keypair; it signs every canonical `snap`/`delta`
+  frame. Every participant verifies against the owner pubkey and rejects
+  anything unsigned / impostor-signed / tampered. A client's write is an
+  unsigned `act` PROPOSAL the owner validates (visibility + leadership) →
+  applies → re-signs → broadcasts. **Non-owner-signed state is never canonical:
+  a malicious seat can spam frames but cannot corrupt state.**
+- **This authority NESTS in any room and is relay-free.** It is pure mesh-peer
+  signature verification the relay never sees, so it works unchanged inside an
+  open/anarchy meeting. The owner's authority is ONLY over app-state — it cannot
+  ban meeting members or lock the room (that stays a relay-door concern).
+- **A/V is strictly additive.** A standalone app-share opens no camera; lighting
+  up the media plane leaves the app's owner-authority riding straight through.
+
+### What was built (all in `site/js/`)
+
+- **`app-owner.js`** — a pure, transport-free module: `createSigner()` (Ed25519,
+  private key non-extractable, never leaves the tab), `makeVerifier(sid)` (pins
+  the owner pubkey on first valid frame; binds it to the sid tail when the link
+  commits to one — `room.<sha256(pk) prefix>`), a canonical serializer, and the
+  snap/delta/op reducers. Node-testable, browser-loadable.
+- **`runtime.js` → `becomeHost().attachStageBus(bus)`** (host side): tears down
+  the redundant relay app-session, mints an owner signer, subscribes for `act`
+  proposals (validated against collection visibility + the leadership fence,
+  exactly as the relay host's `handleRpc` did), applies them to the
+  authoritative store, and broadcasts owner-signed `snap` (app bytes + filtered
+  state, retained by the lane for late joiners) and `delta` (state) frames on
+  every db-change.
+- **`runtime.js` → `bootClientBus(mountEl, {s,send,subscribe})`** (client side):
+  renders the shared app from the sga lane instead of a relay session —
+  verifies every frame's owner signature, mirrors owner-signed state, mounts the
+  app iframe from the snapshot's app bytes, and sends the user's writes back as
+  `act` proposals. Private collections stay per-tab and are never proposed.
+
+### What was DELETED
+
+- **The second relay app-session for app-in-meeting.** Clients now take the mesh
+  bus (`bootClientBus`) — they never open the app's own relay session. The host
+  side's relay app-session is **torn down inside `attachStageBus`** the moment
+  the mesh bus is attached. App-state is no longer duplicated over the relay.
+
+### Late joiner
+
+Snapshot, as decided — not replay. The host's `snap` frame carries the app
+bytes + the full visibility-filtered state and is **retained by the sga lane**,
+which replays it to any subscriber on join (`meet.html`'s `sgaSnap`). Live
+deltas keep it current after that.
+
+### Verification
+
+`test/e2e-app-owner.js` (protocol) and `test/e2e-app-mesh-wire.js` (the exact
+runtime frame shapes over a simulated sga lane) both pass under Node, proving:
+snap convergence, `act`-proposal round-trip, read-only refusal, **impostor-op
+rejection**, tamper rejection, late-joiner snapshot, delete convergence, and
+sid-bound first-frame binding. The full browser flow (iframe mount + IndexedDB
+store + real mesh transport) still needs a stable WebRTC environment to exercise
+end to end — `test/e2e-meeting-app.js` loads the runtime cleanly but the
+headless cross-participant meshing is flaky on the CI box (upstream of any app
+code).
+
+### Accepted limitations (per the decided scope — NOT bugs)
+
+- **Owner away → writes pause.** Tearing down the relay app-session also retires
+  its `AUTO_TAKEOVER` host-race for the meeting-app case. Host-slot healing over
+  the mesh is the decided replacement but is **S4/W7-gated future work** (§6
+  step 5); until then an owner leaving freezes app-state (acceptable for
+  owner-centric apps; co-admin keys are future work). The app survives as the
+  owner's saved GIF or any client's snapshot, and a new share re-mints an owner.
+- **First-frame TOFU on healing-link sids.** For a meeting-app the sid is an
+  opaque healing sid (no pubkey commitment), so the client pins the owner pubkey
+  trust-on-first-valid-frame. An impostor racing the owner's first `snap` onto
+  the lane could be pinned. This is the same first-pin/S4 exposure the meeting
+  mesh already carries. The verifier ALREADY closes it for any sid that commits
+  to the pubkey (`room.<sha256(pk)>`, tested). The clean close for the meeting
+  path is a small **`meet.html`** change (below).
+- **Heavy apps re-send app bytes in each retained snap.** Fine for the small
+  sample apps; a per-record delta stream + a separate app-bytes frame is the
+  optimization when a multi-MB app rides the lane.
+- **Optimistic client writes** to shared collections show locally before the
+  owner's signed echo; a refused op reverts on the next owner snap.
+
+### Changes OUTSIDE my files that are needed / recommended (NOT made)
+
+- **`meet.html` (recommended, would strengthen security):** carry the owner
+  pubkey in the app ad (`myStatus.app.pk = r.attachStageBus(...).pk`) and pass
+  it into `bootClientBus` params, so the client pins the owner key from the
+  **authenticated ad** instead of TOFU — closing the first-frame race for
+  healing-link sids. The runtime already returns `{pk}` from `attachStageBus`
+  for exactly this.
+- **`meet.html` (recommended, avoids a transient relay session):** pass a
+  `mesh:true`/`noRelay` option into `becomeHost` so it skips `openHostSocket`
+  entirely for a meeting-hosted app, rather than opening then immediately tearing
+  it down in `attachStageBus`. Removes even the momentary relay app-session
+  registration.
+- **No mesh/relay/`gifos-net.js` changes were required** — the adapter rides the
+  already-merged `sga` lane and `GifOS.meetStageData` API as-is.
