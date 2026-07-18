@@ -22,6 +22,20 @@ implemented. The media plane, by contrast, is largely built to spec
 *current* `crossLink` topology and will need rewiring the day the rook's graph
 lands.
 
+**Enrichment (2026-07-18): "Port FROM the sim" layer added.** The green,
+stress-validated reference sim is now on `main` (`sim/topo.h`, `sim/mesh.cpp`,
+`sim/mesh_seat.inc`, `sim/split-brain.md`; commits e0a4a13, 440f189, 5ab7088,
+6d89b24 — node loss 0.1–0.6 → ONE home, 0 dups / 0 stranded / 0 teleport; total
+partition → two clean homes). The audit's status verdicts below are UNCHANGED and
+correct. What is added: a **"Port from → to"** block on each control-plane item
+(§1–§4) mapping the exact sim mechanic — with `sim/FILE:LINE` — to its production
+target; the **tuned constants** (§4) that must carry over; a **7-bug regression
+list** the sim already found + fixed (do not re-introduce); a new **§13** for the
+now-stale tests; and a sharpened §9/§12 against the sim's real `colMates`
+semantics. The sim's A+B gate cited in §2/"could not determine #4" is now
+**CLEARED** — those items are structurally green in the sim; the remaining
+open work is the production translation itself.
+
 ---
 
 ## Critical path (suggested order)
@@ -33,9 +47,10 @@ later one assumes the earlier one's invariant.
    *foundational* correctness fix — it is the port of 11a. Everything else
    (identity, ring integrity) assumes "one designated healer per hole, no
    computed opinions." Until `lowestSurvivor()` is gone, the tie-break is still
-   a way *in*, not just a way to settle a revival. **BLOCKED in the plan on
-   A+B being green in the sim** — do not port routing/healing into production
-   ahead of the sim proof (option-a-plan increments 13–14).
+   a way *in*, not just a way to settle a revival. ~~**BLOCKED on A+B being
+   green in the sim**~~ **UNBLOCKED (2026-07-18)** — the sim proof is now green on
+   `main` (`sim/split-brain.md`): port FROM the sim (see §2 "Port from → to").
+   (Was: option-a-plan increments 13–14.)
 2. **W7 rook's graph — degree-9 Section 1 (§1).** The load-bearing topology
    change. Small, self-contained, and it is what H1-S1 conservatism and the
    media head-redundancy both physically depend on ("unreachable on all paths").
@@ -94,6 +109,22 @@ implemented," and the code confirms it.
   load-bearing for scale.
 - **Deep tree stays C+1** (unchanged) — verify no regression.
 
+**Port from → to (sim is the source of truth — commit e0a4a13):**
+| Mechanic | Sim reference (FILE:LINE) | Production target (FILE:LINE) |
+|---|---|---|
+| `colMates(s)` primitive (C-1 same-column seats, other rows) | `sim/topo.h:28` | ADD to `gifos-net.js` topo IIFE (alongside `rowMates` at `gifos-net.js:505`) |
+| `ownedLinks(pc==0)` = rowMates + colMates + down (degree 9) | `sim/topo.h:34-37` (the `if(s.pc==0)` branch) | `gifos-net.js:507` `ownedLinks` — add the `s.pc===0` branch; leave `pc>0` (transpose + up + down) exactly as is |
+| `MAXLINKS = 2C-1` | `sim/topo.h:12` | implicit in JS (arrays), but any degree-cap constant/assert must become `2*C-1` |
+| Rook routing — same-row column hop / column-mate into target row | `nextHopCoord` `sim/mesh_seat.inc:98-101` (the `c.pc==0` rook branch) | `mesh.js:186-191` `nextHopCoord` — replace the single-transpose walk (line 191) with the direct row/column hop |
+| Rook routing fallback — any live column- then row-mate | `nextHopToward` `sim/mesh_seat.inc:120-124` (`coord.pc==0` branch) | `mesh.js:202-206` `nextHopToward` — add the `pc==0` colMates→rowMates fallback ahead of the transpose fallback |
+| Cousins-in-PONG teach the **column** heirs (relay-free promote-up) | `sim/mesh_seat.inc:187-189` (the `coord.pc==0` colMates cous loop) | `mesh.js:220-224` (`onPhone`/PONG cousins build) — teach column heirs when `pc==0` |
+| `s1Sync` over the whole rook (row **and** column targets) | `sim/mesh_seat.inc:214-223` (colMates target set at `:221`) | `mesh.js:237-241` `s1Sync` — widen the target set to row+column |
+| Keep-column-links-live — re-ping any vacant column-mate | `sim/mesh_seat.inc:371` (`tick`, `pc==0` xlink branch: `colMates` + `routeTo`) | `mesh.js:413`/`:421` xlink re-ping — for `pc==0` re-ping vacant colMates, not the single transpose |
+
+Note the deep-section (`pc>0`) `crossLink` at `sim/topo.h:24` is **unchanged** —
+it still returns for any `i>0`; only the `pc==0` **consumers** switch from
+`crossLink` to the full column.
+
 **Size/risk:** Small topology change, but **wide blast radius** — every
 `crossLink`/`ownedLinks` caller (routing, healing wiring W1, media plane §8,
 gossip `linkPeers` at `mesh.js:267-277`) reads these. Do it sim-first
@@ -149,10 +180,30 @@ the laws retired, and accepts raw claims from anyone.
   has first-hand lost X's prior occupant; refuse if X is still fresh in its own
   first-hand liveness.
 
-**Size/risk:** **Large, high risk** — this is the core healing rewrite and the
-plan gates it (increments 13–14) on the sim's A+B being green, which
-`option-a-plan.md:28` reports is **not yet achieved** (dups bounded ~340 but not
-0, split-brain disjoint-clique blocker). Do NOT port ahead of the sim proof.
+**Port from → to (the 11a healing, all in the green sim — commit e0a4a13):**
+The sim retires `lowestSurvivor` **by disuse**: it is still *defined* at
+`sim/mesh.cpp:185` but has **zero call sites** in `mesh_seat.inc` (grep-confirmed).
+Fixed designation replaces it entirely. Port the drivers, then delete the three
+JS call sites (`mesh.js:357`, `:412`, `:420`) and the definition (`mesh.js:89`).
+
+| Fixed-designation rule | Sim reference (FILE:LINE) | Production target (FILE:LINE) |
+|---|---|---|
+| **VERTICAL** — a cell's down-child is its fixed healer (generalizes H8); promote a leaf up into a confirmed-dead owner | `sim/mesh_seat.inc:388-402` (`tick`, `coord.i==0` cousins-heal, `occGet<0` + confirm window) | replaces `mesh.js:412`/`:420` `lowestSurvivor`-triggered `heal({...,i:0})` |
+| **HORIZONTAL** — only a *childless* head needs a horizontal healer; its fixed healer is `{pc,r,1}` | `sim/mesh_seat.inc:378` (`coord.i==1 && occGet(head)<0 && !hasDownChild`) | replaces the row-mate FINDLEAF-to-any-kidful-mate at `mesh.js:148`; the LEAVE handler `mesh.js:357` becomes the reactive left-pack |
+| **LEFT-PACK** (reactive) — my immediate-left row-mate LEFT and owns no down-child ⇒ I (its right-neighbour) heal it | `sim/mesh_seat.inc:315-321` (LEAVE handler, `:320`) | `mesh.js:357` LEAVE handler — replace the `lowestSurvivor()` gate |
+| **LEFT-PACK** (proactive, headless row) — rebuild leftward toward the head when the head is not first-hand live | `sim/mesh_seat.inc:369-370` (`tick`, `coord.i>=1 && !firstHandLive(head)`) | NEW in `mesh.js` `pc==0` tick branch (no equivalent today) |
+| **HEAD BACKSTOP** — head refills each of its row cells, one per pass, probe-gated | `s1Fill` `sim/mesh_seat.inc:235-252` | `mesh.js:253` `s1Fill` — swap the ~60-tick staleness trigger for `ringConfirmDead` (see §4) |
+| **FRONTIER-ONLY admission** — admit a newcomer only into a free cell whose down-child is ALSO empty (else the vertical healer races it → requeue → phantom) | `serveFind` `sim/mesh_seat.inc:24-35` (`:27-29` head-vacancy + `firstFreeInRoster` at `sim/mesh.cpp:181`) | `mesh.js` `serveFind` (~`:118-133`) + the admit path; today it `take()`s whatever it is told |
+| **Diversified leaf-source** in `heal()` (subtree + kidful row-mates + other S1 subtrees), pick ONE at random | `heal()` `sim/mesh_seat.inc:37-57` (sources gathered `:51-54`, left-pack base case `:56`) | `mesh.js:135-152` `heal()` |
+| **Scooch-left guard** on promote (a S1 seat may only move left within its row) | `promoteInto` `sim/mesh_seat.inc:65-75` (`:67-68`) | `mesh.js` `promoteInto` (~`:159-169`) |
+
+**Size/risk:** **Large, high risk** — this is the core healing rewrite. The plan
+gated it (increments 13–14) on the sim's A+B being green; **as of 2026-07-18 that
+gate is CLEARED** — the sim converges to ONE home with 0 dups / 0 stranded /
+0 teleport across the full kill sweep (`sim/split-brain.md`), superseding the
+earlier `option-a-plan.md:28` "not yet achieved" (dups ~340) report. It is now a
+translation task, not a research one — port FROM the sim above, mirror the 7-bug
+fixes, and keep the sim's `check` invariant as the green light.
 
 ### §3. E2 rescope + first-hand echo-immune liveness + tenure + lower-id-wins — PARTIAL
 
@@ -191,6 +242,15 @@ gossip-fed (the bug).**
 - Re-verify tenure wording end-to-end against E2 once §5's stable identity
   makes "who I heard" unforgeable.
 
+**Port from → to (echo-immune liveness — commit e0a4a13):**
+| Mechanic | Sim reference (FILE:LINE) | Production target (FILE:LINE) |
+|---|---|---|
+| `firstHandLive(ck)` — the ONE signal allowed to evict/tie-break | `sim/mesh.cpp:172` | NEW in `mesh.js`; production has a first-hand `live` map already (`mesh.js:217`, deep only) — generalize it to Section 1 |
+| `live[]` set **only** by direct contact (PHONE, PONG, HELLO, CLAIM) | onPhone `sim/mesh_seat.inc:180`; PONG `:342`; HELLO `:311`; CLAIM `:314` | the corresponding `mesh.js` handlers — set `live` (not `s1seen`) on these |
+| S1SYNC gossip NEVER sets `live`, never evicts, never overwrites a first-hand cell | `sim/mesh_seat.inc:323-335` (esp `:331` `firstHandLive continue`, `:330` ignore-my-seat) | `mesh.js` S1SYNC handler (`:361-372`) — strip any path that lets gossip refresh the liveness that authorizes a heal/yield |
+| Gate S1 heal/evict on first-hand, not `s1Fresh` (gossip) | s1Fill `sim/mesh_seat.inc:250`; rowSweep `:232`; serveFind head-empty test `:27` | `mesh.js` `s1Fill:253`, `rowSweep:247`, `serveFind:124` — replace `s1Fresh` gating |
+| Rook D1 heartbeat maintains first-hand across all paths (phantoms decay) | `s1Heartbeat` `sim/mesh_seat.inc:207-213`, called `mesh_seat.inc:361` | NEW in `mesh.js` `pc==0` tick (today only `phoneHome` to the owner) |
+
 **Size/risk:** Medium. It is the "echo-immune liveness" half of the sim's open
 A+B blocker — coupled to §2, best done together, sim-first.
 
@@ -216,6 +276,31 @@ partly on gossip freshness.
 **What to change:** after §1 lands, gate S1 cell healing on unreachability
 across the full rook neighbourhood (row + column) for a settled window strictly
 longer than max severance; keep the "hold the hole, never duplicate" bias.
+
+**Port from → to (probe-gated ring-heal — commit e0a4a13):**
+| Mechanic | Sim reference (FILE:LINE) | Production target (FILE:LINE) |
+|---|---|---|
+| `ringConfirmDead(h)` — if not first-hand live, actively PROBE across the rook (`routeTo`) and declare dead only after the full window | `sim/mesh_seat.inc:262-268` | NEW in `mesh.js`; gate `s1Fill`/`rowSweep`/left-pack on it |
+| `holeSince` timer (when a not-first-hand cell first looked like a hole) | declared `sim/mesh.cpp:145`, used `sim/mesh_seat.inc:266` | NEW map in `mesh.js` |
+| Vertical heal into a **Section-1** owner waits `RING_HOLD` (vs 60 deep) | `sim/mesh_seat.inc:394` (`confirm = oc.pc==0 ? RING_HOLD : 60`) | the ported vertical heal (§2) |
+| Probe re-ping keeps column links live | `sim/mesh_seat.inc:371` | `mesh.js` xlink tick (also §1) |
+
+**Tuned constants that MUST carry over (and be re-swept if C or churn cadence
+changes):**
+| Constant | Value | Sim source | Production status |
+|---|---|---|---|
+| `RING_HOLD` | 220 | `sim/mesh.cpp:74` | NOT present in `mesh.js` — add it |
+| `STRAND_TTL` | 500 | `sim/mesh.cpp:67` | already `mesh.js:37` (=500) — matches |
+| `MAXLINKS` | `2C-1` (=9) | `sim/topo.h:12` | implicit; any degree cap/assert must use `2*C-1` |
+
+**Sim agent's caveat (do not treat these as universal):** every one of these is
+tuned for **C=5, single-threaded** mode. RING_HOLD=220 in particular is
+"much longer than the deep-tree 60 because the rook has many paths to exhaust" —
+it is a *swept* value, not a derived one. Change C, the heartbeat cadence
+(`lastPhone>=8`), or the churn model and these need re-sweeping in the sim FIRST (the sim's sweep
+harness — `sim/split-brain.md` names `sweep.sh`, not yet committed to the repo:
+**needs a human eye during the port** to locate/commit it), never hand-tuned in
+production.
 
 **Size/risk:** Medium; **depends on §1** (needs the redundant paths to exist)
 and §3 (first-hand liveness to measure them honestly).
@@ -328,6 +413,87 @@ column under W7; freshness must become first-hand). No standalone work.
 
 ---
 
+## The 7 bugs the sim already found + fixed — DO NOT re-introduce in the JS port
+
+The production port is a **fresh translation** of the green sim, not a diff
+against it. Every one of these was a real, sweat-earned failure the sim hit and
+fixed (see `sim/split-brain.md` and commits e0a4a13 / 440f189 / 5ab7088). A
+from-scratch JS port will re-open each one unless it mirrors the sim's fix. Treat
+this list as a regression checklist for the port.
+
+1. **Phantom eviction via gossip-fed liveness.** The rook's richer gossip paths
+   kept a stale echo "alive" indefinitely; it evicted every healer out of a hole
+   so JOIN couldn't even fill 25/25. **Fix:** `firstHandLive` only; S1SYNC never
+   sets `live` (`sim/mesh.cpp:172`, `sim/mesh_seat.inc:331`). This is §3.
+2. **Head-vs-down-child shadow-ring race (admission).** Admitting a newcomer into
+   a free S1 cell that still owns a subtree races that subtree's vertical healer;
+   the loser requeues OUT of Section 1, leaving a stale gossip **phantom** that
+   permanently blocks refill. **Fix:** frontier-only admission — admit only when
+   the down-child is ALSO empty (`sim/mesh_seat.inc:27-29`,
+   `firstFreeInRoster` `sim/mesh.cpp:181`). This is §2's frontier rule.
+3. **`s1Fill` stale-`childOf` deadlock.** `s1Fill` and the right-neighbour
+   healer both firing on the same cell double-book it; the guard is that the head
+   backstop only covers a cell whose own subtree is gone (`hasDownChild==false`),
+   so the two never race. **Fix:** `hasDownChild` gate (`sim/mesh.cpp:189`,
+   `sim/mesh_seat.inc:362,378`).
+4. **All-heads-dead deadlock.** If an entire column 0 dies, no head is left to run
+   the row backstop and the row never rebuilds. **Fix:** probe-gated proactive
+   LEFT-PACK — a headless row rebuilds leftward toward the head, cell by cell
+   (`sim/mesh_seat.inc:369-370`). This is §2's proactive left-pack.
+5. **`heal()` single-subtree swallow (stuck home hole).** A single fixed
+   leaf-source (my one known down-child) with a broken/stale deep chain silently
+   swallows every FINDLEAF forever, stranding a home hole. **Fix:** diversify
+   leaf-sources (own subtree + kidful row-mates + other S1 subtrees), pick one at
+   random; a rare double-promotion is culled by E2's first-hand HELLO yield
+   (`sim/mesh_seat.inc:45-55`).
+6. **Premature R6 strand on `join()`.** A re-entering seat that keeps REACHING
+   greeters (HOME rosters come back) but only gets NOROOM in a busy heal is
+   *competing for a slot*, not stranded — but `join()` clearing `haveRoster`
+   used to trip the strand check mid-cycle and give up. **Fix:** track
+   `lastReach`; strand only after a greeter has been unreachable a full TTL
+   (`sim/mesh_seat.inc:276`, `sim/mesh.cpp:152-153`; commit 440f189).
+7. **Terminal strand under partition.** The E1 last-resort re-enter was ordered
+   BELOW the drain branch, so a seat holding a stale roster returned every tick
+   and never reached it — stranded forever phoning a ghost owner; and a strand was
+   permanent. **Fix:** check the `lastAck>220` last-resort FIRST and drop the dead
+   roster (`sim/mesh_seat.inc:80-89`); make strand recoverable — retry after a
+   backoff (`sim/mesh.cpp:357`; commit 5ab7088).
+
+Bugs 1–5 live in the control-plane rewrite (§1–§4); 6–7 in the re-enter/strand
+path (§7). None of them show up until the mesh is under real churn, so the port's
+green light is the sim's `check` invariant, not a smoke test.
+
+### §13. `test/mesh-harness.js` + `test/topo.js` pin the OLD sparse graph — STALE
+
+**Status: STALE — will FAIL after §1, must be updated as part of the port.**
+
+Both tests assert the pre-rook topology and will break the moment `gifos-net.js`
+gains the rook's graph:
+
+- `test/topo.js:58-62` asserts **`max ownedLinks degree <= C+1`** and
+  **`Section-1 head degree === C`**. Under W7 a Section-1 seat is degree
+  **9 = 2C-1** and the head is degree 9 too (it gains column-mates) — both
+  assertions FAIL. They must become: `pc==0` degree === `2*C-1` (9), `pc>0`
+  degree `<= C+1`, plus new assertions for `colMates` (C-1 entries, shares
+  column) and the rook symmetry/8-edge-connectivity that `sim/topo_test.cpp`
+  already checks — port those assertions across.
+- `test/mesh-harness.js` runs the production `Seat` through JOIN + kill specs and
+  asserts `dups=0 / s1=25`. The *targets* are still right (the sim also hits
+  dups=0 / s1=25), but the harness exercises the **pre-11a** `mesh.js`; once the
+  §2/§3 rewrite lands it must be re-run and any assertion that encodes the old
+  heal cadence (tick windows, kill-then-settle horizons) re-tuned to the sim's
+  numbers. The sparse graph used to leave **dups=64 / s1=23** here — that is the
+  old baseline these tests were written against.
+
+**What to change:** update `test/topo.js` degree assertions to the rook
+(degree 9, `pc==0` only) and add the `colMates`/symmetry checks from
+`sim/topo_test.cpp`; re-run `test/mesh-harness.js` against the ported `mesh.js`
+and re-tune any cadence-encoding assertion. Do this **in lockstep with §1/§2** —
+they are the same flag day. `test/e2e-mesh-wire.js` also reads the topology
+shape; smoke-check it after.
+
+---
+
 ## Media plane (A/V/data redundancy)
 
 The media plane is built largely to `docs/media-plane.md` and is being
@@ -382,6 +548,27 @@ partner otherwise (`gifos-net.js:499-504`). So:
   assumption (`^x` → one slot) must be generalized or the code must pick one
   column-mate deterministically. **Flag: this is the media rewiring the day the
   rook's graph lands.**
+
+**Sharpened against the now-merged sim's rook (verify at port time):** in the
+sim, `crossLink` itself is UNCHANGED (`sim/topo.h:24` still returns one transpose
+partner for any `i>0`, and null for `i==0`) — what changed is that Section 1
+(`pc==0`) **stops using it** in favour of the full column, `colMates(s)` =
+`{s.pc, r', s.i}` for every `r'≠s.r` (`sim/topo.h:28`), i.e. **C-1 = 4**
+independent column partners, heads included, no diagonal. Concrete consequence
+for the media plane:
+- A Section-1 head today has `crossLink === null`, so its Stadium finish has NO
+  cross-link backup (leans on row-mate fans, `meet.html:3886-3889`). After W7 the
+  head has **4 real column partners** — the "independent second source" the doc
+  wants finally exists at the S1 ring; the media plane should fan the `sd`/`sgs`
+  down-copies and the `stg` collect over one deterministically-chosen column-mate
+  (e.g. lowest live `r'`) instead of `crossLink`, and the `^x` tag must resolve to
+  that chosen column slot, not the transpose slot.
+- A Section-1 non-head's single transpose partner becomes one-of-4 column-mates:
+  do NOT keep calling `crossLink` for `pc==0` (it still returns the transpose,
+  which is now just *one* of the column links and not the intended redundant path).
+- **Deep sections (`pc>0`) are unchanged** — `crossLink` there stays the one
+  transpose partner; those media call sites do not move. Only the `pc==0` call
+  sites rewire.
 
 ### §10. Stage / Stadium mechanics (collect-composite-fan, packer, no election) — PRESENT
 
@@ -446,9 +633,12 @@ Not started. **Size:** large; it is its own track.
 Flagged inline above; consolidated:
 - **§9 caveat:** every `T.crossLink(c)` media call site
   (`meet.html:3900,3924,3961,3977`) assumes cross-link = one transpose partner
-  and null-for-heads. W7 (§1) changes that. **Must rewire** when the rook's
-  graph lands: give S1 heads their new column path, generalize `^x`'s
-  single-slot assumption.
+  and null-for-heads. W7 (§1) changes that **for `pc==0` only**: Section 1 stops
+  using `crossLink` and instead has `colMates` = **4** independent column
+  partners (`sim/topo.h:28`), heads included. **Must rewire** the `pc==0` call
+  sites: give S1 heads their new column path, pick one column-mate
+  deterministically, and resolve `^x` to that column slot. Deep `crossLink`
+  (`pc>0`) is unchanged — those call sites stay. (Full detail in §9.)
 - **Occ reads:** the media plane reads occupancy directly
   (`occPid`/`meshSeat().occGet`, e.g. `meet.html:3577,3857`). Once C3 (§2)
   rejects raw claims and liveness goes first-hand (§3), the occ map a head reads
@@ -472,14 +662,16 @@ Flagged inline above; consolidated:
    only on occ-change, so a dropped `mx` announce self-heals.
 3. **Multi-subscribe thrash** (§8) — the toward-2 demand heuristic and debounce
    look right but want a soak test at scale for source flapping.
-4. **Sim A+B gate** — `option-a-plan.md:28` reports the sim's 11a is *not green*
-   (dups bounded ~340, not 0; disjoint-clique split-brain blocker). The
-   control-plane items §2/§3/§4 should not be ported to production until that is
-   resolved in the sim — I confirmed the *production* state, not the sim's
-   current numbers.
-5. **Whether any deep test depends on the current `crossLink` shape** — changing
-   it (§1) may ripple into `test/topo.js`, `test/mesh-harness.js`,
-   `test/e2e-mesh-wire.js`; not run as part of this read-only audit.
+4. ~~**Sim A+B gate**~~ **RESOLVED (2026-07-18):** the sim's 11a is now green on
+   `main` — ONE home, 0 dups / 0 stranded / 0 teleport across seeds 1..50 ×
+   kill {0.1..0.6}, and two clean homes under total partition
+   (`sim/split-brain.md`), superseding the `option-a-plan.md:28` "not green /
+   dups ~340" report. §2/§3/§4 are now cleared to port FROM the sim.
+5. **Whether any deep test depends on the current `crossLink` shape** — YES,
+   confirmed and captured as **§13**: `test/topo.js:58-62` degree assertions FAIL
+   under W7 (rook degree 9 > C+1); `test/mesh-harness.js` targets still hold but
+   must be re-run against the ported `mesh.js`; `test/e2e-mesh-wire.js` reads the
+   topology shape and wants a smoke-check.
 
 ---
 
@@ -499,3 +691,4 @@ Flagged inline above; consolidated:
 | §10 | Stage/Stadium collect-composite-fan | PRESENT | ICE-restart unverified |
 | §11 | App/data on Stage (data stream) | MISSING | Large (own track, roadmap 26-28) |
 | §12 | Media vs new control rules | Rewire needed | Medium, coupled to §1/§2/§3 |
+| §13 | `test/topo.js` + `test/mesh-harness.js` pin the OLD sparse graph | STALE (topo.js degree asserts FAIL under W7) | Small, same flag day as §1/§2 |
