@@ -3671,7 +3671,20 @@
       mosJobs.delete(jk);
       const p = peers.get(job.to);
       for (const sd of job.senders) auxSenders.delete(sd);
-      if (p && p.pc) { for (const sd of job.senders) { try { p.pc.removeTrack(sd); } catch (e) {} } if (notify !== false && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'mx-end', key: job.key, streamId: job.streamId }); compKick(job.to); }
+      if (p && p.pc) {
+        for (const sd of job.senders) {
+          try { p.pc.removeTrack(sd); } catch (e) {}
+          // STOP the m-line outright: an unshipped aux transceiver is never
+          // reused (addAux always opens a fresh one — see its comment), but a
+          // merely-removeTrack'd m-line stays fully negotiated in every later
+          // SDP. Over hours of churn that bloats offers monotonically until
+          // negotiation slows and links wedge. A stopped m-line renegotiates
+          // down to a rejected stub (port 0) — bounded SDP for a long session.
+          try { const tx = p.pc.getTransceivers().find((t) => t.sender === sd); if (tx && tx.stop && !tx.stopped) tx.stop(); } catch (e) {}
+        }
+        if (notify !== false && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'mx-end', key: job.key, streamId: job.streamId });
+        compKick(job.to);
+      }
     }
     function dropMosIn(rk) {
       const c = mosIn.get(rk); if (!c) return;
