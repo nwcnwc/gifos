@@ -333,6 +333,54 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     if ((i + 1) % 10 === 0) console.log('[swarm] ' + (i + 1) + '/' + N + ' launched');
   }
   console.log('[swarm] all launched — census every 20s (Ctrl-C to end the shard)');
+
+  // ---- TEST CONTROL FILE (--ctrl <path>): drive per-bot faults from outside.
+  // A backgrounded shard has no usable stdin, so failover tests (kill ONE bot,
+  // watch the room heal) poll a control file instead:
+  //   echo "kill 3"    > <path>   # close bot 3's page+context — a hard death
+  //   echo "respawn 3" > <path>   # bring bot 3 back (fresh context, same name)
+  // The file is emptied after each command. Unknown/dead indices are ignored.
+  const CTRL = args.ctrl || null;
+  if (CTRL) {
+    const fs2 = require('fs');
+    const mkBot = async (idx) => { // same recipe as the launch loop
+      const person = PEOPLE.length ? PEOPLE[(Math.random() * PEOPLE.length) | 0] : null;
+      const botName = (person && person.name) ? person.name : ('Bot-' + idx);
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } });
+      await ctx.addInitScript({ content:
+        (RELAY ? 'localStorage.setItem(\'gifos_relay\',' + JSON.stringify(RELAY) + ');' : '') +
+        pwSeed + (person ? '' : voiceSeed) +
+        'localStorage.setItem(\'gifos_name\',' + JSON.stringify(botName) + ');' +
+        "localStorage.setItem('gifos_meet_bar','0');" +
+        fakeCam(idx, FPS, person) });
+      const p = await ctx.newPage();
+      p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
+      p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
+      return p;
+    };
+    try { fs2.writeFileSync(CTRL, ''); } catch (e) {}
+    setInterval(async () => {
+      let cmd = '';
+      try { cmd = fs2.readFileSync(CTRL, 'utf8').trim(); } catch (e) { return; }
+      if (!cmd) return;
+      try { fs2.writeFileSync(CTRL, ''); } catch (e) {}
+      const m = /^(kill|respawn)\s+(\d+)$/.exec(cmd);
+      if (!m) { console.log('[swarm] ctrl: unknown command "' + cmd + '"'); return; }
+      const idx = parseInt(m[2], 10);
+      const ent = pages.find((e) => e.idx === idx);
+      if (m[1] === 'kill') {
+        if (!ent || !ent.p) { console.log('[swarm] ctrl: bot ' + idx + ' not running'); return; }
+        try { await ent.p.context().close(); } catch (e) {}
+        ent.p = null;
+        console.log('[swarm] ctrl: KILLED bot ' + idx);
+      } else {
+        if (ent && ent.p) { console.log('[swarm] ctrl: bot ' + idx + ' already up'); return; }
+        const p = await mkBot(idx);
+        if (ent) ent.p = p; else pages.push({ idx, p });
+        console.log('[swarm] ctrl: RESPAWNED bot ' + idx);
+      }
+    }, 1500);
+  }
   setInterval(async () => {
     const bySection = {};
     let up = 0, maxSeen = 0; // maxSeen = the most participants ANY single bot sees; == N ⇒ all converged into ONE room
@@ -422,6 +470,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     // so the message rides the same DataChannel gossip a human's would.
     setInterval(() => {
       const { idx, p } = pages[(Math.random() * pages.length) | 0];
+      if (!p) return; // bot killed via --ctrl
       p.evaluate((t) => {
         const inp = document.getElementById('chat-in'), f = document.getElementById('chatform');
         if (!inp || !f) return;

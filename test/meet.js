@@ -364,11 +364,18 @@ function monDiff(st, cur, t, ev) {
 }
 async function runMon(secs, intervalMs) {
   const T = secs || 120, iv = Math.max(200, intervalMs || 1000);
-  console.log('MON start ' + T + 's @ ' + iv + 'ms — transitions only; MON SUM at the end');
+  // Box saturation confounds flakiness: a starved bot stalls for CPU reasons,
+  // not protocol reasons. Record loadavg with every sample so each event line
+  // (and the summary) can be correlated with saturation — protocol-level flaps
+  // (claim churn, unship/reship, tile teardown) are real bugs at ANY load;
+  // frame stalls under loadavg >> cores may be the box, not the mesh.
+  const loadNow = () => { try { return parseFloat(fs.readFileSync('/proc/loadavg', 'utf8').split(' ')[0]); } catch (e) { return -1; } };
+  console.log('MON start ' + T + 's @ ' + iv + 'ms — transitions only; MON SUM at the end. loadavg=' + loadNow());
   const st = { tiles: {}, claims: new Map(), standby: new Map(), jobs: new Map(), demand: new Map(), ear: new Map(), pipes: new Map(), n: {}, maxStall: {}, coord: null };
   const events = [];
   const t0 = Date.now();
   let first = true, degraded = false, hbAt = 0;
+  const loads = [];
   while ((Date.now() - t0) / 1000 < T) {
     const tick = Date.now();
     const cur = await page.evaluate(monSampleInPage).catch((e) => ({ err: String(e).slice(0, 120) }));
@@ -379,7 +386,7 @@ async function runMon(secs, intervalMs) {
       const ev = [];
       monDiff(st, cur, t, ev);
       if (first) { // baseline snapshot, not transitions
-        events.length = 0; first = false;
+        events.length = 0; st.n = {}; first = false;
         const sd = cur.mon.tiles.sd;
         console.log('MON t+' + t.toFixed(1) + ' BASE seat=' + cur.mon.coord + ' head=' + cur.mon.head
           + ' sd=' + (sd ? (sd.w + 'x' + sd.h + ' sid=' + sd.sid) : 'ABSENT')
@@ -387,12 +394,14 @@ async function runMon(secs, intervalMs) {
           + ' standby=[' + cur.mon.standby.map((c) => c.rk).join(',') + ']'
           + (degraded ? ' (degraded: no monInfo hooks)' : ''));
       } else {
-        for (const e of ev) { events.push(e); console.log('MON t+' + e[0].toFixed(1) + ' EV ' + e[1] + ' ' + e[2]); }
+        const ld = loadNow(); loads.push(ld);
+        for (const e of ev) { events.push(e); console.log('MON t+' + e[0].toFixed(1) + ' EV ' + e[1] + ' ' + e[2] + ' load=' + ld); }
         if (t - hbAt >= 15) { // periodic heartbeat so a healthy run is visibly healthy
           hbAt = t;
-          const sd = cur.mon.tiles.sd;
+          const sd = cur.mon.tiles.sd, pk = cur.mon.packs && cur.mon.packs.sd;
           console.log('MON t+' + t.toFixed(1) + ' HB seat=' + cur.mon.coord + ' sd=' + (sd ? (sd.w + 'x' + sd.h + ' f=' + sd.frames) : 'ABSENT')
-            + ' claims=' + cur.mon.claims.length + ' standby=' + cur.mon.standby.length + ' jobs=' + cur.mon.jobs.filter((j) => j.active).length + '/' + cur.mon.jobs.length + ' stg=' + cur.mon.stagers);
+            + ' claims=' + cur.mon.claims.length + ' standby=' + cur.mon.standby.length + ' jobs=' + cur.mon.jobs.filter((j) => j.active).length + '/' + cur.mon.jobs.length + ' stg=' + cur.mon.stagers
+            + (pk ? ' pack{cost=' + pk.cost + ' drop=' + pk.dropped + '}' : '') + ' load=' + ld);
         }
       }
     }
@@ -401,7 +410,10 @@ async function runMon(secs, intervalMs) {
   }
   // ---- summary ----
   const keys = Object.keys(st.n).sort();
-  console.log('MON SUM secs=' + T + (degraded ? ' (degraded)' : '') + ' events=' + events.length);
+  const lmin = loads.length ? Math.min(...loads) : -1, lmax = loads.length ? Math.max(...loads) : -1;
+  const lavg = loads.length ? (loads.reduce((a, b) => a + b, 0) / loads.length) : -1;
+  console.log('MON SUM secs=' + T + (degraded ? ' (degraded)' : '') + ' events=' + events.length
+    + ' loadavg{min=' + lmin.toFixed(1) + ' avg=' + lavg.toFixed(1) + ' max=' + lmax.toFixed(1) + '}');
   console.log('MON SUM counts ' + (keys.length ? keys.map((k) => k + '=' + st.n[k]).join(' ') : '(none — clean run)'));
   const flap = (st.n['tile.sd.off'] || 0) + (st.n['tile.sd.on'] || 0) + (st.n['tile.sd.black'] || 0) + (st.n['tile.sd.src'] || 0);
   console.log('MON SUM stadium-flaps=' + flap + ' stalls.sd=' + (st.n['stall.sd'] || 0) + ' maxStall.sd=' + ((st.maxStall.sd || 0).toFixed ? (st.maxStall.sd || 0).toFixed(1) : 0) + 's claimChurn=' + ((st.n['claim.gain'] || 0) + (st.n['claim.loss'] || 0) + (st.n['claim.switch'] || 0)));
