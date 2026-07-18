@@ -4014,10 +4014,15 @@
           for (let j = 0; j < C; j++) { const sub = mosIn.get('sub:' + j); if (sub) setBlock(sdPack, 's' + j, 20 + j, sub); else sdPack.delTile('s' + j); }
           // An EMPTY view (fragmented mesh, nothing claimable beyond the row
           // yet — the live 175s-black-tile signature) paints NO tile rather
-          // than an eternal 2×2 black one; under MOS_GRACE so a transient
-          // empty beat never flaps the tile off/on.
+          // than an eternal 2×2 black one. A tile is never CREATED for an
+          // empty pack; one already shown lingers MOS_GRACE (a transient
+          // empty beat never flaps it off/on).
           if (sdPack.count() > 0) { sdEmptyAt = 0; paintStadiumTile(sdPack.stream); }
-          else { if (!sdEmptyAt) sdEmptyAt = Date.now(); paintStadiumTile(Date.now() - sdEmptyAt > MOS_GRACE ? null : sdPack.stream); }
+          else {
+            if (!sdEmptyAt) sdEmptyAt = Date.now();
+            const sdShown = !!stadiumEl.querySelector('[data-row="sd"]');
+            if (sdShown) paintStadiumTile(Date.now() - sdEmptyAt > MOS_GRACE ? null : sdPack.stream);
+          }
           const sdMeta = () => ({ n: sdPack.count(), cols: sdPack.cols() });
           for (let j = 1; j < C; j++) {
             const mate = occPid({ pc: c.pc, r: c.r, i: j });
