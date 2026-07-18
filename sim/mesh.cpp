@@ -150,6 +150,7 @@ struct Seat {
   int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
   int joinStart=-1; bool stranded=false;   // R6: when this join attempt began; stranded once I give up
   int lastReach=-1;   // R6: last tick I REACHED a greeter (a HOME roster came back). Stranding requires having reached NONE for a full TTL — a busy room where I keep getting NOROOM is not "stranded".
+  int strandedAt=0;   // R6: when I gave up. Stranding is RECOVERABLE — after a backoff I re-knock (the client's manual retry); if a greeter is now reachable I seat. Only a genuinely-cut-off seat stays stranded across retries.
   bool auditPend=false; bool evil=false;
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
@@ -488,9 +489,9 @@ int main(int argc,char**argv){
       for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; int s=(q<(int)partSide.size())?partSide[q]:0; uint64_t k=ckey(seats[q]->coord);
         if(s==0){ seatA++; if(allA.count(k))dupA++; else allA.insert(k); if(seats[q]->coord.pc==0)s1A.insert(k); }
         else    { seatB++; if(allB.count(k))dupB++; else allB.insert(k); if(seats[q]->coord.pc==0)s1B.insert(k); } }
-      // count live seats per side (denominator)
-      long long liveA=0,liveB=0; for(int q=0;q<nextId;q++) if(alive[q]){ int s=(q<(int)partSide.size())?partSide[q]:0; if(s==0)liveA++; else liveB++; }
-      printf("SPLITSTATE A[seated=%lld/%lld s1=%zu dups=%lld] B[seated=%lld/%lld s1=%zu dups=%lld]\n", seatA,liveA,s1A.size(),dupA, seatB,liveB,s1B.size(),dupB); }
+      // count live seats + stranded per side (denominator)
+      long long liveA=0,liveB=0,strA=0,strB=0; for(int q=0;q<nextId;q++) if(alive[q]){ int s=(q<(int)partSide.size())?partSide[q]:0; if(s==0){liveA++; if(seats[q]->stranded)strA++;} else {liveB++; if(seats[q]->stranded)strB++;} }
+      printf("SPLITSTATE A[seated=%lld/%lld s1=%zu dups=%lld strand=%lld] B[seated=%lld/%lld s1=%zu dups=%lld strand=%lld]\n", seatA,liveA,s1A.size(),dupA,strA, seatB,liveB,s1B.size(),dupB,strB); }
     else if(op=="check"){   // LOUD invariant assertion: everyone seated, Section 1 full, 0 dups, 0 stranded. Non-fatal report (sweep greps CHECK); `check strict` ABORTS on failure.
       bool strict=tk.size()>1 && tk[1]=="strict";
       long long seated,s1c; counts(seated,s1c); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++;
