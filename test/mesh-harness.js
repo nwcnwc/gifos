@@ -17,14 +17,36 @@ const grnd = () => { GSEED = (Math.imul(GSEED, 1103515245) + 12345) & 0x7fffffff
 const seedRng = (s) => { GSEED = s >>> 0; }; // reset per scenario ⇒ each is independent + reproducible
 const pairKey = (a, b) => (String(a) < String(b) ? a + '#' + b : b + '#' + a);
 
+// Owned-link transport classifier (the sim's classifyEmit): every frame is a
+// NEIGHBOR hop (to occupies one of from's owned-link coords, per FROM's own occ
+// view — that is its DataChannel peer), a RELAY hop (both endpoints socketed —
+// joining or Section-1 — the greeting scope), BOOTSTRAP (an unseated endpoint),
+// or a TELEPORT (seated non-adjacent, nothing could carry it) — a routing BUG.
+// The sim detonates on teleports; here we count them and assert 0.
+function classifyEmit(env, from, to, m) {
+  const sf = env.seats.get(from), st = env.seats.get(to);
+  if (!sf || !st) { env.emitBootstrap++; return; }
+  if (from === to) { env.emitNeighbor++; return; } // self-delivery (a routed frame at its own cell) — local
+  if (!sf.hasCoord || !st.hasCoord) { env.emitBootstrap++; return; }
+  for (const olc of topo.ownedLinks(sf.coord)) if (sf.occGet(ck(olc)) === to) { env.emitNeighbor++; return; }
+  if (sf.socketed() && st.socketed()) { env.emitRelay++; return; } // legit: relay between two socketed peers (greeting scope)
+  env.emitTeleport++;
+  if (env.teleportLog.length < 8) env.teleportLog.push({ t: m.t, from, to, routing: !!m.routing, direct: !!m.direct });
+}
+
 function makeFabric() {
   const env = {
     TICK: 0, HEALING: true,
     seats: new Map(), bus: new Map(), openPairs: new Set(), seq: 0,
     relayGenesisKey: null, relayGreeters: new Map(),
     moves: 0, evict: 0,
+    emitNeighbor: 0, emitRelay: 0, emitBootstrap: 0, emitTeleport: 0, teleportLog: [],
     bumpMoves() { env.moves++; }, bumpEvict() { env.evict++; }, wake() {},
+    // The sim's global peer view — lets Seat.emit enforce owned-link delivery
+    // (route a seated non-neighbour over the mesh instead of teleporting).
+    peek(id) { const s = env.seats.get(id); if (!s) return null; return { hasCoord: s.hasCoord, coord: s.coord, socketed: s.socketed(), gateway: s.gateway }; },
     send(from, to, m) {
+      classifyEmit(env, from, to, m);
       const pk = pairKey(from, to); let d;
       if (env.openPairs.has(pk)) d = 1 + (env.seq & 1);
       else { env.openPairs.add(pk); d = 4 + (env.seq % 5); }
@@ -48,13 +70,15 @@ function makeFabric() {
 }
 
 function counts(env) {
-  const at = new Map(); let seated = 0, dups = 0; const s1 = new Set();
+  const at = new Map(); let seated = 0, dups = 0, stranded = 0; const s1 = new Set();
   for (const s of env.seats.values()) {
-    if (!s.alive || s.state !== 3) continue; seated++;
+    if (!s.alive) continue;
+    if (s.stranded) stranded++;
+    if (s.state !== 3) continue; seated++;
     const k = ck(s.coord); if (at.has(k)) dups++; else at.set(k, s.id);
     if (s.coord.pc === 0) s1.add(k);
   }
-  return { seated, dups, s1: s1.size };
+  return { seated, dups, s1: s1.size, stranded, teleport: env.emitTeleport };
 }
 
 function doTick(env) {
@@ -125,13 +149,14 @@ function gossipCheck(env, label) {
 }
 
 function scenario(N, killSpec) {
-  seedRng(20260714); // per-scenario reset ⇒ independent + reproducible
+  seedRng(20260714); // per-scenario reset ⇒ independent + reproducible (one fresh fabric per scenario — the sim footgun)
   const env = makeFabric();
   spawn(env, N);
   const jt = runJoin(env, N, 20000);
   let c = counts(env);
   const tgt = Math.min(25, N);
-  check(`JOIN N=${N}: seated ${c.seated}/${N}, s1 ${c.s1}/${tgt}, dups ${c.dups} @${jt}`, c.seated === N && c.s1 === tgt && c.dups === 0, c);
+  check(`JOIN N=${N}: seated ${c.seated}/${N}, s1 ${c.s1}/${tgt}, dups ${c.dups}, stranded ${c.stranded}, teleport ${c.teleport} @${jt}`,
+    c.seated === N && c.s1 === tgt && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
   if (!killSpec) gossipCheck(env, `GOSSIP N=${N}`);
   if (killSpec) {
     const nk = kill(env, N, killSpec.frac || 0, killSpec.mode || '');
@@ -139,19 +164,23 @@ function scenario(N, killSpec) {
     const kt = converge(env, nowN, 40000);
     c = counts(env);
     const tgt2 = Math.min(25, nowN);
-    check(`${killSpec.label} (killed ${nk}): seated ${c.seated}/${nowN}, s1 ${c.s1}/${tgt2}, dups ${c.dups} @${kt}`, c.seated === nowN && c.s1 === tgt2 && c.dups === 0, c);
+    check(`${killSpec.label} (killed ${nk}): seated ${c.seated}/${nowN}, s1 ${c.s1}/${tgt2}, dups ${c.dups}, stranded ${c.stranded}, teleport ${c.teleport} @${kt}`,
+      c.seated === nowN && c.s1 === tgt2 && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
     gossipCheck(env, `GOSSIP after ${killSpec.label}`);
   }
+  if (env.emitTeleport) console.log('  TELEPORTS:', JSON.stringify(env.teleportLog));
 }
 
-// Robust regime is N>=500: at small N the S1 fill is arrival-rng-sensitive (H7
-// "resurrects fully-dead rows" is arrival-driven — the sim itself reports N=25
-// INCOMPLETE). We test where the sim converges: JOIN, then the kill scenarios.
+// Robust regime is N>=500: at small N the S1 fill is arrival-rng-sensitive.
+// We pin the sim's numbers: JOIN converges, then kill {0.4, 0.5} + the
+// S1-targeted kills heal back to seated=all, s1=25/25, dups=0, stranded=0,
+// teleport=0 (the sim's CHECK PASS line).
 const N = process.env.N ? parseInt(process.env.N, 10) : 0;
-if (N) { scenario(N, process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
+if (N) { scenario(N, process.env.KILL === '40' ? { frac: 0.4, label: '40%-kill' } : process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
 else {
   scenario(500);
   scenario(1000);
+  scenario(500, { frac: 0.4, label: '40%-kill' });
   scenario(500, { frac: 0.5, label: '50%-kill' });
   scenario(500, { mode: 's1row', label: 's1row' });
   scenario(500, { mode: 's1all', label: 's1all' });
