@@ -147,11 +147,21 @@ struct Seat {
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
   void rosterCells(Coord out[C]){ Coord h=ownedRowHead(); for(int c=0;c<C;c++) out[c]={h.pc,h.r,(uint8_t)c}; }
-  bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++) if(!occ.count(ckey(rc[c]))){f=rc[c];return true;} return false; }
+  // 11a FRONTIER-ONLY ADMISSION: admit a newcomer only into a TRUE frontier slot
+  // — a free cell whose down-child is NOT occupied. A free cell that still owns a
+  // subtree is an INTERNAL hole: its fixed healer (that down-child, VERTICAL Rule
+  // V) is already filling it, so a newcomer there would double-book. Skip it; the
+  // caller forwards the FIND deeper (serveFind), keeping healers and newcomers
+  // disjoint by construction.
+  bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(occ.count(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0) continue; f=rc[c]; return true; } return false; }
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
   bool lowestSurvivor(){ for(int j=1;j<coord.i;j++){ uint64_t k=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(k); if(x<0||x==id) continue; if(coord.pc!=0||s1Fresh(k)) return false;} return true; }
+  // 11a: does cell c own an OCCUPIED down-child (so its fixed healer is that
+  // down-child, the VERTICAL rule — the right-neighbour must then DEFER)? Known
+  // either directly (I link down(c)) or via childOf learned from the head's PONG.
+  bool hasDownChild(Coord c){ if(occGet(ckey(down(c)))>=0) return true; auto it=childOf.find(ckey(c)); return it!=childOf.end()&&it->second>=0; }
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
