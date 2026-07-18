@@ -49,6 +49,29 @@
   const shortCode = net.shortCode;
   const randHex = net.randHex;
   const sha256hex = net.sha256hex;
+
+  // ---- owner-authority for app-state on the mesh ----------------------------
+  // App-state rides the meeting mesh's Stage DATA lane (GifOS.meetStageData),
+  // NOT a second relay session. The OWNER signs canonical snap/delta frames;
+  // every participant verifies against the owner pubkey (site/js/app-owner.js).
+  // The module is loaded as its own <script> where the page includes it
+  // (run.html), or injected on demand where it doesn't (meet.html): runtime.js
+  // must not require an HTML edit to function.
+  let _appOwnerP = null;
+  function appOwnerLib() {
+    const G = root.GifOS || {};
+    if (G.appOwner) return Promise.resolve(G.appOwner);
+    if (_appOwnerP) return _appOwnerP;
+    _appOwnerP = new Promise((resolve, reject) => {
+      if (typeof document === 'undefined') { reject(new Error('app-owner.js unavailable')); return; }
+      const s = document.createElement('script');
+      s.src = 'js/app-owner.js';
+      s.onload = () => (root.GifOS && root.GifOS.appOwner) ? resolve(root.GifOS.appOwner) : reject(new Error('app-owner.js loaded but empty'));
+      s.onerror = () => reject(new Error('failed to load app-owner.js'));
+      document.head.appendChild(s);
+    });
+    return _appOwnerP;
+  }
   // App short-name → a URL-safe room label. Dot-free (a dot marks the verifier),
   // and guaranteed to contain a letter/digit — never empty or all-hyphens, so a
   // room can never be mistaken for a bare verifier segment.
@@ -1768,9 +1791,14 @@
       if (!hasEntry) { iframe.srcdoc = buildFolderHtml(files); setStatus('Browsable filesystem (no index.html).'); return noop; }
 
       let hostApi = null;
+      // When this host is sharing its app over the mesh Stage DATA lane (an
+      // app-in-a-meeting), attachStageBus (below) installs a hook here so every
+      // authoritative db-change is re-broadcast as an owner-signed frame.
+      let stageOnChange = null;
       const emit = (collection) => {
         if (iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection }, '*');
         if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
+        if (stageOnChange) { try { stageOnChange(collection); } catch (e) { /* bus torn down */ } }
       };
       const db = makeLocalDb(fileId, emit);
       const netPolicy = makeNetPolicy(fileId, manifest);
@@ -1899,13 +1927,101 @@
             net.seal(key, { t: 'db-change', collection: '*' })
               .then((env) => ws.send(JSON.stringify({ t: 'bcast', msg: env })))
               .catch(() => { /* socket will re-wake them on onopen */ });
+
+            // ---- MESH Stage DATA lane (attachStageBus) ----------------------
+            // meet.html calls this after becomeHost when the app is shared INTO
+            // a meeting: app-state then rides the meeting's mesh (the sga lane),
+            // and this host's OWN relay session (the "second session") is torn
+            // down — app-state is no longer duplicated over the relay. The host
+            // signs every snap/delta with an owner key; clients verify it.
+            const vis = manifest.data || {};
+            const leadTargets = leadTargetsOf(manifest);
+            const meshLead = { on: false, keys: new Set(leadTargets.map((t) => t.collection + '::' + t.id)) };
+            // Visibility filter: strip 'private' records so a guest snapshot
+            // carries only what the app chose to share (parallels the relay
+            // host's filterStateForGuest).
+            const filterForGuests = (s) => {
+              if (!s || !s.collections) return { collections: {} };
+              const cols = {};
+              for (const name of Object.keys(s.collections)) {
+                const c = s.collections[name] || {}; const items = c.items || {}; const kept = {};
+                for (const id of Object.keys(items)) if (visOf(vis, name, items[id]) !== 'private') kept[id] = items[id];
+                cols[name] = { items: kept, seq: c.seq || 0 };
+              }
+              return { collections: cols };
+            };
+            let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null;
+            const sendSnap = () => {
+              if (!stageBus || !stageSigner) return Promise.resolve();
+              return db.getFullState().then((s) => {
+                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s) };
+                return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
+              }).catch(() => {});
+            };
+            const sendDelta = () => {
+              if (!stageBus || !stageSigner) return Promise.resolve();
+              // A lightweight full-state patch (no app bytes) for already-joined
+              // clients; the retained snap (with app bytes) is refreshed on a
+              // short debounce so late joiners stay current without paying the
+              // app-byte cost on every keystroke.
+              return db.getFullState().then((s) => {
+                const body = { state: filterForGuests(s) };
+                return stageSigner.sign(sid, 'delta', body).then((f) => stageBus.send('delta', f));
+              }).catch(() => {});
+            };
+            // A client op-PROPOSAL: validate exactly as the relay host would
+            // (leadership fence + collection visibility), then apply to the
+            // authoritative store. The resulting owner-signed delta is what the
+            // room adopts — a non-owner can propose but never author state.
+            const onAct = (op) => {
+              if (!op || (op.op !== 'put' && op.op !== 'delete')) return;
+              const targetId = op.op === 'put' ? (op.value && op.value.id) : op.key;
+              if (meshLead.on && targetId != null && meshLead.keys.has(op.collection + '::' + targetId)) return;
+              const storedP = (targetId != null) ? db.op('get', op.collection, targetId) : Promise.resolve(null);
+              storedP.then((stored) => {
+                const eff = stored ? visOf(vis, op.collection, stored) : collVis(vis, op.collection);
+                if (eff !== 'read-write') return; // read-only / private: refuse
+                if (op.op === 'put') {
+                  let value = op.value;
+                  if (value && typeof value === 'object') { value = safeRecord(value); delete value._vis; if (stored && VIS[stored._vis]) value._vis = stored._vis; }
+                  return db.op('put', op.collection, null, value); // emit() re-broadcasts a signed frame
+                }
+                return db.op('delete', op.collection, op.key);
+              }).catch(() => {});
+            };
+            const attachStageBus = (bus) => {
+              if (!bus || typeof bus.send !== 'function' || typeof bus.subscribe !== 'function') return Promise.reject(new Error('bad stage bus'));
+              // Kill the redundant relay app-session — app-state now rides the
+              // mesh. The local authoritative store (db) and the running iframe
+              // are untouched; only the relay transport goes.
+              if (liveHost) { const gone = liveHost; liveHost = null; if (gone.timer) clearTimeout(gone.timer); try { gone.stop && gone.stop(); } catch (e) {} try { gone.ws.close(); } catch (e) {} }
+              return appOwnerLib().then((AO) => AO.createSigner()).then((signer) => {
+                stageSigner = signer; stageBus = bus;
+                stageUnsub = bus.subscribe((m) => { if (m && m.kind === 'act') onAct(m.d); });
+                // Refresh the retained snapshot (with app bytes) on a debounce,
+                // and push a live delta immediately, on every change.
+                stageOnChange = () => {
+                  sendDelta();
+                  if (!snapTimer) snapTimer = setTimeout(() => { snapTimer = null; sendSnap(); }, 1200);
+                };
+                announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
+                setStatus('Live on the meeting mesh — app-state is owner-signed');
+                return sendSnap().then(() => ({ pk: signer.pkHex }));
+              });
+            };
+            const setLead = (on) => { meshLead.on = !!on; try { hostApi.setLead(on); } catch (e) {} if (stageBus) sendDelta(); return Promise.resolve(); };
+
             return store.setState(fileId + '::session', { sid, lsec, relay, epoch, keep, exp, heal, av, sec }).then(() => ({
               shareUrl: joinUrl, keep, exp, heal, owned: !!av,
               // Leadership controls for the page chrome: how many records this
               // app declares as leadable, and the live communal⇄leading switch
               // (which flips their visibility read-write⇄read-only host-side).
-              leadCount: leadTargetsOf(manifest).length,
-              setLead: hostApi.setLead,
+              leadCount: leadTargets.length,
+              setLead: setLead,
+              // Present iff the runtime can drive the mesh Stage DATA lane;
+              // meet.html feature-detects this to pick the mesh bus over the
+              // relay app-session (and to advertise mesh:true in the app ad).
+              attachStageBus: attachStageBus,
             }));
           }).catch((err) => {
             if (/host-(stale|taken)/.test(String(err && err.message || ''))) { displaced(); return new Promise(() => {}); }
@@ -2551,5 +2667,103 @@
     }).then((r) => (r && r.cancelled) ? r : boot(mountEl, fileId, statusEl));
   }
 
-  GifOS.runtime = { boot, bootClient, bootMirror, pullMirrorState, breakMirror, buildAppHtml, buildFolderHtml, norm };
+  // ---- client boot over the mesh Stage DATA lane (no relay session) ---------
+  // The mesh-native counterpart to bootClient: instead of joining a second
+  // relay session, the client renders the shared app from the meeting's own
+  // sga lane. It VERIFIES every frame's owner signature (site/js/app-owner.js),
+  // rejecting anything unsigned / impostor-signed / tampered, and sends the
+  // user's writes back as `act` PROPOSALS the owner validates and re-signs.
+  // meet.html calls this (mountClientApp) when the shared app advertises mesh
+  // and this runtime exposes bootClientBus.
+  //   params = { s: <sid namespace>, send(kind,d), subscribe(cb)->unsub }
+  function bootClientBus(mountEl, params, statusEl, hooks) {
+    hooks = hooks || {};
+    const sid = params && params.s;
+    const send = params && params.send;
+    const subscribe = params && params.subscribe;
+    if (!sid || typeof send !== 'function' || typeof subscribe !== 'function') return Promise.reject(new Error('bad stage bus params'));
+    const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
+    let iframe = null, filesRef = null, manifestRef = null, appBytes = null, mounted = false;
+    let mirror = { collections: {} };
+    let dataVis = {};
+    const localCols = new Map(); // private collections stay per-tab (never proposed)
+    const localOf = (c) => { let m = localCols.get(c); if (!m) { m = new Map(); localCols.set(c, m); } return m; };
+    const isPrivate = (c) => collVis(dataVis, c) === 'private';
+    const notify = (collection) => { if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ ns: 'gifos', type: 'db-change', collection: collection || '*' }, '*'); };
+    const itemsOf = (c) => (c && mirror.collections[c] && mirror.collections[c].items) || {};
+
+    return appOwnerLib().then((AO) => {
+      const ver = AO.makeVerifier(sid);
+
+      // Reads: from the owner-verified mirror. Writes: an optimistic local apply
+      // (so the app sees its own change at once) PLUS an `act` proposal to the
+      // owner, whose next owner-signed frame is the canonical truth.
+      const db = {
+        owner: false,
+        getFullState() { return Promise.resolve(mirror); },
+        op(op, collection, key, value) {
+          if (op === 'dump') return Promise.resolve(mirror);
+          const priv = collection && isPrivate(collection);
+          if (op === 'get') { if (priv) return Promise.resolve(localOf(collection).get(key) || null); return Promise.resolve(itemsOf(collection)[key] || null); }
+          if (op === 'getAll') { if (priv) return Promise.resolve([...localOf(collection).values()]); return Promise.resolve(Object.values(itemsOf(collection))); }
+          if (op === 'put') {
+            const rec = safeRecord(value); if (rec.id == null) rec.id = AO.newRecordId(collection); delete rec._vis;
+            if (priv) { localOf(collection).set(rec.id, rec); notify(collection); return Promise.resolve(rec); }
+            const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
+            c.items[rec.id] = rec; notify(collection);
+            try { send('act', { op: 'put', collection: collection, value: rec }); } catch (e) {}
+            return Promise.resolve({ id: rec.id });
+          }
+          if (op === 'delete') {
+            if (priv) { localOf(collection).delete(key); notify(collection); return Promise.resolve(true); }
+            const c = mirror.collections[collection]; if (c && c.items) delete c.items[key]; notify(collection);
+            try { send('act', { op: 'delete', collection: collection, key: key }); } catch (e) {}
+            return Promise.resolve(true);
+          }
+          if (op === 'setVisibility') return Promise.reject(new Error('the app owner controls visibility'));
+          return Promise.resolve(null);
+        },
+      };
+
+      const mount = () => {
+        if (mounted) return; mounted = true;
+        iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
+        mountApp(iframe, filesRef, manifestRef, db, appBytes, makeNetPolicy(null, manifestRef));
+        if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifestRef);
+        notify('*');
+      };
+
+      const onSnap = (body) => {
+        if (body && body.state && body.state.collections) mirror = JSON.parse(JSON.stringify(body.state));
+        if (!mounted && body && body.app) {
+          appBytes = gif.b64decode(body.app);
+          return gif.decode(appBytes).then((archive) => {
+            if (!archive) { setStatus('Bad app from the mesh host.'); return; }
+            filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: body.name || 'App' };
+            dataVis = manifestRef.data || {};
+            if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
+            mount();
+          });
+        }
+        notify('*');
+      };
+
+      const unsub = subscribe((m) => {
+        if (!m || m.kind === 'act') return; // acts are the client→owner direction
+        Promise.resolve(ver.verify(m.d)).then((r) => {
+          if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
+          if (r.kind === 'snap') return onSnap(r.body);
+          if (r.kind === 'delta') {
+            if (r.body && r.body.state && r.body.state.collections) { mirror = JSON.parse(JSON.stringify(r.body.state)); notify('*'); }
+            else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
+          }
+        }).catch(() => {});
+      });
+
+      setStatus('Connected to the shared app · owner-signed over the mesh');
+      return { stop: () => { try { unsub && unsub(); } catch (e) {} } };
+    });
+  }
+
+  GifOS.runtime = { boot, bootClient, bootClientBus, bootMirror, pullMirrorState, breakMirror, buildAppHtml, buildFolderHtml, norm };
 })(typeof window !== 'undefined' ? window : globalThis);
