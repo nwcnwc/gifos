@@ -35,7 +35,8 @@ Admin power = knowledge of the admin password, proven cryptographically:
 - The PBKDF2 bits derived from the admin password seed an **Ed25519 keypair**.
   The room verifier `V` (in the URL, part of the room's identity) is a hash
   commitment to the PUBLIC key: `H(pubkey)` startsWith `V`.
-- Privileged orders (mod table, ban/unban, setpw/re-key, banlist re-seed)
+- Privileged orders (mod table, ban/unban, setpw/re-key — including the sealed
+  `pwinfo` peers adopt — banlist re-seed, and stopping the room's shared app)
   travel **individually signed** `{ sp, sig, pub }`. Any peer — and the relay,
   for its door duties — verifies the same proof: commitment, signature over
   the exact signed string, right action, fresh timestamp (5-min replay
