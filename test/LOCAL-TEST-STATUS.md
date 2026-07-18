@@ -11,6 +11,17 @@ Servers used: `python3 -m http.server 8099 -d site`, `node test/relay-local.js`
 GREEN = passed as-is · FIXED = stale, updated to current behavior · RETIRED =
 dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNORED.
 
+## Tally (all local tests run)
+- GREEN: 45 · FIXED: 8 · RETIRED: 1 (mesh-unit) · REAL-BUG: 5 suites / 2 root
+  bugs (BUG-1 media+audio near-field: e2e-video, e2e-media-recovery, e2e-mosaic,
+  e2e-sing; BUG-2 late-join app adoption: e2e-meeting-app, e2e-mymedia-meet
+  [also FIXED for a separate myId race]) + 1 CANDIDATE (e2e-app-governance
+  takeover) · IGNORED: 1 (e2e-fluence) · ENV-BLOCKED: 1 (squat, wrong Chromium
+  path) · e2e.js: 5 stale spots FIXED, full run blocked by a pre-existing
+  load-flake (openApp), not staleness.
+- FIXED suites: relay-owned, flood, e2e-mesh-wire, e2e-version, e2e-theme-wallpaper,
+  e2e-invite-lifetime, e2e-mymedia-meet (+bug), e2e-chess-mp, e2e.js.
+
 ## Pure-Node tests
 | test | verdict | note |
 |---|---|---|
@@ -70,10 +81,36 @@ dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNO
 | e2e-invite-lifetime.js | FIXED | app-share warning copy refined ("a copy of the data this app shares (private stays on device)" vs old "full copy of everything"); updated the assertion. |
 | e2e-mymedia-meet.js | FIXED + REAL-BUG | host mount was a stale myId race (S4 async identity) — FIXED by waiting for canRunApp(). Now surfaces the SAME late-join bug: the guest (joins after the app is already running) never auto-adopts it. See BUG-2. |
 | e2e-app-governance.js | REAL-BUG (candidate) | open-room live share mounts for ALL (incl 3rd person) — PASS. But B's "latest-wins" TAKEOVER (B shares a 2nd app) fails: B never becomes appIsHost, with `[b] Cannot read properties of null (reading 'postMessage')` (posting to a torn-down/not-ready iframe contentWindow). App-runtime-on-mesh takeover path. Not fixed; needs site owner. |
-| (remaining browser tests) | PENDING | |
+
+| e2e-meet-quiet.js | GREEN | |
+| e2e-meet-record-app.js | GREEN | |
+| e2e-bible-nav.js | GREEN | |
+| e2e-mymedia-share.js | GREEN | (one first-load `.icon` flake; green on retry) |
+| e2e-sing.js | REAL-BUG | BUG-1 family (audio plane). Near-field jitter alignment is `bus:'row'` only for `rowMates()` (meet.html:4324); two people seat as COLUMN-mates under W7 column-major seating → `bus:'section'`, D:0, unset. Conversation partners get no near-field time-sync. |
+| e2e-irl.js | GREEN | |
+| e2e-wasm.js | GREEN | |
+| e2e-chess-mp.js | FIXED | joiner iframe wait 12s→30s: the WASM app mounts only after the app-mesh join + P2P handshake, now on top of S4 async identity — legitimately slower. Verified green (7/7). NOT a bug (unlike BUG-2 — verified: chess joiner DOES mount, just slowly). |
+| e2e.js | FIXED (5 stale spots) | root count 9→10 (My Media added, 2 spots); Advanced settings `details` now nests Erase disclosure → `> summary`; erase moved to Settings; pretty-URL router sub-tests run in a `serviceWorkers:'block'` context (SW shadows the page.route-injected 404.html — harness interaction, not a product bug); version 0.5.0→0.7.0 (asserted via GIFOS_VERSION) + archived build 0.5.0→0.6.0. Reaches 104/~150 checks; a pre-existing load flake in the `openApp` new-tab helper (line 34/422 — not staleness, not from these edits) blocks a fully-green run in this saturated container. |
+| browser-image-check.js | GREEN | |
+| overlay-render.js | GREEN | |
+| squat.js | ENV-BLOCKED | hardcoded to `chromium_headless_shell-1228/chrome-headless-shell` (not installed; every other suite uses `/opt/pw-browsers/chromium-1194`). Cannot launch — environment, not test logic. |
+| e2e-caps.js | GREEN | (fake-ai 8791) |
+| e2e-ai-types.js | GREEN | (fake-ai 8791) |
+| e2e-agent.js | GREEN | (fake-ai 8791) |
+| e2e-chess-hint.js | GREEN | (fake-ai 8791) |
+| e2e-api.js | GREEN | (fake-keyapi 8792 + fake-cors-proxy 8793) |
+| e2e-cors-proxy.js | GREEN | (fake-cors-proxy 8793) |
+| e2e-proxy-cache.js | GREEN | (fake-cors-proxy 8793) |
+| e2e-fetch-bridge.js | GREEN | (spawns own 8791; fake-ai killed first) |
+| e2e-relay.js | GREEN | |
+| e2e-fluence-setup.js | GREEN | (the no-Deepgram-key regression; distinct from e2e-fluence) |
+| e2e-fluence.js | IGNORED | known pre-existing Deepgram-pipeline failure |
+| shot-fluence.js | N/A | screenshot utility, not an assertion test |
+| swarm.js / meet.js | OUT OF SCOPE | hit the production site |
 
 ### BUG-2 — late joiner does not adopt an app already running in a meeting
-Reproduced in TWO suites:
+VERIFIED real (not a timeout): with the guest wait raised to 70s the guest still
+never mounts. Reproduced in TWO suites:
 - e2e-meeting-app: the 3rd participant (joins after the app is running) never
   mounts `#appmount iframe` (3/3).
 - e2e-mymedia-meet: after fixing the host-mount myId race, the guest (joins
