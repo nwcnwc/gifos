@@ -18,6 +18,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 require('../site/js/gifos-net.js');
 require('../site/js/mesh.js');
+require('../site/js/mesh-identity.js'); // S4 is MANDATORY: the wire throws without it (load before mesh-wire.js; the wire mints each node's per-participant identity)
 require('../site/js/mesh-wire.js');
 const net = globalThis.GifOS.net, wire = globalThis.GifOS.meshWire;
 
@@ -65,12 +66,15 @@ async function waitConverged(nodes, N, ms) {
     };
     const nodes = []; const heard = new Map();
     for (let i = 0; i < 20; i++) {
-      const peer = 'a' + String(i).padStart(2, '0');
+      const tag = 'a' + String(i).padStart(2, '0'); // local label for the per-node gossip counter only
       const node = wire.createMeshNode({
-        relayUrl: RELAY, sid: 'wire-a-sid', tok: 'T', key, peer, tickMs: 25, sendDC,
-        onGossip: (src, m) => heard.set(peer, (heard.get(peer) || 0) + 1),
+        // No `peer` passed: S4 is mandatory, so the wire MINTS a per-participant
+        // identity and node.peer becomes its H(pubkey) id (the id it routes on).
+        relayUrl: RELAY, sid: 'wire-a-sid', tok: 'T', key, tickMs: 25, sendDC,
+        onGossip: (src, m) => heard.set(tag, (heard.get(tag) || 0) + 1),
       });
-      bus.set(peer, { node, dead: false });
+      await node.whenReady;                        // identity minted, node.peer now set
+      bus.set(node.peer, { node, dead: false });    // key the DC bus by the MINTED id
       nodes.push(node);
       await sleep(25);
     }
