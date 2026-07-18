@@ -273,7 +273,7 @@ void Seat::recv(Msg& m){
   switch(m.t){
     case GREETERS: {
       if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)
-      if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL && (lastReach<0 || TICK-lastReach>STRAND_TTL)){ stranded=true; return; }   // R6: greeters exist (meeting alive) but I've REACHED none (no HOME roster came back) for a full TTL => voted off / unreachable subnet. A seat that keeps reaching greeters (lastReach fresh) but only gets NOROOM is competing for a slot in a busy heal — NOT stranded — so it keeps retrying.
+      if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL && (lastReach<0 || TICK-lastReach>STRAND_TTL)){ stranded=true; strandedAt=(int)TICK; return; }   // R6: greeters exist (meeting alive) but I've REACHED none (no HOME roster came back) for a full TTL => voted off / unreachable subnet. A seat that keeps reaching greeters (lastReach fresh) but only gets NOROOM is competing for a slot in a busy heal — NOT stranded — so it keeps retrying.
       lastGreeters=m.list;
       if(state==0){ int g=m.list[(int)(rng()*m.list.size())]; gateway=g; Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w); state=1; retryAt=(int)TICK; }   // pick a RANDOM greeter (spreads intro load); it is my ENTRY GATEWAY — replies route back through it while I'm unseated
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
@@ -354,7 +354,7 @@ void Seat::recv(Msg& m){
 void Seat::leave(){ alive[id]=0; active.erase(id); if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
 void Seat::tick(){
   if(!alive[id]){ return; }
-  if(state!=3){ if(stranded) return;   // R6: stranded => stop retrying (final error state; a real client would show the message + a manual retry)
+  if(state!=3){ if(stranded){ if(TICK-strandedAt>STRAND_TTL){ stranded=false; lastReach=-1; joinStart=-1; join(); } wake(id); return; }   // R6: stranded shows "network settings won't let you connect", but the client RETRIES after a backoff — if a greeter is now reachable (e.g. my side's pool stabilised after a partition) I re-seat; a genuinely cut-off seat just strands again.
     if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
   if(evil) attack();
   if(coord.pc==0){
