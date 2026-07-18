@@ -594,7 +594,15 @@ export class Session {
   // can trust (clients themselves can't prove adminship to each other).
   routePeer(from, m) {
     const dest = m.to === 'host' ? this.hostSock() : this.peerSock(m.to);
-    if (dest) this.send(dest, { t: 'peer', from, msg: m.msg }); // no stamp — authority is a signature (§9)
+    if (dest) { this.send(dest, { t: 'peer', from, msg: m.msg }); return; } // no stamp — authority is a signature (§9)
+    // Explicit no-socket bounce (docs/meet-security.md §FWD): the target holds
+    // no socket here (a seated deep seat — R2 greeting scope), so tell the
+    // SENDER instead of dropping the frame silently; it falls back to
+    // sponsor-forward immediately instead of retrying blind. Leaks nothing the
+    // roster doesn't already broadcast (which peers hold sockets). Mirrors
+    // test/relay-local.js routePeer.
+    const src = from === 'host' ? this.hostSock() : this.peerSock(from);
+    if (src) this.send(src, { t: 'nosock', to: m.to });
   }
 
   // Is this an admin room? The verifier rides in every occupant's attachment
