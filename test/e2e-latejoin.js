@@ -117,19 +117,23 @@ const pfx = (id) => String(id).slice(0, 12);
   const preTx = await Promise.all(users.map((u) => snap(u.page).then((s) => s.tx).catch(() => null)));
 
   // ---- 3. late joiners: every socketless link target must connect fast ----
+  // Bounds are per-leg: page-load is excluded (box-load noise), the seat dance
+  // gets 25s from app-ready, and the DEADLOCK leg — seated → connected to
+  // every socketless link target — gets the tight 15s.
   const lateResults = [];
-  for (const lname of ['LATE1', 'LATE2']) {
+  for (const lname of ['LATE1', 'LATE2', 'LATE3']) {
     const lu = await newUser(lname);
-    const tJoin = Date.now();
     await lu.page.goto(link, GOTO);
+    await lu.page.waitForFunction(() => !!window.__gifosVideo, null, { timeout: 60000 }).catch(() => {});
+    const tReady = Date.now();
     const seatedOk = await lu.page.waitForFunction(() => {
       const V = window.__gifosVideo, s = V && V.meshState();
       return s && s.state === 3 && V.meshCoord();
-    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
+    }, null, { timeout: 25000 }).then(() => true).catch(() => false);
     const tSeat = Date.now();
     const ls = seatedOk ? await snap(lu.page) : null;
     lu.id = ls && ls.id;
-    check(lname + ' seats (took ' + (tSeat - tJoin) + 'ms)', seatedOk, ls && ls.coord);
+    check(lname + ' seats within 25s of app-ready (took ' + (tSeat - tReady) + 'ms)', seatedOk, ls && ls.coord);
     if (!seatedOk) { lateResults.push({ name: lname, socketlessTargets: [], connected: false }); continue; }
     // Identify this late joiner's SOCKETLESS link targets right now.
     const stNow = await Promise.all(users.filter((u) => u !== lu).map((u) => snap(u.page).catch(() => null)));
@@ -148,8 +152,9 @@ const pfx = (id) => String(id).slice(0, 12);
       await sleep(500);
     }
     if (sockless.length) check(lname + ' CONNECTED to every socketless link target within ' + (TIGHT_MS / 1000) + 's of seating',
-      allOk, allOk ? (waited + 'ms') : await snap(lu.page).then((s) => s.connTo.map(pfx)));
-    check(lname + ' holds ≥1 live link within the bound', (await snap(lu.page)).conn >= 1);
+      allOk, allOk ? (waited + 'ms') : await lu.page.evaluate(() => window.__gifosVideo.pairs()).catch(() => null));
+    check(lname + ' holds ≥1 live link within the bound', (await snap(lu.page)).conn >= 1,
+      await lu.page.evaluate(() => window.__gifosVideo.pairs()).catch(() => null));
     lateResults.push({ name: lname, lu, socketlessTargets: sockless, connected: allOk });
   }
   const anyExercised = lateResults.some((r) => r.socketlessTargets.length > 0);
