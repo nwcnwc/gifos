@@ -148,8 +148,9 @@ childless — a leaf. **Only leaves move. No exceptions.**
   newcomer, and the initiator re-seats last. Only if NO mesh route to
   Section 1 exists at all (>220 ticks) does it fall back to re-entering
   through the relay. **Section-1 seats never drain or requeue — you ARE the
-  home** — with ONE exception: when the home itself has been torn in two and
-  the E3 audit rules this piece the guest.
+  home.** (When the home itself is torn in two, the E3 audit *detects* it but
+  there is no safe reunion rule yet — see E3's open problem — so no home seat
+  is currently made to drain.)
 - **E2. Duplicates: the race loser yields.** Two ids on one seat ⇒ one must
   yield, decided the same way everywhere:
   - Only between **LIVE** claimants — and "live" means **first-hand only**: a
@@ -165,65 +166,66 @@ childless — a leaf. **Only leaves move. No exceptions.**
     nobody would otherwise contact is told over the YIELD back-channel.
   - E2 requires a live witness — some seat directly linked to both claimants.
     Inside one connected mesh that witness always exists (the row is a full
-    mesh and the parent owns the head). Across a full partition it does NOT —
-    that case is the E3 audit's, and after the audit reunites the pieces,
-    any momentary duplicates raised by the re-seating crowd are ordinary
-    witnessed races that E2 settles normally.
-- **E3. Greeter registration — and the AUDIT: every knock reply gets read.**
-  Every Section-1 seat knocks at the front door when it takes its seat and
-  re-knocks every ~TTL, presenting the meeting's genesis key (R3), which
-  admits it to the greeter pool (the Section-1 seats ARE the pool; when all
-  of them fall silent for one TTL, the list empties and the room reopens for
-  a fresh genesis). Each knock brings the sealed greeter list back — and the
-  knocker READS it. *(History: when the genesis key killed duplicate
-  foundings we also cut E3's old self-audit — one cut too deep. The key
-  prevents two foundings; it cannot prevent the ONE founded home from being
-  TORN by mass churn into self-sufficient halves, each healing itself whole,
-  both still registered under the same key. The audit is what notices — and
-  it is the only law that ever needs to.)*
-  - **The evidence arrives at the moment of the tear, for free.** A tear
-    mints freshly promoted home seats on BOTH sides (each half heals the
-    cells it lost), and a fresh seat knocks the moment it sits down — so the
-    very first knock after a tear already carries the proof: a same-key
-    greeter claiming a coord my own roster (W5) assigns to a DIFFERENT id.
-  - **One ping confirms — and doubles as the alarm.** Ping the conflicting
-    greeter through the relay (legal: both hold sockets — greeting scope,
-    R2). A live seat in another piece answers; the stale entry of a dead
-    seat never answers and TTLs out — the answer IS the blip filter, no
-    repeat-observation window needed. And being pinged is itself evidence,
-    so the other piece starts its own audit at once instead of waiting for
-    its next beat.
-  - **The verdict is measured, not trusted.** Bigger live home wins: compare
-    the home-mates I can reach over the mesh against the conflicting
-    greeters that answer via relay; equal counts fall back to lower
-    founding-seat id (E2's tie-break; ids are unforgeable). Both sides
-    compute the same comparison from symmetric observations and reach the
-    same verdict alone — no arbiter, no negotiation. (A lone severed seat
-    the room healed over counts ~0 against ~24 and simply drains itself —
-    the right outcome, free.)
-  - **The loser reunites by draining — staggered, never a war.** Each guest
-    home seat does the one thing home seats otherwise never do (E1's sole
-    exception): it fans DRAIN down its subtree, handing down the WINNER'S
-    sealed greeter entries it already holds from its own knock reply — so
-    members go straight to a canonical greeter (via the relay; no mesh route
-    exists yet) and re-seat as newcomers (R4), leaves first, the home seat
-    last; it stops re-knocking and its entry lapses. Because guest seats
-    audit on their own staggered beats, re-entry spreads over the front
-    door's capacity instead of stampeding it: a small piece is home in
-    seconds, a big one in minutes — never frozen forever. Any duplicate that
-    flickers while the crowd re-seats is a local, witnessed race — E2 mops
-    it up.
-  - **Newcomers self-serve.** A newcomer whose list shows the same coord
-    claimed twice applies the same verdict rule and prefers a greeter from
-    the winning side.
-  - **The relay stays dumb throughout (R2).** It serves the same sealed list
-    it always served and arbitrates nothing; every verdict is computed by
-    clients from unforgeable ids and what actually answers. If the relay is
-    down, the pieces stay apart until it returns — exactly as tolerable as
-    new joins being blocked — and the next knock heals the room.
+    mesh and the parent owns the head). Across a full partition it does NOT,
+    and supplying that missing witness safely — without handing an attacker a
+    takeover lever — is exactly the open problem E3's audit runs into.
+- **E3. Greeter registration — and the AUDIT (DETECTION ONLY; reunion is an
+  OPEN PROBLEM).** Every Section-1 seat knocks at the front door when it takes
+  its seat and re-knocks every ~TTL, presenting the meeting's genesis key
+  (R3), which admits it to the greeter pool (the Section-1 seats ARE the pool;
+  when all of them fall silent for one TTL, the list empties and the room
+  reopens for a fresh genesis). Each knock brings the sealed greeter list
+  back — and the knocker READS it. *(History: when the genesis key killed
+  duplicate foundings we also cut E3's old self-audit — one cut too deep. The
+  key prevents two foundings; it cannot prevent the ONE founded home from
+  being TORN by mass churn into self-sufficient halves, each healing itself
+  whole, both still registered under the same key.)*
+  - **What the audit reliably tells us (detection — SAFE).** A tear mints
+    freshly promoted home seats on both sides, and a fresh seat knocks the
+    moment it sits down, so the first knock after a tear already carries the
+    proof: a same-key greeter claiming a coord my own roster (W5) gives to a
+    DIFFERENT id, who ANSWERS a ping through the relay (a stale entry for a
+    dead seat never answers and TTLs out — the answer is the blip filter).
+    **Where we are today: a greeter can notice that another greeter looks
+    like it is in a "different meeting" which — by construction — it cannot
+    be, since it holds the same URL, password, AND genesis key. That much is
+    solid.** Just noticing is safe: it moves nobody and forces nothing.
+  - **What to DO about it is UNSOLVED — and every easy answer is a takeover
+    weapon.** The moment detection triggers any automatic *remedy* that makes
+    one side authoritative over the other, an insider (anyone with the
+    link+password — our only trust boundary) can forge that remedy with a
+    Sybil attack (one attacker, many fake seats):
+    - *"Bigger live home wins, smaller drains"* → the attacker spins up a
+      swarm of fake greeters so their side "measures" bigger, and the whole
+      real meeting drains and re-seats through the attacker's fakes. Total
+      takeover, on command.
+    - *"Lower id wins"* → peer ids are CLIENT-SET (`peer=` on the socket, in
+      both relays), so the attacker just picks the winning id. (An earlier
+      draft here wrongly called ids "unforgeable" — they are not.)
+    - Any rule that lets a *detected* group force the other to move is a
+      lever a Sybil multiplies. So no counting, no id-vote, no forced drain
+      lives here.
+    **This is the hard, unsolved problem** (see the "attacker's harm ≈ its
+    fanout" note): we have no accounts and no per-person identity, so we
+    cannot cheaply tell one real large piece from one attacker wearing many
+    masks. E3 therefore STOPS at detection. A safe reunion rule is future
+    work.
+  - **The current best DIRECTION (candidate, NOT adopted).** Demote the audit
+    from *judge* to *introducer*: it opens a single mesh link across the seam
+    (relay introduction, greeting scope) to hand E2 the live witness it was
+    missing, and then E2 resolves duplicates by **tenure** — a fresh Sybil
+    seat cannot outrank a sitting incumbent, so the attacker displaces no one.
+    This bounds the attack but does not fully close it (two *equal-tenure*
+    pieces still fall to the forgeable id tie-break), so it stays marked OPEN
+    until we can defend the sybil case.
+  - **The relay stays dumb regardless (R2).** It only serves the same sealed
+    list; it never arbitrates. Whatever reunion rule we eventually adopt is
+    computed by clients, not the relay.
 - *(E4 — a genesis-storm resolver — is DISSOLVED: R2/R3's key prevents the
-  storm at admission. E5 — a standalone partition-reunion law — is DISSOLVED
-  into the E3 audit above: it was E3's missing sentence, not new machinery.)*
+  storm at admission. E5 — a standalone partition-reunion law — is WITHDRAWN:
+  its verdict-and-drain mechanics were a Sybil takeover weapon; only its
+  detection half survives, folded into E3 above, and the reunion half is now
+  an acknowledged open problem.)*
 
 ## R — the front door
 
@@ -258,7 +260,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
   decoy whose sealed dance fails) are never auto-merged: the client surfaces
   the unforgeable FACES on each tree's Stage and the human chooses which room
   to be in. Counts can be inflated; a face cannot. — A same-key split is NOT a
-  fork: it auto-reunites via the E3 audit and no human is ever asked.
+  fork (it is the same meeting torn): the E3 audit *detects* it, but reuniting
+  it safely is an open problem, not yet solved.
 - **R6. The stranded newcomer** (pure client logic, zero relay presence). The
   greeter list is sealed under `K = derive(url, pw)` — URL secret AND password
   — so in a locked room even the guest list is invisible without the password.
@@ -281,19 +284,28 @@ childless — a leaf. **Only leaves move. No exceptions.**
 
 ---
 
-## The two hard cases, closed
+## The two hard cases — one closed, one open
 
-1. **Two nodes claim the same seat.** Inside one connected mesh a live witness
-   always exists, and E2 settles it deterministically — first-hand liveness
-   only, tenure first, lower id wins, one convention everywhere.
-2. **Churn shatters the meeting into disconnected pieces.** Severed subtrees
-   drain back in (E1); dead home cells are rebuilt from below (H1/H1-S1/H7,
-   key preserved); a torn home reunites through the front door it never
-   stopped sharing (the E3 audit); a lone cut-off member gets an honest
-   answer (R6). Only a
-   genuinely DIFFERENT meeting — a different genesis key — is ever put to a
-   human being (R5).
+1. **Two nodes claim the same seat (CLOSED).** Inside one connected mesh a
+   live witness always exists, and E2 settles it deterministically —
+   first-hand liveness only, tenure first, lower id wins, one convention
+   everywhere.
+2. **Churn shatters the meeting into disconnected pieces (PARTLY OPEN).**
+   Severed subtrees drain back in (E1); dead home cells are rebuilt from
+   below (H1/H1-S1/H7, key preserved); a lone cut-off member gets an honest
+   answer (R6). But the hardest sub-case — the HOME ITSELF torn into two
+   self-sufficient, same-key pieces — is only DETECTED (the E3 audit), NOT
+   yet safely reunited: every automatic reunion rule we have tried is a Sybil
+   takeover weapon, and with no per-person identity we cannot yet tell one
+   big real piece from one attacker in many masks. This is the open problem.
+   (Separately, a genuinely DIFFERENT meeting — a different genesis key — is
+   put to a human being, R5.)
 
-There is no root to fight over, no arbiter to trust, and no message a
-partition can forge: every verdict above is computed independently from
-unforgeable ids and a sealed list every member already holds.
+There is no root to fight over and no arbiter to trust — every verdict above
+is computed independently by clients. But the open sub-case is a real one:
+peer ids are client-set, not unforgeable, so any reunion rule that lets a
+detected group *move* another is a lever a Sybil attacker multiplies. Until
+we have a cheap way to bound identity, a torn home is safely NOTICED but not
+safely REJOINED. See the mesh security frame: an attacker's harm ≈ its
+fanout; bound it, never hand it a mechanism that multiplies one seat into
+many.
