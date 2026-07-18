@@ -1657,7 +1657,123 @@
       if ((msg.kind === 'offer' || msg.kind === 'answer') && msg.sdp) return Object.assign({}, msg, { sdp: sdpSansIce(msg.sdp) });
       return msg;
     };
-    const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0, fwdSig: 0 }; // test/inspection hook: where heartbeats + signaling actually travel
+    const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0, fwdSig: 0, fwdMesh: 0, doorSig: 0, hopFwd: 0, hopRelay: 0, nosock: 0 }; // test/inspection hook: where heartbeats + signaling + sponsor hops actually travel
+    // ---- §FWD sponsor-forward machinery (docs/meet-security.md) -------------
+    // Shared by fsig (WebRTC signaling) and fmesh (mesh control). The old rule
+    // — "one hop via a MUTUAL DataChannel friend" — deadlocked the newcomer:
+    // its targets are socketless deep seats (the relay silently dropped the
+    // frames), and it has no DC friend yet to sponsor them. But it DOES have a
+    // first contact: the greeter pool (relay-socketed Section-1 seats — the
+    // room's public front door), and the mesh behind them. So a frame with no
+    // relay path now travels: mutual friend → my own mesh next hop → the DOOR
+    // (sealed over the relay to a socketed seat wired near the target, else a
+    // greeter), then ttl-bounded UNICAST hop-forwarding over existing DCs to
+    // the target. Sealed under the room key the whole way (the relay carries
+    // only opaque {t:'peer'} ciphertext — R2 unchanged); dedup kills loops.
+    const coordKeyOf = (pid) => { const s = meshSeat(); if (s) { for (const [k, v] of s.occ) if (v === pid) return k; } return null; };
+    let fwdSeq = 0;
+    const fwdSeen = new Map(); // envelope id -> at (hop dedup / loop-kill)
+    function fwdDedup(id) {
+      if (!id) return true; // legacy envelope (no id): old single-hop semantics
+      if (fwdSeen.has(id)) return false;
+      fwdSeen.set(id, Date.now());
+      if (fwdSeen.size > 512) { const cut = Date.now() - 60000; for (const [k, at] of fwdSeen) if (at < cut) fwdSeen.delete(k); }
+      return true;
+    }
+    // The one mesh STEP from coord c toward target seat t. Honors the row law:
+    // a coord's r never changes below Section 1 (rows cross only in the S1
+    // rook), so descent enters the tree at (0, t.r, firstDigit(t.pc)).
+    function fwdNextCoord(c, t) {
+      const T = net.topo;
+      if (c.pc === t.pc && c.r === t.r) return (c.i === t.i) ? null : { pc: c.pc, r: c.r, i: t.i }; // same row: one hop
+      const digs = (pc) => { const v = []; while (pc) { v.push(T.lastDigit(pc)); pc = T.parentPath(pc); } v.reverse(); return v; };
+      const pb = digs(t.pc);
+      if (c.pc === 0) {                                                  // Section 1 (rook): row+column are one hop
+        if (t.pc !== 0 && c.r === t.r) {
+          if (c.i !== pb[0]) return { pc: 0, r: c.r, i: pb[0] };         // row-mate to the descent column
+          return T.down(c);                                              // enter the tree on t's path
+        }
+        return { pc: 0, r: t.r, i: c.i };                                // column-mate into the target's home row
+      }
+      const pa = digs(c.pc);
+      let l = 0; while (l < pa.length && l < pb.length && pa[l] === pb[l]) l++;
+      if (c.r !== t.r || l < pa.length) return (c.i !== 0) ? { pc: c.pc, r: c.r, i: 0 } : T.up(c); // climb (wrong row ⇒ all the way to S1)
+      const d = pb[l];                                                   // descend toward t
+      return (c.i !== d) ? { pc: c.pc, r: c.r, i: d } : T.down(c);
+    }
+    // nextHopDc(to, tck): the open DataChannel one mesh step toward peer `to`
+    // — my direct channel if I hold one, else the occupant of fwdNextCoord.
+    function nextHopDc(to, tck) {
+      const direct = peers.get(to);
+      if (direct && direct.dc && direct.dc.readyState === 'open') return direct;
+      const s = meshSeat();
+      const k = tck || coordKeyOf(to);
+      if (!s || !s.hasCoord || !k) return null;
+      let hop = null;
+      try { hop = fwdNextCoord(s.coord, net.topo.unck(k)); } catch (e) { hop = null; }
+      const pid = hop ? s.occGet(net.topo.ckey(hop)) : null;
+      if (pid == null || pid === myId || pid === to) return null; // hop IS the target ⇒ no channel (checked above)
+      const p = peers.get(pid);
+      return (p && p.dc && p.dc.readyState === 'open') ? p : null;
+    }
+    // doorPeers: relay-REACHABLE seats that can carry an envelope into the
+    // mesh — prefer seats holding a DIRECT channel to the target (its owner,
+    // head, row-mates), then my entry gateway + the greeter pool (the front
+    // door — healing-laws R2: greeters are exactly who holds sockets).
+    function doorPeers(to, tck) {
+      const s = meshSeat(), T = net.topo, out = [];
+      const add = (pid) => { if (pid != null && pid !== myId && pid !== to && relaySocketed.has(pid) && !out.includes(pid)) out.push(pid); };
+      const k = tck || coordKeyOf(to);
+      if (s && k) {
+        const t = T.unck(k);
+        if (t.pc !== 0) { const oc = T.up({ pc: t.pc, r: t.r, i: 0 }); if (oc) add(s.occGet(T.ckey(oc))); }
+        if (t.i !== 0) add(s.occGet(T.ckey({ pc: t.pc, r: t.r, i: 0 })));
+        for (const mte of T.rowMates(t)) add(s.occGet(T.ckey(mte)));
+      }
+      if (s) { add(s.gateway); for (const g of (s.lastGreeters || [])) add(g); }
+      for (const pid of relaySocketed) add(pid);
+      return out;
+    }
+    // sponsorSend: carry envelope envl toward envl.to when the relay cannot
+    // (§FWD). Returns true iff the frame was handed to SOME viable path.
+    function sponsorSend(envl) {
+      const to = envl.to;
+      // 1) the classic mutual-DC friend (one hop, deterministic pick)
+      const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
+      const fp = cands.length ? peers.get(cands[0]) : null;
+      if (fp && fp.dc && fp.dc.readyState === 'open') { dcSend(fp, envl); return true; }
+      // 2) the mesh itself: my one open-DC step toward the target's seat
+      const hp = nextHopDc(to, envl.tc);
+      if (hp) { dcSend(hp, envl); return true; }
+      // 3) the DOOR (the friendless-newcomer bootstrap): sealed over the relay
+      // to a socketed seat wired near the target, else a greeter, which
+      // hop-forwards it onward over its own channels.
+      const doors = doorPeers(to, envl.tc);
+      if (doors.length) {
+        txStats.doorSig++;
+        const d = doors[0];
+        txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: d, msg: piece }))));
+        return true;
+      }
+      return false;
+    }
+    // fwdOnward: an fsig/fmesh envelope reached me but names someone else —
+    // pass it one bounded step onward: direct channel, else my mesh next hop,
+    // else (last resort) the relay addressed to the TARGET itself — it may be
+    // a socketed joiner; a socketless one just nosock-bounces and the frame
+    // dies here (the sender's beat retries). Never bounced back onto a DC.
+    function fwdOnward(kind, m, viaPid) {
+      if (m.id && !fwdDedup(m.id)) return; // loop-kill
+      const ttl = (m.ttl == null ? 1 : m.ttl | 0) - 1; // legacy envelope: one direct-channel hop only
+      if (ttl < 0) return;
+      const envl = { k: kind, from: m.from, to: m.to, tc: m.tc, id: m.id, ttl, m: m.m };
+      const hp = nextHopDc(m.to, m.tc);
+      if (hp && hp.id !== viaPid) { txStats.hopFwd++; dcSend(hp, envl); return; }
+      if (m.ttl != null && relayUp()) {
+        txStats.hopRelay++;
+        txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: m.to, msg: piece }))));
+      }
+    }
     const sendSig = (to, msg) => {
       // STATUS gossip — the every-few-seconds pulse that is nearly all of a
       // quiet meeting's traffic — prefers the pair's own DataChannel: the relay
@@ -1701,21 +1817,20 @@
       // joiners). SPONSOR-FORWARD (docs/meet-security.md §FWD) is the fallback
       // whenever the relay can't carry this frame to this peer — either my own
       // relay path is DOWN, or the TARGET is socketless (a deep seat: the relay
-      // would peerSock→null and SILENTLY DROP it — the old conn=1 stall). A
-      // mutual friend's DataChannel carries the frame instead. If no sponsor
-      // exists we still fall through to the relay: best-effort, never worse, and
-      // for a socketed target + live relay this path is unchanged (no sponsor,
-      // straight to the relay — the config that has always worked).
+      // would peerSock→null and drop it, answering {t:'nosock'} — the old
+      // conn=0 late-join stall). sponsorSend tries, in order: a mutual friend's
+      // DataChannel (the classic one-hop), my own mesh next hop toward the
+      // target's seat, and the greeter DOOR (the friendless newcomer's one
+      // guaranteed contact) — then bounded unicast hops carry it to the seat.
+      // If no path exists at all we still fall through to the relay:
+      // best-effort, never worse; for a socketed target + live relay this path
+      // is unchanged (no sponsor, straight to the relay).
       const relayDown = !relayUp();
       const targetUnreachable = !relaySocketed.has(to); // socketless deep seat ⇒ relay drops it
       if ((relayDown || targetUnreachable) && msg.kind !== 'status') {
-        const cands = myConns().filter((r) => r !== to && (connsOf.get(r) || []).includes(to)).sort();
-        const fp = cands.length ? peers.get(cands[0]) : null;
-        if (fp && fp.dc && fp.dc.readyState === 'open') {
-          const m2 = sigSansIce(to, msg);
-          if (m2) { txStats.fwdSig++; dcSend(fp, { k: 'fsig', from: myId, to, m: m2 }); }
-          return;
-        }
+        const m2 = sigSansIce(to, msg);
+        if (!m2) return; // a blocked pair sends nothing on either path (fault injection)
+        if (sponsorSend({ k: 'fsig', from: myId, to, tc: coordKeyOf(to), id: myId + ':' + (++fwdSeq), ttl: 12, m: m2 })) { txStats.fwdSig++; return; }
       }
       // A heartbeat is re-minted every tick — never queue a stale one on a down socket.
       if (msg.kind === 'status') { if (!relayUp()) return; txStats.relayStatus++; }
@@ -2165,12 +2280,18 @@
     const meshSendDC = (to, m) => {
       const p = peers.get(to);
       if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'mesh', m }); return true; }
-      // No sponsor hop here: claiming 'sent' after handing a frame to a friend
-      // means a failed hop is a SILENTLY LOST control message. Return false and
-      // let the wire use the sealed relay fallback — delivery over purity.
-      // (The 'fmesh' receive arm stays: it still forwards frames from clients
-      // that sponsor-send.)
-      return false;
+      // A RELAY-REACHABLE target: return false so the wire's sealed relay
+      // fallback carries it (the path that has always worked). A SOCKETLESS
+      // target would be silently dropped there (routePeer → no dest) —
+      // sponsor-forward instead (§FWD): through the mesh, or through the
+      // greeter DOOR when this seat holds no channels at all. This is what
+      // lets a just-seated deep newcomer's HELLO/PHONE/CLAIM/gossip reach its
+      // socketless neighbours at all (the late-join bootstrap). Mesh control
+      // is beat-driven and idempotent, so a lost hop costs a beat, not the
+      // message.
+      if (relayUp() && relaySocketed.has(to)) return false;
+      if (sponsorSend({ k: 'fmesh', from: myId, to, tc: coordKeyOf(to), id: myId + ':' + (++fwdSeq), ttl: 12, m })) { txStats.fwdMesh++; return true; }
+      return false; // no path at all — the wire's relay fallback is the hail-mary
     };
 
     // ---- admin rooms -----------------------------------------------------------
@@ -2356,6 +2477,10 @@
         sid: sessId, tok: sessTok, key: roomE2E, identity, tickMs: 500,
         urlParams: () => '&pw=' + encodeURIComponent(pwProof) + '&dev=' + encodeURIComponent(myDevHash),
         sendDC: meshSendDC,
+        // Deep-socket drop waits until at least one DataChannel is open (§FWD:
+        // an unwired deep newcomer must stay relay-reachable or inbound
+        // signaling answers die — the late-join deadlock).
+        wired: () => { for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') return true; return false; },
         // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
         // counterpart): the same sealed payload shapes as ever, routed to the
         // same handlers.
@@ -2413,6 +2538,13 @@
         applyAdminUi();
         reactRoomState();
         adminWatch();
+      }
+      else if (m.t === 'nosock') {
+        // §FWD: my routed frame's target holds no relay socket — the relay
+        // said so explicitly instead of dropping silently. Mark it so the next
+        // retry goes over the sponsor path immediately, not blind.
+        txStats.nosock++;
+        if (m.to) relaySocketed.delete(m.to);
       }
       else if (m.t === 'peer' && m.msg) {
         // Sealed app frames that rode the relay because no DataChannel exists
@@ -3236,16 +3368,18 @@
         const k2 = m.msg && m.msg.kind;
         if (k2 === 'status' || k2 === 'offer' || k2 === 'answer' || k2 === 'ice') onSignal(p.id, m.msg);
       } else if (m.k === 'fsig') {
-        // Sponsor-forwarded signaling (§3.2/§3.3): one hop only. If it names
-        // me, take it as if it arrived from its claimed sender; otherwise
-        // forward ONLY when I hold a direct open channel to the target —
-        // never re-sponsor (no multi-hop floods; the sender's deterministic
-        // pick retries elsewhere if my link died).
+        // Sponsor-forwarded signaling (§FWD): if it names me, take it as if it
+        // arrived from its claimed sender; otherwise pass it ONWARD — my
+        // direct channel to the target if I hold one, else ONE ttl-bounded
+        // unicast mesh step toward the target's seat (fwdOnward; dedup kills
+        // loops, ttl bounds the walk — this is not a flood). The old "never
+        // re-sponsor" single-hop rule starved the friendless newcomer, whose
+        // envelopes ENTER the mesh at a greeter that rarely borders the
+        // target.
         const k3 = m.m && m.m.kind;
         if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice')) return;
         if (m.to === myId) { if (m.from && m.from !== myId) onSignal(String(m.from), m.m); return; }
-        const tp = peers.get(m.to);
-        if (tp && tp.dc && tp.dc.readyState === 'open') dcSend(tp, { k: 'fsig', from: m.from, to: m.to, m: m.m });
+        fwdOnward('fsig', m, p.id);
       } else if (m.k === 'ck') {
         // Clock sync (the grid's metronome): answer with our clock immediately;
         // the asker derives offset + rtt NTP-style. Rides the free DC path.
@@ -3290,12 +3424,11 @@
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
       } else if (m.k === 'fmesh') {
-        // Sponsor-forwarded mesh control (one hop, mirrors fsig): mine ⇒ hand to
-        // the mesh node as if it arrived direct; else forward ONLY over a direct
-        // open channel to the target — never re-sponsor.
+        // Sponsor-forwarded mesh control (mirrors fsig): mine ⇒ hand to the
+        // mesh node as if it arrived direct; else pass it onward — direct
+        // channel, else one ttl-bounded unicast mesh step (fwdOnward).
         if (m.to === myId) { if (meshNode && m.m) meshNode.recvCtl(m.m); return; }
-        const tp = peers.get(m.to);
-        if (tp && tp.dc && tp.dc.readyState === 'open') dcSend(tp, { k: 'fmesh', from: m.from, to: m.to, m: m.m });
+        fwdOnward('fmesh', m, p.id);
       } else if (m.k === 'rkick') {
         // The far side has a streamless mapping from me: if any of my sender
         // m-lines toward them never negotiated (rolled back in a glare),
@@ -5812,7 +5945,9 @@
     window.__gifosVideo = {
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
-      txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC)
+      txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC vs sponsor hops)
+      relayUp: () => relayUp(), // does my mesh node hold a live relay socket right now?
+      relayReach: () => Array.from(relaySocketed), // who I believe the relay can reach (roster + nosock)
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
         micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
