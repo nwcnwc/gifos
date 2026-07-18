@@ -216,6 +216,21 @@ blits every leaf out by sub-rect and lays them all into one flat gapless grid
 room, not a position-weighted one. The transport (one stream, up the tree and
 fanned down, election-free) is unchanged; only the packing flattened.
 
+### Grace, not teardown — the anti-flap discipline
+Every link in the claim→paint chain flickers for benign reasons: a
+renegotiation glare, a transport rebuild (which resets the peer's incoming
+list), a gossip beat where a seat's occ entry is transiently unknown. The
+rule everywhere is **grace before teardown** (`MOS_GRACE`, ~5s in
+`meet.html`): a claimed primary that goes dark with no live replacement keeps
+its LAST stream painted (a frozen beat — always the viewer's own legitimate
+mix, never a neighbour's); an outbound ship stays up until it has been
+unwanted for the full grace (occ transients never rip a live pipe); the
+whole-mosaic teardown (`beyondRow` false) and a packer's empty-canvas
+collapse wait it out the same way. Standby promotion stays instant — grace
+only delays *destruction*, never *recovery*. Announces age out at ~12s (a
+live job re-announces every sweep), so a silently dead sender cannot linger
+as a claim candidate forever.
+
 ### Cross-link redundancy (up + down) — closing the mid-tree freeze
 The down-fan used to be **single-path**: a non-head got the Stadium (and Stage)
 strip only from its **row head**; if that head's feed stalled, the seat froze
