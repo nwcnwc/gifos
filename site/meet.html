@@ -5820,6 +5820,67 @@
       _corruptStatus: (id) => statusOf.delete(id),
       _corruptSid: (id) => { const p = peers.get(id); if (p) { p.ownSid = null; } },
       _failPeer: (id) => { const p = peers.get(id); if (p) { try { p.pc.close(); } catch (e) {} } },
+      // ---- A/V feed monitor hooks (READ-ONLY — test/meet.js `mon`) ----------
+      // monInfo(): one synchronous snapshot of everything the flap monitor
+      // diffs: the Stadium/Stage tiles' paint state (present/src/dims/frame
+      // counter), every claimed mosaic slot's element health, the standby set,
+      // outbound job active/dormant states, the demand map, packer stats and
+      // the stage ear's input set. No side effects.
+      monInfo: () => {
+        const vidInfo = (v) => v ? { sid: v.srcObject ? String(v.srcObject.id) : null,
+          w: v.videoWidth, h: v.videoHeight, paused: v.paused, ready: v.readyState,
+          frames: v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality().totalVideoFrames : -1 } : null;
+        const c = meshCoord();
+        return {
+          t: Date.now(), coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null, head: !!(c && c.i === 0), s1: !!(c && c.pc === 0),
+          tiles: { sd: vidInfo(stadiumEl.querySelector('[data-row="sd"] video')), sgs: vidInfo(stagefeedEl.querySelector('[data-row="sgs"] video')) },
+          claims: [...mosIn.entries()].map(([rk, f]) => ({ rk, via: String(f.via).slice(0, 8), sid: String(f.streamId).slice(0, 8),
+            vw: f.el ? f.el.videoWidth : -1, vh: f.el ? f.el.videoHeight : -1,
+            frames: (f.el && f.el.getVideoPlaybackQuality) ? f.el.getVideoPlaybackQuality().totalVideoFrames : -1,
+            aTrk: f.stream ? f.stream.getAudioTracks().length : 0,
+            vMuted: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].muted : null })),
+          standby: [...mosStandby.entries()].map(([rk, f]) => ({ rk, via: String(f.via).slice(0, 8), sid: String(f.streamId).slice(0, 8) })),
+          jobs: [...mosJobs.entries()].map(([jk, j]) => ({ jk: j.key + '>' + String(j.to).slice(0, 8), active: !!j.active })),
+          demand: [...subWant.entries()].map(([k, v]) => { const a = k.split('|'); return { k: String(a[0]).slice(0, 8) + '|' + a[1], v }; }),
+          ear: (typeof stageEar !== 'undefined' && stageEar) ? [...stageEar.sids.keys()] : [],
+          packs: { prod: prodPack ? Object.assign({ w: prodPack.canvas.width, h: prodPack.canvas.height }, prodPack.stats()) : null,
+                   sd: sdPack ? Object.assign({ w: sdPack.canvas.width, h: sdPack.canvas.height }, sdPack.stats()) : null,
+                   sdn: sdnPacks.size, strip: stripPack ? stripPack.stats() : null },
+          stagers: stageIds().length, peers: peers.size,
+        };
+      },
+      // avStats(): per-receiver WebRTC inbound stats (frames/packets/audio
+      // energy) + per-sender outbound frames, each labeled with the mosaic
+      // slot / job / tile it feeds, so a stall is attributable to ONE pipe.
+      avStats: async () => {
+        const label = new Map(); // trackId -> slot label
+        const tag = (stream, lbl) => { if (!stream) return; for (const t of stream.getTracks()) label.set(t.id, lbl); };
+        for (const [rk, f] of mosIn) tag(f.stream, 'in:' + rk);
+        for (const [rk, f] of mosStandby) tag(f.stream, 'std:' + rk);
+        for (const [jk, j] of mosJobs) for (const t of j.trackList || []) label.set(t.id, 'out:' + j.key + '>' + String(j.to).slice(0, 6));
+        const out = [];
+        for (const [pid, p] of peers) {
+          if (!p.pc) continue;
+          tag(p.video && p.video.srcObject, 'tile:' + String(pid).slice(0, 6));
+          let rep; try { rep = await p.pc.getStats(); } catch (e) { continue; }
+          const midLbl = new Map(); // mid -> outbound slot label (via the sender's track)
+          try { for (const t of p.pc.getTransceivers()) if (t.mid != null && t.sender && t.sender.track) midLbl.set(String(t.mid), label.get(t.sender.track.id) || null); } catch (e) {}
+          rep.forEach((s) => {
+            if (s.type === 'inbound-rtp' && (s.kind === 'video' || s.kind === 'audio')) {
+              out.push({ pid: String(pid).slice(0, 6), dir: 'in', kind: s.kind, trk: s.trackIdentifier || null,
+                slot: label.get(s.trackIdentifier) || null, fps: s.framesPerSecond || 0,
+                fdec: s.framesDecoded || 0, pkts: s.packetsReceived || 0, bytes: s.bytesReceived || 0,
+                alvl: s.audioLevel != null ? Math.round(s.audioLevel * 1000) / 1000 : null,
+                ae: s.totalAudioEnergy != null ? Math.round(s.totalAudioEnergy * 1000) / 1000 : null });
+            } else if (s.type === 'outbound-rtp' && s.kind === 'video') {
+              out.push({ pid: String(pid).slice(0, 6), dir: 'out', kind: s.kind, trk: null,
+                slot: s.mid != null ? (midLbl.get(String(s.mid)) || null) : null,
+                fenc: s.framesEncoded || 0, fps: s.framesPerSecond || 0, bytes: s.bytesSent || 0, mid: s.mid != null ? s.mid : null });
+            }
+          });
+        }
+        return out;
+      },
     };
   })();
   </script>
