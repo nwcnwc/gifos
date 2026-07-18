@@ -42,7 +42,16 @@ static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
 static bool HEALING=true;
 static const int GREET_PERIOD=800;
 static uint32_t GSEED=20260714;
+static uint32_t SEED0=20260714;   // the seed a run STARTS from; `seed N` sets it, initSim restores GSEED to it (reproducible sweeps)
 static inline double grnd(){ GSEED=(uint32_t)((GSEED*1103515245u+12345u)&0x7fffffff); return GSEED/2147483648.0; }
+// ---- TOTAL NETWORK PARTITION primitive ----
+// `split` cuts ALL P2P links between two live seat-groups while keeping every seat
+// ALIVE (distinct from kill, which removes seats). side[id] in {0,1}; a frame whose
+// endpoints straddle the cut is silently DROPPED (as a severed transport would).
+// The relay registry stays shared (both sides can still knock), but no seat on one
+// side can reach a seat on the other — modelling a genuine transport-level split.
+static bool PARTITIONED=false; static vector<char> partSide;
+static inline bool cutBetween(int from,int to){ return PARTITIONED && from>=0 && to>=0 && from<(int)partSide.size() && to<(int)partSide.size() && partSide[from]!=partSide[to]; }
 static unordered_map<long long, vector<Msg>> bus;
 static unordered_set<uint64_t> openPairs; static uint64_t SEQ=0;
 // R2 zero-knowledge relay: a per-hashed-URL registry holding ONLY H(genesis key)
@@ -140,6 +149,7 @@ struct Seat {
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
   int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
   int joinStart=-1; bool stranded=false;   // R6: when this join attempt began; stranded once I give up
+  int lastReach=-1;   // R6: last tick I REACHED a greeter (a HOME roster came back). Stranding requires having reached NONE for a full TTL — a busy room where I keep getting NOROOM is not "stranded".
   bool auditPend=false; bool evil=false;
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
@@ -276,6 +286,8 @@ static void classifyEmit(int from,int to,const Msg& m){
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
   classifyEmit(from,to,m);
+  if(cutBetween(from,to)) return;   // TOTAL PARTITION: endpoints are on opposite sides of the cut — the transport drops it
+
   bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
   if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
     Seat* sf=seats[from]; Seat* st=seats[to];
@@ -398,6 +410,7 @@ static string coordStr(Coord c){ // decode pc to base-5 path string
   string p; uint32_t pc=c.pc; vector<int> d; while(pc){d.push_back(lastDigit(pc)); pc=parentPath(pc);} for(int a=(int)d.size()-1;a>=0;a--) p+=('0'+d[a]);
   char b[64]; snprintf(b,64,"%s/%d.%d",p.c_str(),c.r,c.i); return b; }
 static void initSim(int n,double leave){
+  GSEED=SEED0; PARTITIONED=false; partSide.clear();   // reproducible per SEED0; a fresh room is never partitioned
   N=n; LEAVEFRAC=leave; joinWindow=max(1,min((int)(N*0.25),2000)); MAXP=(long long)N*30+60000;
   size_t cap=(size_t)N+(size_t)(N*0.6)+16; seats.assign(cap,nullptr); alive.assign(cap,0);
   spawnPlan.assign(joinWindow+1,{}); for(int k=0;k<N;k++){ int t=(int)(grnd()*joinWindow); spawnPlan[t].push_back(k); }
@@ -463,7 +476,27 @@ int main(int argc,char**argv){
     if(tk.empty()) continue;
     string op=tk[0];
     if(op=="quit"||op=="exit"){ printf("BYE\n"); break; }
-    else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f\n",n,lv); }
+    else if(op=="seed"){ SEED0=(uint32_t)(tk.size()>1?strtoul(tk[1].c_str(),nullptr,10):20260714); GSEED=SEED0; printf("OK seed=%u\n",SEED0); }
+    else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f seed=%u\n",n,lv,SEED0); }
+    else if(op=="split"){   // TOTAL NETWORK PARTITION: cut every link between two live seat-groups, all seats stay ALIVE. `split [fracB]` — fraction of live seats put on side B (default .5)
+      double fb=tk.size()>1?atof(tk[1].c_str()):0.5; partSide.assign(nextId,0); int liveN=0,bN=0;
+      for(int q=0;q<nextId;q++) if(alive[q]){ liveN++; if(grnd()<fb){ partSide[q]=1; bN++; } }
+      PARTITIONED=true; printf("OK split: sideA=%d sideB=%d (all alive, cross-links cut)\n", liveN-bN, bN); }
+    else if(op=="heal_net"||op=="join_net"){ PARTITIONED=false; printf("OK partition removed (links restored)\n"); }
+    else if(op=="splitstate"){   // per-side convergence: seated / distinct Section-1 cells / duplicates, on each side of the cut
+      long long seatA=0,seatB=0; unordered_set<uint64_t> s1A,s1B,allA,allB; long long dupA=0,dupB=0;
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; int s=(q<(int)partSide.size())?partSide[q]:0; uint64_t k=ckey(seats[q]->coord);
+        if(s==0){ seatA++; if(allA.count(k))dupA++; else allA.insert(k); if(seats[q]->coord.pc==0)s1A.insert(k); }
+        else    { seatB++; if(allB.count(k))dupB++; else allB.insert(k); if(seats[q]->coord.pc==0)s1B.insert(k); } }
+      // count live seats per side (denominator)
+      long long liveA=0,liveB=0; for(int q=0;q<nextId;q++) if(alive[q]){ int s=(q<(int)partSide.size())?partSide[q]:0; if(s==0)liveA++; else liveB++; }
+      printf("SPLITSTATE A[seated=%lld/%lld s1=%zu dups=%lld] B[seated=%lld/%lld s1=%zu dups=%lld]\n", seatA,liveA,s1A.size(),dupA, seatB,liveB,s1B.size(),dupB); }
+    else if(op=="check"){   // LOUD invariant assertion: everyone seated, Section 1 full, 0 dups, 0 stranded. Non-fatal report (sweep greps CHECK); `check strict` ABORTS on failure.
+      bool strict=tk.size()>1 && tk[1]=="strict";
+      long long seated,s1c; counts(seated,s1c); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++;
+      string why; if(seated!=N) why+=" seated="+to_string(seated)+"/"+to_string(N); if(s1c!=min((long long)25,(long long)N)) why+=" s1="+to_string(s1c)+"/25"; if(DUPS_G!=0) why+=" dups="+to_string(DUPS_G); if(strand!=0) why+=" stranded="+to_string(strand); if(EMIT_TELEPORT!=0) why+=" teleport="+to_string(EMIT_TELEPORT);
+      if(why.empty()) printf("CHECK PASS seed=%u [seated=%lld/%d s1=%lld dups=%lld stranded=0 teleport=0]\n",SEED0,seated,N,s1c,DUPS_G);
+      else { printf("CHECK FAIL seed=%u%s\n",SEED0,why.c_str()); if(strict){ fprintf(stderr,"CHECK FAIL (strict) seed=%u%s — HALTING\n",SEED0,why.c_str()); abort(); } } }
     else if(op=="tick"){ int n=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<n;q++){doTick();TICK++;} printf("OK tick now=%lld\n",TICK); }
     else if(op=="threads"){ int w=tk.size()>1?max(1,atoi(tk[1].c_str())):1; tlsResize(w); printf("OK threads=%d det=%d\n",NTHREADS,(int)DETERM); }
     else if(op=="det"){ DETERM=(tk.size()>1 && (tk[1]=="on"||tk[1]=="1")); printf("OK det=%d\n",(int)DETERM); }
@@ -556,7 +589,7 @@ int main(int argc,char**argv){
         rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
     else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++; printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq); }
-    else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), nb.c_str()); } }
+    else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d haveRoster=%d rosterSz=%zu joinStart=%d(age %lld) gateway=%d stranded=%d drainAt=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), (int)s->haveRoster, s->roster.size(), s->joinStart, (long long)(TICK-s->joinStart), s->gateway, (int)s->stranded, s->drainAt, nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
       string a=tk.size()>1?tk[1]:""; size_t sl=a.find('/'),dt=a.find('.',sl); if(sl==string::npos||dt==string::npos){printf("ERR usage: find <path>/<r>.<i>\n");continue;} string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps) pc=childPath(pc,ch-'0'); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()), i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); int who=-1; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&ckey(seats[q]->coord)==k){who=q;break;} printf("FIND %s -> seat %d\n",a.c_str(),who); }
