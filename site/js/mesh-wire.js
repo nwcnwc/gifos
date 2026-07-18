@@ -91,13 +91,15 @@
     let stopped = false, lockedFired = false, strandedFired = false;
     let sock = null, deepSince = -1;
 
-    // S4 identity mode: use a supplied identity, else mint one, unless a legacy
-    // client-set peer id is given (then S4 is OFF). If mesh-identity.js isn't
-    // loaded we degrade to a random legacy id (S4 OFF) rather than fail.
-    let identity = opts.identity || null;
-    const wantMint = !identity && !opts.peer && !!ident;
-    let peer = identity ? identity.peerId : (opts.peer || (ident ? null : 'c_' + net.randHex(6)));
-    const s4on = !!identity || wantMint;
+    // S4 identity is MANDATORY — there is NO "off". No mesh-identity.js loaded ⇒
+    // hard fail (never a silent legacy-id degrade); no legacy client-set peer id
+    // path. Every participant mints (or is handed) a per-participant keypair and
+    // its peer id is H(pubkey). Signing + verification are unconditional.
+    if (!ident) throw new Error('mesh-wire: js/mesh-identity.js is REQUIRED (S4 is mandatory) — load it before mesh-wire.js');
+    let identity = opts.identity || null;   // else minted below (async, existing flow)
+    const wantMint = !identity;             // ALWAYS mint when none is supplied
+    let peer = identity ? identity.peerId : null;   // set post-mint
+    const s4on = true;                      // unconditional — no off switch
     const verifyChain = net.makeChain();
 
     let seat = null, timer = null;
