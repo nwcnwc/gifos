@@ -152,8 +152,10 @@ const LED_APP = {
     const km = await crypto.subtle.importKey('raw', new TextEncoder().encode('hunter2!'), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
     const K = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(K));
-    const V = Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+    // V commits to the PUBLIC key K seeds (meet-security §SIG), NOT to K
+    // itself — derive it exactly as the lobby's createAdminRoom does, or
+    // adoptAdmKey rejects the key and amAdmin never arms.
+    const V = (await window.GifOS.net.edKeysFromSeedHex(K)).verifier;
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, admRoom);
