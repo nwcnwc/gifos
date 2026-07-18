@@ -55,7 +55,7 @@ correct** — they are audit-confirms, not big builds.
 
 ## Control plane
 
-### 1. W7 — the 5×5 rook's graph (degree 9, Section 1 ONLY) — MISSING
+### §1. W7 — the 5×5 rook's graph (degree 9, Section 1 ONLY) — MISSING
 
 **Rule:** healing-laws W7. Every Section-1 seat meshes its whole ROW *and* its
 whole COLUMN — uniform degree 9 (C-1 row + C-1 column + 1 down), the 8-edge-
@@ -100,7 +100,7 @@ gossip `linkPeers` at `mesh.js:267-277`) reads these. Do it sim-first
 (`test/topo.js` pins topo.h↔gifos-net.js equality). Medium risk overall because
 so many consumers assume "cross-link = one coord."
 
-### 2. C3 exclusivity + S5 empty-only — MISSING (production still on `lowestSurvivor`)
+### §2. C3 exclusivity + S5 empty-only — MISSING (production still on `lowestSurvivor`)
 
 **Rule:** C3 — exactly ONE healer per hole, known in advance (down-child H1,
 else right-neighbour H2), and ONLY it may fill the hole; a bare claim from
@@ -154,7 +154,7 @@ plan gates it (increments 13–14) on the sim's A+B being green, which
 `option-a-plan.md:28` reports is **not yet achieved** (dups bounded ~340 but not
 0, split-brain disjoint-clique blocker). Do NOT port ahead of the sim proof.
 
-### 3. E2 rescope + first-hand echo-immune liveness + tenure + lower-id-wins — PARTIAL
+### §3. E2 rescope + first-hand echo-immune liveness + tenure + lower-id-wins — PARTIAL
 
 **Rule:** E2 settles duplicates only between two *legitimate* LIVE occupants;
 "live" is **first-hand only** (gossip may route but never keeps a phantom alive
@@ -194,7 +194,7 @@ gossip-fed (the bug).**
 **Size/risk:** Medium. It is the "echo-immune liveness" half of the sim's open
 A+B blocker — coupled to §2, best done together, sim-first.
 
-### 4. H1-S1 — ring-heal conservatism (heal a home cell only on STRONG, all-paths confirmation) — MISSING
+### §4. H1-S1 — ring-heal conservatism (heal a home cell only on STRONG, all-paths confirmation) — MISSING
 
 **Rule:** a Section-1 cell is healed only after its occupant is unreachable via
 **all** its redundant paths (W7) for a settled window — a much higher bar than
@@ -220,7 +220,7 @@ longer than max severance; keep the "hold the hole, never duplicate" bias.
 **Size/risk:** Medium; **depends on §1** (needs the redundant paths to exist)
 and §3 (first-hand liveness to measure them honestly).
 
-### 5. S4 — per-person identity (keypair at join, peer-id = H(key)) — MISSING (biggest / newest item)
+### §5. S4 — per-person identity (keypair at join, peer-id = H(key)) — MISSING (biggest / newest item)
 
 **Rule:** identity is **one keypair per PARTICIPANT**, minted once at join and
 stable across moves (promotion moves your coord, never your identity). DTLS
@@ -275,7 +275,7 @@ on the join path, a relay-handshake change, and it touches every id-trusting
 site. Sequence it AFTER §2 (it is what makes §2's rejection enforceable) but it
 is a prerequisite for §2 being *secure* rather than merely *structural*.
 
-### 6. No relay tie-break / no relay ring-bridge — ALREADY CORRECT (confirm only)
+### §6. No relay tie-break / no relay ring-bridge — ALREADY CORRECT (confirm only)
 
 **Rule:** R2 — the relay is a zero-knowledge greeter registry; it arbitrates
 nothing. A torn home is two rooms; there is no relay-as-arbiter, no relay
@@ -303,7 +303,7 @@ the relay (roadmap increment 18 moves them onto signed mesh gossip) — that is
 governance, not ring-arbitration, so it does not violate R2's "arbitrates
 nothing," but it is a residual non-greeting relay path to retire later.
 
-### 7. E1 drain / W5 roster / R6 stranded-newcomer — PRESENT (mostly correct)
+### §7. E1 drain / W5 roster / R6 stranded-newcomer — PRESENT (mostly correct)
 
 **Status: DONE / PARTIAL.**
 
@@ -334,7 +334,7 @@ The media plane is built largely to `docs/media-plane.md` and is being
 swarm-tested in production. It is a *consumer* of the control plane, so its
 correctness is coupled to the topology it reads.
 
-### 8. Multi-subscribe (2 active + dormant spares, replaceTrack, no flicker) — DONE
+### §8. Multi-subscribe (2 active + dormant spares, replaceTrack, no flicker) — DONE
 
 **Status: DONE** (commit `944f0e0`), looks complete.
 
@@ -354,7 +354,7 @@ correctness is coupled to the topology it reads.
 are subtle — worth a live soak test for thrash, but no correctness gap seen from
 reading.
 
-### 9. Cross-link redundancy up+down (Stadium `sd`/`sgs`, Stage collect) — PRESENT
+### §9. Cross-link redundancy up+down (Stadium `sd`/`sgs`, Stage collect) — PRESENT
 
 **Status: PRESENT** for the sparse-transpose topology of today.
 
@@ -383,7 +383,7 @@ partner otherwise (`gifos-net.js:499-504`). So:
   column-mate deterministically. **Flag: this is the media rewiring the day the
   rook's graph lands.**
 
-### 10. Stage / Stadium mechanics (collect-composite-fan, packer, no election) — PRESENT
+### §10. Stage / Stadium mechanics (collect-composite-fan, packer, no election) — PRESENT
 
 **Status: PRESENT / to spec.**
 
@@ -415,7 +415,7 @@ partner otherwise (`gifos-net.js:499-504`). So:
   `stopRelayFor` `meet.html:3451-3513`. This is the P1 friend-relay for *direct
   peer* streams (row-mates), independent of the Stadium/Stage fans; looks intact.
 
-### 11. App / data on Stage (a DATA stream, not A/V) — MISSING
+### §11. App / data on Stage (a DATA stream, not A/V) — MISSING
 
 **Rule:** `docs/media-plane.md` "An APP on Stage carries a DATA stream, not
 A/V": an app occupies one of the ≤C Stage seats, broadcasts its shared *state*
@@ -441,7 +441,7 @@ the mesh Stage data path.**
 app state as a data stream down the Stage path instead of a relay app-session.
 Not started. **Size:** large; it is its own track.
 
-### 12. Media plane vs. the new control-plane rules — will need rewiring
+### §12. Media plane vs. the new control-plane rules — will need rewiring
 
 Flagged inline above; consolidated:
 - **§9 caveat:** every `T.crossLink(c)` media call site
@@ -487,15 +487,15 @@ Flagged inline above; consolidated:
 
 | # | Item | Status | Size/Risk |
 |---|------|--------|-----------|
-| 1 | W7 rook's graph (degree 9, S1 only) | MISSING | Small change, wide blast radius |
-| 2 | C3 exclusivity + S5 empty-only (port 11a; kill `lowestSurvivor`) | MISSING/CONTRADICTS | Large, high — gated on sim A+B |
-| 3 | E2 first-hand echo-immune liveness + tenure | PARTIAL (tie-break OK, S1 liveness gossip-fed) | Medium |
-| 4 | H1-S1 ring-heal conservatism (all-paths) | MISSING | Medium, depends on §1/§3 |
-| 5 | S4 per-person identity (keypair@join, id=H(key)) | MISSING | **Largest / newest**, high |
-| 6 | No relay arbiter / ring-bridge | DONE (confirm) | None |
-| 7 | E1 drain / W5 roster / R6 stranded | PRESENT (S1 liveness caveat) | None standalone |
-| 8 | Multi-subscribe redundancy | DONE | Low (soak-test) |
-| 9 | Cross-link redundancy up+down | PRESENT | Rewire on §1 |
-| 10 | Stage/Stadium collect-composite-fan | PRESENT | ICE-restart unverified |
-| 11 | App/data on Stage (data stream) | MISSING | Large (own track, roadmap 26-28) |
-| 12 | Media vs new control rules | Rewire needed | Medium, coupled to §1/§2/§3 |
+| §1 | W7 rook's graph (degree 9, S1 only) | MISSING | Small change, wide blast radius |
+| §2 | C3 exclusivity + S5 empty-only (port 11a; kill `lowestSurvivor`) | MISSING/CONTRADICTS | Large, high — gated on sim A+B |
+| §3 | E2 first-hand echo-immune liveness + tenure | PARTIAL (tie-break OK, S1 liveness gossip-fed) | Medium |
+| §4 | H1-S1 ring-heal conservatism (all-paths) | MISSING | Medium, depends on §1/§3 |
+| §5 | S4 per-person identity (keypair@join, id=H(key)) | MISSING | **Largest / newest**, high |
+| §6 | No relay arbiter / ring-bridge | DONE (confirm) | None |
+| §7 | E1 drain / W5 roster / R6 stranded | PRESENT (S1 liveness caveat) | None standalone |
+| §8 | Multi-subscribe redundancy | DONE | Low (soak-test) |
+| §9 | Cross-link redundancy up+down | PRESENT | Rewire on §1 |
+| §10 | Stage/Stadium collect-composite-fan | PRESENT | ICE-restart unverified |
+| §11 | App/data on Stage (data stream) | MISSING | Large (own track, roadmap 26-28) |
+| §12 | Media vs new control rules | Rewire needed | Medium, coupled to §1/§2/§3 |
