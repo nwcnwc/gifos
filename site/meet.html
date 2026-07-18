@@ -1753,10 +1753,14 @@
       const doors = doorPeers(to, envl.tc);
       if (doors.length) {
         if (envl.k === 'fmesh') { // beat-retried control only — fsig (offers/answers/one-shot ICE) is never swallowed
-          const now = Date.now(), last = doorLast.get(to) || 0;
+          // One lane PER (target, frame type): PHONE fires before _gspRefan in
+          // the same tick, so a single per-target lane would starve GSP (the
+          // status gossip that feeds the roster) forever.
+          const lane = to + '|' + ((envl.m && envl.m.t) || '');
+          const now = Date.now(), last = doorLast.get(lane) || 0;
           if (now - last < 300) return true; // swallowed: the next beat re-mints it
-          doorLast.set(to, now);
-          if (doorLast.size > 256) { for (const [k, at] of doorLast) if (now - at > 30000) doorLast.delete(k); }
+          doorLast.set(lane, now);
+          if (doorLast.size > 512) { for (const [k, at] of doorLast) if (now - at > 30000) doorLast.delete(k); }
         }
         txStats.doorSig++;
         const d = doors[0];
@@ -2189,7 +2193,13 @@
       // lingering in occ until healing evicts it must not be a roster member —
       // it drew a black tile in somebody's row and, as a non-consenter, held
       // the whole room blurred (the "2 black squares" ghosts).
-      const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); return !!(p && p.connected); };
+      // FIRST-HAND mesh liveness counts too (§FWD): a just-seated newcomer's
+      // PHONE reaches its neighbours (sponsor-forwarded) beats before its
+      // status gossip settles — the seat's own `live` map (set ONLY by direct
+      // contact, E2) must be enough to form the link, or link formation
+      // deadlocks on the very gossip that needs the link.
+      const fhLive = (v) => { for (const [k, vv] of s.occ) if (vv === v) { const at = s.live.get(k); return at !== undefined && (s.env.TICK - at) <= 60; } return false; };
+      const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); };
       for (const v of s.occ.values()) if (v && v !== myId && alive(v)) ids.add(v);
       for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000) ids.add(pid);
       rosterIds = Array.from(ids);
