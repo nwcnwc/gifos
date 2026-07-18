@@ -252,6 +252,7 @@ async function join(room, opts) {
   await ctx.addInitScript({ content: camInitScript() });
   page = await ctx.newPage();
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
+  page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
   const url = cfg.base + '/meet.html#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
   console.error('[meet] joining ' + url + ' as "' + cfg.name + '"' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));

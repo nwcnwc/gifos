@@ -1541,6 +1541,19 @@
       const at = (localStream && localStream.getAudioTracks()[0]) || null;
       for (const p of peers.values()) {
         const cam = camPeer(p.id) && !staged; // structural link OR staged ⇒ no raw camera encode
+        // BECAME a row-mate after a seat move (heal/teleport): the pc predates
+        // the row link and carries NO main senders — without this the new
+        // mate's direct tile stays BLACK until a full transport rebuild.
+        // Attach the missing senders on the LIVE pc (fresh m-lines, one
+        // renegotiation) instead of leaving the link cameraless.
+        if (cam && localStream && p.pc && !p.headless && (!p.mainV || !p.mainA)) {
+          let added = false;
+          try {
+            if (!p.mainA && at) { p.mainA = p.pc.addTrack(at, localStream); added = true; }
+            if (!p.mainV && vt) { p.mainV = p.pc.addTrack(vt, localStream); added = true; }
+          } catch (e) {}
+          if (added) { if (p.dc && p.dc.readyState === 'open') compKick(p.id); else renegotiate(p); }
+        }
         if (p.mainV) {
           if (!cam || !vt) { if (p.mainV.track) p.mainV.replaceTrack(null).catch(() => {}); }
           else if (p.mainV.track !== vt) p.mainV.replaceTrack(vt).catch(() => {});
@@ -2443,6 +2456,7 @@
     // The sweeper heals what it can and buries what's really gone:
     //  - absent + link down past grace → tile removed
     //  - present + link down → the initiator side re-offers with an ICE restart
+    let lastRmSig = ''; // row-mate set signature — refreshOutbound on change (became/stopped-being a mate)
     setInterval(() => {
       const now = Date.now();
       // Elections settle as cap gossip arrives — follow the arithmetic.
@@ -2530,6 +2544,13 @@
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); }
       reactStageSelf(); // staged (gossiped stageIds) ⇒ my MAIN senders park; step-down restores them
       reconcileGrid();  // stager tiles hide/return as the gossiped stage set changes
+      // Row-mate set changed (heal, teleport, newcomer): re-derive my MAIN
+      // senders. A peer that BECAME a row-mate has a pc that predates the row
+      // link — refreshOutbound attaches the missing camera/mic senders on it
+      // (otherwise the new mate sees a black direct tile until a transport
+      // rebuild); one that STOPPED being a mate gets its video parked.
+      const rmSig = rowMates().sort().join(',');
+      if (rmSig !== lastRmSig) { lastRmSig = rmSig; refreshOutbound(); }
       reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights

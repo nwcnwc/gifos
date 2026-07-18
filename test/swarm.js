@@ -327,6 +327,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       fakeCam(idx, FPS, person) });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
+    p.on('crash', () => console.log('[bot ' + idx + '] RENDERER CRASHED'));
     p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
     pages.push({ idx, p });
     if (RAMP) await sleep(RAMP);
@@ -355,6 +356,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         fakeCam(idx, FPS, person) });
       const p = await ctx.newPage();
       p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
+    p.on('crash', () => console.log('[bot ' + idx + '] RENDERER CRASHED'));
       p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
       return p;
     };
