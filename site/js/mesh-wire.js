@@ -47,10 +47,9 @@
  *     with m.s4ok stamped (mesh.js's verifyFill gate passes) and its key pinned;
  *     a forged/impostor/key-swapped frame is DROPPED. Verification is chained
  *     FIFO so crypto never reorders a sender's frames.
- * S4 is OPT-IN by identity presence: a legacy caller that passes opts.peer (the
- * structural harness shape, and meet.html today) runs with S4 OFF — no signing,
- * no verification — so the coord-based control plane is unchanged. The crypto
- * is strictly ADDITIVE.
+ * S4 is MANDATORY — there is no off switch: mesh-identity.js must be loaded
+ * (hard fail otherwise), every node mints (or is handed) an identity, and
+ * signing + verification are unconditional.
  */
 (function (root) {
   const GifOS = root.GifOS = root.GifOS || {};
@@ -90,6 +89,12 @@
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
     let sock = null, deepSince = -1;
+    // The ROOM KEY the wire seals/opens with (greeter blobs, sealed relay
+    // fallback). MUTABLE: a password change re-keys the room (§LOCK), and the
+    // wire must follow — a greeter that kept sealing its registry blob under
+    // the OLD key would lock every new-password newcomer out (R6 false
+    // "wrong password") until it reloaded. See node.setKey below.
+    let roomKey = opts.key;
 
     // S4 identity is MANDATORY — there is NO "off". No mesh-identity.js loaded ⇒
     // hard fail (never a silent legacy-id degrade); no legacy client-set peer id
@@ -121,7 +126,7 @@
     // this is reached.)
     function deliver(to, m) {
       if (opts.sendDC && opts.sendDC(to, m)) return;
-      net.seal(opts.key, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
+      net.seal(roomKey, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
     }
     const env = {
       TICK: 0,
@@ -144,7 +149,7 @@
           // seated Section-1 greeter's {peerId, coord}, not a bare id — sealed
           // under the room key the relay never holds (R2). A knocker that opens
           // it learns WHERE the greeter sits, not just who it is.
-          net.seal(opts.key, { p: peer, c: seat.coord }).then((b) => relaySend({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
+          net.seal(roomKey, { p: peer, c: seat.coord }).then((b) => relaySend({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
             .catch(() => relaySend({ t: 'knock', gk: k }));
         } else relaySend({ t: 'knock', gk: k });
       },
@@ -178,7 +183,7 @@
         if (m.t === 'peer' && m.msg) {
           // Mesh control frames ({mw:1}) are consumed here; anything else —
           // app signaling, fragments, unopenable — is the app's to handle.
-          net.open(opts.key, m.msg).then((o) => {
+          net.open(roomKey, m.msg).then((o) => {
             if (stopped) return;
             if (o && o.mw === 1 && o.m) ingest(o.m);
             else if (opts.onRelayMsg) opts.onRelayMsg(m);
@@ -200,7 +205,7 @@
       const list = m.list || [];
       const ids = [];
       for (const s of list) {
-        try { const o = await net.open(opts.key, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
+        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
       }
       if (stopped || !seat) return;
       if (list.length && !ids.length) { fireLocked(); return; }        // R6: sealed list I can't read — wrong password
@@ -255,6 +260,13 @@
       // Recreates the socket on demand, same as the mesh's own sends.
       relaySend(obj) { relaySend(obj); },
       relayUp() { return !!(sock && sock.state === 'up'); },
+      // Password change re-keyed the room (§LOCK): adopt the NEW key for every
+      // wire seal/open, and — if this seat is a Section-1 greeter — re-knock
+      // NOW so the registry blob re-seals under it. Without this, newcomers
+      // holding the new password can't decrypt any greeter blob (R6 reads as
+      // "wrong password") until every greeter's E3 re-knock… which would also
+      // have used the stale key, locking them out until a reload.
+      setKey(k) { if (k) { roomKey = k; try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
       stats() { return { peer, state: seat ? seat.state : 0, coord: (seat && seat.hasCoord) ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: !!(seat && seat.stranded), tick: env.TICK }; },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; if (timer) clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },

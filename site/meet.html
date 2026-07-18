@@ -2269,6 +2269,11 @@
     function rekeyRoom() {
       return net.deriveMeetKey(room, av, roomPw).then((k) => {
         if (k) roomE2E = k;
+        // The WIRE seals with its own captured key (greeter registry blobs,
+        // sealed relay fallback) — hand it the new one, or a Section-1 greeter
+        // keeps registering blobs under the OLD key and every new-password
+        // newcomer reads R6 "wrong password" forever (see mesh-wire setKey).
+        if (k && meshNode && meshNode.setKey) meshNode.setKey(k);
         if (typeof clog === 'function') clog('rekey ' + (roomPw ? 'locked' : 'open'));
       });
     }
