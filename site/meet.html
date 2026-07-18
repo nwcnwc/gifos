@@ -5967,6 +5967,11 @@
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC vs sponsor hops)
       relayUp: () => relayUp(), // does my mesh node hold a live relay socket right now?
       relayReach: () => Array.from(relaySocketed), // who I believe the relay can reach (roster + nosock)
+      // Per-pair transport forensics (meet.js CLI + e2e): the raw WebRTC state.
+      pairs: () => Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8),
+        pc: p.pc ? p.pc.connectionState : null, ice: p.pc ? p.pc.iceConnectionState : null,
+        sig: p.pc ? p.pc.signalingState : null, dc: p.dc ? p.dc.readyState : null,
+        connected: !!p.connected, absent: !!p.absentSince })),
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
         micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
