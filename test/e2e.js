@@ -47,7 +47,7 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Meeting + Trash + Stolen Apps', labels.length === 9);
+  check('desktop root has folders + Welcome + Meeting + Trash + Stolen Apps + My Media', labels.length === 10); // My Media.gif was added to the default root seed
   check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps'].every((f) => labels.includes(f)));
   check('Stolen Apps wears its treasure-chest GIF (not the bare 📁 glyph)',
     await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
@@ -238,7 +238,9 @@ async function openApp(page, ctx, folder, label) {
   await sleep(300);
   check('background reset returns to the default', (await page.evaluate(() => document.getElementById('desktop').style.background)) === '');
   // Relay reachability probe (points at the local test relay)
-  await adv.locator('summary').click();
+  // Direct-child summary only: the Advanced settings <details> now NESTS the
+  // "Erase this computer" disclosure, so a bare .locator('summary') matches two.
+  await adv.locator('> summary').click();
   await page.locator('#set-relay').fill('ws://127.0.0.1:8790');
   await page.locator('#set-relay-test').click();
   await page.waitForFunction(() => /reachable|Could not|No answer|Error/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
@@ -738,33 +740,40 @@ async function openApp(page, ctx, folder, label) {
   // ---- pretty invite links: the 404 router maps /join/<code> into run.html ----
   // (GitHub Pages serves 404.html for unknown paths; the local test server
   // can't, so serve the real file via interception and exercise the router.)
-  const routed = await context.newPage();
+  // Use a SERVICE-WORKER-BLOCKED context: once the SW is installed it intercepts
+  // the /join and /meet navigations itself, and page.route() does NOT reach a
+  // SW-initiated fetch — so the injected 404.html router never runs and the
+  // redirect never happens (a Playwright/SW harness interaction, NOT a product
+  // bug: online, the real site serves 404.html to the SW and routing works).
+  const routerCtx = await browser.newContext({ serviceWorkers: 'block' });
+  const routed = await routerCtx.newPage();
   await routed.route('**/join/*', (route) => route.fulfill({
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await routed.goto(BASE + '/join/wkm4tr7q2x');
-  await routed.waitForURL(/run\.html#j=wkm4tr7q2x/, { timeout: 5000 });
+  await routed.waitForURL(/run\.html#j=wkm4tr7q2x/, { timeout: 5000, waitUntil: 'commit' });
   check('/join/<code> routes into the app runner with the code', true);
   await routed.close();
-  const called = await context.newPage();
+  const called = await routerCtx.newPage();
   await called.route('**/meet/*', (route) => route.fulfill({
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await called.goto(BASE + '/meet/wkm4tr7q2x');
-  await called.waitForURL(/meet\.html#v=wkm4tr7q2x$/, { timeout: 5000 });
+  await called.waitForURL(/meet\.html#v=wkm4tr7q2x$/, { timeout: 5000, waitUntil: 'commit' });
   check('/meet/<code> routes into the meeting page with the code', true);
   await called.close();
-  const admRouted = await context.newPage();
+  const admRouted = await routerCtx.newPage();
   await admRouted.route('**/meet/**', (route) => route.fulfill({
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await admRouted.goto(BASE + '/meet/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
-  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000 });
+  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000, waitUntil: 'commit' });
   check('/meet/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
   await admRouted.goto(BASE + '/meet/a');
-  await admRouted.waitForURL(/meet\.html#v=a$/, { timeout: 5000 });
+  await admRouted.waitForURL(/meet\.html#v=a$/, { timeout: 5000, waitUntil: 'commit' });
   check('single-character rooms route (the low channels are open to the world)', true);
   await admRouted.close();
+  await routerCtx.close();
 
   // ---- Trash: delete is recoverable ----
   const sys = await context.newPage();
@@ -796,8 +805,14 @@ async function openApp(page, ctx, folder, label) {
   check('backup downloads a desktop GIF', download.suggestedFilename() === 'gifos-desktop.gif');
   const backupPath = await download.path();
 
+  // Erase moved out of the system context menu into Settings → Advanced settings
+  // → "Erase this computer" disclosure (#set-erase, desktop.js), which fires the
+  // resetFlow() confirm with the "Erase without backup" action.
   await sys.locator('#sys-menu-btn').click();
-  await sys.locator('.ctx button', { hasText: 'Erase This Computer…' }).click();
+  await sys.locator('.ctx button', { hasText: 'Settings…' }).click();
+  await sys.locator('details.adv summary', { hasText: 'Advanced settings' }).click();
+  await sys.locator('.danger-zone summary', { hasText: 'Erase this computer' }).click();
+  await sys.locator('#set-erase').click();
   await Promise.all([
     sys.waitForNavigation({ waitUntil: 'load' }),
     sys.locator('.modal-actions button', { hasText: 'Erase without backup' }).click(),
@@ -805,7 +820,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 9 && !freshLabels.includes('Resume.gif'));
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 10 && !freshLabels.includes('Resume.gif')); // 10 root items now (My Media.gif added)
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();
@@ -861,14 +876,16 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('.ctx button', { hasText: 'Settings…' }).click();
   await page.locator('.modal.wide').waitFor({ timeout: 4000 });
   const settingsText = await page.locator('.modal.wide').textContent();
-  check('Settings shows current version and a version list', /Running/.test(settingsText) && /v0\.5\.0/.test(settingsText));
+  const runningVer = await page.evaluate(() => window.GIFOS_VERSION); // assert the ACTUAL running version, robust across bumps
+  check('Settings shows current version and a version list', /Running/.test(settingsText) && settingsText.includes('v' + runningVer));
   await page.locator('#set-close').click();
 
-  // ---- versioning: archived build under /versions/0.5.0/ serves a working desktop ----
+  // ---- versioning: archived build under /versions/0.6.0/ serves a working desktop ----
+  // (0.6.0 is the newest OLDER archived build; site/versions/ holds 0.6.0 + 0.7.0)
   const archived = await context.newPage();
-  await archived.goto(BASE + '/versions/0.5.0/index.html');
+  await archived.goto(BASE + '/versions/0.6.0/index.html');
   await archived.waitForSelector('.icon', { timeout: 8000 });
-  check('archived /versions/0.5.0/ build boots a working desktop', (await archived.$$('.icon')).length >= 5);
+  check('archived /versions/0.6.0/ build boots a working desktop', (await archived.$$('.icon')).length >= 5);
   await archived.close();
 
   // ---- versioning: update bar appears when a newer version is deployed ----

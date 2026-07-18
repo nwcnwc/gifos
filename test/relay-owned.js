@@ -63,24 +63,44 @@ function probe(sid, q, waitMs) {
     const openHost = await probe('plainroom', { epoch: '0', hostid: 'a' });
     check('a dotless (self-healing) sid hosts with no secret', !openHost.err);
 
-    // Meeting admin (role=mesh) now derives its verifier from the SID too — the
-    // same verifierOf helper — instead of a separate ?av= param. Proving the key
-    // still grants admin confirms meet + join are unified on the dot.
-    const mk = crypto.randomBytes(8).toString('hex');
-    const mv = crypto.createHash('sha256').update(mk).digest('hex').slice(0, 24);
-    const meshSid = 'lounge.' + mv;
-    const meshJoin = (q) => new Promise((resolve) => {
-      const params = new URLSearchParams(Object.assign({ role: 'mesh', peer: 'p' + Math.floor(Math.random() * 1e9), token: 't' }, q));
-      const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/s/' + meshSid + '?' + params.toString());
-      let r = { admin: null };
-      ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.t === 'joined') r.admin = !!m.admin; } catch (_) {} };
-      setTimeout(() => { try { ws.close(); } catch (e) {} resolve(r); }, 700);
+    // Meeting admin (role=mesh) is now a SIGNATURE, not a socket property
+    // (docs/meet-security.md §SIG; relay/src/relay.js — "no socket is 'an admin
+    // socket'"). Joining role=mesh NEVER grants adminship: the `joined` frame
+    // carries no admin flag. Adminship is instead proven per-order — the room's
+    // verifier is SHA-256(admin PUBLIC KEY) carried in the sid, and a privileged
+    // order (setpw, ban…) is honoured only when it bundles an Ed25519 proof
+    // { sp, sig, pub } whose pub hashes to that verifier and whose signature over
+    // the exact statement checks out. (The old model, where `?adm=<key>` made the
+    // relay stamp admin:true on the joined frame, is RETIRED.) We pin the CURRENT
+    // contract: no admin flag at the door; a correctly-signed setpw is honoured
+    // (password broadcast to the room); an unsigned/forged one is rejected.
+    const kp = crypto.generateKeyPairSync('ed25519');
+    const pubB64 = kp.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64');
+    const mv = crypto.createHash('sha256').update(pubB64).digest('hex').slice(0, 24);
+    const signOrder = (obj) => { const sp = JSON.stringify(obj); return { sp, sig: crypto.sign(null, Buffer.from(sp, 'utf8'), kp.privateKey).toString('base64'), pub: pubB64 }; };
+    // Open a mesh socket on a fresh room (distinct prefix ⇒ isolated session
+    // state), run fn(ws) once open, collect every frame, resolve the frames seen.
+    const meshRun = (room, fn, waitMs) => new Promise((resolve) => {
+      const params = new URLSearchParams({ role: 'mesh', peer: 'p' + Math.floor(Math.random() * 1e9), token: 't' });
+      const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/s/' + room + '.' + mv + '?' + params.toString());
+      const frames = [];
+      ws.onmessage = (e) => { try { frames.push(JSON.parse(e.data)); } catch (_) {} };
+      ws.onopen = () => { try { fn && fn(ws); } catch (_) {} };
+      setTimeout(() => { try { ws.close(); } catch (e) {} resolve(frames); }, waitMs || 700);
     });
-    const admIn = await meshJoin({ adm: mk });
-    check('meeting: correct key → admin (verifier taken from the sid)', admIn.admin === true);
-    await sleep(150);
-    const guestIn = await meshJoin({});
-    check('meeting: no key → not admin', guestIn.admin === false);
+
+    const plain = await meshRun('lounge-a', null, 400);
+    const joinedFrame = plain.find((f) => f.t === 'joined');
+    check('meeting: joining role=mesh grants NO admin (joined frame has no admin flag)', !!joinedFrame && joinedFrame.admin === undefined);
+
+    const okPw = 'sekret-' + crypto.randomBytes(3).toString('hex');
+    const signed = await meshRun('lounge-b', (ws) => { ws.send(JSON.stringify({ t: 'setpw', pw: okPw, w: signOrder({ act: 'setpw', pw: okPw, ts: Date.now() }) })); });
+    check('meeting: a correctly SIGNED setpw is honoured (pw broadcast, no error)',
+      signed.some((f) => f.t === 'pw' && f.pw === okPw) && !signed.some((f) => f.t === 'error'));
+
+    const forged = await meshRun('lounge-c', (ws) => { ws.send(JSON.stringify({ t: 'setpw', pw: 'rogue' })); });
+    check('meeting: an UNSIGNED setpw is rejected (admins only, no pw broadcast)',
+      forged.some((f) => f.t === 'error' && /admins only/.test(f.error || '')) && !forged.some((f) => f.t === 'pw'));
   } finally { relay.kill(); }
   console.log(fail ? ('\n' + fail + ' failed') : '\nAll checks passed');
   process.exit(fail ? 1 : 0);
