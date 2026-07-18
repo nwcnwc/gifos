@@ -21,7 +21,16 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   };
 
   // ---- A themed computer: wallpaper runs on the desktop, not on meet ----------
-  const themed = await browser.newContext();
+  // Block the service worker: sw.js ALSO precaches /themes/<label>/wallpaper.js
+  // using its OWN location.hostname label (it can't see the page-only
+  // window.GIFOS_THEME override). On 127.0.0.1 the first octet "127" is misread
+  // as a subdomain label, so the SW fetches /themes/127/wallpaper.js and trips
+  // the "default requests no wallpaper" assertion — a localhost artifact, not a
+  // product bug (a real default host like gifos.app has an empty label → no
+  // request). This suite is about the page THEME CASCADE (override-only), so we
+  // isolate it from the SW precache. (On a real subdomain the SW precache is
+  // correct and covered elsewhere.)
+  const themed = await browser.newContext({ serviceWorkers: 'block' });
   await themed.addInitScript({ content: "window.GIFOS_THEME='wptest';" });
   await stubWallpaper(themed);
 
@@ -38,7 +47,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
 
   // ---- The default (un-themed) computer never even requests a wallpaper --------
   const hitsBefore = wpHits;
-  const plain = await browser.newContext();
+  const plain = await browser.newContext({ serviceWorkers: 'block' }); // isolate the theme cascade from the SW label-precache (see above)
   await plain.addInitScript({ content: "window.GIFOS_THEME='';" }); // '' = the plain default
   await stubWallpaper(plain);
   const home = await plain.newPage();

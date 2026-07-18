@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 require('../site/js/gifos-net.js');
 require('../site/js/mesh.js');
+require('../site/js/mesh-identity.js'); // S4 is MANDATORY: the wire throws without it (load before mesh-wire.js; the wire mints each node's per-participant identity)
 require('../site/js/mesh-wire.js');
 const net = globalThis.GifOS.net, wire = globalThis.GifOS.meshWire;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,11 +35,16 @@ function census(nodes) {
   console.log('BURST: creating ' + N + ' nodes in one synchronous loop, ZERO stagger…');
   const nodes = [];
   for (let i = 0; i < N; i++) {
-    const peer = 'f' + String(i).padStart(2, '0');
-    const node = wire.createMeshNode({ relayUrl: RELAY, sid: 'flood-sid', tok: 'T', key, peer, tickMs: 25, sendDC });
-    bus.set(peer, { node, dead: false });
+    // No `peer` passed: S4 is mandatory, so the wire MINTS a per-participant
+    // identity (node.peer = H(pubkey)) — the id it actually routes on.
+    const node = wire.createMeshNode({ relayUrl: RELAY, sid: 'flood-sid', tok: 'T', key, tickMs: 25, sendDC });
     nodes.push(node);
   } // <-- no await between them: all sockets open together, all connect-knock at once
+  // Once each node's keypair is minted, key the DC bus by the MINTED id so
+  // sendDC(to) resolves (mint is a brief local async step; the burst — the
+  // simultaneous relay connect+knock — already fired above).
+  await Promise.all(nodes.map((n) => n.whenReady));
+  for (const n of nodes) bus.set(n.peer, { node: n, dead: false });
 
   for (let t = 0; t < 40; t++) {
     await sleep(1000);

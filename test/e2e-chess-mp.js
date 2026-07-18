@@ -20,7 +20,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const GIF_B64 = readFileSync(path.join(__dirname, '..', 'apps', 'chess-grandmaster.gif')).toString('base64');
 
 async function enterFriend(page) {
-  await page.waitForSelector('iframe', { timeout: 12000 });
+  // 30s (was 12s): the JOINER mounts the WASM chess app only after the app-mesh
+  // join + P2P handshake completes, which now runs on top of S4's async identity
+  // mint — legitimately slower than the old synchronous client-set-id path. The
+  // engine-ready wait below is already 45s; the iframe appears before that.
+  await page.waitForSelector('iframe', { timeout: 30000 });
   await page.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {});
   const fr = page.frameLocator('iframe');
   await fr.locator('#engineChip', { hasText: 'ready' }).waitFor({ timeout: 45000 }).catch(() => {});
