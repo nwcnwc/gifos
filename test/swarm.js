@@ -364,6 +364,18 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       try { cmd = fs2.readFileSync(CTRL, 'utf8').trim(); } catch (e) { return; }
       if (!cmd) return;
       try { fs2.writeFileSync(CTRL, ''); } catch (e) {}
+      if (cmd === 'who') { // print idx → name @ coord for every live bot
+        for (const ent2 of pages) {
+          if (!ent2.p) { console.log('[swarm] ctrl: bot ' + ent2.idx + ' DEAD'); continue; }
+          try {
+            const w = await ent2.p.evaluate(() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              return { c: g(() => { const c = window.__gifosVideo.meshCoord(); return c ? c.pc + '/' + c.r + '.' + c.i : null; }, null),
+                       n: g(() => localStorage.getItem('gifos_name'), null) }; });
+            console.log('[swarm] ctrl: bot ' + ent2.idx + ' = ' + (w.n || '?') + ' @ ' + (w.c || 'unseated'));
+          } catch (e) { console.log('[swarm] ctrl: bot ' + ent2.idx + ' unreachable'); }
+        }
+        return;
+      }
       const m = /^(kill|respawn)\s+(\d+)$/.exec(cmd);
       if (!m) { console.log('[swarm] ctrl: unknown command "' + cmd + '"'); return; }
       const idx = parseInt(m[2], 10);
