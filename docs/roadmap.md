@@ -64,6 +64,18 @@ login).
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
+- **Compaction via atomic moves (2026-07-19, design agreed with Nathan).** A seat
+  that observes strictly-better vacancies above — a shallower seat, or joining an
+  occupied row instead of sitting in a lone-row section — initiates an ordinary
+  ATOMIC MOVE to the frontier (normal admission, S4-signed, transit lease, grace
+  over the media hop); the up-seat/parent is the natural admitter with the
+  freshest frontier view. Hysteresis: move only on stable strict improvement,
+  rate-limited, so boundary oscillation never sloshes seats. Payoffs: kills
+  persistent lone-row deep sections (the sdn mirror's one provable no-route
+  case becomes transient-only), removes wasted depth/latency in shrinking
+  rooms, and packs the tree the stadium metaphor always assumed. Depends on:
+  law T (atomic moves) landing. Queue position: after the healing amendment.
+
 - **Headless-row admission gap (2026-07-18, from the H7 row-fill work; needs a
   sim-first design decision).** When the Section-1 head of a 2-person room
   leaves and a new joiner arrives within seconds: the head cell's designated
