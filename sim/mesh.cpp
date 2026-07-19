@@ -99,7 +99,7 @@ static const long long LEASE_TTL=40;
 // moves up (law T dual-hold). Rate-limited + settle-gated so a healing boundary
 // never sloshes seats. depth is a monotone potential ⇒ MOVES provably settle.
 static const long long COMPACT_PERIOD=90;   // min ticks between one leaf's compaction probes (rate limit / hysteresis)
-static const long long COMPACT_SETTLE=40;   // don't compact until settled this long since seating / last heal / last move (anti-thrash)
+static const long long COMPACT_SETTLE=300;  // don't compact until settled this long since seating / last heal / last move / last local churn. Sized ABOVE the healing horizons (60 deep / RING_HOLD-scale) so a mass-heal fully re-converges before compaction stirs the tree — a shorter window let compaction ~2x the mass-heal convergence time (transient s1 dips) and flake the churn sweep.
 static const int       COMPACT_TTL=30;      // FIND hop budget for a compaction probe
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
