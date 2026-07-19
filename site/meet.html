@@ -6629,6 +6629,7 @@
         let mos = null; try { mos = window.__gifosVideo.mosaic(); } catch (e) { mos = { err: String(e).slice(0, 60) }; }
         return {
           me: { peer: myId, name: myName(), coord: c ? (c.pc + '/' + c.r + '.' + c.i) : null,
+            depth: c ? net.topo.pcDepth(c.pc) : null, compactMoves: s ? (s.compactMoves || 0) : 0,   // Q2 observability: my tree depth + how many times I have compacted upward
             state: (meshSeat() || {}).state, links: s ? [...s.linkPeers()].length : 0, occ: s ? s.occ.size : 0 },
           participants: participantCount(), inMeeting: rosterIds.length + 1,
           rows: (() => { if (!c) return []; const g = []; for (let r = 0; r < SCALE.C; r++) { const row = []; for (let i = 0; i < SCALE.C; i++) { const pid = meshOccAt({ pc: c.pc, r, i }); row.push(pid ? String(pid).slice(0, 8) : null); } g.push(row); } return g; })(), // real C×C section grid
