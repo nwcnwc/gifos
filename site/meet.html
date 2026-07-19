@@ -1658,6 +1658,7 @@
       return msg;
     };
     const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0, fwdSig: 0, fwdMesh: 0, doorSig: 0, hopFwd: 0, hopRelay: 0, nosock: 0 }; // test/inspection hook: where heartbeats + signaling + sponsor hops actually travel
+    const rxStats = { offer: 0, answer: 0, ice: 0, status: 0, offerRejected: 0, answerNoPeer: 0 }; // reception mirror: what actually ARRIVED (and what was refused)
     // ---- §FWD sponsor-forward machinery (docs/meet-security.md) -------------
     // Shared by fsig (WebRTC signaling) and fmesh (mesh control). The old rule
     // — "one hop via a MUTUAL DataChannel friend" — deadlocked the newcomer:
@@ -2068,8 +2069,9 @@
       if (!msg || !msg.kind) return;
       msg = sigSansIce(from, msg); // fault injection: a blocked pair yields nothing
       if (!msg) return;
+      if (rxStats[msg.kind] !== undefined) rxStats[msg.kind]++;
       if (msg.kind === 'offer') {
-        if (!linkTo(from)) return; // outside my row's link set — rows settle, they retry
+        if (!linkTo(from)) { rxStats.offerRejected++; return; } // outside my row's link set — rows settle, they retry
         const p = makePeer(from, msg.name);
         learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
@@ -2080,7 +2082,7 @@
           .catch(() => {});
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
-        if (!p) return;
+        if (!p) { rxStats.answerNoPeer++; return; }
         learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
@@ -5965,6 +5967,7 @@
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC vs sponsor hops)
+      rxStats: () => Object.assign({}, rxStats), // reception mirror (offers/answers/ice arrived, offers refused)
       relayUp: () => relayUp(), // does my mesh node hold a live relay socket right now?
       relayReach: () => Array.from(relaySocketed), // who I believe the relay can reach (roster + nosock)
       // Per-pair transport forensics (meet.js CLI + e2e): the raw WebRTC state.
