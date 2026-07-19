@@ -162,7 +162,12 @@ server.on('upgrade', (req, socket, head) => {
   // Worker. For a big LOCAL swarm, run: TRUSTED_IPS=127.0.0.1,::1,::ffff:127.0.0.1 node test/relay-local.js
   const TRUSTED = String(process.env.TRUSTED_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
   const trusted = TRUSTED.includes(ip);
-  const rejectConn = (error) => { conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
+  // Connection tracing (RELAY_DEBUG=1). A swarm bot that "comes up but never
+  // seats" is almost always a connection that never landed — rejected by a
+  // cap, or aimed at a DIFFERENT session id than the one being watched. The
+  // relay is the only place that can tell those apart, so it says so out loud.
+  const clog = (...a) => { if (process.env.RELAY_DEBUG) console.log('[conn]', ...a); };
+  const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
   const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
@@ -181,6 +186,8 @@ server.on('upgrade', (req, socket, head) => {
   jlog.push(nowJ); sess.joins.set(ip, jlog);
   if (jlog.length > 120 && !trusted) { rejectConn('joining too fast — slow down'); return; }
   conn.iph = iph;
+  clog('ACCEPT sid=' + parts[1] + ' peer=' + peer + ' role=' + role + ' ip=' + ip
+    + (trusted ? ' (trusted)' : '') + ' sessConns=' + (allConns() + 1) + ' fromThisIp=' + (mine + 1));
 
   // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
