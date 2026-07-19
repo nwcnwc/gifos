@@ -1771,6 +1771,7 @@
       return false;
     }
     const doorLast = new Map(); // per-target door-send throttle (§FWD)
+    const sponsorReplyTo = new Set(); // offers that arrived sponsored — answer along the same path (§FWD)
     // fwdOnward: an fsig/fmesh envelope reached me but names someone else —
     // pass it one bounded step onward: direct channel, else my mesh next hop,
     // else (last resort) the relay addressed to the TARGET itself — it may be
@@ -1840,7 +1841,11 @@
       // best-effort, never worse; for a socketed target + live relay this path
       // is unchanged (no sponsor, straight to the relay).
       const relayDown = !relayUp();
-      const targetUnreachable = !relaySocketed.has(to); // socketless deep seat ⇒ relay drops it
+      // altPath (§FWD transport rotation): a pair whose relay offers keep
+      // dying UNANSWERED — no nosock, target listed as socketed, yet nothing
+      // arrives (a zombie socket on either end) — alternates its retries onto
+      // the sponsor path. The sweeper flips it per re-offer; connect clears it.
+      const targetUnreachable = !relaySocketed.has(to) || !!(peers.get(to) || {}).altPath;
       if ((relayDown || targetUnreachable) && msg.kind !== 'status') {
         const m2 = sigSansIce(to, msg);
         if (!m2) return; // a blocked pair sends nothing on either path (fault injection)
@@ -1972,7 +1977,7 @@
       pc.onconnectionstatechange = () => {
         p.connected = pc.connectionState === 'connected';
         updateStatus();
-        if (p.connected) adapt();
+        if (p.connected) { p.altPath = false; adapt(); } // rotation ends when the pair lands
         clearTimeout(connBcastT); // my connectivity map changed → tell the room
         connBcastT = setTimeout(broadcastStatus, 300);
       };
@@ -2073,6 +2078,7 @@
       if (msg.kind === 'offer') {
         if (!linkTo(from)) { rxStats.offerRejected++; return; } // outside my row's link set — rows settle, they retry
         const p = makePeer(from, msg.name);
+        if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
@@ -2648,6 +2654,7 @@
         if (!p.absentSince && iInitiate(pid) && !p.connected && st === 'connecting'
             && p.downSince && now - p.downSince > 12000 && now - p.lastKick > 8000) {
           p.lastKick = now + Math.random() * 1500;
+          p.altPath = !p.altPath; // §FWD transport rotation — see sendSig
           if (now - p.downSince > 25000) { newPcFor(p); sendOffer(pid); }
           else sendOffer(pid, true);
         }
@@ -2659,6 +2666,7 @@
         if (!p.absentSince && iInitiate(pid) && !p.connected
             && (st === 'failed' || st === 'disconnected' || st === 'new') && now - p.lastKick > 6000) {
           p.lastKick = now + Math.random() * 1500;
+          p.altPath = !p.altPath; // §FWD transport rotation — a rotting relay path must not eat every retry
           sendOffer(pid, st !== 'new');
         }
         // Direct route recovered → drop any friend-relay for this peer.
@@ -3399,7 +3407,15 @@
         // target.
         const k3 = m.m && m.m.kind;
         if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice')) return;
-        if (m.to === myId) { if (m.from && m.from !== myId) onSignal(String(m.from), m.m); return; }
+        if (m.to === myId) {
+          if (m.from && m.from !== myId) {
+            // An offer that REACHED me sponsored gets its answer sent back the
+            // same way — the direct relay leg may be exactly what's rotten.
+            if (k3 === 'offer') sponsorReplyTo.add(String(m.from));
+            onSignal(String(m.from), m.m);
+          }
+          return;
+        }
         fwdOnward('fsig', m, p.id);
       } else if (m.k === 'ck') {
         // Clock sync (the grid's metronome): answer with our clock immediately;
