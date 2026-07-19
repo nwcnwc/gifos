@@ -1929,6 +1929,24 @@
       return cc.pc === c.pc && cc.r === c.r;
     }
     const camPeer = (pid) => isRowMate(pid);
+    // ---- mesh early-probe intake (healing-laws D5) --------------------------
+    // Transport death is MY first-hand evidence: when my DataChannel to a peer
+    // closes, or its pc lands in a hard state ('closed', or 'failed' persisting
+    // past the ICE-restart kick — see the sweeper), hand the observation to the
+    // mesh layer. The mesh only STARTS its probe-gated confirm: an alive peer
+    // answers the probe over the mesh (not the dead link) and keeps its seat.
+    // 'disconnected' alone is a blip — the ICE-restart path owns it, never this.
+    // Debounced per peer + edge-triggered in the mesh: one probe burst per
+    // transition, so a flapping link cannot storm.
+    function onTransportDead(pid, why) {
+      if (leaving || bannedOut) return;
+      const p = peers.get(pid);
+      const now = Date.now();
+      if (p) { if (p.tlAt && now - p.tlAt < 10000) return; p.tlAt = now; }
+      const s = meshSeat();
+      try { if (s && s.transportLost) s.transportLost(pid); } catch (e) {}
+      if (typeof clog === 'function') clog('translost ' + String(pid).slice(0, 6) + ' ' + why);
+    }
     function newPcFor(p) {
       try { p.pc && p.pc.close(); } catch (e) {}
       // A rebuilt transport starts with NO senders: forget every composite role
@@ -1982,9 +2000,15 @@
       };
       pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
       pc.onconnectionstatechange = () => {
+        if (p.pc !== pc) return; // a replaced transport's tail events — not this pair's truth
         p.connected = pc.connectionState === 'connected';
         updateStatus();
-        if (p.connected) { p.altPath = false; adapt(); } // rotation ends when the pair lands
+        if (p.connected) { p.altPath = false; p.tlAt = 0; adapt(); } // rotation ends when the pair lands; D5 edge re-arms
+        // D5: 'closed' out of nowhere (we didn't rebuild it and the peer is
+        // still in the room) is a hard transport death — first-hand evidence.
+        // 'failed' waits for the sweeper (must persist past the ICE-restart
+        // kick); 'disconnected' is a blip and never lands here.
+        if (pc.connectionState === 'closed' && peers.has(p.id)) onTransportDead(p.id, 'pc-closed');
         clearTimeout(connBcastT); // my connectivity map changed → tell the room
         connBcastT = setTimeout(broadcastStatus, 300);
       };
@@ -2627,7 +2651,17 @@
       }
       else if (m.t === 'unban') setStatus('\u2705 ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
       else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
-      else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
+      else if (m.t === 'peer-leave') {
+        const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000);
+        // D5: the relay WATCHED this peer's socket die (a transport observation
+        // by the dumb transport plane — a server frame no peer can forge, not
+        // gossip). On a SIGKILLed browser this lands in ~1-2s, long before the
+        // WebRTC stack downgrades the pair to 'failed' (~30s on desktop). It
+        // only STARTS the probe-gated confirm: a peer that merely dropped its
+        // deep socket on purpose (socket lifecycle) answers the probe over the
+        // mesh and keeps its seat — worst case, a spurious probe.
+        onTransportDead(m.peer, 'relay-leave');
+      }
       else if (m.t === 'error') {
         // Password gate is handled by the wire (onLocked / R6 sealing); bans
         // and vote-offs land here. No walk \u2014 the session cap is the greeter
@@ -2687,6 +2721,13 @@
           if (now - p.downSince > 25000) { newPcFor(p); sendOffer(pid); }
           else sendOffer(pid, true);
         }
+        // D5 (mesh early-probe): a pc sitting in 'failed' PAST the ICE-restart
+        // kick window (first kick fires at ~6s) is a hard transport death, on
+        // either side of the pair — hand my first-hand observation to the mesh,
+        // which probes the seat over the mesh and runs its existing confirm.
+        // An alive peer answers the probe and keeps its seat; 'disconnected'
+        // never reaches this (the restart path below owns blips).
+        if (st === 'failed' && !p.connected && p.downSince && now - p.downSince > 9000) onTransportDead(pid, 'failed-persist');
         // 'failed'/'disconnected' heal with an ICE restart — and a pc STUCK in
         // 'new' means our offer was dropped on arrival (the receiver's roster
         // hadn't caught up, so its row-discipline guard refused us): re-offer
@@ -3388,6 +3429,12 @@
       dc.onopen = () => {
         dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
       };
+      // D5: my channel to this peer died. On an ungraceful peer death (mobile
+      // tab kill, OOM, crash) this lands within ~1-5s — first-hand evidence
+      // that starts the mesh's probe-gated confirm early. Guards: only the
+      // CURRENT channel (a renegotiation replaces p.dc first), only while the
+      // peer is still in the room, never during our own teardown.
+      dc.onclose = () => { if (!leaving && p.dc === dc && peers.has(p.id)) onTransportDead(p.id, 'dc-close'); };
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
@@ -5768,7 +5815,7 @@
       const wire = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* action unsupported here */ } };
       wire('togglemicrophone', () => micBtn.onclick());
       wire('togglecamera', () => camBtn.onclick());
-      wire('hangup', () => { try { meshNode && meshNode.leave(); } catch (e) {} location.replace('index.html'); });
+      wire('hangup', () => { sendMeshLeave(); location.replace('index.html'); });
       // Chrome auto-enters picture-in-picture for call sites that handle this —
       // flip away and the stage follows you as a floating tile.
       wire('enterpictureinpicture', async () => {
@@ -5995,7 +6042,18 @@
       if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
     };
     document.getElementById('closed-reload').onclick = () => location.reload();
-    window.addEventListener('beforeunload', () => { leaving = true; try { meshNode && meshNode.leave(); } catch (e) {} });
+    // D2 "goodbyes are instant" — graceful-close coverage. beforeunload alone
+    // misses most MOBILE closes (swipe-away, navigation): pagehide is the
+    // strict superset that fires on every real unload path, so both are wired
+    // (idempotent — the LEAVE flushes over the DCs once). A phone that merely
+    // LOCKS or app-switches fires visibilitychange, NOT pagehide — stepping
+    // away keeps your seat (the away/absentSince machinery above handles it).
+    let leftMesh = false;
+    function sendMeshLeave() { if (leftMesh) return; leftMesh = true; leaving = true; try { meshNode && meshNode.leave(); } catch (e) {} }
+    window.addEventListener('beforeunload', sendMeshLeave);
+    window.addEventListener('pagehide', sendMeshLeave);
+    // bfcache resume after a pagehide: we already gave up our seat — rejoin fresh.
+    window.addEventListener('pageshow', (e) => { if (e.persisted && leftMesh) location.reload(); });
 
     // ================= App-in-meeting =================
     // Any app can run INSIDE the meeting: one participant hosts it through the

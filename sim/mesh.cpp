@@ -17,7 +17,7 @@ using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
 // ---- message ----
-enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK };
+enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message
 struct KV { uint64_t k; int v; };
 struct Ent { uint64_t k; int v; int age; int ch=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir
 struct Msg {
@@ -72,6 +72,15 @@ static const long long STRAND_TTL=500;   // R6: a newcomer that cannot reach any
 // recoverable availability dip, so the ring always chooses the hole. Much longer
 // than the deep-tree confirmation (60), because the rook has many paths to exhaust.
 static const long long RING_HOLD=220;
+// D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies (a
+// FIRST-HAND observation — the modelled DataChannel close, never gossip), the
+// confirm probe may start immediately instead of waiting out the silence
+// horizon. EARLY_HOLD is the settled window the probe gets on the mesh's
+// redundant paths before death is confirmed: a probe round trip plus a retry
+// (pending observations re-probe every ~6 ticks). The horizon (60/RING_HOLD)
+// remains the backstop when no transport event fired; an answered probe clears
+// the observation entirely — no eviction, E2 stands.
+static const long long EARLY_HOLD=12;
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
 // Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
@@ -143,6 +152,12 @@ struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
   Occ occ, live, s1seen, healTry, cousins, holeSince; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
+  // D5 early-probe state (keyed by coord ckey): translost = when MY transport to
+  // that coord's occupant died (edge-triggered); tlProbeAt = last re-probe tick;
+  // probeAck = last ROUTED answer for a probe of that coord (deliberately NOT
+  // `live` — a probe answer travels the mesh, so it can only ever PREVENT an
+  // early eviction, never evict or resurrect; E2 untouched).
+  Occ translost, tlProbeAt, probeAck;
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   long long greetAt=-1,s1CheckAt=-1;
@@ -160,7 +175,9 @@ struct Seat {
   template<class T> void shuf(vector<T>&a){ for(int k=(int)a.size()-1;k>0;k--){ int j=(int)(rng()*(k+1)); T tmp=a[k];a[k]=a[j];a[j]=tmp; } }
 
   inline int occGet(uint64_t k){ auto it=occ.find(k); return it==occ.end()?-1:it->second; }
-  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies)
+  inline void tlForget(uint64_t k){ translost.erase(k); tlProbeAt.erase(k); probeAck.erase(k); }
+  inline void tlClear(){ translost.clear(); tlProbeAt.clear(); probeAck.clear(); }
+  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v) tlForget(k); occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
   // E2 FIRST-HAND liveness: `live[]` is set ONLY by direct contact — a PHONE I
@@ -206,8 +223,10 @@ struct Seat {
   void serveFind(Msg& m);
   void admit(Coord c,int nc);
   void onPhone(Msg& m);
-  void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack();
+  void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack(); void tlSweep();
   bool ringConfirmDead(Coord h);   // H1-S1: true only after home cell h is unreachable via ALL rook paths for the full ring window (probe-gated)
+  void transportLost(int pid);     // D5 intake: MY transport to peer pid died (first-hand) — start the confirm probe NOW
+  bool translostConfirmed(uint64_t k);   // D5 verdict: transport-loss registered + probe unanswered on every path for EARLY_HOLD
   void drainOrReenter(); void reseatViaRoster();
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
@@ -221,6 +240,8 @@ struct Seat {
   bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
   int strictNextHop(Coord rdst);        // next hop toward rdst over an OWNED LINK only (-1 if the ideal link is vacant — no teleport)
   void routeTo(Coord target,int tag);
+  void routeToProbe(Coord target);      // D5: probe that AVOIDS the dead direct link (first hop excludes the probed occupant; answer routes back around, tag 3)
+  int probeHop(Coord target,int excludeId);   // D5: probe first hop — prefer a DIRECT neighbour of the target that isn't the dead link
   void leave();
 };
 
@@ -234,7 +255,7 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
-static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"}; return (t>=0&&t<21)?NM[t]:"?"; }
+static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST"}; return (t>=0&&t<22)?NM[t]:"?"; }
 // A TELEPORT must be IMPOSSIBLE. If a frame is ever about to be delivered to a
 // seat the sender has no honest path to (no owned link, not a socketed greeting
 // pair), the mesh has a routing bug — so we do NOT quietly count it: we detonate,
@@ -284,10 +305,15 @@ static void classifyEmit(int from,int to,const Msg& m){
   TELE_SRC[(m.direct?1:0)|(m.routing?2:0)]++;
   if(ROUTE_ENFORCE) teleportExplode(from,to,m);                 // enforcement ON ⇒ a teleport is a bug ⇒ detonate
 }
+// forcedSever: scenario-driven per-pair link cuts (the D5 "slow peer" probe —
+// a severed DataChannel with BOTH endpoints alive). Checked unconditionally,
+// unlike NET_SEVER's random severance which is gated on the conditions model.
+static unordered_map<uint64_t,long long> forcedSever;
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
   classifyEmit(from,to,m);
   if(cutBetween(from,to)) return;   // TOTAL PARTITION: endpoints are on opposite sides of the cut — the transport drops it
+  if(!forcedSever.empty() && from>=0 && to>=0){ auto it=forcedSever.find(pk); if(it!=forcedSever.end()){ if(it->second>TICK) return; forcedSever.erase(it); } }   // scenario severance: the link is dead, both seats live
 
   bool cond = (NUM_SUBNETS>1 || NET_LOSS>0 || NET_SEVER>0 || NET_LAT>1 || NET_QUAL_MIN<1.0);
   if(cond && from>=0 && to>=0 && from<(int)seats.size() && to<(int)seats.size()){
@@ -357,6 +383,19 @@ static void relayKnock(int id,uint64_t presentedKey){
 // ---- run / service ----
 static vector<vector<int>> spawnPlan;
 static int nextId=0, joinWindow=0; static long long MAXP=0;
+// D5: model the transport layer noticing a dead/severed peer. Every seat that
+// BELIEVES the target id occupies one of its owned-link coords holds a
+// "DataChannel" to it (exactly the production wiring), and that channel's death
+// is observed ~2-6 ticks later (the real DC close / hard pc failure lands in
+// ~1-5s). Delivered as a fabric EVENT frame (from=-1, like GREETERS): it is an
+// observation of MY OWN link — no peer can send it, gossip can never mint it.
+static void fireTranslost(int deadId){
+  for(int q=0;q<nextId;q++){ if(!alive[q]||q==deadId) continue; Seat*s=seats[q]; if(!s->hasCoord) continue;
+    Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); bool linked=false;
+    for(int k=0;k<n&&!linked;k++) if(s->occGet(ckey(ol[k]))==deadId) linked=true;
+    if(!linked) continue;
+    Msg m; m.t=TRANSLOST; m.id=deadId; m.to=q; m.from=-1; bus[TICK+2+(int)(grnd()*4)].push_back(move(m)); }
+}
 static void spawnDue(){ if(TICK<(long long)spawnPlan.size()) for(int k:spawnPlan[TICK]){ int id=nextId++; seats[id]=new Seat(id); alive[id]=1;
     if(NUM_SUBNETS>1) seats[id]->subnet=(int)(frnd()*NUM_SUBNETS);
     if(NET_QUAL_MIN<1.0) seats[id]->netQual=NET_QUAL_MIN+frnd()*(1.0-NET_QUAL_MIN);
@@ -460,8 +499,7 @@ int main(int argc,char**argv){
     long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP+EMIT_RELAY;
     printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  relay(socketed pair)=%lld (%.1f%%)  TELEPORT(faked)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
       EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_RELAY, tot?100.0*EMIT_RELAY/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
-    { const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK"};
-      printf("  TELEPORTS BY TYPE:"); for(int i=0;i<21;i++) if(TELE_BY_T[i]) printf(" %s=%lld",NM[i],TELE_BY_T[i]); printf("\n"); }
+    { printf("  TELEPORTS BY TYPE:"); for(int i=0;i<22;i++) if(TELE_BY_T[i]) printf(" %s=%lld",MT_NAME(i),TELE_BY_T[i]); printf("\n"); }
     printf("  TELEPORT SOURCE: plain=%lld direct(handoff)=%lld routing=%lld direct+routing=%lld\n", TELE_SRC[0],TELE_SRC[1],TELE_SRC[2],TELE_SRC[3]);
     return 0;
   }
@@ -594,7 +632,18 @@ int main(int argc,char**argv){
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
       string a=tk.size()>1?tk[1]:""; size_t sl=a.find('/'),dt=a.find('.',sl); if(sl==string::npos||dt==string::npos){printf("ERR usage: find <path>/<r>.<i>\n");continue;} string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps) pc=childPath(pc,ch-'0'); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()), i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); int who=-1; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&ckey(seats[q]->coord)==k){who=q;break;} printf("FIND %s -> seat %d\n",a.c_str(),who); }
-    else if(op=="kill"){ double frac=tk.size()>1?atof(tk[1].c_str()):0.5; string mode=tk.size()>2?tk[2]:""; vector<int> ids; for(int q=0;q<nextId;q++) if(alive[q])ids.push_back(q); int nk=(int)(N*frac); vector<int> pick; { unordered_set<int> u; while((int)pick.size()<nk&&pick.size()<ids.size()){ int j=(int)(grnd()*ids.size()); if(!u.count(j)){u.insert(j);pick.push_back(ids[j]);} } } unordered_set<int> ks(pick.begin(),pick.end()); if(mode=="s1row"){ int rr=(int)(grnd()*C); for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0&&seats[q]->coord.r==rr)ks.insert(q); } if(mode=="s1all"){ for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0)ks.insert(q); } if(mode=="silent"||((tk.size()>3)&&tk[3]=="silent")){ for(int q:ks){ alive[q]=0; active.erase(q); } } else for(int q:ks) seats[q]->leave(); N-=ks.size(); printf("OK killed %zu, N now %d\n",ks.size(),N); }
+    else if(op=="kill"){ double frac=tk.size()>1?atof(tk[1].c_str()):0.5; string mode=tk.size()>2?tk[2]:""; vector<int> ids; for(int q=0;q<nextId;q++) if(alive[q])ids.push_back(q); int nk=(int)(N*frac); vector<int> pick; { unordered_set<int> u; while((int)pick.size()<nk&&pick.size()<ids.size()){ int j=(int)(grnd()*ids.size()); if(!u.count(j)){u.insert(j);pick.push_back(ids[j]);} } } unordered_set<int> ks(pick.begin(),pick.end()); if(mode=="s1row"){ int rr=(int)(grnd()*C); for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0&&seats[q]->coord.r==rr)ks.insert(q); } if(mode=="s1all"){ for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->coord.pc==0)ks.insert(q); } if(mode=="silent"||((tk.size()>3)&&tk[3]=="silent")){ for(int q:ks){ alive[q]=0; active.erase(q); } } else if(mode=="crash"){ for(int q:ks){ alive[q]=0; active.erase(q); } for(int q:ks) fireTranslost(q); } else for(int q:ks) seats[q]->leave(); N-=ks.size(); printf("OK killed %zu, N now %d\n",ks.size(),N); }
+    else if(op=="crash"){   // D5: ungraceful SINGLE-seat death — no LEAVE, but the neighbours' transports notice (fireTranslost) ~2-6 ticks later. `crash <id> quiet` = a BLACKHOLE death: no transport event either (horizon-only baseline).
+      int id=tk.size()>1?atoi(tk[1].c_str()):-1; bool quiet=tk.size()>2&&tk[2]=="quiet";
+      if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); }
+      else { alive[id]=0; active.erase(id); if(!quiet) fireTranslost(id); N-=1; printf("OK crashed %d%s, N now %d\n",id,quiet?" (quiet)":"",N); } }
+    else if(op=="sever"){   // D5 slow-peer probe: cut ONE link between two LIVE seats for T ticks; both ends observe the transport death (a severed DC closes on both sides)
+      int a=tk.size()>1?atoi(tk[1].c_str()):-1, b=tk.size()>2?atoi(tk[2].c_str()):-1; long long t=tk.size()>3?atoll(tk[3].c_str()):120;
+      if(a<0||b<0||a>=nextId||b>=nextId||!alive[a]||!alive[b]){ printf("ERR sever needs two live seats\n"); }
+      else { forcedSever[pairKey(a,b)]=TICK+t;
+        Msg m1; m1.t=TRANSLOST; m1.id=b; m1.to=a; m1.from=-1; bus[TICK+2].push_back(move(m1));
+        Msg m2; m2.t=TRANSLOST; m2.id=a; m2.to=b; m2.from=-1; bus[TICK+2].push_back(move(m2));
+        printf("OK severed %d<->%d for %lld ticks (both ends observe transport loss)\n",a,b,t); } }
     else if(op=="spawn"){ int k=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<k;q++){ int id=nextId++; if(id>=(int)seats.size()){ seats.resize(id+1); alive.resize(id+1); } seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } N+=k; printf("OK spawned %d (ids %d..%d), N now %d\n",k,nextId-k,nextId-1,N); }
     else if(op=="where"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]) printf("WHERE %d dead\n",id); else printf("WHERE %d state=%d coord=%s\n",id,seats[id]->state,seats[id]->hasCoord?coordStr(seats[id]->coord).c_str():"-"); }
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }
