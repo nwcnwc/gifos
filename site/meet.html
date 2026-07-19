@@ -3497,8 +3497,9 @@
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
         // Structural slots drop hard; REDUNDANT slots go through claimMos so the
-        // multi-subscribe machinery promotes the hot standby instantly — or
-        // lingers the last frame under MOS_GRACE — instead of tearing down.
+        // multi-subscribe machinery demand-wakes the parked standby at once —
+        // lingering the last frame under MOS_GRACE while it spins up — instead
+        // of tearing down.
         for (const [rk, c] of [...mosIn]) if (c.via === p.id && c.streamId === m.streamId && !isRedun(rk)) dropMosIn(rk);
         for (const [rk, c] of [...mosStandby]) if (c.via === p.id && c.streamId === m.streamId) dropStandby(rk);
         claimMos(); // promote a hot standby into any slot just vacated (no sweep wait)
@@ -3887,15 +3888,19 @@
     const MM = GifOS.meshMedia;
     const mosAnn = new Map();   // from + '|' + key -> { streamId, meta, at } (announced inbound)
     const mosIn = new Map();    // resolvedKey -> { via, streamId, stream, el, meta } (claimed PRIMARY — rendered + re-shipped)
-    // MULTI-SUBSCRIBE (docs/media-plane.md): for the fanned-down redundant
-    // channels ('sgs', per-stager 'stg:*', and the W7 sdrow products) a receiver keeps TWO hot feeds
-    // — the PRIMARY (mosIn, rendered) and a hot STANDBY (mosStandby, decoding but
-    // not shown) — over two INDEPENDENT paths, and pre-subscribes to every other
-    // announcer as a DORMANT spare (zero bandwidth: the sender replaceTrack(null)s
-    // its transceiver on demand). On a primary death the standby promotes with NO
-    // flicker (its stream is already decoding), and a dormant spare is woken back
-    // to standby via mx-want (replaceTrack — no renegotiation, instant).
-    const mosStandby = new Map(); // resolvedKey -> { via, streamId, stream, el, meta } (hot 2nd feed)
+    // MULTI-SUBSCRIBE — the ONE-PIPE law (docs/media-plane.md): for every
+    // redundant slot ('sdm', 'sdx', 'sgs', per-stager 'stg:*', the W7 sdrow
+    // products) exactly ONE pipe moves bits — the PRIMARY (mosIn, rendered).
+    // ONE alternate announcer stays SELECTED as a parked STANDBY (mosStandby:
+    // claimed, negotiated, <video> ready — but demanded idle, so the sender
+    // replaceTrack(null)s it and it carries ZERO media); every further
+    // announcer is a dormant spare with no local claim at all. A primary death
+    // demand-wakes the standby (mx-want — a pure replaceTrack at the sender,
+    // no renegotiation) while the dead pipe lingers its last frame under
+    // MOS_GRACE; the standby takes the slot the moment it demonstrably FLOWS.
+    // Failback to the preferred path is make-before-break with hysteresis
+    // (see claimRedun).
+    const mosStandby = new Map(); // resolvedKey -> { via, streamId, stream, el, meta } (parked 2nd claim)
     const subWant = new Map();    // from + '|' + key + '|' + sid -> 'w'|'i' (last demand sent — debounce)
     const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
@@ -4085,63 +4090,122 @@
       else if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
       // stg:* has no direct <video> — the S1 strip compositor re-reads mosIn.
     }
-    // MULTI-SUBSCRIBE for one redundant slot: keep PRIMARY + hot STANDBY over two
-    // independent announcers, pre-subscribe to the rest as DORMANT spares.
-    // MOS_GRACE (claim linger): a primary that goes dark with NO live
+    // ONE-PIPE multi-subscribe for one redundant slot (docs/media-plane.md):
+    // one pipe moves bits (the PRIMARY); ONE alternate announcer is kept
+    // SELECTED as a parked STANDBY (claimed + negotiated + <video> ready, but
+    // demanded idle — zero media); every further announcer is a dormant spare.
+    //   FAILOVER — the primary dies: the standby is demand-woken (mx-want, a
+    //   pure replaceTrack at the sender) while the dead primary LINGERS its
+    //   last frame under MOS_GRACE; the moment the standby demonstrably FLOWS
+    //   (frames observed) it takes the slot. Wake target ≤2s — inside grace.
+    //   FAILBACK — the PREFERRED path (the tree-direct announcer, prefCand)
+    //   returns: make-before-break. The preferred feed is staged as the
+    //   standby, demand-woken ALONGSIDE the live primary (the one sanctioned
+    //   two-pipe overlap), and only after it is FLOWING and has been back a
+    //   full settle window (MOS_SETTLE — a bouncing link cannot oscillate the
+    //   roles) do the roles swap; the loser re-parks as the standby.
+    // MOS_GRACE (claim linger): a primary that goes dark with NO flowing
     // replacement is NOT torn down for a few seconds — renegotiation glare, a
     // transport rebuild (p.incoming reset) or an announce beat all resolve
     // within a sweep or two, and tearing the tile down and rebuilding it for
     // each is exactly the user-visible flap. A frozen last frame for a beat,
     // never a torn-down tile; the mix-minus law holds (the lingering stream IS
-    // my legitimate mix — never a neighbour's).
+    // my legitimate mix — never a neighbour's). Grace only ever delays
+    // destruction, never recovery.
     const MOS_GRACE = 5000;
+    const MOS_SETTLE = 5000; // failback hysteresis: preferred must be back this long
+    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch } (wake/failback state)
+    // The PREFERRED announcer of a redundant slot: the tree-direct path the
+    // media plane names as the producer's own leg. Failback aims here; any
+    // other live path is a legitimate carrier but only a stand-in.
+    function prefCand(rk, cand) {
+      const c = meshCoord(); if (!c) return null;
+      if (rk === 'sdx') return cand.find((x) => x.live && x.key === 'sdx') || null;             // direct from my head (not the '^x' carrier copy)
+      if (rk === 'sdn') return cand.find((x) => x.live && x.key === 'sdn') || null;             // direct from my up-seat (not the mirror chain)
+      if (rk.indexOf('stg:') === 0) return cand.find((x) => x.live && x.key.indexOf('^') < 0) || null; // an on-tree copy over the '^x' cross copy
+      let co = null;
+      if (rk === 'sdm') co = { pc: c.pc, r: c.r, i: 0 };                                        // my head's own fan
+      else if (rk === 'sgs') co = c.i === 0 ? net.topo.up(c) : { pc: c.pc, r: c.r, i: 0 };      // the tree hop (my head, or a head's parent)
+      else if (rk.indexOf('sdrow:') === 0) co = { pc: 0, r: +rk.slice(6), i: 0 };               // direct from head q over the S1 column
+      const pid = co ? occPid(co) : null;
+      return pid ? cand.find((x) => x.live && x.from === pid) || null : null;
+    }
     function claimRedun(rk, arr) {
       const now = Date.now();
-      // Resolve every announcer to its (possibly muted) incoming stream.
+      // Resolve every announcer to its (possibly parked) incoming stream.
       const cand = [];
       for (const a of arr) {
         const p = peers.get(a.from);
         const st = (p && p.incoming) ? p.incoming.find((s) => s.id === a.ann.streamId && s.id !== p.ownSid) : null;
         cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
       }
-      const inCand = (e) => e && cand.some((c) => c.from === e.via && c.sid === e.streamId && c.live);
-      const mkClaim = (pick) => ({ via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
+      const inCand = (e) => e && cand.some((x) => x.from === e.via && x.sid === e.streamId && x.live);
+      const mkEnt = (pick) => ({ via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
+      // "FLOWING" = the standby's decoder has produced frames. A parked pipe
+      // shows zero progress; only a woken, actually-delivering pipe advances.
+      const frames = (el) => (el && el.getVideoPlaybackQuality) ? el.getVideoPlaybackQuality().totalVideoFrames : (el && el.videoWidth > 0 ? 1 : 0);
+      let fb = mosFb.get(rk);
+      if (!fb) { fb = { wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0 }; mosFb.set(rk, fb); }
       let pri = mosIn.get(rk), std = mosStandby.get(rk);
-      if (std && !inCand(std)) { dropStandby(rk); std = null; } // standby is invisible — no linger needed
-      if (pri && inCand(pri)) pri.deadAt = 0;
-      // FAILOVER: primary gone → promote the (already-decoding) standby, else
-      // claim any live candidate, else LINGER (grace) before tearing down.
-      if (pri && !inCand(pri)) {
-        if (std) { dropMosIn(rk); mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null; pri.deadAt = 0; repaintRedun(rk, pri.stream); }
-        else {
-          const pick = cand.find((c) => c.live);
-          if (pick) { dropMosIn(rk); pri = mkClaim(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
-          else if (!pri.deadAt) pri.deadAt = now;
-          else if (now - pri.deadAt > MOS_GRACE) { dropMosIn(rk); pri = null; repaintRedun(rk, null); }
-          // else: linger — keep the last stream painted while a replacement negotiates
+      if (std && !inCand(std)) { dropStandby(rk); std = null; fb.wakeAt = 0; } // standby is invisible — no linger needed
+      const priLive = !!(pri && inCand(pri));
+      if (priLive) pri.deadAt = 0;
+      else if (pri && !pri.deadAt) pri.deadAt = now;
+      const pref = prefCand(rk, cand);
+      const priIsPref = !!(priLive && pref && pri.via === pref.from && pri.streamId === pref.sid);
+      // First claim (no primary held): take the preferred path, else any live
+      // one. A fresh ship starts ACTIVE at the sender, so first claims flow.
+      if (!pri) {
+        const pick = pref || cand.find((x) => x.live);
+        if (pick) {
+          pri = mkEnt(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream);
+          if (std && std.via === pri.via && std.streamId === pri.streamId) { dropStandby(rk); std = null; }
         }
       }
-      if (!cand.length) return; // nothing announced: linger handled above, nothing to claim/demand
-      // Fill PRIMARY from a live candidate (distinct from the standby's path).
-      if (!pri) {
-        const pick = cand.find((c) => c.live && !(std && c.from === std.via && c.sid === std.streamId));
-        if (pick) { pri = mkClaim(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream); }
-      }
       // Refresh primary meta from its own announcer (counts change, id doesn't).
-      if (pri) { const own = cand.find((c) => c.from === pri.via && c.sid === pri.streamId); if (own) pri.meta = annMeta(own.ann); }
-      // Fill STANDBY from another live candidate over a DIFFERENT path.
-      if (pri && !std) {
-        const pick = cand.find((c) => c.live && !(c.from === pri.via && c.sid === pri.streamId));
-        if (pick) { std = { via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann) }; mosStandby.set(rk, std); }
+      if (pri) { const own = cand.find((x) => x.from === pri.via && x.sid === pri.streamId); if (own) pri.meta = annMeta(own.ann); }
+      // STANDBY SELECTION (parked): the preferred path when the primary is not
+      // it (failback staging), else any live candidate on a DIFFERENT path.
+      const wantStd = (pref && pri && !priIsPref && !(pri.via === pref.from && pri.streamId === pref.sid))
+        ? pref
+        : cand.find((x) => x.live && !(pri && x.from === pri.via && x.sid === pri.streamId));
+      if (pri && wantStd && (!std || std.via !== wantStd.from || std.streamId !== wantStd.sid)) {
+        if (std) dropStandby(rk);
+        std = { via: wantStd.from, streamId: wantStd.sid, stream: wantStd.st, el: mosVideo(wantStd.st), meta: annMeta(wantStd.ann) };
+        mosStandby.set(rk, std); fb.wakeAt = 0;
       }
-      // DEMAND: keep primary + standby HOT; every other announcer is a dormant
-      // spare (idle). If I still owe a standby (only one live path so far), keep an
-      // extra candidate wanted so a spare wakes toward 2 rather than all going idle.
+      // FAILOVER / FAILBACK — make-before-break. The old primary stays painted
+      // (dead ⇒ frozen last frame under the grace linger; alive-but-secondary
+      // ⇒ still flowing) while the standby is demand-woken; the swap happens
+      // only once the standby demonstrably FLOWS.
+      const stdIsPref = !!(std && pref && std.via === pref.from && std.streamId === pref.sid);
+      const wantSwap = !!(pri && std && (!priLive || (stdIsPref && !priIsPref)));
+      if (wantSwap) {
+        if (!fb.wakeAt) { fb.wakeAt = now; fb.f0 = frames(std.el); }
+        if (stdIsPref && !fb.prefSince) fb.prefSince = now;
+        const flowing = frames(std.el) > fb.f0 || (std.el && std.el.videoWidth > 0 && now - fb.wakeAt > 1500);
+        // A dead primary swaps the moment the standby flows; a live one (pure
+        // failback) additionally waits out the settle window — hysteresis.
+        const settled = !priLive || ((now - fb.prefSince >= MOS_SETTLE) && (now - fb.lastSwitch >= MOS_SETTLE));
+        if (flowing && settled) {
+          const old = pri;
+          mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
+          pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
+          repaintRedun(rk, pri.stream);
+          if (inCand(old)) { std = { via: old.via, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
+          else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
+        }
+      } else { fb.wakeAt = 0; if (!stdIsPref) fb.prefSince = 0; }
+      // GRACE teardown: a dead primary whose standby never materialized/flowed.
+      if (pri && !inCand(pri) && pri.deadAt && now - pri.deadAt > MOS_GRACE) { dropMosIn(rk); pri = null; repaintRedun(rk, null); }
+      if (!cand.length) { mosFb.delete(rk); return; }
+      // DEMAND — the ONE-PIPE law: only the primary moves bits. The standby is
+      // parked (mx-idle ⇒ sender replaceTrack(null), zero media) EXCEPT while
+      // a wake/failback overlap is in progress; every other announcer idles.
       const hot = new Set();
-      if (pri) hot.add(pri.via + '|' + pri.streamId);
-      if (std) hot.add(std.via + '|' + std.streamId);
-      if (hot.size < 2) { const extra = cand.find((c) => !hot.has(c.from + '|' + c.sid)); if (extra) hot.add(extra.from + '|' + extra.sid); }
-      for (const c of cand) demand(c.from, c.key, c.sid, hot.has(c.from + '|' + c.sid));
+      if (pri && inCand(pri)) hot.add(pri.via + '|' + pri.streamId);
+      if (std && fb.wakeAt) hot.add(std.via + '|' + std.streamId);
+      for (const x of cand) demand(x.from, x.key, x.sid, hot.has(x.from + '|' + x.sid));
     }
     function claimMos() {
       // ANNOUNCE AGEING: a live job re-announces every sweep (~2s); an entry
@@ -4227,6 +4291,7 @@
       for (const rk of [...mosStandby.keys()]) dropStandby(rk);
       subWant.clear();
       mosAnn.clear();
+      mosFb.clear();
       if (prodPack) { prodPack.stop(); prodPack = null; }
       if (sdPack) { sdPack.stop(); sdPack = null; }
       for (const pk of sdnPacks.values()) pk.stop();
@@ -4390,9 +4455,10 @@
             if (jk4) wanted.add(jk4);
             // >2-REDUNDANCY (the control-plane discipline, on the media budget):
             // the SAME mix over a second link-disjoint pipe — me → a carrier
-            // row-mate → seat i ('sdxc' → 'sdx^x', same slot). claimRedun keeps
-            // at most TWO pipes moving bits; every further announcer idles at
-            // zero media (dormant replaceTrack(null)) until demanded.
+            // row-mate → seat i ('sdxc' → 'sdx^x', same slot). ONE-PIPE law:
+            // claimRedun keeps ONE pipe moving bits; the carrier copy sits as
+            // the parked standby (replaceTrack(null), zero media) until a
+            // failure demand-wakes it.
             if (i !== c.i) {
               let carrier = null;
               for (let d = 1; d < C; d++) { const k2 = (i + d) % C; if (k2 === 0 || k2 === i) continue; const cp = occPid({ pc: c.pc, r: c.r, i: k2 }); if (cp) { carrier = cp; break; } }
@@ -4451,8 +4517,10 @@
         // Lateral second pipe for the row view: re-fan my claimed 'sdm' to my
         // row-mates (skip the head, skip whoever it came from). Same mix over
         // a second link-disjoint path — a mate that loses the head's direct
-        // pipe promotes this standby with NO flicker; while both pipes live,
-        // claimRedun keeps the spare dormant (zero media).
+        // pipe demand-wakes this parked standby (≤2s, inside the grace
+        // linger); while the head's pipe lives, this spare carries zero media
+        // (ONE-PIPE law), and after a heal the mate fails back to the head's
+        // direct pipe make-before-break.
         const sdmH = mosIn.get('sdm');
         if (sdmH) for (let j = 1; j < C; j++) {
           if (j === c.i) continue;
@@ -4497,8 +4565,8 @@
         // SECTION 1 (W7 rook): flood each stage feed across the FULL row+column
         // fabric ONCE per streamId — 8 independent neighbours, heads included,
         // so any single dead S1 seat cannot starve the spread. Receivers keep
-        // 2 hot + dormant spares (multi-subscribe), so the extra announces
-        // cost nothing until demanded.
+        // ONE hot pipe + a parked standby + dormant spares (ONE-PIPE
+        // multi-subscribe), so the extra announces cost nothing until demanded.
         const s1peers = [...T.rowMates(c), ...T.colMates(c)].map((m) => occPid(m)).filter(Boolean);
         const flooded = new Set(); // PER-SWEEP dedup (one feed may resolve via two keys). The old
         // persistent stgSpread let the sweep-end reaper kill flood jobs after one sweep.
@@ -6329,6 +6397,8 @@
         // feeding peer and watch the hot standby promote with no black-out.
         claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         standbyVia: [...mosStandby.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
+        // wake/failback forensics: per-slot wake-in-progress + settle stamps
+        fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch })),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
