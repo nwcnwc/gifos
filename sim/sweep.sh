@@ -58,19 +58,23 @@ for s in 7 11 29; do
 done
 
 echo "early-probe (D5): crash / sever / blackhole, seed-3 pinned (seat 6 = home cell /0.2) ..."
+# These 3 legs measure D5 PROBE TIMING precisely (heal-tick, pinned coord, exact
+# settle). Q2 compaction (`compacton 0` here) is orthogonal background packing
+# whose moves would perturb the pinned coords and the settle window — compaction
+# + D5 is covered by the CHURN sweep above (mass-kill + tick 15000, compaction on).
 ebad=0
 # 3a) CRASH: transports observed dead -> healed well inside 60 ticks (horizon is 220+)
-out=$(printf "seed 3\ninit 200 0\nconverge\nfind /0.2\ncrash 6\ntick 60\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
+out=$(printf "seed 3\ninit 200 0\ncompacton 0\nconverge\nfind /0.2\ncrash 6\ntick 60\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
 echo "$out" | sed 's/^/  crash: /'
 grep -q "FIND /0.2 -> seat 6" <<<"$out" || { echo "  crash: PIN DRIFT (seat 6 not at /0.2)"; ebad=$((ebad+1)); }
 grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
 # 3b) SEVER: one dead link, both ends alive 150 ticks -> the slow peer KEEPS its seat
-out=$(printf "seed 3\ninit 200 0\nconverge\nsever 0 6 150\ntick 200\nwhere 6\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^WHERE|^CHECK")
+out=$(printf "seed 3\ninit 200 0\ncompacton 0\nconverge\nsever 0 6 150\ntick 200\nwhere 6\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^WHERE|^CHECK")
 echo "$out" | sed 's/^/  sever: /'
 grep -q "WHERE 6 state=3 coord=/0.2" <<<"$out" || ebad=$((ebad+1))
 grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
 # 3c) BLACKHOLE: silent death, NO transport event -> NOT healed early (60 ticks), healed by the horizon (settled by +1300 — the heal fires ~240 but the drain wave of the dead seat's dependents needs its own E1 timers)
-out=$(printf "seed 3\ninit 200 0\nconverge\ncrash 6 quiet\ntick 60\nfind /0.2\ntick 1300\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
+out=$(printf "seed 3\ninit 200 0\ncompacton 0\nconverge\ncrash 6 quiet\ntick 60\nfind /0.2\ntick 1300\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
 echo "$out" | sed 's/^/  blackhole: /'
 grep -q "FIND /0.2 -> seat -1" <<<"$out" || ebad=$((ebad+1))   # nobody promoted early into the blackholed cell
 grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))

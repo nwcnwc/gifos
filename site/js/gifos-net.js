@@ -487,6 +487,11 @@
     const childPath = (pc, d) => pc * 6 + (d + 1);
     const parentPath = (pc) => Math.floor((pc - 1) / 6);
     const lastDigit = (pc) => (pc - 1) % 6;
+    // Q2 COMPACTION: tree depth of a section path (Section 1 == 0). "Shallower" =
+    // smaller depth = closer to the home; a compacting leaf moves only to a
+    // STRICTLY shallower row, so depth is a monotone-decreasing potential.
+    // (sim/topo.h pcDepth)
+    const pcDepth = (pc) => { let d = 0; while (pc) { pc = parentPath(pc); d++; } return d; };
     const isRoot = (c) => c.pc === 0;
     const ckey = (c) => c.pc + '_' + c.r + '_' + c.i;                 // Map key (string, not uint64)
     const unck = (k) => { const p = k.split('_'); return { pc: +p[0], r: +p[1], i: +p[2] }; };
@@ -523,7 +528,7 @@
       const x = crossLink(s); if (x) out.push(x); const u = up(s); if (u) out.push(u); out.push(down(s)); return out;
     };
     const isHead = (s) => s.i === 0;
-    return { childPath, parentPath, lastDigit, isRoot, isHead, ckey, unck, eq, up, down, crossLink, rowMates, colMates, ownedLinks, MAXLINKS };
+    return { childPath, parentPath, lastDigit, pcDepth, isRoot, isHead, ckey, unck, eq, up, down, crossLink, rowMates, colMates, ownedLinks, MAXLINKS };
   })();
 
   // ---- P1: single-hop forwarding through a friend -----------------------------

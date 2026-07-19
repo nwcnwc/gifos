@@ -74,7 +74,7 @@ function classifyEmit(env, from, to, m) {
 
 function makeFabric() {
   const env = {
-    TICK: 0, HEALING: true,
+    TICK: 0, HEALING: true, COMPACTION: true,
     seats: new Map(), bus: new Map(), openPairs: new Set(), seq: 0,
     relayGenesisKey: null, relayGreeters: new Map(),
     moves: 0, evict: 0,
@@ -258,6 +258,13 @@ function d5Scenario() {
   spawn(env, N); runJoin(env, N, 20000);
   let c = counts(env);
   check(`D5 setup: JOIN N=${N} converged`, c.seated === N && c.s1 === 25 && c.dups === 0, c);
+  // The D5 mechanic assertions below measure PROBE TIMING and GLOBAL counters
+  // (heal-tick, evict count) with tick precision. Q2 compaction is orthogonal
+  // background churn (its own moves/requeues would perturb those global counters
+  // for reasons unrelated to D5), so isolate D5 here — compaction+churn is
+  // covered separately by the gossip-after-kill test above, repro-compaction.sh,
+  // and the sim sweep's crash/sever/blackhole legs (compaction on).
+  env.COMPACTION = false;
 
   // --- 1. CRASH: a Section-1 row cell dies ungracefully (no LEAVE) ----------
   const vc = { pc: 0, r: 0, i: 2 }; const vk = ck(vc);

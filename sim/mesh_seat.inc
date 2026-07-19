@@ -137,10 +137,14 @@ void Seat::serveCompact(Msg& mm){
   // meshed), so its frontier view is fresh (unlike an S1 seat's stale view of a
   // deep row). A non-head hands the probe to its own row head (a direct link).
   if(coord.i!=0){ int h=occGet(ckey({coord.pc,coord.r,0})); if(h>=0&&h!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(h,m); } return; }
-  // I am a row head. If my row is STRICTLY shallower than the seeker, offer the
-  // first free DENSIFYING slot in it (a trailing frontier: free + down-child
-  // empty, so the seeker lands a childless leaf and never displaces a healer).
-  if(pcDepth(coord.pc) < sd){
+  // I am a row head. If my row is a DEEP row STRICTLY shallower than the seeker,
+  // offer the first free DENSIFYING slot in it (a trailing frontier: free +
+  // down-child empty, so the seeker lands a childless leaf and never displaces a
+  // healer). NEVER Section 1 (coord.pc==0): the home is filled only under H1-S1
+  // ring-conservatism — compaction filling an S1 cell whose occupant is merely
+  // unreachable (not confirmed dead) could mint a divergent home. So the chain
+  // climbs THROUGH S1 but never seats a compactor there.
+  if(coord.pc!=0 && pcDepth(coord.pc) < sd){
     for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
       if(occ.count(ckey(cell))) continue;                 // occupied (I know my row first-hand)
       if(occGet(ckey(down(cell)))>=0) continue;           // internal hole — its down-child heals it (C1)
