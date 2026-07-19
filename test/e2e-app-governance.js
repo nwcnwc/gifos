@@ -189,7 +189,9 @@ const LED_APP = {
   check('guest cannot move the led record under an admin leader', (await waitRes(ePage, 'err-nav')) === 'err-nav');
 
   // GRANT: the admin gives Eve the app right → Eve can now share (and wins as newest)
-  const ePid = await ePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room() + '.' + window.__gifosVideo.verifier()));
+  // Eve's grantable id is her S4 peer id (myId = H(pubkey)) — what modTable and
+  // admins key on — NOT the retired per-tab sessionStorage vpeer.
+  const ePid = await ePage.evaluate(() => window.__gifosVideo.myPid());
   await dPage.evaluate((pid) => window.__gifosVideo.grantApp(pid, true), ePid);
   await ePage.waitForFunction(() => window.__gifosVideo.canRunApp(), null, { timeout: 30000 });
   check('an admin grant lets the guest run apps', true);
