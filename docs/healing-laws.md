@@ -72,7 +72,11 @@ childless — a leaf. **Only leaves move. No exceptions.**
   window is confirmed dead. The trigger is edge-triggered (one probe burst per
   transition — a flapping link cannot storm), a mere 'disconnected' blip never
   fires it, and a death with no transport event keeps the ordinary D3/D4
-  horizon unchanged.
+  horizon unchanged. A relay-observed socket death (the R2 registry's own
+  transport plane watching a greeter/joiner socket die — a server frame no
+  peer can forge, so still not gossip) may start the same probe: since the
+  probe gate decides everything, the worst a wrong trigger can ever cost is
+  one probe.
 
 ## H — who fills a hole (fixed designation: every hole has ONE pre-named healer)
 

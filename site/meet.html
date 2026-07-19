@@ -2651,7 +2651,17 @@
       }
       else if (m.t === 'unban') setStatus('\u2705 ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
       else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
-      else if (m.t === 'peer-leave') { const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000); }
+      else if (m.t === 'peer-leave') {
+        const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000);
+        // D5: the relay WATCHED this peer's socket die (a transport observation
+        // by the dumb transport plane — a server frame no peer can forge, not
+        // gossip). On a SIGKILLed browser this lands in ~1-2s, long before the
+        // WebRTC stack downgrades the pair to 'failed' (~30s on desktop). It
+        // only STARTS the probe-gated confirm: a peer that merely dropped its
+        // deep socket on purpose (socket lifecycle) answers the probe over the
+        // mesh and keeps its seat — worst case, a spurious probe.
+        onTransportDead(m.peer, 'relay-leave');
+      }
       else if (m.t === 'error') {
         // Password gate is handled by the wire (onLocked / R6 sealing); bans
         // and vote-offs land here. No walk \u2014 the session cap is the greeter
