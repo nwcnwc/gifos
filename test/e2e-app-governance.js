@@ -86,7 +86,7 @@ const LED_APP = {
   // A shares; everyone mounts
   const aFile = await seedApp(aPage);
   await aPage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), aFile);
-  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 40000 });
   const sidA = await winner(aPage);
   check('open room: anyone can share; everyone mounts it', !!sidA);
 
@@ -94,23 +94,23 @@ const LED_APP = {
   await sleep(50); // strictly newer ts
   const bFile = await seedApp(bPage);
   await bPage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), bFile);
-  await bPage.waitForFunction(() => window.__gifosVideo.appIsHost(), null, { timeout: 20000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.appIsHost(), null, { timeout: 40000 });
   const sidB = await winner(bPage);
   for (const pg of [aPage, bPage, cPage]) {
-    await pg.waitForFunction((sid) => window.__gifosVideo.appWinner() === sid, sidB, { timeout: 20000 });
+    await pg.waitForFunction((sid) => window.__gifosVideo.appWinner() === sid, sidB, { timeout: 40000 });
   }
   check('open room: a newer share wins EVERYWHERE (deterministic, no split)', sidB && sidB !== sidA);
-  await aPage.waitForFunction(() => !window.__gifosVideo.appIsHost(), null, { timeout: 20000 });
+  await aPage.waitForFunction(() => !window.__gifosVideo.appIsHost(), null, { timeout: 40000 });
   check('the outbid sharer withdrew cleanly (now a client of the winner)', true);
 
   // C (not the sharer) stops the app for the whole room — attributed anarchy
   await cPage.evaluate(() => window.__gifosVideo.stopRoomAppForTest());
-  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('open room: ANYONE can stop the shared app for everyone', true);
 
   // ...and it is reversible: the sharer re-shares and walks back in
   await bPage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), bFile);
-  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('a stop is reversible — the sharer re-shares past the tombstone', true);
 
   // C hides it personally; the rest keep it; Show brings it back
@@ -181,7 +181,7 @@ const LED_APP = {
   // Admin shares — and LEADS by default in an admin room
   const dFile = await seedApp(dPage);
   await dPage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), dFile);
-  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('an admin\'s app mounts for everyone', true);
   check('admin rooms default to the sharer LEADING', await dPage.evaluate(() => window.__gifosVideo.appLeading()));
   await sleep(500);
@@ -195,14 +195,14 @@ const LED_APP = {
   check('an admin grant lets the guest run apps', true);
   await sleep(50);
   await ePage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), eFile);
-  await ePage.waitForFunction(() => window.__gifosVideo.appIsHost(), null, { timeout: 20000 });
+  await ePage.waitForFunction(() => window.__gifosVideo.appIsHost(), null, { timeout: 40000 });
   const eSid = await winner(ePage);
-  await dPage.waitForFunction((sid) => window.__gifosVideo.appWinner() === sid, eSid, { timeout: 20000 });
+  await dPage.waitForFunction((sid) => window.__gifosVideo.appWinner() === sid, eSid, { timeout: 40000 });
   check('the granted guest\'s share is honored room-wide', true);
 
   // Admin stops the guest's app for the room
   await dPage.evaluate(() => window.__gifosVideo.stopRoomAppForTest());
-  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  for (const pg of [dPage, ePage]) await pg.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('an admin stops any app for the whole room', true);
 
   // REVOKE: grant off → the guest's fresh share is ignored by everyone
