@@ -321,19 +321,21 @@ void Seat::rowSweep(){
   vector<uint64_t> del;
   for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0) del.push_back(e.first); }
   for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); }
-  // D5 EARLY-FORGET (deep rows only): a row cell whose transport to me died and
-  // whose confirm probe went unanswered is forgotten NOW — the corpse stops
-  // riding my PONG roster in ~probe-time instead of the 50-tick horizon. Still
-  // D3 (cleanup, not healing). Section-1 heads skip this: there s1Fill acts on
-  // the same early confirm and HEALS the cell — the sweep consuming the
-  // observation first would demote it to the slow path.
-  if(coord.pc!=0){
-    vector<uint64_t> tl; for(auto&e:translost) tl.push_back(e.first);
-    for(auto k:tl){ Coord c=unck(k);
-      if(c.pc!=coord.pc||c.r!=coord.r||c.i==0) continue;
-      if(!translostConfirmed(k)) continue;
-      live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); }
-  }
+  // (D5's early corpse-forget lives in tlSweep — every observer, not just
+  // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
+}
+// tlSweep — D5 cleanup at EVERY observer (D3's "a corpse stops riding rosters",
+// started early): once my own observation CONFIRMS (probe unanswered on every
+// path past the early window), the corpse leaves MY occ/roster view even when I
+// am not the designated healer — healing stays exclusively the healer's (C3);
+// this deletes a view, never fills a seat. The standing translost then keeps
+// gossip echoes from re-seating the corpse until the cell genuinely refills
+// (setOcc/admit clear it).
+void Seat::tlSweep(){
+  if(translost.empty()) return;
+  vector<uint64_t> tl; for(auto&e:translost) tl.push_back(e.first);
+  for(auto k:tl){ if(!translostConfirmed(k)) continue;
+    if(occ.count(k)){ occ.erase(k); live.erase(k); kidful.erase(k); s1seen.erase(k); } }
 }
 void Seat::s1Fill(){
   // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from below
@@ -515,6 +517,7 @@ void Seat::tick(){
   if(evil) attack();
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
+    tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
     if(coord.i==0 && ((TICK%12)==0 || !translost.empty())){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race. D5: while a transport-loss observation is pending, check every beat — heal()'s cooldowns keep it storm-free
     // H2 LEFT-PACK backstop (probe-gated): when my row has NO live head, the head
     // can't run its row backstop, so the row rebuilds itself leftward — I heal my
@@ -531,6 +534,7 @@ void Seat::tick(){
     wake(id); return;
   }
   if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
+  tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
   if(coord.i==0 && (TICK%12)==0) rowSweep();
   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row
   // depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A

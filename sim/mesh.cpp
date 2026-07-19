@@ -223,7 +223,7 @@ struct Seat {
   void serveFind(Msg& m);
   void admit(Coord c,int nc);
   void onPhone(Msg& m);
-  void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack();
+  void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack(); void tlSweep();
   bool ringConfirmDead(Coord h);   // H1-S1: true only after home cell h is unreachable via ALL rook paths for the full ring window (probe-gated)
   void transportLost(int pid);     // D5 intake: MY transport to peer pid died (first-hand) — start the confirm probe NOW
   bool translostConfirmed(uint64_t k);   // D5 verdict: transport-loss registered + probe unanswered on every path for EARLY_HOLD
