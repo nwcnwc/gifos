@@ -24,7 +24,9 @@ on Earth). Faithful port of the NO-ROOT topology + all healing laws
       quit
 
 Scenario suites: sim/sweep.sh (churn + partition verdict),
-sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3).
+sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3),
+sim/repro-atomic-move.sh (the mover's lease, law T: mover death mid-transit,
+lease-window death, cascade scooches, churn during transit).
 
 Files: topo.h (topology arithmetic), mesh.cpp (fabric + run/service),
 mesh_seat.inc (the seat protocol).
