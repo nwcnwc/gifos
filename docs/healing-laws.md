@@ -265,18 +265,29 @@ with a bounded, self-resolving transit window:
   now goes silent — the usual D machinery clears it); death after confirm is
   an ordinary death at the NEW seat (the old cell was already D2-vacated).
   No third state survives the mover.
-- **T5. The drain re-seats without vacating (E1 amendment).** A draining seat
-  no longer abandons its seat to go looking: it stays seated (re-opening its
-  relay socket on demand — the socket-lifecycle rule), asks for a seat as a
-  newcomer, and treats the admitter's PLACE as the authorization for the same
-  dual-hold transit. Only exhausted retries fall back to the old vacate-first
-  front-door re-entry — the last resort it always was.
+- **T5 — REJECTED: the drain still vacates first (E1 stands unamended).** A
+  keep-old drain re-seat (stay seated while FINDing, vacate on PLACE) was
+  built, caught by the full churn matrix, and REVERTED. The tension is
+  fundamental, not an implementation bug: **E1's vacate IS the mechanism that
+  dissolves a doomed fragment.** Kept alive, a fragment's mutually-live stale
+  seats keep phoning, answering, serving and HEALING each other — and promote
+  one another into the home cells of their stale world, minting a divergent
+  phantom home: a sealed bubble whose members are each other's only
+  first-hand witnesses, which E2 can never cull (no witness is linked to both
+  claimants) and which the Section-1 drain exemption then protects forever.
+  (Observed as persistent Section-1 duplicate pairs, up to 68 per run, at
+  kills 0.2-0.6; partial recusals — a seeking seat refusing to admit —
+  reduced but did not close it, and slowed mass heals ~20x.) So the atomic
+  transit (T1-T4) applies to moves WITHIN a live neighbourhood; a drain is
+  the opposite case — its neighbourhood is confirmed dead, and dissolving it
+  is the point. A draining seat's brief homelessness is the price of the
+  one-home guarantee.
 
 *(Design note: a confirm-by-remote-healer round trip — PRECLAIM/GRANT to the
-FINDLEAF's origin — was built and rejected: mid-heal, the mesh routes such a
-round trip must ride are exactly the broken ones, and stalled claims slowed a
-40% churn heal ~20x. Dual-hold needs no new long-range delivery: confirmation
-rides frames the seating already produces.)*
+FINDLEAF's origin — was also built and rejected: mid-heal, the mesh routes
+such a round trip must ride are exactly the broken ones, and stalled claims
+slowed a 40% churn heal ~20x. Dual-hold needs no new long-range delivery:
+confirmation rides frames the seating already produces.)*
 
 ## W — the healer wires with live knowledge, never stale gossip
 
