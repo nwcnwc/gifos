@@ -85,7 +85,7 @@
   // law-T move. Rate-limited + local-quiescence-gated so a healing boundary never
   // sloshes; depth is a monotone potential ⇒ MOVES provably settle.
   const COMPACT_PERIOD = 90; // sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
-  const COMPACT_SETTLE = 40; // sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn
+  const COMPACT_SETTLE = 300; // sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
   const COMPACT_TTL = 30;    // sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
