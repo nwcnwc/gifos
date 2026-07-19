@@ -62,7 +62,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
       "localStorage.setItem('gifos_meet_bar','0');" });
     const pg = await ctx.newPage();
     pg.on('pageerror', () => {});
-    await pg.goto(BASE + '/meet.html#v=' + ROOM, { timeout: 120000, waitUntil: 'domcontentloaded' });
+    await pg.goto(BASE + '/meet.html#v=' + ROOM, { timeout: 90000, waitUntil: 'domcontentloaded' });
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 90000 });
     return pg;
   };
