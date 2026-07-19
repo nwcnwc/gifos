@@ -4,6 +4,8 @@
  * protocol as relay/src/relay.js so the browser client/host code is unchanged.
  */
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const crypto = require('crypto');
 
 const PORT = process.env.RELAY_PORT ? parseInt(process.env.RELAY_PORT, 10) : 8790;
@@ -119,13 +121,29 @@ const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
 // answer), so the roster this test relay authors is peer ids only.
 function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, token: null, meshToken: null, clients: new Map() }); return sessions.get(id); }
 
-const server = http.createServer((req, res) => { res.writeHead(200); res.end('gifos relay (local)'); });
+// TLS mode (RELAY_TLS_CERT + RELAY_TLS_KEY): serve WSS directly with a real cert
+// (e.g. `tailscale cert <name>`), so a tailnet swarm + real users get a SECURE
+// CONTEXT (WebCrypto room-key derivation needs it) without tailscale-serve's WS
+// proxy (which doesn't upgrade) or insecure-origin hacks.
+const RELAY_HANDLER = (req, res) => { res.writeHead(200); res.end('gifos relay (local)'); };
+const useTLS = process.env.RELAY_TLS_CERT && process.env.RELAY_TLS_KEY;
+const server = useTLS
+  ? https.createServer({ cert: fs.readFileSync(process.env.RELAY_TLS_CERT), key: fs.readFileSync(process.env.RELAY_TLS_KEY) }, RELAY_HANDLER)
+  : http.createServer(RELAY_HANDLER);
 
-server.on('upgrade', (req, socket) => {
+server.on('upgrade', (req, socket, head) => {
   const key = req.headers['sec-websocket-key'];
   const accept = crypto.createHash('sha1').update(key + GUID).digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   const conn = new Conn(socket);
+  // Feed any bytes already read past the HTTP upgrade (the `head` buffer) into
+  // the frame parser. Over TLS / a real network the client can pipeline its
+  // FIRST WebSocket frame in the same segment as the upgrade request, so that
+  // frame arrives in `head`, never as a later 'data' event — dropping it silently
+  // stalled the mesh socket (which sends its first frame immediately) while the
+  // slower join socket, whose first frame arrived separately, worked. Localhost
+  // rarely coalesces, which is why this only bit the TLS/tailnet swarm.
+  if (head && head.length) { conn.buf = Buffer.concat([conn.buf, head]); conn.drain(); }
 
   const url = new URL(req.url, 'http://x');
   const parts = url.pathname.split('/').filter(Boolean); // ['s', id]
@@ -440,4 +458,4 @@ server.on('upgrade', (req, socket) => {
 // RELAY_HOST=0.0.0.0 to expose it on the LAN/tailnet for a multi-machine swarm
 // (bots on other boxes point --relay ws://<this-box-ip>:PORT).
 const HOST = process.env.RELAY_HOST || '127.0.0.1';
-server.listen(PORT, HOST, () => console.log('gifos local relay on ws://' + HOST + ':' + PORT));
+server.listen(PORT, HOST, () => console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT));
