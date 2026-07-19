@@ -63,6 +63,16 @@
   // because the rook has many paths to exhaust. A wrong ring-heal is the one act
   // that mints a divergent home; a held hole is a recoverable availability dip.
   const RING_HOLD = 220;     // sim/mesh.cpp RING_HOLD
+  // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
+  // (DataChannel close / hard pc failure — a FIRST-HAND observation, never
+  // gossip), the confirm probe may start immediately instead of waiting out the
+  // silence horizon. EARLY_HOLD is the settled window the probe gets on the
+  // mesh's redundant paths before the death is confirmed: long enough for a
+  // probe round trip plus a retry (probes re-fire every ~6 ticks while
+  // pending), short enough that an ungraceful death is confirmed in seconds.
+  // The horizon (60 / RING_HOLD) remains the backstop when no transport event
+  // fired; an answered probe clears the observation entirely.
+  const EARLY_HOLD = 12;     // sim/mesh.cpp EARLY_HOLD
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
@@ -87,6 +97,15 @@
       // holeSince: when a Section-1 cell I don't hear first-hand first looked
       // like a hole (H1-S1 confirm-window timer, probe-gated ringConfirmDead)
       this.holeSince = new Map();
+      // D5 early-probe state (all keyed by coord ckey):
+      //   translost: when MY transport to that coord's occupant died (edge-
+      //              triggered — set once per transition, cleared on any answer)
+      //   tlProbeAt: last tick a pending translost re-probed (probe pacing)
+      //   probeAck:  last tick a ROUTE probe of that coord was ANSWERED (ROUTED
+      //              with a live id). Deliberately NOT `live` (E2 untouched):
+      //              a probe answer travels the mesh, so it can only ever
+      //              PREVENT an early eviction, never evict or resurrect.
+      this.translost = new Map(); this.tlProbeAt = new Map(); this.probeAck = new Map();
       this.retryAt = -1; this.seatTries = 0; this.lastPhone = -99; this.lastAck = 0;
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
@@ -141,7 +160,7 @@
     occGet(k) { const v = this.occ.get(k); return v === undefined ? null : v; }
     // a seat can be in exactly ONE place: never store MYSELF at a coord I do not
     // hold (stale self-claims circulating back made invisible zombies)
-    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; this.occ.set(k, v); }
+    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) this.tlForget(k); this.occ.set(k, v); }
     noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
     // E2 FIRST-HAND liveness: `live` is set ONLY by direct contact — a PHONE I
@@ -151,6 +170,41 @@
     // that has moved) is NOT first-hand live, so it can never yield a live
     // healer out of a hole. Echo-immune — gossip informs routing, never liveness.
     firstHandLive(k) { const it = this.live.get(k); return it !== undefined && this.TICK - it <= 60; }
+    // ---- D5 EARLY-PROBE intake (transport loss is FIRST-HAND evidence) ------
+    // transportLost(pid): MY DataChannel / peer connection to `pid` just died —
+    // my own direct observation (the transport layer calls this; gossip never
+    // can). It evicts NOBODY by itself: it only registers the observation and
+    // fires the EXISTING confirm probe immediately, so the probe-gated death
+    // confirmation (D4/H1-S1) can start now instead of after the silence
+    // horizon. Edge-triggered per coord — one probe burst per transition, so a
+    // flapping link cannot generate probe storms.
+    transportLost(pid) {
+      if (!this.hasCoord || this.state !== 3 || pid == null || pid === this.id) return;
+      for (const olc of topo.ownedLinks(this.coord)) {
+        const k = ck(olc);
+        if (this.occGet(k) !== pid || this.translost.has(k)) continue;
+        this.translost.set(k, this.TICK); this.tlProbeAt.set(k, this.TICK);
+        this.routeTo(olc, 1); // probe NOW — across the mesh, not the dead link
+      }
+      this.wake();
+    }
+    // translostConfirmed(k): the early-confirm verdict. TRUE only when a first-
+    // hand transport loss is registered for k AND the probe has gone unanswered
+    // on every mesh path for the settled EARLY_HOLD window. ANY answer since the
+    // loss — first-hand contact (live) or a probe answer (probeAck) — clears the
+    // observation and re-arms the edge trigger: their link to me died; they may
+    // be fine (the probe travels the mesh, not the dead link). While pending it
+    // keeps re-probing every ~6 ticks (the first probe can be lost).
+    translostConfirmed(k) {
+      const at = this.translost.get(k); if (at === undefined) return false;
+      const lv = this.live.get(k), pa = this.probeAck.get(k);
+      if ((lv !== undefined && lv >= at) || (pa !== undefined && pa >= at)) { this.tlForget(k); return false; }
+      const pAt = this.tlProbeAt.get(k);
+      if (pAt === undefined || this.TICK - pAt >= 6) { this.tlProbeAt.set(k, this.TICK); this.routeTo(unck(k), 1); }
+      return this.TICK - at > EARLY_HOLD;
+    }
+    tlForget(k) { this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
+    tlClear() { this.translost.clear(); this.tlProbeAt.clear(); this.probeAck.clear(); }
     ownedRowHead() { return { pc: topo.childPath(this.coord.pc, this.coord.i), r: this.coord.r, i: 0 }; }
     rosterCells() { const h = this.ownedRowHead(); const out = []; for (let c = 0; c < C(); c++) out.push({ pc: h.pc, r: h.r, i: c }); return out; }
     // 11a FRONTIER-ONLY ADMISSION: admit a newcomer only into a TRUE frontier
@@ -331,12 +385,12 @@
       if (this.env.bumpMoves) this.env.bumpMoves();
       const oldC = this.coord; const seen = new Set();
       for (const olc of topo.ownedLinks(oldC)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(oldC), id: this.id }); } }
-      this.occ.clear(); this.s1seen.clear(); this.cousins.clear(); // moving levels: old cousins are stale; rebuild fresh
+      this.occ.clear(); this.s1seen.clear(); this.cousins.clear(); this.tlClear(); // moving levels: old cousins are stale; rebuild fresh
       this.take(hole, null, nbrs);
       this.lastAck = this.TICK; this.lastPhone = this.TICK - 100;
     }
     attack() { if (!this.hasCoord) return; for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) this.emit(x, { t: 'HELLO', ck: ck(olc), id: this.id }); } }
-    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.drainAt = 0; this.join(); }
+    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.join(); }
 
     drainOrReenter() {
       const TICK = this.TICK;
@@ -351,7 +405,7 @@
         else { const rm = topo.rowMates(this.coord); const ri = this.shuf(Array.from({ length: C() - 1 }, (_, k) => k)); for (const q of ri) { const rr = this.occGet(ck(rm[q])); if (rr != null && rr !== this.id) { this.emit(rr, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 }); break; } } }
       }
     }
-    reseatViaRoster() { if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
+    reseatViaRoster() { if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
 
     // ---- routing (rook-aware next hops + Option A strict mesh routing) ----
     nextHopCoord(t) {
@@ -496,7 +550,21 @@
       const TICK = this.TICK;
       if (this.coord.i !== 0) return; const del = [];
       for (const [k, at] of this.live) { if (TICK - at <= 50) continue; const c = unck(k); if (c.pc === this.coord.pc && c.r === this.coord.r && c.i > 0) del.push(k); }
-      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); }
+      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k); }
+      // D5 EARLY-FORGET (deep rows only): a row cell whose transport to me died
+      // and whose confirm probe went unanswered is forgotten NOW — the corpse
+      // stops riding my PONG roster in ~probe-time instead of the 50-tick
+      // horizon. Still D3 (cleanup, not healing). Section-1 heads skip this:
+      // there s1Fill acts on the same early confirm and HEALS the cell — the
+      // sweep consuming the observation first would demote it to the slow path.
+      if (this.coord.pc !== 0) {
+        for (const k of Array.from(this.translost.keys())) {
+          const c = unck(k);
+          if (c.pc !== this.coord.pc || c.r !== this.coord.r || c.i <= 0) continue;
+          if (!this.translostConfirmed(k)) continue;
+          this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k);
+        }
+      }
     }
     s1Fill() {
       // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from
@@ -508,7 +576,7 @@
       if (TICK - this.seatedAt < 80) return;
       for (let j = 1; j < C(); j++) {
         const c = { pc: 0, r: this.coord.r, i: j }; const kk = ck(c);
-        if (this.ringConfirmDead(c)) { if (this.occ.has(kk)) { this.occ.delete(kk); this.live.delete(kk); this.s1seen.delete(kk); this.kidful.delete(kk); } this.holeSince.delete(kk); this.heal(c); return; }
+        if (this.ringConfirmDead(c)) { if (this.occ.has(kk)) { this.occ.delete(kk); this.live.delete(kk); this.s1seen.delete(kk); this.kidful.delete(kk); } this.holeSince.delete(kk); this.tlForget(kk); this.heal(c); return; }
       }
     }
     // H1-S1 RING-HEAL CONSERVATISM, probe-gated (NOT gossip-gated). A home cell
@@ -521,6 +589,12 @@
     // it declared dead. Hold the hole; never mint the duplicate.
     ringConfirmDead(h) {
       const hk = ck(h);
+      // D5 EARLY-PROBE: my own transport to this occupant died (first-hand) and
+      // the confirm probe has gone unanswered across the whole rook for the
+      // settled early window — confirmed dead NOW; the horizon below remains
+      // the backstop when no transport event fired. (An answered probe clears
+      // the observation inside translostConfirmed — no eviction, E2 stands.)
+      if (this.translostConfirmed(hk)) return true;
       if (this.firstHandLive(hk)) { this.holeSince.delete(hk); return false; }
       this.routeTo(h, 1); // probe across the rook
       let since;
@@ -631,7 +705,7 @@
         case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.requeue(); return;
         case 'CLAIM': if (!this.verifyFill(m)) return; if (this.occGet(m.ck) !== m.id) { this.setOcc(m.ck, m.id); this.live.set(m.ck, TICK); } this.noteS1(m.ck); return; // first-hand + S4 identity hook
         case 'LEAVE': {
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); }
+          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
           // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just
           // LEFT; I am its fixed right-neighbour healer. I heal it UNLESS it
           // owns a down-child (then the VERTICAL rule heals it — I defer).
@@ -681,7 +755,7 @@
           const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id }); return; }
           this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return;
         }
-        case 'ROUTED': if (m.tag === 1) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return;
+        case 'ROUTED': if (m.tag === 1) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
         default: return;
       }
     }
@@ -708,17 +782,22 @@
         // (maintains first-hand liveness across all redundant home paths).
         if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.s1Heartbeat(); this.s1Sync(); this._gspRefan(); }
         // 11a: every Section-1 cell is refilled by its down-child (VERTICAL);
-        // s1Fill is the head's probe-gated LAST-RESORT backstop.
-        if (this.coord.i === 0 && (TICK % 12) === 0) { this.rowSweep(); this.s1Fill(); }
+        // s1Fill is the head's probe-gated LAST-RESORT backstop. While a D5
+        // transport-loss observation is pending, check every beat (not every
+        // 12) so the early confirm isn't left waiting on the slow cadence —
+        // heal()'s own cooldowns keep this storm-free.
+        if (this.coord.i === 0 && ((TICK % 12) === 0 || this.translost.size)) { this.rowSweep(); this.s1Fill(); }
         // H2 LEFT-PACK backstop (proactive, probe-gated): when my row has NO
         // live head, the head can't run its backstop, so the row rebuilds
         // itself leftward — I heal my immediate LEFT neighbour (the head if I
         // am column 1). Cascades toward the head, each cell only once its left
         // is confirmed dead. Restricted to headless rows so it never races the
         // head's s1Fill. This is what rebuilds an all-heads-dead column-0 (bug #4).
-        if (this.coord.i >= 1 && TICK - this.healAt > 20 && !this.firstHandLive(ck({ pc: 0, r: this.coord.r, i: 0 }))) {
+        // (D5: a pending transport-loss for the head counts as "no live head" —
+        // my own link to it died; firstHandLive may linger up to 60 ticks.)
+        if (this.coord.i >= 1 && TICK - this.healAt > 20 && (!this.firstHandLive(ck({ pc: 0, r: this.coord.r, i: 0 })) || this.translost.has(ck({ pc: 0, r: this.coord.r, i: 0 })))) {
           const lft = { pc: 0, r: this.coord.r, i: this.coord.i - 1 }; const lk = ck(lft);
-          if (this.ringConfirmDead(lft)) { if (this.occ.has(lk)) { this.occ.delete(lk); this.live.delete(lk); this.s1seen.delete(lk); this.kidful.delete(lk); } this.holeSince.delete(lk); this.heal(lft); }
+          if (this.ringConfirmDead(lft)) { if (this.occ.has(lk)) { this.occ.delete(lk); this.live.delete(lk); this.s1seen.delete(lk); this.kidful.delete(lk); } this.holeSince.delete(lk); this.tlForget(lk); this.heal(lft); }
         }
         // W7: keep column links live — re-ping any vacant column-mate
         if (TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + (this.rng() * 100 | 0); for (const cm of topo.colMates(this.coord)) if (this.occGet(ck(cm)) == null) this.routeTo(cm, 1); }
@@ -733,7 +812,17 @@
       // {pc,r,1}. A head WITH a subtree is healed by its down-child (VERTICAL).
       // occGet==null = definite LEAVE, so severance never false-heals. (bug #3:
       // the hasDownChild gate is what keeps s1Fill and this healer from racing.)
-      if (this.coord.i === 1 && TICK - this.healAt > 20 && TICK - this.lastAck > 60) { const hd = { pc: this.coord.pc, r: this.coord.r, i: 0 }; if (this.occGet(ck(hd)) == null && !this.hasDownChild(hd)) this.heal(hd); }
+      // D5 early path: my own DC to the head died and the confirm probe went
+      // unanswered — confirmed dead now; clear the corpse and heal. The
+      // occGet==null + lastAck>60 branch remains the horizon backstop.
+      if (this.coord.i === 1 && TICK - this.healAt > 20) {
+        const hd = { pc: this.coord.pc, r: this.coord.r, i: 0 }; const hdk = ck(hd);
+        const hdEarly = this.translostConfirmed(hdk);
+        if ((hdEarly || (TICK - this.lastAck > 60 && this.occGet(hdk) == null)) && !this.hasDownChild(hd)) {
+          if (hdEarly) { this.occ.delete(hdk); this.live.delete(hdk); this.s1seen.delete(hdk); this.kidful.delete(hdk); this.tlForget(hdk); }
+          this.heal(hd);
+        }
+      }
       if (this.coord.i > 0 && TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + (this.rng() * 100 | 0); const x = topo.crossLink(this.coord); if (x && this.occGet(ck(x)) == null) this.routeTo(x, 1); }
       if (this.drainAt && TICK >= this.drainAt) { this.reseatViaRoster(); return; }
       // 11a VERTICAL (the down-child is the fixed healer of its owner;
@@ -745,13 +834,20 @@
       // only leaves move; I move only when I am childless), wired with my
       // cousins (O's heir neighbourhood, learned from O's PONG).
       let didHeal = false;
-      if (this.coord.i === 0 && this.cousins.size && TICK - this.healAt > 20 && TICK - this.lastAck > 60) {
-        const oc = this.ownerCoord();
+      if (this.coord.i === 0 && this.cousins.size && TICK - this.healAt > 20) {
+        const oc = this.ownerCoord(); const ok = oc ? ck(oc) : null;
         // H1-S1 CONSERVATISM: promoting into a SECTION-1 owner is the one move
         // that can mint a divergent home — it waits the full RING_HOLD window.
         const confirm = (oc && oc.pc === 0) ? RING_HOLD : 60;
-        if (oc && this.occGet(ck(oc)) == null && TICK - this.lastAck > confirm && TICK - (this.healTry.has(ck(oc)) ? this.healTry.get(ck(oc)) : -999) > 45) {
-          this.healTry.set(ck(oc), TICK); this.healAt = TICK; didHeal = true;
+        // D5 early path: I hold the down-link DC to my owner; it died and the
+        // confirm probe went unanswered across the mesh — first-hand confirmed
+        // death (equivalent to a LEAVE), no silence horizon to wait out. The
+        // horizon branch (occ cleared + lastAck past the confirm window)
+        // remains the backstop. An owner whose probe answers is never touched.
+        const ownEarly = ok != null && this.translostConfirmed(ok);
+        if (oc && (ownEarly || (this.occGet(ok) == null && TICK - this.lastAck > confirm)) && TICK - (this.healTry.has(ok) ? this.healTry.get(ok) : -999) > 45) {
+          if (ownEarly) { this.occ.delete(ok); this.live.delete(ok); this.s1seen.delete(ok); this.kidful.delete(ok); this.tlForget(ok); }
+          this.healTry.set(ok, TICK); this.healAt = TICK; didHeal = true;
           const nb = []; for (const [k, v] of this.cousins) nb.push({ k, v });
           const rc = this.rosterCells(); const ix = this.shuf(Array.from({ length: C() }, (_, k) => k)); let sent = false;
           for (const q of ix) { const x = this.occGet(ck(rc[q])); if (x != null && x !== this.id) { this.emit(x, { t: 'FINDLEAF', hole: oc, nbrs: nb, ttl: 40 }); sent = true; break; } }
@@ -770,5 +866,5 @@
     }
   }
 
-  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, isS1key, ownerCoordOf };
+  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, isS1key, ownerCoordOf };
 })(typeof window !== 'undefined' ? window : globalThis);
