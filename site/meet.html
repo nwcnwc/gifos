@@ -3492,7 +3492,7 @@
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
       } else if (m.k === 'mx' && typeof m.key === 'string' && m.streamId) {
         // Mosaic ship announced (idempotent, re-sent every sweep) — claim by id.
-        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, at: Date.now() });
+        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, at: Date.now() });
         claimMos();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -3510,10 +3510,17 @@
         // the redun-drill caught).
         const jw = mosJobs.get(m.key + '>' + p.id);
         if (jw && (!m.streamId || jw.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, true);
+        // Mirror-chain wake propagates END-TO-END IN ONE PASS (Phase 2): a
+        // woken hop immediately demands its OWN upstream hop awake, so the
+        // wake ripples producer-ward as one cascade of DC frames — never one
+        // hop per 2s sweep.
+        if (m.key.indexOf('sdnm:') === 0) { const up = mosIn.get('sdnmr:' + m.key.slice(5)); if (up) demand(up.via, m.key, up.streamId, true); }
       } else if (m.k === 'mx-idle' && typeof m.key === 'string') {
         // A receiver keeps this spare parked at zero bandwidth (ONE-PIPE law).
         const ji = mosJobs.get(m.key + '>' + p.id);
         if (ji && (!m.streamId || ji.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, false);
+        // …and a re-parked mirror hop re-parks its upstream the same way.
+        if (m.key.indexOf('sdnm:') === 0) { const up = mosIn.get('sdnmr:' + m.key.slice(5)); if (up) demand(up.via, m.key, up.streamId, false); }
       } else if (m.k === 'sga' && typeof m.sid === 'string') {
         // Stage data lane (§11): app-state frame — dedup, deliver, re-fan.
         sgaRecv(p.id, m);
@@ -3980,6 +3987,9 @@
       if (!senders.length) return null;
       mosJobs.set(jk, { senders, trackList, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
       if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
+      // Mirror-chain hops are BORN PARKED (Phase 2): the whole sdn mirror is
+      // negotiated end-to-end at zero media and only demand-woken on failure.
+      if (key.indexOf('sdnm:') === 0) setJobActive(jk, false);
       compKick(to);
       return jk;
     }
@@ -4055,6 +4065,22 @@
       if (key === 'sdx' || key === 'sdx^x') return !iAmHead && meta && meta.col === c.i ? 'sdx' : null;
       if (key === 'sdxc') return !iAmHead && meta && meta.col != null && meta.col !== c.i ? 'sdxc:' + meta.col : null;
       if (key === 'sdn') return iAmHead ? 'sdn' : null;  // my branch's outside-world ingredient (from above)
+      // sdnm:<dst-ck> — the sdn DORMANT MIRROR chain (Phase 2). The dst child
+      // head resolves the mirror copy to the SAME 'sdn' slot ('^x'-style);
+      // a seat ON the route relays it ('sdnmr:'); everyone else ignores it.
+      // A carrier NEVER claims/plays the mix — it contains the producer row's
+      // faces, possibly the carrier's own (the mix-minus law is inviolable);
+      // 'sdnmr:*' slots are relay-only and never painted.
+      if (key.indexOf('sdnm:') === 0) {
+        const dstK = key.slice(5);
+        if (net.topo.ckey(c) === dstK) return iAmHead ? 'sdn' : null;
+        const t = meta ? meta.mt : null; if (t == null) return null;
+        const dst = net.topo.unck(dstK);
+        const rt = MM.sdnMirrorRoute(net.topo, SCALE.C, net.topo.parentPath(dst.pc), dst.r, net.topo.lastDigit(dst.pc), t);
+        if (!rt) return null;
+        const k2 = rt.findIndex((co) => net.topo.eq(co, c));
+        return (k2 >= 1 && k2 < rt.length - 1) ? 'sdnmr:' + dstK : null;
+      }
       if (key === 'sgs') return 'sgs';        // the composited Stage strip, fanned down
       // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
       // arriving over a cross-link — it resolves to the SAME slot so it just backs
@@ -4074,8 +4100,8 @@
     // sdrow:q both DIRECT from head q over the column link and relayed through
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
-    const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
-    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
+    const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sdn' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt });
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
     // message only rides the DC on a state flip — but RE-ASSERTED every few
     // seconds even without one: a demand that raced a closed DC or a transport
@@ -4101,6 +4127,17 @@
       if (rk === 'sdm') { if (c && c.i === 0) return; paintStadiumTile(stream); }
       else if (rk === 'sgs') { if (c && c.pc === 0) return; paintStageStrip(stream); }
       // stg:* has no direct <video> — the S1 strip compositor re-reads mosIn.
+      // 'sdn'/'sdx' feed this head's packers, which re-read mosIn on the sweep;
+      // schedule a fast off-stack sweep so a failover swap repaints in ~60ms
+      // instead of waiting out the 2s reconcile beat.
+      else if (rk === 'sdn' || rk === 'sdx') schedReconcile();
+    }
+    // A one-shot, coalesced, off-stack reconcile — safe to call from inside
+    // claimRedun (which itself runs inside reconcileMosaic).
+    let reconT = 0;
+    function schedReconcile() {
+      if (reconT) return;
+      reconT = setTimeout(() => { reconT = 0; try { reconcileMosaic(); } catch (e) {} }, 60);
     }
     // ONE-PIPE multi-subscribe for one redundant slot (docs/media-plane.md):
     // one pipe moves bits (the PRIMARY); ONE alternate announcer is kept
@@ -4476,6 +4513,25 @@
               for (let d = 1; d < C; d++) { const k2 = (i + d) % C; if (k2 === 0 || k2 === i) continue; const cp = occPid({ pc: c.pc, r: c.r, i: k2 }); if (cp) { carrier = cp; break; } }
               if (carrier) { const jk6 = shipMos('sdxc', carrier, pk.stream, Object.assign({ col: i }, m)); if (jk6) wanted.add(jk6); }
             }
+            // sdn DORMANT MIRROR (Phase 2, docs/media-plane.md): the SAME
+            // per-child ingredient, negotiated over a fully link-disjoint
+            // chain that avoids the parent seat (pc,r,i) — born parked (zero
+            // media) and demand-woken end-to-end only when the child head
+            // loses its direct sdn. Re-derived from occ every sweep (first
+            // fully-OCCUPIED transit row wins), so churn re-routes it within
+            // a sweep. A child section with only one occupied row head has
+            // no disjoint entry — no mirror then (documented).
+            {
+              let rt = null, mt = -1;
+              for (let tt = 0; tt < C && !rt; tt++) {
+                const r2 = MM.sdnMirrorRoute(T, C, c.pc, c.r, i, tt);
+                if (r2 && r2.every((co, qi) => qi === 0 || !!occPid(co))) { rt = r2; mt = tt; }
+              }
+              if (rt) {
+                const jm = shipMos('sdnm:' + T.ckey(T.down({ pc: c.pc, r: c.r, i })), occPid(rt[1]), pk.stream, Object.assign({ mt }, m));
+                if (jm) wanted.add(jm);
+              }
+            }
           }
         } else {
           if (sdPack) { sdPack.stop(); sdPack = null; }
@@ -4633,6 +4689,26 @@
         for (const [k2, sid] of [...stageEar.sids]) { const st2 = want2.get(k2); if (!st2 || st2.id !== sid) { stageEar.fold.remove(k2); stageEar.sids.delete(k2); } }
         for (const [k2, st2] of want2) if (!stageEar.sids.has(k2)) { stageEar.fold.add(k2, st2, 1); stageEar.sids.set(k2, st2.id); }
         stageEar.el.volume = mix.stage;
+      }
+      // ---- sdn MIRROR chain relays (Phase 2, docs/media-plane.md) ----------
+      // Any seat (head or not) that claimed a 'sdnmr:<dst>' hop forwards it to
+      // the NEXT coord of the same deterministic route (recomputed from the
+      // announce's transit row — churn re-routes within a sweep; a seat that
+      // fell off the route just stops, and its stale job ages out under the
+      // grace). Relay only — never painted, never promoted (mix-minus law).
+      for (const [mk, mf] of mosIn) {
+        if (mk.indexOf('sdnmr:') !== 0) continue;
+        const dstK = mk.slice(6);
+        const mt = mf.meta ? mf.meta.mt : null; if (mt == null) continue;
+        const dst = T.unck(dstK);
+        const rt = MM.sdnMirrorRoute(T, C, T.parentPath(dst.pc), dst.r, T.lastDigit(dst.pc), mt);
+        if (!rt) continue;
+        const myIdx = rt.findIndex((co) => T.eq(co, c));
+        if (myIdx < 1 || myIdx >= rt.length - 1) continue;
+        const nextPid = occPid(rt[myIdx + 1]);
+        if (!nextPid || nextPid === mf.via) continue;
+        const jm = shipMos('sdnm:' + dstK, nextPid, mf.stream, Object.assign({ mt }, blockMeta(mf)));
+        if (jm) wanted.add(jm);
       }
       // DEBOUNCED UNSHIP: the wanted set is rebuilt from occ every sweep, and
       // occ flickers during gossip churn (a seat transiently unknown, a heal in
