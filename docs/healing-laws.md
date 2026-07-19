@@ -161,8 +161,18 @@ childless — a leaf. **Only leaves move. No exceptions.**
   no-race discipline of the old rule is kept exactly: the admitters are the
   greeters of the row BELOW the dead row ((t+1)%C — the old "row above me is
   dead" relation), each admitting at its OWN column, so no two admitters ever
-  target one cell; other seats hand the FIND toward that row. Adjacent dead
-  rows resolve bottom-up, the same upward cascade the old wrap produced.
+  target one cell; other seats hand the FIND toward that row **over a
+  FIRST-HAND-LIVE link only**. Adjacent dead rows resolve bottom-up, the same
+  upward cascade the old wrap produced — but ONLY because the hand-toward step
+  is first-hand-gated: when the admitter row below is ITSELF wholly dead, its
+  cells linger as stale occ corpses (a dead id, never cleared — no neighbour
+  hears a LEAVE and gossip re-seeds it), so a *raw-occ* forward would hand the
+  FIND to a dead seat and the scan would `return` at the lower row before ever
+  reaching the upper row it could admit — two adjacent dead home rows would
+  deadlock forever (a real bug that shipped until seed-33/kill-0.6 in the Q2
+  compaction sweep surfaced it, `sim/repro-compaction.sh` era). First-hand
+  liveness sees the corpse for what it is, falls through to bottom-up, and the
+  cascade reaches a live admitter.
   *(History: H7 used to be "column backfill" — a seat parked each newcomer in
   the empty row above itself. Its resurrection half is exactly the clause
   above; but in a YOUNG room it also fired on never-occupied rows and spread
