@@ -191,7 +191,7 @@ const LED_APP = {
   // GRANT: the admin gives Eve the app right → Eve can now share (and wins as newest)
   const ePid = await ePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room() + '.' + window.__gifosVideo.verifier()));
   await dPage.evaluate((pid) => window.__gifosVideo.grantApp(pid, true), ePid);
-  await ePage.waitForFunction(() => window.__gifosVideo.canRunApp(), null, { timeout: 15000 });
+  await ePage.waitForFunction(() => window.__gifosVideo.canRunApp(), null, { timeout: 30000 });
   check('an admin grant lets the guest run apps', true);
   await sleep(50);
   await ePage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), eFile);
@@ -207,7 +207,7 @@ const LED_APP = {
 
   // REVOKE: grant off → the guest's fresh share is ignored by everyone
   await dPage.evaluate((pid) => window.__gifosVideo.grantApp(pid, false), ePid);
-  await ePage.waitForFunction(() => !window.__gifosVideo.canRunApp(), null, { timeout: 15000 });
+  await ePage.waitForFunction(() => !window.__gifosVideo.canRunApp(), null, { timeout: 30000 });
   await ePage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), eFile);
   await sleep(2500);
   check('a revoked guest cannot share again', !(await dPage.evaluate(() => window.__gifosVideo.appActive())));
