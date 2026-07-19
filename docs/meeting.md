@@ -113,7 +113,7 @@ The controls worth knowing:
   muted, camera off, and Max-blurred — invisible until they choose to be seen.
 - **Stage** — step up to be seen and heard first by the whole room; tap again to
   step down.
-- **Hand** — raise it to float to the top of a room-wide queue, in order.
+- **Hand** — raise it to join the room-wide **hand queue** (below), in order.
 - **Password** — the key to *clear* video (see the door, below).
 - **Mix** — your own private sound board: independent faders for **Stage**, **My
   row**, **My section**, and **The stadium** that appear as the room grows big
@@ -137,6 +137,59 @@ just to read the menu. A real invite link or `/meet/<room>` skips the lobby.
 hearing and being heard; your tile says "away" (never mislabeled as
 firewall-blocked), your camera pauses to save battery, and a wake-lock keeps the
 call and any recording alive in the background.
+
+---
+
+## The hand queue
+
+**Hand** raises a hand the whole stadium can see: one ordered, room-wide queue
+of people waiting to speak, derived identically on every phone. There is no
+list to keep and nobody keeps it — like the Stage and the rows, the queue is
+**pure derived bookkeeping** over gossiped status.
+
+- **Transport — the status pulse.** Raising stamps a timestamp
+  (`myStatus.hand = Date.now()`; lowering clears it) into the same status
+  heartbeat that already carries mute/blur/stage — no new channel, no
+  coordinator, and the flag is strictly **self-owned**: only your own client
+  ever sets or clears your hand.
+- **One order, derived everywhere.** Every phone sorts the gossiped raised
+  hands by **raise time, then id** (`handQueue()` in `site/meet.html`) — a
+  pure function of shared status, so however deep the tree, every device
+  shows the same line in the same order. A same-millisecond tie breaks on the
+  id, deterministically; nothing is elected and nothing is synced.
+- **The banner.** One line above the feed (`#handq`): `✋ N waiting:` plus the
+  first **8** names in queue order (the head of the line in bold), then a
+  `+K` overflow count. It repaints only when the derived line actually
+  changes — a beat that changes nothing touches no DOM.
+- **Tile float.** A raised hand floats that tile toward the top of the grid,
+  in raise order; the Stage always outranks raised hands.
+- **The glyph — and where it disappears.** A ✋ is burned onto the person's
+  face at the leaf (`drawOverlay`, [`media-plane.md`](media-plane.md)) and
+  rides the composited pixels up the tree. Past the overlay threshold
+  (`stadiumTiny`, ~100 people) every square is too small for any overlay and
+  the glyph is dropped with the name and frame — only the talking dot
+  survives. This is by design: **the banner and queue are the authoritative
+  signal at every scale; the burned glyph is best-effort decoration below the
+  threshold.**
+- **Answering a hand — open vs admin rooms.**
+  - **Open room:** the queue is purely informational. Self step-up remains
+    the only way onto the Stage; there is no authority to call on anyone.
+  - **Admin room:** for a signed-in admin the banner is **actionable** —
+    tapping a queued name issues that person the room's existing
+    **individually signed** stage/app grant (the same §SIG mod-table `app`
+    grant that gates apps — [`meet-security.md`](meet-security.md); no new
+    privilege channel exists). The grantee's client treats a grant that
+    arrives while its own hand is raised as being **called up**: it steps
+    onto the Stage by itself, subject to the ordinary cap of `C`. A grant
+    that predates the raise is just standing rights, never a call-up.
+    Non-admins see the identical banner, inert — and every receiver verifies
+    the grant's signature, so a forged tap changes nothing anywhere.
+- **Auto-lower.** The moment my own id enters the Stage set (`stageIds()`) —
+  by self step-up or by an admin's call-up — my client lowers **my own** hand
+  and broadcasts: an answered hand leaves the queue by itself. It runs on the
+  2-second beat (idempotent) plus directly on the step-up tap for
+  snappiness, and it is strictly self-owned — no peer ever clears another's
+  hand.
 
 ---
 

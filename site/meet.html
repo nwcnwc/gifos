@@ -147,6 +147,10 @@
   #handq { display: none; padding: 6px 10px 0; font-size: .8rem; color: var(--text, #e0e0f0); }
   #handq.on { display: block; }
   #handq b { color: var(--accent, #b9a5ff); }
+  /* Admin rooms, for the SIGNED-IN admin only: each queued name is a call-up
+     button (tap = the signed stage/app grant, §SIG). Everyone else — guests,
+     open rooms — sees the identical banner, inert. */
+  body.admroom.amadmin #handq .hq { text-decoration: underline; cursor: pointer; }
   #mixpanel { position: fixed; right: 12px; bottom: 64px; z-index: 40; display: flex; flex-direction: column;
     gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
     border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
@@ -1003,7 +1007,7 @@
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera
+      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); reactHandCall(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera; a fresh grant may be a call-up (don't wait for the beat)
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -2743,17 +2747,39 @@
       reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
+      reactHandCall(); // admin room: a fresh grant while my hand is up = called onto the Stage
+      if (lowerHandForStage()) broadcastStatus(); // an answered hand lowers itself (self-owned, idempotent)
       renderHandq();   // the room-wide hand queue, freshest fold wins
       updateStatus();
     }, 2000);
     const handqEl = document.getElementById('handq');
+    // The banner repaints ONLY when the derived line actually changed — the
+    // 2s beat costs one string compare, never idle DOM churn.
+    let handqHtml = '';
     function renderHandq() {
       const q = handQueue();
       handqEl.classList.toggle('on', q.length > 0);
-      if (!q.length) { handqEl.textContent = ''; return; }
-      const names = q.slice(0, 8).map((e, i) => (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)));
-      handqEl.innerHTML = '✋ ' + q.length + ' waiting: ' + names.join(', ') + (q.length > 8 ? ', +' + (q.length - 8) : '');
+      const seg = (e, i) => '<span class="hq" data-id="' + esc(e.i) + '">'
+        + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)) + '</span>';
+      const html = !q.length ? ''
+        : '✋ ' + q.length + ' waiting: ' + q.slice(0, 8).map(seg).join(', ') + (q.length > 8 ? ', +' + (q.length - 8) : '');
+      if (html === handqHtml) return;
+      handqHtml = html;
+      handqEl.innerHTML = html;
     }
+    // ADMIN rooms, signed-in admins only: tapping a queued name CALLS THEM UP —
+    // the tap issues the same individually-signed mod-table 'app' grant that
+    // gates apps and the Stage (§SIG; setMod refuses non-admins locally, and
+    // every RECEIVER verifies the signature, so a forged tap changes nothing
+    // anywhere). Open rooms: the queue stays informational — self step-up is
+    // the only stage entry. One delegated listener; it survives repaints.
+    handqEl.addEventListener('click', (e) => {
+      const el = e.target.closest('.hq');
+      if (!el || !hasAdminRoom() || !amAdmin) return;
+      const id = el.dataset.id;
+      if (!id || id === myId) return;
+      setMod(id, 'app', true);
+    });
 
     // If the tab was backgrounded long enough for the OS to kill the camera,
     // grab it again and swap the fresh tracks into every live link.
@@ -4685,13 +4711,48 @@
 
     // ---- hand raise: float to the top in the order hands went up --------------
     const handBtn = document.getElementById('hand');
-    handBtn.onclick = () => {
-      myStatus.hand = myStatus.hand ? null : Date.now();
+    function paintHand() {
       handBtn.classList.toggle('off', !!myStatus.hand);
       handBtn.textContent = myStatus.hand ? 'Lower hand' : 'Hand';
+    }
+    handBtn.onclick = () => {
+      myStatus.hand = myStatus.hand ? null : Date.now();
+      paintHand();
       broadcastStatus();
       layout();
     };
+    // AUTO-LOWER (docs/meeting.md, the hand queue): the moment MY id enters
+    // the Stage set — self step-up or an admin's call-up — my raised hand has
+    // been answered, so it lowers ITSELF. STRICTLY SELF-OWNED: only my own
+    // client ever clears my hand; no peer clears another's. Runs on the 2s
+    // beat (idempotent) and directly inside setStage for snappiness; the
+    // caller broadcasts, so one status pulse carries stg + lowered hand.
+    function lowerHandForStage() {
+      if (!myStatus.hand || !stageIds().includes(myId)) return false;
+      myStatus.hand = null;
+      paintHand();
+      layout();
+      renderHandq();
+      return true;
+    }
+    // THE CALL-UP (admin rooms, docs/meeting.md): an 'app' grant that arrives
+    // while MY hand is raised is the admin answering my hand from the queue
+    // banner — this client steps onto the Stage by itself (the grant only
+    // confers the RIGHT; no peer can put me on stage, my own client performs
+    // the step-up, which auto-lowers the hand). Keyed to the grant's own
+    // timestamp and consumed once (idempotent on the beat); a grant seen
+    // while my hand is DOWN is standing app rights, never a call-up.
+    let handCallAt = 0;
+    function reactHandCall() {
+      if (!hasAdminRoom()) return;
+      const g = modOf(myId).app;
+      const at = (g && g.on && g.at) || 0;
+      if (!myStatus.hand) { handCallAt = at; return; }
+      if (!at || at === handCallAt) return;
+      handCallAt = at; // consume — one call-up per grant, even if the stage is full
+      if (myStatus.stg || !canStage(myId) || stageIds().length >= SCALE.C) return;
+      setStage(true); // parks MAIN senders, lowers my hand, broadcasts
+    }
 
     // ---- the stage: step up / step down (docs/media-plane.md, Channel St) ------
     // Open room: anyone, while seats remain — attributed, like everything.
@@ -4707,6 +4768,7 @@
     }
     function setStage(on) {
       myStatus.stg = on ? Date.now() : 0;
+      if (on) lowerHandForStage(); // an answered hand lowers itself — the broadcast below carries both
       paintStage();
       broadcastStatus();
       refreshAllTiles();
@@ -6277,7 +6339,18 @@
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
       handqShown: () => handqEl.classList.contains('on'),
-      raiseHand: (on) => { myStatus.hand = on ? Date.now() : null; broadcastStatus(); layout(); },
+      handqText: () => handqEl.textContent,
+      handRaised: () => !!myStatus.hand,
+      raiseHand: (on) => { myStatus.hand = on ? Date.now() : null; paintHand(); broadcastStatus(); layout(); },
+      // exact raise stamp — lets tests force a same-millisecond tie and assert the id tie-break
+      raiseHandAtForTest: (t) => { myStatus.hand = +t || Date.now(); paintHand(); broadcastStatus(); layout(); },
+      // a GUEST's forged grant, injected past setMod's local guard — every
+      // receiver must refuse it (§SIG: only the SIGNED table is ever merged)
+      forgeModForTest: (target, field) => {
+        const m = modTable[target] = modTable[target] || {};
+        m[field] = { on: true, by: myName(), byId: myId, at: Date.now() };
+        for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
+      },
       zoomRow: (row) => { const el = stadiumEl.querySelector('[data-row="' + String(row) + '"]'); if (el) el.classList.toggle('zoom'); return !!el && el.classList.contains('zoom'); },
       // stage + buses
       stageIds: () => stageIds(),
