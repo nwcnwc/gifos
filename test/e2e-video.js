@@ -351,6 +351,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aPage.locator('#recbtn').click();
   // Record now opens a scope/quality popup — choose "Everything I see" and start.
   await aPage.locator('#rec-options input[name=rec-scope][value="all"]').check();
+  // Low quality: the asserts care that a real .webm lands, not its resolution
+  // — and the default 1080p/3Mbps VP8 software-encode pegs the headless
+  // (SwiftShader, no GPU) recorder page so hard that later clicks starve.
+  await aPage.locator('#rec-options input[name=rec-q][value="low"]').check();
   // noWaitAfter: the start button triggers no navigation — under a saturated
   // box the post-click "scheduled navigations" wait can outlive the 30s cap
   // while MediaRecorder + canvas compositing spin up.
