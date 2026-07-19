@@ -184,7 +184,7 @@
         const k = ck(olc);
         if (this.occGet(k) !== pid || this.translost.has(k)) continue;
         this.translost.set(k, this.TICK); this.tlProbeAt.set(k, this.TICK);
-        this.routeTo(olc, 1); // probe NOW — across the mesh, not the dead link
+        this.routeToProbe(olc); // probe NOW — across the mesh, not the dead link
       }
       this.wake();
     }
@@ -200,7 +200,7 @@
       const lv = this.live.get(k), pa = this.probeAck.get(k);
       if ((lv !== undefined && lv >= at) || (pa !== undefined && pa >= at)) { this.tlForget(k); return false; }
       const pAt = this.tlProbeAt.get(k);
-      if (pAt === undefined || this.TICK - pAt >= 6) { this.tlProbeAt.set(k, this.TICK); this.routeTo(unck(k), 1); }
+      if (pAt === undefined || this.TICK - pAt >= 6) { this.tlProbeAt.set(k, this.TICK); this.routeToProbe(unck(k)); }
       return this.TICK - at > EARLY_HOLD;
     }
     tlForget(k) { this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
@@ -260,6 +260,7 @@
     announce() { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } }
 
     admit(c, nc) {
+      this.tlForget(ck(c)); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
       this.occ.set(ck(c), nc); this.noteS1(ck(c));
       const nbrs = []; const ol = topo.ownedLinks(c);
       for (const olc of ol) { const x = this.occGet(ck(olc)); if (x != null && x !== nc) nbrs.push({ k: ck(olc), v: x }); }
@@ -444,6 +445,33 @@
       return null;
     }
     routeTo(target, tag) { const nh = this.nextHopToward(target, null); if (ck(this.coord) === ck(target)) return; if (nh != null) this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag, ttl: 60, via: this.id }); }
+    // routeToProbe: the D5 translost probe. THE PROBE TRAVELS THE MESH, NOT THE
+    // DEAD LINK: the first hop excludes the probed occupant itself (my direct
+    // link to it is exactly what died), and the frame carries my coord (acoord)
+    // so the answer can route back AROUND the dead link too (tag 3). A live
+    // severed peer therefore still answers; only a truly unreachable one stays
+    // silent. No alternate hop at all ⇒ no probe ⇒ the confirm window runs — in
+    // a room that sparse the dead link WAS the only path.
+    routeToProbe(target) {
+      const tk = ck(target); if (!this.hasCoord || ck(this.coord) === tk) return;
+      const nh = this._probeHop(target, this.occGet(tk));
+      if (nh != null) this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag: 2, ttl: 60, via: this.id, acoord: this.coord });
+    }
+    // _probeHop: first hop for a probe (or its answer) that must NOT use the
+    // direct link to `target`. Prefer a hop that is itself a DIRECT neighbour
+    // of the target — for a same-row target another ROW-mate, for a same-column
+    // target another COLUMN-mate (the rook's parallel independent paths); the
+    // generic nextHopToward fallback can otherwise pick a path that funnels
+    // straight back into the dead link.
+    _probeHop(target, excludeId) {
+      if (this.hasCoord && target.pc === this.coord.pc) {
+        const cand = [];
+        if (target.r === this.coord.r) { for (const m2 of topo.rowMates(this.coord)) if (ck(m2) !== ck(target)) cand.push(m2); }
+        else if (this.coord.pc === 0 && target.i === this.coord.i) { for (const m2 of topo.colMates(this.coord)) if (ck(m2) !== ck(target)) cand.push(m2); }
+        for (const m2 of cand) { const x = this.occGet(ck(m2)); if (x != null && x !== this.id && x !== excludeId) return x; }
+      }
+      return this.nextHopToward(target, excludeId);
+    }
 
     // strictNextHop: the ideal step toward rdst, but ONLY if it is one of MY
     // owned links and occupied. A vacant ideal returns null and the frame is
@@ -491,7 +519,13 @@
       const TICK = this.TICK;
       if (!this.hasCoord || m.tock !== ck(this.coord)) return; // ckey(0,0,0)=="0_0_0" is a REAL coord — always check
       const kk = ck(m.coord); const prev = this.occGet(kk);
-      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
+      // D5: my first-hand hearing of prev ENDS at my own transport loss (an
+      // unanswered translost) — a corpse whose last PHONE is still inside the
+      // 40-tick window must not out-tenure the legitimate healer's fill. An
+      // answered probe erases the observation, restoring the sitting
+      // occupant's full tenure protection (S5: "has itself, first-hand,
+      // stopped hearing the prior occupant").
+      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
       this.setOcc(kk, m.id); this.live.set(kk, TICK); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
       const row = [];
@@ -576,7 +610,16 @@
       if (TICK - this.seatedAt < 80) return;
       for (let j = 1; j < C(); j++) {
         const c = { pc: 0, r: this.coord.r, i: j }; const kk = ck(c);
-        if (this.ringConfirmDead(c)) { if (this.occ.has(kk)) { this.occ.delete(kk); this.live.delete(kk); this.s1seen.delete(kk); this.kidful.delete(kk); } this.holeSince.delete(kk); this.tlForget(kk); this.heal(c); return; }
+        // D5: on the EARLY path defer a cell that owns a down-child to its
+        // VERTICAL healer (bug #3's rule) — that child holds the same first-
+        // hand loss and heals it in ~probe-time; racing it here minted
+        // duplicates. The RING_HOLD horizon path is unchanged (translost
+        // clears once the cell refills or answers).
+        if (this.translost.has(kk) && this.hasDownChild(c)) continue;
+        // (the translost observation deliberately STANDS after the clear — it
+        // keeps S1SYNC echoes from re-seating the corpse in my occ until the
+        // cell genuinely refills; setOcc/admit clear it on an occupant change)
+        if (this.ringConfirmDead(c)) { if (this.occ.has(kk)) { this.occ.delete(kk); this.live.delete(kk); this.s1seen.delete(kk); this.kidful.delete(kk); } this.holeSince.delete(kk); this.heal(c); return; }
       }
     }
     // H1-S1 RING-HEAL CONSERVATISM, probe-gated (NOT gossip-gated). A home cell
@@ -695,8 +738,9 @@
           const prev = this.occGet(m.ck);
           // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is
           // only gossip (a phantom) is NOT first-hand live ⇒ no yield ⇒ the
-          // real sender is accepted (bug #1).
-          const prevFresh = (prev != null) && this.firstHandLive(m.ck);
+          // real sender is accepted (bug #1). D5: an unanswered transport loss
+          // ends my first-hand hearing of prev, so it no longer counts fresh.
+          const prevFresh = (prev != null) && this.firstHandLive(m.ck) && !this.translost.has(m.ck);
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
           this.live.set(m.ck, TICK); // first-hand: I just heard m.id directly at m.ck
@@ -724,6 +768,7 @@
             if (e.ch != null) this.childOf.set(kk, e.ch); // learn this cell's heir — feeds cousins-in-PONG
             if (this.hasCoord && kk === ck(this.coord) && eid !== this.id) continue; // gossip claims MY seat: IGNORE — a genuine duplicate is settled by a first-hand witness, never an echo
             if (this.firstHandLive(kk)) continue; // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
+            if (this.translost.has(kk)) continue; // D5: my standing first-hand observation (transport died, probe unanswered) outranks an echo — gossip must not re-seat the corpse; any answer or a genuine refill clears the observation and gossip resumes
             const seen = TICK - age - 2; const cur = this.occGet(kk); const curSeen = this.s1seen.has(kk) ? this.s1seen.get(kk) : -999;
             if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur != null && eid < cur)) { this.s1seen.set(kk, Math.max(curSeen, seen)); if (cur !== eid) this.setOcc(kk, eid); }
             else if (cur == null && seen > -999) { this.s1seen.set(kk, seen); this.setOcc(kk, eid); }
@@ -750,12 +795,24 @@
         }
         case 'ROUTE': {
           if (!this.hasCoord) return;
-          if (ck(this.coord) === ck(m.target)) { this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: this.id }); return; }
+          if (ck(this.coord) === ck(m.target)) {
+            if (m.tag === 3) { this.probeAck.set(m.ack, TICK); return; } // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
+            if (m.tag === 2 && m.acoord) {
+              // D5 translost probe reached me: I am alive — answer AROUND the
+              // dead link (first hop excludes the asker; my direct link to it
+              // is presumably the one that died), so the answer survives a
+              // one-sided severance. The plain ROUTED below still covers the
+              // healthy-path case.
+              const nh2 = this._probeHop(m.acoord, m.asker);
+              if (nh2 != null) this.emit(nh2, { t: 'ROUTE', target: m.acoord, asker: this.id, tag: 3, ttl: 60, via: this.id, ack: ck(this.coord) });
+            }
+            this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: this.id }); return;
+          }
           if (m.ttl <= 0) { this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return; }
           const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id }); return; }
           this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return;
         }
-        case 'ROUTED': if (m.tag === 1) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
+        case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
         default: return;
       }
     }
@@ -797,7 +854,10 @@
         // my own link to it died; firstHandLive may linger up to 60 ticks.)
         if (this.coord.i >= 1 && TICK - this.healAt > 20 && (!this.firstHandLive(ck({ pc: 0, r: this.coord.r, i: 0 })) || this.translost.has(ck({ pc: 0, r: this.coord.r, i: 0 })))) {
           const lft = { pc: 0, r: this.coord.r, i: this.coord.i - 1 }; const lk = ck(lft);
-          if (this.ringConfirmDead(lft)) { if (this.occ.has(lk)) { this.occ.delete(lk); this.live.delete(lk); this.s1seen.delete(lk); this.kidful.delete(lk); } this.holeSince.delete(lk); this.tlForget(lk); this.heal(lft); }
+          // D5 early path defers to the VERTICAL healer when the hole owns a
+          // down-child (bug #3's rule) — racing it minted duplicates.
+          const defer = this.translost.has(lk) && this.hasDownChild(lft);
+          if (!defer && this.ringConfirmDead(lft)) { if (this.occ.has(lk)) { this.occ.delete(lk); this.live.delete(lk); this.s1seen.delete(lk); this.kidful.delete(lk); } this.holeSince.delete(lk); this.heal(lft); }
         }
         // W7: keep column links live — re-ping any vacant column-mate
         if (TICK >= this.xlinkAt) { this.xlinkAt = TICK + 150 + (this.rng() * 100 | 0); for (const cm of topo.colMates(this.coord)) if (this.occGet(ck(cm)) == null) this.routeTo(cm, 1); }
@@ -819,7 +879,7 @@
         const hd = { pc: this.coord.pc, r: this.coord.r, i: 0 }; const hdk = ck(hd);
         const hdEarly = this.translostConfirmed(hdk);
         if ((hdEarly || (TICK - this.lastAck > 60 && this.occGet(hdk) == null)) && !this.hasDownChild(hd)) {
-          if (hdEarly) { this.occ.delete(hdk); this.live.delete(hdk); this.s1seen.delete(hdk); this.kidful.delete(hdk); this.tlForget(hdk); }
+          if (hdEarly) { this.occ.delete(hdk); this.live.delete(hdk); this.s1seen.delete(hdk); this.kidful.delete(hdk); }
           this.heal(hd);
         }
       }
@@ -846,7 +906,7 @@
         // remains the backstop. An owner whose probe answers is never touched.
         const ownEarly = ok != null && this.translostConfirmed(ok);
         if (oc && (ownEarly || (this.occGet(ok) == null && TICK - this.lastAck > confirm)) && TICK - (this.healTry.has(ok) ? this.healTry.get(ok) : -999) > 45) {
-          if (ownEarly) { this.occ.delete(ok); this.live.delete(ok); this.s1seen.delete(ok); this.kidful.delete(ok); this.tlForget(ok); }
+          if (ownEarly) { this.occ.delete(ok); this.live.delete(ok); this.s1seen.delete(ok); this.kidful.delete(ok); }
           this.healTry.set(ok, TICK); this.healAt = TICK; didHeal = true;
           const nb = []; for (const [k, v] of this.cousins) nb.push({ k, v });
           const rc = this.rosterCells(); const ix = this.shuf(Array.from({ length: C() }, (_, k) => k)); let sent = false;

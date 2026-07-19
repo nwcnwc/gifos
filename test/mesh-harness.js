@@ -232,12 +232,84 @@ function impostorCheck() {
 }
 impostorCheck();
 
+// ---- D5 early-probe scenarios (healing-laws D5: transport loss is first-hand
+// evidence). The harness models the transport layer exactly like production
+// wiring: every seat that believes a peer occupies one of its owned-link coords
+// holds a "DataChannel" to it; when the peer dies ungracefully that channel is
+// observed dead a few ticks later (the real DC close lands in ~1-5s) and the
+// seat's transportLost() intake fires. A severed link additionally DROPS frames
+// between the pair while both stay alive.
+function coordSeat(env, c) { const k = ck(c); for (const s of env.seats.values()) if (s.alive && s.state === 3 && s.hasCoord && ck(s.coord) === k) return s; return null; }
+function fireTranslost(env, deadId) {
+  for (const s of env.seats.values()) {
+    if (!s.alive || !s.hasCoord || s.id === deadId) continue;
+    for (const olc of topo.ownedLinks(s.coord)) if (s.occGet(ck(olc)) === deadId) { s.transportLost(deadId); break; }
+  }
+}
+function d5Scenario() {
+  seedRng(20260714);
+  const env = makeFabric();
+  // scenario severance support: frames between a severed pair are dropped (the
+  // link is dead, both seats live) — checked after classify, like the sim.
+  env.severed = new Set();
+  const baseSend = env.send;
+  env.send = (from, to, m) => { if (env.severed.has(pairKey(from, to))) return; baseSend(from, to, m); };
+  const N = 500;
+  spawn(env, N); runJoin(env, N, 20000);
+  let c = counts(env);
+  check(`D5 setup: JOIN N=${N} converged`, c.seated === N && c.s1 === 25 && c.dups === 0, c);
+
+  // --- 1. CRASH: a Section-1 row cell dies ungracefully (no LEAVE) ----------
+  const vc = { pc: 0, r: 0, i: 2 }; const vk = ck(vc);
+  const victim = coordSeat(env, vc);
+  victim.alive = false;                       // SIGKILL: nothing sent
+  for (let t = 0; t < 3; t++) doTick(env);    // the DC close lands a few ticks later
+  fireTranslost(env, victim.id);
+  let healedAt = -1; const t0 = env.TICK;
+  for (let t = 0; t < 400 && healedAt < 0; t++) { doTick(env); const h = coordSeat(env, vc); if (h && h.id !== victim.id) healedAt = env.TICK - t0; }
+  check(`D5 crash: seat healed in ~probe-time (${healedAt} ticks, horizon would be 220+)`, healedAt > 0 && healedAt <= 40, { healedAt });
+  for (let t = 0; t < 600; t++) doTick(env);
+  c = counts(env);
+  check('D5 crash: room re-converged, no dups', c.seated === N - 1 && c.s1 === 25 && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
+
+  // --- 2. SLOW PEER: one severed link, occupant ALIVE — probe answers, no evict
+  const head = coordSeat(env, { pc: 0, r: 1, i: 0 });
+  const slowC = { pc: 0, r: 1, i: 2 };
+  const slow = coordSeat(env, slowC);
+  check('D5 sever setup: head + cell found', !!head && !!slow);
+  const pkS = pairKey(head.id, slow.id);
+  env.severed.add(pkS);                       // the link dies; BOTH seats live
+  head.transportLost(slow.id);                // both ends observe the transport death
+  slow.transportLost(head.id);
+  const evict0 = env.evict;
+  // 150 severed ticks — inside the RING_HOLD horizon, way past EARLY_HOLD: an
+  // early confirm would evict within ~15 ticks; the answered probe must not.
+  for (let t = 0; t < 150; t++) doTick(env);
+  check('D5 sever: the slow-but-alive peer keeps its seat (probe answered around the dead link)',
+    slow.alive && slow.state === 3 && ck(slow.coord) === ck(slowC) && env.evict === evict0, { evict: env.evict - evict0, coord: slow.hasCoord ? ck(slow.coord) : null });
+  env.severed.delete(pkS);                    // link recovers inside the horizon — E2/D3: no churn at all
+  for (let t = 0; t < 200; t++) doTick(env);
+  c = counts(env);
+  check('D5 sever: room stays converged after recovery', c.seated === N - 1 && c.s1 === 25 && c.dups === 0, c);
+
+  // --- 3. BLACKHOLE: silent death, NO transport event — horizon unchanged ---
+  const bc = { pc: 0, r: 2, i: 2 }; const bvictim = coordSeat(env, bc);
+  bvictim.alive = false;                      // no LEAVE, no DC-close observed
+  let earlyHealed = false; const tb = env.TICK;
+  for (let t = 0; t < 100; t++) { doTick(env); const h = coordSeat(env, bc); if (h && h.id !== bvictim.id) { earlyHealed = true; break; } }
+  check('D5 blackhole: NO early heal without a transport event (horizon is the backstop)', !earlyHealed);
+  let bHealedAt = -1;
+  for (let t = 0; t < 1400 && bHealedAt < 0; t++) { doTick(env); const h = coordSeat(env, bc); if (h && h.id !== bvictim.id) bHealedAt = env.TICK - tb; }
+  check(`D5 blackhole: horizon still heals it eventually (@${bHealedAt} ticks)`, bHealedAt > 100, { bHealedAt });
+}
+
 // Robust regime is N>=500: at small N the S1 fill is arrival-rng-sensitive.
 // We pin the sim's numbers: JOIN converges, then kill {0.4, 0.5} + the
 // S1-targeted kills heal back to seated=all, s1=25/25, dups=0, stranded=0,
 // teleport=0 (the sim's CHECK PASS line).
 const N = process.env.N ? parseInt(process.env.N, 10) : 0;
-if (N) { scenario(N, process.env.KILL === '40' ? { frac: 0.4, label: '40%-kill' } : process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
+if (process.env.D5_ONLY) { d5Scenario(); } // just the D5 early-probe scenarios (debug convenience)
+else if (N) { scenario(N, process.env.KILL === '40' ? { frac: 0.4, label: '40%-kill' } : process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
 else {
   scenario(500);
   scenario(1000);
@@ -245,6 +317,7 @@ else {
   scenario(500, { frac: 0.5, label: '50%-kill' });
   scenario(500, { mode: 's1row', label: 's1row' });
   scenario(500, { mode: 's1all', label: 's1all' });
+  d5Scenario();
 }
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
 process.exit(fails === 0 ? 0 : 1);
