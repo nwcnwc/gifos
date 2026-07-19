@@ -76,16 +76,18 @@ login).
   rooms, and packs the tree the stadium metaphor always assumed. Depends on:
   law T (atomic moves) landing. Queue position: after the healing amendment.
 
-- **Headless-row admission gap (2026-07-18, from the H7 row-fill work; needs a
-  sim-first design decision).** When the Section-1 head of a 2-person room
-  leaves and a new joiner arrives within seconds: the head cell's designated
-  admitter (the wrapped row above) doesn't exist, the row's other cells need
-  the head, so the joiner seats DEEP while the survivor's LEAVE-reactive scooch
-  into the head is still in flight; the joiner's up-link then points at the
-  vacated cell and re-seating rides the 40s drain / 30s FIND-retry cadences.
-  Candidate fix: let the left-pack healer's row-mates admit into a headless
-  row. Repro: e2e-video's "room survives its creator" leg (57 PASS then a
-  deterministic 25s-window stall on exactly this).
+- **Headless-row admission gap — CLOSED (2026-07-18).** The head cell's
+  admitter didn't exist after a head's goodbye, so a racing joiner seated DEEP
+  (or as a permanent column-mate via the lone-survivor resurrection misfire)
+  and re-seating rode the drain/FIND cadences. Fixed by the H7 headless-row
+  rule (healing-laws.md): own-row first-hand liveness + admission duty of a
+  vacated head DEVOLVES to its fixed H2 healer `(0,r,1)`; the vacated head of
+  a live row is heal territory, never an admission target. Silent death
+  deliberately stays behind the H1-S1 ring-hold. Pinned repro:
+  `sim/repro-headless-row.sh` (RED before, GREEN after); e2e-video's "room
+  survives its creator" leg green inside its 25s window. (En route, fixed the
+  seated-greeter false-lockout: mesh-wire's onLocked now fires for JOINING
+  seats only — R6 scope.)
 
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
