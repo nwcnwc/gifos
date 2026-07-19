@@ -79,6 +79,14 @@
   // seat. After confirm the old cell keeps a bounded FORWARDING TOMBSTONE.
   const CONFIRM_TTL = 16;    // sim/mesh.cpp CONFIRM_TTL
   const LEASE_TTL = 40;      // sim/mesh.cpp LEASE_TTL
+  // Q2 — COMPACTION (roadmap §3, healing-laws law T): a settled deep LEAF that a
+  // fresh probe would place STRICTLY SHALLOWER walks its own ALIVE up-chain and
+  // joins the nearest strictly-shallower OCCUPIED row (densify) via an atomic
+  // law-T move. Rate-limited + local-quiescence-gated so a healing boundary never
+  // sloshes; depth is a monotone potential ⇒ MOVES provably settle.
+  const COMPACT_PERIOD = 90; // sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
+  const COMPACT_SETTLE = 40; // sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn
+  const COMPACT_TTL = 30;    // sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
@@ -129,6 +137,8 @@
       this.oldNbrIds = [];                          // old-link occupants — get the LEAVE(mvd) on confirm
       this.holdOcc = null; this.holdSeen = null; this.holdCous = null; // rollback snapshots
       this.leaseCk = null; this.leaseUntil = -1;    // T3: forwarding tombstone for my just-vacated cell
+      this.compactAt = 0;        // Q2: next tick this leaf may probe for a shallower seat
+      this.lastChurn = 0;        // Q2 hysteresis: last tick my neighbourhood churned (LEAVE/heal/move nearby) — compaction waits for local quiescence
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
       // per-seat PRNG (splitmix-ish), seeded from id — matches the sim's per-seat rng role
       let h = 2166136261 >>> 0; const b = 'p' + id;
@@ -285,15 +295,23 @@
     }
     announce() { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } }
 
-    admit(c, nc) {
+    admit(c, f) {
+      const nc = f.nc;
       this.tlForget(ck(c)); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
       this.occ.set(ck(c), nc); this.noteS1(ck(c));
       const nbrs = []; const ol = topo.ownedLinks(c);
       for (const olc of ol) { const x = this.occGet(ck(olc)); if (x != null && x !== nc) nbrs.push({ k: ck(olc), v: x }); }
       let selfNb = false; for (const olc of ol) if (ck(olc) === ck(this.coord)) selfNb = true;
       if (selfNb) nbrs.push({ k: ck(this.coord), v: this.id });
-      this.emit(nc, { t: 'PLACE', coord: c, owner: this.id, nbrs });
-      this._gspReplay(nc); // an ADMITTED newcomer arrives with no gossip history — hand over the backlog
+      const m = { t: 'PLACE', coord: c, owner: this.id, nbrs, tag: f.tag, nc };
+      // Q2: a compaction seeker (tag==1) is already SEATED and NOT adjacent to me
+      // — ROUTE the PLACE to its coord and deliver to WHOEVER sits there
+      // (rfinal=null, NOT a direct hand-off to the seated seeker, which would
+      // teleport). m.nc names the intended seeker; if it has moved on, the seat
+      // now at that coord ignores the PLACE (nc mismatch) and the seeker
+      // re-probes. A plain newcomer (tag falsy) is reached directly.
+      if (f.tag === 1) { this.route(f.coord, null, m); }
+      else { this.emit(nc, m); this._gspReplay(nc); } // an ADMITTED newcomer arrives with no gossip history — hand over the backlog
     }
     serveFind(mm) {
       const TICK = this.TICK;
@@ -346,7 +364,7 @@
             const below = (t + 1) % C();
             if (this.coord.r === below) {
               const k = ck({ pc: 0, r: t, i: this.coord.i });
-              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit({ pc: 0, r: t, i: this.coord.i }, mm.nc); return; }
+              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit({ pc: 0, r: t, i: this.coord.i }, mm); return; }
               continue;
             }
             let aid = this.occGet(ck({ pc: 0, r: below, i: this.coord.i }));
@@ -381,7 +399,7 @@
             //    still rebuilding: keep scanning (transient).
             if (!this.occ.has(ck(adm)) && rowLive[adm.r]) adm = { pc: 0, r: adm.r, i: 1 };
             if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
-              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm.nc); return; }
+              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
               continue;                                  // admit gate cooling — consider the next cell
             }
             const aid = this.occGet(ck(adm));
@@ -392,16 +410,48 @@
         }
         // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
       }
-      const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm.nc); return; }
+      const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm); return; }
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
       for (const q of idx) { const x = this.occGet(ck(rc[q])); if (x != null && x !== this.id) { this.emit(x, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; } }
       this.emit(mm.nc, { t: 'NOROOM' });
+    }
+    // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1)
+    // climbs the seeker's OWN up-chain — every hop an ALIVE link (row → head →
+    // owner) — and joins the NEAREST strictly-shallower OCCUPIED row (densify).
+    // Reliable (no long route over a fragmented mesh, no reliance on a shallow
+    // seat's stale view of a deep row), monotone (the seeker's depth strictly
+    // decreases), and it empties lone-row deep sections into their ancestors'
+    // rows — the media-plane payoff. The seeker's coord rides in mm.coord.
+    serveCompact(mm) {
+      if (!this.hasCoord || this.state !== 3 || mm.ttl <= 0) return;
+      const sd = topo.pcDepth(mm.coord.pc);
+      // Only a ROW HEAD decides — it holds the whole row FIRST-HAND (row-mates are
+      // meshed), so its frontier view is fresh (unlike an S1 seat's stale view of
+      // a deep row). A non-head hands the probe to its own row head (direct link).
+      if (this.coord.i !== 0) { const h = this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })); if (h != null && h !== this.id) this.emit(h, { t: 'FIND', nc: mm.nc, tag: 1, coord: mm.coord, ttl: mm.ttl - 1 }); return; }
+      // I am a row head. If my row is a DEEP row STRICTLY shallower than the
+      // seeker, offer the first free DENSIFYING slot in it (a trailing frontier:
+      // free + down-child empty, so the seeker lands a childless leaf and never
+      // displaces a healer). NEVER Section 1 (pc==0): the home is filled only
+      // under H1-S1 ring-conservatism — compaction seating a leaf in an S1 cell
+      // whose occupant is merely unreachable (not confirmed dead) could mint a
+      // divergent home. The chain climbs THROUGH S1 but never seats there.
+      if (this.coord.pc !== 0 && topo.pcDepth(this.coord.pc) < sd) {
+        for (let j = 1; j < C(); j++) { const cell = { pc: this.coord.pc, r: this.coord.r, i: j };
+          if (this.occ.has(ck(cell))) continue;                    // occupied (I know my row first-hand)
+          if (this.occGet(ck(topo.down(cell))) != null) continue;  // internal hole — its down-child heals it (C1)
+          this.admit(cell, mm); return;                            // densify: seat the seeker beside me, PLACE routed back (tag==1)
+        }
+      }
+      // My row is full or not shallower — climb one level toward the home.
+      const o = this.ownerCoord(); if (o) { const oid = this.occGet(ck(o)); if (oid != null && oid !== this.id) this.emit(oid, { t: 'FIND', nc: mm.nc, tag: 1, coord: mm.coord, ttl: mm.ttl - 1 }); }
     }
 
     // ---- healing (C3 fixed designation + diversified leaf-sourcing) ----
     heal(hole) {
       const TICK = this.TICK;
       if (!this.hasCoord || this.state !== 3 || TICK - this.healAt < 12) return;
+      this.lastChurn = TICK; // Q2 hysteresis: I'm healing — my region is churning
       const hk = ck(hole); if (TICK - (this.healTry.has(hk) ? this.healTry.get(hk) : -999) < 45) return;
       this.healAt = TICK; this.healTry.set(hk, TICK);
       const nbrs = []; const ol = topo.ownedLinks(hole);
@@ -450,6 +500,7 @@
     doMove(hole, owner, nbrs) {
       if (!this.hasCoord || ck(this.coord) === ck(hole) || this.moving) return;
       if (this.env.bumpMoves) this.env.bumpMoves();
+      this.lastChurn = this.TICK; // Q2 hysteresis: a move is churn
       this.oldCoord = this.coord; this.oldCk = ck(this.coord);
       this.oldNbrIds = []; { const seen = new Set();
         for (const olc of topo.ownedLinks(this.oldCoord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.oldNbrIds.push(x); } } }
@@ -840,9 +891,24 @@
           else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
-        case 'FIND': this.serveFind(m); return;
+        case 'FIND': if (m.tag === 1) this.serveCompact(m); else this.serveFind(m); return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission
         case 'FINDLEAF': if (!this.verifyFill(m)) return; this.findLeaf(m.hole, m.nbrs, m.ttl); return; // S4 identity hook gates fill authorship
-        case 'PLACE': if (this.state === 2 && this.verifyFill(m)) this.take(m.coord, m.owner, m.nbrs); return; // S4 identity hook
+        case 'PLACE':
+          if (this.state === 2 && this.verifyFill(m)) { this.take(m.coord, m.owner, m.nbrs); return; } // S4 identity hook
+          // Q2: a compaction PLACE for a seated leaf — atomically MOVE (law T
+          // dual-hold) into the shallower cell, keeping the old seat warm until
+          // confirm. Re-validate at the moment of action (the frontier may have
+          // shifted while the PLACE routed): I am the named seeker, still a
+          // trailing leaf, not already moving, STRICTLY shallower — else drop and
+          // let the next probe retry. A contested destination is caught by E2 →
+          // rollbackMove (never homeless).
+          if (this.state === 3 && m.tag === 1 && m.nc === this.id && this.verifyFill(m)
+              && this.hasCoord && !this.moving && !this.hasChildren()
+              && topo.pcDepth(m.coord.pc) < topo.pcDepth(this.coord.pc) && !this.firstHandLive(ck(m.coord))) {
+            let trailing = true; for (let j = this.coord.i + 1; j < C(); j++) if (this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: j })) != null) { trailing = false; break; }
+            if (trailing) this.doMove(m.coord, m.owner, m.nbrs);
+          }
+          return;
         case 'NOROOM': if (this.state === 2) { this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
@@ -862,6 +928,7 @@
         case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
         case 'CLAIM': if (!this.verifyFill(m)) return; if (this.occGet(m.ck) !== m.id) { this.setOcc(m.ck, m.id); this.live.set(m.ck, TICK); } this.noteS1(m.ck); return; // first-hand + S4 identity hook
         case 'LEAVE': {
+          this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just
@@ -1050,7 +1117,40 @@
       let ancDead = false;
       if (this.hasCoord) { if (this.coord.i !== 0) ancDead = this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })) == null; else { const anc = this.ownerCoord(); if (anc) ancDead = this.occGet(ck(anc)) == null; } }
       if (!didHeal && TICK - this.lastAck > 80 && (ancDead || TICK - this.lastAck > 220)) this.drainOrReenter();
+      else if (!didHeal) this.tryCompact(); // Q2: only when not draining/healing this tick — pack the tree upward when settled
       this.wake();
+    }
+    // Q2 — COMPACTION probe. A settled DEEP LEAF (childless: P — only leaves move,
+    // so its departure strands nobody) periodically sends a probe UP its own ALIVE
+    // up-chain for a STRICTLY-SHALLOWER occupied row to densify into. Rate-limited
+    // + local-quiescence-gated so a healing boundary never sloshes; strict
+    // improvement makes depth a monotone potential ⇒ MOVES provably settle. Never
+    // a Section-1 seat (already shallowest; greeter role) and never a non-leaf.
+    tryCompact() {
+      if (!this.env.COMPACTION) return; // opt-in (mesh-wire enables it; harness/tests toggle)
+      const TICK = this.TICK;
+      if (!this.hasCoord || this.state !== 3 || this.coord.pc === 0 || this.moving) return; // S1 is the top; a mover finishes first
+      if (TICK < this.compactAt) return; // rate limit / hysteresis
+      // HYSTERESIS: compact only from a QUIESCENT neighbourhood. A LEAVE/heal/move
+      // I saw nearby resets lastChurn, so during a heal storm compaction lies
+      // dormant region-wide and only wakes once the dust settles.
+      if (TICK - this.seatedAt < COMPACT_SETTLE || TICK - this.healAt < COMPACT_SETTLE || TICK - this.lastChurn < COMPACT_SETTLE) return;
+      if (this.hasChildren()) return; // P: only a leaf may move
+      // CLEAN-DEPARTURE gate: only the RIGHTMOST occupant of my row may compact,
+      // so my leaving shortens the row (a trailing hole, C2) and never orphans a
+      // row-mate into a headless row.
+      for (let j = this.coord.i + 1; j < C(); j++) if (this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: j })) != null) return;
+      this.compactAt = TICK + COMPACT_PERIOD + (this.rng() * COMPACT_PERIOD | 0);
+      // Send a compaction probe UP my own chain: to my row head (a direct row
+      // link), or, if I AM a childless head, straight to my owner. Every hop
+      // rides an ALIVE link, so the probe never depends on routing across a
+      // fragmented mesh or on a shallow seat's stale view. serveCompact climbs to
+      // the nearest strictly-shallower OCCUPIED row and seats me beside it; the
+      // admitter routes the PLACE back. A dropped probe just retries next period.
+      let up1 = (this.coord.i !== 0) ? this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })) : null;
+      if (this.coord.i === 0) { const o = this.ownerCoord(); if (o) up1 = this.occGet(ck(o)); }
+      if (up1 == null || up1 === this.id) return;
+      this.emit(up1, { t: 'FIND', nc: this.id, tag: 1, coord: this.coord, ttl: COMPACT_TTL });
     }
   }
 

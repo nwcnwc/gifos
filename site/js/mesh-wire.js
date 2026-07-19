@@ -138,6 +138,7 @@
     const env = {
       TICK: 0,
       HEALING: true,
+      COMPACTION: true,   // Q2: pack the tree upward (deep leaves atomically move to shallower occupied rows). Roadmap §3 / law T.
       send(from, to, m) {
         // S4: sign the participant's own occupancy-authoring frames before they
         // leave. The signature is the same for every recipient (it commits to
