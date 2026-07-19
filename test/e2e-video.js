@@ -351,20 +351,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aPage.locator('#recbtn').click();
   // Record now opens a scope/quality popup — choose "Everything I see" and start.
   await aPage.locator('#rec-options input[name=rec-scope][value="all"]').check();
-  await aPage.locator('#ro-start').click();
+  // noWaitAfter: the start button triggers no navigation — under a saturated
+  // box the post-click "scheduled navigations" wait can outlive the 30s cap
+  // while MediaRecorder + canvas compositing spin up.
+  await aPage.locator('#ro-start').click({ noWaitAfter: true });
   await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
-    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 10000 });
+    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 30000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
+  // 120s on BOTH the click and the download: while an 'all'-scope recording
+  // runs (15fps canvas composite of every tile + VP8 encode, SwiftShader —
+  // no GPU in headless CI), the recorder page's main thread degrades until
+  // trivial evaluates take ~0.5s and the stop click needs ~60s to become
+  // actionable (measured; the recording itself always completes and the
+  // download always fires). Real hardware composites on the GPU.
   const [recDl] = await Promise.all([
-    aPage.waitForEvent('download'),
-    aPage.locator('#recbtn').click(),
+    aPage.waitForEvent('download', { timeout: 120000 }),
+    aPage.locator('#recbtn').click({ noWaitAfter: true, timeout: 120000 }),
   ]);
   const recPath = await recDl.path();
   check('stopping saves a real .webm on the recorder\'s device only',
     /\.webm$/.test(recDl.suggestedFilename()) && fs.statSync(recPath).size > 20000);
   await bPage.waitForFunction(() => !Array.from(document.querySelectorAll('.tile'))
-    .some((t) => /recording this meeting/.test(t.textContent)), null, { timeout: 10000 });
+    .some((t) => /recording this meeting/.test(t.textContent)), null, { timeout: 30000 });
   check('the recording chip clears everywhere on stop', true);
 
   // ---------- transcription: per-speaker lines merge P2P ----------
