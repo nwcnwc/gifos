@@ -5436,7 +5436,15 @@
       };
     }
     recBtn.onclick = () => {
-      if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} recRec = null; return; }
+      if (recRec && recRec.state !== 'inactive') {
+        // Halt the 15fps compositor BEFORE stop(): stop() makes the encoder
+        // flush its backlog, and on a weak/software-rendered device the
+        // still-running composite loop starves that flush — onstop (and the
+        // download) can stall for minutes. Unsubscribing here is idempotent
+        // (metroSub returns a Set.delete), so onstop's own cleanup stays safe.
+        if (typeof recDraw === 'function') { try { recDraw(); } catch (e) {} }
+        try { recRec.stop(); } catch (e) {} recRec = null; return;
+      }
       showRecOptions();
     };
 

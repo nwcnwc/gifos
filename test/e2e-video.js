@@ -351,6 +351,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aPage.locator('#recbtn').click();
   // Record now opens a scope/quality popup — choose "Everything I see" and start.
   await aPage.locator('#rec-options input[name=rec-scope][value="all"]').check();
+  // Low quality: the asserts care that a real .webm lands, not its resolution
+  // — and the default 1080p/3Mbps VP8 software-encode pegs the headless
+  // (SwiftShader, no GPU) recorder page so hard that later clicks starve.
+  await aPage.locator('#rec-options input[name=rec-q][value="low"]').check();
   // noWaitAfter: the start button triggers no navigation — under a saturated
   // box the post-click "scheduled navigations" wait can outlive the 30s cap
   // while MediaRecorder + canvas compositing spin up.
@@ -359,16 +363,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 90000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
-  // 120s on BOTH the click and the download: while an 'all'-scope recording
-  // runs (15fps canvas composite of every tile + VP8 encode, SwiftShader —
-  // no GPU in headless CI), the recorder page's main thread degrades until
-  // trivial evaluates take ~0.5s and the stop click needs ~60s to become
-  // actionable (measured; the recording itself always completes and the
-  // download always fires). Real hardware composites on the GPU.
-  const [recDl] = await Promise.all([
-    aPage.waitForEvent('download', { timeout: 120000 }),
-    aPage.locator('#recbtn').click({ noWaitAfter: true, timeout: 120000 }),
-  ]);
+  // Generous windows, measured: while an 'all'-scope recording runs (15fps
+  // canvas composite of every tile + VP8 encode on SwiftShader — no GPU in
+  // headless CI) the recorder page's main thread degrades until the stop
+  // click needs up to ~60s to become actionable; onstop + the .webm download
+  // then land within seconds (probed). The download listener is armed before
+  // the click and its window must cover click + encoder flush. Real hardware
+  // composites on the GPU and feels none of this.
+  // Programmatic stop click: while recording, the headless (SwiftShader)
+  // renderer is so starved that Playwright's actionability pipeline — box
+  // stability across two rAFs (defeated anyway by the 1/s "Stop 0:06" label
+  // tick), even force-click's scroll-into-view — stalls >120s. evaluate()
+  // rides the event loop directly (~0.5s under the same jam, measured). The
+  // button's real clickability is already proven by the START click above;
+  // this step asserts the .webm lands.
+  const recDlP = aPage.waitForEvent('download', { timeout: 240000 });
+  recDlP.catch(() => {}); // avoid an unhandled rejection if the evaluate throws first
+  await aPage.evaluate(() => document.getElementById('recbtn').click());
+  const recDl = await recDlP;
   const recPath = await recDl.path();
   check('stopping saves a real .webm on the recorder\'s device only',
     /\.webm$/.test(recDl.suggestedFilename()) && fs.statSync(recPath).size > 20000);
@@ -405,14 +417,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.locator('#chatclose').click();
 
   // ---------- a participant leaves → tiles + quality recover ----------
-  await cPage.close(); await cCtx.close();
-  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  // runBeforeUnload: this section tests LEAVING (a tab closed normally →
+  // beforeunload → meshNode.leave() → D2 instant goodbye). Playwright's
+  // default close() skips beforeunload — that's a silent CRASH, whose
+  // deliberately slower cleanup (D3 sweep horizon; RING_HOLD for a home
+  // head) is covered by e2e-failover / e2e-reconnect instead.
+  await cPage.close({ runBeforeUnload: true }); await cCtx.close();
+  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 60000 });
   const q2 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('peer-leave shrinks the mesh and quality steps back up', q2 === '720p');
 
   // ---------- the room is PERMANENT: it outlives its creator ----------
   check('creator URL carries the room (reload-safe)', await aPage.evaluate(() => /v=/.test(location.hash)));
-  await aPage.close(); await aCtx.close(); // the creator is GONE
+  await aPage.close({ runBeforeUnload: true }); await aCtx.close(); // the creator LEAVES (graceful close → D2 goodbye; crash cleanup is e2e-failover's job)
   const dCtx = await newUser('Dee');
   const dPage = await dCtx.newPage();
   dPage.on('console', (m) => { if (m.type() === 'error') console.log('  [dee]', m.text()); });
