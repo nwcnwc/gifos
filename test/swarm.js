@@ -289,7 +289,13 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     // ACCESS_CHECKS. A real swarm points at exactly such a relay, so disable
     // the checks for these bots (also legacy PNA flags for older builds).
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
-      '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
+      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+      // SWARM_INSECURE_ORIGINS: comma-list of http(s) origins to treat as SECURE,
+      // so a bot loaded over plain HTTP (a checkout-hosted LOCAL relay+static on a
+      // tailnet IP, no cert) still gets a secure context for getUserMedia/WebRTC.
+      // Only for the fake-media swarm bots; real users load the https origin.
+      ...(process.env.SWARM_INSECURE_ORIGINS ? ['--unsafely-treat-insecure-origin-as-secure=' + process.env.SWARM_INSECURE_ORIGINS] : []),
       '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const pages = [];
