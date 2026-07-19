@@ -157,6 +157,15 @@ list to keep and nobody keeps it — like the Stage and the rows, the queue is
   pure function of shared status, so however deep the tree, every device
   shows the same line in the same order. A same-millisecond tie breaks on the
   id, deterministically; nothing is elected and nothing is synced.
+- **Freshness — a hand needs a live pulse.** A hand only counts while its
+  owner's status has been heard within **15 s** — the one freshness rule the
+  Stage (`stageIds`), consent, and the roster already use. A vanished peer's
+  raised hand therefore clears from the banner as soon as their pulse stops
+  (and instantly when their departure is confirmed — the D2/D5 event-driven
+  removal drops them from `rosterIds`, which the queue derives over), instead
+  of lingering until roster machinery buried them. An honest, briefly-quiet
+  peer never flickers: even a hidden tab re-beats every 12 s, inside the
+  window.
 - **The banner.** One line above the feed (`#handq`): `✋ N waiting:` plus the
   first **8** names in queue order (the head of the line in bold), then a
   `+K` overflow count. It repaints only when the derived line actually
