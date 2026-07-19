@@ -45,8 +45,19 @@
  * Every ~20s each shard prints a one-line census: how many bots are up and
  * which sections they landed in. Ctrl-C tears the shard down.
  */
+// Arg parsing. A strict pairwise walk (i += 2) is WRONG the moment a valueless
+// flag exists: `--lite` would eat the next `--flag` as its value and shift every
+// remaining pair by one, so `--base <url>` silently vanished and the shard fell
+// back to the PRODUCTION default — an accidental load test against gifos.app.
+// Value-taking flags consume the next token only when it isn't another --flag.
 const args = {};
-for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+for (let i = 2; i < process.argv.length; i++) {
+  const a = process.argv[i];
+  if (!a.startsWith('--')) continue;
+  const next = process.argv[i + 1];
+  if (next !== undefined && !next.startsWith('--')) { args[a.slice(2)] = next; i++; }
+  else args[a.slice(2)] = true;   // boolean flag (--lite)
+}
 const ROOM = args.room || 'test';
 const PASS = args.pass || '';
 const AV = (/^[a-f0-9]{16,64}$/.exec((args.av || '').toLowerCase()) || [''])[0];
