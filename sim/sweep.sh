@@ -69,8 +69,8 @@ out=$(printf "seed 3\ninit 200 0\nconverge\nsever 0 6 150\ntick 200\nwhere 6\nch
 echo "$out" | sed 's/^/  sever: /'
 grep -q "WHERE 6 state=3 coord=/0.2" <<<"$out" || ebad=$((ebad+1))
 grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
-# 3c) BLACKHOLE: silent death, NO transport event -> NOT healed early (60 ticks), healed by the horizon (+700)
-out=$(printf "seed 3\ninit 200 0\nconverge\ncrash 6 quiet\ntick 60\nfind /0.2\ntick 700\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
+# 3c) BLACKHOLE: silent death, NO transport event -> NOT healed early (60 ticks), healed by the horizon (settled by +1300 — the heal fires ~240 but the drain wave of the dead seat's dependents needs its own E1 timers)
+out=$(printf "seed 3\ninit 200 0\nconverge\ncrash 6 quiet\ntick 60\nfind /0.2\ntick 1300\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
 echo "$out" | sed 's/^/  blackhole: /'
 grep -q "FIND /0.2 -> seat -1" <<<"$out" || ebad=$((ebad+1))   # nobody promoted early into the blackholed cell
 grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
