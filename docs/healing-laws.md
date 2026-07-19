@@ -60,6 +60,23 @@ childless — a leaf. **Only leaves move. No exceptions.**
   which would manufacture duplicate seats during a mass heal. A seat whose
   own upward chain is confirmed dead and stays unhealed falls back to the
   drain (E1).
+- **D5. Transport loss is first-hand — it MAY start the confirm probe
+  immediately; the horizon remains the backstop.** A seat that watches its OWN
+  transport to a neighbour die (the DataChannel closes / the connection lands
+  in a hard failed state — never gossip, never hearsay) holds a first-hand
+  observation and may begin that seat's probe-gated death confirmation NOW
+  instead of waiting out the silence horizon: the probe travels the MESH, not
+  the dead link, so a slow-but-alive peer answers and keeps its seat (an
+  answered probe erases the observation entirely — no eviction, E2/tenure
+  untouched); only a peer unreachable on every path for the settled early
+  window is confirmed dead. The trigger is edge-triggered (one probe burst per
+  transition — a flapping link cannot storm), a mere 'disconnected' blip never
+  fires it, and a death with no transport event keeps the ordinary D3/D4
+  horizon unchanged. A relay-observed socket death (the R2 registry's own
+  transport plane watching a greeter/joiner socket die — a server frame no
+  peer can forge, so still not gossip) may start the same probe: since the
+  probe gate decides everything, the worst a wrong trigger can ever cost is
+  one probe.
 
 ## H — who fills a hole (fixed designation: every hole has ONE pre-named healer)
 
