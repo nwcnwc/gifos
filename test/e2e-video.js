@@ -370,9 +370,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // then land within seconds (probed). The download listener is armed before
   // the click and its window must cover click + encoder flush. Real hardware
   // composites on the GPU and feels none of this.
+  // force: the Stop button's label ticks every second ("Stop 0:06" → 0:07),
+  // shifting its bounding box — Playwright's stability check (same box across
+  // two animation frames) can never pass while recording jank stretches rAFs
+  // toward the 1s tick period, so an ordinary click starves indefinitely.
   const recDlP = aPage.waitForEvent('download', { timeout: 240000 });
   recDlP.catch(() => {}); // avoid an unhandled rejection if the click throws first
-  await aPage.locator('#recbtn').click({ noWaitAfter: true, timeout: 120000 });
+  await aPage.locator('#recbtn').click({ force: true, noWaitAfter: true, timeout: 120000 });
   const recDl = await recDlP;
   const recPath = await recDl.path();
   check('stopping saves a real .webm on the recorder\'s device only',
