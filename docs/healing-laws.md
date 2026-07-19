@@ -131,6 +131,25 @@ childless — a leaf. **Only leaves move. No exceptions.**
   internal hole belonging to its designated healer, C1) and either admits (if
   it is that cell's admitter) or hands the FIND to the admitter — always a
   rook link, and all home seats are socketed greeters besides.
+  **The headless-row rule (two clauses, both first-hand).** (a) A row's
+  liveness is judged first-hand-first: a seat's OWN row is live because it is
+  sitting in it — a lone survivor's gossip freshness for its own cells decays
+  (nobody phones a lone seat), and without this clause it would
+  resurrection-scan its own live row and seat a 2-person room as COLUMN-mates.
+  (b) The vacated HEAD of a live row is an internal hole owned by its
+  designated healer (the H2 scoocher or the vertical promotion) — never an
+  admission target (C1: an admission must not race a healer); and any cell
+  whose designated ADMITTER is a vacated head — occ-EMPTY, i.e. a delivered
+  LEAVE (D2-confirmed; mere silence never clears occ, so silent death stays
+  behind the H1-S1 ring-hold) — has its admission duty DEVOLVE to that
+  head-hole's one fixed H2 healer: the occupant of column 1 of the admitter's
+  row. Fixed designation, one seat, no race — C3's designated-healer
+  discipline applied to admission. (Without this, a FIND arriving in the
+  seconds after a head's goodbye found no live admitter anywhere — every row
+  cell pointed at the vacated head, every head cell at a row that never
+  lived — and fell through the whole home scan to seat the joiner DEEP under
+  a survivor, or died at the corpse and rode the FIND-retry cadence: the
+  "headless-row admission gap". Repro: `sim/repro-headless-row.sh`.)
   **The resurrection clause (H7's original job, kept).** A row that LIVED and
   is now entirely silent — a whole-row death, distinguished from a never-born
   row by any `s1seen` memory of it — is re-seeded by ARRIVAL traffic, not by
