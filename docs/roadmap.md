@@ -76,19 +76,6 @@ login).
   rooms, and packs the tree the stadium metaphor always assumed. Depends on:
   law T (atomic moves) landing. Queue position: after the healing amendment.
 
-- **Headless-row admission gap — CLOSED (2026-07-18).** The head cell's
-  admitter didn't exist after a head's goodbye, so a racing joiner seated DEEP
-  (or as a permanent column-mate via the lone-survivor resurrection misfire)
-  and re-seating rode the drain/FIND cadences. Fixed by the H7 headless-row
-  rule (healing-laws.md): own-row first-hand liveness + admission duty of a
-  vacated head DEVOLVES to its fixed H2 healer `(0,r,1)`; the vacated head of
-  a live row is heal territory, never an admission target. Silent death
-  deliberately stays behind the H1-S1 ring-hold. Pinned repro:
-  `sim/repro-headless-row.sh` (RED before, GREEN after); e2e-video's "room
-  survives its creator" leg green inside its 25s window. (En route, fixed the
-  seated-greeter false-lockout: mesh-wire's onLocked now fires for JOINING
-  seats only — R6 scope.)
-
 - **e2e-video "via Hub" peer-relay leg fails deterministically (2026-07-19,
   PRE-EXISTING on main).** After the seated-greeter false-lockout fix
   unblocked the suite past assert 33, e2e-video consistently reaches 72
