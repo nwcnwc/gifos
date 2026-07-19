@@ -20,7 +20,11 @@ on Earth). Faithful port of the NO-ROOT topology + all healing laws
       bad                     # live non-seated seats
       dups                    # coords held by >1 seat (dedup health)
       kill <frac> [s1row|s1all]  # a departure / catastrophe
+      killat <path>/<r>.<i> [silent]  # kill the occupant of ONE coord (deterministic scenarios)
       quit
+
+Scenario suites: sim/sweep.sh (churn + partition verdict),
+sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3).
 
 Files: topo.h (topology arithmetic), mesh.cpp (fabric + run/service),
 mesh_seat.inc (the seat protocol).

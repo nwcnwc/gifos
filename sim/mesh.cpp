@@ -644,6 +644,16 @@ int main(int argc,char**argv){
         Msg m1; m1.t=TRANSLOST; m1.id=b; m1.to=a; m1.from=-1; bus[TICK+2].push_back(move(m1));
         Msg m2; m2.t=TRANSLOST; m2.id=a; m2.to=b; m2.from=-1; bus[TICK+2].push_back(move(m2));
         printf("OK severed %d<->%d for %lld ticks (both ends observe transport loss)\n",a,b,t); } }
+    else if(op=="killat"){   // kill the CURRENT occupant of a coord (deterministic scenario tool): killat <path>/<r>.<i> [silent] — graceful leave() unless silent
+      string a=tk.size()>1?tk[1]:""; bool silent = tk.size()>2 && tk[2]=="silent";
+      size_t sl=a.find('/'),dt=a.find('.',sl); if(sl==string::npos||dt==string::npos){printf("ERR usage: killat <path>/<r>.<i> [silent]\n");continue;}
+      string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps) pc=childPath(pc,ch-'0');
+      int r=atoi(a.substr(sl+1,dt-sl-1).c_str()), i=atoi(a.substr(dt+1).c_str());
+      uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); int who=-1;
+      for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&ckey(seats[q]->coord)==k){who=q;break;}
+      if(who<0){ printf("ERR killat: nobody at %s\n",a.c_str()); continue; }
+      if(silent){ alive[who]=0; active.erase(who); } else seats[who]->leave();
+      N--; printf("OK killat %s -> killed seat %d (%s), N now %d\n",a.c_str(),who,silent?"silent":"leave",N); }
     else if(op=="spawn"){ int k=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<k;q++){ int id=nextId++; if(id>=(int)seats.size()){ seats.resize(id+1); alive.resize(id+1); } seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } N+=k; printf("OK spawned %d (ids %d..%d), N now %d\n",k,nextId-k,nextId-1,N); }
     else if(op=="where"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]) printf("WHERE %d dead\n",id); else printf("WHERE %d state=%d coord=%s\n",id,seats[id]->state,seats[id]->hasCoord?coordStr(seats[id]->coord).c_str():"-"); }
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }
