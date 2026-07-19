@@ -198,19 +198,39 @@ anyway (there is no free shared broadcast), so per-branch streams cost no extra
 encodes, and each packer's audio fold sums exactly its own tiles — the audio
 mix-minus falls out of the video packing for free.
 
-**Redundancy — two pipes moving bits, the rest on standby.** A per-branch mix
-has exactly ONE producer (the head) — a *neighbour's* mix can never substitute
-(it contains YOUR row) — but the SAME mix rides **two link-disjoint pipes**
-under the multi-subscribe discipline (primary + hot standby; every further
-announcer idles at zero media until demanded): `sdm` re-fans laterally
-mate→mate (a mate that loses the head's direct pipe promotes the standby with
-no flicker), and each `sdx` ingredient also travels head → carrier row-mate →
+**Redundancy — ONE pipe moves bits; every alternate path is parked.** A
+per-branch mix has exactly ONE producer (the head) — a *neighbour's* mix can
+never substitute (it contains YOUR row) — but the SAME mix is *negotiated*
+over every link-disjoint path the topology offers: `sdm` re-fans laterally
+mate→mate, and each `sdx` ingredient also travels head → carrier row-mate →
 target seat (`sdxc` → `sdx^x`, same slot). The up legs keep their x1/x2
-backup. What remains single: the head as PRODUCER (a dead head leaves its row
-Stadium-dark until healing (C3) refills seat 0 — seconds — while Channel R and
-Stage are unaffected), and the final parent-seat → child-head `sdn` hop (the
-one physical edge into a branch; a down-mirror of x1/x2 through a sibling
-branch is possible future work).
+backup. The law for all of them is **one-pipe**: only the claimed PRIMARY
+carries media. The best alternate is kept as a **parked standby** — claimed,
+its m-lines negotiated, a decoder element waiting — but demanded idle
+(`replaceTrack(null)` at the sender: zero bytes). Every further announcer is
+a dormant spare. A primary failure **demand-wakes** the standby (one control
+frame; a pure `replaceTrack` at the sender, no renegotiation) while the dead
+pipe lingers its last frame under the grace; the standby takes the slot the
+moment it demonstrably **flows** (frames observed). Target wake ≤2s — always
+inside the 5s grace linger. When the preferred tree-direct path returns,
+**failback is make-before-break with hysteresis**: the preferred feed is
+staged as the standby and woken *alongside* the live primary — the one
+sanctioned two-pipe overlap — and the roles swap only after it is flowing
+and has been back a full settle window (~5s), so a bouncing link cannot
+oscillate the roles; the loser re-parks.
+
+*Why the law changed* (from "primary + hot standby, both decoding"): the
+"grace, not teardown" linger already freezes the last frame across any
+sub-5s failover, which made the hot standby's zero-flicker advantage nearly
+invisible — while its steady cost was very real (every redundant slot
+decoding, and its sender encoding, a second full copy forever: ~2× media
+bytes on `sdm`/`sdx`/`sgs`/`stg:*`/`sdrow:*`). One pipe hot, everything else
+parked, buys the same user experience at half the steady bandwidth; the
+brief two-pipe overlap during failback is the sanctioned exception. What
+remains single: the head as PRODUCER (a dead head leaves its row
+Stadium-dark until healing (C3) refills seat 0 — seconds — while Channel R
+and Stage are unaffected). The final parent-seat → child-head `sdn` hop has
+its own parked mirror — the dormant chain below.
 
 ### The latency offset
 The Stadium necessarily lags Stage (and the live Row) by exactly the time the
@@ -255,10 +275,12 @@ row fed by a different up-link**, so it is an *independent* second source. Dedup
 keeps it from looping: a fan is **not** sent back to the peer it was received
 from (`via`), the stage copy carries a `^x` tag that resolves to the **same**
 slot, and the S1 collect flood dedups by `streamId`. Because `claimMos` is
-**sticky** — it keeps a live source and only switches when that source dies — the
-second announcer sits idle until it's needed, then takes over in ~2s (no thrash
-between two live sources). This is exactly what the dropped Section channel's
-cross-link budget was freed to pay for.
+**sticky** — it keeps a live source and only switches when that source dies —
+and the redundancy law is **one-pipe** (above), the second announcer sits
+*parked at zero media* until it's needed, then is demand-woken and takes over
+in ~2s (no thrash between two live sources, no steady second copy). This is
+exactly what the dropped Section channel's cross-link budget was freed to pay
+for.
 
 ---
 
