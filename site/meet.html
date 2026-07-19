@@ -745,7 +745,7 @@
 
     let myId = null, localStream = null, meTile = null, leaving = false;
     const peers = new Map(); // peerId -> { pc, tile, video, name, connected, absentSince, lastKick }
-    const ABSENT_GRACE = 12000; // roster-absent AND link-down this long → tile drops
+    const ABSENT_GRACE = 12000; // BACKSTOP ONLY: roster-absent AND link-down this long → tile drops. Announced (D2) and probe-confirmed (D5) departures remove the tile event-driven, within a beat (see departSweep/confirmGone).
 
     // ---- screen name (same identity the rest of GifOS uses) ----------------
     function ensureName() {
@@ -945,7 +945,9 @@
       const s = meshSeat();
       if (!s) return rosterIds.length || 1;
       const ids = new Set([myId]);
-      for (const v of s.occ.values()) if (v) ids.add(v);
+      // A confirmed departure (D2/D5 — the meshGone tombstone) never counts,
+      // even if an occ echo of the freed seat is still settling.
+      for (const v of s.occ.values()) if (v && !meshGone.has(v)) ids.add(v);
       for (const id of rosterIds) ids.add(id);
       return ids.size;
     }
@@ -2070,6 +2072,7 @@
       if (!st) return false;
       const cur = statusOf.get(from);
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
+      st.rx = Date.now(); // RECEIPT time (local clock) — the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
       statusOf.set(from, st);
       return true;
     }
@@ -2082,7 +2085,12 @@
       for (const pid of rosterIds) {
         if (pid === myId) continue;
         const st = statusOf.get(pid) || {};
-        if (st.hand) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
+        // FRESHNESS: a hand needs a status heard within 15s — the same one
+        // rule stageIds/consent/roster use. A vanished peer's raised hand
+        // must not linger in the banner until the roster machinery drops
+        // them; a briefly-quiet live peer re-beats well inside 15s (hidden
+        // tabs pulse every 12s), so an honest hand never flickers.
+        if (st.hand && Date.now() - (st.at || 0) <= 15000) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
       }
       if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName() });
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
@@ -2219,6 +2227,79 @@
       p.absentSince = 0;
       if (name && p.name !== name) { p.name = name; p.label.textContent = name; }
     }
+    // ---- EVENT-DRIVEN DEPARTURES (healing-laws D2/D5) ----------------------
+    // The mesh already NOTICES a vanished peer fast — a LEAVE frees the seat
+    // instantly (D2), a probe-confirmed transport death frees it in ~7s (D5).
+    // The human-visible view (tile, count, roster, hands) must FOLLOW those
+    // signals within a beat, not re-serve an independent grace sentence sized
+    // for the old 30-40s detection era. So: diff my own occ view tick-over-
+    // tick; a seat freed WITH evidence of departure is confirmed gone NOW.
+    // Evidence, and nothing less:
+    //   'd5'   — the seat still holds a STANDING translost for the freed cell
+    //            (tlSweep deletes occ only on a probe-confirmed death and
+    //            deliberately keeps the observation; a LEAVE tlForgets it) —
+    //            first-hand confirmed death, remove immediately.
+    //   'left' — a LINKED peer's seat freed (their LEAVE reached me) and their
+    //            transport to me is down too; confirmed one beat later so a
+    //            seat MOVE (promotion/scooch re-seats within a tick) never
+    //            reads as a departure.
+    //   'bye'  — the leaver's own farewell gossip (sendMeshLeave) — reaches
+    //            even non-neighbours the LEAVE never visits.
+    // PROTECTED, scrupulously: an AWAY peer (locked phone, app-switched) keeps
+    // an OPEN DataChannel, so 'left' refuses them; a transport BLIP keeps the
+    // seat (the D5 probe travels the mesh and an alive peer answers), so no
+    // vanish ever shows in occ. The ABSENT_GRACE sweep stays as the BACKSTOP
+    // for deaths with no signal (far peers, lost frames) — never the main path.
+    const meshGone = new Map();   // pid -> Date.now() of the confirmed departure (tombstone)
+    const occVanish = new Map();  // pid -> Date.now() first seen freed ('left' one-beat confirm)
+    let occPrevIds = new Map();   // pid -> ckey, my occ view one mesh tick ago
+    let occPrevMyCk = null;       // my own seat then (a move rebuilds occ wholesale)
+    function confirmGone(pid, why) {
+      if (!pid || pid === myId || meshGone.has(pid)) return;
+      meshGone.set(pid, Date.now());
+      occVanish.delete(pid);
+      statusOf.delete(pid); connsOf.delete(pid); delete rosterNames[pid];
+      rosterIds = rosterIds.filter((x) => x !== pid); // the roster view drops them NOW, not next tick
+      if (peers.has(pid)) dropPeer(pid);              // tile + meters + consent react inside
+      else reactRoomState();                          // far peer: count/consent still re-derive
+      renderHandq();                                  // a dead hand leaves the queue with them
+      updateStatus();
+      if (typeof clog === 'function') clog('gone ' + String(pid).slice(0, 6) + ' ' + why);
+    }
+    // A tombstoned peer is EXCLUDED from the room view until they prove life
+    // AGAIN: a status received clearly after the verdict (statuses come only
+    // from the peer itself, never third-hand — takeStatus stamps receipt), or
+    // a live connection. Then the tombstone lifts — a wrong verdict costs one
+    // tile flicker, never an eviction (the mesh's own E2/tenure is untouched).
+    const notTomb = (pid) => {
+      const g = meshGone.get(pid); if (g === undefined) return true;
+      const st = statusOf.get(pid); const p = peers.get(pid);
+      if ((st && (st.rx || 0) > g + 1500) || (p && p.connected)) { meshGone.delete(pid); return true; }
+      return false;
+    };
+    function departSweep(s) {
+      const occNow = new Map();
+      for (const [k, v] of s.occ) if (v && v !== myId) occNow.set(v, k);
+      const myCk = (s.hasCoord && s.state === 3) ? net.topo.ckey(s.coord) : null;
+      if (myCk === null || myCk !== occPrevMyCk) {
+        // MY seat changed (join/move/requeue → occ.clear + rebuild): every
+        // diff this tick is my own structural event, never a departure.
+        occVanish.clear();
+      } else {
+        for (const [pid, k] of occPrevIds) {
+          if (occNow.has(pid) || meshGone.has(pid)) continue;
+          if (s.translost.has(k)) { confirmGone(pid, 'd5'); continue; }
+          if (peers.has(pid) && !occVanish.has(pid)) occVanish.set(pid, Date.now());
+        }
+        for (const [pid, at] of occVanish) {
+          if (occNow.has(pid)) { occVanish.delete(pid); continue; } // re-seated: a MOVE, not a departure
+          const p = peers.get(pid);
+          if (p && p.dc && p.dc.readyState === 'open') { occVanish.delete(pid); continue; } // transport alive (away, quiet) — NOT gone
+          if (Date.now() - at >= 900) { occVanish.delete(pid); confirmGone(pid, 'left'); }
+        }
+      }
+      occPrevIds = occNow; occPrevMyCk = myCk;
+    }
     // The directory is DERIVED, every tick, from the mesh: occ (coord → peer,
     // maintained by the healing laws) plus fresh status gossip. Replaces the
     // relay-roster reconcile — the relay's roster is the greeter pool, not
@@ -2226,6 +2307,7 @@
     function renderFromOcc() {
       const s = meshSeat();
       if (!s) return;
+      departSweep(s); // D2/D5 event intake FIRST — a freed seat leaves the view this tick
       const ids = new Set();
       // An occ id is a PARTICIPANT only with a liveness signal: a fresh status
       // (15s — the one rule everywhere) or a live connection. A DEPARTED seat
@@ -2239,8 +2321,8 @@
       // deadlocks on the very gossip that needs the link.
       const fhLive = (v) => { for (const [k, vv] of s.occ) if (vv === v) { const at = s.live.get(k); return at !== undefined && (s.env.TICK - at) <= 60; } return false; };
       const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); };
-      for (const v of s.occ.values()) if (v && v !== myId && alive(v)) ids.add(v);
-      for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000) ids.add(pid);
+      for (const v of s.occ.values()) if (v && v !== myId && notTomb(v) && alive(v)) ids.add(v);
+      for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000 && notTomb(pid)) ids.add(pid);
       rosterIds = Array.from(ids);
       for (const pid of rosterIds) {
         // A peer carrying MY device id is a stale session of my own device —
@@ -2681,6 +2763,9 @@
     let lastRmSig = ''; // row-mate set signature — refreshOutbound on change (became/stopped-being a mate)
     setInterval(() => {
       const now = Date.now();
+      // Departure tombstones expire once every occ echo of the freed seat has
+      // settled — after that a same-id RE-JOIN is an ordinary newcomer.
+      for (const [pid, at] of meshGone) if (now - at > 60000) meshGone.delete(pid);
       // Elections settle as cap gossip arrives — follow the arithmetic.
       for (const pid of rosterIds) {
         if (pid === myId || (devOf[pid] && devOf[pid] === myDevHash)) continue;
@@ -3578,6 +3663,13 @@
       } else if (m.k === 'sga-snap' && m.m && typeof m.m.sid === 'string') {
         // Direct snapshot replay (the answer to sga-req) — deliver, never re-fan.
         sgaRecvSnap(m.m);
+      } else if (m.k === 'bye') {
+        // The peer's own farewell (sendMeshLeave, D2's app-level echo): an
+        // ANNOUNCED departure — remove them from the human view now. Sealed
+        // room gossip, same trust as every status frame (it names only its
+        // sender); a wrong/forged bye self-heals — the victim's next status
+        // pulse lifts the tombstone (notTomb) and re-seats their tile.
+        confirmGone(p.id, 'bye');
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
@@ -6049,7 +6141,14 @@
     // LOCKS or app-switches fires visibilitychange, NOT pagehide — stepping
     // away keeps your seat (the away/absentSince machinery above handles it).
     let leftMesh = false;
-    function sendMeshLeave() { if (leftMesh) return; leftMesh = true; leaving = true; try { meshNode && meshNode.leave(); } catch (e) {} }
+    function sendMeshLeave() {
+      if (leftMesh) return; leftMesh = true; leaving = true;
+      // Farewell FIRST (gossip reaches the whole room — even seats the mesh
+      // LEAVE below never visits), then the seat's own LEAVE + socket close.
+      // Receivers confirmGone instantly: tile/count/roster drop in one beat.
+      try { meshNode && meshNode.gossip({ a: 1, msg: { k: 'bye' } }); } catch (e) {}
+      try { meshNode && meshNode.leave(); } catch (e) {}
+    }
     window.addEventListener('beforeunload', sendMeshLeave);
     window.addEventListener('pagehide', sendMeshLeave);
     // bfcache resume after a pagehide: we already gave up our seat — rejoin fresh.
@@ -6415,6 +6514,8 @@
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC vs sponsor hops)
       rxStats: () => Object.assign({}, rxStats), // reception mirror (offers/answers/ice arrived, offers refused)
       relayUp: () => relayUp(), // does my mesh node hold a live relay socket right now?
+      // Event-driven departures (D2/D5 → UI): the confirmed-gone tombstones.
+      departed: () => Array.from(meshGone, ([pid, at]) => ({ id: String(pid).slice(0, 8), at })),
       relayReach: () => Array.from(relaySocketed), // who I believe the relay can reach (roster + nosock)
       // Per-pair transport forensics (meet.js CLI + e2e): the raw WebRTC state.
       pairs: () => Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8),
