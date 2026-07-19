@@ -305,9 +305,19 @@
         // designated admitter, else hand the FIND to the admitter — my row
         // head or a fellow head, a rook link; and every S1 seat is a socketed
         // greeter, so the hand-off is always deliverable.
+        // Row liveness, FIRST-HAND-FIRST: my OWN row is live because I AM IN
+        // IT — a lone survivor's s1seen of its own cells decays (nobody phones
+        // a lone seat), and without this a survivor would resurrection-scan
+        // its own live row and seat a 2-person room as COLUMN-mates (the
+        // headless-row repro, leg A). Computed up front for all rows: the
+        // headless-row devolution below needs the ADMITTER's row too.
+        const rowLive = [], rowSeen = [];
         for (let t = 0; t < C(); t++) {
-          let liveRow = false, everSeen = false;
-          for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) liveRow = true; if (this.s1seen.has(k)) everSeen = true; }
+          rowLive[t] = (this.coord.r === t); rowSeen[t] = rowLive[t];
+          for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; }
+        }
+        for (let t = 0; t < C(); t++) {
+          const liveRow = rowLive[t], everSeen = rowSeen[t];
           if (!liveRow && everSeen) {
             // RESURRECTION (old H7, row-targeted): this row LIVED and is now
             // entirely silent — a whole-row death. Its subtrees drain (anchor
@@ -341,12 +351,28 @@
             // arrivals away from a clear cell, leaving it to the much slower
             // leaf-promotion backstop.
             if (this.occGet(ck(topo.down(cell))) != null) continue; // internal hole — its down-child heals it (C1 frontier rule)
-            const admR = j > 0 ? t : (t - 1 + C()) % C(); // the designated admitter's row (admitter is always a head)
-            if (this.coord.i === 0 && this.coord.r === admR) { // I am the designated admitter
+            // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
+            //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by
+            //    its designated healer (the H2 scoocher / vertical promotion)
+            //    — never an admission target (C1: an admission must not race
+            //    a healer).
+            if (j === 0 && rowLive[t]) continue;
+            let adm = j > 0 ? { pc: 0, r: t, i: 0 } : { pc: 0, r: (t - 1 + C()) % C(), i: 0 };
+            //  - a cell whose designated admitter seat is a VACATED head —
+            //    occ EMPTY, i.e. a delivered LEAVE (D2-confirmed); mere
+            //    silence never clears occ, so severance / silent death stays
+            //    behind the H1-S1 ring-hold — has its admission duty DEVOLVE
+            //    to that head-hole's one fixed H2 healer: the occupant of
+            //    column 1 of the admitter's row. Fixed designation, one seat,
+            //    no race — the same shape as C3's designated-healer
+            //    discipline. If column 1 is empty too the scooch chain is
+            //    still rebuilding: keep scanning (transient).
+            if (!this.occ.has(ck(adm)) && rowLive[adm.r]) adm = { pc: 0, r: adm.r, i: 1 };
+            if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm.nc); return; }
               continue;                                  // admit gate cooling — consider the next cell
             }
-            const aid = this.occGet(ck({ pc: 0, r: admR, i: 0 }));
+            const aid = this.occGet(ck(adm));
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
             // admitter unknown/dead: its own cell sits earlier in the scan (or
             // is being healed) — keep scanning so growth never deadlocks
