@@ -945,9 +945,27 @@
       const s = meshSeat();
       if (!s) return rosterIds.length || 1;
       const ids = new Set([myId]);
-      // A confirmed departure (D2/D5 — the meshGone tombstone) never counts,
-      // even if an occ echo of the freed seat is still settling.
-      for (const v of s.occ.values()) if (v && !meshGone.has(v)) ids.add(v);
+      const now = Date.now();
+      for (const v of s.occ.values()) {
+        if (!v || v === myId) continue;
+        // A confirmed departure (D2/D5 — the meshGone tombstone) never counts,
+        // even while an occ echo of the freed seat is still settling. And the
+        // raw-occ union is LIVENESS-GATED like the roster: statuses flood the
+        // whole room, so every live participant shows a fresh pulse — a corpse
+        // echo (a dead seat's occ entry gossiping back from seats that never
+        // confirmed the death first-hand) must not hold the count. A JOIN
+        // GRACE (occFirstSeen, 25s) keeps a just-seated newcomer counted while
+        // its first status is still flooding to me. The horizon here is a
+        // DOUBLE freshness window (30s, vs the roster's 15s): the count may
+        // briefly carry a silent-but-alive far seat through a gossip flap, but
+        // an unconfirmed corpse echo still ages out in half a minute instead
+        // of holding the label forever.
+        if (meshGone.has(v)) continue;
+        const st = statusOf.get(v);
+        const p = peers.get(v);
+        if ((st && now - (st.at || 0) < 30000) || (p && p.connected)
+            || (now - (occFirstSeen.get(v) || 0) < 25000)) ids.add(v);
+      }
       for (const id of rosterIds) ids.add(id);
       return ids.size;
     }
@@ -2252,6 +2270,7 @@
     // for deaths with no signal (far peers, lost frames) — never the main path.
     const meshGone = new Map();   // pid -> Date.now() of the confirmed departure (tombstone)
     const occVanish = new Map();  // pid -> Date.now() first seen freed ('left' one-beat confirm)
+    const occFirstSeen = new Map(); // pid -> Date.now() first seen IN occ (knownTotal's join grace)
     let occPrevIds = new Map();   // pid -> ckey, my occ view one mesh tick ago
     let occPrevMyCk = null;       // my own seat then (a move rebuilds occ wholesale)
     function confirmGone(pid, why) {
@@ -2280,6 +2299,9 @@
     function departSweep(s) {
       const occNow = new Map();
       for (const [k, v] of s.occ) if (v && v !== myId) occNow.set(v, k);
+      const nowMs = Date.now();
+      for (const pid of occNow.keys()) if (!occFirstSeen.has(pid)) occFirstSeen.set(pid, nowMs);
+      for (const pid of occFirstSeen.keys()) if (!occNow.has(pid)) occFirstSeen.delete(pid);
       const myCk = (s.hasCoord && s.state === 3) ? net.topo.ckey(s.coord) : null;
       if (myCk === null || myCk !== occPrevMyCk) {
         // MY seat changed (join/move/requeue → occ.clear + rebuild): every
@@ -6149,9 +6171,12 @@
     let leftMesh = false;
     function sendMeshLeave() {
       if (leftMesh) return; leftMesh = true; leaving = true;
-      // Farewell FIRST (gossip reaches the whole room — even seats the mesh
-      // LEAVE below never visits), then the seat's own LEAVE + socket close.
-      // Receivers confirmGone instantly: tile/count/roster drop in one beat.
+      // Farewell FIRST (gossip floods the whole room — even seats the mesh
+      // LEAVE below never visits — and every open channel carries it directly,
+      // belt-and-braces for the unload window), then the seat's own LEAVE +
+      // socket close. Receivers confirmGone instantly: tile/count/roster drop
+      // in one beat.
+      try { for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'bye' }); } catch (e) {}
       try { meshNode && meshNode.gossip({ a: 1, msg: { k: 'bye' } }); } catch (e) {}
       try { meshNode && meshNode.leave(); } catch (e) {}
     }
