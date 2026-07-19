@@ -218,6 +218,66 @@ childless — a leaf. **Only leaves move. No exceptions.**
     really did die, or to mis-fill a hole that really is empty — a bounded,
     local liveness nuisance, never an eviction.)
 
+## T — the mover's lease (atomic seat switching)
+
+Every heal above ends in a MOVE — a scooch, a leaf promotion, a vertical
+self-promote, a drained seat re-entering. The law used to treat a move as
+vacate-then-claim, so anything reading occupancy mid-move saw a phantom hole
+(the headless-row gap was one of this class). A move is now ONE atomic act
+with a bounded, self-resolving transit window:
+
+- **T1. Claim-before-vacate (dual-hold transit).** A mover TAKES its new seat
+  first — the claim is ordinary seating through the normal fill discipline
+  (C3 designation authorized it; the CLAIM/HELLO announcements are S4-signed;
+  S5's empty-only acceptance still guards the destination — moving is seating
+  yourself) — while the OLD seat is still fully held: no goodbye has been
+  said, so to every neighbour the old cell is simply OCCUPIED. No admitter or
+  healer touches it (it is not a hole), tenure/E2 protect it, and its phone
+  still answers. The old seat is vacated ONLY when the claim CONFIRMS: a
+  new-neighbourhood frame arrives (a PONG to the mover's phone, a
+  PHONE/HELLO/CLAIM over a new link — acceptance by the destination's
+  neighbours), or the claim window closes with NO contradiction (a wiped
+  region has nobody left to answer; refusing to move would leave it
+  unhealable). A CONTRADICTION at the new cell — an E2 yield, a lost
+  impostor challenge — ROLLS THE MOVER BACK to the seat it never vacated
+  and nobody ever saw empty. **A mover is never homeless**, and a lost race
+  is a rollback, not an eviction.
+- **T2. The transit hold is legal; an expired one is not.** During the window
+  the node holds BOTH coords — the new one as its seat, the old one as a
+  still-answering hold. This is NOT a dup (a dup is two NODES at one coord —
+  still forbidden, still E2's case); it is one node bridging two cells for a
+  bounded window. Every transit datum self-expires: the claim window
+  (CONFIRM_TTL), the tombstone lease (LEASE_TTL), the re-seat search. The
+  sim's invariant checks encode exactly this: live transit holds are legal,
+  a hold past its window is a defect (`transitStale`).
+- **T3. The forwarding tombstone.** The confirmed vacate is an instant
+  goodbye (D2) whose LEAVE carries WHERE the mover went; and for a short
+  lease the mover remains the old cell's FORWARDING TOMBSTONE — a redirect,
+  never occupancy: a PHONE to the vacated cell is answered MOVED, so an
+  in-flight caller (say a child whose up-link points at the vacated cell —
+  the exact headless-row wound) confirms the vacancy first-hand IMMEDIATELY
+  and its own healer designation fires, instead of waiting out a silent
+  decay window; a routed frame addressed to the old coord lands at the
+  tombstone-holder and is served from its new seat. The lease is never
+  counted as occupancy, never contested, never renewed.
+- **T4. Mover death degrades to ordinary death.** Death before confirm is an
+  ordinary death at the OLD seat (the destination saw an announcement that
+  now goes silent — the usual D machinery clears it); death after confirm is
+  an ordinary death at the NEW seat (the old cell was already D2-vacated).
+  No third state survives the mover.
+- **T5. The drain re-seats without vacating (E1 amendment).** A draining seat
+  no longer abandons its seat to go looking: it stays seated (re-opening its
+  relay socket on demand — the socket-lifecycle rule), asks for a seat as a
+  newcomer, and treats the admitter's PLACE as the authorization for the same
+  dual-hold transit. Only exhausted retries fall back to the old vacate-first
+  front-door re-entry — the last resort it always was.
+
+*(Design note: a confirm-by-remote-healer round trip — PRECLAIM/GRANT to the
+FINDLEAF's origin — was built and rejected: mid-heal, the mesh routes such a
+round trip must ride are exactly the broken ones, and stalled claims slowed a
+40% churn heal ~20x. Dual-hold needs no new long-range delivery: confirmation
+rides frames the seating already produces.)*
+
 ## W — the healer wires with live knowledge, never stale gossip
 
 - **W1.** A healer builds the promoted seat's neighbour list from its OWN live
