@@ -417,8 +417,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.locator('#chatclose').click();
 
   // ---------- a participant leaves → tiles + quality recover ----------
+  // Playwright's close() skips beforeunload, so Cai dies SILENTLY (no LEAVE,
+  // D2) — the mesh forgets a silent row-mate at the D3 sweep horizon: 50
+  // ticks x 500ms = 25s, swept every 12 ticks. 60s covers horizon + cadence.
   await cPage.close(); await cCtx.close();
-  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 60000 });
   const q2 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('peer-leave shrinks the mesh and quality steps back up', q2 === '720p');
 
