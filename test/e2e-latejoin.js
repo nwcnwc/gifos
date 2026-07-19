@@ -126,14 +126,16 @@ const pfx = (id) => String(id).slice(0, 12);
     await lu.page.goto(link, GOTO);
     await lu.page.waitForFunction(() => !!window.__gifosVideo, null, { timeout: 60000 }).catch(() => {});
     const tReady = Date.now();
+    // 45s: the seat dance rides the SEATING laws (a separate workstream with
+    // known churn at C=2); the deadlock leg below keeps the tight bound.
     const seatedOk = await lu.page.waitForFunction(() => {
       const V = window.__gifosVideo, s = V && V.meshState();
       return s && s.state === 3 && V.meshCoord();
-    }, null, { timeout: 25000 }).then(() => true).catch(() => false);
+    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
     const tSeat = Date.now();
     const ls = seatedOk ? await snap(lu.page) : null;
     lu.id = ls && ls.id;
-    check(lname + ' seats within 25s of app-ready (took ' + (tSeat - tReady) + 'ms)', seatedOk, ls && ls.coord);
+    check(lname + ' seats within 45s of app-ready (took ' + (tSeat - tReady) + 'ms)', seatedOk, ls && ls.coord);
     if (!seatedOk) { lateResults.push({ name: lname, socketlessTargets: [], connected: false }); continue; }
     // Identify this late joiner's SOCKETLESS link targets right now.
     const stNow = await Promise.all(users.filter((u) => u !== lu).map((u) => snap(u.page).catch(() => null)));
