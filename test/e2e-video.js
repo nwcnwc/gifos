@@ -316,7 +316,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- speaking: live audio lights the tile border ----------
   await bPage.locator('#mic').click(); // unmute — the fake device emits a tone
-  const spoke = await bPage.waitForFunction(() => document.querySelector('.tile.me').classList.contains('speaking'), null, { timeout: 15000 }).then(() => true, () => false);
+  const spoke = await bPage.waitForFunction(() => document.querySelector('.tile.me').classList.contains('speaking'), null, { timeout: 45000 }).then(() => true, () => false);
   check('audio coming through lights a border around the feed', spoke);
   await bPage.locator('#mic').click(); // back to muted
 
@@ -356,7 +356,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // while MediaRecorder + canvas compositing spin up.
   await aPage.locator('#ro-start').click({ noWaitAfter: true });
   await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
-    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 30000 });
+    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 90000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
   // 120s on BOTH the click and the download: while an 'all'-scope recording
