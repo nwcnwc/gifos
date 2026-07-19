@@ -78,10 +78,20 @@ void Seat::serveFind(Msg& mm){
         if(coord.r==(uint8_t)((t+1)%C)){ uint64_t k=ckey({0,(uint8_t)t,coord.i});
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm); return; }
           continue; }
-        int aid=occGet(ckey({0,(uint8_t)((t+1)%C),coord.i}));
-        if(aid<0||aid==id) aid=occGet(ckey({0,(uint8_t)((t+1)%C),0}));   // my column-mate there is a hole — hand to that row's head instead
+        // Forward toward the admitter row below ONLY over a FIRST-HAND-LIVE link.
+        // Using raw occGet here was a bug: when the admitter row is ALSO wholly
+        // dead, its cells linger as stale occ echoes (a corpse's id, never cleared
+        // once no neighbour is left to hear a LEAVE and gossip re-seeds it), so the
+        // FIND was handed to a DEAD seat and swallowed — two ADJACENT dead home
+        // rows never resurrected (the scan returned at the lower row before ever
+        // reaching the upper row it could itself admit). First-hand liveness sees
+        // the corpse for what it is, so a dead admitter row falls through to the
+        // bottom-up `continue` and the cascade reaches a live admitter.
+        Coord admc={0,(uint8_t)((t+1)%C),coord.i}, admh={0,(uint8_t)((t+1)%C),0};
+        int aid = firstHandLive(ckey(admc)) ? occGet(ckey(admc)) : -1;
+        if(aid<0||aid==id) aid = firstHandLive(ckey(admh)) ? occGet(ckey(admh)) : -1;   // column-mate not live → try that row's head, still first-hand
         if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
-        continue;                                      // that row is dead too — resolve bottom-up
+        continue;                                      // the whole admitter row below is dead too (not first-hand live) → resolve bottom-up
       }
       for(int j=0;j<C;j++){
         Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
