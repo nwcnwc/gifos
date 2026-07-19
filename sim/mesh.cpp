@@ -17,13 +17,13 @@ using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
 // ---- message ----
-enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message
+enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went.
 struct KV { uint64_t k; int v; };
 struct Ent { uint64_t k; int v; int age; int ch=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir
 struct Msg {
   MT t; int to=-1;
   int from=-1,id=-1,owner=-1,nc=-1,asker=-1,via=-1,child=-1,ttl=0,tag=0,hold=0;
-  uint64_t ck=0,oCk=0,tock=0,gkey=0;
+  uint64_t ck=0,oCk=0,tock=0,gkey=0,mvd=0;   // mvd: LEAVE/MOVED destination coord (law T3 — the goodbye carries where the mover went)
   Coord coord{0,0,0},hole{0,0,0},target{0,0,0};
   bool kids=false;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
@@ -81,6 +81,17 @@ static const long long RING_HOLD=220;
 // remains the backstop when no transport event fired; an answered probe clears
 // the observation entirely — no eviction, E2 stands.
 static const long long EARLY_HOLD=12;
+// T — the mover's lease (atomic seat switching, law T in healing-laws.md).
+// A self-move TAKES its new seat FIRST and vacates the old one only when the
+// claim CONFIRMS (a new neighbour answers, or the window closes with no
+// contradiction); a contradiction (E2 yield at the new cell) ROLLS the mover
+// BACK to its still-held old seat — a mover is never homeless. During the
+// transit window the node holds BOTH coords: the old seat still answers and
+// stays tenure-protected. After confirm the old cell keeps a bounded
+// FORWARDING TOMBSTONE: a redirect for in-flight traffic, never occupancy.
+// All windows self-expire.
+static const long long CONFIRM_TTL=16;
+static const long long LEASE_TTL=40;
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
 // Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
@@ -167,6 +178,13 @@ struct Seat {
   int lastReach=-1;   // R6: last tick I REACHED a greeter (a HOME roster came back). Stranding requires having reached NONE for a full TTL — a busy room where I keep getting NOROOM is not "stranded".
   int strandedAt=0;   // R6: when I gave up. Stranding is RECOVERABLE — after a backoff I re-knock (the client's manual retry); if a greeter is now reachable I seat. Only a genuinely-cut-off seat stays stranded across retries.
   bool auditPend=false; bool evil=false;
+  // ---- T: atomic seat switching (mover's lease) ----
+  bool moving=false; int moveAt=-1;           // transit: NEW seat taken, OLD not yet vacated (dual-hold)
+  Coord oldCoord{0,0,0}; uint64_t oldCk=0;    // the still-held old seat
+  vector<int> oldNbrIds;                      // old-link occupants — get the LEAVE(mvd) on confirm
+  Occ holdOcc, holdSeen, holdCous;            // rollback snapshots
+  uint64_t leaseCk=0; long long leaseUntil=-1; // T3: forwarding tombstone for my just-vacated cell
+  int seekAt=-1, seekTries=0;                 // E1 keep-old re-seat: FIND sent while still seated; PLACE is the confirm
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
@@ -219,6 +237,10 @@ struct Seat {
   void heal(Coord hole);
   void findLeaf(Coord hole, vector<KV>& nbrs, int ttl);
   void promoteInto(Coord hole, vector<KV>& nbrs);
+  void doMove(Coord hole, int owner, vector<KV>& nbrs);  // T1: take the NEW seat while still holding the OLD (dual-hold transit)
+  void confirmMove();                                    // T1/T3: vacate the old seat (LEAVE carries mvd) + start the tombstone
+  void rollbackMove();                                   // T1: contradiction at the new cell — go home to the still-held old seat
+  bool moveEvidence(const Msg& m);                       // does this frame evidence my NEW neighbourhood?
   void requeue();
   void serveFind(Msg& m);
   void admit(Coord c,int nc);
@@ -231,11 +253,13 @@ struct Seat {
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
   int gateway=-1;                       // the greeter this (unseated) newcomer routes through
-  // A seat HOLDS a relay socket while joining (state!=3) or while seated in
-  // Section 1 (the greeter pool). Deep seats are socketless. The relay may
+  // A seat HOLDS a relay socket while joining (state!=3), while seated in
+  // Section 1 (the greeter pool), or while re-seating with its old seat kept
+  // (E1 keep-old: production re-opens the socket on demand, mesh-wire's
+  // socket-lifecycle rule). Deep settled seats are socketless. The relay may
   // deliver a frame between two SOCKETED peers — that is the greeting scope,
   // NOT a mesh comm. Everything else must travel over owned links.
-  bool socketed() const { return state!=3 || (hasCoord && coord.pc==0); }
+  bool socketed() const { return state!=3 || seekAt>=0 || (hasCoord && coord.pc==0); }
   void route(Coord rdst,int rfinal,Msg inner);   // send `inner` over the mesh to coord rdst (rfinal>=0 ⇒ hand to that newcomer at the end)
   bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
   int strictNextHop(Coord rdst);        // next hop toward rdst over an OWNED LINK only (-1 if the ideal link is vacant — no teleport)
@@ -255,7 +279,7 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
-static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST"}; return (t>=0&&t<22)?NM[t]:"?"; }
+static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST","MOVED"}; return (t>=0&&t<23)?NM[t]:"?"; }
 // A TELEPORT must be IMPOSSIBLE. If a frame is ever about to be delivered to a
 // seat the sender has no honest path to (no owned link, not a socketed greeting
 // pair), the mesh has a routing bug — so we do NOT quietly count it: we detonate,
@@ -499,7 +523,7 @@ int main(int argc,char**argv){
     long long tot=EMIT_NEIGHBOR+EMIT_TELEPORT+EMIT_BOOTSTRAP+EMIT_RELAY;
     printf("  EMIT TRANSPORT: neighbor=%lld (%.1f%%)  relay(socketed pair)=%lld (%.1f%%)  TELEPORT(faked)=%lld (%.1f%%)  bootstrap=%lld (%.1f%%)  [total=%lld]\n",
       EMIT_NEIGHBOR, tot?100.0*EMIT_NEIGHBOR/tot:0, EMIT_RELAY, tot?100.0*EMIT_RELAY/tot:0, EMIT_TELEPORT, tot?100.0*EMIT_TELEPORT/tot:0, EMIT_BOOTSTRAP, tot?100.0*EMIT_BOOTSTRAP/tot:0, tot);
-    { printf("  TELEPORTS BY TYPE:"); for(int i=0;i<22;i++) if(TELE_BY_T[i]) printf(" %s=%lld",MT_NAME(i),TELE_BY_T[i]); printf("\n"); }
+    { printf("  TELEPORTS BY TYPE:"); for(int i=0;i<23;i++) if(TELE_BY_T[i]) printf(" %s=%lld",MT_NAME(i),TELE_BY_T[i]); printf("\n"); }
     printf("  TELEPORT SOURCE: plain=%lld direct(handoff)=%lld routing=%lld direct+routing=%lld\n", TELE_SRC[0],TELE_SRC[1],TELE_SRC[2],TELE_SRC[3]);
     return 0;
   }
@@ -533,7 +557,13 @@ int main(int argc,char**argv){
     else if(op=="check"){   // LOUD invariant assertion: everyone seated, Section 1 full, 0 dups, 0 stranded. Non-fatal report (sweep greps CHECK); `check strict` ABORTS on failure.
       bool strict=tk.size()>1 && tk[1]=="strict";
       long long seated,s1c; counts(seated,s1c); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++;
-      string why; if(seated!=N) why+=" seated="+to_string(seated)+"/"+to_string(N); if(s1c!=min((long long)25,(long long)N)) why+=" s1="+to_string(s1c)+"/25"; if(DUPS_G!=0) why+=" dups="+to_string(DUPS_G); if(strand!=0) why+=" stranded="+to_string(strand); if(EMIT_TELEPORT!=0) why+=" teleport="+to_string(EMIT_TELEPORT);
+      // T (amended law): a TRANSIT hold is legal, an EXPIRED one is not — no live
+      // seat may still carry a claim/seek/lease past its self-expiry window.
+      int transStale=0; for(int q=0;q<nextId;q++) if(alive[q]){ Seat*s=seats[q];
+        if(s->moving && TICK-s->moveAt>CONFIRM_TTL*2+8) transStale++;
+        if(s->leaseUntil>=0 && TICK>s->leaseUntil+8) transStale++;
+        if(s->seekAt>=0 && TICK-s->seekAt>60*8) transStale++; }
+      string why; if(seated!=N) why+=" seated="+to_string(seated)+"/"+to_string(N); if(s1c!=min((long long)25,(long long)N)) why+=" s1="+to_string(s1c)+"/25"; if(DUPS_G!=0) why+=" dups="+to_string(DUPS_G); if(strand!=0) why+=" stranded="+to_string(strand); if(EMIT_TELEPORT!=0) why+=" teleport="+to_string(EMIT_TELEPORT); if(transStale!=0) why+=" transitStale="+to_string(transStale);
       if(why.empty()) printf("CHECK PASS seed=%u [seated=%lld/%d s1=%lld dups=%lld stranded=0 teleport=0]\n",SEED0,seated,N,s1c,DUPS_G);
       else { printf("CHECK FAIL seed=%u%s\n",SEED0,why.c_str()); if(strict){ fprintf(stderr,"CHECK FAIL (strict) seed=%u%s — HALTING\n",SEED0,why.c_str()); abort(); } } }
     else if(op=="tick"){ int n=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<n;q++){doTick();TICK++;} printf("OK tick now=%lld\n",TICK); }
@@ -627,7 +657,7 @@ int main(int argc,char**argv){
       printf("MEDIALOCAL ROW: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | SECTION: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | max_pure_giver_load=%d (rule cap=1)\n",
         rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
-    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->stranded) strand++; printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq); }
+    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0,ntr=0,nls=0,nsk=0; for(int q=0;q<nextId;q++) if(alive[q]){ if(seats[q]->stranded)strand++; if(seats[q]->moving)ntr++; if(seats[q]->leaseUntil>=0)nls++; if(seats[q]->seekAt>=0)nsk++; } printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu transit=%d lease=%d seek=%d\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq,ntr,nls,nsk); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d haveRoster=%d rosterSz=%zu joinStart=%d(age %lld) gateway=%d stranded=%d drainAt=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), (int)s->haveRoster, s->roster.size(), s->joinStart, (long long)(TICK-s->joinStart), s->gateway, (int)s->stranded, s->drainAt, nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
@@ -660,6 +690,11 @@ int main(int argc,char**argv){
     else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; int liveAge=se->live.count(k)?(int)(TICK-se->live[k]):-1; int holeAge=se->holeSince.count(k)?(int)(TICK-se->holeSince[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d liveAge=%d holeSinceAge=%d fhLive=%d\n",id,a.c_str(),v,age,liveAge,holeAge,(int)se->firstHandLive(k));} }
     else if(op=="hist"){ unordered_map<uint64_t,int> cnt; int s1seats=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ cnt[ckey(seats[q]->coord)]++; if(seats[q]->coord.pc==0)s1seats++; } int h1=0,h2=0,h3=0,mx=0; uint64_t mxk=0; for(auto&e:cnt){ if(e.second==1)h1++; else if(e.second==2)h2++; else h3++; if(e.second>mx){mx=e.second;mxk=e.first;} } printf("HIST cells:1=%d 2=%d 3+=%d maxDup=%d@%s s1seats=%d\n",h1,h2,h3,mx,coordStr(unck(mxk)).c_str(),s1seats); }
     else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) H(genesisKey)=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
+    else if(op=="transit"){ int ntr=0,nls=0,nsk=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]){ Seat*s=seats[q];
+        if(s->moving){ ntr++; char b[96]; snprintf(b,96,"%d:move(%s->%s age %lld) ",q,coordStr(s->oldCoord).c_str(),coordStr(s->coord).c_str(),TICK-s->moveAt); ex+=b; }
+        if(s->leaseUntil>=0){ nls++; char b[96]; snprintf(b,96,"%d:lease(%s ttl %lld) ",q,coordStr(unck(s->leaseCk)).c_str(),s->leaseUntil-TICK); ex+=b; }
+        if(s->seekAt>=0){ nsk++; char b[96]; snprintf(b,96,"%d:seek(age %lld) ",q,TICK-s->seekAt); ex+=b; } }
+      printf("TRANSIT moves=%d leases=%d seeks=%d %s\n",ntr,nls,nsk,ex.c_str()); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
