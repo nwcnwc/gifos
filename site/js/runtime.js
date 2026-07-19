@@ -1255,7 +1255,11 @@
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
-      const reply = (p) => iframe.contentWindow.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*');
+      // Guard at REPLY time, not just receipt: async ops (db/fetch/…) can
+      // resolve after the iframe was torn out of the DOM (app takeover /
+      // stop), when contentWindow is null — a reply then must be a no-op,
+      // not an unhandled "reading 'postMessage'" rejection.
+      const reply = (p) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*'); };
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'fetch') bridgeFetch(policy, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
@@ -1951,10 +1955,21 @@
               return { collections: cols };
             };
             let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null;
+            // Binary (My Media's photo/video Uint8Array) rides the state RAW:
+            // the mesh transport (gifos-net seal/open) already round-trips a
+            // typed array losslessly, and canonical() signs it to a stable
+            // token — so no {$bin} pre-encode here. Pre-encoding would sign the
+            // {$bin} form while the guest verifies the transport-revived typed
+            // array — the bad-sig that blanked shared blobs.
+            // The LEAD fence rides inside every signed body: the mesh act lane
+            // is fire-and-forget (no per-op reply like the relay host's), so a
+            // client must refuse a led write LOCALLY — and it may only trust a
+            // fence that arrives owner-signed.
+            const leadBody = () => ({ on: !!meshLead.on, keys: [...meshLead.keys] });
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               return db.getFullState().then((s) => {
-                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s) };
+                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s), lead: leadBody() };
                 return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
               }).catch(() => {});
             };
@@ -1965,7 +1980,7 @@
               // short debounce so late joiners stay current without paying the
               // app-byte cost on every keystroke.
               return db.getFullState().then((s) => {
-                const body = { state: filterForGuests(s) };
+                const body = { state: filterForGuests(s), lead: leadBody() };
                 return stageSigner.sign(sid, 'delta', body).then((f) => stageBus.send('delta', f));
               }).catch(() => {});
             };
@@ -1975,6 +1990,8 @@
             // room adopts — a non-owner can propose but never author state.
             const onAct = (op) => {
               if (!op || (op.op !== 'put' && op.op !== 'delete')) return;
+              // op.value already carries real Uint8Array bytes — the transport
+              // revived them; no {$bin} decode needed.
               const targetId = op.op === 'put' ? (op.value && op.value.id) : op.key;
               if (meshLead.on && targetId != null && meshLead.keys.has(op.collection + '::' + targetId)) return;
               const storedP = (targetId != null) ? db.op('get', op.collection, targetId) : Promise.resolve(null);
@@ -2693,7 +2710,18 @@
     const itemsOf = (c) => (c && mirror.collections[c] && mirror.collections[c].items) || {};
 
     return appOwnerLib().then((AO) => {
-      const ver = AO.makeVerifier(sid);
+      const ver = AO.makeVerifier(sid, (params && params.pk) || null);
+      // Binary rides raw: the transport revives typed arrays losslessly, so the
+      // verified body already holds real Uint8Array bytes — assign it straight
+      // into the mirror (a JSON re-clone would mangle the blob into a
+      // numeric-key object and break My Media's shared video).
+      // The owner-signed LEAD fence (see leadBody in the host): while on, a
+      // write to a fenced (collection,id) is refused HERE — the mesh act lane
+      // has no per-op host reply, so the honest refusal must be local. The
+      // host's own onAct fence stays authoritative against dishonest clients.
+      let leadState = { on: false, keys: new Set() };
+      const takeLead = (b) => { if (b && b.lead) leadState = { on: !!b.lead.on, keys: new Set(Array.isArray(b.lead.keys) ? b.lead.keys.map(String) : []) }; };
+      const fenced = (collection, id) => leadState.on && id != null && leadState.keys.has(collection + '::' + id);
 
       // Reads: from the owner-verified mirror. Writes: an optimistic local apply
       // (so the app sees its own change at once) PLUS an `act` proposal to the
@@ -2704,11 +2732,34 @@
         op(op, collection, key, value) {
           if (op === 'dump') return Promise.resolve(mirror);
           const priv = collection && isPrivate(collection);
-          if (op === 'get') { if (priv) return Promise.resolve(localOf(collection).get(key) || null); return Promise.resolve(itemsOf(collection)[key] || null); }
-          if (op === 'getAll') { if (priv) return Promise.resolve([...localOf(collection).values()]); return Promise.resolve(Object.values(itemsOf(collection))); }
+          // The owner-verified mirror only ever holds records the host SHARED
+          // (it stripped private ones), so it is always safe to read — even for
+          // a collection whose DEFAULT is private but into which the host opted
+          // a few records (read-only), which is exactly how My Media shares one
+          // video. Read the mirror first; for a private-default collection also
+          // merge this tab's own local writes (mirrors the relay guest).
+          if (op === 'get') {
+            if (priv) { const loc = localOf(collection); if (loc.has(key)) return Promise.resolve(loc.get(key)); }
+            return Promise.resolve(itemsOf(collection)[key] || null);
+          }
+          if (op === 'getAll') {
+            const shared = Object.values(itemsOf(collection));
+            if (!priv) return Promise.resolve(shared);
+            const seen = new Set(shared.map((r) => r && r.id));
+            const out = shared.slice();
+            for (const rec of localOf(collection).values()) if (!seen.has(rec.id)) out.push(rec);
+            return Promise.resolve(out);
+          }
           if (op === 'put') {
             const rec = safeRecord(value); if (rec.id == null) rec.id = AO.newRecordId(collection); delete rec._vis;
             if (priv) { localOf(collection).set(rec.id, rec); notify(collection); return Promise.resolve(rec); }
+            // Honest local refusal, mirroring what the host would do to the act
+            // anyway (read-only visibility / the signed lead fence) — otherwise
+            // the optimistic apply would show a write the room never adopts.
+            const stored = itemsOf(collection)[rec.id];
+            const eff = stored ? visOf(dataVis, collection, stored) : collVis(dataVis, collection);
+            if (eff !== 'read-write') return Promise.reject(new Error('read-only for guests'));
+            if (fenced(collection, rec.id)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
             try { send('act', { op: 'put', collection: collection, value: rec }); } catch (e) {}
@@ -2716,6 +2767,10 @@
           }
           if (op === 'delete') {
             if (priv) { localOf(collection).delete(key); notify(collection); return Promise.resolve(true); }
+            const stored0 = itemsOf(collection)[key];
+            const eff0 = stored0 ? visOf(dataVis, collection, stored0) : collVis(dataVis, collection);
+            if (eff0 !== 'read-write') return Promise.reject(new Error('read-only for guests'));
+            if (fenced(collection, key)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection]; if (c && c.items) delete c.items[key]; notify(collection);
             try { send('act', { op: 'delete', collection: collection, key: key }); } catch (e) {}
             return Promise.resolve(true);
@@ -2734,7 +2789,7 @@
       };
 
       const onSnap = (body) => {
-        if (body && body.state && body.state.collections) mirror = JSON.parse(JSON.stringify(body.state));
+        if (body && body.state && body.state.collections) mirror = body.state;
         if (!mounted && body && body.app) {
           appBytes = gif.b64decode(body.app);
           return gif.decode(appBytes).then((archive) => {
@@ -2752,9 +2807,10 @@
         if (!m || m.kind === 'act') return; // acts are the client→owner direction
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
+          takeLead(r.body); // the signed lead fence rides every canonical frame
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
-            if (r.body && r.body.state && r.body.state.collections) { mirror = JSON.parse(JSON.stringify(r.body.state)); notify('*'); }
+            if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; notify('*'); }
             else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
           }
         }).catch(() => {});
