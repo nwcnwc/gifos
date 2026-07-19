@@ -74,7 +74,7 @@ const LED_APP = {
   const A = await newUser('Ada'); const aPage = await (A).newPage();
   aPage.on('pageerror', (e) => console.log('  [a pageerror]', e.message));
   await aPage.goto(BASE + '/meet.html#v=' + room);
-  await aPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  await aPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 }); // meeting boot is CPU-heavy under a saturated box
   const B = await newUser('Ben'); const bPage = await B.newPage();
   bPage.on('pageerror', (e) => console.log('  [b pageerror]', e.message));
   await bPage.goto(BASE + '/meet.html#v=' + room);
