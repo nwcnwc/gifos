@@ -415,6 +415,55 @@
     return { el: c, stop() { if (timer) clearInterval(timer); } };
   }
 
+  // ---- the SDN DORMANT-MIRROR route (docs/media-plane.md, Phase 2) -----------
+  // The parent-seat → child-head 'sdn' hop is the ONE mix-minus leg with no
+  // second path. This computes its link-disjoint mirror: a chain of coords
+  // from the PRODUCER (the parent row's head (pc,r,0), which already builds
+  // the per-child ingredient) to the child branch head (childPath(pc,i),r,0),
+  // entering the child section through transit row t's down-link — using ONLY
+  // links the topology already holds, sharing NO edge with the direct legs
+  // (head→(pc,r,i) row, (pc,r,i)→child-head down) and never touching the
+  // parent seat (pc,r,i) itself (its death is the failure being covered; for
+  // i==0 that seat IS the producer head, and the mirror covers only the
+  // direct edge). Pure math — re-derived from occ every sweep by the caller,
+  // so churn re-routes within a sweep. Returns null when (pc,r,i,t) admits no
+  // disjoint route over current links:
+  //   - t==r never works (the child enters through a DIFFERENT row's down);
+  //   - deep sections need t!=i ((pc,r,t) would be the avoided seat) and the
+  //     t==0 entry needs r>=1 && i!=r ((pc,r,r) is the cross fold used);
+  //   - and — occupancy, checked by the caller: every hop must hold a seat.
+  //     A child section with only ONE occupied row head has exactly one
+  //     physical edge from above (the direct hop) and NO mirror can exist.
+  function sdnMirrorRoute(topo, C, pc, r, i, t) {
+    if (!(t >= 0 && t < C && r >= 0 && r < C && i >= 0 && i < C) || t === r) return null;
+    const cpc = topo.childPath(pc, i);
+    const route = [{ pc, r, i: 0 }];
+    if (pc === 0) {
+      // S1 rook's graph: head → (0,t,0) over the COLUMN, → (0,t,i) over row t.
+      route.push({ pc: 0, r: t, i: 0 });
+      if (i !== 0) route.push({ pc: 0, r: t, i });
+    } else if (t === 0) {
+      // deep, enter via row 0: head → (pc,r,r) row → cross fold (r,r)↔(0,r) →
+      // (pc,0,i) row.
+      if (r === 0 || i === r) return null;
+      route.push({ pc, r, i: r });
+      route.push({ pc, r: 0, i: r });
+      if (i !== r) route.push({ pc, r: 0, i });
+    } else {
+      // deep, enter via row t≥1.
+      if (t === i) return null; // (pc,r,t) would be the avoided seat
+      if (r === 0) { route.push({ pc, r: 0, i: t }); route.push({ pc, r: t, i: t }); if (i !== t) route.push({ pc, r: t, i }); } // cross fold (0,t)↔(t,t)
+      else { route.push({ pc, r, i: t }); route.push({ pc, r: t, i: r }); if (i !== r) route.push({ pc, r: t, i }); }           // cross (r,t)↔(t,r)
+    }
+    // the down edge into the child section (row t's head), then across to the
+    // child branch head over row/cross links inside the child section.
+    route.push({ pc: cpc, r: t, i: 0 });
+    if (r === 0) { route.push({ pc: cpc, r: t, i: t }); route.push({ pc: cpc, r: 0, i: t }); route.push({ pc: cpc, r: 0, i: 0 }); }
+    else if (t === 0) { route.push({ pc: cpc, r: 0, i: r }); route.push({ pc: cpc, r, i: r }); route.push({ pc: cpc, r, i: 0 }); }
+    else { route.push({ pc: cpc, r: t, i: r }); route.push({ pc: cpc, r, i: t }); route.push({ pc: cpc, r, i: 0 }); }
+    return route;
+  }
+
   // ---- audio fold (WebAudio sum, bounded) ------------------------------------
   // A band's audio = the sum of its cells' audio tracks through per-cell gains
   // (the recorder's primitive). Callers own the AudioContext lifecycle.
@@ -439,5 +488,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, faceSrcRect, createPacker, createBundle, cropView };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
 })(typeof window !== 'undefined' ? window : globalThis);
