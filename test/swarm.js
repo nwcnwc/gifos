@@ -399,7 +399,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
           + ' loneRowDeepSections=' + lone + ' byDepth=' + JSON.stringify(byDepth) + ' totalCompactMoves=' + totalCM);
         return;
       }
-      const m = /^(kill|respawn)\s+(\d+)$/.exec(cmd);
+      const m = /^(kill|respawn|leave|crash)\s+(\d+)$/.exec(cmd);
       if (!m) { console.log('[swarm] ctrl: unknown command "' + cmd + '"'); return; }
       const idx = parseInt(m[2], 10);
       const ent = pages.find((e) => e.idx === idx);
@@ -408,13 +408,28 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         try { await ent.p.context().close(); } catch (e) {}
         ent.p = null;
         console.log('[swarm] ctrl: KILLED bot ' + idx);
+      } else if (m[1] === 'leave') {
+        // GRACEFUL close: navigate away first so pagehide/beforeunload fire —
+        // the real user-close path (mesh LEAVE + farewell flush) — then close.
+        if (!ent || !ent.p) { console.log('[swarm] ctrl: bot ' + idx + ' not running'); return; }
+        const pg = ent.p; ent.p = null;
+        try { await pg.goto('about:blank', { timeout: 5000 }).catch(() => {}); } catch (e) {}
+        setTimeout(async () => { try { await pg.context().close(); } catch (e) {} }, 1200);
+        console.log('[swarm] ctrl: bot ' + idx + ' LEFT gracefully (pagehide -> LEAVE)');
+      } else if (m[1] === 'crash') {
+        // UNGRACEFUL death: CDP Page.crash kills the renderer outright — no
+        // unload handlers, no LEAVE, sockets die at the OS. The true crash.
+        if (!ent || !ent.p) { console.log('[swarm] ctrl: bot ' + idx + ' not running'); return; }
+        const pg = ent.p; ent.p = null;
+        try { const cdp = await pg.context().newCDPSession(pg); cdp.send('Page.crash').catch(() => {}); } catch (e) {}
+        console.log('[swarm] ctrl: bot ' + idx + ' CRASHED (renderer killed, no unload)');
       } else {
         if (ent && ent.p) { console.log('[swarm] ctrl: bot ' + idx + ' already up'); return; }
         const p = await mkBot(idx);
         if (ent) ent.p = p; else pages.push({ idx, p });
         console.log('[swarm] ctrl: RESPAWNED bot ' + idx);
       }
-    }, 1500);
+    }, 400); // fast poll: fault-injection timing rides this (vanish drills measure from the write)
   }
   setInterval(async () => {
     const bySection = {};
