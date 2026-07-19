@@ -172,6 +172,64 @@ childless — a leaf. **Only leaves move. No exceptions.**
   misfire; the spread was never load-bearing — under the W7 rook's graph rows
   and columns are symmetric for connectivity/density, so row-major fill is
   equally dense.)*
+- **H-CHAIN. The designation chain (when the designated actor is itself gone).**
+  H1/H2/H7 each name ONE actor for a duty — a hole's down-child, a childless
+  hole's right-neighbour, a home cell's admitter. The failure class this closes
+  ("dangling designation"): that one actor is *also* dead. The rule states, ONCE,
+  how the duty devolves; admission (the H7 headless-row amendment's "devolved
+  admitter" is already this family, `sim/repro-headless-row.sh`), healing, and
+  resurrection (A2, below) all cite it rather than each re-inventing a backup.
+  - **WHO — the witness chain.** If a hole's designated actor is confirmed dead
+    (D4/D2 — never mere silence), the duty devolves along a FIXED order drawn
+    ONLY from the hole's own first-hand neighbour set: **down-child → right-
+    neighbour → the remaining row-mates in ascending-column order (cyclic) →
+    column-mates (Section 1 only)**. Every candidate held a direct link to the
+    hole, so each is an independent first-hand witness (E2/S5 are satisfied for
+    free) that already holds a link to sponsor the fill from. A transient double-
+    claim (two devolvees act at once) is absorbed exactly as any duplicate is:
+    confirmed-empty-only fills (C3) + lower-id-wins (E2).
+  - **THE DEPTH RULE (must hold at every level).** A level-k designee may act
+    ONLY if it can first-hand confirm the hole AND the death of *every* designee
+    above it in the chain — level 2 confirms two things directly, level 3 three.
+    **Devolution on hearsay about any link in the chain is forbidden**: gossip may
+    route, it may never promote. The chain **never crosses the clique boundary**;
+    beyond the set of seats that directly witnessed the hole, the duty falls to
+    resurrection/arrival (E1 drain + re-entry), never to a further devolvee.
+  - **SCOPING (which cliques carry the chain).** A ROW is a full clique in EVERY
+    section (all C row-mates directly linked), so within-row devolution is valid
+    to depth C−1 **everywhere**. The COLUMN clique (the second full witness set —
+    degree 9, W7's rook) and the whole-dead-row resurrection handoff are
+    **Section 1 ONLY**: deep sections have no column mesh, so their out-of-row
+    links (the down-child, the single transpose cross-partner, the parent-of-a-
+    head) qualify only as *first-line* witnesses for the one hole they directly
+    see — a deep whole-row death is drain/re-entry (E1), not a gossip handoff.
+    Justified by priority: Section 1 holds every small meeting entirely and every
+    big meeting's door/stage/stadium-finish, so it earns the rich machinery.
+  - **HOW — self-wire with the healer's free hint.** The designee's job shrinks
+    to witness / designate / confirm-empty. WHICH coords the promoted leaf links
+    to is geometry (the leaf computes it). WHO sits at those coords rides as a
+    HINT: the fill message carries the healer's fresh `coord→occupant` snapshot
+    (bytes it already holds — zero extra round-trips). REACHING them reuses the
+    join/sponsor path (S4-signed fill, C3-exclusive). Under law T the promoted
+    leaf keeps its old links across the move (warm start, never homeless). Net:
+    link hand-over stops being a separate concept — **seating, moving, and
+    healing become the same primitive** (an atomic signed claim into a confirmed-
+    empty coord + self-wire), differing only in *who* designates.
+  - **A2 — resurrection recursion.** The same devolution applied to H7
+    resurrection: a dead re-seeder's admission duty devolves to the next live row
+    downward (wrapped). Stated here once; H7's clause cites it.
+  - **STANDING GUARD / STATUS: SPECIFIED, sim-verification PENDING.** The sim
+    exploration that motivated this (seed-1, N≤120) confirmed the chain's teeth
+    are the VERTICAL recursion (a head whose down-child healer is also dead →
+    the orphaned subtree today rides the slow E1 drain) and home cells — a
+    *trailing* hole in a deep row is harmless (left-pack simply shortens the
+    row, C2). The full churn sweep already heals every dangling case eventually
+    via drain + re-seat (300/0), so H-CHAIN is a SPEED-and-determinism win (a
+    named fast devolvee instead of a drain cadence), NOT a correctness fix — and
+    it must be proven so before it ships. **If the sim ever finds a reachable
+    hole whose chain has no designee that can first-hand-confirm per the depth
+    rule, STOP and bring the case back — do not ship a devolution that guesses.**
+    (Verified last by the Q5 small-N designation audit.)
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
   special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a
