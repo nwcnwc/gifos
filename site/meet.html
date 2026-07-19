@@ -6490,14 +6490,9 @@
         if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
         const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
         const T = net.topo, target = { pc: +pc, r: +r, i: +i };
-        if (seat.hasCoord) {
-          const cur = seat.coord, ckCur = T.ckey(cur);
-          for (const olc of T.ownedLinks(cur)) { const x = seat.occGet(T.ckey(olc)); if (x != null && x !== seat.id) seat.emit(x, { t: 'LEAVE', ck: ckCur, id: seat.id }); }
-          seat.occ.delete(ckCur);
-        }
         // occSeed ({'pc/r.i': fullPeerId, …} — e.g. from the probeTree census)
-        // teaches this seat the room BEFORE it takes the target, so take()'s
-        // HELLOs address real neighbours even across a fragment boundary
+        // teaches this seat the room BEFORE it moves, so the dial at the target
+        // addresses real neighbours even across a fragment boundary
         // (S1 seats hold relay sockets, so the bootstrap path can carry them).
         let seeded = 0;
         if (occSeed) for (const k of Object.keys(occSeed)) {
@@ -6505,8 +6500,14 @@
           const key = T.ckey({ pc: +mm[1], r: +mm[2], i: +mm[3] });
           if (occSeed[k] && occSeed[k] !== seat.id) { seat.occ.set(key, occSeed[k]); seeded++; }
         }
-        try { seat.take(target, null, []); } catch (e) { return { err: String(e).slice(0, 80) }; }
-        return { seated: target.pc + '/' + target.r + '.' + target.i, seeded };
+        // The teleport rides the SAME atomic path as every heal move (law T):
+        // dual-hold doMove — take the target while still holding the old seat,
+        // vacate with LEAVE(mvd)+tombstone on confirm, roll back if contradicted.
+        try {
+          if (seat.hasCoord) seat.doMove(target, null, []);
+          else seat.take(target, null, []);
+        } catch (e) { return { err: String(e).slice(0, 80) }; }
+        return { seated: target.pc + '/' + target.r + '.' + target.i, seeded, transit: !!seat.moving };
       },
       debugDump: () => {
         const s = meshSeat(), c = meshCoord(), now = Date.now();

@@ -73,6 +73,12 @@
   // The horizon (60 / RING_HOLD) remains the backstop when no transport event
   // fired; an answered probe clears the observation entirely.
   const EARLY_HOLD = 12;     // sim/mesh.cpp EARLY_HOLD
+  // T — the mover's lease (atomic seat switching, healing-laws.md law T).
+  // A self-move TAKES its new seat FIRST and vacates the old one only when the
+  // claim CONFIRMS; a contradiction rolls the mover back to its still-held old
+  // seat. After confirm the old cell keeps a bounded FORWARDING TOMBSTONE.
+  const CONFIRM_TTL = 16;    // sim/mesh.cpp CONFIRM_TTL
+  const LEASE_TTL = 40;      // sim/mesh.cpp LEASE_TTL
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
@@ -117,6 +123,13 @@
       // I keep getting NOROOM is competing for a slot, NOT stranded (bug #6).
       this.lastReach = -1; this.strandedAt = 0;
       this.gateway = null;       // the greeter this (unseated) newcomer routes through
+      // ---- T: atomic seat switching (mover's lease) ----
+      this.moving = false; this.moveAt = -1;        // transit: NEW seat taken, OLD not yet vacated (dual-hold)
+      this.oldCoord = null; this.oldCk = null;      // the still-held old seat
+      this.oldNbrIds = [];                          // old-link occupants — get the LEAVE(mvd) on confirm
+      this.holdOcc = null; this.holdSeen = null; this.holdCous = null; // rollback snapshots
+      this.leaseCk = null; this.leaseUntil = -1;    // T3: forwarding tombstone for my just-vacated cell
+      this.seekAt = -1; this.seekTries = 0;         // E1 keep-old re-seat: FIND while still seated; PLACE is the confirm
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
       // per-seat PRNG (splitmix-ish), seeded from id — matches the sim's per-seat rng role
       let h = 2166136261 >>> 0; const b = 'p' + id;
@@ -128,7 +141,7 @@
     shuf(a) { for (let k = a.length - 1; k > 0; k--) { const j = (this.rng() * (k + 1)) | 0; const t = a[k]; a[k] = a[j]; a[j] = t; } return a; }
     // A seat HOLDS a relay socket while joining (state!=3) or while seated in
     // Section 1 (the greeter pool). Deep seats are socketless.
-    socketed() { return this.state !== 3 || (this.hasCoord && this.coord.pc === 0); }
+    socketed() { return this.state !== 3 || this.seekAt >= 0 || (this.hasCoord && this.coord.pc === 0); } // T5: a seeking seat re-opens its socket on demand
     // emit(): Option A owned-link delivery — a seated seat may only hand a frame
     // to a seat it holds a real owned-link (DataChannel) to; a seated NON-
     // neighbour target is ROUTED over the mesh instead of teleported. The
@@ -263,6 +276,7 @@
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
       this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false;
+      this.seekAt = -1; this.seekTries = 0; // T: any outstanding seek is answered once I sit down (a dual-hold move keeps `moving` — take() runs INSIDE doMove)
       this.occ.set(ck(c), this.id); this.noteS1(ck(c));
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
       this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK;
@@ -420,18 +434,72 @@
     }
     promoteInto(hole, nbrs) {
       if (!this.hasCoord || ck(this.coord) === ck(hole)) return;
+      if (this.moving || this.seekAt >= 0) return;   // T1: one move at a time
       if (this.coord.pc === 0 && hole.pc !== 0) return;
       // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), never sideways/down
       if (this.coord.pc === 0 && hole.pc === 0 && !(hole.r === this.coord.r && hole.i < this.coord.i)) return;
+      this.doMove(hole, null, nbrs);
+    }
+    // T1 CLAIM-BEFORE-VACATE (dual-hold transit): take the NEW seat FIRST — the
+    // claim is ordinary seating (CLAIM/HELLO, S4-signed) — while the OLD seat is
+    // still held: no LEAVE has been sent, so to every neighbour the old cell is
+    // simply occupied (no admitter or healer touches it; tenure/E2 protect it;
+    // its PHONEs are still answered). Vacate ONLY when the claim CONFIRMS: a
+    // new-neighbourhood frame arrives, or the window closes with NO
+    // contradiction (a wiped region has nobody to answer). A CONTRADICTION at
+    // the new cell (E2 yield, impostor CONFIRM) ROLLS BACK to the still-held
+    // old seat — a mover is never homeless.
+    doMove(hole, owner, nbrs) {
+      if (!this.hasCoord || ck(this.coord) === ck(hole) || this.moving) return;
       if (this.env.bumpMoves) this.env.bumpMoves();
-      const oldC = this.coord; const seen = new Set();
-      for (const olc of topo.ownedLinks(oldC)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(oldC), id: this.id }); } }
-      this.occ.clear(); this.s1seen.clear(); this.cousins.clear(); this.tlClear(); // moving levels: old cousins are stale; rebuild fresh
-      this.take(hole, null, nbrs);
+      this.oldCoord = this.coord; this.oldCk = ck(this.coord);
+      this.oldNbrIds = []; { const seen = new Set();
+        for (const olc of topo.ownedLinks(this.oldCoord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.oldNbrIds.push(x); } } }
+      this.holdOcc = new Map(this.occ); this.holdSeen = new Map(this.s1seen); this.holdCous = new Map(this.cousins); // rollback snapshots
+      this.occ.clear(); this.s1seen.clear(); this.cousins.clear(); this.tlClear(); // moving levels: old cousins / transport-loss obs are stale; rebuild fresh
+      this.moving = true; this.moveAt = this.TICK;
+      this.take(hole, owner, nbrs);
       this.lastAck = this.TICK; this.lastPhone = this.TICK - 100;
+      let anyNbr = false;
+      for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) { anyNbr = true; break; } }
+      if (!anyNbr) this.confirmMove(); // nobody to hear from and nobody to collide with: confirm now (the 2-person scooch stays same-tick)
+    }
+    // A frame that evidences my NEW neighbourhood (someone accepted me there).
+    moveEvidence(m) {
+      if (m.t === 'PONG') return true;                          // my new phone answered
+      if (m.t === 'PHONE') return m.tock === ck(this.coord);    // a call TO my new cell
+      if (m.t === 'HELLO' || (m.t === 'CLAIM' && this.verifyFill(m))) {
+        for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === m.ck) return true;
+      }
+      return false;
+    }
+    // T3: the confirmed vacate — instant goodbye (D2) whose LEAVE carries WHERE
+    // I went (mvd), sent to the snapshotted old links; then a bounded
+    // FORWARDING TOMBSTONE: for LEASE_TTL I answer in-flight traffic addressed
+    // to the old cell. A redirect, never occupancy.
+    confirmMove() {
+      if (!this.moving) return; this.moving = false;
+      for (const x of this.oldNbrIds) this.emit(x, { t: 'LEAVE', ck: this.oldCk, id: this.id, mvd: ck(this.coord) });
+      this.oldNbrIds = []; this.holdOcc = null; this.holdSeen = null; this.holdCous = null;
+      this.leaseCk = this.oldCk; this.leaseUntil = this.TICK + LEASE_TTL;
+    }
+    // T1 rollback: my claim at the new cell was contradicted (someone else is
+    // the rightful occupant). Un-announce the new cell and go home to the old
+    // seat, which was never vacated — nobody ever saw it empty.
+    rollbackMove() {
+      if (!this.moving) return; this.moving = false;
+      const newCk = ck(this.coord); const seen = new Set();
+      for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: newCk, id: this.id }); } }
+      this.coord = this.oldCoord;
+      this.occ = this.holdOcc || new Map(); this.s1seen = this.holdSeen || new Map(); this.cousins = this.holdCous || new Map();
+      this.occ.set(this.oldCk, this.id);
+      this.oldNbrIds = []; this.holdOcc = null; this.holdSeen = null; this.holdCous = null;
+      this.healTry.set(newCk, this.TICK); this.healAt = this.TICK; // pace any re-attempt at that hole
+      this.lastAck = this.TICK; this.lastPhone = this.TICK - 100;  // fresh grace; re-announce
+      this.announce(); this.wake();
     }
     attack() { if (!this.hasCoord) return; for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) this.emit(x, { t: 'HELLO', ck: ck(olc), id: this.id }); } }
-    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.join(); }
+    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); this.moving = false; this.oldNbrIds = []; this.holdOcc = null; this.holdSeen = null; this.holdCous = null; this.seekAt = -1; this.seekTries = 0; this.leaseCk = null; this.leaseUntil = -1; if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.join(); }
 
     drainOrReenter() {
       const TICK = this.TICK;
@@ -446,7 +514,18 @@
         else { const rm = topo.rowMates(this.coord); const ri = this.shuf(Array.from({ length: C() - 1 }, (_, k) => k)); for (const q of ri) { const rr = this.occGet(ck(rm[q])); if (rr != null && rr !== this.id) { this.emit(rr, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 }); break; } } }
       }
     }
-    reseatViaRoster() { if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
+    reseatViaRoster() {
+      // T5 (E1 KEEP-OLD RE-SEAT): do NOT vacate to go looking — stay seated
+      // (socket re-opened on demand), FIND as a newcomer, and treat the PLACE
+      // as authorization for the same dual-hold transit. Exhausted retries
+      // fall back to the old vacate-first front door (last resort).
+      if (this.hasCoord && this.state === 3) {
+        const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null;
+        if (t != null) { this.seekAt = this.TICK; if (!this.seekTries) this.seekTries = 1; this.drainAt = 0; this.emit(t, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); return; }
+        this.requeue(); return;
+      }
+      if (this.env.bumpMoves) this.env.bumpMoves();
+      this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
 
     // ---- routing (rook-aware next hops + Option A strict mesh routing) ----
     nextHopCoord(t) {
@@ -541,7 +620,9 @@
     // routeStep(): a routing frame arrived at me mid-flight. Return true iff it
     // is FOR me (routing cleared, fall through to normal dispatch).
     routeStep(m) {
-      if (this.hasCoord && ck(this.coord) === ck(m.rdst)) {
+      const leaseHit = this.hasCoord && ((this.leaseUntil >= 0 && this.TICK <= this.leaseUntil && ck(m.rdst) === this.leaseCk) // T3: in-flight frames for my just-vacated cell land HERE
+                                      || (this.moving && ck(m.rdst) === this.oldCk));                                          // T1 dual-hold: ...and frames for the still-held old cell
+      if (this.hasCoord && (ck(this.coord) === ck(m.rdst) || leaseHit)) {
         if (m.rfinal == null || m.rfinal === this.id) { m.routing = false; return true; }
         const h = Object.assign({}, m); h.routing = false;
         const pk = this.env.peek ? this.env.peek(m.rfinal) : null;
@@ -557,6 +638,12 @@
     // ---- phone-home / detection (D1) + wiring (W2/W3/W6) ----
     onPhone(m) {
       const TICK = this.TICK;
+      if (this.hasCoord && this.moving && m.tock === this.oldCk && m.tock !== ck(this.coord)) { // T1 dual-hold: the OLD seat still answers while the claim is in flight
+        this.emit(m.id, { t: 'PONG', coord: this.oldCoord, from: null, owner: null, oCk: null, row: [], nbrs: [] }); return;
+      }
+      if (this.hasCoord && this.leaseUntil >= 0 && TICK <= this.leaseUntil && m.tock === this.leaseCk && m.tock !== ck(this.coord)) { // T3: a call to my just-vacated cell — answer MOVED so the caller confirms the vacancy NOW
+        this.emit(m.id, { t: 'MOVED', ck: this.leaseCk, mvd: ck(this.coord), id: this.id }); return;
+      }
       if (!this.hasCoord || m.tock !== ck(this.coord)) return; // ckey(0,0,0)=="0_0_0" is a REAL coord — always check
       const kk = ck(m.coord); const prev = this.occGet(kk);
       // D5: my first-hand hearing of prev ENDS at my own transport loss (an
@@ -726,6 +813,7 @@
     recv(m) {
       if (!this.alive) return;
       if (m.routing && !this.routeStep(m)) return; // Option A: in-transit routing frame — forward (or drop); fall through only when FOR me
+      if (this.moving && this.state === 3 && this.moveEvidence(m)) this.confirmMove(); // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
       const TICK = this.TICK, HEALING = this.env.HEALING;
       switch (m.t) {
         case 'GREETERS': {
@@ -757,8 +845,17 @@
         }
         case 'FIND': this.serveFind(m); return;
         case 'FINDLEAF': if (!this.verifyFill(m)) return; this.findLeaf(m.hole, m.nbrs, m.ttl); return; // S4 identity hook gates fill authorship
-        case 'PLACE': if (this.state === 2 && this.verifyFill(m)) this.take(m.coord, m.owner, m.nbrs); return; // S4 identity hook
-        case 'NOROOM': if (this.state === 2) { this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
+        case 'PLACE':
+          if (this.state === 2 && this.verifyFill(m)) this.take(m.coord, m.owner, m.nbrs); // S4 identity hook
+          else if (this.state === 3 && this.hasCoord && this.seekAt >= 0 && !this.moving && this.verifyFill(m)) { // T5: the PLACE is the admitter's authorization — ride the same dual-hold transit
+            if (ck(m.coord) !== ck(this.coord)) this.doMove(m.coord, m.owner, m.nbrs);
+            this.seekAt = -1; this.seekTries = 0;
+          }
+          return;
+        case 'NOROOM':
+          if (this.state === 2) { this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); }
+          else if (this.state === 3 && this.seekAt >= 0) { if (this.haveRoster && this.roster.length && ++this.seekTries <= 6) { const t = this.pickRoster(); if (t != null) { this.seekAt = TICK; this.emit(t, { t: 'FIND', nc: this.id, ttl: 200 }); return; } } this.seekAt = -1; this.seekTries = 0; this.requeue(); }
+          return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.
@@ -774,10 +871,11 @@
           this.live.set(m.ck, TICK); // first-hand: I just heard m.id directly at m.ck
           this.noteS1(m.ck); return;
         }
-        case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.requeue(); return;
+        case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
         case 'CLAIM': if (!this.verifyFill(m)) return; if (this.occGet(m.ck) !== m.id) { this.setOcc(m.ck, m.id); this.live.set(m.ck, TICK); } this.noteS1(m.ck); return; // first-hand + S4 identity hook
         case 'LEAVE': {
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
+          if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just
           // LEFT; I am its fixed right-neighbour healer. I heal it UNLESS it
           // owns a down-child (then the VERTICAL rule heals it — I defer).
@@ -808,8 +906,13 @@
           this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
-        case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) this.requeue(); return;
+        case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
         case 'GSP': this._gspRecv(m); return;
+        case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
+          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); }
+          if (m.mvd) { this.setOcc(m.mvd, m.id); this.live.set(m.mvd, TICK); this.noteS1(m.mvd); }
+          this.wake(); return;
+        }
         case 'PHONE': this.onPhone(m); return;
         case 'PONG': {
           this.lastAck = TICK;
@@ -846,7 +949,8 @@
     }
 
     leave() {
-      this.alive = false; if (!this.hasCoord) return; const kk = ck(this.coord); const seen = new Set();
+      this.alive = false; this.moving = false; this.seekAt = -1; this.leaseCk = null; this.leaseUntil = -1;
+      if (!this.hasCoord) return; const kk = ck(this.coord); const seen = new Set();
       for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: kk, id: this.id }); } }
       const o = this.ownerCoord(); if (o) { const oid = this.occGet(ck(o)); if (oid != null && !seen.has(oid)) this.emit(oid, { t: 'LEAVE', ck: kk, id: this.id }); }
     }
@@ -862,6 +966,17 @@
         this.wake(); return;
       }
       if (this.evil) this.attack();
+      // T: transit bookkeeping — a claim window that closes with NO
+      // contradiction CONFIRMS (a wiped region has nobody to answer; a
+      // contradiction would have rolled back already); the tombstone
+      // self-expires (T3); a seeking seat retries on the searcher cadence.
+      if (this.moving && TICK - this.moveAt > CONFIRM_TTL) this.confirmMove();
+      if (this.leaseUntil >= 0 && TICK > this.leaseUntil) { this.leaseCk = null; this.leaseUntil = -1; }
+      if (this.seekAt >= 0 && TICK - this.seekAt > 60) {
+        const t = (this.haveRoster && this.roster.length && ++this.seekTries <= 6) ? this.pickRoster() : null;
+        if (t != null) { this.seekAt = TICK; this.emit(t, { t: 'FIND', nc: this.id, ttl: 200 }); }
+        else { this.seekAt = -1; this.seekTries = 0; this.requeue(); return; }
+      }
       if (this.coord.pc === 0) {
         // D1 over the rook: phone every live row+column neighbour each beat
         // (maintains first-hand liveness across all redundant home paths).
@@ -951,10 +1066,10 @@
       // orphaned seat whose anchor died without a deliverable LEAVE.
       let ancDead = false;
       if (this.hasCoord) { if (this.coord.i !== 0) ancDead = this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })) == null; else { const anc = this.ownerCoord(); if (anc) ancDead = this.occGet(ck(anc)) == null; } }
-      if (!didHeal && TICK - this.lastAck > 80 && (ancDead || TICK - this.lastAck > 220)) this.drainOrReenter();
+      if (this.seekAt < 0 && !didHeal && TICK - this.lastAck > 80 && (ancDead || TICK - this.lastAck > 220)) this.drainOrReenter();
       this.wake();
     }
   }
 
-  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, isS1key, ownerCoordOf };
+  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, CONFIRM_TTL, LEASE_TTL, isS1key, ownerCoordOf };
 })(typeof window !== 'undefined' ? window : globalThis);
