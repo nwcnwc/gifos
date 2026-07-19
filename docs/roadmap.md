@@ -64,6 +64,17 @@ login).
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
+- **Headless-row admission gap (2026-07-18, from the H7 row-fill work; needs a
+  sim-first design decision).** When the Section-1 head of a 2-person room
+  leaves and a new joiner arrives within seconds: the head cell's designated
+  admitter (the wrapped row above) doesn't exist, the row's other cells need
+  the head, so the joiner seats DEEP while the survivor's LEAVE-reactive scooch
+  into the head is still in flight; the joiner's up-link then points at the
+  vacated cell and re-seating rides the 40s drain / 30s FIND-retry cadences.
+  Candidate fix: let the left-pack healer's row-mates admit into a headless
+  row. Repro: e2e-video's "room survives its creator" leg (57 PASS then a
+  deterministic 25s-window stall on exactly this).
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
