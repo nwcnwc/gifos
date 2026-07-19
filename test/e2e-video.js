@@ -417,17 +417,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.locator('#chatclose').click();
 
   // ---------- a participant leaves → tiles + quality recover ----------
-  // Playwright's close() skips beforeunload, so Cai dies SILENTLY (no LEAVE,
-  // D2) — the mesh forgets a silent row-mate at the D3 sweep horizon: 50
-  // ticks x 500ms = 25s, swept every 12 ticks. 60s covers horizon + cadence.
-  await cPage.close(); await cCtx.close();
+  // runBeforeUnload: this section tests LEAVING (a tab closed normally →
+  // beforeunload → meshNode.leave() → D2 instant goodbye). Playwright's
+  // default close() skips beforeunload — that's a silent CRASH, whose
+  // deliberately slower cleanup (D3 sweep horizon; RING_HOLD for a home
+  // head) is covered by e2e-failover / e2e-reconnect instead.
+  await cPage.close({ runBeforeUnload: true }); await cCtx.close();
   await aPage.waitForFunction(() => window.__gifosVideo.participants() === 2, null, { timeout: 60000 });
   const q2 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('peer-leave shrinks the mesh and quality steps back up', q2 === '720p');
 
   // ---------- the room is PERMANENT: it outlives its creator ----------
   check('creator URL carries the room (reload-safe)', await aPage.evaluate(() => /v=/.test(location.hash)));
-  await aPage.close(); await aCtx.close(); // the creator is GONE
+  await aPage.close({ runBeforeUnload: true }); await aCtx.close(); // the creator LEAVES (graceful close → D2 goodbye; crash cleanup is e2e-failover's job)
   const dCtx = await newUser('Dee');
   const dPage = await dCtx.newPage();
   dPage.on('console', (m) => { if (m.type() === 'error') console.log('  [dee]', m.text()); });
