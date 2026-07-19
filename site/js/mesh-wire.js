@@ -219,7 +219,15 @@
         try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
       }
       if (stopped || !seat) return;
-      if (list.length && !ids.length) { fireLocked(); return; }        // R6: sealed list I can't read — wrong password
+      // R6 is a JOINING-NEWCOMER state ("the stranded newcomer"): only a seat
+      // still trying to get in can be "locked out". A SEATED seat hits this
+      // path too — its own E3/setKey re-knock right after a password change
+      // answers with the OTHER greeters' blobs still sealed under the OLD key
+      // (their re-knocks are in flight), decrypting none — and firing onLocked
+      // there threw the "This room is locked" join prompt at a member who SET
+      // the password. A seated seat ignores the list's content anyway (E3
+      // keeps it in the pool; it never seats off it), so just drop the reply.
+      if (list.length && !ids.length) { if (seat.state !== 3) fireLocked(); return; } // R6: sealed list I can't read — wrong password (joiners only)
       if (!ids.length && !m.founded) return;                            // the mint gap — hold; the join loop re-knocks
       seat.recv({ t: 'GREETERS', list: ids });                          // empty+founded ⇒ the seat founds (R3/R6 take-over)
     }
