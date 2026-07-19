@@ -389,6 +389,26 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         }
         return;
       }
+      if (cmd === 'detail') { // per-bot mesh state — WHY a bot isn't seated (state/links/occ)
+        const stCnt = {}; const links0 = []; let seated = 0;
+        for (const ent2 of pages) {
+          if (!ent2.p) continue;
+          try {
+            const w = await ent2.p.evaluate(() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              const ms = g(() => window.__gifosVideo.meshState(), null);
+              const c = g(() => window.__gifosVideo.meshCoord(), null);
+              const lk = g(() => window.__gifosVideo.meshLinks().length, -1);
+              return { state: ms ? ms.state : -1, occ: ms ? ms.occ : -1, seated: !!c, links: lk }; });
+            const key = ['join', 'ask', 'search', 'SEATED'][w.state] || ('s' + w.state);
+            stCnt[key] = (stCnt[key] || 0) + 1;
+            if (w.seated) seated++;
+            if (!w.seated) links0.push(ent2.idx + ':st=' + key + ',lk=' + w.links + ',occ=' + w.occ);
+          } catch (e) { stCnt.unreachable = (stCnt.unreachable || 0) + 1; }
+        }
+        console.log('[swarm] DETAIL seated=' + seated + ' states=' + JSON.stringify(stCnt));
+        if (links0.length) console.log('[swarm] DETAIL unseated: ' + links0.slice(0, 12).join(' | '));
+        return;
+      }
       if (cmd === 'compact') { // Q2 live observability: tree depth + lone-row sections + total compaction moves
         const parentPath = (pc) => Math.floor((pc - 1) / 6);
         const depthOf = (pc) => { let d = 0; while (pc) { pc = parentPath(pc); d++; } return d; };
