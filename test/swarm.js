@@ -59,6 +59,12 @@ const FPS = Math.max(1, parseInt(args.fps || '5', 10));
 const CHAT = Math.max(0, parseFloat(args.chat === undefined ? '20' : args.chat));
 const SPEAK = Math.max(0, parseFloat(args.speak === undefined ? '45' : args.speak));
 const DIAG = Math.max(0, parseFloat(args.diag === undefined ? '0' : args.diag)); // 0=off; secs between deep topology dumps
+// --lite / SWARM_LITE: a CONTROL-PLANE bot — it joins, seats, and forms the mesh
+// but stays camera+mic OFF (GifOS's quiet default), so it never encodes video/
+// audio to its peers. That removes the per-bot CPU hog (a ~9-peer WebRTC encode
+// fan-out), letting a box hold FAR more bots — for seating/healing/COMPACTION
+// scale tests where media fidelity is irrelevant. NOT for media-plane tests.
+const LITE = args.lite !== undefined || !!process.env.SWARM_LITE;
 
 let chromium;
 try { ({ chromium } = require('playwright')); }
@@ -171,11 +177,11 @@ const fakeCamVideo = (idx, fps, clipUrl, portraitUrl) => `
 // on it, and one simple object hopping to a random spot, shape, and size every
 // few seconds. Used when the intro-video pack isn't on disk. Audio is optional
 // espeak phrases (swarm-voices.js) or silence.
-const fakeCamSolid = (idx, fps) => `
+const fakeCamSolid = (idx, fps, lite) => `
   (() => {
     const hue = Math.round((${idx} * 137.508) % 360);
     const mk = async () => {
-      const c = document.createElement('canvas'); c.width = 270; c.height = 480;
+      const c = document.createElement('canvas'); c.width = ${lite ? 48 : 270}; c.height = ${lite ? 48 : 480};
       const x = c.getContext('2d');
       const SHAPES = ['circle', 'ring', 'square', 'triangle', 'cross', 'diamond'];
       let obj = null;
@@ -239,7 +245,9 @@ const fakeCamSolid = (idx, fps) => `
     // GifOS joins QUIET (camera+mic acquired but disabled) — a bot switches
     // its own on through the real buttons, and picks blur None (with a room
     // password that means clear video and NO sender-side blur canvas).
-    window.addEventListener('load', () => {
+    // LITE bots stay quiet (cam+mic OFF) — no media encode to peers — so a box
+    // holds far more of them; they still join/seat/mesh (control plane).
+    if (${lite ? 'false' : 'true'}) window.addEventListener('load', () => {
       let blurSet = false;
       const iv = setInterval(() => {
         const cam = document.getElementById('cam'), mic = document.getElementById('mic');
@@ -256,9 +264,9 @@ const fakeCamSolid = (idx, fps) => `
 
 // Pick the camera flavor per bot: an intro clip when the pack is on disk
 // (read + data-URL'd in from Node), otherwise the solid swatch.
-const fakeCam = (idx, fps, person) => person
+const fakeCam = (idx, fps, person) => (person && !LITE)
   ? fakeCamVideo(idx, fps, dataUrl(person.clip, 'video/mp4'), dataUrl(person.portrait, 'image/jpeg'))
-  : fakeCamSolid(idx, fps);
+  : fakeCamSolid(idx, fps, LITE);
 
 // Random congregation chatter — a few stock lines plus a tiny grammar, so
 // 600 bots don't all say the same six things.
