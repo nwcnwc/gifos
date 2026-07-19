@@ -368,10 +368,20 @@
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit({ pc: 0, r: t, i: this.coord.i }, mm); return; }
               continue;
             }
-            let aid = this.occGet(ck({ pc: 0, r: below, i: this.coord.i }));
-            if (aid == null || aid === this.id) aid = this.occGet(ck({ pc: 0, r: below, i: 0 })); // my column-mate there is a hole — hand to that row's head instead
+            // Forward toward the admitter row below ONLY over a FIRST-HAND-LIVE
+            // link. Raw occGet here was a bug: when the admitter row is ALSO
+            // wholly dead, its cells linger as stale occ echoes (a corpse's id,
+            // never cleared once no neighbour hears a LEAVE and gossip re-seeds
+            // it), so the FIND was handed to a DEAD seat and swallowed — two
+            // ADJACENT dead home rows never resurrected (the scan returned at the
+            // lower row before reaching the upper row it could itself admit).
+            // First-hand liveness sees the corpse for what it is, so a dead
+            // admitter row falls through to the bottom-up continue.
+            const ac = ck({ pc: 0, r: below, i: this.coord.i }), ah = ck({ pc: 0, r: below, i: 0 });
+            let aid = this.firstHandLive(ac) ? this.occGet(ac) : null;
+            if (aid == null || aid === this.id) aid = this.firstHandLive(ah) ? this.occGet(ah) : null; // column-mate not live → that row's head, still first-hand
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
-            continue;                                    // that row is dead too — resolve bottom-up
+            continue;                                    // the whole admitter row below is dead too (not first-hand live) → resolve bottom-up
           }
           for (let j = 0; j < C(); j++) {
             const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
