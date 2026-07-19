@@ -2295,6 +2295,12 @@
           if (occNow.has(pid)) { occVanish.delete(pid); continue; } // re-seated: a MOVE, not a departure
           const p = peers.get(pid);
           if (p && p.dc && p.dc.readyState === 'open') { occVanish.delete(pid); continue; } // transport alive (away, quiet) — NOT gone
+          // Confirm ONLY a channel that OPENED and then CLOSED — a page really
+          // going away closes its SCTP. A mid-dance newcomer ('connecting', or
+          // no channel yet) churning seats during the join must never be
+          // fast-dropped mid-handshake; the backstop owns any real death there.
+          const dcClosed = p && p.dc && (p.dc.readyState === 'closed' || p.dc.readyState === 'closing');
+          if (!dcClosed) { occVanish.delete(pid); continue; }
           if (Date.now() - at >= 900) { occVanish.delete(pid); confirmGone(pid, 'left'); }
         }
       }
