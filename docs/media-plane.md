@@ -232,6 +232,37 @@ Stadium-dark until healing (C3) refills seat 0 — seconds — while Channel R
 and Stage are unaffected). The final parent-seat → child-head `sdn` hop has
 its own parked mirror — the dormant chain below.
 
+**The sdn dormant mirror — the missing standby.** The parent-seat →
+child-head `sdn` hop used to be the one mix-minus leg with no second path: a
+dead parent seat froze the whole child branch's Stadium until healing. It now
+has a **link-disjoint mirror chain**, computed by `sdnMirrorRoute`
+(`mesh-media.js`) from the topology primitives alone: the producer is the
+parent row's **head** (which already builds the per-child ingredient), and
+the chain enters the child section through a **different row t's** down-link
+— for a deep parent, head → row-mate → cross fold → `(pc,t,i)` → down →
+`(cpc,t,0)` → across the child section's row/cross links → the child head;
+an S1 parent starts head → `(0,t,0)` over the rook **column** instead; `r=0`
+and `i=r` use the adapted cross folds (`(0,t)↔(t,t)`, `(r,r)↔(0,r)`). Every
+case shares **no edge** with the direct sdx/sdn legs and never touches the
+parent seat itself (verified exhaustively by `test/mirror-route.js` — at C=5
+every `(r,i)` case has a valid transit row). The chain rides the ordinary
+mosaic machinery: each hop is a keyed ship (`sdnm:<dst>`) **born parked**
+(zero media, m-lines negotiated), re-derived from occ on the 2s sweep so
+churn re-routes it within a sweep; carriers **relay only** — the mix contains
+the producer row's faces, so a carrier must never claim or play it
+(mix-minus) — and only the destination child head resolves the mirror to its
+own `sdn` slot, where the one-pipe law above treats it as the parked standby.
+A wake **propagates end-to-end in one pass**: each woken hop immediately
+demands its own upstream awake, one cascade of control frames, never one hop
+per sweep. Failback to the direct hop is the same make-before-break swap.
+**When no mirror exists:** a child section with only ONE occupied row head
+has exactly one physical edge from above — every alternate entry is a
+down-link into one of its *other* rows' heads, and those seats are empty —
+so a sparse branch (any room where a child section holds a single row)
+provably has no disjoint route with the current link set. The mirror simply
+isn't built there; the 5s grace linger plus healing remain the backstop of
+last resort, exactly as before.
+
 ### The latency offset
 The Stadium necessarily lags Stage (and the live Row) by exactly the time the
 bottom-up assembly took — **physically unavoidable**: you cannot show a
