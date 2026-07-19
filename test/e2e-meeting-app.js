@@ -31,7 +31,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const aDesk = await aCtx.newPage();
   aDesk.on('pageerror', (e) => console.log('  [a desk pageerror]', e.message));
   await aDesk.goto(BASE + '/index.html');
-  await aDesk.waitForSelector('.icon');
+  // 90s: first-visit desktop seed GIF-encodes the sample apps — CPU-bound and
+  // legitimately slow on a saturated shared box (measured ~60s at load 40).
+  await aDesk.waitForSelector('.icon', { timeout: 90000 });
   // grab a normal (non-system) app fileId from the seeded store
   const appId = await aDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
@@ -44,7 +46,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   aMeet.on('pageerror', (e) => console.log('  [a meet pageerror]', e.message));
   await aMeet.goto(BASE + '/meet.html');
   await aMeet.locator('#lob-open').click(); // cold open → lobby → start an open meeting
-  await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 }); // meeting boot is CPU-heavy under a saturated box
   check('meeting page loaded the app runtime', await aMeet.evaluate(() => !!(window.GifOS && window.GifOS.runtime)));
   check('meeting bar shows the Run-app control', await aMeet.locator('#appbtn').isVisible());
   const link = await aMeet.evaluate(() => window.__gifosVideo && document.getElementById('share-url').value);
@@ -54,17 +56,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bMeet = await bCtx.newPage();
   bMeet.on('pageerror', (e) => console.log('  [b meet pageerror]', e.message));
   await bMeet.goto(link);
-  await aMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await bMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await aMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  await bMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
   check('both participants are meshed in the meeting', true);
 
   // ---- A runs an app into the meeting; B should mount it live ----
   await aMeet.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Shared App'), appId);
-  await aMeet.waitForSelector('#appmount iframe', { timeout: 15000 });
+  await aMeet.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('host mounted the app in the meeting stage', await aMeet.evaluate(() => window.__gifosVideo.appActive()));
   check('host is flagged as the app host', await aMeet.evaluate(() => window.__gifosVideo.appIsHost()));
 
-  await bMeet.waitForSelector('#appmount iframe', { timeout: 20000 });
+  await bMeet.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the OTHER participant auto-mounted the shared app', await bMeet.evaluate(() => window.__gifosVideo.appActive()));
   check('guest is NOT the host of the app (it is a client mount)', await bMeet.evaluate(() => !window.__gifosVideo.appIsHost()));
   check('both stages layout switched to has-app', await bMeet.evaluate(() => document.body.classList.contains('has-app')));
@@ -74,12 +76,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cMeet = await cCtx.newPage();
   cMeet.on('pageerror', (e) => console.log('  [c meet pageerror]', e.message));
   await cMeet.goto(link);
-  await cMeet.waitForSelector('#appmount iframe', { timeout: 25000 });
+  // 45s: the late joiner must boot the meeting, join the mesh, learn the app is
+  // live, and PULL the retained snapshot — boot alone is ~45s on a saturated box.
+  await cMeet.waitForSelector('#appmount iframe', { timeout: 45000 });
   check('a LATE joiner picks up the running app automatically', await cMeet.evaluate(() => window.__gifosVideo.appActive()));
 
   // ---- Stopping the app tears the pane down for everyone ----
   await aMeet.evaluate(() => window.__gifosVideo.stopAppForTest());
-  await bMeet.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  await bMeet.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('stopping the shared app clears the guest stage too', await bMeet.evaluate(() => !document.body.classList.contains('has-app')));
 
   // ---- Second entry point: an app tab's "Meeting" toggle ----
@@ -89,7 +93,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // seed d's desktop, then open the app in run.html and toggle it into a meeting
   const dDesk = await dCtx.newPage();
   await dDesk.goto(BASE + '/index.html');
-  await dDesk.waitForSelector('.icon');
+  await dDesk.waitForSelector('.icon', { timeout: 90000 }); // same seed cost as above
   const dAppId = await dDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
     const app = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
@@ -104,7 +108,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (await ack.count()) await ack.first().click().catch(() => {});
   await dRun.locator('#tomeet').click();
   await dRun.waitForURL(/meet\.html#app=/, { timeout: 10000 });
-  await dRun.waitForSelector('#appmount iframe', { timeout: 20000 });
+  await dRun.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the toggle lands on the meeting page with the app already running', await dRun.evaluate(() => window.__gifosVideo.appActive()));
 
   await browser.close();

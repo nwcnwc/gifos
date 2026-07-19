@@ -19,7 +19,9 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const aCtx = await newUser('Ada');
   const aDesk = await aCtx.newPage();
   aDesk.on('pageerror', (e) => console.log('  [a desk] ' + e.message));
-  await aDesk.goto(BASE + '/index.html'); await aDesk.waitForSelector('.icon', { timeout: 20000 });
+  // 90s: first-visit desktop seed GIF-encodes the sample apps — CPU-bound and
+  // legitimately slow on a saturated shared box (measured ~60s at load 40).
+  await aDesk.goto(BASE + '/index.html'); await aDesk.waitForSelector('.icon', { timeout: 90000 });
   const mmId = await aDesk.evaluate(async () => { const f = (await GifOS.store.allFiles()).find((x) => x.appId === 'mymedia'); return f ? f.id : null; });
   check('My Media seeded', !!mmId, mmId);
 
@@ -83,9 +85,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     await window.gifos.db('media').setVisibility('vid1', 'read-only');
     await window.gifos.db('blobs').setVisibility('vid1', 'read-only');
   });
-  await sleep(2000); // db-change should reach the guest and refresh its library
-
-  const g = await readGuest();
+  // Poll (not a fixed sleep): the signed full-state delta must cross the mesh
+  // and the guest's library refresh — same facts asserted, latency-tolerant.
+  let g = await readGuest();
+  for (const t0 = Date.now(); (!g.shows || !(g.blobIsU8 && g.blobLen === host.n)) && Date.now() - t0 < 30000;) {
+    await sleep(1500); g = await readGuest();
+  }
   check('GUEST (meeting) sees the video once marked visible LIVE', g.shows, JSON.stringify({ ids: g.ids, shows: g.shows }));
   check('GUEST (meeting) can load the whole ' + VID_MB + 'MB video over the mesh', g.blobIsU8 && g.blobLen === host.n, 'len=' + g.blobLen + ' want=' + host.n + (g.blobErr ? ' err=' + g.blobErr : ''));
 

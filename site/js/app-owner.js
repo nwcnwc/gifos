@@ -53,8 +53,19 @@
   // Deterministic serialization: object keys sorted recursively, so the exact
   // same bytes are signed and re-hashed on every device (a signature over a
   // JS-default key order would verify only by luck).
+  //
+  // BINARY: an app record can hold a Uint8Array/ArrayBuffer (My Media's photo
+  // or video bytes). The mesh transport (gifos-net seal/open) round-trips it
+  // as a real typed array on BOTH ends — so canonical() must serialize it to a
+  // STABLE token (hex behind a tag), identical host-side (raw) and guest-side
+  // (transport-revived). Enumerating a Uint8Array as a plain object instead
+  // would make the two ends disagree the instant either holds the revived form
+  // vs the {$bin} form — the bad-sig that blanked shared blobs.
   function canonical(v) {
     if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (v instanceof Uint8Array) return JSON.stringify('$u8:' + hex(v));
+    if (v instanceof ArrayBuffer) return JSON.stringify('$u8:' + hex(new Uint8Array(v)));
+    if (ArrayBuffer.isView(v)) return JSON.stringify('$u8:' + hex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)));
     if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
     const keys = Object.keys(v).sort();
     return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
@@ -89,13 +100,16 @@
   // pubkey-derived verifier tail (`room.<sha256(pk) prefix>` — the owned-link
   // shape), the pin is additionally bound to the sid so even the FIRST frame
   // must come from the key the link commits to (closing the TOFU race). For a
-  // healing-link sid (opaque tail) the pin is trust-on-first-valid-frame; see
-  // the doc note — the clean close is carrying the owner pk in the app ad.
-  function makeVerifier(sid) {
+  // healing-link sid (opaque tail) the pin is trust-on-first-valid-frame —
+  // UNLESS the caller passes `ownerPk` (the pk carried in the app ad, the
+  // clean close of that race): then the pin is fixed up front, and a stale
+  // retained frame from an earlier share of the same sid (old key) can never
+  // capture the verifier.
+  function makeVerifier(sid, ownerPk) {
     const dot = String(sid || '').indexOf('.');
     const sidTail = dot >= 0 ? String(sid).slice(dot + 1) : null;
     const boundable = !!(sidTail && /^[0-9a-f]{8,}$/.test(sidTail));
-    let pinned = null;
+    let pinned = (typeof ownerPk === 'string' && /^[0-9a-f]{16,}$/.test(ownerPk)) ? ownerPk : null;
     let lastN = 0;
     return {
       get pinnedPk() { return pinned; },

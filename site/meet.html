@@ -2423,9 +2423,20 @@
       if (!msg.modw) return;
       admVerify(msg.modw, 'mod').then((o) => {
         if (!o || !o.mod) return;
+        // admVerify is async, so this resolves AFTER the status handler already
+        // ran reconcileApp for this tick. When it FIRST recognizes an admin,
+        // refresh the `admins` view and re-reconcile now — otherwise a guest
+        // wouldn't adopt that admin's already-shared app until a later periodic
+        // beat recomputed `admins` and a still-later status tick re-ran
+        // reconcileApp (2-3 heartbeats of an empty stage).
+        const newlyAdmin = o.by && !admins.includes(o.by);
         if (o.by) admSeen.set(o.by, Date.now()); // the SIGNED claim, not the re-gossiper
         if (o.ts > modWSeenTs) { modWSeen = msg.modw; modWSeenTs = o.ts; }
         mergeMod(o.mod);
+        if (newlyAdmin) {
+          admins = adminsNow();
+          if (typeof reconcileApp === 'function') reconcileApp();
+        }
       });
     }
     // The RAW device id never leaves this browser: it is only ever the input
@@ -3474,6 +3485,13 @@
       } else if (m.k === 'sga' && typeof m.sid === 'string') {
         // Stage data lane (§11): app-state frame — dedup, deliver, re-fan.
         sgaRecv(p.id, m);
+      } else if (m.k === 'sga-req' && typeof m.sid === 'string') {
+        // Late-joiner snapshot pull: they know sid is live but hold no state.
+        // Answer DIRECTLY from my retained snap, or chase it upstream myself.
+        sgaServe(p, m);
+      } else if (m.k === 'sga-snap' && m.m && typeof m.m.sid === 'string') {
+        // Direct snapshot replay (the answer to sga-req) — deliver, never re-fan.
+        sgaRecvSnap(m.m);
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         if (meshNode && m.m) meshNode.recvCtl(m.m);
@@ -4563,9 +4581,71 @@
       }
     }
     function sgaDeliver(m) {
-      if (m.kind === 'snap') sgaSnap.set(m.sid, m);
+      if (m.kind === 'snap') {
+        const cur = sgaSnap.get(m.sid);
+        if (!cur || cur.seq === m.seq || (cur.at || 0) <= (m.at || 0)) sgaSnap.set(m.sid, m);
+        // serve any neighbour that asked for this snap while I had nothing
+        const w = sgaWant.get(m.sid);
+        if (w) {
+          sgaWant.delete(m.sid);
+          for (const pid of w.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-snap', m }); }
+        }
+      }
       const subs = sgaSubs.get(m.sid);
       if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
+    }
+    // ---- late-joiner snapshot replay ----------------------------------------
+    // PRESENCE (an app is running) gossips to everyone, but the sga flood only
+    // walked the structural links that existed when the frame travelled — a
+    // node that joins later holds no snap, and the host only re-snaps on
+    // change. So a subscriber with no retained snap PULLS: 'sga-req' to its
+    // sga neighbours, retried while empty; a holder answers 'sga-snap'
+    // DIRECTLY to the requester (never re-flooded — the flood already did its
+    // walk, and neighbours would dedup it anyway). A neighbour that holds
+    // nothing either remembers who asked and chases upstream itself
+    // (pull-through), so the pull climbs toward older nodes; the requester's
+    // retry drives the chain. Idempotent by construction: the reply is
+    // delivered even when its sid|seq is already in sgaSeen — a fresh node may
+    // have the seq marked with no state behind it (re-mount after drop) — but
+    // an already-held equal-or-newer snap wins, and a reply NEVER re-fans, so
+    // no storm is possible (each reply is one targeted frame per waiter).
+    const sgaWant = new Map();     // sid -> Map(pid -> at): neighbours waiting on a snap I lack
+    const sgaReqAt = new Map();    // sid -> last request time (throttle)
+    const sgaReqTimer = new Map(); // sid -> retry interval while snapless
+    function sgaRequest(sid) {
+      const now = Date.now();
+      if ((sgaReqAt.get(sid) || 0) > now - 1800) return;
+      sgaReqAt.set(sid, now);
+      const held = sgaSnap.get(sid);
+      for (const pid of sgaTargets()) {
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'sga-req', sid: sid, have: held ? held.seq : null });
+      }
+    }
+    function sgaChase(sid) { // ask now, retry until a snap lands or interest dies
+      if (sgaReqTimer.has(sid)) return;
+      sgaRequest(sid);
+      let tries = 0;
+      const t = setInterval(() => {
+        const wanted = sgaSubs.has(sid) || (sgaWant.get(sid) || { size: 0 }).size;
+        if (sgaSnap.has(sid) || !wanted || ++tries > 30) { clearInterval(t); sgaReqTimer.delete(sid); return; }
+        sgaRequest(sid);
+      }, 2000);
+      sgaReqTimer.set(sid, t);
+    }
+    function sgaServe(p, m) {
+      const held = sgaSnap.get(m.sid);
+      if (held) { if (held.seq !== m.have) dcSend(p, { k: 'sga-snap', m: held }); return; }
+      let w = sgaWant.get(m.sid); if (!w) { w = new Map(); sgaWant.set(m.sid, w); }
+      w.set(p.id, Date.now());
+      sgaChase(m.sid);
+    }
+    function sgaRecvSnap(m) {
+      if (!m.sid || m.seq == null || m.kind !== 'snap') return;
+      const cur = sgaSnap.get(m.sid);
+      if (cur && (cur.seq === m.seq || (cur.at || 0) >= (m.at || 0))) return; // hold equal or newer
+      sgaSeen.set(m.sid + '|' + m.seq, Date.now()); // a later flood dup of this seq stays deduped
+      sgaDeliver(m); // retains the snap, wakes subscribers, serves waiters — NO re-fan
     }
     function sgaRecv(fromPid, m) {
       if (!m.sid || m.seq == null) return;
@@ -4591,10 +4671,15 @@
       subscribe(sid, cb) {
         let s = sgaSubs.get(sid); if (!s) { s = new Set(); sgaSubs.set(sid, s); }
         s.add(cb);
-        const snap = sgaSnap.get(sid); if (snap) { try { cb(snap); } catch (e) {} }
+        const snap = sgaSnap.get(sid);
+        if (snap) { try { cb(snap); } catch (e) {} }
+        else sgaChase(sid); // late joiner: pull the retained snap from the mesh
         return () => { s.delete(cb); if (!s.size) sgaSubs.delete(sid); };
       },
-      drop(sid) { sgaSnap.delete(sid); sgaSubs.delete(sid); },
+      drop(sid) {
+        sgaSnap.delete(sid); sgaSubs.delete(sid); sgaWant.delete(sid);
+        const t = sgaReqTimer.get(sid); if (t) { clearInterval(t); sgaReqTimer.delete(sid); }
+      },
     };
     if (window.GifOS) GifOS.meetStageData = stageData;
 
@@ -5737,16 +5822,31 @@
       document.getElementById('appname').textContent = name || 'App';
       document.getElementById('appwho').textContent = who || '';
     }
+    let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
     function clearAppView() {
+      if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
       appMountEl.innerHTML = '';
       document.body.classList.remove('has-app');
       const ap = document.getElementById('appperms'); if (ap) ap.style.display = 'none';
       appMode = null; appKey = null;
     }
+    // TAKEOVER GUARD: runApp's boot (runtime boot + becomeHost) is async, and
+    // until it settles myStatus.app is still null — so an incoming status tick
+    // would see the room's CURRENT ad as the winner and reconcileApp would
+    // clearAppView() + mountClientApp() right over the booting host iframe:
+    // appMode flips back to 'client' (the takeover never lands) and the
+    // torn-down iframe's in-flight bridge replies crash on a null
+    // contentWindow. Freeze reconciliation while a host boot is in flight;
+    // reconcile once, with MY fresh ad in play, the moment it settles.
+    let appBooting = false;
     async function runApp(fileId, name) {
       if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
       if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
+      appBooting = true;
       try {
+        // Taking over from a client mount: unsubscribe its lane before the
+        // host boot replaces the DOM (the iframe goes with it either way).
+        if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
         const rec = await GifOS.store.getFile(fileId);
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
@@ -5770,18 +5870,27 @@
         // (roadmap 26–28) the ad still carries the relay session, and clients
         // pick the mesh lane iff the host actually drives it (mesh flag).
         const meshBus = !!(r && r.attachStageBus);
-        if (meshBus) r.attachStageBus({
-          send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
-          subscribe: (cb) => stageData.subscribe(sess.sid, cb),
-        });
+        let meshPk = null;
+        if (meshBus) {
+          const att = await r.attachStageBus({
+            send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
+            subscribe: (cb) => stageData.subscribe(sess.sid, cb),
+          });
+          // The owner pk travels IN THE AD (docs note: "the clean close is
+          // carrying the owner pk in the app ad") — clients pre-pin it, so a
+          // stale retained snap from an earlier share of this sid (old key)
+          // can't TOFU-pin the verifier and a fresh share re-keys cleanly.
+          meshPk = (att && att.pk) || null;
+        }
         // ts outbids any standing tombstone for this sid — a re-share is a
         // deliberate act and must win even against a skewed stopper's clock.
-        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus,
+        myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus, pk: meshPk,
           ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
         broadcastStatus();
-        reconcileApp();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
+      appBooting = false;
+      reconcileApp(); // now with my ad in play (or, on failure, the room's old one)
     }
     function mountClientApp(app) {
       appMode = 'client'; appKey = app.s;
@@ -5792,11 +5901,19 @@
         // stream — actions ride back up the same lane as 'act' frames. The
         // relay session below is the transport until the runtime adapter lands.
         if (app.mesh && GifOS.runtime.bootClientBus) {
+          const sidNow = app.s;
           GifOS.runtime.bootClientBus(appMountEl, {
             s: app.s,
+            pk: app.pk || null, // owner pk from the ad — pre-pins the verifier
             send: (kind, d) => stageData.broadcast(app.s, kind, d),
             subscribe: (cb) => stageData.subscribe(app.s, cb),
-          }, null, {});
+          }, null, {}).then((c) => {
+            // keep the teardown so a later clear/takeover unsubscribes the lane;
+            // if this mount was already superseded while booting, stop it now.
+            if (!c || typeof c.stop !== 'function') return;
+            if (appMode === 'client' && appKey === sidNow) appClientStop = c.stop;
+            else { try { c.stop(); } catch (e) {} }
+          }).catch(() => {});
         } else GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {});
       }
       catch (e) { clearAppView(); }
@@ -5840,6 +5957,7 @@
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
     // every status tick and on peer departure, so it self-heals like the mesh.
     function reconcileApp() {
+      if (appBooting) return; // a host boot is settling — runApp reconciles when it lands
       const want = findSharedApp();
       // My own share lost the deterministic race, was stopped for the room, or
       // my authority was revoked — withdraw the ad instead of fighting.
@@ -5992,9 +6110,18 @@
     }
     // Second entry point: an app tab's "Meeting" toggle opens meet.html#app=<fileId>.
     // Auto-host that app once we're set up (its state lives in this same browser).
+    // canIRunApp() needs myId, which S4 mints ASYNCHRONOUSLY — a fixed 900ms
+    // timer can fire before identity lands, and runApp would then silently
+    // no-op ("only admins can run an app"). Poll until we CAN run, exactly as
+    // the Run-app button is gated, then host.
     (function () {
       const wantApp = params.get('app');
-      if (wantApp) setTimeout(() => runApp(wantApp), 900);
+      if (!wantApp) return;
+      let tries = 0;
+      const t = setInterval(() => {
+        if (canIRunApp()) { clearInterval(t); runApp(wantApp); }
+        else if (++tries > 120) clearInterval(t); // ~24s ceiling, then give up quietly
+      }, 200);
     })();
 
     // Test hook: lets the e2e suite observe mesh + quality state.
@@ -6168,6 +6295,8 @@
       appLeading: () => appLeadOn,
       canRunApp: () => canIRunApp(),
       grantApp: (pid, on) => setMod(pid, 'app', !!on),
+      myPid: () => myId, // S4 peer id (H(pubkey)); what modTable/admins/grants key on
+
       stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
       room: () => room,
