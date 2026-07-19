@@ -46,16 +46,50 @@ Admin power = knowledge of the admin password, proven cryptographically:
 
 ## §FWD — Sponsor-forwarded signaling, and its honest trust note
 
-When a pair has no relay path (deep seats run socketless by design), a MUTUAL
-FRIEND's DataChannel forwards the sealed frame (`fsig`) — one hop,
-deterministic sponsor pick (lowest-id connected peer reporting a live link to
-the target), sealed end-to-end the whole way (the sponsor carries ciphertext
-it could already read as a room member, but cannot alter).
+When a pair has no relay path (deep seats run socketless by design), sealed
+frames — WebRTC signaling (`fsig`) and mesh control (`fmesh`) — travel through
+the room instead of the relay. The sender tries, in order:
+
+1. **A mutual friend** — the lowest-id connected peer reporting a live link to
+   the target forwards over its DataChannel (the classic one-hop sponsor).
+2. **The mesh itself** — the sender's own one open-DC step toward the target's
+   SEAT (the envelope carries the target's coord; each hop recomputes the next
+   step from the row-preserving tree arithmetic).
+3. **The greeter DOOR** — the friendless-newcomer bootstrap. A just-seated
+   newcomer has NO DataChannels yet, but it always has one guaranteed contact:
+   the relay-socketed seats (its entry gateway and the greeter pool — the
+   room's public front door, healing-laws R2/E3 — preferring a socketed seat
+   already wired next to the target: its owner, head, or row-mates). The
+   sealed envelope rides the relay TO that door as an ordinary opaque
+   `{t:'peer'}` frame, and the door carries it onward over its channels.
+
+Onward travel is **ttl-bounded UNICAST hop-forwarding** (never a flood): each
+hop delivers on a direct channel if it holds one, else takes one mesh step
+toward the target's coord; a per-envelope id dedup kills loops; the final hop
+may hand the envelope back to the relay addressed to the TARGET itself (it may
+be a socketed joiner — the reverse bootstrap). The payload is sealed under the
+room key the whole way (a sponsor carries ciphertext it could already read as
+a room member, but the relay never can — its knowledge is unchanged).
+
+The relay cooperates with exactly one new frame: a targeted `{t:'peer'}` whose
+destination holds no socket is answered to the SENDER with `{t:'nosock', to}`
+instead of being dropped silently, so the sender falls back to the sponsor
+path immediately instead of retrying blind. This leaks nothing: the roster
+already broadcasts which peers hold sockets, and routePeer stays targeted —
+the scope rule ("the relay hears only from joiners and greeters") is about
+what the relay is *told*, not a refusal to route or to answer honestly.
+Deep-seated newcomers also hold their relay socket until their FIRST
+DataChannel opens (hard-capped ~2 min — mesh-wire `wired()`), so the answer
+leg of their very first handshakes has a path back.
 
 **Trust note:** the relay's authoritative `from` does not cover this path — an
 in-room impostor could already disrupt via gossip; connection-level guards
 (perfect negotiation, the mesh's link discipline, E2 tenure/yield) bound the
-blast radius. This is an accepted limit, not an oversight.
+blast radius. Multi-hop widens who may CARRY a pair's signaling from one
+sponsor to any room member on the path — but every carrier was already a
+room member holding the room key, so nothing new is readable, and S4-signed
+mesh fills stay verified at the final recipient regardless of the route. This
+is an accepted limit, not an oversight.
 
 ## The relay's knowledge, in one paragraph
 
@@ -69,7 +103,10 @@ the relay be *blind to which greeter* and fan every frame out to all sockets;
 that bought no real privacy and cost O(sockets) per frame, so it is gone —
 targeted delivery to a greeter is fine.) What actually keeps the relay out of
 the room's life is **scope**, not blindness: members hold sockets only while
-joining or serving as Section-1 greeters; once seated in the mesh they drop the
-socket and the relay never hears from them again. It never holds: the room
+joining or serving as Section-1 greeters; once seated in the mesh (and wired —
+§FWD) they drop the socket and the relay never hears from them again. When
+asked to route to a peer with no socket it answers the sender `{t:'nosock'}` —
+an honest fact the roster already implies — rather than dropping silently or
+storing anything. It never holds: the room
 code, the password, the E2E key, a name, an IP, a coord, or any notion of who
 is seated (healing-laws R2). Arrival order alone decides genesis (R3).

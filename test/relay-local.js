@@ -247,7 +247,15 @@ server.on('upgrade', (req, socket) => {
     // no stamp — authority is a signature (docs/meet-security.md §SIG)
     const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
-    if (dest) dest.send(wrapped);
+    if (dest) { dest.send(wrapped); return; }
+    // Explicit no-socket bounce (docs/meet-security.md §FWD): the target holds
+    // no socket here (a seated deep seat — R2 greeting scope), so tell the
+    // SENDER instead of dropping the frame silently; it falls back to
+    // sponsor-forward immediately instead of retrying blind. Leaks nothing the
+    // roster doesn't already broadcast (which peers hold sockets). Mirrors
+    // relay/src/relay.js routePeer.
+    const src = from === 'host' ? sess.host : sess.clients.get(from);
+    if (src) src.send(JSON.stringify({ t: 'nosock', to: m.to }));
   };
   // ---- greeter registry (R2/R3) — mirrors relay/src/relay.js ----
   // State lives on the CONNECTIONS (occupancy), so it is forgotten when the room
