@@ -3504,11 +3504,16 @@
         for (const [rk, c] of [...mosStandby]) if (c.via === p.id && c.streamId === m.streamId) dropStandby(rk);
         claimMos(); // promote a hot standby into any slot just vacated (no sweep wait)
       } else if (m.k === 'mx-want' && typeof m.key === 'string') {
-        // A receiver wants this redundant feed HOT — wake its (dormant) job.
-        setJobActive(m.key + '>' + p.id, true);
+        // A receiver wants this redundant feed HOT — wake its (parked) job.
+        // The streamId must match the CURRENT job: a stale demand aimed at a
+        // dead ship must never flip the live one (the dark-primary inversion
+        // the redun-drill caught).
+        const jw = mosJobs.get(m.key + '>' + p.id);
+        if (jw && (!m.streamId || jw.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, true);
       } else if (m.k === 'mx-idle' && typeof m.key === 'string') {
-        // A receiver already has 2 hot feeds — park this spare at zero bandwidth.
-        setJobActive(m.key + '>' + p.id, false);
+        // A receiver keeps this spare parked at zero bandwidth (ONE-PIPE law).
+        const ji = mosJobs.get(m.key + '>' + p.id);
+        if (ji && (!m.streamId || ji.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, false);
       } else if (m.k === 'sga' && typeof m.sid === 'string') {
         // Stage data lane (§11): app-state frame — dedup, deliver, re-fan.
         sgaRecv(p.id, m);
@@ -4072,13 +4077,20 @@
     const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
     const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols });
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
-    // message only rides the DC when the state actually flips.
+    // message only rides the DC on a state flip — but RE-ASSERTED every few
+    // seconds even without one: a demand that raced a closed DC or a transport
+    // rebuild would otherwise be lost FOREVER on both sides (the sender keeps
+    // the wrong active state, the receiver's debounce never re-sends — the
+    // dark-primary deadlock the redun-drill caught). Never record an unsent
+    // state: if the DC isn't open, the next sweep retries.
     function demand(from, key, sid, want) {
-      const dk = from + '|' + key + '|' + sid, st = want ? 'w' : 'i';
-      if (subWant.get(dk) === st) return;
-      subWant.set(dk, st);
+      const dk = from + '|' + key + '|' + sid, st = want ? 'w' : 'i', now = Date.now();
+      const cur = subWant.get(dk);
+      if (cur && cur.st === st && now - cur.at < 6000) return;
       const p = peers.get(from);
-      if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: want ? 'mx-want' : 'mx-idle', key, streamId: sid });
+      if (!(p && p.dc && p.dc.readyState === 'open')) return;
+      subWant.set(dk, { st, at: now });
+      dcSend(p, { k: want ? 'mx-want' : 'mx-idle', key, streamId: sid });
     }
     function repaintRedun(rk, stream) {
       // Respect the same position guards reconcileMosaic paints under, so an
@@ -6392,7 +6404,7 @@
         // state, and the last want/idle demand I sent per announcer.
         standby: [...mosStandby.keys()],
         jobsActive: [...mosJobs.entries()].map(([k, j]) => k + (j.active ? '+' : '·')),
-        demand: [...subWant.entries()].map(([k, v]) => k + '=' + v),
+        demand: [...subWant.entries()].map(([k, v]) => k + '=' + v.st),
         // per-slot primary/standby VIA (peer id) — lets a probe kill the exact
         // feeding peer and watch the hot standby promote with no black-out.
         claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
@@ -6527,7 +6539,7 @@
             vMuted: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].muted : null })),
           standby: [...mosStandby.entries()].map(([rk, f]) => ({ rk, via: String(f.via).slice(0, 8), sid: String(f.streamId).slice(0, 8) })),
           jobs: [...mosJobs.entries()].map(([jk, j]) => ({ jk: j.key + '>' + String(j.to).slice(0, 8), active: !!j.active })),
-          demand: [...subWant.entries()].map(([k, v]) => { const a = k.split('|'); return { k: String(a[0]).slice(0, 8) + '|' + a[1], v }; }),
+          demand: [...subWant.entries()].map(([k, v]) => { const a = k.split('|'); return { k: String(a[0]).slice(0, 8) + '|' + a[1], v: v.st }; }),
           ear: (typeof stageEar !== 'undefined' && stageEar) ? [...stageEar.sids.keys()] : [],
           packs: { prod: prodPack ? Object.assign({ w: prodPack.canvas.width, h: prodPack.canvas.height }, prodPack.stats()) : null,
                    sd: sdPack ? Object.assign({ w: sdPack.canvas.width, h: sdPack.canvas.height }, sdPack.stats()) : null,
