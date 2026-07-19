@@ -14,6 +14,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
 void Seat::announce(){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
 
 void Seat::admit(Coord c,int nc){
+  tlForget(ckey(c));   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   occ[ckey(c)]=nc; noteS1(ckey(c));
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[k]),x}); }
@@ -128,13 +129,13 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   bumpMoves();
   Coord oldC=coord; Coord ol[MAXLINKS]; int n=ownedLinks(oldC,ol); unordered_set<int> seen;
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(oldC);m.id=id; emit(x,m);} }
-  occ.clear(); s1seen.clear(); cousins.clear();   // moving levels: old cousins are stale; rebuild fresh at the new position
+  occ.clear(); s1seen.clear(); cousins.clear(); tlClear();   // moving levels: old cousins are stale; rebuild fresh at the new position
   take(hole,-1,nbrs);
   lastAck=(int)TICK; lastPhone=(int)TICK-100;
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
 void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
-  hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; join(); }
+  hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
   // E1 LAST RESORT, checked FIRST: owner-chain dead >220 ticks with no mesh
@@ -147,7 +148,7 @@ void Seat::drainOrReenter(){
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
 }
 void Seat::reseatViaRoster(){ bumpMoves(); if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
-  hasCoord=false; occ.clear(); s1seen.clear(); drainAt=0; seatTries=0;
+  hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
 bool Seat::nextHopCoord(Coord t, Coord& out){
@@ -186,6 +187,31 @@ int Seat::nextHopToward(Coord target,int exclude){
   return -1;
 }
 void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ckey(coord)==ckey(target)) return; if(nh>=0){ Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=tag;m.ttl=60;m.via=id; emit(nh,m);} }
+// routeToProbe: the D5 translost probe. THE PROBE TRAVELS THE MESH, NOT THE
+// DEAD LINK: the first hop excludes the probed occupant itself (my direct link
+// to it is exactly what died), and the frame carries my coord (m.coord) so the
+// answer can route back AROUND the dead link too (tag 3). A live severed peer
+// therefore still answers; only a truly unreachable one stays silent. No
+// alternate hop at all => no probe => the confirm window runs — in a room that
+// sparse the dead link WAS the only path.
+void Seat::routeToProbe(Coord target){
+  uint64_t tk=ckey(target); if(!hasCoord||ckey(coord)==tk) return;
+  int nh=probeHop(target,occGet(tk));
+  if(nh>=0){ Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=2;m.ttl=60;m.via=id;m.coord=coord; emit(nh,m); }
+}
+// probeHop: first hop for a probe (or its answer) that must NOT use the direct
+// link to `target`. Prefer a hop that is itself a DIRECT neighbour of the
+// target — for a same-row target another ROW-mate, for a same-column target
+// another COLUMN-mate (the rook's parallel independent paths); the generic
+// nextHopToward fallback can otherwise pick a path that funnels straight back
+// into the dead link.
+int Seat::probeHop(Coord target,int excludeId){
+  if(hasCoord && target.pc==coord.pc){
+    if(target.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(target)) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id&&x!=excludeId) return x; } }
+    else if(coord.pc==0 && target.i==coord.i){ Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++){ if(ckey(cm[q])==ckey(target)) continue; int x=occGet(ckey(cm[q])); if(x>=0&&x!=id&&x!=excludeId) return x; } }
+  }
+  return nextHopToward(target,excludeId);
+}
 
 // ---- mesh routing (Option A) -------------------------------------------------
 // route(): deliver `inner` to coord rdst over LINKS only. If I already sit at
@@ -235,7 +261,12 @@ bool Seat::routeStep(Msg& m){
 void Seat::onPhone(Msg& m){
   if(!hasCoord || m.tock!=ckey(coord)) return;   // tock is always set for a PHONE; ckey(0,0,0)==0 is a REAL coord, so never skip the check
   uint64_t ck=ckey(m.coord); int prev=occGet(ck);
-  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
+  // D5: my first-hand hearing of prev ENDS at my own transport loss (an
+  // unanswered translost) — a corpse whose last PHONE is still inside the
+  // 40-tick window must not out-tenure the legitimate healer's fill. An
+  // answered probe erases the observation, restoring full tenure protection
+  // (S5: "has itself, first-hand, stopped hearing the prior occupant").
+  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
   setOcc(ck,m.id); live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
@@ -289,7 +320,20 @@ void Seat::rowSweep(){
   if(coord.i!=0) return;
   vector<uint64_t> del;
   for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0) del.push_back(e.first); }
-  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); }
+  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); }
+  // D5 EARLY-FORGET (deep rows only): a row cell whose transport to me died and
+  // whose confirm probe went unanswered is forgotten NOW — the corpse stops
+  // riding my PONG roster in ~probe-time instead of the 50-tick horizon. Still
+  // D3 (cleanup, not healing). Section-1 heads skip this: there s1Fill acts on
+  // the same early confirm and HEALS the cell — the sweep consuming the
+  // observation first would demote it to the slow path.
+  if(coord.pc!=0){
+    vector<uint64_t> tl; for(auto&e:translost) tl.push_back(e.first);
+    for(auto k:tl){ Coord c=unck(k);
+      if(c.pc!=coord.pc||c.r!=coord.r||c.i==0) continue;
+      if(!translostConfirmed(k)) continue;
+      live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); }
+  }
 }
 void Seat::s1Fill(){
   // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from below
@@ -306,6 +350,10 @@ void Seat::s1Fill(){
   // fill is probe-gated (ringConfirmDead) so a merely-unreachable occupant is held as
   // a hole, never duplicated. One heal per pass.
   for(int j=1;j<C;j++){ Coord c={0,coord.r,(uint8_t)j}; uint64_t ck=ckey(c);
+    if(translost.count(ck) && hasDownChild(c)) continue;   // D5: on the EARLY path defer a cell that owns a down-child to its VERTICAL healer (bug #3's rule) — that child holds the same first-hand loss and heals it in ~probe-time; racing it here minted duplicates. The RING_HOLD horizon path below is unchanged (translost clears once the cell refills or answers).
+    // (the translost observation deliberately STANDS after the clear — it keeps
+    // S1SYNC echoes from re-seating the corpse in my occ until the cell
+    // genuinely refills; setOcc/admit clear it on an occupant change)
     if(ringConfirmDead(c)){ if(occ.count(ck)){occ.erase(ck);live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} holeSince.erase(ck); heal(c); return; }
   }
 }
@@ -320,10 +368,46 @@ void Seat::s1Fill(){
 // temporary hole is a recoverable dip; duplicating it is an unrecoverable divergence.
 bool Seat::ringConfirmDead(Coord h){
   uint64_t hk=ckey(h);
+  // D5 EARLY-PROBE: my own transport to this occupant died (first-hand) and the
+  // confirm probe went unanswered across the whole rook for the settled early
+  // window — confirmed dead NOW; the horizon below remains the backstop when no
+  // transport event fired. (An answered probe clears the observation inside
+  // translostConfirmed — no eviction, E2 stands.)
+  if(translostConfirmed(hk)) return true;
   if(firstHandLive(hk)){ holeSince.erase(hk); return false; }
   routeTo(h,1);                                             // probe across the rook
   int since = live.count(hk)? live[hk] : (holeSince.count(hk)? holeSince[hk] : (holeSince[hk]=(int)TICK));
   return TICK-since>RING_HOLD;
+}
+// ---- D5 EARLY-PROBE intake (transport loss is FIRST-HAND evidence) ----------
+// transportLost(pid): MY modelled DataChannel to `pid` died — my own direct
+// observation (a fabric event; no peer message and no gossip can mint it). It
+// evicts NOBODY by itself: it registers the observation, edge-triggered per
+// coord (one probe burst per transition — a flapping link cannot storm), and
+// fires the EXISTING confirm probe immediately so the probe-gated death
+// confirmation can start now instead of after the silence horizon.
+void Seat::transportLost(int pid){
+  if(!hasCoord||state!=3||pid<0||pid==id) return;
+  Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
+  for(int q=0;q<n;q++){ uint64_t k=ckey(ol[q]);
+    if(occGet(k)!=pid||translost.count(k)) continue;
+    translost[k]=(int)TICK; tlProbeAt[k]=(int)TICK; routeToProbe(ol[q]); }   // probe NOW — across the mesh, not the dead link
+  wake(id);
+}
+// translostConfirmed(k): TRUE only when a transport loss is registered for k AND
+// the probe has gone unanswered on every mesh path for EARLY_HOLD. ANY answer
+// since the loss — first-hand contact (live) or a probe answer (probeAck) —
+// clears the observation and re-arms the edge trigger: their link to me died;
+// they may be fine (the probe travels the mesh, not the dead link). While
+// pending it re-probes every ~6 ticks (the first probe can be lost).
+bool Seat::translostConfirmed(uint64_t k){
+  auto it=translost.find(k); if(it==translost.end()) return false;
+  int at=it->second;
+  auto lv=live.find(k); auto pa=probeAck.find(k);
+  if((lv!=live.end()&&lv->second>=at)||(pa!=probeAck.end()&&pa->second>=at)){ tlForget(k); return false; }
+  auto pt=tlProbeAt.find(k);
+  if(pt==tlProbeAt.end()||TICK-pt->second>=6){ tlProbeAt[k]=(int)TICK; routeToProbe(unck(k)); }
+  return TICK-at>EARLY_HOLD;
 }
 
 void Seat::recv(Msg& m){
@@ -364,7 +448,8 @@ void Seat::recv(Msg& m){
       int prev=occGet(m.ck);
       // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
       // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.
-      bool prevFresh = (prev>=0) && firstHandLive(m.ck);
+      // D5: an unanswered transport loss ends my first-hand hearing of prev.
+      bool prevFresh = (prev>=0) && firstHandLive(m.ck) && !translost.count(m.ck);
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
@@ -372,7 +457,7 @@ void Seat::recv(Msg& m){
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck) requeue(); return;
     case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
     case LEAVE: {
-      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); }
+      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
       // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just LEFT; I am
       // its fixed right-neighbour healer. I heal it UNLESS it owns a down-child
       // (then the VERTICAL rule — that down-child — heals it, so I defer).
@@ -388,6 +473,7 @@ void Seat::recv(Msg& m){
         if(e.ch>=0) childOf[ck]=e.ch;   // learn this Section-1 cell's heir (its down-child) — feeds cousins-in-PONG
         if(hasCoord&&ck==ckey(coord)&&eid!=id) continue;   // gossip claims MY seat: IGNORE. A genuine duplicate is settled by a first-hand witness (onPhone/HELLO), never by an echo.
         if(firstHandLive(ck)) continue;                    // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
+        if(translost.count(ck)) continue;                  // D5: my standing first-hand observation (transport died, probe unanswered) outranks an echo — gossip must not re-seat the corpse; any answer or a genuine refill clears it and gossip resumes
         int seen=(int)TICK-age-2; int cur=occGet(ck); int curSeen=s1seen.count(ck)?s1seen[ck]:-999;
         if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur)){ s1seen[ck]=max(curSeen,seen); if(cur!=eid)setOcc(ck,eid); }
         else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); }
@@ -402,11 +488,22 @@ void Seat::recv(Msg& m){
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;
-      if(ckey(coord)==ckey(m.target)){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
+      if(ckey(coord)==ckey(m.target)){
+        if(m.tag==3){ probeAck[m.ck]=(int)TICK; return; }   // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
+        if(m.tag==2){
+          // D5 translost probe reached me: I am alive — answer AROUND the dead
+          // link (first hop excludes the asker; my direct link to it is
+          // presumably the one that died), so the answer survives a one-sided
+          // severance. The plain ROUTED below still covers the healthy path.
+          int nh2=probeHop(m.coord,m.asker);
+          if(nh2>=0){ Msg a;a.t=ROUTE;a.target=m.coord;a.asker=id;a.tag=3;a.ttl=60;a.via=id;a.ck=ckey(coord); emit(nh2,a); }
+        }
+        Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
       if(m.ttl<=0){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
       int nh=nextHopToward(m.target,m.via); if(nh>=0){ Msg r;r.t=ROUTE;r.target=m.target;r.asker=m.asker;r.tag=m.tag;r.ttl=m.ttl-1;r.via=id; emit(nh,r); return; }
       Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
-    case ROUTED: if(m.tag==1){ if(m.id>=0&&hasCoord){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;
+    case ROUTED: if(m.tag==1||m.tag==2){ if(m.id>=0&&hasCoord){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); probeAck[ckey(m.target)]=(int)TICK; Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;   // probeAck AFTER setOcc (a changed occupant clears the observation first)
+    case TRANSLOST: transportLost(m.id); return;   // D5: fabric event — MY OWN transport to m.id died
     default: return;
   }
 }
@@ -418,15 +515,16 @@ void Seat::tick(){
   if(evil) attack();
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
-    if(coord.i==0 && (TICK%12)==0){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race
+    if(coord.i==0 && ((TICK%12)==0 || !translost.empty())){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race. D5: while a transport-loss observation is pending, check every beat — heal()'s cooldowns keep it storm-free
     // H2 LEFT-PACK backstop (probe-gated): when my row has NO live head, the head
     // can't run its row backstop, so the row rebuilds itself leftward — I heal my
     // immediate LEFT neighbour (the head if I am column 1). This cascades toward the
     // head: (0,r,3)->heals(0,r,2)->heals(0,r,1)->heals(0,r,0), each only once its
     // left is confirmed dead. Restricted to headless rows so it never races the
     // head's s1Fill. This is what rebuilds an all-heads-dead column-0.
-    if(coord.i>=1 && TICK-healAt>20 && !firstHandLive(ckey({0,coord.r,0}))){ Coord lft={0,coord.r,(uint8_t)(coord.i-1)}; uint64_t lk=ckey(lft);   // head NOT first-hand alive (phantom-proof) ⇒ headless row ⇒ rebuild leftward
-      if(ringConfirmDead(lft)){ if(occ.count(lk)){occ.erase(lk);live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
+    if(coord.i>=1 && TICK-healAt>20 && (!firstHandLive(ckey({0,coord.r,0})) || translost.count(ckey({0,coord.r,0})))){ Coord lft={0,coord.r,(uint8_t)(coord.i-1)}; uint64_t lk=ckey(lft);   // head NOT first-hand alive (phantom-proof) ⇒ headless row ⇒ rebuild leftward. D5: a pending transport-loss for the head counts as "no live head" (my own link to it died; firstHandLive may linger up to 60 ticks)
+      bool defer = translost.count(lk) && hasDownChild(lft);   // D5 early path defers to the VERTICAL healer when the hole owns a down-child (bug #3's rule) — racing it minted duplicates
+      if(!defer && ringConfirmDead(lft)){ if(occ.count(lk)){occ.erase(lk);live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
     if(TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++) if(occGet(ckey(cm[q]))<0) routeTo(cm[q],1); }   // W7: keep column links live — re-ping any vacant column-mate (standby path, cross-links heal fast)
     if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);
     if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
@@ -434,7 +532,17 @@ void Seat::tick(){
   }
   if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
   if(coord.i==0 && (TICK%12)==0) rowSweep();
-  if(coord.i==1 && TICK-healAt>20 && TICK-lastAck>60){ Coord hd={coord.pc,coord.r,0}; if(occGet(ckey(hd))<0 && !hasDownChild(hd)) heal(hd); }   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A head WITH a subtree is healed by its down-child (VERTICAL, below). occGet<0 = definite LEAVE, so severance never false-heals.
+  // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row
+  // depends on it, nothing below to pull up); its fixed healer is {pc,r,1}. A
+  // head WITH a subtree is healed by its down-child (VERTICAL, below). occGet<0
+  // = definite LEAVE, so severance never false-heals. D5 early path: my own DC
+  // to the head died and the confirm probe went unanswered — confirmed dead
+  // now; the occGet<0 + lastAck>60 branch remains the horizon backstop.
+  if(coord.i==1 && TICK-healAt>20){ Coord hd={coord.pc,coord.r,0}; uint64_t hdk=ckey(hd);
+    bool hdEarly=translostConfirmed(hdk);
+    if((hdEarly || (TICK-lastAck>60 && occGet(hdk)<0)) && !hasDownChild(hd)){
+      if(hdEarly){ occ.erase(hdk); live.erase(hdk); s1seen.erase(hdk); kidful.erase(hdk); }
+      heal(hd); } }
   if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
   if(drainAt && TICK>=drainAt){ reseatViaRoster(); return; }
   // 11a VERTICAL (down-child is the fixed healer of its owner; generalizes H8):
@@ -445,14 +553,21 @@ void Seat::tick(){
   // neighbourhood, learned from O's PONG). This is the primary heal for every cell
   // that owns a subtree; the row-mate LEFT-PACK covers only childless holes.
   bool didHeal=false;
-  if(coord.i==0 && !cousins.empty() && TICK-healAt>20 && TICK-lastAck>60){ Coord oc;   // TICK-lastAck>60: POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
+  if(coord.i==0 && !cousins.empty() && TICK-healAt>20){ Coord oc;   // TICK-lastAck>confirm (horizon branch): POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
     // H1-S1 CONSERVATISM: promoting into a SECTION-1 owner (oc.pc==0) is the one
     // move that can mint a divergent home, so it waits the full ring-hold window —
     // far longer than a deep hole (60). Under the rook, an owner unreachable this
     // long really is gone; a merely-unreachable-but-alive owner recovers first.
-    long long confirm = (ownerCoord(oc)&&oc.pc==0) ? RING_HOLD : 60;
-    if(ownerCoord(oc) && occGet(ckey(oc))<0 && TICK-lastAck>confirm && TICK-(healTry.count(ckey(oc))?healTry[ckey(oc)]:-999)>45){
-      healTry[ckey(oc)]=(int)TICK; healAt=(int)TICK; didHeal=true;
+    // D5 early path: I hold the down-link DC to my owner; it died and the confirm
+    // probe went unanswered across the mesh — first-hand confirmed death
+    // (equivalent to a LEAVE), no silence horizon to wait out. An owner whose
+    // probe answers is never touched; the horizon branch remains the backstop.
+    bool haveOc=ownerCoord(oc); uint64_t ok=haveOc?ckey(oc):0;
+    long long confirm = (haveOc&&oc.pc==0) ? RING_HOLD : 60;
+    bool ownEarly = haveOc && translostConfirmed(ok);
+    if(haveOc && (ownEarly || (occGet(ok)<0 && TICK-lastAck>confirm)) && TICK-(healTry.count(ok)?healTry[ok]:-999)>45){
+      if(ownEarly){ occ.erase(ok); live.erase(ok); s1seen.erase(ok); kidful.erase(ok); }
+      healTry[ok]=(int)TICK; healAt=(int)TICK; didHeal=true;
       vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
       Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
       bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }

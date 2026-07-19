@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # sweep.sh — reproduce the ring-integrity verdict (docs/healing-laws.md W7/C3/E2/H1-S1).
 #
-# Builds the sim and runs two proofs:
+# Builds the sim and runs three proofs:
 #   1) CHURN sweep: for every (seed, kill-fraction), converge → kill → heal, then
 #      `check` asserts seated=all, Section 1 = 25/25, dups=0, stranded=0, teleport=0.
 #      A single failure is a real defect: the rook's graph (W7) is meant to make NO
@@ -9,6 +9,10 @@
 #   2) TOTAL PARTITION: cut every link between two live groups; `splitstate` must
 #      show two internally-consistent homes (each seated=all, s1=25, dups=0), neither
 #      reconciling across the cut — the one accepted "two rooms" edge.
+#   3) EARLY-PROBE (healing-laws D5): an ungracefully-crashed seat (transports
+#      observed dead, no LEAVE) is healed in ~probe-time (<60 ticks, vs the 220+
+#      horizon); a severed-but-ALIVE seat answers the probe over the mesh and is
+#      NOT evicted; a blackholed seat (no transport event) keeps the old horizon.
 #
 # IMPORTANT: each run is a FRESH process. Service-mode `init` does NOT revive
 # killed seats or reset TICK, so re-using one session across seed+kill cycles
@@ -53,6 +57,24 @@ for s in 7 11 29; do
   grep -Eq "dups=[1-9]|strand=[1-9]" <<<"$line" && pbad=$((pbad+1))
 done
 
+echo "early-probe (D5): crash / sever / blackhole, seed-3 pinned (seat 6 = home cell /0.2) ..."
+ebad=0
+# 3a) CRASH: transports observed dead -> healed well inside 60 ticks (horizon is 220+)
+out=$(printf "seed 3\ninit 200 0\nconverge\nfind /0.2\ncrash 6\ntick 60\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
+echo "$out" | sed 's/^/  crash: /'
+grep -q "FIND /0.2 -> seat 6" <<<"$out" || { echo "  crash: PIN DRIFT (seat 6 not at /0.2)"; ebad=$((ebad+1)); }
+grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
+# 3b) SEVER: one dead link, both ends alive 150 ticks -> the slow peer KEEPS its seat
+out=$(printf "seed 3\ninit 200 0\nconverge\nsever 0 6 150\ntick 200\nwhere 6\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^WHERE|^CHECK")
+echo "$out" | sed 's/^/  sever: /'
+grep -q "WHERE 6 state=3 coord=/0.2" <<<"$out" || ebad=$((ebad+1))
+grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
+# 3c) BLACKHOLE: silent death, NO transport event -> NOT healed early (60 ticks), healed by the horizon (+700)
+out=$(printf "seed 3\ninit 200 0\nconverge\ncrash 6 quiet\ntick 60\nfind /0.2\ntick 700\ncheck\nquit\n" | "$BIN" --service 2>&1 | grep -E "^FIND|^CHECK")
+echo "$out" | sed 's/^/  blackhole: /'
+grep -q "FIND /0.2 -> seat -1" <<<"$out" || ebad=$((ebad+1))   # nobody promoted early into the blackholed cell
+grep -q "CHECK PASS" <<<"$out" || ebad=$((ebad+1))
+
 echo "----"
-if [ "$fail" -eq 0 ] && [ "$pbad" -eq 0 ]; then echo "SWEEP GREEN"; exit 0
-else echo "SWEEP RED (churn fails=$fail, partition-bad=$pbad)"; exit 1; fi
+if [ "$fail" -eq 0 ] && [ "$pbad" -eq 0 ] && [ "$ebad" -eq 0 ]; then echo "SWEEP GREEN"; exit 0
+else echo "SWEEP RED (churn fails=$fail, partition-bad=$pbad, early-probe-bad=$ebad)"; exit 1; fi
