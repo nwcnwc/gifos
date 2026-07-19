@@ -15,6 +15,10 @@ static inline uint64_t ckey(Coord c){ return ((uint64_t)c.pc<<16)|((uint32_t)c.r
 static inline bool isRoot(const Coord&c){ return c.pc==0; }
 static inline uint32_t childPath(uint32_t pc,int d){ return pc*6+(d+1); }
 static inline uint32_t parentPath(uint32_t pc){ return (pc-1)/6; }
+// Q2 COMPACTION: tree depth of a section path (Section 1 == 0). "Shallower" =
+// smaller depth = closer to the home. A compacting leaf moves only to a
+// STRICTLY shallower frontier, so depth is a monotone-decreasing potential.
+static inline int pcDepth(uint32_t pc){ int d=0; while(pc){ pc=parentPath(pc); d++; } return d; }
 static inline int lastDigit(uint32_t pc){ return (int)((pc-1)%6); }
 // up: column-0 only; Section 1 (pc==0) has NO up (flag-day #2). returns valid=false if none.
 static inline bool up(const Coord&s, Coord&out){ if(s.i!=0) return false; if(s.pc==0) return false; out={parentPath(s.pc),s.r,(uint8_t)lastDigit(s.pc)}; return true; }

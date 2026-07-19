@@ -13,14 +13,22 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
 }
 void Seat::announce(){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
 
-void Seat::admit(Coord c,int nc){
+void Seat::admit(Coord c,Msg& f){
+  int nc=f.nc;
   tlForget(ckey(c));   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   occ[ckey(c)]=nc; noteS1(ckey(c));
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[k]),x}); }
   bool selfNb=false; for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(coord)) selfNb=true;
   if(selfNb) nbrs.push_back({ckey(coord),id});
-  Msg m; m.t=PLACE; m.coord=c; m.owner=id; m.nbrs=nbrs; emit(nc,m);
+  Msg m; m.t=PLACE; m.coord=c; m.owner=id; m.nbrs=nbrs; m.tag=f.tag; m.nc=nc;
+  // Q2: a compaction seeker (tag==1) is already SEATED and NOT adjacent to me —
+  // ROUTE the PLACE to its coord and deliver to WHOEVER sits there (rfinal=-1,
+  // NOT a direct hand-off to the seated seeker, which would teleport). m.nc names
+  // the intended seeker; if it has moved on, the seat now at that coord ignores
+  // the PLACE (nc mismatch) and the seeker simply re-probes. A plain newcomer
+  // (tag==0) is reached directly through the greeter/bootstrap.
+  if(f.tag==1){ COMPACT_ADMITS++; route(f.coord,-1,m); } else emit(nc,m);
 }
 void Seat::serveFind(Msg& mm){
   if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
@@ -68,7 +76,7 @@ void Seat::serveFind(Msg& mm){
         // rows resolve bottom-up (the scan just moves to the next row), the
         // same upward cascade the old H7 wrap produced.
         if(coord.r==(uint8_t)((t+1)%C)){ uint64_t k=ckey({0,(uint8_t)t,coord.i});
-          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm.nc); return; }
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm); return; }
           continue; }
         int aid=occGet(ckey({0,(uint8_t)((t+1)%C),coord.i}));
         if(aid<0||aid==id) aid=occGet(ckey({0,(uint8_t)((t+1)%C),0}));   // my column-mate there is a hole — hand to that row's head instead
@@ -99,7 +107,7 @@ void Seat::serveFind(Msg& mm){
         //    scooch chain is still rebuilding: keep scanning (transient).
         if(!occ.count(ckey(adm)) && rowLive[adm.r]) adm={0,adm.r,1};
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
-          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm.nc); return; }
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
           continue;                                    // admit gate cooling — consider the next cell
         }
         int aid=occGet(ckey(adm));
@@ -110,14 +118,78 @@ void Seat::serveFind(Msg& mm){
     }
     // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
   }
-  Coord f; if(firstFreeInRoster(f)){ admit(f,mm.nc); return; }
+  Coord f; if(firstFreeInRoster(f)){ admit(f,mm); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
   for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
   Msg m;m.t=NOROOM; emit(mm.nc,m);
 }
+// Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
+// the seeker's OWN up-chain — every hop an ALIVE link (row → head → owner) — and
+// joins the NEAREST strictly-shallower OCCUPIED row (densify). Reliable (no long
+// route over a fragmented mesh, no reliance on stale S1 knowledge of deep rows),
+// monotone (the seeker's depth strictly decreases), and it empties lone-row deep
+// sections into their ancestors' rows — the media-plane payoff. The seeker's
+// coord rides in mm.coord; sd = its depth.
+void Seat::serveCompact(Msg& mm){
+  if(!hasCoord||state!=3||mm.ttl<=0) return;
+  int sd = pcDepth(mm.coord.pc);
+  // Only a ROW HEAD decides — it holds the whole row FIRST-HAND (row-mates are
+  // meshed), so its frontier view is fresh (unlike an S1 seat's stale view of a
+  // deep row). A non-head hands the probe to its own row head (a direct link).
+  if(coord.i!=0){ int h=occGet(ckey({coord.pc,coord.r,0})); if(h>=0&&h!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(h,m); } return; }
+  // I am a row head. If my row is STRICTLY shallower than the seeker, offer the
+  // first free DENSIFYING slot in it (a trailing frontier: free + down-child
+  // empty, so the seeker lands a childless leaf and never displaces a healer).
+  if(pcDepth(coord.pc) < sd){
+    for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
+      if(occ.count(ckey(cell))) continue;                 // occupied (I know my row first-hand)
+      if(occGet(ckey(down(cell)))>=0) continue;           // internal hole — its down-child heals it (C1)
+      admit(cell,mm); return;                             // densify: seat the seeker beside me, PLACE routed back (tag==1)
+    }
+  }
+  // My row is full or not shallower than the seeker — climb one level toward the
+  // home and let a shallower ancestor row take it.
+  Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(oid,m); } }
+}
 
+// Q2 — COMPACTION probe. A settled DEEP LEAF (childless: P — only leaves move,
+// so its departure strands nobody) periodically re-FINDs from the home for a
+// STRICTLY-SHALLOWER frontier and, if one is found + reserved, is routed a PLACE
+// and atomically moves up (law T). Rate-limited + settle-gated so a healing
+// boundary never sloshes; strict-improvement makes depth a monotone potential ⇒
+// MOVES provably settle. Never a Section-1 seat (already shallowest; greeter
+// role) and never a non-leaf (would strand its subtree).
+void Seat::tryCompact(){
+  if(!COMPACTION) return;
+  if(!hasCoord||state!=3||coord.pc==0||moving) return;   // S1 is the top; a mover finishes first
+  if(TICK<compactAt) return;                             // rate limit / hysteresis
+  // HYSTERESIS: compact only from a QUIESCENT neighbourhood. A LEAVE/heal/move I
+  // saw nearby resets lastChurn, so during a heal storm compaction lies dormant
+  // region-wide and only wakes once the dust settles — this is what stops
+  // compaction from sloshing seats while a heal is still converging.
+  if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return;
+  if(hasChildren()) return;                              // P: only a leaf may move
+  // CLEAN-DEPARTURE gate: only the RIGHTMOST occupant of my row may compact, so
+  // my leaving shortens the row (a trailing hole, C2) and never orphans a
+  // row-mate into a headless row. In a lone-row section this drains it right-to-
+  // left, the head (col 0) leaving LAST — minimal, churn-free collapse.
+  for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0) return;
+  compactAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
+  // Send a compaction probe UP my own chain: to my row head (a direct row link),
+  // or, if I AM a childless head, straight to my owner. Every hop rides an ALIVE
+  // link, so the probe never depends on routing across a fragmented mesh or on a
+  // shallow seat's stale view. serveCompact climbs to the nearest strictly-
+  // shallower OCCUPIED row and seats me beside it (densify); the admitter routes
+  // the PLACE back. A dropped probe just retries next period.
+  int up1 = (coord.i!=0) ? occGet(ckey({coord.pc,coord.r,0})) : -1;
+  Coord o; if(coord.i==0 && ownerCoord(o)) up1=occGet(ckey(o));
+  if(up1<0||up1==id) return;
+  COMPACT_PROBES++;
+  Msg m; m.t=FIND; m.nc=id; m.tag=1; m.coord=coord; m.ttl=COMPACT_TTL; emit(up1,m);
+}
 void Seat::heal(Coord hole){
   if(!hasCoord||state!=3||TICK-healAt<12) return;
+  lastChurn=(int)TICK;   // Q2 hysteresis: I'm healing — my region is churning
   uint64_t hk=ckey(hole); if(TICK-(healTry.count(hk)?healTry[hk]:-999)<45) return;
   healAt=(int)TICK; healTry[hk]=(int)TICK;
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(hole,ol);
@@ -164,7 +236,7 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
 // requeueing — a mover is never homeless.
 void Seat::doMove(Coord hole, int owner, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)||moving) return;
-  bumpMoves();
+  bumpMoves(); lastChurn=(int)TICK;   // Q2 hysteresis: a move is churn
   oldCoord=coord; oldCk=ckey(coord);
   oldNbrIds.clear(); { Coord ol[MAXLINKS]; int n=ownedLinks(oldCoord,ol); unordered_set<int> seen;
     for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); oldNbrIds.push_back(x); } } }
@@ -536,9 +608,21 @@ void Seat::recv(Msg& m){
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
-    case FIND: serveFind(m); return;
+    case FIND: if(m.tag==1) serveCompact(m); else serveFind(m); return;   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
-    case PLACE: if(state==2) take(m.coord,m.owner,m.nbrs); return;
+    case PLACE:
+      if(state==2){ take(m.coord,m.owner,m.nbrs); return; }
+      // Q2: a compaction PLACE for a seated leaf — atomically MOVE (law T dual-
+      // hold) into the shallower cell, keeping the old seat warm until confirm.
+      // Re-validate at the moment of action (the frontier may have shifted while
+      // the PLACE routed): still a leaf, not already moving, and STRICTLY
+      // shallower — else drop and let the next probe retry.
+      if(state==3 && m.tag==1 && m.nc==id) COMPACT_PLACES++;
+      if(state==3 && m.tag==1 && m.nc==id && hasCoord && !moving && !hasChildren()
+         && pcDepth(m.coord.pc) < pcDepth(coord.pc) && !firstHandLive(ckey(m.coord))){
+        bool trailing=true; for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0){ trailing=false; break; }   // re-validate clean departure (a row-mate may have arrived while the PLACE routed)
+        if(trailing){ COMPACT_MOVES++; doMove(m.coord,m.owner,m.nbrs); } }   // a contested destination is caught by E2 → rollbackMove (law T: never homeless)
+      return;
     case NOROOM: if(state==2){ retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
@@ -556,6 +640,7 @@ void Seat::recv(Msg& m){
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue(); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
     case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
     case LEAVE: {
+      lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
       // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just LEFT; I am
@@ -694,5 +779,6 @@ void Seat::tick(){
   // genuinely orphaned seat whose anchor died without a deliverable LEAVE.
   bool ancDead=false; if(hasCoord){ Coord anc; if(coord.i!=0){ ancDead = occGet(ckey({coord.pc,coord.r,0}))<0; } else if(ownerCoord(anc)){ ancDead = occGet(ckey(anc))<0; } }
   if(!didHeal && TICK-lastAck>80 && (ancDead || TICK-lastAck>220)) drainOrReenter();
+  else if(!didHeal) tryCompact();   // Q2: only when not draining/healing this tick — pack the tree upward when settled
   wake(id);
 }
