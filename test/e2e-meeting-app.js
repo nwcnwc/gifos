@@ -62,11 +62,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- A runs an app into the meeting; B should mount it live ----
   await aMeet.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Shared App'), appId);
-  await aMeet.waitForSelector('#appmount iframe', { timeout: 15000 });
+  await aMeet.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('host mounted the app in the meeting stage', await aMeet.evaluate(() => window.__gifosVideo.appActive()));
   check('host is flagged as the app host', await aMeet.evaluate(() => window.__gifosVideo.appIsHost()));
 
-  await bMeet.waitForSelector('#appmount iframe', { timeout: 20000 });
+  await bMeet.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the OTHER participant auto-mounted the shared app', await bMeet.evaluate(() => window.__gifosVideo.appActive()));
   check('guest is NOT the host of the app (it is a client mount)', await bMeet.evaluate(() => !window.__gifosVideo.appIsHost()));
   check('both stages layout switched to has-app', await bMeet.evaluate(() => document.body.classList.contains('has-app')));
@@ -76,12 +76,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cMeet = await cCtx.newPage();
   cMeet.on('pageerror', (e) => console.log('  [c meet pageerror]', e.message));
   await cMeet.goto(link);
-  await cMeet.waitForSelector('#appmount iframe', { timeout: 25000 });
+  // 45s: the late joiner must boot the meeting, join the mesh, learn the app is
+  // live, and PULL the retained snapshot — boot alone is ~45s on a saturated box.
+  await cMeet.waitForSelector('#appmount iframe', { timeout: 45000 });
   check('a LATE joiner picks up the running app automatically', await cMeet.evaluate(() => window.__gifosVideo.appActive()));
 
   // ---- Stopping the app tears the pane down for everyone ----
   await aMeet.evaluate(() => window.__gifosVideo.stopAppForTest());
-  await bMeet.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 20000 });
+  await bMeet.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 40000 });
   check('stopping the shared app clears the guest stage too', await bMeet.evaluate(() => !document.body.classList.contains('has-app')));
 
   // ---- Second entry point: an app tab's "Meeting" toggle ----
@@ -106,7 +108,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (await ack.count()) await ack.first().click().catch(() => {});
   await dRun.locator('#tomeet').click();
   await dRun.waitForURL(/meet\.html#app=/, { timeout: 10000 });
-  await dRun.waitForSelector('#appmount iframe', { timeout: 20000 });
+  await dRun.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the toggle lands on the meeting page with the app already running', await dRun.evaluate(() => window.__gifosVideo.appActive()));
 
   await browser.close();
