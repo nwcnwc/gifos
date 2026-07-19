@@ -359,16 +359,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 90000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
-  // 120s on BOTH the click and the download: while an 'all'-scope recording
-  // runs (15fps canvas composite of every tile + VP8 encode, SwiftShader —
-  // no GPU in headless CI), the recorder page's main thread degrades until
-  // trivial evaluates take ~0.5s and the stop click needs ~60s to become
-  // actionable (measured; the recording itself always completes and the
-  // download always fires). Real hardware composites on the GPU.
-  const [recDl] = await Promise.all([
-    aPage.waitForEvent('download', { timeout: 120000 }),
-    aPage.locator('#recbtn').click({ noWaitAfter: true, timeout: 120000 }),
-  ]);
+  // Generous windows, measured: while an 'all'-scope recording runs (15fps
+  // canvas composite of every tile + VP8 encode on SwiftShader — no GPU in
+  // headless CI) the recorder page's main thread degrades until the stop
+  // click needs up to ~60s to become actionable; onstop + the .webm download
+  // then land within seconds (probed). The download listener is armed before
+  // the click and its window must cover click + encoder flush. Real hardware
+  // composites on the GPU and feels none of this.
+  const recDlP = aPage.waitForEvent('download', { timeout: 240000 });
+  recDlP.catch(() => {}); // avoid an unhandled rejection if the click throws first
+  await aPage.locator('#recbtn').click({ noWaitAfter: true, timeout: 120000 });
+  const recDl = await recDlP;
   const recPath = await recDl.path();
   check('stopping saves a real .webm on the recorder\'s device only',
     /\.webm$/.test(recDl.suggestedFilename()) && fs.statSync(recPath).size > 20000);
