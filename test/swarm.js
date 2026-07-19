@@ -378,6 +378,27 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         }
         return;
       }
+      if (cmd === 'compact') { // Q2 live observability: tree depth + lone-row sections + total compaction moves
+        const parentPath = (pc) => Math.floor((pc - 1) / 6);
+        const depthOf = (pc) => { let d = 0; while (pc) { pc = parentPath(pc); d++; } return d; };
+        const secRows = {}; const byDepth = {}; let maxDepth = 0, seated = 0, totalCM = 0;
+        for (const ent2 of pages) {
+          if (!ent2.p) continue;
+          try {
+            const w = await ent2.p.evaluate(() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              const c = g(() => window.__gifosVideo.meshCoord(), null);
+              return { pc: c ? c.pc : null, r: c ? c.r : null, cm: g(() => window.__gifosVideo.debugDump().me.compactMoves, 0) }; });
+            totalCM += (w.cm || 0);
+            if (w.pc == null) continue;
+            seated++; const d = depthOf(w.pc); byDepth[d] = (byDepth[d] || 0) + 1; if (d > maxDepth) maxDepth = d;
+            (secRows[w.pc] = secRows[w.pc] || new Set()).add(w.r);
+          } catch (e) { /* bot mid-nav */ }
+        }
+        let lone = 0, occSec = 0; for (const pc of Object.keys(secRows)) { occSec++; if (+pc !== 0 && secRows[pc].size === 1) lone++; }
+        console.log('[swarm] COMPACT seated=' + seated + ' occSections=' + occSec + ' maxDepth=' + maxDepth
+          + ' loneRowDeepSections=' + lone + ' byDepth=' + JSON.stringify(byDepth) + ' totalCompactMoves=' + totalCM);
+        return;
+      }
       const m = /^(kill|respawn)\s+(\d+)$/.exec(cmd);
       if (!m) { console.log('[swarm] ctrl: unknown command "' + cmd + '"'); return; }
       const idx = parseInt(m[2], 10);

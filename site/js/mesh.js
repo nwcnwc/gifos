@@ -139,6 +139,7 @@
       this.leaseCk = null; this.leaseUntil = -1;    // T3: forwarding tombstone for my just-vacated cell
       this.compactAt = 0;        // Q2: next tick this leaf may probe for a shallower seat
       this.lastChurn = 0;        // Q2 hysteresis: last tick my neighbourhood churned (LEAVE/heal/move nearby) — compaction waits for local quiescence
+      this.compactMoves = 0;     // Q2 observability: how many times I have compacted upward (surfaced via __gifosVideo.debugDump for the swarm live test)
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
       // per-seat PRNG (splitmix-ish), seeded from id — matches the sim's per-seat rng role
       let h = 2166136261 >>> 0; const b = 'p' + id;
@@ -906,7 +907,7 @@
               && this.hasCoord && !this.moving && !this.hasChildren()
               && topo.pcDepth(m.coord.pc) < topo.pcDepth(this.coord.pc) && !this.firstHandLive(ck(m.coord))) {
             let trailing = true; for (let j = this.coord.i + 1; j < C(); j++) if (this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: j })) != null) { trailing = false; break; }
-            if (trailing) this.doMove(m.coord, m.owner, m.nbrs);
+            if (trailing) { this.compactMoves++; this.doMove(m.coord, m.owner, m.nbrs); }
           }
           return;
         case 'NOROOM': if (this.state === 2) { this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
