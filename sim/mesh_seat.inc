@@ -43,9 +43,17 @@ void Seat::serveFind(Msg& mm){
     // else hand the FIND to the admitter — my row head or a fellow head, a
     // rook link; and every S1 seat is a socketed greeter, so the hand-off is
     // always deliverable.
+    // Row liveness, FIRST-HAND-FIRST: my OWN row is live because I AM IN IT —
+    // a lone survivor's s1seen of its own cells decays (nobody phones a lone
+    // seat), and without this a survivor would resurrection-scan its own live
+    // row and seat a 2-person room as COLUMN-mates (the headless-row repro,
+    // leg A). Computed up front for all rows: the headless-row devolution
+    // below needs the liveness of the ADMITTER's row too.
+    bool rowLive[C], rowSeen[C];
+    for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t];
+      for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; } }
     for(int t=0;t<C;t++){
-      bool liveRow=false, everSeen=false;
-      for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) liveRow=true; if(s1seen.count(k)) everSeen=true; }
+      bool liveRow=rowLive[t], everSeen=rowSeen[t];
       if(!liveRow && everSeen){
         // RESURRECTION (old H7, row-targeted): this row LIVED and is now
         // entirely silent — a whole-row death. Its subtrees drain (anchor dead
@@ -75,8 +83,22 @@ void Seat::serveFind(Msg& mm){
         // a stale heir entry would permanently steer arrivals away from a
         // clear cell, leaving it to the much slower leaf-promotion backstop.
         if(occGet(ckey(down(cell)))>=0) continue;      // internal hole — its down-child heals it (C1 frontier rule)
+        // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
+        //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by its
+        //    designated healer (the H2 scoocher / vertical promotion) — never
+        //    an admission target (C1: an admission must not race a healer).
+        if(j==0 && rowLive[t]) continue;
         Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
-        if(coord.i==0 && coord.r==adm.r){              // I am the designated admitter
+        //  - a cell whose designated admitter seat is a VACATED head — occ
+        //    EMPTY, i.e. a delivered LEAVE (D2-confirmed); mere silence never
+        //    clears occ, so severance / silent death stays behind the H1-S1
+        //    ring-hold — has its admission duty DEVOLVE to that head-hole's
+        //    one fixed H2 healer: the occupant of column 1 of the admitter's
+        //    row. Fixed designation, one seat, no race — the same shape as
+        //    C3's designated-healer discipline. If column 1 is empty too the
+        //    scooch chain is still rebuilding: keep scanning (transient).
+        if(!occ.count(ckey(adm)) && rowLive[adm.r]) adm={0,adm.r,1};
+        if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm.nc); return; }
           continue;                                    // admit gate cooling — consider the next cell
         }
