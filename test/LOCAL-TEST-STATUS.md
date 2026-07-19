@@ -58,9 +58,9 @@ dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNO
 | e2e-autoheal.js | GREEN | |
 | e2e-failover.js | GREEN | |
 | e2e-reconnect.js | GREEN | |
-| e2e-mosaic.js | REAL-BUG | see BUG-1 below (S1 seat Stadium) |
-| e2e-video.js | REAL-BUG | see BUG-1 (2 people, column-mates, no video) |
-| e2e-media-recovery.js | REAL-BUG | see BUG-1 (late camera never publishes) |
+| e2e-mosaic.js | GREEN (was REAL-BUG) | BUG-1 FIXED by H7 row-fill seating (branch worktree-agent-ae81d54548d41c869): 4/4 |
+| e2e-video.js | GREEN* (was REAL-BUG) | BUG-1 FIXED: all 49 video/media/moderation asserts PASS. *The recording download step can time out on a saturated box (load>8) — recording verified working standalone (download fires); load flake, not a product bug. |
+| e2e-media-recovery.js | GREEN (was REAL-BUG) | BUG-1 FIXED: 9/9 |
 | e2e-meeting-app.js | REAL-BUG (candidate) | host+guest live app mount PASS; the LATE (3rd) joiner never mounts `#appmount iframe` (3/3 timeout at line 77). Presence/status floods to ALL nodes (`meshNode.gossip`), but app STATE rides the structural-neighbour `sga` flood (`sgaTargets`, meet.html:4053/4066) — a newcomer can see the host's app-status yet never receive the retained app snapshot. Not fixed; needs site owner. |
 | e2e-boot.js | GREEN | |
 | e2e-store.js | GREEN | |
@@ -86,7 +86,7 @@ dropped feature · REAL-BUG = production defect (NOT fixed — reported) · IGNO
 | e2e-meet-record-app.js | GREEN | |
 | e2e-bible-nav.js | GREEN | |
 | e2e-mymedia-share.js | GREEN | (one first-load `.icon` flake; green on retry) |
-| e2e-sing.js | REAL-BUG | BUG-1 family (audio plane). Near-field jitter alignment is `bus:'row'` only for `rowMates()` (meet.html:4324); two people seat as COLUMN-mates under W7 column-major seating → `bus:'section'`, D:0, unset. Conversation partners get no near-field time-sync. |
+| e2e-sing.js | GREEN + FIXED (was REAL-BUG) | BUG-1 FIXED by H7 row-fill (near field aligns `bus:'row'`). Also 1 stale assert updated: the leader now hears the 2-person follower at SONG_ROW D=560 (row-mate under the decoupled Stage), not D=840/FAR (the retired stage-=-row-0 model). 17/17. |
 | e2e-irl.js | GREEN | |
 | e2e-wasm.js | GREEN | |
 | e2e-chess-mp.js | FIXED | joiner iframe wait 12s→30s: the WASM app mounts only after the app-mesh join + P2P handshake, now on top of S4 async identity — legitimately slower. Verified green (7/7). NOT a bug (unlike BUG-2 — verified: chess joiner DOES mount, just slowly). |
@@ -137,6 +137,21 @@ reproduce on the correct server — is unaffected.
 ## REAL BUGS found (production — NOT fixed, another session owns site/)
 
 ### BUG-1 — media plane: non-row-mates get no video in single-section rooms
+**FIXED (2026-07-18, branch worktree-agent-ae81d54548d41c869) — not in the media
+plane but at the true root: SEATING.** The old H7 "column backfill" treated a
+never-occupied Section-1 row like a dead one and parked early joiners heads-first
+down column 0. Replaced by H7 ROW-FILL (docs/healing-laws.md H7, sim-first:
+sim/mesh_seat.inc + site/js/mesh.js): rows fill row-major, so the first C people
+in a room are ROW-mates and the row-scoped near field carries their media
+directly. A once-lived fully-dead row is still re-seeded by arrival traffic
+(H7's resurrection clause — proven load-bearing by the s1row harness kill).
+Verdicts: sim sweep GREEN (30/30 churn + 3 clean partitions) + all levels
+0.1-0.6 x seeds 1-10 60/60; mesh-harness ALL PASS; e2e-video / e2e-media-
+recovery / e2e-mosaic / e2e-sing green (see table). The multiSection() /
+carryCam design notes below are kept for history; the interim rule is now
+effectively met for small rooms because everyone in a <=C room shares one row.
+Original analysis follows.
+
 One root cause, three failing suites (e2e-video, e2e-media-recovery, e2e-mosaic S1).
 
 - The raw camera track is added to a peer connection ONLY when the peer is a

@@ -64,6 +64,14 @@ login).
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
+- **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
+  admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
+  near field is row-scoped, so the first C people in a room MUST be row-mates
+  (the old column-first spread seated a 2-person meeting as column-mates with
+  zero direct media). F2, if ever built, applies to DEEP sections only, and
+  must still keep each partially-filled row dense before opening the next —
+  media first, cross-link earliness second.
+
 The mesh-v2 plan doc (`docs/option-a-plan.md`, in git history) is retired: its
 design (11a fixed-designation healing, W7 rook's graph, first-hand liveness,
 S4 identity) shipped — `site/js/mesh.js` is the faithful port of the green sim,

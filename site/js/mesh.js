@@ -218,15 +218,72 @@
       const TICK = this.TICK;
       if (!this.hasCoord || mm.ttl <= 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
       if (this.coord.pc === 0) {
-        const ar = (this.coord.r - 1 + C()) % C(); let empty = true;
-        for (let j = 0; j < C(); j++) if (this.s1Fresh(ck({ pc: 0, r: ar, i: j }))) { empty = false; break; }
-        if (empty) { this.admit({ pc: 0, r: ar, i: this.coord.i }, mm.nc); return; }
-        // 11a FRONTIER admit-liveness: admit a newcomer into a free Section-1
-        // cell ONLY when its down-child is empty (a true frontier). If the cell
-        // still owns a subtree, its down-child (VERTICAL) fills it — admitting a
-        // newcomer there races the healer; the loser requeues OUT of Section 1
-        // and leaves a stale gossip PHANTOM permanently blocking refill (bug #2).
-        if (this.coord.i === 0) { for (let j = 1; j < C(); j++) { const rc = { pc: 0, r: this.coord.r, i: j }; const rck = ck(rc); if (!this.occ.has(rck) && this.occGet(ck(topo.down(rc))) == null && TICK - (this.healTry.has(rck) ? this.healTry.get(rck) : -999) > 45) { this.healTry.set(rck, TICK); this.admit(rc, mm.nc); return; } } }
+        // H7 ROW-FILL seating (replaces the old column backfill): Section 1
+        // fills ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first
+        // C people in a room are ROW-MATES (the media plane's near field is
+        // row-scoped: a 2-person meeting must be a direct conversation, never
+        // column-mates). Admission keeps the C3 fixed-designation discipline:
+        // every S1 cell has ONE designated admitter —
+        //   (0,t,j>0): its row head (0,t,0);
+        //   (0,t,0):   the head of the row ABOVE, (0,(t-1+C)%C,0) — the old H7
+        //              seat relation inverted (growth seeds DOWNWARD row by
+        //              row; the wrap still lets ordinary arrival traffic
+        //              resurrect a fully-dead row, H7's original purpose).
+        // Scan row-major for the first admissible cell: free AND a true
+        // FRONTIER (11a: a free cell with a live down-child is an INTERNAL
+        // hole owned by its fixed healer, the VERTICAL down-child — admitting
+        // there would race it and mint a phantom). Admit if I am the cell's
+        // designated admitter, else hand the FIND to the admitter — my row
+        // head or a fellow head, a rook link; and every S1 seat is a socketed
+        // greeter, so the hand-off is always deliverable.
+        for (let t = 0; t < C(); t++) {
+          let liveRow = false, everSeen = false;
+          for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) liveRow = true; if (this.s1seen.has(k)) everSeen = true; }
+          if (!liveRow && everSeen) {
+            // RESURRECTION (old H7, row-targeted): this row LIVED and is now
+            // entirely silent — a whole-row death. Its subtrees drain (anchor
+            // dead at lastAck>80, long before the RING_HOLD vertical heal) and
+            // re-enter as newcomers, and THIS is what re-seeds the row: stale
+            // occ corpses / childOf must NOT block it (they linger for a wiped
+            // row — nobody left to sweep them). Old H7's no-race discipline is
+            // kept exactly: the admitters are the greeters of the row BELOW
+            // ((t+1)%C — the old "row above me is dead" relation), each
+            // admitting at its OWN column, so no two admitters ever target one
+            // cell. Anyone else hands the FIND to its column-mate in that row
+            // (a direct rook link; head as fallback). Adjacent dead rows
+            // resolve bottom-up, the same upward cascade the old H7 produced.
+            const below = (t + 1) % C();
+            if (this.coord.r === below) {
+              const k = ck({ pc: 0, r: t, i: this.coord.i });
+              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit({ pc: 0, r: t, i: this.coord.i }, mm.nc); return; }
+              continue;
+            }
+            let aid = this.occGet(ck({ pc: 0, r: below, i: this.coord.i }));
+            if (aid == null || aid === this.id) aid = this.occGet(ck({ pc: 0, r: below, i: 0 })); // my column-mate there is a hole — hand to that row's head instead
+            if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+            continue;                                    // that row is dead too — resolve bottom-up
+          }
+          for (let j = 0; j < C(); j++) {
+            const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
+            if (this.occ.has(k)) continue;               // taken (or a stale phantom — the heal machinery clears those)
+            // Frontier test by DIRECT knowledge only (the old 11a admit-
+            // liveness: occGet(down)==null) — NOT hasDownChild, whose childOf
+            // arm never expires: a stale heir entry would permanently steer
+            // arrivals away from a clear cell, leaving it to the much slower
+            // leaf-promotion backstop.
+            if (this.occGet(ck(topo.down(cell))) != null) continue; // internal hole — its down-child heals it (C1 frontier rule)
+            const admR = j > 0 ? t : (t - 1 + C()) % C(); // the designated admitter's row (admitter is always a head)
+            if (this.coord.i === 0 && this.coord.r === admR) { // I am the designated admitter
+              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm.nc); return; }
+              continue;                                  // admit gate cooling — consider the next cell
+            }
+            const aid = this.occGet(ck({ pc: 0, r: admR, i: 0 }));
+            if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+            // admitter unknown/dead: its own cell sits earlier in the scan (or
+            // is being healed) — keep scanning so growth never deadlocks
+          }
+        }
+        // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
       }
       const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm.nc); return; }
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
