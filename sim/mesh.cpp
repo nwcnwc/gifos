@@ -39,7 +39,9 @@ struct Msg {
 // ---- globals / fabric ----
 static int N; static double LEAVEFRAC=0; static int W=1;
 static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
+static long long COMPACT_PROBES=0, COMPACT_MOVES=0, COMPACT_ADMITS=0, COMPACT_PLACES=0, COMPACT_ATS1=0, COMPACT_SWEEP=0;   // Q2 diagnostics
 static bool HEALING=true;
+static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
 static const int GREET_PERIOD=800;
 static uint32_t GSEED=20260714;
 static uint32_t SEED0=20260714;   // the seed a run STARTS from; `seed N` sets it, initSim restores GSEED to it (reproducible sweeps)
@@ -92,6 +94,13 @@ static const long long EARLY_HOLD=12;
 // All windows self-expire.
 static const long long CONFIRM_TTL=16;
 static const long long LEASE_TTL=40;
+// Q2 — COMPACTION (roadmap §3, healing-laws law T): a settled deep LEAF that a
+// fresh FIND would place STRICTLY SHALLOWER re-FINDs from the home and atomically
+// moves up (law T dual-hold). Rate-limited + settle-gated so a healing boundary
+// never sloshes seats. depth is a monotone potential ⇒ MOVES provably settle.
+static const long long COMPACT_PERIOD=90;   // min ticks between one leaf's compaction probes (rate limit / hysteresis)
+static const long long COMPACT_SETTLE=40;   // don't compact until settled this long since seating / last heal / last move (anti-thrash)
+static const int       COMPACT_TTL=30;      // FIND hop budget for a compaction probe
 
 // ---- INTERNET-CONDITIONS MODEL (opt-in; all defaults reproduce the idealized fabric) ----
 // Emergent: an unreachable-subnet or lost/severed frame is SILENTLY DROPPED — the
@@ -184,6 +193,8 @@ struct Seat {
   vector<int> oldNbrIds;                      // old-link occupants — get the LEAVE(mvd) on confirm
   Occ holdOcc, holdSeen, holdCous;            // rollback snapshots
   uint64_t leaseCk=0; long long leaseUntil=-1; // T3: forwarding tombstone for my just-vacated cell
+  long long compactAt=0;                       // Q2: next tick this leaf may probe for a shallower seat
+  int lastChurn=0;                             // Q2 hysteresis: last tick my neighbourhood churned (a LEAVE/heal/move nearby) — compaction waits for local quiescence
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
@@ -242,7 +253,9 @@ struct Seat {
   bool moveEvidence(const Msg& m);                       // does this frame evidence my NEW neighbourhood?
   void requeue();
   void serveFind(Msg& m);
-  void admit(Coord c,int nc);
+  void serveCompact(Msg& m);   // Q2: the up-chain compaction walk (tag==1 FINDs)
+  void admit(Coord c,Msg& f);   // f = the FIND being served (nc/ttl, and Q2: tag==1 ⇒ seeker is a SEATED compactor, route the PLACE back)
+  void tryCompact();            // Q2: a settled deep leaf probes the home for a strictly-shallower seat
   void onPhone(Msg& m);
   void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack(); void tlSweep();
   bool ringConfirmDead(Coord h);   // H1-S1: true only after home cell h is unreachable via ALL rook paths for the full ring window (probe-gated)
@@ -695,6 +708,28 @@ int main(int argc,char**argv){
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
+    else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    else if(op=="compact"){   // Q2 diagnostic: tree-depth & lone-row fragmentation. depth(pc)=path length.
+      auto depthOf=[](uint32_t pc){ int d=0; while(pc){ pc=parentPath(pc); d++; } return d; };
+      // per-section: which rows are occupied, and how many seats
+      unordered_map<uint32_t,unordered_set<int>> secRows; unordered_map<uint32_t,int> secSeats;
+      int seatN=0, maxDepth=0; unordered_map<int,int> byDepth;
+      for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ Coord c=seats[q]->coord; seatN++;
+        secRows[c.pc].insert(c.r); secSeats[c.pc]++; int d=depthOf(c.pc); byDepth[d]++; if(d>maxDepth)maxDepth=d; }
+      // lone-row DEEP sections (pc!=0 with exactly one occupied row) — the sdn-mirror no-route case
+      int loneDeep=0, occSections=0; for(auto&e:secRows){ occSections++; if(e.first!=0 && e.second.size()==1) loneDeep++; }
+      // global occupancy map (any seat's coord) to test frontier availability
+      unordered_set<uint64_t> occAll; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) occAll.insert(ckey(seats[q]->coord));
+      // count TRUE frontier cells (free + down-child empty) at depths 0,1,2 — what a compactor can actually move into
+      auto isFree=[&](Coord c){ return !occAll.count(ckey(c)); };
+      int fr[4]={0,0,0,0}; for(auto&e:secRows){ uint32_t pc=e.first; int dp=depthOf(pc); if(dp>2) continue;
+        for(int r=0;r<C;r++) for(int i=0;i<C;i++){ Coord c={pc,(uint8_t)r,(uint8_t)i}; if(!isFree(c)) continue; if(!isFree(down(c))) continue; fr[dp]++; } }
+      // theoretical minimal depth for seatN: cap(<=D) = 25*(5^(D+1)-1)/4
+      int minDepth=0; { long long capD=25; long long tier=25; while(capD<seatN){ tier*=5; capD+=tier; minDepth++; } }
+      printf("COMPACT seats=%d occSections=%d maxDepth=%d minDepth=%d loneRowDeepSections=%d byDepth=",
+        seatN,occSections,maxDepth,minDepth,loneDeep);
+      for(int d=0;d<=maxDepth;d++) printf("%s%d:%d",d?",":"",d,byDepth.count(d)?byDepth[d]:0);
+      printf(" frontier(d0=%d,d1=%d,d2=%d) cProbes=%lld cAdmits=%lld cPlaces=%lld cMoves=%lld\n",fr[0],fr[1],fr[2],COMPACT_PROBES,COMPACT_ADMITS,COMPACT_PLACES,COMPACT_MOVES); }
     else printf("ERR unknown: %s\n",op.c_str());
   }
   return 0;
