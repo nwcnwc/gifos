@@ -334,6 +334,11 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
     p.on('crash', () => console.log('[bot ' + idx + '] RENDERER CRASHED'));
+    // SWARM_BOT_CONSOLE=<n>: pipe bot <n>'s (or 'all') page console to stdout —
+    // for debugging why a bot won't seat (relay/genesis/media). Off by default.
+    if (process.env.SWARM_BOT_CONSOLE && (process.env.SWARM_BOT_CONSOLE === 'all' || String(idx) === process.env.SWARM_BOT_CONSOLE)) {
+      p.on('console', (m) => console.log('[bot ' + idx + ' con] ' + m.text().slice(0, 500)));
+    }
     p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
     pages.push({ idx, p });
     if (RAMP) await sleep(RAMP);
