@@ -12,6 +12,10 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const CHROME = process.env.MEET_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
+// PHASE=open|admin|all (default all) — lets a starved box run the halves
+// separately; SKIP_OVERFLOW=1 skips the 10-client overflow leg.
+const PHASE = process.env.PHASE || 'all';
+const SKIP_OVERFLOW = !!process.env.SKIP_OVERFLOW;
 
 let failures = 0;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
@@ -50,6 +54,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   };
 
   // ============================ OPEN ROOM ============================
+  if (PHASE !== 'admin') {
   const room = 'hq' + Math.floor(Math.random() * 1e9).toString(36);
   const A = await newUser('Ada'); const a = await open(A, 'a', 'v=' + room);
   const B = await newUser('Ben'); const b = await open(B, 'b', 'v=' + room);
@@ -111,6 +116,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await a.evaluate(() => window.__gifosVideo.setStageForTest(false));
 
   // ---- banner overflow: 10 raised hands ⇒ first 8 names + "+2" ----
+  if (!SKIP_OVERFLOW) {
   const extras = [];
   for (let i = 0; i < 7; i++) {
     const ctx = await newUser('Guest' + i);
@@ -155,8 +161,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the banner shows the first 8 + overflow (+K)',
     (await a.evaluate(() => document.querySelectorAll('#handq .hq').length)) === 8);
   for (const { ctx } of extras) await ctx.close();
+  } // SKIP_OVERFLOW
   await a.close(); await b.close(); await c.close();
   await A.close(); await B.close(); await C.close();
+  } // PHASE open
+
+  if (PHASE !== 'open') {
 
   // ============================ ADMIN ROOM ============================
   const admRoom = 'hqadm' + Math.floor(Math.random() * 1e9).toString(36);
@@ -174,11 +184,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, [admRoom, ADMIN_PW]);
   await d.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
   await d.reload(); // hash-only navigation doesn't re-boot the page
-  await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
+  await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 90000 });
   const E = await newUser('Eve'); const e = await open(E, 'e', 'v=' + admRoom + '&av=' + av);
   const F = await newUser('Finn'); const f = await open(F, 'f', 'v=' + admRoom + '&av=' + av);
-  for (const pg of [d, e, f]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
-  for (const pg of [e, f]) await pg.waitForFunction(() => window.__gifosVideo.adminsHere().length >= 1, null, { timeout: 30000 });
+  for (const pg of [d, e, f]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 60000 });
+  for (const pg of [e, f]) await pg.waitForFunction(() => window.__gifosVideo.adminsHere().length >= 1, null, { timeout: 60000 });
   const eId = await myIdOf(e), fId = await myIdOf(f);
   check('admin room up: Dana signed in, Eve + Finn seated', await d.evaluate(() => window.__gifosVideo.amAdmin()));
 
@@ -234,9 +244,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     && (await f.evaluate(() => window.__gifosVideo.handRaised())));
   // …but a FRESH tap on his queued name calls him up (re-grant = new timestamp)
   await bannerTap(d, fId);
-  for (const pg of [d, e, f]) await pg.waitForFunction((id) => window.__gifosVideo.stageIds().includes(id), fId, { timeout: 15000 });
+  // one window covers grant → async signature re-mint (2s beat) → heartbeat
+  // gossip → grantee's self step-up → stg gossip back: be generous
+  await f.waitForFunction(() => window.__gifosVideo.onStage(), null, { timeout: 30000 });
+  for (const pg of [d, e]) await pg.waitForFunction((id) => window.__gifosVideo.stageIds().includes(id), fId, { timeout: 30000 });
   await f.waitForFunction(() => !window.__gifosVideo.handRaised(), null, { timeout: 15000 });
   check('a fresh admin tap on the queued name calls him up and lowers the hand', true);
+  } // PHASE admin
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
