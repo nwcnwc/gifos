@@ -96,7 +96,7 @@
     const dropDeep = opts.dropDeepSocket !== false;
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
-    let sock = null, deepSince = -1;
+    let sock = null, deepSince = -1, nudgedAt = -99;
 
     // S4 identity is MANDATORY — there is NO "off". No mesh-identity.js loaded ⇒
     // hard fail (never a silent legacy-id degrade); no legacy client-set peer id
@@ -191,6 +191,14 @@
             else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
+        }
+        if (m.t === 'nosock' && seat && seat.state !== 3 && env.TICK - nudgedAt > 4) {
+          // §FWD: the relay says my last targeted frame's destination holds no
+          // socket — pre-seat that means my dance partner (greeter / FIND hop)
+          // is gone. Don't burn the full 20/60-tick retry timeout: nudge the
+          // join loop to retry NOW (rate-limited to one nudge per 4 ticks).
+          nudgedAt = env.TICK;
+          seat.retryAt = env.TICK - 999;
         }
         if (m.t === 'error' && /password/i.test(m.error || '')) fireLocked(); // relay courtesy gate
         if (opts.onRelayMsg) opts.onRelayMsg(m);
