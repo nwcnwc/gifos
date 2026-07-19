@@ -370,13 +370,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // then land within seconds (probed). The download listener is armed before
   // the click and its window must cover click + encoder flush. Real hardware
   // composites on the GPU and feels none of this.
-  // force: the Stop button's label ticks every second ("Stop 0:06" → 0:07),
-  // shifting its bounding box — Playwright's stability check (same box across
-  // two animation frames) can never pass while recording jank stretches rAFs
-  // toward the 1s tick period, so an ordinary click starves indefinitely.
+  // Programmatic stop click: while recording, the headless (SwiftShader)
+  // renderer is so starved that Playwright's actionability pipeline — box
+  // stability across two rAFs (defeated anyway by the 1/s "Stop 0:06" label
+  // tick), even force-click's scroll-into-view — stalls >120s. evaluate()
+  // rides the event loop directly (~0.5s under the same jam, measured). The
+  // button's real clickability is already proven by the START click above;
+  // this step asserts the .webm lands.
   const recDlP = aPage.waitForEvent('download', { timeout: 240000 });
-  recDlP.catch(() => {}); // avoid an unhandled rejection if the click throws first
-  await aPage.locator('#recbtn').click({ force: true, noWaitAfter: true, timeout: 120000 });
+  recDlP.catch(() => {}); // avoid an unhandled rejection if the evaluate throws first
+  await aPage.evaluate(() => document.getElementById('recbtn').click());
   const recDl = await recDlP;
   const recPath = await recDl.path();
   check('stopping saves a real .webm on the recorder\'s device only',
