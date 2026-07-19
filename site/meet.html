@@ -2187,7 +2187,13 @@
     let modSigW = null, modSigSrc = '', modWSeen = null, modWSeenTs = 0;
     function refreshModSig() {
       if (!admKeys || !hasAdminRoom()) return;
-      const src = JSON.stringify(modTable) + '|' + Math.floor(Date.now() / 120000);
+      // myId is in the key: S4 mints this participant's identity ASYNCHRONOUSLY,
+      // so an admin can sign its FIRST mod proof with by:null (myId not yet
+      // assigned). That proof is useless — receivers gate admin recognition on
+      // a non-null `by` — and without myId here the src wouldn't change when
+      // identity lands, stranding the admin unrecognized until a 2-minute
+      // bucket roll. Keying on myId re-mints the instant it arrives.
+      const src = JSON.stringify(modTable) + '|' + (myId || '') + '|' + Math.floor(Date.now() / 120000);
       if (src === modSigSrc) return;
       modSigSrc = src;
       admSigned('mod', { mod: modTable }).then((w) => { modSigW = w; });
