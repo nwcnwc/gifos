@@ -109,6 +109,11 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
     // 'failed', which is why the pre-D5 path took the 30-40s+ horizon.
     check('CRASH (SIGKILLed browser) -> mesh seat freed across survivors in ' + (freedMs / 1000).toFixed(1) + 's (target <=15s; pre-D5 30s+)',
       freedMs >= 0 && freedMs <= 15000, { freedMs });
+    // The HUMAN-visible vanish must FOLLOW the mesh within a beat now (the
+    // event-driven D2/D5 removal): pre-rewire this rode ABSENT_GRACE and
+    // measured ~20s; the D5 confirm lands ~7s, so <=12s is honest headroom.
+    check('CRASH -> tile gone at every survivor in ' + (tileMs / 1000).toFixed(1) + 's (target <=12s; pre-rewire ~20s)',
+      tileMs >= 0 && tileMs <= 12000, { tileMs });
     console.log('  MEASURE crash(browser): vanish->seat-freed = ' + (freedMs / 1000).toFixed(1) + 's; vanish->tile-gone = ' + (tileMs / 1000).toFixed(1) + 's');
   }
 
@@ -128,9 +133,79 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
       if (gone.every((g) => g === true)) { goneMs = Date.now() - t0; break; }
       await sleep(300);
     }
-    check('GRACEFUL (pagehide) -> gone from every survivor in ' + (goneMs / 1000).toFixed(1) + 's', goneMs >= 0 && goneMs <= 25000, { goneMs });
+    // Event-driven now: the leaver fans a 'bye' gossip + the mesh LEAVE frees
+    // the seat instantly — every survivor should drop the tile within ~1 beat
+    // (target <=3s end-to-end; <=6s asserted for CI headroom; pre-rewire ~10s).
+    check('GRACEFUL (pagehide) -> gone from every survivor in ' + (goneMs / 1000).toFixed(1) + 's (target <=6s; pre-rewire ~10s)',
+      goneMs >= 0 && goneMs <= 6000, { goneMs });
     console.log('  MEASURE graceful(browser): vanish->gone = ' + (goneMs / 1000).toFixed(1) + 's (pre-pagehide, mobile closes fired NOTHING and took the silent path)');
     await grace.ctx.close().catch(() => {});
+  }
+
+  // ---- 3. COUNT: the Stadium arithmetic followed the removals ----------------
+  {
+    const remain = users.slice(0, 3); // victim crashed, users[3] left gracefully
+    let counts = [];
+    const t0 = Date.now();
+    while (Date.now() - t0 < 20000) {
+      counts = await Promise.all(remain.map((u) => u.page.evaluate(() => window.__gifosVideo.participants()).catch(() => -1)));
+      if (counts.every((c) => c === 3)) break;
+      await sleep(500);
+    }
+    check('participant count settles to 3 on every remaining phone after both departures', counts.every((c) => c === 3), counts);
+  }
+
+  // ---- 4. BLIP PROTECTION: a dead TRANSPORT is not a dead PEER ---------------
+  // Kill u0's pc to u1 (_failPeer — the fault-injection hook). u1 is alive and
+  // answers the D5 probe over the mesh, so its seat never frees; the tile must
+  // SURVIVE the whole outage (frozen at worst) while the sweeper rebuilds ICE.
+  {
+    const [a, b] = users;
+    await a.page.evaluate((id) => window.__gifosVideo._failPeer(id), b.id);
+    let vanished = false;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 10000) {
+      const gone = await tileGone(a, b.id);
+      if (gone === true) { vanished = true; break; }
+      await sleep(500);
+    }
+    check('BLIP (pc killed a->b): b\'s tile never leaves a\'s grid during the outage', !vanished);
+    let reconn = false;
+    while (Date.now() - t0 < 45000) {
+      const pairs = await a.page.evaluate(() => window.__gifosVideo.pairs()).catch(() => []);
+      if (pairs.some((p) => p.id === String(b.id).slice(0, 8) && p.connected)) { reconn = true; break; }
+      await sleep(700);
+    }
+    check('BLIP: the pair reconnects (sweeper ICE rebuild) with the tile intact', reconn && !(await tileGone(a, b.id)));
+  }
+
+  // ---- 5. AWAY PROTECTION: a locked phone keeps its seat AND its tile --------
+  // users[2] simulates visibilitychange-hidden (the app-level away signal —
+  // exactly what a locked phone fires). Its DC stays open, its status keeps
+  // beating (12s hidden pulse < the 15s freshness window), so no removal path
+  // may touch it: the tile stays, labeled away, for well past ABSENT_GRACE.
+  {
+    const away = users[2], watchers = users.slice(0, 2);
+    await away.page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    let vanished = false;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 18000) { // > ABSENT_GRACE (12s) and > the 15s freshness window
+      const gone = await Promise.all(watchers.map((u) => tileGone(u, away.id)));
+      if (gone.some((g) => g === true)) { vanished = true; break; }
+      await sleep(600);
+    }
+    const seenAway = await Promise.all(watchers.map((u) => u.page.evaluate((id) => window.__gifosVideo.awayOf(id), away.id).catch(() => null)));
+    check('AWAY (18s hidden): tile never removed at any watcher', !vanished);
+    check('AWAY: watchers label the peer away, not gone', seenAway.every((x) => x === true), seenAway);
+    await away.page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
   }
 
   await mainBrowser.close().catch(() => {});
