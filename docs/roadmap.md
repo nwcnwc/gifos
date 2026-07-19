@@ -89,6 +89,16 @@ login).
   seated-greeter false-lockout: mesh-wire's onLocked now fires for JOINING
   seats only — R6 scope.)
 
+- **e2e-video "via Hub" peer-relay leg fails deterministically (2026-07-19,
+  PRE-EXISTING on main).** After the seated-greeter false-lockout fix
+  unblocked the suite past assert 33, e2e-video consistently reaches 72
+  asserts and times out at line ~590: the ICE-blocked pair (LeftIsle /
+  RightIsle) never shows "via Hub" relayed video frames within 45s — media
+  plane, no console errors, reproduced identically on pristine origin/main
+  (+ the lockout fix only). Everything before and after in the mesh/control
+  plane is green. Needs a media-plane investigation (peer relay adoption /
+  frame flow), unrelated to admission or the mover's lease.
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
