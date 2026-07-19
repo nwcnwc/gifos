@@ -96,7 +96,7 @@
     const dropDeep = opts.dropDeepSocket !== false;
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
-    let sock = null, deepSince = -1, nudgedAt = -99;
+    let sock = null, deepSince = -1;
 
     // S4 identity is MANDATORY — there is NO "off". No mesh-identity.js loaded ⇒
     // hard fail (never a silent legacy-id degrade); no legacy client-set peer id
@@ -192,14 +192,10 @@
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
         }
-        if (m.t === 'nosock' && seat && seat.state !== 3 && env.TICK - nudgedAt > 4) {
-          // §FWD: the relay says my last targeted frame's destination holds no
-          // socket — pre-seat that means my dance partner (greeter / FIND hop)
-          // is gone. Don't burn the full 20/60-tick retry timeout: nudge the
-          // join loop to retry NOW (rate-limited to one nudge per 4 ticks).
-          nudgedAt = env.TICK;
-          seat.retryAt = env.TICK - 999;
-        }
+        // ({t:'nosock'} passes through to the app via onRelayMsg — the wire
+        // deliberately does NOT nudge the join loop on it: a stray bounce from
+        // an unrelated frame aborting an in-flight FIND descent thrashes the
+        // dance. The seat's own 20/60-tick retries govern pre-seat pacing.)
         if (m.t === 'error' && /password/i.test(m.error || '')) fireLocked(); // relay courtesy gate
         if (opts.onRelayMsg) opts.onRelayMsg(m);
       };
