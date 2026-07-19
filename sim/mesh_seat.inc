@@ -4,7 +4,6 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
   coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; occ[ckey(c)]=id; noteS1(ckey(c));
-  seekAt=-1; seekTries=0;   // T: any outstanding seek is answered once I sit down (a dual-hold move keeps `moving` — take() runs INSIDE doMove)
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK;
   lastAck=(int)TICK; lastPhone=(int)TICK;
@@ -147,7 +146,7 @@ void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
 }
 void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
-  if(moving||seekAt>=0) return;                      // T1: one move at a time
+  if(moving) return;                                 // T1: one move at a time
   if(coord.pc==0 && hole.pc!=0) return;
   if(coord.pc==0 && hole.pc==0 && !(hole.r==coord.r && hole.i<coord.i)) return;   // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), not just into the head
   doMove(hole,-1,nbrs);
@@ -214,7 +213,7 @@ void Seat::rollbackMove(){
   announce(); wake(id);
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); seekAt=-1; seekTries=0; leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
@@ -227,19 +226,18 @@ void Seat::drainOrReenter(){
   if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
 }
-void Seat::reseatViaRoster(){
-  // E1 KEEP-OLD RE-SEAT (T1 applied to the drain / resurrection re-entry): do
-  // NOT vacate to go looking — stay seated, ask for a seat as a newcomer
-  // (FIND, relay-deliverable: a seeking seat re-opens its socket), and treat
-  // the PLACE as the claim's confirmation; only then vacate, with the T3
-  // tombstone. Exhausted retries fall back to the old vacate-first front door
-  // (requeue) — the relay re-entry stays the last resort it always was.
-  if(hasCoord && state==3){
-    int t=(haveRoster&&!roster.empty())?pickRoster():-1;
-    if(t>=0){ seekAt=(int)TICK; if(!seekTries)seekTries=1; drainAt=0; Msg m;m.t=FIND;m.nc=id;m.ttl=200; emit(t,m); wake(id); return; }
-    requeue(); return;
-  }
-  bumpMoves();
+// NOTE (law T5 — REJECTED, kept vacate-first ON PURPOSE): a keep-old drain
+// re-seat (stay seated while FINDing, vacate on PLACE) was built and REVERTED.
+// It breaks E1's dissolution guarantee: the drain's vacate is what DISSOLVES a
+// doomed fragment; kept alive, the fragment's mutually-live stale seats keep
+// phoning, answering, serving and HEALING each other, promote one another into
+// the home cells of their stale world, and mint a divergent phantom home (a
+// sealed bubble no E2 witness can reach — found as persistent Section-1 dup
+// pairs by the full churn sweep at kill 0.2-0.6). The atomic transit (T1-T4)
+// covers moves WITHIN a live neighbourhood; a drain is the opposite case — its
+// whole neighbourhood is confirmed dead, and E1 deliberately dissolves it.
+void Seat::reseatViaRoster(){ bumpMoves();
+  if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
@@ -540,16 +538,8 @@ void Seat::recv(Msg& m){
       return; }
     case FIND: serveFind(m); return;
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
-    case PLACE:
-      if(state==2) take(m.coord,m.owner,m.nbrs);
-      else if(state==3 && hasCoord && seekAt>=0 && !moving){   // E1 keep-old re-seat: the PLACE is the admitter's authorization — ride the same dual-hold transit (T1)
-        if(ckey(m.coord)!=ckey(coord)) doMove(m.coord,m.owner,m.nbrs);
-        seekAt=-1; seekTries=0; }
-      return;
-    case NOROOM:
-      if(state==2){ retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); }
-      else if(state==3 && seekAt>=0){ if(haveRoster&&roster.size()&&++seekTries<=6){ int t=pickRoster(); if(t>=0){ seekAt=(int)TICK; Msg f;f.t=FIND;f.nc=id;f.ttl=200; emit(t,f); return; } } seekAt=-1; seekTries=0; requeue(); }
-      return;
+    case PLACE: if(state==2) take(m.coord,m.owner,m.nbrs); return;
+    case NOROOM: if(state==2){ retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
@@ -621,7 +611,7 @@ void Seat::recv(Msg& m){
     default: return;
   }
 }
-void Seat::leave(){ alive[id]=0; active.erase(id); moving=false; seekAt=-1; leaseCk=0; leaseUntil=-1; if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
+void Seat::leave(){ alive[id]=0; active.erase(id); moving=false; leaseCk=0; leaseUntil=-1; if(!hasCoord) return; uint64_t ck=ckey(coord); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){int oid=occGet(ckey(o)); if(oid>=0&&!seen.count(oid)){ Msg m;m.t=LEAVE;m.ck=ck;m.id=id; emit(oid,m);}} }
 void Seat::tick(){
   if(!alive[id]){ return; }
   if(state!=3){ if(stranded){ if(TICK-strandedAt>STRAND_TTL){ stranded=false; lastReach=-1; joinStart=-1; join(); } wake(id); return; }   // R6: stranded shows "network settings won't let you connect", but the client RETRIES after a backoff — if a greeter is now reachable (e.g. my side's pool stabilised after a partition) I re-seat; a genuinely cut-off seat just strands again.
@@ -629,15 +619,9 @@ void Seat::tick(){
   if(evil) attack();
   // T: transit bookkeeping — a claim window that closes with NO contradiction
   // CONFIRMS (a wiped region has nobody to answer; a contradiction would have
-  // rolled back already); the tombstone self-expires (T3); a seeking seat
-  // retries its FIND on the same cadence as an unseated searcher.
+  // rolled back already); the tombstone self-expires (T3).
   if(moving && TICK-moveAt>CONFIRM_TTL) confirmMove();
   if(leaseUntil>=0 && TICK>leaseUntil){ leaseCk=0; leaseUntil=-1; }
-  if(seekAt>=0 && TICK-seekAt>60){
-    int t=(haveRoster&&roster.size()&&++seekTries<=6)?pickRoster():-1;
-    if(t>=0){ seekAt=(int)TICK; Msg f;f.t=FIND;f.nc=id;f.ttl=200; emit(t,f); }
-    else { seekAt=-1; seekTries=0; requeue(); return; }
-  }
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
     tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
@@ -709,6 +693,6 @@ void Seat::tick(){
   // reseat → LEAVE → heal cascade). The lastAck>220 E1 last-resort still catches a
   // genuinely orphaned seat whose anchor died without a deliverable LEAVE.
   bool ancDead=false; if(hasCoord){ Coord anc; if(coord.i!=0){ ancDead = occGet(ckey({coord.pc,coord.r,0}))<0; } else if(ownerCoord(anc)){ ancDead = occGet(ckey(anc))<0; } }
-  if(seekAt<0 && !didHeal && TICK-lastAck>80 && (ancDead || TICK-lastAck>220)) drainOrReenter();
+  if(!didHeal && TICK-lastAck>80 && (ancDead || TICK-lastAck>220)) drainOrReenter();
   wake(id);
 }

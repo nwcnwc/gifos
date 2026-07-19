@@ -184,7 +184,6 @@ struct Seat {
   vector<int> oldNbrIds;                      // old-link occupants — get the LEAVE(mvd) on confirm
   Occ holdOcc, holdSeen, holdCous;            // rollback snapshots
   uint64_t leaseCk=0; long long leaseUntil=-1; // T3: forwarding tombstone for my just-vacated cell
-  int seekAt=-1, seekTries=0;                 // E1 keep-old re-seat: FIND sent while still seated; PLACE is the confirm
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
@@ -259,7 +258,7 @@ struct Seat {
   // socket-lifecycle rule). Deep settled seats are socketless. The relay may
   // deliver a frame between two SOCKETED peers — that is the greeting scope,
   // NOT a mesh comm. Everything else must travel over owned links.
-  bool socketed() const { return state!=3 || seekAt>=0 || (hasCoord && coord.pc==0); }
+  bool socketed() const { return state!=3 || (hasCoord && coord.pc==0); }
   void route(Coord rdst,int rfinal,Msg inner);   // send `inner` over the mesh to coord rdst (rfinal>=0 ⇒ hand to that newcomer at the end)
   bool routeStep(Msg& m);               // in-transit hop: forward, or return true when delivered HERE
   int strictNextHop(Coord rdst);        // next hop toward rdst over an OWNED LINK only (-1 if the ideal link is vacant — no teleport)
@@ -561,8 +560,7 @@ int main(int argc,char**argv){
       // seat may still carry a claim/seek/lease past its self-expiry window.
       int transStale=0; for(int q=0;q<nextId;q++) if(alive[q]){ Seat*s=seats[q];
         if(s->moving && TICK-s->moveAt>CONFIRM_TTL*2+8) transStale++;
-        if(s->leaseUntil>=0 && TICK>s->leaseUntil+8) transStale++;
-        if(s->seekAt>=0 && TICK-s->seekAt>60*8) transStale++; }
+        if(s->leaseUntil>=0 && TICK>s->leaseUntil+8) transStale++; }
       string why; if(seated!=N) why+=" seated="+to_string(seated)+"/"+to_string(N); if(s1c!=min((long long)25,(long long)N)) why+=" s1="+to_string(s1c)+"/25"; if(DUPS_G!=0) why+=" dups="+to_string(DUPS_G); if(strand!=0) why+=" stranded="+to_string(strand); if(EMIT_TELEPORT!=0) why+=" teleport="+to_string(EMIT_TELEPORT); if(transStale!=0) why+=" transitStale="+to_string(transStale);
       if(why.empty()) printf("CHECK PASS seed=%u [seated=%lld/%d s1=%lld dups=%lld stranded=0 teleport=0]\n",SEED0,seated,N,s1c,DUPS_G);
       else { printf("CHECK FAIL seed=%u%s\n",SEED0,why.c_str()); if(strict){ fprintf(stderr,"CHECK FAIL (strict) seed=%u%s — HALTING\n",SEED0,why.c_str()); abort(); } } }
@@ -657,7 +655,7 @@ int main(int argc,char**argv){
       printf("MEDIALOCAL ROW: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | SECTION: covered=%d split_bridged=%d pure_givers=%d uncovered=%d (max_comp=%d) | max_pure_giver_load=%d (rule cap=1)\n",
         rC,rB,rP,rU,rComp, sC,sB,sP,sU,sComp, max(rMx,sMx)); }
     else if(op=="converge"){ long long cap=tk.size()>1?atoll(tk[1].c_str()):MAXP; auto t0=chrono::steady_clock::now(); long long c=converge(cap); double secs=chrono::duration<double>(chrono::steady_clock::now()-t0).count(); printf("%s converged@%lld tick=%lld %.2fs %.0fk/s\n", c>=0?"OK":"TIMEOUT", c, TICK, secs, TICK/(secs>0?secs:1)/1000.0); }
-    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0,ntr=0,nls=0,nsk=0; for(int q=0;q<nextId;q++) if(alive[q]){ if(seats[q]->stranded)strand++; if(seats[q]->moving)ntr++; if(seats[q]->leaseUntil>=0)nls++; if(seats[q]->seekAt>=0)nsk++; } printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu transit=%d lease=%d seek=%d\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq,ntr,nls,nsk); }
+    else if(op=="state"){ long long seated,s1c; counts(seated,s1c); size_t busq=0; for(auto&b:bus)busq+=b.second.size(); int strand=0,ntr=0,nls=0; for(int q=0;q<nextId;q++) if(alive[q]){ if(seats[q]->stranded)strand++; if(seats[q]->moving)ntr++; if(seats[q]->leaseUntil>=0)nls++; } printf("STATE tick=%lld spawned=%d seated=%lld s1cells=%lld/%d dups=%lld stranded=%d moves=%lld evict=%lld inflight=%zu transit=%d lease=%d\n", TICK,nextId,seated,s1c,min(25,N),DUPS_G,strand,MOVES,EVICTIONS,busq,ntr,nls); }
     else if(op=="seat"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]){ printf("ERR no such live seat %d\n",id); } else { Seat*s=seats[id]; const char* st[]={"joining","asking","searching","seated"}; string nb; if(s->hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(s->coord,ol); for(int k=0;k<n;k++){ int x=s->occGet(ckey(ol[k])); char b[48]; snprintf(b,48,"%s=%d ",coordStr(ol[k]).c_str(),x); nb+=b; } } printf("SEAT %d state=%s coord=%s occ=%zu lastAck=%lld(age %lld) healAt=%lld kids=%d haveRoster=%d rosterSz=%zu joinStart=%d(age %lld) gateway=%d stranded=%d drainAt=%d %s\n", id, st[s->state], s->hasCoord?coordStr(s->coord).c_str():"-", s->occ.size(), (long long)s->lastAck,(long long)(TICK-s->lastAck),(long long)s->healAt,(int)s->hasChildren(), (int)s->haveRoster, s->roster.size(), s->joinStart, (long long)(TICK-s->joinStart), s->gateway, (int)s->stranded, s->drainAt, nb.c_str()); } }
     else if(op=="find"){ // find a seat at a given coord path/r/i  e.g. find /0.0
       // parse "P/r.i"
@@ -690,11 +688,10 @@ int main(int argc,char**argv){
     else if(op=="occ"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; string a=tk.size()>2?tk[2]:""; size_t sl=a.find(0x2f),dt=a.find(0x2e,sl); string ps=a.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-48); int r=atoi(a.substr(sl+1,dt-sl-1).c_str()),i=atoi(a.substr(dt+1).c_str()); uint64_t k=ckey({pc,(uint8_t)r,(uint8_t)i}); if(id<0||id>=nextId||!alive[id]){printf("ERR\n");} else { Seat*se=seats[id]; int v=se->occGet(k); int age=se->s1seen.count(k)?(int)(TICK-se->s1seen[k]):-1; int liveAge=se->live.count(k)?(int)(TICK-se->live[k]):-1; int holeAge=se->holeSince.count(k)?(int)(TICK-se->holeSince[k]):-1; printf("OCC seat%d occ[%s]=%d s1seenAge=%d liveAge=%d holeSinceAge=%d fhLive=%d\n",id,a.c_str(),v,age,liveAge,holeAge,(int)se->firstHandLive(k));} }
     else if(op=="hist"){ unordered_map<uint64_t,int> cnt; int s1seats=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ cnt[ckey(seats[q]->coord)]++; if(seats[q]->coord.pc==0)s1seats++; } int h1=0,h2=0,h3=0,mx=0; uint64_t mxk=0; for(auto&e:cnt){ if(e.second==1)h1++; else if(e.second==2)h2++; else h3++; if(e.second>mx){mx=e.second;mxk=e.first;} } printf("HIST cells:1=%d 2=%d 3+=%d maxDup=%d@%s s1seats=%d\n",h1,h2,h3,mx,coordStr(unck(mxk)).c_str(),s1seats); }
     else if(op=="relay"){ int live=0,s1=0; for(auto&e:relayGreeters){ if(e.second>=TICK && e.first<nextId && alive[e.first]){ live++; if(seats[e.first]->state==3 && seats[e.first]->coord.pc==0) s1++; } } printf("RELAY greeters=%zu (live=%d, section1=%d) H(genesisKey)=%llu\n", relayGreeters.size(), live, s1, (unsigned long long)relayGenesisKey); }
-    else if(op=="transit"){ int ntr=0,nls=0,nsk=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]){ Seat*s=seats[q];
+    else if(op=="transit"){ int ntr=0,nls=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]){ Seat*s=seats[q];
         if(s->moving){ ntr++; char b[96]; snprintf(b,96,"%d:move(%s->%s age %lld) ",q,coordStr(s->oldCoord).c_str(),coordStr(s->coord).c_str(),TICK-s->moveAt); ex+=b; }
-        if(s->leaseUntil>=0){ nls++; char b[96]; snprintf(b,96,"%d:lease(%s ttl %lld) ",q,coordStr(unck(s->leaseCk)).c_str(),s->leaseUntil-TICK); ex+=b; }
-        if(s->seekAt>=0){ nsk++; char b[96]; snprintf(b,96,"%d:seek(age %lld) ",q,TICK-s->seekAt); ex+=b; } }
-      printf("TRANSIT moves=%d leases=%d seeks=%d %s\n",ntr,nls,nsk,ex.c_str()); }
+        if(s->leaseUntil>=0){ nls++; char b[96]; snprintf(b,96,"%d:lease(%s ttl %lld) ",q,coordStr(unck(s->leaseCk)).c_str(),s->leaseUntil-TICK); ex+=b; } }
+      printf("TRANSIT moves=%d leases=%d %s\n",ntr,nls,ex.c_str()); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
