@@ -25,6 +25,18 @@ QUICK=0; [ "${1:-}" = "--quick" ] && QUICK=1
 export MEET_CHROME=${MEET_CHROME:-/opt/google/chrome/chrome}
 export SWARM_CHROME=${SWARM_CHROME:-/opt/google/chrome/chrome}
 pass=0; fail=0; results=""
+# PRECONDITION: the wire tiers open REAL relay sockets from Node, and
+# gifos-net.js builds them with the global `new WebSocket` a browser supplies.
+# Node only has that global from v22 — under 18/20 the constructor throws, the
+# connect path catches it and reschedules forever, and the suite HANGS until the
+# step timeout with no output at all. That is indistinguishable from a mesh
+# deadlock, and it cost most of a session's runtime once. Refuse to start.
+if ! node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)'; then
+  echo "ABORT: this node ($(node -v)) has no global WebSocket."
+  echo "  The relay tiers would hang, not fail. Use node >= 22:"
+  echo "  export NVM_DIR=\$HOME/.nvm; . \$NVM_DIR/nvm.sh; nvm use 22"
+  exit 2
+fi
 # run <label> <cmd...> — capture the REAL exit code, and never let one hung
 # suite stall the gate. Piping straight into tail loses the status (tail's
 # success becomes the result), so the output is captured first and the code
