@@ -173,6 +173,30 @@ const check = (n, c, d) => {
   const fd = await waitSeat(final, SEAT_MS);
   check('the room still admits a brand-new joiner at the end', !!(fd && fd.coord), (fd && fd.coord) || 'UNSEATED');
 
+  // ── Phase 6: ONE room, not several ───────────────────────────────────────
+  // Everything above can pass while the room has quietly SPLIT: each fragment
+  // is internally consistent and happily wires itself up, so link-completeness
+  // checks are blind to it. Two tells, both cheap. Distinct coords: N seated
+  // participants must hold N different cells, and a repeat means two people
+  // believe they own the same seat. And a shared view: every seat should see a
+  // comparable population — a fragment sees only its own.
+  const finalAll = [];
+  for (const u of users) { const d = await dump(u); if (d && d.coord) finalAll.push({ n: u.name, c: d.coord, p: d.peer }); }
+  const byCoord = new Map();
+  for (const f of finalAll) byCoord.set(f.c, (byCoord.get(f.c) || []).concat(f.n));
+  const clashes = [...byCoord.entries()].filter(([, who]) => who.length > 1);
+  check('every seated participant holds a DISTINCT coord (no split-brain)',
+    clashes.length === 0,
+    clashes.length ? clashes.map(([c, who]) => c + '<-' + who.join('+')).join(' ')
+                   : finalAll.length + ' seats, all distinct');
+  const pops = [];
+  for (const u of users) {
+    const p = await u.page.evaluate(() => { try { return window.__gifosVideo.debugDump().participants; } catch (e) { return -1; } }).catch(() => -1);
+    if (p > 0) pops.push(p);
+  }
+  const spread = pops.length ? Math.max(...pops) - Math.min(...pops) : 99;
+  check('all participants see ONE room (population agrees within 2)', spread <= 2, 'counts=' + pops.join(','));
+
   console.log('\nadversaries: ' + [...darkIds].join(' ') + '  (profile: dark / cannot complete P2P)');
   await browser.close(); cleanup();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nALL PASS — a misbehaving participant cannot poison the room');
