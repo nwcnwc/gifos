@@ -304,12 +304,10 @@ app README image).
   `browser/e2e-mymedia-meet.js` are left failing on purpose as guards.
 - `browser/e2e-app-governance.js` open-room "latest-wins takeover" is flaky:
   B never becomes `appIsHost` (null `contentWindow` postMessage).
-- `drills/e2e-latejoin.js` does not fully pass. Its connection legs do — late
-  joiners reach `pc:connected` / `dc:open` — but it cannot reliably ARRANGE its
-  own scenario: seating layout churns, so some runs produce no late joiner with
-  a socketless link target, and the deadlock leg plus the media check then fail
-  for want of anything to measure. Treat a failure here as "did the scenario set
-  up?" before "is the product broken?", and check the run's seated coords.
+- `drills/e2e-latejoin.js` ARRANGES its own socketless-neighbour scenario
+  (`forceSeat` + `learnOcc`) so the deadlock leg is measured every run. Needs
+  `RELAY_DEV=1` on its own relay (the frame meter otherwise looks like the
+  deadlock). Prefer nvidia-laptop for the browser drills.
 - `browser/e2e-relay.js` times out waiting for the desktop `.icon` to render.
   Predates this work — it fails identically at `421ecc5`.
 - `drills/adversary-room.js` has, on at least one run, caught every coord being
