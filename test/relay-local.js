@@ -179,7 +179,7 @@ server.on('upgrade', (req, socket, head) => {
   // seats" is almost always a connection that never landed — rejected by a
   // cap, or aimed at a DIFFERENT session id than the one being watched. The
   // relay is the only place that can tell those apart, so it says so out loud.
-  const clog = (...a) => { if (process.env.RELAY_DEBUG) console.log('[conn]', ...a); };
+  const clog = (...a) => { if (process.env.RELAY_DEBUG) console.log('[conn]', new Date().toISOString().slice(11, 23), ...a); };
   const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
   const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
