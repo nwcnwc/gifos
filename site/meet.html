@@ -2395,7 +2395,16 @@
         if (devOf[pid] && devOf[pid] === myDevHash) { if (peers.has(pid)) dropPeer(pid); continue; }
         if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
       }
-      for (const [pid, p] of peers) if (!ids.has(pid) && !p.absentSince) p.absentSince = Date.now();
+      // A peer the mesh NAMES as my neighbour is never "absent" merely because I
+      // have not heard from it yet. `ids` is the heard-from set, so a freshly
+      // dialled neighbour is not in it — and marking it absent here quarantined
+      // the very connection we just opened: the sweeper drops an absent peer
+      // after ABSENT_GRACE, and every re-offer / ICE-restart path below is gated
+      // on !absentSince, so it was never retried either. Created, quarantined,
+      // never retried, dropped — a late joiner sat at pc:'new', dc:null forever.
+      // Absence is about a peer that has GONE, which only means anything once
+      // the mesh has stopped naming it.
+      for (const [pid, p] of peers) if (!ids.has(pid) && !linkTo(pid) && !p.absentSince) p.absentSince = Date.now();
       for (const pid of Object.keys(rosterNames)) if (!ids.has(pid)) delete rosterNames[pid];
       reconcileGrid();
       updateStatus();
