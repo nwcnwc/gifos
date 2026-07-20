@@ -36,15 +36,25 @@ reality. Cheap and deterministic at the bottom, slow and true at the top.
 | `test/drills/*` | real browsers, real WebRTC, own relay + site | what a meeting actually does | scale |
 | `test/swarm/*` | many real browsers, optionally against production | scale, and the real internet | determinism |
 
-**The gap that matters.** Each rung can only fail in ways its fabric can
-express. The sim assumes a message sent is a message delivered, so it cannot
-model *"these two seats have no DataChannel yet"* — and that is exactly where
-the expensive bugs live. A green sim says the laws are right. It never says a
-meeting works. Only the browser rungs can say that, and only if they assert
-**link completeness** — every neighbour the mesh NAMES is a peer we are
-actually connected to — rather than counting seats. A room can report every
-seat filled while almost none of its channels exist; that was true in
-production for months.
+**The sim is not an ideal-network toy.** It injects the faults that matter, set
+before `init`: `net loss=` drops messages, `net sever=` kills links and leaves
+them dead, `net subnets=N density=D` makes whole groups of peers *mutually
+unreachable*, `net lat=`/`qual=` degrade the path, and `sever A B T` cuts one
+named link with `TRANSLOST` observed at both ends exactly as a closed
+DataChannel is. `sim/repro-adversary.sh` uses these to ask the adversary
+question at 150+ seats, deterministically — including a DARK SEAT that holds
+its cell and answers nothing while twenty newcomers arrive. That is where the
+adversarial claim is established; the browser drill confirms reality agrees.
+
+**The gap that remains.** What the sim does not model is the *establishment* of
+a link — a pair that could talk but has no DataChannel open YET, and needs
+signaling to get one. Its fabric answers "can these two reach each other",
+never "have these two finished negotiating". Every expensive bug this month
+lived in that gap, and it is why the browser rungs must assert **link
+completeness** — every neighbour the mesh NAMES is a peer we are actually
+connected to — instead of counting seats. A room can report every seat filled
+while almost none of its channels exist; that was true in production for
+months, and no sim run would have shown it.
 
 ### 2. The relay
 
