@@ -15,6 +15,7 @@ differs between them.
 | `drills/` | nothing | self-contained: spawn their OWN relay + site |
 | `swarm/` | the production site | scale bots + live meeting tools |
 | `tools/` | varies | utilities, not assertion tests |
+| `batteries/` | everything below it | cross-environment GATES — run before pushing |
 
 ## Running
 
@@ -52,6 +53,19 @@ Gotchas:
   `unit/node-roundtrip.js` writes — run that one first.
 - `swarm/squat.js` is pinned to a `chromium_headless_shell` path that isn't
   installed here; every other suite uses `/opt/pw-browsers/chromium-1194`.
+
+## batteries/ — cross-environment gates
+
+Not a suite: a battery runs suites from several directories at once, so it
+needs whatever they need. Run one before pushing a change in its area.
+
+| battery | gate |
+|---|---|
+| `join.sh` | everything that must stay true about JOINING — the sim's arrival patterns (burst/serial/batch/window, seating AND H7 shape), `mesh.js` at N=500/1000 plus flood and wire, real browsers asserting LINK COMPLETENESS and ONE room, and the adversary + late-join drills. `--quick` skips the browser ladders. |
+
+`site/` AUTO-DEPLOYS on push, so an untested change to `site/js/mesh-wire.js`,
+`site/js/mesh.js` or `site/meet.html` is a change to production. Prefer the
+8-core box — a weak host invents failures above N=10 from its own exhaustion.
 
 ## servers/ — the fixture servers
 

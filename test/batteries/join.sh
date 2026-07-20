@@ -1,8 +1,8 @@
 #!/bin/bash
-# join-battery.sh — EVERYTHING that must still be true about JOINING.
+# batteries/join.sh — EVERYTHING that must still be true about JOINING.
 #
-#   test/join-battery.sh            # the full battery
-#   test/join-battery.sh --quick    # skip the slow browser ladders
+#   test/batteries/join.sh            # the full battery
+#   test/batteries/join.sh --quick    # skip the slow browser ladders
 #
 # Run this before pushing anything that touches how a seat is admitted or how
 # a frame is carried — site/js/mesh-wire.js, site/js/mesh.js, site/meet.html,
@@ -18,9 +18,9 @@
 #
 # Fastest on the 8-core box; a weak host produces false failures around N>=10
 # purely from its own exhaustion, so prefer:
-#   ssh nvidia-laptop 'cd ~/projects/gifos && test/join-battery.sh'
+#   ssh nvidia-laptop 'cd ~/projects/gifos && test/batteries/join.sh'
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 QUICK=0; [ "${1:-}" = "--quick" ] && QUICK=1
 export MEET_CHROME=${MEET_CHROME:-/opt/google/chrome/chrome}
 export SWARM_CHROME=${SWARM_CHROME:-/opt/google/chrome/chrome}
