@@ -80,11 +80,15 @@ const LITE = args.lite !== undefined || !!process.env.SWARM_LITE;
 // ---- browser resolution ----------------------------------------------------
 // The single most expensive failure this harness has ever produced: a STRIPPED
 // browser (playwright's headless_shell, and some of its older chromium builds)
-// loads meet.html perfectly but NEVER opens the relay socket. Every bot then
-// reports "up" and none ever seats — a symptom indistinguishable from a mesh
-// seating bug, which is exactly how it burned most of a session. So the shard
-// picks a REAL Chrome by default instead of leaving it to each runner script,
-// and always prints which binary it chose.
+// loads meet.html perfectly but never gets as far as taking a seat. Every bot
+// then reports "up" with section "?" — indistinguishable from a mesh seating
+// bug, which is exactly how it burned most of a session.
+// It fails specifically on the MEDIA path: the same stripped build seats fine
+// under --lite (camera+mic off) and dies only once fake video/audio is
+// requested. That asymmetry is itself a trap — a --lite run "proving the fleet
+// is fine" tells you nothing about a video run. So the shard picks a REAL
+// Chrome by default rather than leaving it to each runner script, and always
+// prints which binary it chose.
 function resolveChrome() {
   if (process.env.SWARM_CHROME) return process.env.SWARM_CHROME;
   const cands = ['/opt/google/chrome/chrome', '/usr/bin/google-chrome',
