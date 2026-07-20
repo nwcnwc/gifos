@@ -206,7 +206,7 @@ server.on('upgrade', (req, socket, head) => {
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
   const BURST = 1024 * 1024, REFILL = 48 * 1024;
   // Mirrors relay/src/relay.js — keep in step, these are what tests exercise.
-  const FRAME_BURST = 3000, FRAMES_PER_SEC = 30, FRAME_STRIKES = 3;
+  const FRAME_BURST = 6000, FRAMES_PER_SEC = 120, FRAME_STRIKES = 3;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
     msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
