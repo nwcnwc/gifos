@@ -273,7 +273,6 @@
     const iAmAGreeter = () => iAmInsideTheRoom() && seat.coord.pc === 0;
     // Is this peer already IN the room? Occupancy is the membership roll, so a
     // peer holding no cell in it has not been seated: it is at the door.
-    const isAtTheDoor = (pid) => { if (!seat || !seat.occ) return true; for (const v of seat.occ.values()) if (v === pid) return false; return true; };
 
     // (1) KNOCK — I have no greeter yet, so I ask the registry for the sealed
     // list (R3: an empty list mints genesis). The one call that exists precisely
@@ -308,9 +307,22 @@
     // channels yet. Strictly bounded: seated targets never qualify, so this can
     // never become a back channel between members.
     function ANSWERING_SOMEONE_AT_THE_DOOR(to, m) {
-      if (!iAmAGreeter()) return false;
-      if (!isAtTheDoor(to)) return false;               // already inside — mesh only
-      if (m.t !== 'HOME' && m.t !== 'PLACE' && m.t !== 'NOROOM') return false;
+      if (!iAmInsideTheRoom()) return false;            // only a member answers the door
+      // These three frames are ENTRY ANSWERS by construction — each exists only
+      // as the reply to someone who is not seated yet, so the step is implied by
+      // the frame rather than needing a separate test on the target.
+      //
+      // Do NOT test "is the target in my occupancy?" here, however obvious it
+      // looks: admit() records the newcomer in occ BEFORE it emits the PLACE
+      // that tells them, so such a test rejects the one frame that does the
+      // seating, and the room stops admitting anyone. Measured: it dropped the
+      // adversary drill to a single seated participant with everyone else alone.
+      //
+      // PLACE is dual-use — Q2 compaction (law T) re-seats an ALREADY SEATED
+      // leaf with tag==1, which is seat-to-seat and never entry, so it is
+      // excluded and must travel the mesh like everything else internal.
+      const isEntryAnswer = m.t === 'HOME' || m.t === 'NOROOM' || (m.t === 'PLACE' && !m.tag);
+      if (!isEntryAnswer) return false;
       net.seal(roomKey, { mw: 1, m }).then((b) => sendRaw({ t: 'peer', to, msg: b })).catch(() => {});
       return true;
     }
