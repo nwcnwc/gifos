@@ -45,6 +45,9 @@ run() {
 run "sim — 7 arrival patterns x 13 sizes (burst/serial/batch/window)" \
     ./sim/repro-join-patterns.sh
 
+run "sim — hostile fabrics + a DARK SEAT that answers nothing (150 seats)" \
+    ./sim/repro-adversary.sh
+
 # ── the port: mesh.js replaying the sim's scenarios at scale ────────────────
 run "mesh.js — harness (JOIN N=1000, 50% kill, s1row, s1all, D5)" \
     node test/mesh/mesh-harness.js

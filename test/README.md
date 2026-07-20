@@ -150,7 +150,7 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
-| `join.sh` | everything that must stay true about JOINING — the sim's arrival patterns (burst/serial/batch/window, seating AND H7 shape), `mesh.js` at N=500/1000 plus flood and wire, real browsers asserting LINK COMPLETENESS and ONE room, and the adversary + late-join drills. `--quick` skips the browser ladders. |
+| `join.sh` | everything that must stay true about JOINING — including the adversary legs (`sim/repro-adversary.sh`: hostile fabrics and a dark seat at scale) — the sim's arrival patterns (burst/serial/batch/window, seating AND H7 shape), `mesh.js` at N=500/1000 plus flood and wire, real browsers asserting LINK COMPLETENESS and ONE room, and the adversary + late-join drills. `--quick` skips the browser ladders. |
 
 `site/` AUTO-DEPLOYS on push, so an untested change to `site/js/mesh-wire.js`,
 `site/js/mesh.js` or `site/meet.html` is a change to production. Prefer the
