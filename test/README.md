@@ -155,6 +155,11 @@ Local-swarm gotchas:
   compaction needs enough bots to fill sections, which is why the big runs
   fan out across machines with `--offset`.
 
+Running against PRODUCTION instead needs the abuse guards relaxed for your
+egress IPs first — `scripts/swarm-test-mode.sh on <ip,ip>`, and `off`
+afterwards. A local run needs none of that, which is the main reason to
+prefer it while iterating.
+
 `swarm.js` runs N headless bots as real
 `meet.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,
 `swarm-videos/` talking-head packs). `swarm-handq.js` is the hand-queue scale
