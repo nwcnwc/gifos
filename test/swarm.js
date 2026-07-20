@@ -77,6 +77,22 @@ const DIAG = Math.max(0, parseFloat(args.diag === undefined ? '0' : args.diag));
 // scale tests where media fidelity is irrelevant. NOT for media-plane tests.
 const LITE = args.lite !== undefined || !!process.env.SWARM_LITE;
 
+// ---- browser resolution ----------------------------------------------------
+// The single most expensive failure this harness has ever produced: a STRIPPED
+// browser (playwright's headless_shell, and some of its older chromium builds)
+// loads meet.html perfectly but NEVER opens the relay socket. Every bot then
+// reports "up" and none ever seats — a symptom indistinguishable from a mesh
+// seating bug, which is exactly how it burned most of a session. So the shard
+// picks a REAL Chrome by default instead of leaving it to each runner script,
+// and always prints which binary it chose.
+function resolveChrome() {
+  if (process.env.SWARM_CHROME) return process.env.SWARM_CHROME;
+  const cands = ['/opt/google/chrome/chrome', '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+  for (const c of cands) { try { if (require('fs').existsSync(c)) return c; } catch (e) {} }
+  return undefined;   // fall back to playwright's own download
+}
+
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('playwright not found — run: npm i playwright && npx playwright install chromium'); process.exit(1); }
@@ -299,9 +315,15 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   // WebRTC/media path needs (observed: shell bots load but never open the
   // relay socket; full-browser bots mesh). e.g. on the Pis:
   //   SWARM_CHROME=~/.cache/ms-playwright/chromium-1228/chrome-linux/chrome
+  const CHROME = resolveChrome();
+  console.log('[swarm] browser: ' + (CHROME || "playwright's own default (no real Chrome found)"));
+  if (!CHROME || /headless_shell/.test(CHROME)) {
+    console.log('[swarm] WARNING: this looks like a STRIPPED browser build. Bots will load the page');
+    console.log('[swarm]          but may never open the relay socket. Install Chrome, or set SWARM_CHROME.');
+  }
   const browser = await chromium.launch({
     headless: true,
-    executablePath: process.env.SWARM_CHROME || undefined,
+    executablePath: CHROME,
     // LocalNetworkAccessChecks (Chromium 141+, enforcing ~149): a PUBLIC-origin
     // page (gifos.app) opening a socket to a LOCAL/LAN address (a self-hosted
     // relay on a tailnet/LAN IP) is blocked with ERR_BLOCKED_BY_LOCAL_NETWORK_
@@ -360,6 +382,39 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     }
     p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
     pages.push({ idx, p });
+    // PREFLIGHT (first bot only): a shard whose very first bot cannot seat is
+    // broken at the environment level — wrong browser, wrong base, unreachable
+    // relay — and every later bot will fail identically. Bot 0 FOUNDS the room,
+    // so it should hold a coord within seconds; failing that, say precisely
+    // what is wrong and stop, instead of ramping N bots into an hour of
+    // "up=N/N sections={?:N}" that reads like a mesh bug. SWARM_NO_PREFLIGHT=1
+    // opts out (e.g. deliberately testing a room that refuses admission).
+    if (i === 0 && !process.env.SWARM_NO_PREFLIGHT) {
+      const probe = async () => p.evaluate(() => {
+        const V = window.__gifosVideo;
+        if (!V) return { stage: 'no-client' };            // meet.html never booted
+        let c = null; try { c = V.meshCoord(); } catch (e) {}
+        return { stage: c ? 'seated' : 'unseated', coord: c ? c.pc + '/' + c.r + '.' + c.i : null };
+      }).catch((e) => ({ stage: 'page-error', err: String(e.message || e).slice(0, 120) }));
+      let r = { stage: 'never-ran' };
+      for (let t = 0; t < 40; t++) { r = await probe(); if (r.stage === 'seated') break; await sleep(1000); }
+      if (r.stage === 'seated') console.log('[swarm] preflight OK — bot 0 seated at ' + r.coord);
+      else {
+        console.log('[swarm] PREFLIGHT FAILED — bot 0 never seated (' + r.stage + (r.err ? ': ' + r.err : '') + ').');
+        console.log('[swarm]   base  = ' + BASE + '   (is that really the target you meant?)');
+        console.log('[swarm]   relay = ' + (RELAY || 'the page default'));
+        console.log('[swarm]   chrome= ' + (CHROME || "playwright's default"));
+        if (r.stage === 'unseated') {
+          console.log('[swarm]   The client booted but never took a seat. Check the relay: with');
+          console.log('[swarm]   RELAY_DEBUG=1 it logs [conn] ACCEPT/REJECT per socket. NO [conn] line');
+          console.log('[swarm]   for this bot means it never dialled at all — a stripped browser build');
+          console.log('[swarm]   (use a real Chrome) or an unreachable relay, NOT a mesh bug.');
+        }
+        console.log('[swarm]   Set SWARM_NO_PREFLIGHT=1 to run anyway.');
+        try { await browser.close(); } catch (e) {}
+        process.exit(2);
+      }
+    }
     if (RAMP) await sleep(RAMP);
     if ((i + 1) % 10 === 0) console.log('[swarm] ' + (i + 1) + '/' + N + ' launched');
   }
