@@ -132,9 +132,9 @@ role is played by `gifos.db`, per-device).
 
 ## Tests
 
-`test/e2e-fluence.js` mounts the built GIF on a real GifOS desktop and drives the
-whole thing against a fake Deepgram (`test/fake-keyapi.js`) and a fake AI
-(`test/fake-ai.js`, which returns drill/coach/weekly/scene JSON): boot → record →
+`test/browser/e2e-fluence.js` mounts the built GIF on a real GifOS desktop and drives the
+whole thing against a fake Deepgram (`test/servers/fake-keyapi.js`) and a fake AI
+(`test/servers/fake-ai.js`, which returns drill/coach/weekly/scene JSON): boot → record →
 transcribe → features → coach → history → catalog → generated drill (banned
-words) → picture-description image → weekly review. `test/shot-fluence.js`
+words) → picture-description image → weekly review. `test/tools/shot-fluence.js`
 regenerates `screenshot.png`.

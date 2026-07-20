@@ -78,6 +78,6 @@ proof is checked per connection, so nothing about ownership persists server-side
 
 ## Local testing
 
-`test/relay-local.js` is a dependency-free Node server that speaks the same
-protocol, used by `test/e2e-relay.js`. It is **not** for production — deploy the
+`test/servers/relay-local.js` is a dependency-free Node server that speaks the same
+protocol, used by `test/browser/e2e-relay.js`. It is **not** for production — deploy the
 Worker for real use.

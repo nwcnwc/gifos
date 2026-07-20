@@ -202,7 +202,7 @@ degenerate case — and larger rooms scale by the tree
   (comma-separated exact origins and/or `*.host` suffix patterns; `*` opens
   it up); the built-in default covers gifos.app and its subdomains, and
   localhost is always allowed so dev and CI work. Unit-tested in
-  `test/relay-origin.js`.
+  `test/relay/relay-origin.js`.
 
 ## Meetings — strictly P2P mesh over permanent rooms
 

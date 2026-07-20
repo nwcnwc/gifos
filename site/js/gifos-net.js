@@ -458,7 +458,7 @@
     // seat roots a child section one level down (no root, no deacons — see
     // docs/healing-laws.md). Per-device link count (bounded: C-1 row-mates +
     // cross + up/down) and fold fan-out are CONSEQUENCES of the arithmetic,
-    // never separate knobs. MUST equal C in relay/src/relay.js + test/relay-local.js.
+    // never separate knobs. MUST equal C in relay/src/relay.js + test/servers/relay-local.js.
     C: 5,
     // The fold frame budget: 756×1344 = 1,016,064 px — the smallest 9:16
     // frame past ONE MILLION PIXELS, on purpose: a million people in the
@@ -480,7 +480,7 @@
   // parentPath(pc) = floor((pc-1)/6), lastDigit(pc) = (pc-1)%6. Every heal and
   // every media link derives from THESE functions — no seat ever "asks" the
   // structure, it computes it. Mirrors sim/topo.h exactly (verified by
-  // test/topo.js); the ONLY divergence is ckey returns a STRING map key (JS
+  // test/unit/topo.js); the ONLY divergence is ckey returns a STRING map key (JS
   // has no uint64 — the sim packs the same fields into a 64-bit int for speed).
   const topo = (() => {
     const Cn = () => SCALE.C;
