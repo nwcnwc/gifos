@@ -155,54 +155,13 @@ const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
 // budget forever, but with hibernation EVERY inbound frame wakes (and bills)
 // this object — a runaway client loop at 4s cadence is ~21,600 billed wakes a
 // day while never touching the byte cap. Joins are legitimately bursty (ICE
-// trickle to a full row), so the burst is generous.
-//
-// FRAMES_PER_SEC was 3, on the belief that this was "far above any real gossip
-// pulse". MEASURED against 5 real clients in one room, it is far BELOW it:
-//   formation: ~72 frames/s across the room, 38-62/s for the founder/greeter
-//   settled:   ~13/s across the room, 5-8/s per peer  (all of it t:'peer')
-// So every participant in an ordinary meeting ran 2-20x over budget. The
-// consequences were not throttling but corruption: an over-budget frame is
-// DROPPED (silently — it never reaches the parse below), and three strikes CUT
-// the socket, after which the client reconnects and does it again. Measured on
-// the local harness, 5 bots: meter on = 33 strikes, 12 cuts, 4-8 reconnects
-// per peer; meter off = 0 strikes, 0 cuts, exactly 1 connect per peer. Dropped
-// signaling also plausibly explains peers seen holding no coord and forming no
-// links in production.
-// The SUSTAINED rate is fine and stays where it was. A HEALTHY converged room
-// is nearly silent on the relay, because D1's heartbeat is peer-to-peer by
-// design: each seat phones its rook neighbours every 8 ticks (~4s), which is
-// 0.5 frames/s PER NEIGHBOUR, and those ride the pair's DataChannel. Measured,
-// clean 10-person room at rest: peer=0.3-0.6/s for the WHOLE ROOM, 0.1-0.6/s
-// per socket. 3/s already leaves 5-30x headroom over that.
-//
-// What actually overran was the JOIN BURST, and then a trap. Formation is
-// legitimately bursty (first-contact signaling + ICE trickle, before any
-// DataChannel exists): the same clean room peaks at 8-27 frames/s per socket
-// for ~30s, then collapses to 0.3/s within a single window. A full Section 1
-// bursts harder still. FRAME_BURST=600 could not absorb that, so joiners were
-// struck — and STRIKING IS WHAT BROKE THEM: an over-budget frame is dropped, so
-// the signaling that would have established the DataChannel never lands, so the
-// pair keeps talking through the relay forever, at 8 neighbours' worth of
-// heartbeat per socket, which overruns again. Measured in that trapped state:
-// 5-8 frames/s per peer sustained, 33 strikes and 12 cuts in 4 minutes, 4-8
-// reconnects per peer. Every one of those numbers is the symptom, not the
-// protocol.
-//
-// So: absorb the burst (FRAME_BURST up), keep the sustained rate strict, and do
-// NOT sever for a frame overrun — see the enforcement site below. Severing turns
-// a 30-second transient into a permanently relay-bound room.
-const FRAME_BURST = 3000;
+// trickle to a full row), so the burst is generous; the sustained rate is far
+// above any real gossip pulse and far below a hot loop.
+const FRAME_BURST = 600;
 const FRAMES_PER_SEC = 3;
 const FRAME_STRIKES = 3; // sustained overruns after being told → cut the socket
 
 function makeMeter() { return { tokens: BURST_BYTES, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 }; }
-// Is the BYTE bucket drained? That is what sustained media abuse looks like —
-// ~384 Kbps held down long enough to empty a 1 MB burst. Control frames never
-// get near it (a 10-person room at rest moves well under 1 KB/s), so this is
-// the only condition under which severing a socket is justified.
-function overBytes(meter) { return meter.tokens < 1; }
-
 // Returns true if this message must be DROPPED (would overrun a budget).
 function overBudget(meter, len) {
   const now = Date.now();
@@ -544,15 +503,10 @@ export class Session {
         meter.warned = true;
         meter.strikes++;
         this.send(ws, { t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' });
-        // Frame overruns are THROTTLED, never severed. Severing was actively
-        // harmful: a joiner's burst is legitimate and brief, but cutting it
-        // destroys the very signaling that would have moved the pair onto its
-        // DataChannel — so the room stayed relay-bound and re-overran forever
-        // (measured: 4-8 reconnects per peer, and each reconnect costs a fresh
-        // handshake, so the cut BILLED MORE than it saved). The byte budget
-        // below still severs, because sustained BYTES is what media abuse looks
-        // like; a frame overrun is what a normal join looks like.
-        if (meter.strikes >= FRAME_STRIKES && overBytes(meter)) { try { ws.close(1013, 'rate'); } catch (e) {} }
+        // A sender that keeps hammering after being told is cut loose: every
+        // frame it sends bills a wake whether we act or not, and a 1013 close
+        // puts a well-behaved client on its slow retry lane instead of a loop.
+        if (meter.strikes >= FRAME_STRIKES) { try { ws.close(1013, 'rate'); } catch (e) {} }
       }
       return;
     }
