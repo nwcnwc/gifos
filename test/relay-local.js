@@ -157,11 +157,24 @@ server.on('upgrade', (req, socket, head) => {
   // Abuse guards — mirror the Worker's caps so tests exercise them.
   // C mirrors GIFOS_SCALE.C: a session is one SECTION (C² seats) plus C so
   // the stage can double-home into a full level-1 space. Never client-set.
-  const C = 5, MAX_SOCKETS_PER_SESSION = C * C + C; // 30
+  // RELAY_DEV=1 — DEV MODE: no abuse guards at all. The per-IP socket cap, the
+  // join-rate cap and the session cap are PRODUCTION concerns (they exist to
+  // blunt abuse of a shared, billed relay); a checkout on a workstation has no
+  // abuser to blunt, and every dev box drives its whole bot fleet from ONE
+  // address, so the per-IP cap of 8 is precisely wrong here. Leaving it on cost
+  // real time: a swarm silently lost its bots to "too many connections from
+  // your network" and the missing seats read as a mesh bug.
+  // TRUSTED_IPS still works, but it is the brittle form — it fails the moment a
+  // bot box's address isn't in the list. Prefer RELAY_DEV=1 locally.
+  // RELAY_MAX_SOCKETS overrides the per-session cap on its own.
+  const DEV = process.env.RELAY_DEV === '1';
+  const C = 5;
+  const MAX_SOCKETS_PER_SESSION = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10)
+    || (DEV ? Infinity : C * C + C); // 30 in prod-mirroring mode
   // TRUSTED_IPS (env) bypasses the PER-IP caps for load tests — mirrors the
   // Worker. For a big LOCAL swarm, run: TRUSTED_IPS=127.0.0.1,::1,::ffff:127.0.0.1 node test/relay-local.js
   const TRUSTED = String(process.env.TRUSTED_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const trusted = TRUSTED.includes(ip);
+  const trusted = DEV || TRUSTED.includes(ip);
   // Connection tracing (RELAY_DEBUG=1). A swarm bot that "comes up but never
   // seats" is almost always a connection that never landed — rejected by a
   // cap, or aimed at a DIFFERENT session id than the one being watched. The
@@ -465,4 +478,10 @@ server.on('upgrade', (req, socket, head) => {
 // RELAY_HOST=0.0.0.0 to expose it on the LAN/tailnet for a multi-machine swarm
 // (bots on other boxes point --relay ws://<this-box-ip>:PORT).
 const HOST = process.env.RELAY_HOST || '127.0.0.1';
-server.listen(PORT, HOST, () => console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT));
+server.listen(PORT, HOST, () => {
+  console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT);
+  // Say which mode is in force — "why did my bots vanish?" should never again
+  // require reading this file.
+  if (process.env.RELAY_DEV === '1') console.log('  RELAY_DEV=1 — abuse guards OFF (no per-IP, join-rate or session cap)');
+  else console.log('  prod-mirroring caps ON (8 sockets/IP, 30/session). Set RELAY_DEV=1 for unguarded local testing.');
+});
