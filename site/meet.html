@@ -1731,9 +1731,13 @@
     }
     // nextHopDc(to, tck): the open DataChannel one mesh step toward peer `to`
     // — my direct channel if I hold one, else the occupant of fwdNextCoord.
+    // Requires p.connected: a zombie pair (local dc 'open' / pc 'connected' but
+    // the far side already dropped us) silently eats frames; callers must be
+    // free to fall through to mutual-friend / door / component-walk instead.
     function nextHopDc(to, tck) {
+      const live = (p) => !!(p && p.connected && p.dc && p.dc.readyState === 'open');
       const direct = peers.get(to);
-      if (direct && direct.dc && direct.dc.readyState === 'open') return direct;
+      if (live(direct)) return direct;
       const s = meshSeat();
       const k = tck || coordKeyOf(to);
       if (!s || !s.hasCoord || !k) return null;
@@ -1742,15 +1746,34 @@
       const pid = hop ? s.occGet(net.topo.ckey(hop)) : null;
       if (pid == null || pid === myId || pid === to) return null; // hop IS the target ⇒ no channel (checked above)
       const p = peers.get(pid);
-      return (p && p.dc && p.dc.readyState === 'open') ? p : null;
+      return live(p) ? p : null;
     }
     // doorPeers: relay-REACHABLE seats that can carry an envelope into the
-    // mesh — prefer seats holding a DIRECT channel to the target (its owner,
-    // head, row-mates), then my entry gateway + the greeter pool (the front
-    // door — healing-laws R2: greeters are exactly who holds sockets).
+    // mesh. Order matters — the friendless newcomer has no DCs of its own, so
+    // the door is the whole path. Prefer, in order:
+    //   (1) socketed peers that REPORT a live link to the target (connsOf) —
+    //       evidence they can deliver the last hop over a real DataChannel
+    //   (2) structural neighbours of the target (owner/head/row-mates) — hope
+    //       the geometry holds an open edge
+    //   (3) gateway + greeter pool + every other socketed peer
+    // A pure structural preference was the late-join wedge: doors[0] was often
+    // the up-parent whose down-link to the socketless target had never opened,
+    // so the greeter's hopRelay hit {t:'nosock'} and the envelope died — while
+    // a different greeter (or a peer that already held a DC to the target)
+    // would have delivered. The sender never learned: nosock lands on the
+    // greeter, not the newcomer, so retries hit the same dead door forever.
     function doorPeers(to, tck) {
       const s = meshSeat(), T = net.topo, out = [];
       const add = (pid) => { if (pid != null && pid !== myId && pid !== to && relaySocketed.has(pid) && !out.includes(pid)) out.push(pid); };
+      // (1) evidence first — a socketed peer that already claims the target
+      const claimed = [];
+      for (const pid of relaySocketed) {
+        if (pid === myId || pid === to) continue;
+        if ((connsOf.get(pid) || []).includes(to)) claimed.push(pid);
+      }
+      claimed.sort();
+      for (const pid of claimed) add(pid);
+      // (2) structural neighbours of the target's seat
       const k = tck || coordKeyOf(to);
       if (s && k) {
         const t = T.unck(k);
@@ -1758,6 +1781,7 @@
         if (t.i !== 0) add(s.occGet(T.ckey({ pc: t.pc, r: t.r, i: 0 })));
         for (const mte of T.rowMates(t)) add(s.occGet(T.ckey(mte)));
       }
+      // (3) the public front door
       if (s) { add(s.gateway); for (const g of (s.lastGreeters || [])) add(g); }
       for (const pid of relaySocketed) add(pid);
       return out;
@@ -1778,6 +1802,10 @@
       // hop-forwards it onward over its own channels. Throttled per target —
       // door frames wake the billed relay, and everything that rides this path
       // is beat-retried, so a stuck target must not turn into a frame hose.
+      // fsig fans to a few doors (not just doors[0]): a single dead-end greeter
+      // was the permanent late-join wedge (see doorPeers). fmesh stays single-
+      // door — it is beat-retried at high volume and the fan would hose the
+      // relay; a lost control beat costs one tick, not the handshake.
       const doors = doorPeers(to, envl.tc);
       if (doors.length) {
         if (envl.k === 'fmesh') { // beat-retried control only — fsig (offers/answers/one-shot ICE) is never swallowed
@@ -1790,9 +1818,20 @@
           doorLast.set(lane, now);
           if (doorLast.size > 512) { for (const [k, at] of doorLast) if (now - at > 30000) doorLast.delete(k); }
         }
-        txStats.doorSig++;
-        const d = doors[0];
-        txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: d, msg: piece }))));
+        // fsig fans to a few doors (handshake is one-shot; doors[0] alone was
+        // the permanent wedge when the geometric parent had a zombie link).
+        // HELLO/CLAIM are one-shot mesh announces that MUST land for the far
+        // side to learn us and re-open its relay socket (wired() is all-links);
+        // fan them to every door. PHONE and other fmesh stay single-door —
+        // beat-retried at high volume.
+        let nFan = 1;
+        if (envl.k === 'fsig') nFan = 3;
+        else if (envl.k === 'fmesh' && envl.m && (envl.m.t === 'HELLO' || envl.m.t === 'CLAIM')) nFan = doors.length;
+        const fan = doors.slice(0, Math.min(nFan, doors.length));
+        txStats.doorSig += fan.length;
+        for (const d of fan) {
+          txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: d, msg: piece }))));
+        }
         return true;
       }
       return false;
@@ -1800,20 +1839,58 @@
     const doorLast = new Map(); // per-target door-send throttle (§FWD)
     const sponsorReplyTo = new Set(); // offers that arrived sponsored — answer along the same path (§FWD)
     // fwdOnward: an fsig/fmesh envelope reached me but names someone else —
-    // pass it one bounded step onward: direct channel, else my mesh next hop,
-    // else (last resort) the relay addressed to the TARGET itself — it may be
-    // a socketed joiner; a socketless one just nosock-bounces and the frame
-    // dies here (the sender's beat retries). Never bounced back onto a DC.
+    // pass it one bounded step onward. Order:
+    //   1) direct channel / geometric mesh next hop (nextHopDc)
+    //   2) mutual-friend hop (open DC to someone who claims the target)
+    //   3) hopRelay — only if the target may still hold a relay socket
+    //   4) LAST RESORT (socketless undeliverable): hand the envelope to ONE
+    //      other open-DC peer (deterministic lowest id). Dedup + ttl keep the
+    //      walk from flooding; the room's connected component then has another
+    //      chance to land a real last hop. Needed because geometric parents
+    //      often hold a ZOMBIE "connected" pair the far side already dropped
+    //      (asymmetric link after the relay-fallback rip-out) — nextHopDc
+    //      returns them, dcSend is a no-op into a dead channel, and the
+    //      envelope dies next to a peer that actually borders the target.
+    // Never bounced back onto the via DC.
     function fwdOnward(kind, m, viaPid) {
-      if (m.id && !fwdDedup(m.id)) return; // loop-kill
+      // Loop-kill ONLY after we successfully hand the envelope on. Multi-door
+      // fan (and last-resort component walks) reuse the same envelope id; if a
+      // greeter that cannot deliver "sees" it first, a later ingress on a good
+      // path was being dropped — the permanent late-join wedge after door fan.
+      if (m.id && fwdSeen.has(m.id)) return;
       const ttl = (m.ttl == null ? 1 : m.ttl | 0) - 1; // legacy envelope: one direct-channel hop only
       if (ttl < 0) return;
       const envl = { k: kind, from: m.from, to: m.to, tc: m.tc, id: m.id, ttl, m: m.m };
+      const handoff = (p) => {
+        if (!p || p.id === viaPid || !(p.connected && p.dc && p.dc.readyState === 'open')) return false;
+        if (m.id) { fwdSeen.set(m.id, Date.now()); if (fwdSeen.size > 512) { const cut = Date.now() - 60000; for (const [k, at] of fwdSeen) if (at < cut) fwdSeen.delete(k); } }
+        txStats.hopFwd++; dcSend(p, envl); return true;
+      };
       const hp = nextHopDc(m.to, m.tc);
-      if (hp && hp.id !== viaPid) { txStats.hopFwd++; dcSend(hp, envl); return; }
-      if (m.ttl != null) { // the wire recreates the socket on demand — a socketless seat can always SEND
+      if (hp && handoff(hp)) return;
+      // Mutual-friend hop: someone we hold a live channel to already claims
+      // the target. Beats a zombie geometric parent.
+      const friends = myConns().filter((r) => r !== viaPid && r !== m.to && (connsOf.get(r) || []).includes(m.to)).sort();
+      for (const fid of friends) if (handoff(peers.get(fid))) return;
+      // hopRelay only when the target may still answer on the relay.
+      if (m.ttl != null && relaySocketed.has(m.to)) {
+        if (m.id) { fwdSeen.set(m.id, Date.now()); }
         txStats.hopRelay++;
         txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: m.to, msg: piece }))));
+        return;
+      }
+      // Last resort: one other live channel (lowest id). Dedup-on-handoff means
+      // a greeter that cannot deliver no longer poisons a later ingress on a
+      // good path (the multi-door same-id trap). A full fan here caused
+      // message storms that thinned early seating.
+      if (m.ttl != null && ttl >= 0) {
+        const alts = [];
+        for (const [pid, p] of peers) {
+          if (pid === viaPid || pid === m.to || pid === myId) continue;
+          if (p.connected && p.dc && p.dc.readyState === 'open') alts.push(pid);
+        }
+        alts.sort();
+        if (alts.length) handoff(peers.get(alts[0]));
       }
     }
     const sendSig = (to, msg) => {
@@ -2147,12 +2224,24 @@
         const p = makePeer(from, msg.name);
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
-        p.pc.setRemoteDescription(msg.sdp)
+        // Perfect negotiation (glare): both sides may offer when the lower-id
+        // side recovers from a never-arriving remote offer (see sweeper). The
+        // polite peer (lower id) rolls back its local offer and accepts; the
+        // impolite peer ignores the remote offer and keeps its own.
+        const accept = () => p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => p.pc.createAnswer())
           .then((ans) => p.pc.setLocalDescription(ans))
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch(() => {});
+        if (p.pc.signalingState === 'have-local-offer') {
+          if (myId && myId < from) {
+            Promise.resolve(p.pc.setLocalDescription({ type: 'rollback' })).then(accept).catch(() => {});
+          }
+          // else: impolite — keep our offer, ignore theirs
+          return;
+        }
+        accept();
       } else if (msg.kind === 'answer') {
         const p = peers.get(from);
         if (!p) { rxStats.answerNoPeer++; return; }
@@ -2494,18 +2583,25 @@
     const meshSendDC = (to, m) => {
       const p = peers.get(to);
       if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'mesh', m }); return true; }
-      // A RELAY-REACHABLE target: return false so the wire's sealed relay
-      // fallback carries it (the path that has always worked). A SOCKETLESS
-      // target would be silently dropped there (routePeer → no dest) —
-      // sponsor-forward instead (§FWD): through the mesh, or through the
-      // greeter DOOR when this seat holds no channels at all. This is what
-      // lets a just-seated deep newcomer's HELLO/PHONE/CLAIM/gossip reach its
-      // socketless neighbours at all (the late-join bootstrap). Mesh control
-      // is beat-driven and idempotent, so a lost hop costs a beat, not the
-      // message.
-      if (relayUp() && relaySocketed.has(to)) return false;
+      // No open DataChannel. Sponsor-forward (§FWD) — through a mutual friend,
+      // one mesh hop, or the greeter DOOR. This is what lets a just-seated deep
+      // newcomer's HELLO/PHONE/CLAIM/gossip reach its socketless neighbours at
+      // all (the late-join bootstrap). Mesh control is beat-driven and
+      // idempotent, so a lost hop costs a beat, not the message.
+      //
+      // CRITICAL: do NOT return false just because the target still appears in
+      // relaySocketed. That used to mean "the wire will sealed-relay it" — but
+      // the relay fallback was ripped out of mesh-wire deliver() (it lied about
+      // E2 liveness and parked heartbeats on the greeter socket). deliver() now
+      // only carries the ENTRY handshake (WHOHOME/FIND/HOME/PLACE/NOROOM). A
+      // false return for HELLO/PHONE/GSP is silence: the frame never leaves, the
+      // neighbour never learns we exist, and the initiator-by-id side never
+      // dials. That is the late-join deadlock after the chokepoint — measured as
+      // have-local-offer forever on one side and stable/dc:null on the other.
+      // Sponsor EVERY channel-less mesh frame; if the target really does hold a
+      // socket, door/hopRelay still reaches it.
       if (sponsorSend({ k: 'fmesh', from: myId, to, tc: coordKeyOf(to), id: myId + ':' + (++fwdSeq), ttl: 12, m })) { txStats.fwdMesh++; return true; }
-      return false; // no path at all — the wire's relay fallback is the hail-mary
+      return false; // no path at all
     };
 
     // ---- admin rooms -----------------------------------------------------------
@@ -2716,7 +2812,27 @@
         // Deep-socket drop waits until at least one DataChannel is open (§FWD:
         // an unwired deep newcomer must stay relay-reachable or inbound
         // signaling answers die — the late-join deadlock).
-        wired: () => { for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') return true; return false; },
+        // Keep (or re-open) the relay socket until EVERY named neighbour has a
+        // live DataChannel — not merely the first one. "Any one DC ⇒ drop the
+        // socket" was the late-join terminal case: a deep seat wired to its
+        // row-mate dropped the relay, a friendless newcomer force-placed next
+        // to it could only reach it by mesh hop, and a zombie geometric parent
+        // ate the hop. While any owned-link neighbour is known in occ but
+        // unbuilt, the seat is still "joining" that edge and needs the door.
+        wired: () => {
+          const s = meshSeat();
+          if (!s || !s.hasCoord) return false;
+          const want = s.linkPeers();
+          if (!want.size) {
+            for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') return true;
+            return false;
+          }
+          for (const pid of want) {
+            const p = peers.get(pid);
+            if (!(p && p.connected && p.dc && p.dc.readyState === 'open')) return false;
+          }
+          return true;
+        },
         // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
         // counterpart): the same sealed payload shapes as ever, routed to the
         // same handlers.
@@ -2852,7 +2968,7 @@
         if (!linkTo(pid)) {
           if (!p.unlinkedSince) p.unlinkedSince = now;
           if (now - p.unlinkedSince > 15000) { dropPeer(pid); continue; }
-        } else p.unlinkedSince = 0;
+        } else { p.unlinkedSince = 0; p.absentSince = 0; } // a mesh-named neighbour is never absent
         const st = p.pc.connectionState;
         if (p.absentSince && !p.connected && now - p.absentSince > ABSENT_GRACE) { dropPeer(pid); continue; }
         // A pc that lands in 'closed' can't be ICE-restarted — rebuild the
@@ -2892,11 +3008,20 @@
         // hadn't caught up, so its row-discipline guard refused us): re-offer
         // until both sides' arithmetic agrees. Deterministic rows guarantee
         // convergence; the 6s throttle keeps it polite.
-        if (!p.absentSince && iInitiate(pid) && !p.connected
-            && (st === 'failed' || st === 'disconnected' || st === 'new') && now - p.lastKick > 6000) {
+        //
+        // Also: the LOWER-id side offers after a grace if it knows the neighbour
+        // (linkTo) and they never dialled. Id-order initiation assumes both
+        // sides know each other; after the relay-fallback rip-out a friendless
+        // newcomer's HELLO can fail to reach a socketless peer, so the higher-id
+        // side never learns and never offers. The lower-id side has the occ
+        // seed and must break the deadlock. Glare is handled in onSignal.
+        if (!p.absentSince && !p.connected && linkTo(pid)
+            && (st === 'failed' || st === 'disconnected' || st === 'new' || st === 'connecting')
+            && now - p.lastKick > 6000
+            && (iInitiate(pid) || (p.downSince && now - p.downSince > 4000))) {
           p.lastKick = now + Math.random() * 1500;
           p.altPath = !p.altPath; // §FWD transport rotation — a rotting relay path must not eat every retry
-          sendOffer(pid, st !== 'new');
+          sendOffer(pid, st !== 'new' && st !== 'connecting');
         }
         // Direct route recovered → drop any friend-relay for this peer.
         if (p.connected && relayVia.has(pid)) stopRelayFor(pid, true);
@@ -6668,24 +6793,45 @@
         if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
         const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
         const T = net.topo, target = { pc: +pc, r: +r, i: +i };
-        // occSeed ({'pc/r.i': fullPeerId, …} — e.g. from the probeTree census)
-        // teaches this seat the room BEFORE it moves, so the dial at the target
-        // addresses real neighbours even across a fragment boundary
-        // (S1 seats hold relay sockets, so the bootstrap path can carry them).
-        let seeded = 0;
+        // occSeed ({'pc/r.i': fullPeerId, …}) teaches this seat the room so the
+        // dial at the target addresses real neighbours. MUST travel as `nbrs`
+        // into take()/doMove — doMove CLEARS occ before take, so a pre-seed
+        // written into seat.occ is wiped and the joiner lands with zero
+        // linkPeers (pairs=[], no offers, silent "deadlock" that is just an
+        // empty neighbourhood). take(c, owner, nbrs) re-applies nbrs after
+        // the clear, which is the same path ordinary PLACE admission uses.
+        const nbrs = [];
         if (occSeed) for (const k of Object.keys(occSeed)) {
           const mm = /^(\d+)\/(\d+)\.(\d+)$/.exec(k); if (!mm) continue;
           const key = T.ckey({ pc: +mm[1], r: +mm[2], i: +mm[3] });
-          if (occSeed[k] && occSeed[k] !== seat.id) { seat.occ.set(key, occSeed[k]); seeded++; }
+          if (occSeed[k] && occSeed[k] !== seat.id) nbrs.push({ k: key, v: occSeed[k] });
         }
         // The teleport rides the SAME atomic path as every heal move (law T):
         // dual-hold doMove — take the target while still holding the old seat,
         // vacate with LEAVE(mvd)+tombstone on confirm, roll back if contradicted.
         try {
-          if (seat.hasCoord) seat.doMove(target, null, []);
-          else seat.take(target, null, []);
+          if (seat.hasCoord) seat.doMove(target, null, nbrs);
+          else seat.take(target, null, nbrs);
         } catch (e) { return { err: String(e).slice(0, 80) }; }
-        return { seated: target.pc + '/' + target.r + '.' + target.i, seeded, transit: !!seat.moving };
+        try { renderFromOcc(); } catch (e) {}
+        return { seated: target.pc + '/' + target.r + '.' + target.i, seeded: nbrs.length, transit: !!seat.moving };
+      },
+      // DEBUG-TREE: inject one occupancy entry (the effect of a delivered HELLO
+      // from that peer at that coord). Used by the late-join ARRANGED leg so the
+      // socketless neighbour learns the force-seated joiner the way a successful
+      // HELLO would have taught it — the §FWD offer/answer path remains the
+      // thing under test; this only closes the "both sides know" precondition
+      // that natural admission guarantees and a pure take() cannot when HELLO
+      // is still in flight over a lossy sponsor path.
+      learnOcc: (coord, pid) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        const seat = meshNode && meshNode.seat; if (!seat) return { err: 'no seat yet' };
+        const mm = /^(\d+)\/(\d+)\.(\d+)$/.exec(String(coord || ''));
+        if (!mm || !pid) return { err: 'bad args' };
+        const key = net.topo.ckey({ pc: +mm[1], r: +mm[2], i: +mm[3] });
+        seat.occ.set(key, String(pid));
+        try { renderFromOcc(); } catch (e) {}
+        return { ok: true, key, pid: String(pid).slice(0, 12) };
       },
       debugDump: () => {
         const s = meshSeat(), c = meshCoord(), now = Date.now();
