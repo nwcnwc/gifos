@@ -511,6 +511,23 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         console.log('[swarm] LINKS seated=' + seated + ' complete=' + perfect + '/' + seated
           + ' channels=' + have + '/' + want + (want ? ' (' + Math.round(have / want * 100) + '%)' : ''));
         for (const b of bad.slice(0, 12)) console.log('[swarm]   ' + b);
+        // Both sides of the handshake, summed across the shard: did the offers
+        // go out, arrive, get REFUSED, and did answers come back? A missing link
+        // is one of "never offered", "offered and refused", or "offered, accepted
+        // and never answered" — and those have completely different fixes.
+        const tot = {};
+        for (const ent2 of pages) {
+          if (!ent2.p) continue;
+          try {
+            const s = await ent2.p.evaluate(() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              return { tx: g(() => window.__gifosVideo.txStats(), {}), rx: g(() => window.__gifosVideo.rxStats(), {}) }; });
+            for (const k of Object.keys(s.tx || {})) tot['tx.' + k] = (tot['tx.' + k] || 0) + (s.tx[k] | 0);
+            for (const k of Object.keys(s.rx || {})) tot['rx.' + k] = (tot['rx.' + k] || 0) + (s.rx[k] | 0);
+          } catch (e) {}
+        }
+        const show = Object.entries(tot).filter(([, v]) => v).sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => k + '=' + v).join(' ');
+        console.log('[swarm] SIGNAL ' + show);
         return;
       }
       if (cmd === 'detail') { // per-bot mesh state — WHY a bot isn't seated (state/links/occ)
