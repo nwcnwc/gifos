@@ -2133,7 +2133,17 @@
       if (!msg) return;
       if (rxStats[msg.kind] !== undefined) rxStats[msg.kind]++;
       if (msg.kind === 'offer') {
-        if (!linkTo(from)) { rxStats.offerRejected++; return; } // outside my row's link set — rows settle, they retry
+        // Accept if my arithmetic already claims this peer, OR if I do not know
+        // it yet. The link relation is SYMMETRIC (S1 ownedLinks = row + column,
+        // and the deep set mirrors up/down), so a seat only ever dials cells it
+        // owns — which means an offer from a peer I have not yet heard of is
+        // almost certainly my own neighbour whose occupancy has not reached me.
+        // Rejecting it was the other half of the column deadlock: A knows B from
+        // its PLACE seed and dials, B has not learned A yet and refuses, and the
+        // HELLO that would have taught B can no longer sneak over the relay.
+        // Degree stays bounded: the sender dials only its own owned links, and
+        // the sweeper retires any link the arithmetic ends up not wanting.
+        if (!linkTo(from) && meshKnows(from)) { rxStats.offerRejected++; return; }
         const p = makePeer(from, msg.name);
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
@@ -2203,6 +2213,16 @@
     // the stage (row 0), and — when I'm my row's deacon — the other rows'
     // deacons (the fold/forward edges). At default constants a small room is
     // one row, so this set is EVERYONE — today's mesh, by arithmetic.
+    // Does my mesh already have an occupancy entry naming this peer? If it does
+    // and linkTo() still says no, the peer genuinely is not my neighbour and its
+    // offer is refused. If it does NOT, I simply have not learned it yet — see
+    // the offer gate in onSignal.
+    function meshKnows(pid) {
+      const s = meshSeat();
+      if (!s || !s.occ) return false;
+      for (const v of s.occ.values()) if (v === pid) return true;
+      return false;
+    }
     function linkTo(pid) {
       // BOUNDED DEGREE — the law. A seat holds direct WebRTC links to ONLY its
       // own bounded neighbourhood: its ROW-mates (the full-mesh row, C-1), its
@@ -2350,6 +2370,23 @@
       const fhLive = (v) => { for (const [k, vv] of s.occ) if (vv === v) { const at = s.live.get(k); return at !== undefined && (s.env.TICK - at) <= 60; } return false; };
       const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); };
       for (const v of s.occ.values()) if (v && v !== myId && notTomb(v) && alive(v)) ids.add(v);
+      // DIAL EVERY NEIGHBOUR THE MESH NAMES — never only the ones already
+      // talking to us. `alive()` below asks "have I heard from this peer
+      // lately?", which is the right question for DRAWING a tile and the wrong
+      // one for BUILDING a link: it made contact a precondition for the dial
+      // that establishes contact. Row-mates squeaked through because admission
+      // (H7 PLACE -> CLAIM -> HELLO with the row head) makes them first-hand
+      // live before any dial; a COLUMN mate has no admission relationship with
+      // us, so it was never alive, so it was never dialled, so it never became
+      // alive. That is why rows worked and columns did not — nothing to do with
+      // the geometry, everything to do with this gate. The mesh's own occupancy
+      // is the authority on who our neighbours are; if linkTo() says a seat is
+      // ours, we dial it, heard-from or not.
+      for (const v of s.occ.values()) {
+        if (!v || v === myId || !notTomb(v) || peers.has(v)) continue;
+        if (devOf[v] && devOf[v] === myDevHash) continue;   // a stale session of my own device
+        if (linkTo(v)) ensureLink(v, rosterNames[v] || null);
+      }
       for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000 && notTomb(pid)) ids.add(pid);
       rosterIds = Array.from(ids);
       for (const pid of rosterIds) {

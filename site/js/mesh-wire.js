@@ -131,8 +131,39 @@
     // deliver(to, m): the raw transport step — DataChannel first, sealed relay
     // {t:'peer'} fallback. (Signing, when S4 is on, happens in env.send before
     // this is reached.)
+    // ─────────────────────────────────────────────────────────────────────────
+    // THE RELAY IS A DOOR, NOT A TRANSPORT. NEVER ADD A FALLBACK HERE AGAIN.
+    //
+    // A blanket `else -> send it over the relay` used to sit on this line. It
+    // was never a design decision; it crept in, and it did real damage:
+    //
+    //  1. IT LIED ABOUT LIVENESS. D1's heartbeat is how a seat learns who it
+    //     can reach FIRST-HAND (E2). Delivering a PHONE over the relay
+    //     manufactures liveness for a peer link that is dead, so the seat
+    //     believes in a neighbour it cannot actually talk to, and healing
+    //     (H1/H2/E2) — which exists to notice exactly that — is blinded.
+    //  2. IT HID A REAL BUG FOR AS LONG AS IT EXISTED. Column links were not
+    //     being dialled at all (see meet.html renderFromOcc: a peer was only
+    //     dialled once it was already `alive`, which a column mate never is
+    //     until it is dialled). The fallback carried their heartbeats, so the
+    //     room limped instead of failing, and nobody saw the broken link layer.
+    //  3. IT INVERTED THE ECONOMICS. Every unbuilt link parked ~0.5 frames/s of
+    //     heartbeat per neighbour onto one relay socket. A room whose links
+    //     were mostly unbuilt pushed ~4/s through a budget a HEALTHY room uses
+    //     0.3/s of — so the relay was billed for the consequences of its own
+    //     splint, and the rate guard then cut the very signalling that would
+    //     have built the links.
+    //
+    // If there is no peer path, the honest answer is SILENCE: the peer is not
+    // reachable, healing must be allowed to see that, and the link layer must
+    // be fixed rather than bypassed. The relay carries the entry handshake
+    // (knock/greeters, and a channel-less newcomer reaching a greeter — R2)
+    // and NOTHING else, ever.
+    // ─────────────────────────────────────────────────────────────────────────
+    const RELAY_OK = { FIND: 1, PLACE: 1, NOROOM: 1, WHOHOME: 1, HOME: 1, GREETERS: 1 };
     function deliver(to, m) {
-      if (opts.sendDC && opts.sendDC(to, m)) return;
+      if (opts.sendDC && opts.sendDC(to, m)) return;   // DataChannel, else sponsor-forward through the mesh
+      if (!RELAY_OK[m.t]) return;                      // NO PEER PATH ⇒ NOT REACHABLE. Never relay it. Let healing see the truth.
       net.seal(roomKey, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
     }
     const env = {
