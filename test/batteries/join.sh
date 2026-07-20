@@ -25,16 +25,20 @@ QUICK=0; [ "${1:-}" = "--quick" ] && QUICK=1
 export MEET_CHROME=${MEET_CHROME:-/opt/google/chrome/chrome}
 export SWARM_CHROME=${SWARM_CHROME:-/opt/google/chrome/chrome}
 pass=0; fail=0; results=""
-run() {                     # run <label> <cmd...>
+# run <label> <cmd...> — capture the REAL exit code, and never let one hung
+# suite stall the gate. Piping straight into tail loses the status (tail's
+# success becomes the result), so the output is captured first and the code
+# read directly; a step that outruns STEP_TIMEOUT is a failure, not a wait.
+STEP_TIMEOUT=${STEP_TIMEOUT:-900}
+run() {
   local label="$1"; shift
   echo; echo "═══ $label"
-  if "$@" 2>&1 | tail -12; then
-    # tail eats the exit code, so re-check via PIPESTATUS on the subshell above
-    :
-  fi
-  local rc=${PIPESTATUS[0]:-0}
+  local out rc
+  out=$(timeout "$STEP_TIMEOUT" "$@" 2>&1); rc=$?
+  printf '%s\n' "$out" | tail -12
   if [ "$rc" = 0 ]; then pass=$((pass+1)); results="$results\n  PASS  $label"
-  else fail=$((fail+1)); results="$results\n  FAIL  $label"; fi
+  elif [ "$rc" = 124 ]; then fail=$((fail+1)); results="$results\n  FAIL  $label  (TIMED OUT after ${STEP_TIMEOUT}s)"
+  else fail=$((fail+1)); results="$results\n  FAIL  $label  (exit $rc)"; fi
 }
 
 # ── the brain: every arrival pattern, seating AND H7 row-major shape ────────
