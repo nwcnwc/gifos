@@ -69,6 +69,25 @@ run "wire — mesh<->wire over a real relay and real sealing" \
     node test/mesh/e2e-mesh-wire.js
 
 # ── real life: browsers, real relay, link completeness ─────────────────────
+# The ladders drive swarm.js at --base 8099 / --relay 8790, and a bot that finds
+# nothing there simply never seats: the rung then reports `seated=?/N` and fails
+# for want of a stack, which is indistinguishable from the mesh being broken.
+# So the battery brings the stack up itself when it is not already listening —
+# RELAY_DEV=1, because every bot on one box shares an IP and the production
+# 8-sockets-per-IP cap would refuse the 9th.
+DEV_PID=
+listening() { (exec 3<>/dev/tcp/127.0.0.1/"$1") 2>/dev/null; }
+if [ $QUICK = 0 ] && ! { listening 8099 && listening 8790; }; then
+  echo "── bringing up the dev stack (site 8099 + relay 8790, RELAY_DEV=1) ──"
+  RELAY_DEV=1 test/servers/dev.sh >/tmp/join-battery-dev.log 2>&1 &
+  DEV_PID=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do listening 8099 && listening 8790 && break; sleep 1; done
+  if ! { listening 8099 && listening 8790; }; then
+    echo "ABORT: could not bring up the dev stack — see /tmp/join-battery-dev.log"; kill $DEV_PID 2>/dev/null; exit 2
+  fi
+fi
+trap '[ -n "$DEV_PID" ] && kill $DEV_PID 2>/dev/null' EXIT
+
 if [ $QUICK = 0 ]; then
   run "browsers — serial arrivals (one at a time), links complete" \
       ./test/swarm/join-ladder.sh serial 2 3 5 6 7
