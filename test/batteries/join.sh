@@ -41,13 +41,21 @@ fi
 # suite stall the gate. Piping straight into tail loses the status (tail's
 # success becomes the result), so the output is captured first and the code
 # read directly; a step that outruns STEP_TIMEOUT is a failure, not a wait.
+# Each step's FULL output also lands in $STEP_DIR/<n>.log, because the summary
+# keeps only the last 12 lines and the interesting line is regularly further up
+# — and while a step runs, that file is the only way to see it is making
+# progress at all rather than hung.
 STEP_TIMEOUT=${STEP_TIMEOUT:-900}
+STEP_DIR=${STEP_DIR:-/tmp/join-battery}
+mkdir -p "$STEP_DIR"; step=0
 run() {
   local label="$1"; shift
-  echo; echo "═══ $label"
+  step=$((step+1))
+  local log="$STEP_DIR/$step.log"
+  echo; echo "═══ $label"; echo "    (full output: $log)"
   local out rc
-  out=$(timeout "$STEP_TIMEOUT" "$@" 2>&1); rc=$?
-  printf '%s\n' "$out" | tail -12
+  timeout "$STEP_TIMEOUT" "$@" >"$log" 2>&1; rc=$?
+  tail -12 "$log"
   if [ "$rc" = 0 ]; then pass=$((pass+1)); results="$results\n  PASS  $label"
   elif [ "$rc" = 124 ]; then fail=$((fail+1)); results="$results\n  FAIL  $label  (TIMED OUT after ${STEP_TIMEOUT}s)"
   else fail=$((fail+1)); results="$results\n  FAIL  $label  (exit $rc)"; fi
