@@ -17,6 +17,85 @@ differs between them.
 | `tools/` | varies | utilities, not assertion tests |
 | `batteries/` | everything below it | cross-environment GATES — run before pushing |
 
+## The pipelines
+
+Almost every suite belongs to one of four pipelines. Knowing which one you are
+in tells you what a green run actually proves — and, more usefully, what it
+cannot.
+
+### 1. The meeting mesh — a five-rung ladder
+
+The same control plane is tested five times over, each rung adding one layer of
+reality. Cheap and deterministic at the bottom, slow and true at the top.
+
+| rung | what runs | proves | blind to |
+|---|---|---|---|
+| `sim/mesh.cpp` + `sim/repro-*.sh` | the C++ reference, to millions of seats | the LAWS: topology, seating, healing, every arrival pattern | transports, crypto, browsers, wall-clock |
+| `test/mesh/mesh-harness.js` | `site/js/mesh.js` replaying the sim's own scenarios at N=500/1000 | the JS port still matches the brain | real transports |
+| `test/mesh/e2e-mesh-wire.js`, `flood.js`, `e2e-mesh-identity.js` | mesh + `mesh-wire.js` over a REAL relay, real sealing and signing, in Node | the wire binding: knock, greeters, genesis, S4 | WebRTC, browsers |
+| `test/drills/*` | real browsers, real WebRTC, own relay + site | what a meeting actually does | scale |
+| `test/swarm/*` | many real browsers, optionally against production | scale, and the real internet | determinism |
+
+**The gap that matters.** Each rung can only fail in ways its fabric can
+express. The sim assumes a message sent is a message delivered, so it cannot
+model *"these two seats have no DataChannel yet"* — and that is exactly where
+the expensive bugs live. A green sim says the laws are right. It never says a
+meeting works. Only the browser rungs can say that, and only if they assert
+**link completeness** — every neighbour the mesh NAMES is a peer we are
+actually connected to — rather than counting seats. A room can report every
+seat filled while almost none of its channels exist; that was true in
+production for months.
+
+### 2. The relay
+
+`servers/relay-local.js` mirrors the production Worker (`relay/src/relay.js`)
+message for message and cap for cap, and is what the mesh, relay and drill
+suites spawn. `relay/*` exercises the protocol surface directly: the knock and
+greeter registry (R2/R3), origin and privacy rules, signed adminship (§SIG),
+vote-off and bans.
+
+Keep the two files in step. When they drift, every suite below them is testing
+a relay that does not exist.
+
+### 3. The desktop and apps
+
+`browser/*` drives the real UI in Playwright — the desktop, the app lifecycle,
+and the meeting surface (moderation, stage, password, media, recovery). These
+need the dev stack up (`servers/dev.sh`); they are the slowest and the most
+likely to be flaky, and they are also the only place a rendering or consent bug
+can be seen at all.
+
+### 4. Gates
+
+`batteries/*` runs a slice of all of the above in one command, for changes that
+cross layers. Use one when the thing you touched cannot be proven by a single
+suite — which is most of the interesting changes.
+
+## Choosing a target, and a box
+
+**Local by default.** `swarm/` tools default to `https://gifos.app` and the
+production relay, so a bare `node test/swarm/swarm.js` is a load test against
+production. Pass BOTH `--base` and `--relay` to redirect, or a bot loads the
+local page and still meshes over the production relay.
+
+**Which box.** A weak host invents failures: browser suites above ~9 bots start
+failing purely from local exhaustion (each participant holds several
+PeerConnections), and those failures look exactly like mesh bugs. Prefer the
+8-core box; when a run disagrees with the sim, re-run it somewhere idle before
+believing it.
+
+**Diagnostics, when a run disagrees with the sim.**
+
+| question | how to answer it |
+|---|---|
+| did the bot even dial the relay? | `RELAY_DEBUG=1` on the relay → `[conn] ACCEPT/REJECT` per socket. No line at all ⇒ browser/env, not mesh |
+| how chatty is the room? | `[rate]` (per peer msgs/s) and `[kind]` (by frame type) |
+| was a socket refused, and why? | `[conn] REJECT ... :: <reason>` |
+| are the channels the mesh names actually open? | `links` on the swarm ctrl file — `complete=N/N channels=X/Y`, misses named by coord |
+| never offered, refused, or never answered? | `SIGNAL` on the swarm ctrl file — sums `txStats`/`rxStats` across the shard |
+| is the room ONE room? | distinct coords + agreeing population (`drills/adversary-room.js` asserts both) |
+
+
 ## Running
 
 ```bash
@@ -199,3 +278,17 @@ app README image).
   `browser/e2e-mymedia-meet.js` are left failing on purpose as guards.
 - `browser/e2e-app-governance.js` open-room "latest-wins takeover" is flaky:
   B never becomes `appIsHost` (null `contentWindow` postMessage).
+- `drills/e2e-latejoin.js` does not fully pass. Its connection legs do — late
+  joiners reach `pc:connected` / `dc:open` — but it cannot reliably ARRANGE its
+  own scenario: seating layout churns, so some runs produce no late joiner with
+  a socketless link target, and the deadlock leg plus the media check then fail
+  for want of anything to measure. Treat a failure here as "did the scenario set
+  up?" before "is the product broken?", and check the run's seated coords.
+- `browser/e2e-relay.js` times out waiting for the desktop `.icon` to render.
+  Predates this work — it fails identically at `421ecc5`.
+- `drills/adversary-room.js` has, on at least one run, caught every coord being
+  held by two participants with populations disagreeing (3–6 of 11). Whether
+  that split survives the current wire is unconfirmed. It is the reason the
+  drill asserts distinct coords and agreeing population at all: link-based
+  checks are blind to a split room, because each fragment wires itself up
+  perfectly.
