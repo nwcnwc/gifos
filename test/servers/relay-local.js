@@ -13,7 +13,10 @@ const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 // GREETER REGISTRY constants (R2/R3) — mirror relay/src/relay.js.
 // TTL = RELAY_TTL(500 ticks) × the 500ms production tick > E3 worst case (200s).
-const GREETER_TTL_MS = 250 * 1000, GBLOB_CAP = 4096;
+// RELAY_GREETER_TTL_MS shortens the TTL for tests ONLY — the margin between
+// this TTL and the E3 re-knock is what a suite wants to exercise, and waiting
+// 250s per assertion is not a test. Default is the production value.
+const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
 
 // ---- minimal RFC6455 connection ----
 class Conn {
