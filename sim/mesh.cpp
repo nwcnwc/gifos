@@ -485,11 +485,38 @@ static long long DUPS_G=0; static void counts(long long&seated,long long&s1c){ s
 static string coordStr(Coord c){ // decode pc to base-5 path string
   string p; uint32_t pc=c.pc; vector<int> d; while(pc){d.push_back(lastDigit(pc)); pc=parentPath(pc);} for(int a=(int)d.size()-1;a>=0;a--) p+=('0'+d[a]);
   char b[64]; snprintf(b,64,"%s/%d.%d",p.c_str(),c.r,c.i); return b; }
+// ARRIVAL PATTERN (the `joinmode` op; applies to the NEXT init).
+// The default spreads arrivals uniformly at random over a window proportional
+// to N, which is ONE pattern out of several a real room sees — and not the
+// hard ones. A meeting fills by people trickling in one at a time, by a class
+// or a conference call arriving in clumps, and by everyone hitting the link at
+// the top of the hour. Each stresses admission differently: serial arrivals
+// exercise the seed/handshake path with no concurrency to hide behind, batches
+// exercise several admitters racing on the same frontier, and a burst exercises
+// genesis + the whole C1 frontier at once.
+//   window W   (default) uniform random over W ticks; W<=0 ⇒ the N-scaled default
+//   burst      ALL N at tick 0 — the thundering herd
+//   batch K E  groups of K every E ticks
+//   serial E   one seat every E ticks — strictly one at a time
+static string JOINMODE="window"; static int JM_A=0, JM_B=0;
 static void initSim(int n,double leave){
   GSEED=SEED0; PARTITIONED=false; partSide.clear();   // reproducible per SEED0; a fresh room is never partitioned
-  N=n; LEAVEFRAC=leave; joinWindow=max(1,min((int)(N*0.25),2000)); MAXP=(long long)N*30+60000;
+  N=n; LEAVEFRAC=leave; MAXP=(long long)N*30+60000;
+  if(JOINMODE=="burst")       joinWindow=1;
+  else if(JOINMODE=="batch")  joinWindow=max(1,((N+max(1,JM_A)-1)/max(1,JM_A))*max(1,JM_B)+1);
+  else if(JOINMODE=="serial") joinWindow=max(1,N*max(1,JM_A)+1);
+  else                        joinWindow=(JM_A>0?JM_A:max(1,min((int)(N*0.25),2000)));
   size_t cap=(size_t)N+(size_t)(N*0.6)+16; seats.assign(cap,nullptr); alive.assign(cap,0);
-  spawnPlan.assign(joinWindow+1,{}); for(int k=0;k<N;k++){ int t=(int)(grnd()*joinWindow); spawnPlan[t].push_back(k); }
+  spawnPlan.assign(joinWindow+1,{});
+  for(int k=0;k<N;k++){
+    int t;
+    if(JOINMODE=="burst")       t=0;
+    else if(JOINMODE=="batch")  t=(k/max(1,JM_A))*max(1,JM_B);
+    else if(JOINMODE=="serial") t=k*max(1,JM_A);
+    else                        t=(int)(grnd()*joinWindow);
+    if(t>joinWindow) t=joinWindow;
+    spawnPlan[t].push_back(k);
+  }
   TICK=0; nextId=0;
   FSEED=20260714; severedUntil.clear(); buildReach();   // reset fabric rng + reachability for a reproducible conditioned run
 }
@@ -552,7 +579,9 @@ int main(int argc,char**argv){
     string op=tk[0];
     if(op=="quit"||op=="exit"){ printf("BYE\n"); break; }
     else if(op=="seed"){ SEED0=(uint32_t)(tk.size()>1?strtoul(tk[1].c_str(),nullptr,10):20260714); GSEED=SEED0; printf("OK seed=%u\n",SEED0); }
-    else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f seed=%u\n",n,lv,SEED0); }
+    else if(op=="init"){ int n=tk.size()>1?atoi(tk[1].c_str()):10000; double lv=tk.size()>2?atof(tk[2].c_str()):0; initSim(n,lv); printf("OK init N=%d leave=%.2f seed=%u join=%s(%d,%d) window=%d\n",n,lv,SEED0,JOINMODE.c_str(),JM_A,JM_B,joinWindow); }
+    // joinmode <window W|burst|batch K E|serial E> — the ARRIVAL PATTERN for the next init
+    else if(op=="joinmode"){ JOINMODE=tk.size()>1?tk[1]:"window"; JM_A=tk.size()>2?atoi(tk[2].c_str()):0; JM_B=tk.size()>3?atoi(tk[3].c_str()):0; printf("OK joinmode %s a=%d b=%d\n",JOINMODE.c_str(),JM_A,JM_B); }
     else if(op=="split"){   // TOTAL NETWORK PARTITION: cut every link between two live seat-groups, all seats stay ALIVE. `split [fracB]` — fraction of live seats put on side B (default .5)
       double fb=tk.size()>1?atof(tk[1].c_str()):0.5; partSide.assign(nextId,0); int liveN=0,bN=0;
       for(int q=0;q<nextId;q++) if(alive[q]){ liveN++; if(grnd()<fb){ partSide[q]=1; bN++; } }
