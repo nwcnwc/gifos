@@ -251,6 +251,28 @@ const check = (n, c, d) => {
   const spread = pops.length ? Math.max(...pops) - Math.min(...pops) : 99;
   check('all participants see ONE room (population agrees within 2)', spread <= 2, 'counts=' + pops.join(','));
 
+  // ── TICK RATE: the greeter pool's margin is thin, so measure it ──────────
+  // A Section-1 seat holds its place in the greeter registry by re-knocking
+  // every E3_PERIOD = 200 + rand(200) ticks; the relay expires an entry after
+  // GREETER_TTL_MS = 250s. At the canonical 500ms tick that is 100–200s of
+  // re-knock against a 250s TTL — a margin of as little as 50s. Browser timers
+  // throttle under load and in background contexts, and a tick that stretches
+  // past ~625ms puts the worst case OVER the TTL: the pool silently empties,
+  // and a newcomer that gets an empty-but-founded list FOUNDS ITS OWN ROOM
+  // (mesh.js GREETERS, R3/R6 take-over) — which is exactly the split this drill
+  // keeps catching. So report the real rate; it is the first thing to check.
+  const rate = [];
+  for (const u of users) {
+    const t0 = Date.now();
+    const a = await u.page.evaluate(() => { try { return window.__gifosVideo.meshState().tick; } catch (e) { return null; } }).catch(() => null);
+    if (a == null) { rate.push(u.name + ':?'); continue; }
+    await sleep(5000);
+    const b = await u.page.evaluate(() => { try { return window.__gifosVideo.meshState().tick; } catch (e) { return null; } }).catch(() => null);
+    const ms = b == null ? null : (Date.now() - t0) / (b - a);
+    rate.push(u.name + ':' + (ms == null ? '?' : Math.round(ms) + 'ms/tick'));
+  }
+  console.log('tick rate (canonical 500ms; >625ms can expire the greeter pool): ' + rate.join(' '));
+
   console.log('\nadversaries: ' + [...darkIds].join(' ') + '  (profile: dark / cannot complete P2P)');
   await browser.close(); cleanup();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nALL PASS — a misbehaving participant cannot poison the room');
