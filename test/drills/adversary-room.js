@@ -98,7 +98,11 @@ const check = (n, c, d) => {
     for (const r of (d.roster || [])) if (r.conn) conn.add(r.peer);
     const named = g(() => window.__gifosVideo.meshLinks().map((p) => String(p).slice(0, 12)), []);
     return { coord: d.me.coord, peer: String(d.me.peer).slice(0, 12),
-             named, linked: named.filter((p) => conn.has(p)) };
+             named, linked: named.filter((p) => conn.has(p)),
+             // split-room forensics: who I can SEE, who I am actually CONNECTED
+             // to, and what I believe the room's population and layout are.
+             roster: (d.roster || []).map((r) => ({ peer: String(r.peer).slice(0, 12), conn: !!r.conn })),
+             pop: d.participants, occ: d.me.occ, dups: d.dups || [] };
   }).catch(() => null);
 
   const waitSeat = async (u, ms) => {
@@ -181,14 +185,57 @@ const check = (n, c, d) => {
   // believe they own the same seat. And a shared view: every seat should see a
   // comparable population — a fragment sees only its own.
   const finalAll = [];
-  for (const u of users) { const d = await dump(u); if (d && d.coord) finalAll.push({ n: u.name, c: d.coord, p: d.peer }); }
+  for (const u of users) { const d = await dump(u); if (d && d.coord) finalAll.push({ n: u.name, c: d.coord, p: d.peer, d }); }
   const byCoord = new Map();
   for (const f of finalAll) byCoord.set(f.c, (byCoord.get(f.c) || []).concat(f.n));
   const clashes = [...byCoord.entries()].filter(([, who]) => who.length > 1);
+
+  // CLASSIFY every clash, because two of the three kinds are not bugs.
+  //
+  //   PARTITIONED  one holder is cut off from the room entirely (no completed
+  //                links at all). With the relay fallback gone, a client that
+  //                cannot open DataChannels IS partitioned by definition; the
+  //                room evicts it and heals the cell while it goes on believing
+  //                it holds the coord. Accepted: split-brain allowed,
+  //                detection-only. The sim reproduces exactly this.
+  //   PAIR-DARK    both holders are healthily wired into the room, but have no
+  //                channel to EACH OTHER. Two live fragments, each internally
+  //                consistent. This is the reunion question, not a seating bug.
+  //   REACHABLE    the two holders are connected to each other and STILL both
+  //                claim the cell. That is a genuine fault: a duplicate the
+  //                mesh had every opportunity to resolve and did not.
+  const classify = (whoNames) => {
+    const hs = whoNames.map((n) => finalAll.find((f) => f.n === n)).filter(Boolean);
+    const seesConn = (a, b) => !!(a.d.roster.find((r) => r.peer === b.p && r.conn));
+    const isolated = hs.filter((h) => h.d.linked.length === 0);
+    const parts = [];
+    for (let i = 0; i < hs.length; i++) for (let j = i + 1; j < hs.length; j++) {
+      const a = hs[i], b = hs[j];
+      const ab = seesConn(a, b), ba = seesConn(b, a);
+      const kind = (ab || ba) ? 'REACHABLE' : (a.d.linked.length === 0 || b.d.linked.length === 0) ? 'PARTITIONED' : 'PAIR-DARK';
+      parts.push({ kind, a: a.n, b: b.n,
+        detail: a.n + '(links=' + a.d.linked.length + ',pop=' + a.d.pop + ',occ=' + a.d.occ + ')'
+              + (ab ? ' -conn-> ' : ' -x- ') + b.n + '(links=' + b.d.linked.length + ',pop=' + b.d.pop + ',occ=' + b.d.occ + ')'
+              + (ba ? ' [reverse conn]' : '') });
+    }
+    return { parts, isolated: isolated.map((h) => h.n) };
+  };
+  let reachableDups = 0;
+  for (const [c, who] of clashes) {
+    const { parts } = classify(who);
+    for (const p of parts) {
+      if (p.kind === 'REACHABLE') reachableDups++;
+      console.log('  CLASH ' + c + '  ' + p.kind + '  ' + p.detail);
+    }
+  }
   check('every seated participant holds a DISTINCT coord (no split-brain)',
     clashes.length === 0,
     clashes.length ? clashes.map(([c, who]) => c + '<-' + who.join('+')).join(' ')
                    : finalAll.length + ' seats, all distinct');
+  // The gating property, separate from the report above: a duplicate between two
+  // peers that can talk to each other is never acceptable.
+  check('no two MUTUALLY REACHABLE peers share a cell',
+    reachableDups === 0, reachableDups + ' reachable duplicate pair(s)');
   const pops = [];
   for (const u of users) {
     const p = await u.page.evaluate(() => { try { return window.__gifosVideo.debugDump().participants; } catch (e) { return -1; } }).catch(() => -1);
