@@ -155,10 +155,27 @@ const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
 // budget forever, but with hibernation EVERY inbound frame wakes (and bills)
 // this object — a runaway client loop at 4s cadence is ~21,600 billed wakes a
 // day while never touching the byte cap. Joins are legitimately bursty (ICE
-// trickle to a full row), so the burst is generous; the sustained rate is far
-// above any real gossip pulse and far below a hot loop.
-const FRAME_BURST = 600;
-const FRAMES_PER_SEC = 3;
+// trickle to a full row), so the burst is generous.
+//
+// FRAMES_PER_SEC was 3, on the belief that this was "far above any real gossip
+// pulse". MEASURED against 5 real clients in one room, it is far BELOW it:
+//   formation: ~72 frames/s across the room, 38-62/s for the founder/greeter
+//   settled:   ~13/s across the room, 5-8/s per peer  (all of it t:'peer')
+// So every participant in an ordinary meeting ran 2-20x over budget. The
+// consequences were not throttling but corruption: an over-budget frame is
+// DROPPED (silently — it never reaches the parse below), and three strikes CUT
+// the socket, after which the client reconnects and does it again. Measured on
+// the local harness, 5 bots: meter on = 33 strikes, 12 cuts, 4-8 reconnects
+// per peer; meter off = 0 strikes, 0 cuts, exactly 1 connect per peer. Dropped
+// signaling also plausibly explains peers seen holding no coord and forming no
+// links in production.
+// 30/s leaves 4-6x headroom over the settled rate, and the generous burst
+// absorbs the join. The BYTE budget above (~384 Kbps) remains the real
+// anti-media guard; this counter exists only to catch TINY-frame loops, which
+// it still does — a hot loop of small frames trips 30/s long before it troubles
+// the byte cap.
+const FRAME_BURST = 3000;
+const FRAMES_PER_SEC = 30;
 const FRAME_STRIKES = 3; // sustained overruns after being told → cut the socket
 
 function makeMeter() { return { tokens: BURST_BYTES, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 }; }

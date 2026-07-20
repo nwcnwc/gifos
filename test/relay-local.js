@@ -205,7 +205,8 @@ server.on('upgrade', (req, socket, head) => {
   // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
   const BURST = 1024 * 1024, REFILL = 48 * 1024;
-  const FRAME_BURST = 600, FRAMES_PER_SEC = 3, FRAME_STRIKES = 3;
+  // Mirrors relay/src/relay.js — keep in step, these are what tests exercise.
+  const FRAME_BURST = 3000, FRAMES_PER_SEC = 30, FRAME_STRIKES = 3;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
     msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
@@ -409,6 +410,7 @@ server.on('upgrade', (req, socket, head) => {
     conn.onmessage = async (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
+      if (process.env.RELAY_DEBUG) typeRate.set(m.t, (typeRate.get(m.t) || 0) + 1); // what is actually flooding the relay?
       if (m.t === 'peer') routePeer(peer, m);
       else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
       else if (m.t === 'gossip' && m.msg !== undefined) {
@@ -485,12 +487,14 @@ const HOST = process.env.RELAY_HOST || '127.0.0.1';
 // RELAY_DEBUG rate meter: the relay's frame budget (FRAMES_PER_SEC) is only
 // defensible against the rate real clients actually need, so measure it rather
 // than guess. Every 10s, report each peer's observed msgs/sec.
-const msgRate = new Map();
+const msgRate = new Map(), typeRate = new Map();
 if (process.env.RELAY_DEBUG) setInterval(() => {
   if (!msgRate.size) return;
   const rates = Array.from(msgRate.entries()).map(([p, n]) => (n / 10).toFixed(1) + '/s ' + p.slice(0, 10));
   console.log('[rate] ' + rates.sort((a, b) => parseFloat(b) - parseFloat(a)).join('  '));
-  msgRate.clear();
+  if (typeRate.size) console.log('[kind] ' + Array.from(typeRate.entries())
+    .sort((a, b) => b[1] - a[1]).map(([t, n]) => t + '=' + (n / 10).toFixed(1) + '/s').join('  '));
+  msgRate.clear(); typeRate.clear();
 }, 10000).unref();
 
 server.listen(PORT, HOST, () => {
