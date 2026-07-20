@@ -79,10 +79,13 @@ const pfx = (id) => String(id).slice(0, 12);
   // ---- 1. eight early users; converge on unique seats ----
   const GOTO = { timeout: 90000, waitUntil: 'domcontentloaded' };
   const first = await newUser('E0');
-  await first.page.goto(BASE + '/meet.html', GOTO);
+  // DEBUG=on everywhere: the arranged leg (step 3b) needs probeTree to census
+  // the room and forceSeat to place a joiner, and BOTH are inert without it —
+  // a seat that never loaded the flag also never answers a probe.
+  await first.page.goto(BASE + '/meet.html#DEBUG=on', GOTO);
   await first.page.locator('#lob-open').click();
   await first.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 20000 });
-  const link = await first.page.evaluate(() => document.getElementById('share-url').value);
+  const link = (await first.page.evaluate(() => document.getElementById('share-url').value)) + '&DEBUG=on';
   console.log('room link: ' + link);
   for (let i = 1; i < 8; i++) {
     const u = await newUser('E' + i);
@@ -159,6 +162,87 @@ const pfx = (id) => String(id).slice(0, 12);
       await lu.page.evaluate(() => window.__gifosVideo.pairs()).catch(() => null));
     lateResults.push({ name: lname, lu, socketlessTargets: sockless, connected: allOk });
   }
+  // ---- 3b. the ARRANGED leg: stop hoping seating produces the scenario ----
+  // Everything above depends on a late joiner happening to land next to a
+  // socketless seat. Seating churns, so on many runs none of them does and the
+  // deadlock leg has nothing to measure — a precondition failure that reads
+  // exactly like a product failure. So arrange it: census the room, find an
+  // EMPTY cell whose owned links include a socketless seat, and put a joiner
+  // there. The joiner still arrives normally (greeter door, admission, seat);
+  // only its final cell is chosen, via the same atomic move law every heal uses.
+  // What is under test is unchanged — signaling to a link target that holds no
+  // relay socket — and now it is under test on every run.
+  const census = await users[1].page.evaluate(() => window.__gifosVideo.probeTree(6000)).catch(() => null);
+  const occSeed = {};
+  if (Array.isArray(census)) for (const s of census) if (s && s.coord && s.from) occSeed[s.coord] = s.from;
+  const stAll = await Promise.all(users.map((u) => snap(u.page).catch(() => null)));
+  const socklessCoords = stAll.filter((s) => s && s.state === 3 && s.coord && s.relayUp === false).map((s) => s.coord);
+  const idAtCoord = {}; for (const s of stAll) if (s && s.coord) idAtCoord[s.coord] = s.id;
+  console.log('  census=' + Object.keys(occSeed).length + ' seats, socketless=[' + socklessCoords.join(',') + ']');
+
+  let arranged = null;
+  if (socklessCoords.length) {
+    const au = await newUser('ARRANGED');
+    await au.page.goto(link, GOTO);
+    await au.page.waitForFunction(() => !!window.__gifosVideo, null, { timeout: 60000 }).catch(() => {});
+    const seatedOk = await au.page.waitForFunction(() => {
+      const V = window.__gifosVideo, s = V && V.meshState();
+      return s && s.state === 3 && V.meshCoord();
+    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
+    check('ARRANGED joiner seats normally before it is placed', seatedOk);
+    // Pick the cell: empty, and owning a link to a seat with no relay socket.
+    const pick = seatedOk ? await au.page.evaluate(({ occ, sockless }) => {
+      const T = window.GifOS.net.topo;
+      const parse = (s) => { const m = /^(\d+)\/(\d+)\.(\d+)$/.exec(s); return m ? { pc: +m[1], r: +m[2], i: +m[3] } : null; };
+      const key = (c) => c.pc + '/' + c.r + '.' + c.i;
+      const mine = window.__gifosVideo.meshCoord();
+      for (const sc of sockless) {
+        const S = parse(sc); if (!S) continue;
+        for (const cand of T.ownedLinks(S)) {
+          const ck = key(cand);
+          if (occ[ck]) continue;                                  // taken
+          if (mine && ck === key(mine)) continue;                 // already there
+          const targets = T.ownedLinks(cand).map(key).filter((k) => sockless.includes(k));
+          if (targets.length) return { cell: ck, targets };
+        }
+      }
+      return null;
+    }, { occ: occSeed, sockless: socklessCoords }) : null;
+    check('an empty cell adjacent to a SOCKETLESS seat exists to place the joiner in',
+      !!(pick && pick.targets.length), pick ? (pick.cell + ' -> targets ' + pick.targets.join(',')) : 'none found');
+    if (pick) {
+      const res = await au.page.evaluate(({ cell, seed }) => {
+        const m = /^(\d+)\/(\d+)\.(\d+)$/.exec(cell);
+        return window.__gifosVideo.forceSeat(+m[1], +m[2], +m[3], seed);
+      }, { cell: pick.cell, seed: occSeed });
+      const tPlaced = Date.now();
+      const landed = await au.page.waitForFunction((cell) => {
+        const c = window.__gifosVideo.meshCoord();
+        return !!c && (c.pc + '/' + c.r + '.' + c.i) === cell;
+      }, pick.cell, { timeout: 10000 }).then(() => true).catch(() => false);
+      check('ARRANGED joiner is placed at ' + pick.cell, landed, JSON.stringify(res));
+      // The measurement, now guaranteed to have something to measure: every
+      // socketless seat it NAMES must become a connected WebRTC pair, fast.
+      const want = pick.targets.map((c) => idAtCoord[c]).filter(Boolean).map(pfx);
+      let ok = false, waited = 0;
+      while (Date.now() - tPlaced < TIGHT_MS + 5000) {
+        const cs = await snap(au.page).catch(() => null);
+        if (cs) {
+          const connSet = new Set((cs.connTo || []).map(pfx));
+          if (want.every((x) => connSet.has(x))) { ok = true; waited = Date.now() - tPlaced; break; }
+        }
+        await sleep(500);
+      }
+      check('ARRANGED: connected to every SOCKETLESS link target within ' + ((TIGHT_MS + 5000) / 1000) + 's',
+        ok && want.length > 0, ok ? (waited + 'ms, targets=' + want.join(',')) : ('want=[' + want.join(',') + '] '
+          + JSON.stringify(await au.page.evaluate(() => window.__gifosVideo.pairs()).catch(() => null))));
+      arranged = { name: 'ARRANGED', lu: au, socketlessTargets: want, connected: ok };
+      lateResults.push(arranged);
+    }
+  } else {
+    check('an empty cell adjacent to a SOCKETLESS seat exists to place the joiner in', false, 'no socketless seat in the room at all');
+  }
+
   const anyExercised = lateResults.some((r) => r.socketlessTargets.length > 0);
   check('the deadlock topology was actually exercised (a late joiner had a socketless link target)', anyExercised);
 
