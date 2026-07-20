@@ -257,10 +257,15 @@ const check = (n, c, d) => {
   // GREETER_TTL_MS = 250s. At the canonical 500ms tick that is 100–200s of
   // re-knock against a 250s TTL — a margin of as little as 50s. Browser timers
   // throttle under load and in background contexts, and a tick that stretches
-  // past ~625ms puts the worst case OVER the TTL: the pool silently empties,
-  // and a newcomer that gets an empty-but-founded list FOUNDS ITS OWN ROOM
-  // (mesh.js GREETERS, R3/R6 take-over) — which is exactly the split this drill
-  // keeps catching. So report the real rate; it is the first thing to check.
+  // past ~625ms puts the worst case OVER the TTL, emptying the pool.
+  //
+  // That does NOT by itself split a room — `test/mesh/greeter-expiry.js` runs a
+  // pool that is empty almost all the time and newcomers still join the
+  // existing meeting, because an expired pool reports NOT founded and the
+  // joiner waits on the mint gap rather than taking over. But a tick rate far
+  // off 500ms slows every timed law in the mesh — heal windows, ring holds,
+  // retries — so it is still the first number to look at when a browser run
+  // disagrees with the sim, and it is nearly free to collect.
   const rate = [];
   for (const u of users) {
     const t0 = Date.now();
