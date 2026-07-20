@@ -206,7 +206,7 @@ server.on('upgrade', (req, socket, head) => {
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
   const BURST = 1024 * 1024, REFILL = 48 * 1024;
   // Mirrors relay/src/relay.js — keep in step, these are what tests exercise.
-  const FRAME_BURST = 6000, FRAMES_PER_SEC = 120, FRAME_STRIKES = 3;
+  const FRAME_BURST = 3000, FRAMES_PER_SEC = 3, FRAME_STRIKES = 3;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
     msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
@@ -224,7 +224,10 @@ server.on('upgrade', (req, socket, head) => {
       clog('STRIKE ' + meter.strikes + '/' + FRAME_STRIKES + ' peer=' + peer
         + ' len=' + len + ' tokens=' + (meter.tokens | 0) + ' frames=' + meter.frames.toFixed(2));
       conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' }));
-      if (meter.strikes >= FRAME_STRIKES) { clog('CUT peer=' + peer + ' (rate) — client will reconnect'); try { conn.close(1013, 'rate'); } catch (e) {} }
+      // Mirrors relay/src/relay.js: throttle frame overruns, sever only when the
+      // BYTE bucket is drained (real media abuse). Cutting a bursty joiner
+      // destroyed the signaling that would have moved it onto a DataChannel.
+      if (meter.strikes >= FRAME_STRIKES && meter.tokens < 1) { clog('CUT peer=' + peer + ' (bytes) — sustained volume'); try { conn.close(1013, 'rate'); } catch (e) {} }
     }
     return false;
   };
