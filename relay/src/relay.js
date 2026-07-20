@@ -169,13 +169,23 @@ const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
 // per peer; meter off = 0 strikes, 0 cuts, exactly 1 connect per peer. Dropped
 // signaling also plausibly explains peers seen holding no coord and forming no
 // links in production.
-// 30/s leaves 4-6x headroom over the settled rate, and the generous burst
-// absorbs the join. The BYTE budget above (~384 Kbps) remains the real
-// anti-media guard; this counter exists only to catch TINY-frame loops, which
-// it still does — a hot loop of small frames trips 30/s long before it troubles
-// the byte cap.
-const FRAME_BURST = 3000;
-const FRAMES_PER_SEC = 30;
+// The rate SCALES WITH ROOM SIZE, so size it for a FULL Section 1, not for the
+// 5-seat room where it was first measured. Re-measured with 25 bots (S1 full):
+//   formation: ~463 frames/s across the room
+//   settled:   ~80-140/s across the room; the few GREETER seats that carry the
+//              routing run 18-37/s EACH, the rest are near silent (their
+//              traffic has moved onto DataChannels, as intended)
+// A 30/s cap sits right on that boundary: the burst hides it for a few minutes,
+// then the bucket drains and the cuts resume. Enforced at 30/s, 25 bots reached
+// only 24 seats and never converged (21 strikes, 9 cuts); with the meter off
+// the same 25 converged into a full Section 1 with zero churn (25 sockets for
+// 25 peers). 120/s gives ~3x headroom over the busiest real seat.
+// The BYTE budget above (~384 Kbps) remains the real anti-media guard — for
+// ordinary ~900-byte control frames it binds first, around 53/s. This counter
+// therefore only ever bites TINY frames, which is exactly its stated purpose:
+// a hot loop of small frames still trips it long before it troubles the bytes.
+const FRAME_BURST = 6000;
+const FRAMES_PER_SEC = 120;
 const FRAME_STRIKES = 3; // sustained overruns after being told → cut the socket
 
 function makeMeter() { return { tokens: BURST_BYTES, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 }; }
