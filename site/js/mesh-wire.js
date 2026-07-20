@@ -160,11 +160,20 @@
     // (knock/greeters, and a channel-less newcomer reaching a greeter — R2)
     // and NOTHING else, ever.
     // ─────────────────────────────────────────────────────────────────────────
-    const RELAY_OK = { FIND: 1, PLACE: 1, NOROOM: 1, WHOHOME: 1, HOME: 1, GREETERS: 1 };
     function deliver(to, m) {
       if (opts.sendDC && opts.sendDC(to, m)) return;   // DataChannel, else sponsor-forward through the mesh
-      if (!RELAY_OK[m.t]) return;                      // NO PEER PATH ⇒ NOT REACHABLE. Never relay it. Let healing see the truth.
-      net.seal(roomKey, { mw: 1, m }).then((b) => relaySend({ t: 'peer', to, msg: b })).catch(() => {});
+      // No peer path. The relay is NOT a transport, so the only frames that may
+      // continue from here are the ENTRY HANDSHAKE, and only in its two
+      // directions. Both are decided by the STEP we are at, never by frame type
+      // — FIND and WHOHOME are each sent BOTH by an entrant reaching a greeter
+      // (entry) and by a seated seat routing to another seat (internal), so a
+      // type test cannot tell them apart and a type ALLOWLIST silently let the
+      // internal ones onto the relay.
+      if (AT_THE_DOOR_ASKING_TO_BE_LET_IN(to, m)) return;
+      if (ANSWERING_SOMEONE_AT_THE_DOOR(to, m)) return;
+      // Anything else has no path: the peer is NOT REACHABLE. Say nothing and
+      // let healing (H1/H2/E2) see the truth — a back channel that lies about
+      // reachability is worse than silence.
     }
     const env = {
       TICK: 0,
@@ -180,17 +189,13 @@
         }
         deliver(to, m);
       },
+      // A knock is one of exactly two things depending on which side of the
+      // door I am on: a seated Section-1 seat IS a door and re-registers (E3);
+      // anyone else is still outside and is asking for the list.
       knock(from, gk) {
         const k = gk || myKey; // never knock keyless
-        if (seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) {
-          // Seated Section-1 seat: register my SEALED address in the pool (E3).
-          // The greeter blob is a REAL Seal(K, address): the address is this
-          // seated Section-1 greeter's {peerId, coord}, not a bare id — sealed
-          // under the room key the relay never holds (R2). A knocker that opens
-          // it learns WHERE the greeter sits, not just who it is.
-          net.seal(roomKey, { p: peer, c: seat.coord }).then((b) => relaySend({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
-            .catch(() => relaySend({ t: 'knock', gk: k }));
-        } else relaySend({ t: 'knock', gk: k });
+        if (iAmAGreeter()) REGISTER_MYSELF_AS_A_GREETER(k);
+        else KNOCK_FOR_THE_GREETER_LIST(k);
       },
       wake() {},
     };
@@ -237,10 +242,77 @@
         if (opts.onRelayMsg) opts.onRelayMsg(m);
       };
     }
-    function relaySend(obj) {
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE ONLY WAYS THIS CLIENT MAY EVER TOUCH THE RELAY
+    //
+    // healing-laws R2: the relay is a zero-knowledge GREETER REGISTRY — a
+    // DOOR, not a transport. Which side of that door you are on is a question
+    // about the STEP YOU ARE AT, not about the frame you happen to be holding:
+    //
+    //   before you have a greeter  → the relay is how you find one
+    //   once you are seated        → you are INSIDE; you talk over the mesh
+    //
+    // Every socket write in this file goes through one of the four functions
+    // below, each named for the step it belongs to. Each ENFORCES its
+    // own precondition rather than trusting its caller — so "who may use the
+    // relay, and when" is answered in one place and cannot drift. Nothing else
+    // may call sendRaw; an unlisted caller is a bug, and a NEW function needs a
+    // law to justify it — that is the point of naming them.
+    //
+    // This replaced a frame-type allowlist, which was the wrong shape: FIND and
+    // WHOHOME are each sent BOTH by an entrant reaching a greeter and by a
+    // seated seat routing internally, so the list quietly re-opened the relay
+    // as a transport for anything wearing an entry type name.
+    // ═══════════════════════════════════════════════════════════════════════
+    function sendRaw(obj) {   // PRIVATE — the four functions below only
       if (stopped) return;
       if (!sock || sock.rejected) makeSock(); // recreate on demand (deep seats run socketless)
       sock.send(obj);
+    }
+    const iAmInsideTheRoom = () => !!(seat && seat.hasCoord && seat.state === 3);
+    const iAmAGreeter = () => iAmInsideTheRoom() && seat.coord.pc === 0;
+    // Is this peer already IN the room? Occupancy is the membership roll, so a
+    // peer holding no cell in it has not been seated: it is at the door.
+    const isAtTheDoor = (pid) => { if (!seat || !seat.occ) return true; for (const v of seat.occ.values()) if (v === pid) return false; return true; };
+
+    // (1) KNOCK — I have no greeter yet, so I ask the registry for the sealed
+    // list (R3: an empty list mints genesis). The one call that exists precisely
+    // because there is no other way in.
+    function KNOCK_FOR_THE_GREETER_LIST(gk) { sendRaw({ t: 'knock', gk: gk || myKey }); }
+
+    // (2) REGISTER — I am a seated Section-1 seat, so I AM a door; E3 keeps my
+    // sealed address in the pool so newcomers can still find one. The address is
+    // Seal(K,{peerId,coord}) under the room key the relay never holds (R2).
+    function REGISTER_MYSELF_AS_A_GREETER(gk) {
+      const k = gk || myKey;
+      if (!iAmAGreeter()) { KNOCK_FOR_THE_GREETER_LIST(k); return; }
+      net.seal(roomKey, { p: peer, c: seat.coord })
+        .then((b) => sendRaw({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
+        .catch(() => sendRaw({ t: 'knock', gk: k }));
+    }
+
+    // (3) ASK TO BE LET IN — I am an ENTRANT with no seat and no channels, so
+    // the relay carries my WHOHOME/FIND to the greeter I chose from the list.
+    // This is the ONLY outbound mesh traffic an unseated client may relay, and
+    // it stops the moment I am seated.
+    function AT_THE_DOOR_ASKING_TO_BE_LET_IN(to, m) {
+      if (iAmInsideTheRoom()) return false;             // I am inside — use the mesh
+      if (m.t !== 'WHOHOME' && m.t !== 'FIND') return false;  // entry asks only
+      net.seal(roomKey, { mw: 1, m }).then((b) => sendRaw({ t: 'peer', to, msg: b })).catch(() => {});
+      return true;
+    }
+
+    // (4) ANSWER SOMEONE AT THE DOOR — I am a greeter and the target is NOT in
+    // the room's occupancy, i.e. demonstrably still outside. Its introduction
+    // (HOME) or its seat (PLACE / NOROOM) has to reach it somehow, and it has no
+    // channels yet. Strictly bounded: seated targets never qualify, so this can
+    // never become a back channel between members.
+    function ANSWERING_SOMEONE_AT_THE_DOOR(to, m) {
+      if (!iAmAGreeter()) return false;
+      if (!isAtTheDoor(to)) return false;               // already inside — mesh only
+      if (m.t !== 'HOME' && m.t !== 'PLACE' && m.t !== 'NOROOM') return false;
+      net.seal(roomKey, { mw: 1, m }).then((b) => sendRaw({ t: 'peer', to, msg: b })).catch(() => {});
+      return true;
     }
     function fireLocked() { if (!lockedFired) { lockedFired = true; if (opts.onLocked) opts.onLocked(); } }
 
@@ -317,7 +389,16 @@
       // App access to the wire's relay socket (the ONE socket): signaling
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.
-      relaySend(obj) { relaySend(obj); },
+      // (5) FIRST-CONTACT SIGNALING for the app layer (meet.html). A WebRTC
+      // pair cannot bootstrap over a DataChannel it does not have yet, so the
+      // offer/answer that CREATES the first channel needs some path. meet.html
+      // applies §FWD before it ever reaches here — its own DataChannel, then a
+      // sponsor forward through the mesh, and only then this — so what arrives
+      // is traffic with no peer path at all. It is named and listed here rather
+      // than left as an anonymous export, because an unnamed way to reach the
+      // relay is exactly how the last one crept in.
+      RELAY_FIRST_CONTACT_SIGNALING(obj) { sendRaw(obj); },
+      relaySend(obj) { sendRaw(obj); },   // legacy alias — callers should move to the named form
       relayUp() { return !!(sock && sock.state === 'up'); },
       // Password change re-keyed the room (§LOCK): adopt the NEW key for every
       // wire seal/open, and — if this seat is a Section-1 greeter — re-knock
