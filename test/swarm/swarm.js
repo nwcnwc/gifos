@@ -481,6 +481,38 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
         }
         return;
       }
+      // LINK COMPLETENESS — the assertion "seated" is too weak for. A room can
+      // report every seat filled while almost none of its DataChannels exist:
+      // that was true in production for a long time, and the relay fallback hid
+      // it by carrying the heartbeats. The mesh names each seat's neighbours
+      // (linkPeers, from occupancy); this asks how many of those are ACTUALLY
+      // connected, and names the ones that are not. want == have is the bar.
+      if (cmd === 'links') {
+        let want = 0, have = 0, perfect = 0, seated = 0; const bad = [];
+        for (const ent2 of pages) {
+          if (!ent2.p) continue;
+          try {
+            const w = await ent2.p.evaluate(() => { const g = (f, d) => { try { return f(); } catch (e) { return d; } };
+              const d = g(() => window.__gifosVideo.debugDump(), null); if (!d) return null;
+              const conn = new Set(); const coordOf = {};
+              for (const r of (d.roster || [])) { if (r.conn) conn.add(r.peer); if (r.coord) coordOf[r.peer] = r.coord; }
+              const peers = g(() => window.__gifosVideo.meshLinks().map(String), []);
+              const missing = peers.filter((p) => !conn.has(String(p).slice(0, 12)))
+                                   .map((p) => coordOf[String(p).slice(0, 12)] || String(p).slice(0, 6));
+              return { coord: d.me.coord, want: peers.length, have: peers.length - missing.length, missing };
+            });
+            if (!w) continue;
+            if (w.coord) seated++;
+            want += w.want; have += w.have;
+            if (w.want === w.have) perfect++;
+            else bad.push(w.coord + ' missing[' + w.missing.join(',') + ']');
+          } catch (e) {}
+        }
+        console.log('[swarm] LINKS seated=' + seated + ' complete=' + perfect + '/' + seated
+          + ' channels=' + have + '/' + want + (want ? ' (' + Math.round(have / want * 100) + '%)' : ''));
+        for (const b of bad.slice(0, 12)) console.log('[swarm]   ' + b);
+        return;
+      }
       if (cmd === 'detail') { // per-bot mesh state — WHY a bot isn't seated (state/links/occ)
         const stCnt = {}; const links0 = []; let seated = 0;
         for (const ent2 of pages) {
