@@ -600,7 +600,7 @@ export class Session {
     // SENDER instead of dropping the frame silently; it falls back to
     // sponsor-forward immediately instead of retrying blind. Leaks nothing the
     // roster doesn't already broadcast (which peers hold sockets). Mirrors
-    // test/relay-local.js routePeer.
+    // test/servers/relay-local.js routePeer.
     const src = from === 'host' ? this.hostSock() : this.peerSock(from);
     if (src) this.send(src, { t: 'nosock', to: m.to });
   }

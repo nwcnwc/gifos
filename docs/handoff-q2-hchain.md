@@ -48,9 +48,9 @@ So each of Q2, then H-CHAIN, runs the FULL pipeline:
 1. **Design** is already agreed (Q2 in roadmap §3; H-CHAIN in healing-laws.md).
 2. **Sim-first** — implement in `sim/mesh.cpp` + `sim/mesh_seat.inc` (source of
    truth), add a deterministic repro (like `repro-atomic-move.sh`), verify.
-3. **Port to `site/js/mesh.js`** line-for-line; pin with `test/mesh-harness.js`.
+3. **Port to `site/js/mesh.js`** line-for-line; pin with `test/mesh/mesh-harness.js`.
 4. **Gate** — `node --check` mesh.js/mesh-wire.js + meet.html inline scripts;
-   `node test/mesh-harness.js` ALL PASS; build sim + **full `sim/sweep.sh`**
+   `node test/mesh/mesh-harness.js` ALL PASS; build sim + **full `sim/sweep.sh`**
    (300/0); the new repro GREEN; relevant browser e2e green.
 5. **Ship to production** — commit to `main`, push (auto-deploys gifos.app). NO
    wrangler (neither Q2 nor H-CHAIN touches `relay/`).
@@ -169,7 +169,7 @@ piece against current code before trusting it):
   **`wss://pi-16gb.tail58a633.ts.net:8443`**. (Or just use the PRODUCTION relay
   `wss://relay.gifos.app` for a true live-production test — but that's the CF
   Worker with a 100k/day free cap; the pi relay avoids that.)
-- **Bots:** `node test/swarm.js --room <R> --relay <R> --n N --offset O` on the
+- **Bots:** `node test/swarm/swarm.js --room <R> --relay <R> --n N --offset O` on the
   Pis / Jetson Orin. swarm.js was UPDATED for mesh-v2 this project (the `mon`
   monitor in meet.js + `--ctrl` fault injection were added) — CONFIRM it emits
   the seat/coord/move metrics you need to SEE compaction/healing, and extend it
@@ -197,7 +197,7 @@ piece against current code before trusting it):
 ## 6. Operational gotchas (still current — from prior handoff §7)
 
 - **Merge gate (control plane):** `node --check` the changed JS + meet.html
-  inline scripts; `node test/mesh-harness.js` ALL PASS; build sim + **full
+  inline scripts; `node test/mesh/mesh-harness.js` ALL PASS; build sim + **full
   `sim/sweep.sh`** (300/0) + the change's repro; browser e2e as needed. Only
   all-green → commit to main + push. `relay/` unchanged ⇒ NO wrangler.
 - **Commit AND push after every milestone** (CLAUDE.md). Rebase onto main to
@@ -250,7 +250,7 @@ piece against current code before trusting it):
 1. `git pull origin main` (other sessions may have pushed). Read this doc, then
    `docs/healing-laws.md` (esp. the H section + H-CHAIN), `docs/roadmap.md` §3,
    `docs/media-plane.md`, and the memory index.
-2. Confirm the baseline is green: `node test/mesh-harness.js` (expect ALL PASS),
+2. Confirm the baseline is green: `node test/mesh/mesh-harness.js` (expect ALL PASS),
    `g++ -O2 -std=c++17 -fsyntax-only sim/mesh.cpp` (expect OK).
 3. **Build Q2 (compaction) end-to-end** (§3): sim-first + `repro-compaction.sh`
    → mesh.js port → full gate → push (deploys) → **home-LAN live test** (§5).
@@ -271,7 +271,7 @@ piece against current code before trusting it):
 > merged and green on main; the H-CHAIN law text is written and I approved it;
 > nothing else in the queue is implemented. Your mission: take **Q2 (compaction)**
 > all the way through — sim-first with a repro, port to mesh.js, full merge gate
-> (`node test/mesh-harness.js` ALL PASS + full `sim/sweep.sh` 300/0 + browser
+> (`node test/mesh/mesh-harness.js` ALL PASS + full `sim/sweep.sh` 300/0 + browser
 > e2e), push to main (auto-deploys gifos.app; NO wrangler, it doesn't touch
 > relay/), and then TEST IT ON LIVE PRODUCTION using the home-LAN hardware (the
 > tailnet-Pi swarm in §5 — verify swarm.js/the `mon` monitor actually surface

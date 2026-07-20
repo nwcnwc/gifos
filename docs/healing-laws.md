@@ -7,7 +7,7 @@ The C++ reference sim is the SOURCE OF TRUTH: `sim/mesh.cpp` +
 `sim/mesh_seat.inc` + `sim/topo.h`. Production runs a line-for-line port —
 `site/js/mesh.js` (the Seat brain) on `net.topo`, bound to real transports by
 `site/js/mesh-wire.js` — pinned against the sim's numbers by
-`test/mesh-harness.js` and end-to-end by `test/e2e-mesh-wire.js`. Security
+`test/mesh/mesh-harness.js` and end-to-end by `test/mesh/e2e-mesh-wire.js`. Security
 doctrines: `docs/meet-security.md`. Media: `docs/media-plane.md`.
 
 ## The picture, in three sentences

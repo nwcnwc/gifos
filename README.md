@@ -154,7 +154,7 @@ python3 -m http.server 8099 -d site
 # → open http://127.0.0.1:8099/index.html
 
 # Optional: local relay for multiplayer testing
-node test/relay-local.js          # ws://127.0.0.1:8790
+node test/servers/relay-local.js          # ws://127.0.0.1:8790
 # then in the browser console: localStorage.setItem('gifos_relay','ws://127.0.0.1:8790')
 ```
 
@@ -163,21 +163,21 @@ The desktop seeds itself with the default apps on first run. Open **two tabs** o
 ### Tests
 
 ```bash
-node test/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
-node test/e2e.js                  # the desktop, sandbox, versioning (Chromium)
-node test/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
-node test/e2e-store.js            # per-record store: orphan safety + delete/replace invariants
-node test/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
-node test/e2e-failover.js         # host death → client takeover, same session
-node test/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
-node test/e2e-media-recovery.js   # denied camera re-asks on tap; black camera auto-restarts
-node test/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
-node test/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
-node test/e2e-boot.js             # computer images: boot, isolate, reboot fresh
-node test/sign.js                 # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
+node test/unit/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
+node test/browser/e2e.js                  # the desktop, sandbox, versioning (Chromium)
+node test/browser/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
+node test/browser/e2e-store.js            # per-record store: orphan safety + delete/replace invariants
+node test/browser/e2e-relay.js            # multiplayer: P2P upgrade + relay fallback
+node test/browser/e2e-failover.js         # host death → client takeover, same session
+node test/browser/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
+node test/browser/e2e-media-recovery.js   # denied camera re-asks on tap; black camera auto-restarts
+node test/browser/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
+node test/browser/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
+node test/browser/e2e-boot.js             # computer images: boot, isolate, reboot fresh
+node test/unit/sign.js                 # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
 ```
 
-The e2e suites expect the static server on `:8099` and (for relay/video) `test/relay-local.js` on `:8790`.
+The e2e suites expect the static server on `:8099` and (for relay/video) `test/servers/relay-local.js` on `:8790`.
 
 ## Deployment
 

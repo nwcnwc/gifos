@@ -244,7 +244,7 @@ the chain enters the child section through a **different row t's** down-link
 an S1 parent starts head → `(0,t,0)` over the rook **column** instead; `r=0`
 and `i=r` use the adapted cross folds (`(0,t)↔(t,t)`, `(r,r)↔(0,r)`). Every
 case shares **no edge** with the direct sdx/sdn legs and never touches the
-parent seat itself (verified exhaustively by `test/mirror-route.js` — at C=5
+parent seat itself (verified exhaustively by `test/unit/mirror-route.js` — at C=5
 every `(r,i)` case has a valid transit row). The chain rides the ordinary
 mosaic machinery: each hop is a keyed ship (`sdnm:<dst>`) **born parked**
 (zero media, m-lines negotiated), re-derived from occ on the 2s sweep so

@@ -530,13 +530,13 @@ deltas keep it current after that.
 
 ### Verification
 
-`test/e2e-app-owner.js` (protocol) and `test/e2e-app-mesh-wire.js` (the exact
+`test/mesh/e2e-app-owner.js` (protocol) and `test/mesh/e2e-app-mesh-wire.js` (the exact
 runtime frame shapes over a simulated sga lane) both pass under Node, proving:
 snap convergence, `act`-proposal round-trip, read-only refusal, **impostor-op
 rejection**, tamper rejection, late-joiner snapshot, delete convergence, and
 sid-bound first-frame binding. The full browser flow (iframe mount + IndexedDB
 store + real mesh transport) still needs a stable WebRTC environment to exercise
-end to end — `test/e2e-meeting-app.js` loads the runtime cleanly but the
+end to end — `test/browser/e2e-meeting-app.js` loads the runtime cleanly but the
 headless cross-participant meshing is flaky on the CI box (upstream of any app
 code).
 

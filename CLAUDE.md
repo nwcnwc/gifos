@@ -21,17 +21,21 @@ the always-commit-and-push rule still applies there, to the branch.)
 
 ## Running the tests
 
-Two local servers, then run suites individually:
+Suites live in `test/<environment>/` — see `test/README.md` for the full index
+of what each directory needs. Two local servers, then run suites individually:
 
 ```bash
-python3 -m http.server 8099 -d site     # the static site
-node test/relay-local.js                # local relay on ws://127.0.0.1:8790
-node test/fake-ai.js                    # only for e2e-caps / AI suites (port 8791)
-node test/fake-keyapi.js                # only for e2e-api (port 8792)
-node test/fake-cors-proxy.js            # only for e2e-api (port 8793)
+python3 -m http.server 8099 -d site       # the static site
+node test/servers/relay-local.js          # local relay on ws://127.0.0.1:8790
+node test/servers/fake-ai.js              # only for AI suites (port 8791)
+node test/servers/fake-keyapi.js          # only for e2e-api (port 8792)
+node test/servers/fake-cors-proxy.js      # only for e2e-api (port 8793)
 
-node test/e2e-relay.js                  # any test/e2e-*.js runs standalone
+node test/browser/e2e-relay.js            # any suite runs standalone
 ```
+
+`test/unit/` and `test/tools/` need nothing; `test/drills/` spawn their own
+servers (safe from a worktree); `test/swarm/` is scale/production-hitting.
 
 Note: e2e-fetch-bridge spawns its OWN server on 8791 — kill fake-ai first.
 
