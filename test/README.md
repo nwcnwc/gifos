@@ -130,6 +130,15 @@ node test/servers/fake-cors-proxy.js      # 8793 — e2e-api, e2e-cors-proxy
 gate), and exactly what you don't want for a local swarm, where every bot
 shares one IP. Set `RELAY_DEV=1` to run it unguarded.
 
+**node 22 or newer, always.** `gifos-net.js` opens the relay socket with the
+global `new WebSocket` a browser supplies; node only has that global from v22.
+Under 18 or 20 the constructor throws, the connect path catches it and
+reschedules forever, and every suite that talks to a relay from Node — `flood`,
+`e2e-mesh-wire`, the whole `mesh/` and `relay/` families — **hangs with no
+output** instead of failing. nvidia-laptop still defaults to node 18, so:
+`export NVM_DIR=$HOME/.nvm; . $NVM_DIR/nvm.sh; nvm use 22`. `batteries/join.sh`
+refuses to start without it.
+
 Playwright + Chromium paths are hardcoded (already installed). If page-opens
 start timing out for no reason, kill leftover browsers first:
 `pkill -f "chrome-linux/chrome"`.
@@ -155,6 +164,13 @@ needs whatever they need. Run one before pushing a change in its area.
 `site/` AUTO-DEPLOYS on push, so an untested change to `site/js/mesh-wire.js`,
 `site/js/mesh.js` or `site/meet.html` is a change to production. Prefer the
 8-core box — a weak host invents failures above N=10 from its own exhaustion.
+
+The battery brings the dev stack up itself (site 8099 + relay 8790, `RELAY_DEV=1`)
+when those ports are idle, because the browser ladders drive `swarm.js` at them
+and a bot that finds nothing there reports `seated=?/N` — a missing stack that
+reads exactly like a broken mesh, right down to N=2 failing. Each step's full
+output goes to `/tmp/join-battery/<n>.log` while it runs; the summary keeps only
+the last 12 lines.
 
 ## servers/ — the fixture servers
 
