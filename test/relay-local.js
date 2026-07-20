@@ -208,6 +208,8 @@ server.on('upgrade', (req, socket, head) => {
   const FRAME_BURST = 600, FRAMES_PER_SEC = 3, FRAME_STRIKES = 3;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
+    msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
+    if (DEV) return true;   // RELAY_DEV: the bandwidth/frame meter is an abuse guard too
     const now = Date.now();
     const dt = (now - meter.last) / 1000;
     meter.tokens = Math.min(BURST, meter.tokens + dt * REFILL);
@@ -218,8 +220,10 @@ server.on('upgrade', (req, socket, head) => {
     if (!meter.warned) {
       meter.warned = true;
       meter.strikes++;
+      clog('STRIKE ' + meter.strikes + '/' + FRAME_STRIKES + ' peer=' + peer
+        + ' len=' + len + ' tokens=' + (meter.tokens | 0) + ' frames=' + meter.frames.toFixed(2));
       conn.send(JSON.stringify({ t: 'error', error: 'relay is for control messages only — stream media peer-to-peer (WebRTC)' }));
-      if (meter.strikes >= FRAME_STRIKES) { try { conn.close(1013, 'rate'); } catch (e) {} }
+      if (meter.strikes >= FRAME_STRIKES) { clog('CUT peer=' + peer + ' (rate) — client will reconnect'); try { conn.close(1013, 'rate'); } catch (e) {} }
     }
     return false;
   };
@@ -478,6 +482,17 @@ server.on('upgrade', (req, socket, head) => {
 // RELAY_HOST=0.0.0.0 to expose it on the LAN/tailnet for a multi-machine swarm
 // (bots on other boxes point --relay ws://<this-box-ip>:PORT).
 const HOST = process.env.RELAY_HOST || '127.0.0.1';
+// RELAY_DEBUG rate meter: the relay's frame budget (FRAMES_PER_SEC) is only
+// defensible against the rate real clients actually need, so measure it rather
+// than guess. Every 10s, report each peer's observed msgs/sec.
+const msgRate = new Map();
+if (process.env.RELAY_DEBUG) setInterval(() => {
+  if (!msgRate.size) return;
+  const rates = Array.from(msgRate.entries()).map(([p, n]) => (n / 10).toFixed(1) + '/s ' + p.slice(0, 10));
+  console.log('[rate] ' + rates.sort((a, b) => parseFloat(b) - parseFloat(a)).join('  '));
+  msgRate.clear();
+}, 10000).unref();
+
 server.listen(PORT, HOST, () => {
   console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT);
   // Say which mode is in force — "why did my bots vanish?" should never again
