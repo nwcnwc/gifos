@@ -201,24 +201,31 @@ const check = (n, c, d) => {
   //   PAIR-DARK    both holders are healthily wired into the room, but have no
   //                channel to EACH OTHER. Two live fragments, each internally
   //                consistent. This is the reunion question, not a seating bug.
-  //   REACHABLE    the two holders are connected to each other and STILL both
-  //                claim the cell. That is a genuine fault: a duplicate the
-  //                mesh had every opportunity to resolve and did not.
+  //   REACHABLE    the two holders are connected to each other, or some THIRD
+  //                participant is connected to both, and the cell is still
+  //                doubled. That is a genuine fault. The yield law (mesh.js E2)
+  //                needs one FIRST-HAND-LIVE witness of both claimants to break
+  //                the tie — so wherever such a witness exists, the duplicate
+  //                had a resolver and survived anyway.
   const classify = (whoNames) => {
     const hs = whoNames.map((n) => finalAll.find((f) => f.n === n)).filter(Boolean);
     const seesConn = (a, b) => !!(a.d.roster.find((r) => r.peer === b.p && r.conn));
-    const isolated = hs.filter((h) => h.d.linked.length === 0);
     const parts = [];
     for (let i = 0; i < hs.length; i++) for (let j = i + 1; j < hs.length; j++) {
       const a = hs[i], b = hs[j];
       const ab = seesConn(a, b), ba = seesConn(b, a);
-      const kind = (ab || ba) ? 'REACHABLE' : (a.d.linked.length === 0 || b.d.linked.length === 0) ? 'PARTITIONED' : 'PAIR-DARK';
+      // a common first-hand witness: anyone (either holder included) connected
+      // to BOTH of them is the peer E2 expects to emit the YIELD.
+      const witnesses = finalAll.filter((w) => w.p !== a.p && w.p !== b.p && seesConn(w, a) && seesConn(w, b)).map((w) => w.n);
+      const direct = ab || ba;
+      const kind = (direct || witnesses.length) ? 'REACHABLE'
+        : (a.d.linked.length === 0 || b.d.linked.length === 0) ? 'PARTITIONED' : 'PAIR-DARK';
       parts.push({ kind, a: a.n, b: b.n,
         detail: a.n + '(links=' + a.d.linked.length + ',pop=' + a.d.pop + ',occ=' + a.d.occ + ')'
-              + (ab ? ' -conn-> ' : ' -x- ') + b.n + '(links=' + b.d.linked.length + ',pop=' + b.d.pop + ',occ=' + b.d.occ + ')'
-              + (ba ? ' [reverse conn]' : '') });
+              + (direct ? ' -conn- ' : ' -x- ') + b.n + '(links=' + b.d.linked.length + ',pop=' + b.d.pop + ',occ=' + b.d.occ + ')'
+              + (witnesses.length ? ' witness=[' + witnesses.join(',') + ']' : ' no-common-witness') });
     }
-    return { parts, isolated: isolated.map((h) => h.n) };
+    return { parts };
   };
   let reachableDups = 0;
   for (const [c, who] of clashes) {
