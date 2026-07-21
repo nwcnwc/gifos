@@ -228,18 +228,17 @@ childless — a leaf. **Only leaves move. No exceptions.**
   - **A2 — resurrection recursion.** The same devolution applied to H7
     resurrection: a dead re-seeder's admission duty devolves to the next live row
     downward (wrapped). Stated here once; H7's clause cites it.
-  - **STANDING GUARD / STATUS: SPECIFIED, sim-verification PENDING.** The sim
-    exploration that motivated this (seed-1, N≤120) confirmed the chain's teeth
-    are the VERTICAL recursion (a head whose down-child healer is also dead →
-    the orphaned subtree today rides the slow E1 drain) and home cells — a
-    *trailing* hole in a deep row is harmless (left-pack simply shortens the
-    row, C2). The full churn sweep already heals every dangling case eventually
-    via drain + re-seat (300/0), so H-CHAIN is a SPEED-and-determinism win (a
-    named fast devolvee instead of a drain cadence), NOT a correctness fix — and
-    it must be proven so before it ships. **If the sim ever finds a reachable
-    hole whose chain has no designee that can first-hand-confirm per the depth
-    rule, STOP and bring the case back — do not ship a devolution that guesses.**
-    (Verified last by the Q5 small-N designation audit.)
+  - **STATUS: PARTIAL LIVE (2026-07-20).** Row-clique multi-level devolution is
+    implemented for (1) **admission** when the designated admitter seat is
+    VACATED — walk col 1…C−1 for the first occupied devolved admitter
+    (`serveFind`, sim + `mesh.js`); (2) **reactive LEFT-PACK heal** — any
+    first occupied seat strictly right of a LEAVE hole with intermediate
+    columns empty heals it (was col-1-only for heads). Gate: `sim/repro-hchain.sh`
+    + `sim/repro-headless-row.sh` (single-step control + silent ring-hold).
+    **Still PENDING:** vertical recursion (down-child healer also dead → chain
+    before E1 drain), Section-1 column-clique devolution, Q5 small-N audit,
+    self-wire-with-hint packaging. Standing guard unchanged: never ship a
+    devolution that guesses without first-hand confirm of the chain above.
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
   special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a

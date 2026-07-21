@@ -85,11 +85,10 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   `sim/repro-compaction.sh` GREEN. Remaining for E: optional home-LAN soak /
   battery inclusion; not a greenfield build.
 
-- **D / H-CHAIN — designation chain (SPECIFIED; build next after E soak).**
-  When the one designated healer/admitter is itself gone, duty devolves along
-  the fixed first-hand witness chain (healing-laws H-CHAIN). Speed/determinism
-  win over slow E1 drain — not a correctness fix. Sim-first + `repro-hchain.sh`
-  + Q5 small-N audit; standing guard: never ship a devolution that guesses.
+- **D / H-CHAIN — designation chain (PARTIAL LIVE).** Row-clique multi-level
+  devolution for vacated-admitter admission + reactive left-pack heal is in
+  sim + `mesh.js` (`repro-hchain.sh` GREEN). Remaining: vertical recursion,
+  S1 column clique, Q5 small-N audit, full sweep soak.
 
 - **A — Loss wedge under ~10% packet loss (PARKED behind E/D).** Diagnosed:
   lost PLACE leaves a phantom `s1seen` row head; resurrection hands FINDs to a
