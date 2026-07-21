@@ -57,6 +57,15 @@
   // The module is loaded as its own <script> where the page includes it
   // (run.html), or injected on demand where it doesn't (meet.html): runtime.js
   // must not require an HTML edit to function.
+  // Anchor the on-demand load to THIS script's own URL, captured now — at
+  // static-load time, before anything runs. meet.html rewrites its address to
+  // the pretty /meet/<room> form (history.replaceState) once it boots on prod,
+  // which moves the document's base URL; a bare relative 'js/app-owner.js' then
+  // resolves to /meet/js/app-owner.js and 404s, the host signer never builds,
+  // and the shared app tears straight back down (~1s after it mounts). runtime.js
+  // is always a sibling of app-owner.js, so resolving against our own src is
+  // correct in every deploy — subpath, pretty URL, or bare /meet.html.
+  const _selfSrc = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || '';
   let _appOwnerP = null;
   function appOwnerLib() {
     const G = root.GifOS || {};
@@ -65,7 +74,7 @@
     _appOwnerP = new Promise((resolve, reject) => {
       if (typeof document === 'undefined') { reject(new Error('app-owner.js unavailable')); return; }
       const s = document.createElement('script');
-      s.src = 'js/app-owner.js';
+      s.src = _selfSrc ? new URL('app-owner.js', _selfSrc).href : 'js/app-owner.js';
       s.onload = () => (root.GifOS && root.GifOS.appOwner) ? resolve(root.GifOS.appOwner) : reject(new Error('app-owner.js loaded but empty'));
       s.onerror = () => reject(new Error('failed to load app-owner.js'));
       document.head.appendChild(s);
