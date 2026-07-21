@@ -90,12 +90,14 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   sim + `mesh.js` (`repro-hchain.sh` GREEN). Remaining: vertical recursion,
   S1 column clique, Q5 small-N audit, full sweep soak.
 
-- **A — Loss wedge under ~10% packet loss (PARKED behind E/D).** Diagnosed:
-  lost PLACE leaves a phantom `s1seen` row head; resurrection hands FINDs to a
-  never-seated admitter; room caps at ~5 seats. Two law-touching fixes tried
-  and rejected (firstHandLive gate wrecks healthy convergence; PLACE TTL never
-  reaches the cell). Nathan: prefer E/D first — they should not make A worse
-  and may reduce pressure. Do not implement A candidates without a fresh call.
+- **A — Loss wedge under ~10% packet loss (DESIGN LOCKED; implement when A
+  is opened).** Diagnosed: lost PLACE leaves a phantom `s1seen` row head;
+  room caps at ~5 seats. Rejected: firstHandLive hand-off gate; PLACE TTL alone.
+  **Nathan 2026-07-21:** three-state occupancy empty / sitting-down / seated;
+  self-confirm to seated; mass-fill entire row while head is only sitting-down;
+  do not spill past the row (children) until head is seated; assigner rechecks
+  soft marks; soft TTL backstop; E2 yield on double claim. Full text:
+  `docs/handoff-2026-07-21.md` § Loss wedge design.
 
 - **B / E5 — Friend-relay + pick-one (LAW ADOPTED, refined).** No paid
   media/data relay server. **Co-members** of one chosen meeting may use
