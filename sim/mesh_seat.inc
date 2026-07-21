@@ -241,17 +241,17 @@ void Seat::heal(Coord hole){
   { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) src.push_back(e.v); }
-  // Local leaf scooch BEFORE FINDLEAF: when I AM the designated childless
-  // mover (left-pack or S1 column-pack), FINDLEAF to other S1 seats is a
-  // no-op (they refuse same-row non-head holes / wrong-column promoteInto).
-  // Only leaves move (P); if I have children, fall through to FINDLEAF.
-  if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1){ promoteInto(hole,nbrs); return; }
+  // H-CHAIN S1 column-pack scooch BEFORE FINDLEAF: FINDLEAF to other S1 seats
+  // cannot land a same-column move (promoteInto is column-scoped for the
+  // designee). Left-pack keeps the historical order (FINDLEAF then scooch)
+  // so mass-kill gossip connectivity is unchanged.
   if(!hasChildren() && coord.pc==0 && hole.pc==0 && hole.i==coord.i && hole.r!=coord.r){
     bool rowRightEmpty=true;
     for(int j=hole.i+1;j<C;j++) if(firstHandLive(ckey({0,hole.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
     if(rowRightEmpty){ promoteInto(hole,nbrs); return; }
   }
   if(!src.empty()){ int who=src[(int)(rng()*src.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
+  if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1) promoteInto(hole,nbrs);   // 11a left-pack leaf scooch
 }
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
   if(!hasCoord) return;

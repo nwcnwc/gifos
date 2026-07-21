@@ -616,16 +616,17 @@
       for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) src.push(x); }
       if (hole.pc === this.coord.pc && hole.r === this.coord.r) { for (const m of topo.rowMates(this.coord)) { if (ck(m) === ck(hole)) continue; if (!(this.kidful.has(ck(m)) && this.kidful.get(ck(m)))) continue; const x = this.occGet(ck(m)); if (x != null && x !== this.id) src.push(x); } }
       if (hole.pc === 0 && this.coord.pc === 0) { for (const e of this.s1Roster()) if (e.v !== this.id && e.k !== ck(hole)) src.push(e.v); }
-      // Local leaf scooch BEFORE FINDLEAF: when I AM the designated childless
-      // mover (left-pack or S1 column-pack), FINDLEAF to other S1 seats is a
-      // no-op. Only leaves move (P); if I have children, fall through to FINDLEAF.
-      if (!this.hasChildren() && hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1) { this.promoteInto(hole, nbrs); return; }
+      // H-CHAIN S1 column-pack scooch BEFORE FINDLEAF (FINDLEAF cannot land a
+      // same-column move). Left-pack keeps FINDLEAF-then-scooch so mass-kill
+      // gossip connectivity stays as before.
       if (!this.hasChildren() && this.coord.pc === 0 && hole.pc === 0 && hole.i === this.coord.i && hole.r !== this.coord.r) {
         let rowRightEmpty = true;
         for (let j = hole.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: hole.r, i: j }))) { rowRightEmpty = false; break; }
         if (rowRightEmpty) { this.promoteInto(hole, nbrs); return; }
       }
       if (src.length) { const who = src[(this.rng() * src.length) | 0]; this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return; }
+      // 11a left-pack leaf scooch (only when no FINDLEAF source)
+      if (!this.hasChildren() && hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1) this.promoteInto(hole, nbrs);
     }
     findLeaf(hole, nbrs, ttl) {
       if (!this.hasCoord) return;
