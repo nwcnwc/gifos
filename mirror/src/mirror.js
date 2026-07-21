@@ -78,6 +78,47 @@ export default {
     });
     const out = new Response(resp.body, resp);
     out.headers.set('x-gifos-computer', sub);
+
+    // Per-theme link previews. A meeting invite made on this computer is a
+    // <sub>.gifos.app URL (meet.html builds it from location.origin), so the
+    // subdomain — and thus the theme — travels with the link. A messaging-app
+    // scraper runs no JS, so we swap the static card for this computer's themed
+    // one (site/themes/<sub>/meet-og.png) right here at the edge.
+    //
+    //   /meet.html            → meet.html (has the base card) — rewrite the image
+    //   /meet/… , /call/…     → the pretty invite, served by 404.html (200) with
+    //                           the neutral "Join on GifOS" card — rewrite it to
+    //                           the themed MEETING card AND flip 404→200 so strict
+    //                           scrapers (which skip non-200) still unfurl it.
+    //   /join/… , everything  → left as the neutral card (404.html can't tell a
+    //                           meeting from an app session; those aren't meetings).
+    //
+    // Every routed subdomain ships a themes/<sub>/meet-og.png (see wrangler.toml
+    // "TO ADD A COMPUTER") so the themed URL never 404s.
+    const isHtml = (out.headers.get('content-type') || '').includes('text/html');
+    const p = url.pathname;
+    const meetHtml = /^\/meet\.html$/i.test(p);
+    const meetPretty = /^\/(?:meet|call)(?:\/|$)/i.test(p);
+    if (ro && isHtml && (meetHtml || meetPretty)) {
+      const card = ORIGIN + '/themes/' + sub + '/meet-og.png';
+      const desc = 'Peer-to-peer video, right in your browser. One link — no account, no installs.';
+      const title = 'Join the meeting on GifOS';
+      const set = (v) => ({ element(el) { el.setAttribute('content', v); } });
+      const rewritten = new HTMLRewriter()
+        .on('meta[property="og:image"]', set(card))
+        .on('meta[name="twitter:image"]', set(card))
+        .on('meta[property="og:title"]', set(title))
+        .on('meta[name="twitter:title"]', set(title))
+        .on('meta[property="og:description"]', set(desc))
+        .on('meta[name="twitter:description"]', set(desc))
+        .on('meta[property="og:image:alt"]', set(title + ' — one link, no account, no installs.'))
+        .transform(out);
+      // The pretty invite came back as 404.html (status 404). Re-serve it as 200
+      // so scrapers accept the unfurl; the client-side router still redirects
+      // real visitors to the right page regardless of status.
+      if (meetPretty) return new Response(rewritten.body, { status: 200, statusText: 'OK', headers: rewritten.headers });
+      return rewritten;
+    }
     return out;
   },
 };
