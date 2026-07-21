@@ -34,7 +34,7 @@ request) and **charging** via x402 (GifOS or makers).
 
 **Concrete products that ride this primitive** (detail below):
 - **§5** — Paid meetings (join tickets + optional rented media assist).
-- **§6** — App store (list GIFs; paid download / in-app purchases; platform cut).
+- **§6** — App store (free GIF downloads; optional in-app purchases + platform cut).
 
 **Why it fits.** x402 is the most *GifOS-shaped* way to charge for anything:
 payment is a **wallet signature, not an account**. No signup, no stored billing
@@ -55,7 +55,7 @@ identity — same posture as mesh identity (unforgeable key, not a login).
 - Sandbox + permissions + per-request consent (no silent drain).
 - Chain / asset / facilitator (Base + USDC common default).
 - Fee bps and public disclosure in lobby/store UI.
-- First pilot: paid meeting join ticket vs store download vs both.
+- First pilot: paid meeting join ticket vs store IAP vs both.
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
@@ -341,40 +341,46 @@ breaking free P2P culture. Distinct from rejected §1 “silent TURN for all.”
 - TURN-only vs SFU; data-retention / jurisdiction for enterprise buyers.
 - Relationship to §4c when both BYO and rented are configured (precedence).
 
-## 6. App store (GitHub catalog + x402 commerce)
+## 6. App store (GitHub catalog + free download + x402 IAP)
 
 **What.** A **Home Screen app store** that lists GIF apps. Makers **submit**
 apps (pipeline: PR / push into a **GitHub repo** you control — e.g. curated
 `apps/` or `store/` catalog). Listed apps become installable from the store
-UI on the desktop. Commerce via x402:
+UI on the desktop.
 
-- **Paid entry** — pay to download / unlock the App GIF (host pay-to + **platform
-  cut**, same split model as §5a).
-- **In-app purchases** — running apps trigger 402 for extras (content packs,
-  hints, premium modes); runtime consent + spend caps; maker pay-to + optional
-  cut.
+**Commerce model (decided):**
+- **Downloads are free** — every listed App GIF installs without payment (discovery,
+  remix, try-before-you-buy culture).
+- **In-app purchases optional** — while running, an app may charge via x402 for
+  extras (content packs, hints, premium modes, metered AI, etc.). Maker
+  **pay-to** wallet + **platform cut** (split / dual pay-to). Runtime consent +
+  spend caps; never silent charges.
+- Paid **download** unlock is **out of scope** for v1 (can revisit later; free
+  install is the rule).
 
-**Why it fits.** Apps are already files; the store is discovery + trusted
-hash + checkout, not DRM theater. No accounts: maker = wallet + git identity;
-buyer = wallet. Curated GitHub repo keeps malware/policy review in a familiar
-workflow (review PR → merge → store index updates → Pages/deploy). Aligns with
-remix culture: free apps still list; paid is optional.
+**Why it fits.** Apps are files; free distribution matches Steal App / remix.
+Makers monetize **value inside** the session, not the bit copy (which users can
+duplicate anyway). No accounts: maker = wallet + git identity; payer = wallet.
+Curated GitHub repo keeps review in a familiar PR workflow. Store is
+**catalog + trust + IAP rail**, not a paid DRM gate.
 
 **Sketch.**
 - **Catalog source:** GitHub repo (manifest: title, blurb, icon, content hash,
-  price, maker pay-to, fee bps, optional `capabilities` / screenshots).
-- **Publish path:** maker opens PR with App GIF + listing JSON; CI checks hash /
-  size / basic policy; merge publishes to store index consumed by Home Screen.
-- **Store UI:** folder or system surface on the desktop — browse, pay (if priced),
-  install GIF to Home Screen / Stolen Apps chest.
-- **Download Worker:** x402 gate on bytes; verify payment(s); stream object
-  only if hash matches listing (R2 or release asset).
-- **IAP:** `gifos.pay` / 402 on `gifos.api` or dedicated presence — shell shows
-  “Pay $X to &lt;maker&gt; (GifOS fee Y%)?”; never silent.
-- Free listings and free IAPs remain first-class.
+  maker pay-to for IAP, fee bps, optional `capabilities` / screenshots; **no
+  download price**).
+- **Publish path:** maker PR with App GIF + listing JSON; CI checks hash / size /
+  basic policy; merge → store index → Home Screen.
+- **Store UI:** browse + **Install free** → GIF on Home Screen / chest.
+- **Distribution:** static/Pages or free CDN/R2 get of bytes by content hash —
+  no x402 on download.
+- **IAP:** shell broker e.g. `gifos.pay` / 402 handling — “Pay $X to &lt;maker&gt;
+  (GifOS fee Y%)?”; receipt unlocks in-app entitlement (local or maker-verified).
+- Fully free apps (no IAP) remain first-class.
 
 **Open questions.**
 - Curation bar (signed makers only? theme-computer stores?).
-- Update / version story for paid apps (pay once for all versions vs re-buy).
-- Abuse: malicious paid GIFs — review, report, delist without accounts system.
-- Whether IAP cut equals download cut; self-hosted store mirrors.
+- IAP entitlement storage (local-only vs maker server); restore on new device
+  without accounts (receipt export / wallet-bound proof).
+- Abuse: malicious GIFs that phish pays — review, report, delist, wallet block
+  on IAP rail.
+- Platform fee bps on IAP; self-hosted store mirrors with fee = 0.
