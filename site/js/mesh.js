@@ -944,11 +944,18 @@
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
-          // H-CHAIN LEFT-PACK (reactive): a row-mate to my LEFT just LEFT. I
-          // heal it if I am the first OCCUPIED seat strictly right of the hole
-          // with every intermediate column empty (healing-laws H-CHAIN). Defer
-          // if the hole owns a down-child (VERTICAL). Old "only col-1 heals
-          // the head" is chain length-1.
+          // H-CHAIN vertical: vacated down-child clears childOf on its owner
+          // so LEFT-PACK can devolve (childOf otherwise never expired).
+          {
+            const left = unck(m.ck);
+            if (left.i === 0) {
+              const par = topo.up(left);
+              if (par) this.childOf.delete(ck(par));
+            }
+          }
+          // H-CHAIN LEFT-PACK (reactive): first OCCUPIED seat strictly right
+          // of the hole with empty intermediates heals it. Defer if LIVE
+          // down-child (VERTICAL). Old col-1-only is chain length-1.
           if (HEALING && this.hasCoord && this.state === 3) {
             const c = unck(m.ck);
             if (c.pc === this.coord.pc && c.r === this.coord.r && this.coord.i > c.i && !this.hasDownChild(c)) {

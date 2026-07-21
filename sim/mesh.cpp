@@ -228,9 +228,11 @@ struct Seat {
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
   bool lowestSurvivor(){ for(int j=1;j<coord.i;j++){ uint64_t k=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(k); if(x<0||x==id) continue; if(coord.pc!=0||s1Fresh(k)) return false;} return true; }
-  // 11a: does cell c own an OCCUPIED down-child (so its fixed healer is that
-  // down-child, the VERTICAL rule — the right-neighbour must then DEFER)? Known
-  // either directly (I link down(c)) or via childOf learned from the head's PONG.
+  // 11a / H-CHAIN: does cell c own a LIVE down-child (so its fixed healer is
+  // that down-child — VERTICAL — and the right-neighbour must DEFER)? Known
+  // either directly (occ at down(c)) or via childOf from the head's PONG.
+  // childOf is CLEARED on LEAVE of the down-child (mesh_seat.inc) so a dead
+  // vertical healer no longer blocks LEFT-PACK devolution forever.
   bool hasDownChild(Coord c){ if(occGet(ckey(down(c)))>=0) return true; auto it=childOf.find(ckey(c)); return it!=childOf.end()&&it->second>=0; }
 
   void emit(int to, const Msg& m);         // fwd

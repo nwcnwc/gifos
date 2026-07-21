@@ -67,6 +67,30 @@ grep -q 'BAD unseated=1' <<<"$bD" || { echo "   D FAIL — silent death fast-tra
 [ "$okD" -eq 1 ] && echo "   D PASS"
 [ "$okD" -eq 0 ] && fail=1
 
+echo "=== E) vertical: kill down-child then owner — LEFT-PACK heals without long drain ==="
+# Room large enough that /0.0 has a live down-child at 0/0.0. Kill the
+# vertical healer first, then the owner. With childOf cleared on LEAVE, row
+# col-1 must heal /0.0 in ~probe time (not E1 drain ~80-220).
+outE=$(run "seed 2" "init 50 0" "converge 15000" \
+  "find 0/0.0" "find /0.0" \
+  "killat 0/0.0" "tick 30" \
+  "killat /0.0" "tick 100" \
+  "find /0.0" "state")
+fChild=$(grep 'FIND 0/0.0' <<<"$outE" | head -1)
+fOwner0=$(grep 'FIND /0.0' <<<"$outE" | head -1)
+fOwner1=$(grep 'FIND /0.0' <<<"$outE" | tail -1)
+sE=$(grep '^STATE' <<<"$outE")
+echo "   before: $fOwner0 | $fChild"
+echo "   after dual leave +100: $fOwner1"
+echo "   $sE"
+# Precondition: must have had a live vertical healer
+if grep -q 'FIND 0/0.0 -> seat -1' <<<"$fChild"; then
+  echo "   E FAIL — precondition: no down-child at 0/0.0 (room too sparse)"; fail=1
+elif grep -Eq 'FIND /0.0 -> seat [0-9]+' <<<"$fOwner1" && ! grep -q 'FIND /0.0 -> seat -1' <<<"$fOwner1" \
+   && grep -q 'dups=0' <<<"$sE"
+then echo "   E PASS (owner hole refilled after vertical healer died)"
+else echo "   E FAIL — /0.0 not healed after down-child+owner leave (stale childOf?)"; fail=1; fi
+
 echo "----"
 if [ "$fail" -eq 0 ]; then echo "H-CHAIN GREEN"; exit 0
 else echo "H-CHAIN RED"; exit 1; fi

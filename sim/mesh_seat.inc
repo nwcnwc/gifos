@@ -667,13 +667,20 @@ void Seat::recv(Msg& m){
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
+      // H-CHAIN vertical: when a DOWN-CHILD vacates, clear childOf on its
+      // owner. childOf never expired before, so hasDownChild stayed true
+      // forever and LEFT-PACK deferred to a dead vertical healer (the hole
+      // then rode the slow E1 drain). Depth rule: vacated = confirmed gone.
+      { Coord left=unck(m.ck); Coord par;
+        if(left.i==0 && up(left,par)) childOf.erase(ckey(par));
+      }
       // H-CHAIN LEFT-PACK (reactive): a row-mate to my LEFT just LEFT. I heal
       // it if I am the first OCCUPIED seat strictly right of the hole with
       // every intermediate column empty (confirmed vacated) — i.e. the
       // right-neighbour, or the next row-mate after a vacated chain of
       // right-neighbours (healing-laws H-CHAIN). I defer if the hole owns a
-      // down-child (VERTICAL rule). The old "only col-1 heals the head" is
-      // the chain length-1 case.
+      // LIVE down-child (VERTICAL rule). The old "only col-1 heals the head"
+      // is the chain length-1 case.
       if(HEALING&&hasCoord&&state==3){
         Coord c=unck(m.ck);
         if(c.pc==coord.pc&&c.r==coord.r&&coord.i>c.i&&!hasDownChild(c)){
