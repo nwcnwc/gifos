@@ -6,6 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
+<!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
+     cascade (gifos-themes.js) has applied real vars, so the fallback purple
+     (var(--accent,#7b5cff)) never paints first. Reveals the instant --accent is
+     set; a failsafe timeout guarantees we never stay hidden if a theme file
+     404s or hangs. See js/gifos-themes.js. -->
+<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:#0a0a0f}</style>
+<script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
+function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');}
+function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();else requestAnimationFrame(chk);}
+requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GifOS">
 <script src="/js/sw-register.js" defer></script>
