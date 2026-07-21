@@ -558,10 +558,6 @@
           rowLive[t] = (this.coord.r === t); rowSeen[t] = rowLive[t]; rowHeld[t] = false;
           for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; if (this.cellReserved(k)) rowHeld[t] = true; }
         }
-        // Did the scan find a free home cell I can actually seat someone in,
-        // now or shortly? Distinguishes "wait, home has room" from "home's free
-        // cells are all orphaned" — see the NOROOM gate at the end of the scan.
-        let s1Servable = false;
         for (let t = 0; t < C(); t++) {
           // A + H7: previous row fully reserved and head not only soft-sitting.
           if (t > 0) {
@@ -597,7 +593,7 @@
             if (this.coord.r === below) {
               const k = ck({ pc: 0, r: t, i: this.coord.i });
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit({ pc: 0, r: t, i: this.coord.i }, mm); return; }
-              s1Servable = true; continue;   // this resurrection cell is mine, just cooling
+              continue;
             }
             // Forward toward the admitter row below ONLY over a FIRST-HAND-LIVE
             // link. Raw occGet here was a bug: when the admitter row is ALSO
@@ -633,7 +629,7 @@
               const sit = this.sitting.get(ck({ pc: 0, r: t, i: 0 }));
               if (sit && sit.assigner === this.id) {
                 if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
-                s1Servable = true; continue;   // mine to fill (I wrote the soft head), just cooling
+                continue;
               }
             }
             // H-CHAIN: devolve when admitter not reserved; prefer real row-mates.
@@ -660,7 +656,6 @@
                 }
                 this.admit(cell, mm); return;
               }
-              s1Servable = true;                         // the cell is mine to fill, just cooling
               continue;                                  // admit gate cooling — consider the next cell
             }
             // Hand off to reachable real admitter; never emit to a corpse.
@@ -678,20 +673,28 @@
             if (!this.cellReserved(ck({ pc: 0, r: t, i: j }))) s1admFree++;
           }
         }
-        // NOROOM must mean "home has room AND somebody will seat you", never
-        // "home has a cell nobody alive can admit into" — else a seeker bounces
-        // forever. If every free home cell is orphaned (designated and devolved
-        // admitters all unreachable, as in a partitioned half), go deep instead.
-        if (s1admFree > 0 && s1Servable) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
+        // Must stay unconditional: falling through to the deep path when home's
+        // free cells look unservable fast-tracks silent death past the H1-S1
+        // ring-hold (headless-row leg C), and buys nothing — the partitioned
+        // half recovers on the reachable-forward fix below alone.
+        if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
       }
       const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm); return; }
       // Descend — but NEVER into the void. This forward used raw occ, so it
       // emitted the FIND at an occupant on the far side of a partition (or a
       // corpse), where it is silently swallowed and the seeker burns its whole
-      // timeout before retrying. Prefer a FIRST-HAND-LIVE hop; with none, say
-      // NOROOM so the seeker tries another greeter now.
+      // timeout before retrying. To my own evidence a partitioned peer and a
+      // SILENT-BUT-REAL head look identical, so two passes, in this order:
+      //   0 — a hop I have heard from FIRST-HAND (demonstrably deliverable:
+      //       what the starved half of a split needs)
+      //   1 — any reachable-by-occ hop (what a silent head needs; gating those
+      //       on liveness fast-tracks silent death past H1-S1 ring-hold)
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
-      for (const q of idx) { const x = this.occGet(ck(rc[q])); if (x != null && x !== this.id && this.firstHandLive(ck(rc[q]))) { this.emit(x, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; } }
+      for (let pass = 0; pass < 2; pass++)
+        for (const q of idx) {
+          const rk = ck(rc[q]); const x = this.occGet(rk); if (x == null || x === this.id) continue;
+          if (pass === 0 ? this.firstHandLive(rk) : this.admitterReachable(rk)) { this.emit(x, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+        }
       this.emit(mm.nc, { t: 'NOROOM' });
     }
     // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1)
