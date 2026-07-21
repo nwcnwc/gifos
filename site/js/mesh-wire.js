@@ -96,6 +96,14 @@
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
     let sock = null, deepSince = -1;
+    // Greeter-list forensics (fragment founding): every greeters reply we
+    // handle is stamped here — list length, how many blobs opened under our
+    // room key, the relay's founded flag, and which branch we took. R3/R6
+    // take-over mints a second room only on empty+founded; greeter-pool
+    // expiry alone is disproven (test/mesh/greeter-expiry.js). Cap keeps
+    // memory bounded; drills dump this via node.greeterTrace().
+    const greeterTrace = [];
+    const GREETER_TRACE_CAP = 32;
     // The ROOM KEY the wire seals/opens with (greeter blobs, sealed relay
     // fallback). MUTABLE: a password change re-keys the room (§LOCK), and the
     // wire must follow — a greeter that kept sealing its registry blob under
@@ -335,6 +343,10 @@
         try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
       }
       if (stopped || !seat) return;
+      // Capture join state BEFORE recv — GREETERS empty+founded take()s at
+      // state===0 and leaves state=3, so a post-recv snapshot would hide the
+      // actual mint under "already seated".
+      const preState = seat.state;
       // R6 is a JOINING-NEWCOMER state ("the stranded newcomer"): only a seat
       // still trying to get in can be "locked out". A SEATED seat hits this
       // path too — its own E3/setKey re-knock right after a password change
@@ -343,9 +355,25 @@
       // there threw the "This room is locked" join prompt at a member who SET
       // the password. A seated seat ignores the list's content anyway (E3
       // keeps it in the pool; it never seats off it), so just drop the reply.
-      if (list.length && !ids.length) { if (seat.state !== 3) fireLocked(); return; } // R6: sealed list I can't read — wrong password (joiners only)
-      if (!ids.length && !m.founded) return;                            // the mint gap — hold; the join loop re-knocks
-      seat.recv({ t: 'GREETERS', list: ids });                          // empty+founded ⇒ the seat founds (R3/R6 take-over)
+      let action;
+      if (list.length && !ids.length) {
+        action = preState !== 3 ? 'locked' : 'drop-seated-sealed';
+        if (preState !== 3) fireLocked(); // R6: sealed list I can't read — wrong password (joiners only)
+      } else if (!ids.length && !m.founded) {
+        action = 'hold-mint-gap';                                         // hold; the join loop re-knocks
+      } else {
+        // empty+founded + still joining ⇒ R3/R6 take-over mints 0/0.0;
+        // empty+founded while already seated is a no-op (mesh.js gates on state===0).
+        // Non-empty ⇒ deliver greeter ids (gateway pick).
+        if (!ids.length && m.founded) action = preState === 0 ? 'MINT' : 'empty-founded-noop';
+        else action = 'deliver';
+        seat.recv({ t: 'GREETERS', list: ids });
+      }
+      greeterTrace.push({
+        t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
+        listLen: list.length, open: ids.length, founded: !!m.founded, action,
+      });
+      if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
     }
 
     function startLoop() {
@@ -420,6 +448,9 @@
       // have used the stale key, locking them out until a reload.
       setKey(k) { if (k) { roomKey = k; try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
       stats() { return { peer, state: seat ? seat.state : 0, coord: (seat && seat.hasCoord) ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: !!(seat && seat.stranded), tick: env.TICK }; },
+      // Greeter-list forensics: ring of recent onGreeters outcomes (listLen /
+      // open / founded / action). See greeterTrace push in onGreeters.
+      greeterTrace() { return greeterTrace.slice(); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; if (timer) clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
     };
