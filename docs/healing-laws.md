@@ -400,11 +400,17 @@ confirmation rides frames the seating already produces.)*
     the sparse transpose cross-link; the rook meshing is gated on `pc==0`. The
     extra links are a *fixed* cost (25 seats, ~9 links each) that never grows,
     and most are cheap control/roster redundancy, not media fan-out.
-  - **Keep the home DENSE (compaction).** Row-major seating (H7) + compaction
-    keeps rows and columns full, where the rook connectivity is strongest.
-    (Rows and columns are symmetric in the rook's graph, so row-major fill is
-    exactly as dense as the old column-major — and it additionally puts early
-    joiners in ONE row, which the row-scoped media near field requires.)
+  - **Keep the home DENSE (Q2 compaction — SELF-DUTY).** Row-major seating
+    (H7) + compaction keeps rows and columns full, where the rook connectivity
+    is strongest. **Principle (Nathan, 2026-07-20):** compaction is each
+    node's duty **for itself only**. A settled deep LEAF looks at its own
+    situation, decides "this is not ideal," and asks its **parent / up-chain
+    peers** to place it in a better seat if they can see one — never orders
+    another seat to move, never runs a global optimizer. The up-chain walk
+    (FIND tag==1) + atomic move (law T) is the mechanism; hysteresis and
+    leaf-only / rightmost-in-row gates keep it from sloshing. **STATUS: LIVE**
+    in `sim/mesh.cpp` + `site/js/mesh.js` (`tryCompact` / `serveCompact`),
+    gated by `sim/repro-compaction.sh`.
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
   **STATUS: specified, NOT yet implemented** — `crossLink` still returns the
@@ -454,67 +460,70 @@ confirmation rides frames the seating already produces.)*
     mesh and the parent owns the head). Across a full partition it does NOT,
     and supplying that missing witness safely — without handing an attacker a
     takeover lever — is exactly the open problem E3's audit runs into.
-- **E3. Greeter registration — and the AUDIT (DETECTION ONLY; reunion is an
-  OPEN PROBLEM).** Every Section-1 seat knocks at the front door when it takes
-  its seat and re-knocks every ~TTL, presenting the meeting's genesis key
-  (R3), which admits it to the greeter pool (the Section-1 seats ARE the pool;
-  when all of them fall silent for one TTL, the list empties and the room
-  reopens for a fresh genesis). Each knock brings the sealed greeter list
-  back — and the knocker READS it. *(History: when the genesis key killed
-  duplicate foundings we also cut E3's old self-audit — one cut too deep. The
-  key prevents two foundings; it cannot prevent the ONE founded home from
-  being TORN, each half healing itself whole under the same key.)* **Scope
-  note:** with W7 (ring integrity) and H1-S1 conservatism, a tear no longer
-  arises from ordinary churn — it takes a genuine transport-level network
-  partition. So the audit is a rare-event detector, not a routine one, and
-  what it detects is by construction the ONE case P2P cannot fix (the halves
-  share no link).
+- **E3. Greeter registration — and the AUDIT (DETECTION ONLY).** Every
+  Section-1 seat knocks at the front door when it takes its seat and re-knocks
+  every ~TTL, presenting the meeting's genesis key (R3), which admits it to
+  the greeter pool (the Section-1 seats ARE the pool; when all of them fall
+  silent for one TTL, the list empties and the room reopens for a fresh
+  genesis). Each knock brings the sealed greeter list back — and the knocker
+  READS it. *(History: when the genesis key killed duplicate foundings we also
+  cut E3's old self-audit — one cut too deep. The key prevents two foundings;
+  it cannot prevent the ONE founded home from being TORN, each half healing
+  itself whole under the same key.)* **Scope note:** with W7 (ring integrity)
+  and H1-S1 conservatism, a tear no longer arises from ordinary churn — it
+  takes a genuine transport-level network partition (or ICE islands that share
+  control but not media). So the audit is a rare-event detector, not a
+  routine one.
   - **What the audit reliably tells us (detection — SAFE).** A tear mints
     freshly promoted home seats on both sides, and a fresh seat knocks the
     moment it sits down, so the first knock after a tear already carries the
     proof: a same-key greeter claiming a coord my own roster (W5) gives to a
     DIFFERENT id, who ANSWERS a ping through the relay (a stale entry for a
     dead seat never answers and TTLs out — the answer is the blip filter).
-    **Where we are today: a greeter can notice that another greeter looks
-    like it is in a "different meeting" which — by construction — it cannot
-    be, since it holds the same URL, password, AND genesis key. That much is
-    solid.** Just noticing is safe: it moves nobody and forces nothing.
-  - **What to DO about it is UNSOLVED — and every easy answer is a takeover
-    weapon.** The moment detection triggers any automatic *remedy* that makes
-    one side authoritative over the other, an insider (anyone with the
-    link+password — our only trust boundary) can forge that remedy with a
-    Sybil attack (one attacker, many fake seats):
-    - *"Bigger live home wins, smaller drains"* → the attacker spins up a
-      swarm of fake greeters so their side "measures" bigger, and the whole
-      real meeting drains and re-seats through the attacker's fakes. Total
-      takeover, on command.
-    - *"Lower id wins"* → peer ids are CLIENT-SET (`peer=` on the socket, in
-      both relays), so the attacker just picks the winning id. (An earlier
-      draft here wrongly called ids "unforgeable" — they are not.)
-    - Any rule that lets a *detected* group force the other to move is a
-      lever a Sybil multiplies. So no counting, no id-vote, no forced drain
-      lives here.
-    **This is the hard, unsolved problem** (see the "attacker's harm ≈ its
-    fanout" note): we have no accounts and no per-person identity, so we
-    cannot cheaply tell one real large piece from one attacker wearing many
-    masks. E3 therefore STOPS at detection. A safe reunion rule is future
-    work.
-  - **The current best DIRECTION (candidate, NOT adopted).** Demote the audit
-    from *judge* to *introducer*: it opens a single mesh link across the seam
-    (relay introduction, greeting scope) to hand E2 the live witness it was
-    missing, and then E2 resolves duplicates by **tenure** — a fresh Sybil
-    seat cannot outrank a sitting incumbent, so the attacker displaces no one.
-    This bounds the attack but does not fully close it (two *equal-tenure*
-    pieces still fall to the forgeable id tie-break), so it stays marked OPEN
-    until we can defend the sybil case.
+    **A greeter can notice that another greeter looks like it is in a
+    "different meeting" which — by construction — it cannot be, since it holds
+    the same URL, password, AND genesis key.** Just noticing is safe: it moves
+    nobody and forces nothing.
+  - **What the audit must NEVER do.** Automatic *remedies* that make one side
+    authoritative over the other are Sybil takeover weapons (bigger-side-wins
+    drain, lower-id forced yield, any force-the-other-half-to-move). E3 stops
+    at detection. Reunion is **E5**, not E3.
   - **The relay stays dumb regardless (R2).** It only serves the same sealed
-    list; it never arbitrates. Whatever reunion rule we eventually adopt is
-    computed by clients, not the relay.
+    list; it never arbitrates.
+- **E5. Peer-bridge reunion (ADOPTED 2026-07-20 — Nathan).** When two pieces of
+  a meeting cannot reach each other, they are **fundamentally separate** for
+  as long as no path exists between them. GifOS will **not** pay for a media
+  or data relay server that stitches them together (R2, the meeting footer's
+  promise, media-plane "zero dedicated infrastructure"). Forcing a merge by
+  counting seats or genesis authority is also forbidden (E3 — Sybil lever).
+
+  **What we DO:** if at any moment a peer appears who **can** function as a
+  **peer-relay** (a mutual friend that both sides already open real P2P to —
+  the existing friend-relay / "via Hub" path in `meet.html`), the room must
+  **detect that bridge and take advantage of it immediately**. That peer is
+  not a server we run; it is another browser already in the meeting (or
+  joining) whose connectivity happens to span the seam. Media and
+  hop-capable control (chat, files, gossip over working DataChannels) ride
+  the bridge. Direct routes, when they later form, drop the relay path.
+
+  **What this is not:**
+  - Not a paid TURN tier (rejected, roadmap).
+  - Not "bigger fragment wins, smaller drains" (Sybil).
+  - Not a guarantee that every partition heals — if **no** peer can span
+    the islands, the halves stay separate until physics or a human rejoin
+    changes that. Detection (E3) still tells operators/clients the truth.
+
+  **STATUS:** media friend-relay between ICE-blocked pairs is **LIVE**
+  (`site/meet.html` peer-relay; `test/browser/e2e-video.js` "via Hub" leg;
+  dedicated drill `test/drills/e2e-peer-relay-reunion.js` starts from a
+  split and asserts the bridge peer heals it). Control-plane mesh
+  introduction across a full greeter-visible tear (handing E2 a live
+  witness over a bridge) may still tighten; the **law** is settled —
+  *path appears → use it immediately; no path → stay honest about the
+  split; never buy a server path.*
 - *(E4 — a genesis-storm resolver — is DISSOLVED: R2/R3's key prevents the
-  storm at admission. E5 — a standalone partition-reunion law — is WITHDRAWN:
-  its verdict-and-drain mechanics were a Sybil takeover weapon; only its
-  detection half survives, folded into E3 above, and the reunion half is now
-  an acknowledged open problem.)*
+  storm at admission. The old E5 verdict-and-drain reunion is WITHDRAWN as a
+  Sybil weapon; the name **E5** is reused for peer-bridge reunion above.)*
 
 ## R — the front door
 
@@ -660,7 +669,8 @@ before anyone can vouch for the real one. S4's per-person key makes identity
 unforgeable *everywhere except* that single moment; C3/S1/S2 keep an attacker
 from reaching or climbing into seats it has no legitimate claim to. But the
 first-contact gap is real, it is exactly one place, and it is the same gap
-that leaves the torn-home reunion (E3) unsolved.
+that E3 can only *detect* a torn home; E5 reunites only when a peer-bridge
+path exists, never by identity authority at first contact.
 
 ---
 
@@ -675,24 +685,18 @@ that leaves the torn-home reunion (E3) unsolved.
    and stable as you move — worst-exposed at the public Section-1 ring —
    specified, not yet built.)
 2. **Churn shatters the meeting into disconnected pieces (SOURCE-PREVENTED,
-   with one accepted edge).** Everything *below* the home re-seats into the
-   one home (E1 + W5), so divergence can only come from the HOME splitting —
-   and the home is wired to be one connected component (W7: heads carry
-   cross-links, redundant cross-paths, fast healing) and heals its cells only
-   on strong confirmation (H1-S1 conservatism). So no ordinary loss, however
-   severe, produces a divergent home. The one thing left is a **genuine
-   transport-level network partition** — physics, unpreventable by any P2P
-   topology — and that is honestly *two real rooms*: the E3 audit detects it,
-   but with no shared link there is no P2P reunion (and no relay tie-break, by
-   choice), so it stays two rooms until the network heals or people rejoin by
-   URL. (Separately, a genuinely DIFFERENT meeting — a different genesis key —
-   is put to a human, R5.)
+   with one accepted edge and one adopted bridge).** Everything *below* the
+   home re-seats into the one home (E1 + W5), so divergence can only come from
+   the HOME splitting — and the home is wired to be one connected component
+   (W7 + H1-S1). Ordinary loss does not produce a divergent home. A **genuine
+   transport-level partition** (or ICE islands) is honestly *two real rooms*
+   for as long as no path spans them: E3 **detects**, and E5 **reunites only
+   when a peer-bridge appears** (a mutual friend that both sides open P2P to —
+   never a paid server relay, never a force-merge by seat count). No path ⇒
+   stay split until physics or a human rejoin. (A genuinely DIFFERENT meeting
+   — different genesis key — is put to a human, R5.)
 
 There is no root to fight over and no arbiter to trust — every verdict above
-is computed independently by clients. But the open sub-case is a real one:
-peer ids are client-set, not unforgeable, so any reunion rule that lets a
-detected group *move* another is a lever a Sybil attacker multiplies. Until
-we have a cheap way to bound identity, a torn home is safely NOTICED but not
-safely REJOINED. See the mesh security frame: an attacker's harm ≈ its
-fanout; bound it, never hand it a mechanism that multiplies one seat into
-many.
+is computed independently by clients. Forced merge-by-authority is still
+forbidden (Sybil lever). E5's only "authority" is a live P2P path through a
+volunteer peer already in the room.
