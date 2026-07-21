@@ -9,18 +9,18 @@ links it already holds for control. **Three** channels ride the same topology:
 dropped — see the note under Channel R — to free its cross-link budget for the
 Stadium/Stage cross-link redundancy.)
 
-### Peer-bridge (E5) — not a media server
+### Friend-relay (E5 §1) — not a media server, not a meeting merger
 
-When two participants cannot open a direct WebRTC path (different firewalls,
-ICE blackhole) but both reach a **third peer**, that third peer may volunteer
-as a **friend-relay** ("via Hub"): it forwards media over the working links it
-already holds. That is **not** infrastructure GifOS pays for and **not** a
-relay Durable Object carrying A/V — it is another browser already in the room.
-Healing-laws **E5** elevates this to the partition-reunion rule: if a bridge
-peer appears, use it immediately; if none exists, the islands stay honest
-about the split. Detection of greeter-level tears remains E3; forced merge by
-seat count is forbidden. Implementation: `site/meet.html` peer-relay;
-gate: `test/drills/e2e-peer-relay-reunion.js` (split first, then bridge joins).
+When two **co-members of one meeting** cannot open a direct WebRTC path but
+both reach a **third peer already in that same room**, that peer may volunteer
+as a **friend-relay** ("via Hub"): it forwards media over links it already
+holds. That is **not** infrastructure GifOS pays for and **not** a Durable
+Object carrying A/V — it is another browser in the room. Healing-laws **E5**:
+use friend-relay among co-members; a **new joiner who can see two meetings
+must pick one (R5), never auto-bridge/merge them** (attacker-shaped sole
+common witness). Implementation: `site/meet.html` peer-relay; gate:
+`test/drills/e2e-peer-relay-reunion.js` (ICE-split co-members, then a third
+co-member joins the **same** room and relays — not a two-meeting merge).
 
 The whole geometry derives from `C` (`site/js/gifos-net.js` SCALE, C=5) and the
 link primitives in `sim/topo.h` (ported to `net.topo`):

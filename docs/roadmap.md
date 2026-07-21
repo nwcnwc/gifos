@@ -66,12 +66,13 @@ login).
 
 ### Priority (Nathan, 2026-07-20) — do in this order
 
-**E (Q2 compaction) → D (H-CHAIN) → A (loss wedge) → B (peer-bridge reunion).**
+**E (Q2 compaction) → D (H-CHAIN) → A (loss wedge) → B (E5 friend-relay /
+pick-one).**
 
 Rationale: compaction and H-CHAIN pack and heal the tree; the loss wedge (A)
-may shrink once those land and is **not** to be freestyled before them. Peer-
-bridge reunion (B / law E5) is product-settled and partially LIVE (friend-
-relay); its dedicated split-first drill is the gate, not a redesign.
+may shrink once those land and is **not** to be freestyled before them. B is
+product-settled: friend-relay among co-members (LIVE); newcomer who sees two
+meetings **picks one** (R5) — never silent merge via sole-bridge.
 
 ### Items
 
@@ -97,11 +98,12 @@ relay); its dedicated split-first drill is the gate, not a redesign.
   reaches the cell). Nathan: prefer E/D first — they should not make A worse
   and may reduce pressure. Do not implement A candidates without a fresh call.
 
-- **B / E5 — Peer-bridge reunion (LAW ADOPTED).** No paid media/data relay
-  between partitions. Detect splits (E3). When a peer joins (or is already
-  present) who can **peer-relay** across the seam, take advantage immediately
-  (friend-relay / "via Hub"). Forced merge-by-count is forbidden. Drill:
-  `test/drills/e2e-peer-relay-reunion.js` (split first, then bridge peer).
+- **B / E5 — Friend-relay + pick-one (LAW ADOPTED, refined).** No paid
+  media/data relay server. **Co-members** of one chosen meeting may use
+  friend-relay ("via Hub") when ICE fails. A **new joiner who can see two
+  meetings** is offered **join A or join B** (R5) — they must not become the
+  automatic bridge that merges both (attacker who engineered sole visibility).
+  Forced merge-by-count forbidden. Drill for §1: `e2e-peer-relay-reunion.js`.
 
 - **A4 — Founder dies mid-founding (CLOSED by design, Nathan 2026-07-20).**
   The second joiner does not need the founder's process to stay alive: the

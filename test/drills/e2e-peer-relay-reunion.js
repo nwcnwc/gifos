@@ -1,17 +1,18 @@
-// e2e-peer-relay-reunion.js — E5 peer-bridge reunion (healing-laws E5,
-// media-plane peer-bridge, roadmap §3 B).
+// e2e-peer-relay-reunion.js — E5 §1 friend-relay among CO-MEMBERS of ONE
+// meeting (healing-laws E5, media-plane friend-relay, roadmap §3 B).
 //
-// The law (Nathan 2026-07-20): when two pieces of a meeting cannot reach each
-// other they are fundamentally separate — GifOS will NOT pay for a media/data
-// relay server to stitch them. Forced merge-by-count is forbidden (Sybil).
-// WHAT WE DO: if a peer appears who CAN peer-relay (a mutual friend both sides
-// open real P2P to), detect that bridge and take advantage immediately.
+// Scope of this drill (do NOT confuse with E5 §2 / R5):
+//   §1 OK  — people already in the SAME chosen meeting; ICE fails between a
+//            pair; a third co-member can reach both → friend-relay ("via Hub").
+//   §2 NO  — a newcomer who can SEE TWO meetings must pick one (R5 UI), never
+//            auto-become the peer-relay that merges them (attacker-shaped).
+// This file only proves §1. It is NOT a two-meeting merge test.
 //
-// This drill starts from the SPLIT, then introduces the bridge:
+// Scenario (split first, then third co-member):
 //   1. LeftIsle opens a room; RightIsle joins with ICE to LeftIsle blocked.
-//      Assert: no direct media path (split is real — no "via Hub" yet).
-//   2. Hub joins (can ICE to both). Assert: friend-relay engages both ways
-//      ("via Hub" + live frames) — the bridge peer healed the split.
+//      Assert: no direct media (no "via Hub" yet) — co-member ICE island.
+//   2. Hub joins THE SAME room (can ICE to both). Assert: friend-relay both
+//      ways ("via Hub" + live frames).
 //
 // Self-contained: own relay + site for this checkout. Safe from a worktree.
 const { spawn } = require('child_process');
@@ -152,8 +153,8 @@ const check = (n, c, d) => {
     if (leftHealed && rightHealed) break;
     await sleep(2000);
   }
-  check('E5: after Hub joins, LeftIsle sees RightIsle via Hub with live frames', leftHealed);
-  check('E5: after Hub joins, RightIsle sees LeftIsle via Hub with live frames', rightHealed);
+  check('E5§1: after co-member Hub joins same room, LeftIsle sees RightIsle via Hub', leftHealed);
+  check('E5§1: after co-member Hub joins same room, RightIsle sees LeftIsle via Hub', rightHealed);
 
   // Optional control-plane hop: chat Left → Hub → Right (gossip over DCs).
   try {
@@ -171,7 +172,7 @@ const check = (n, c, d) => {
   await browser.close();
   cleanup();
   console.log(failures
-    ? '\n' + failures + ' FAILED — E5 peer-bridge did not heal the prepared split'
-    : '\nALL PASS — split first, then bridge peer: peer-relay reunion works');
+    ? '\n' + failures + ' FAILED — E5§1 friend-relay among co-members did not engage'
+    : '\nALL PASS — E5§1: ICE-split co-members recover via a third co-member (not a two-meeting merge)');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error('FATAL ' + (e && e.stack || e)); process.exit(2); });

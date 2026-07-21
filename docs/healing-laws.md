@@ -487,43 +487,44 @@ confirmation rides frames the seating already produces.)*
   - **What the audit must NEVER do.** Automatic *remedies* that make one side
     authoritative over the other are Sybil takeover weapons (bigger-side-wins
     drain, lower-id forced yield, any force-the-other-half-to-move). E3 stops
-    at detection. Reunion is **E5**, not E3.
+    at detection. Co-member friend-relay / newcomer pick-one are **E5** / **R5**,
+    not an E3 auto-merge.
   - **The relay stays dumb regardless (R2).** It only serves the same sealed
     list; it never arbitrates.
-- **E5. Peer-bridge reunion (ADOPTED 2026-07-20 — Nathan).** When two pieces of
-  a meeting cannot reach each other, they are **fundamentally separate** for
-  as long as no path exists between them. GifOS will **not** pay for a media
-  or data relay server that stitches them together (R2, the meeting footer's
-  promise, media-plane "zero dedicated infrastructure"). Forcing a merge by
-  counting seats or genesis authority is also forbidden (E3 — Sybil lever).
+- **E5. Friend-relay inside ONE chosen meeting — never a silent merge of two
+  (ADOPTED 2026-07-20, refined same day — Nathan).** Two scopes, do not mix them.
 
-  **What we DO:** if at any moment a peer appears who **can** function as a
-  **peer-relay** (a mutual friend that both sides already open real P2P to —
-  the existing friend-relay / "via Hub" path in `meet.html`), the room must
-  **detect that bridge and take advantage of it immediately**. That peer is
-  not a server we run; it is another browser already in the meeting (or
-  joining) whose connectivity happens to span the seam. Media and
-  hop-capable control (chat, files, gossip over working DataChannels) ride
-  the bridge. Direct routes, when they later form, drop the relay path.
+  **(1) Co-members of a meeting the human already chose — friend-relay OK.**
+  Within a single meeting, two participants may fail ICE (different firewalls)
+  while both reach a third **already in that same room**. That third peer may
+  volunteer as a **friend-relay** ("via Hub"): forward media over links it
+  already holds. GifOS will **not** pay for a media/data server path (R2,
+  media-plane). When such a mutual friend exists among co-members, use it —
+  that is ordinary path recovery, not meeting politics. Direct routes, when
+  they later form, drop the relay path. LIVE: `site/meet.html` peer-relay;
+  `test/browser/e2e-video.js` / `test/drills/e2e-peer-relay-reunion.js`.
+
+  **(2) A newcomer who can see TWO meetings — human picks ONE; never auto-bridge.**
+  If a joiner is in a position to observe two distinct homes / greeter-side
+  meetings (different genesis, or a same-key tear that looks like two rooms
+  from the door), they must **not** become the automatic peer-relay that
+  stitches those rooms together. That person may be an **attacker who
+  engineered** being the only common witness. Stick with the current design:
+  surface the choice and let the human **join meeting A or meeting B** (R5
+  faces / pick-one UI). Choosing one meeting seats them there only; it does
+  not merge the other. Detection of tears stays E3; forced merge-by-count
+  stays forbidden.
 
   **What this is not:**
-  - Not a paid TURN tier (rejected, roadmap).
+  - Not a paid TURN tier.
   - Not "bigger fragment wins, smaller drains" (Sybil).
-  - Not a guarantee that every partition heals — if **no** peer can span
-    the islands, the halves stay separate until physics or a human rejoin
-    changes that. Detection (E3) still tells operators/clients the truth.
-
-  **STATUS:** media friend-relay between ICE-blocked pairs is **LIVE**
-  (`site/meet.html` peer-relay; `test/browser/e2e-video.js` "via Hub" leg;
-  dedicated drill `test/drills/e2e-peer-relay-reunion.js` starts from a
-  split and asserts the bridge peer heals it). Control-plane mesh
-  introduction across a full greeter-visible tear (handing E2 a live
-  witness over a bridge) may still tighten; the **law** is settled —
-  *path appears → use it immediately; no path → stay honest about the
-  split; never buy a server path.*
+  - Not "the first person who can see both sides silently reunifies them."
+  - Not a guarantee every partition heals — no co-member path ⇒ stay split
+    until physics or a human rejoin; no server path will appear.
 - *(E4 — a genesis-storm resolver — is DISSOLVED: R2/R3's key prevents the
   storm at admission. The old E5 verdict-and-drain reunion is WITHDRAWN as a
-  Sybil weapon; the name **E5** is reused for peer-bridge reunion above.)*
+  Sybil weapon; the name **E5** is reused for the friend-relay / no-silent-
+  merge rule above.)*
 
 ## R — the front door
 
@@ -562,13 +563,18 @@ confirmation rides frames the seating already produces.)*
   itself filled row-major first (H7): while Section 1 has an admissible cell,
   the FIND converges on that cell's designated admitter; only a full home
   spills newcomers into the deep tree.
-- **R5. A genuine fork is a HUMAN decision.** Two meetings with DIFFERENT
-  genesis keys under one URL (a real relay-level split, or an adversarial
-  decoy whose sealed dance fails) are never auto-merged: the client surfaces
+- **R5. Seeing two meetings is a HUMAN decision (pick one — never auto-merge).**
+  Two meetings with DIFFERENT genesis keys under one URL (a real relay-level
+  split, or an adversarial decoy) are never auto-merged: the client surfaces
   the unforgeable FACES on each tree's Stage and the human chooses which room
-  to be in. Counts can be inflated; a face cannot. — A same-key split is NOT a
-  fork (it is the same meeting torn): the E3 audit *detects* it, but reuniting
-  it safely is an open problem, not yet solved.
+  to be in. Counts can be inflated; a face cannot. **Same posture when a
+  newcomer is the only party who can "see" both sides of a tear** (E5 §2):
+  they get the pick-one UI and join **only** the room they choose — they do
+  not become a silent peer-relay bridge that reunifies the other half (an
+  attacker who engineered sole common visibility must not be handed that
+  lever). A same-key split among *already seated* co-members is E3 detection
+  plus E5 §1 friend-relay only when a **co-member** mutual friend already
+  exists inside the one meeting; it is not a newcomer-driven merge.
 - **R6. The stranded newcomer** (pure client logic, zero relay presence). The
   greeter list is sealed under `K = derive(url, pw)` — URL secret AND password
   — so in a locked room even the guest list is invisible without the password.
@@ -685,18 +691,15 @@ path exists, never by identity authority at first contact.
    and stable as you move — worst-exposed at the public Section-1 ring —
    specified, not yet built.)
 2. **Churn shatters the meeting into disconnected pieces (SOURCE-PREVENTED,
-   with one accepted edge and one adopted bridge).** Everything *below* the
-   home re-seats into the one home (E1 + W5), so divergence can only come from
-   the HOME splitting — and the home is wired to be one connected component
-   (W7 + H1-S1). Ordinary loss does not produce a divergent home. A **genuine
-   transport-level partition** (or ICE islands) is honestly *two real rooms*
-   for as long as no path spans them: E3 **detects**, and E5 **reunites only
-   when a peer-bridge appears** (a mutual friend that both sides open P2P to —
-   never a paid server relay, never a force-merge by seat count). No path ⇒
-   stay split until physics or a human rejoin. (A genuinely DIFFERENT meeting
-   — different genesis key — is put to a human, R5.)
+   with honest splits and co-member friend-relay only).** Everything *below*
+   the home re-seats into the one home (E1 + W5). Ordinary loss does not
+   produce a divergent home. A **genuine transport-level partition** (or ICE
+   islands) is honestly *two real rooms* for as long as no path spans them:
+   E3 **detects**; E5 §1 allows friend-relay only among **co-members of one
+   already-chosen meeting**; a newcomer who can see both sides gets R5/E5 §2
+   **pick-one**, never silent merge. No paid server path. (Different genesis
+   key → human, R5.)
 
 There is no root to fight over and no arbiter to trust — every verdict above
-is computed independently by clients. Forced merge-by-authority is still
-forbidden (Sybil lever). E5's only "authority" is a live P2P path through a
-volunteer peer already in the room.
+is computed independently by clients. Forced merge-by-authority and
+newcomer-as-sole-bridge auto-reunion are both forbidden (Sybil levers).
