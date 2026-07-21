@@ -309,7 +309,72 @@ STUN + friend-relay only; **no** GifOS-operated media relay (see §1 rejected).
   still peer-side; assist only unblocks **transport** when paths fail (or
   when policy forces assist for compliance egress).
 
+**Authorization — how a member proves it may use the relay (Nathan, 2026-07-21).**
+
+The premise to reject first: *the admin manually passes a token along.* Nothing
+in GifOS should require a human to copy a secret into a chat box — and a token
+pasted into the room is a bearer secret visible to everyone who is already in
+the room anyway. So the rule is:
+
+> **Authorization is admission.** Being seated in the admin room *is* the
+> credential. The media-assist secret rides the **sealed admin state** that the
+> mesh already gossips to admitted seats — it is delivered automatically on
+> admission and is never in the shareable URL, never in a knock, never on the
+> greeter relay. Do not invent a second identity system beside the room key.
+
+That leaves only the question of *what* is sealed into the room. Three tiers,
+increasing in cost and in blast-radius containment — ship T0, design toward T2:
+
+- **T0 — static credential (ship first).** The admin's configured TURN
+  username/password sits in the sealed admin descriptor. Simplest thing that
+  works with an unmodified coturn. Leak = free relay for the leaker until the
+  admin rotates. Acceptable *only* for a relay the org owns with bandwidth caps
+  on it. Rotation is a config edit + re-gossip.
+
+- **T1 — room-scoped ticket, redeemed by each client.** Sealed state carries an
+  issuer URL + a short-lived, **room-scoped** ticket (TTL ≈ meeting length).
+  Each client POSTs the ticket to the *enterprise's* issuer and gets back its
+  **own** ephemeral TURN credential (standard TURN REST: `username =
+  <exp>:<seat-pseudonym>`, `password = HMAC(secret, username)`). The
+  long-term shared secret never leaves the issuer. Leak of the ticket is bounded
+  by TTL, by a max-redemptions cap, and by per-credential bandwidth quota. This
+  is the "temporary token for that meeting only" shape — the mesh does the
+  passing-along, not the admin.
+
+- **T2 — per-seat signed assertion (no bearer secret at all).** At room setup
+  the org registers the admin room's **verifier / admin public key** with its
+  issuer, once. Thereafter the admin signs `{room, seat, memberPub, exp}` with
+  the key the admin-room address already establishes as authority, and the
+  member presents that assertion to the issuer. The issuer's whole check is:
+  signature valid under a registered key, room matches, not expired, not
+  revoked. **Nothing secret ever transits the room**, credentials are per-seat
+  (so the org's TURN logs attribute bandwidth to a seat, and revocation is
+  per-member, not per-room), and a stolen assertion buys one seat until `exp`.
+
+**Consequences worth stating up front:**
+- **T2 needs a live signer.** If the only admin leaves, new joiners can't get an
+  assertion. Mitigations: co-admins as signers, or a longer-lived
+  *delegation* assertion signed once at config time that authorizes the room to
+  mint per-seat creds. Existing members' creds are unaffected either way.
+- **The issuer is not on the critical path.** Issuer down / CORS-blocked /
+  rate-limited ⇒ fall back to direct → friend-relay (E5) and keep the meeting
+  up. Assist failure must never be a join failure.
+- **GifOS cannot police TURN abuse.** TURN has no concept of "this meeting";
+  whoever holds a credential can relay arbitrary traffic until it expires. Per-
+  credential quota, peer/permission restriction, and egress monitoring are the
+  **org's** relay's job. Say so in the admin UI rather than implying we enforce it.
+- **Privacy boundary.** The enterprise issuer learns room id + seat pseudonym +
+  timing. It learns no media, no membership names, and the GifOS greeter relay
+  learns nothing at all about any of this (R2 intact).
+
 **Open questions.**
+- Whether the T1 ticket and T2 assertion can share one wire shape so the client
+  has a single "get me assist creds" path with a pluggable issuer.
+- Seat-pseudonym stability across a re-seat / heal: a member who moves seats
+  shouldn't have to re-mint mid-call (bind the assertion to identity, not `{pc,
+  r, i}`).
+- A reference issuer worth shipping: ~50 lines of Worker in front of coturn's
+  shared secret, so "run this" is the default enterprise path.
 - TURN-only vs full SFU (SFU rewrites more of the media plane; TURN keeps
   mesh compositing, only fixes connectivity).
 - How assist config is sealed/authenticated so a non-admin cannot point the
