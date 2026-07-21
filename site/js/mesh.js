@@ -131,6 +131,11 @@
       // I keep getting NOROOM is competing for a slot, NOT stranded (bug #6).
       this.lastReach = -1; this.strandedAt = 0;
       this.gateway = null;       // the greeter this (unseated) newcomer routes through
+      // R5 / E5§2: multi-greeter HOME probe before seating. Collect genesis keys
+      // from greeters; if two+ distinct keys appear, pause for human pick-one
+      // (env.onFork) rather than silently joining a random room or bridging.
+      this.forkProbe = false; this.forkAt = -1; this.forkHomes = new Map(); // gkey -> { gkey, gateway, roster, faces }
+      this.forkPending = 0; this.forkPaused = false;
       // ---- T: atomic seat switching (mover's lease) ----
       this.moving = false; this.moveAt = -1;        // transit: NEW seat taken, OLD not yet vacated (dual-hold)
       this.oldCoord = null; this.oldCk = null;      // the still-held old seat
@@ -280,8 +285,59 @@
     // ---- entry (R1/R3/R4) ----
     // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis;
     // else I learn the real key via the dance and re-present it once seated.
-    join() { this.state = 0; this.retryAt = this.TICK; this.haveRoster = false; if (this.joinStart < 0) this.joinStart = this.TICK; this.emitRelay(this.myKey); this.wake(); }
+    join() {
+      this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
+      this.forkProbe = false; this.forkPaused = false; this.forkHomes = new Map(); this.forkPending = 0;
+      if (this.joinStart < 0) this.joinStart = this.TICK;
+      this.emitRelay(this.myKey); this.wake();
+    }
     askSeat(target) { this.state = 2; this.retryAt = this.TICK; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
+    // R5: after multi-greeter HOMEs, either seat into the only genesis key,
+    // pause for human pick-one (env.onFork), or fall through to classic join.
+    maybeResolveFork() {
+      if (!this.forkProbe || this.forkPaused || this.state !== 1) return;
+      const TICK = this.TICK;
+      const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30);
+      if (!ready && this.forkHomes.size < 2) return;
+      const opts = [...this.forkHomes.values()];
+      if (opts.length === 0) {
+        // No HOME yet — keep waiting until retry path re-knocks.
+        if (ready) { this.forkProbe = false; this.retryAt = TICK - 10; }
+        return;
+      }
+      if (opts.length === 1) { this.acceptFork(opts[0]); return; }
+      // Two+ genesis keys under this URL: human must pick (E5§2 / R5).
+      this.forkProbe = false; this.forkPaused = true;
+      if (typeof this.env.onFork === 'function') {
+        this.env.onFork(opts.map((o) => ({ gkey: o.gkey, gateway: o.gateway, faces: o.faces.slice(0, 8), n: o.faces.length })));
+      } else {
+        // No UI (sim / headless): deterministic pick — lowest gkey string.
+        opts.sort((a, b) => (a.gkey < b.gkey ? -1 : a.gkey > b.gkey ? 1 : 0));
+        this.acceptFork(opts[0]);
+      }
+    }
+    // Human (or sim) chose one meeting: seat into that genesis only — never merge.
+    chooseFork(gkey) {
+      if (!this.forkPaused) return false;
+      const o = this.forkHomes.get(String(gkey));
+      if (!o) return false;
+      this.acceptFork(o);
+      return true;
+    }
+    acceptFork(o) {
+      this.forkPaused = false; this.forkProbe = false; this.forkPending = 0;
+      this.genKey = o.gkey;
+      this.gateway = o.gateway;
+      this.roster = o.roster;
+      this.haveRoster = true;
+      this.lastReach = this.TICK;
+      this.seatTries = 0;
+      this.state = 1;
+      const t = this.pickRoster();
+      if (t != null) this.askSeat(t);
+      else this.retryAt = this.TICK - 10;
+      this.wake();
+    }
 
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
@@ -885,7 +941,28 @@
           // competing for a slot in a busy heal — NOT stranded (bug #6).
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL && (this.lastReach < 0 || TICK - this.lastReach > STRAND_TTL)) { this.stranded = true; this.strandedAt = TICK; return; }
           this.lastGreeters = m.list;
-          if (this.state === 0) { const g = m.list[(this.rng() * m.list.length) | 0]; this.gateway = g; this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 }); this.state = 1; this.retryAt = TICK; } // RANDOM greeter: spread the intro load; it is my ENTRY GATEWAY
+          if (this.state === 0 && !this.forkPaused) {
+            // R5: probe SEVERAL greeters for HOME/gkey before seating. One
+            // greeter → classic path. Many greeters → collect genesis keys;
+            // two+ distinct keys ⇒ human pick-one (E5§2), never auto-bridge.
+            const pool = m.list.filter((g) => g && g !== this.id);
+            if (!pool.length) return;
+            if (pool.length === 1) {
+              this.gateway = pool[0];
+              this.emit(pool[0], { t: 'WHOHOME', from: this.id, ttl: 60 });
+              this.state = 1; this.retryAt = TICK;
+              return;
+            }
+            this.forkProbe = true; this.forkAt = TICK; this.forkHomes = new Map();
+            this.forkPending = 0;
+            // Fan to up to 5 greeters (shuffle for load spread).
+            const order = pool.slice();
+            for (let i = order.length - 1; i > 0; i--) { const j = (this.rng() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
+            const fan = order.slice(0, Math.min(5, order.length));
+            this.forkPending = fan.length;
+            this.state = 1; this.retryAt = TICK + 40; // settle window for HOMEs
+            for (const g of fan) this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 });
+          }
           return;
         }
         case 'WHOHOME': {
@@ -899,6 +976,21 @@
           return;
         }
         case 'HOME': {
+          // R5 multi-greeter probe: collect by genesis key; do not seat yet.
+          if (this.forkProbe && this.state === 1 && !this.forkPaused) {
+            this.lastReach = TICK;
+            if (this.forkPending > 0) this.forkPending--;
+            const gk = m.gkey != null ? String(m.gkey) : '';
+            if (gk && m.roster && m.roster.length) {
+              const faces = (m.roster || []).map((e) => (e && (e.v != null ? e.v : e))).filter(Boolean).map((v) => String(v).slice(0, 12));
+              const prev = this.forkHomes.get(gk);
+              if (!prev || faces.length > prev.faces.length) {
+                this.forkHomes.set(gk, { gkey: gk, gateway: m.id != null ? m.id : this.gateway, roster: m.roster, faces });
+              }
+            }
+            this.maybeResolveFork();
+            return;
+          }
           if (m.gkey != null) this.genKey = m.gkey; // learn this meeting's genesis key (the dance)
           if (this.state === 1) { if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6
           else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
@@ -1045,6 +1137,8 @@
         // R6: stranded is RECOVERABLE — after a backoff the client re-knocks;
         // if a greeter is now reachable I seat, else I just strand again.
         if (this.stranded) { if (TICK - this.strandedAt > STRAND_TTL) { this.stranded = false; this.lastReach = -1; this.joinStart = -1; this.join(); } this.wake(); return; }
+        if (this.forkProbe) this.maybeResolveFork(); // R5: settle multi-greeter HOME collection
+        if (this.forkPaused) { this.wake(); return; } // waiting on human pick-one
         if ((this.state === 0 || this.state === 1) && TICK - this.retryAt > 20) this.join();
         else if (this.state === 2 && TICK - this.retryAt > 60) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
         this.wake(); return;

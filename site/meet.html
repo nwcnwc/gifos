@@ -523,6 +523,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
+  <!-- R5 / E5§2: two+ genesis keys under this URL — human picks ONE meeting. -->
+  <div class="name-modal" id="fork-modal" style="display:none">
+    <div class="name-box" style="max-width:26rem;text-align:left">
+      <h3>Which meeting?</h3>
+      <p style="font-size:.9rem;opacity:.85;margin:.4rem 0 1rem">This link reaches more than one live room. Pick the one you want to join — we will not merge them or put you between both.</p>
+      <div id="fork-choices" style="display:flex;flex-direction:column;gap:.55rem"></div>
+      <p style="font-size:.78rem;opacity:.55;margin-top:.9rem">Faces below are short peer ids already in each room (no server knows names).</p>
+    </div>
+  </div>
+
   <div class="name-modal" id="pw-modal" style="display:none">
     <div class="name-box">
       <h3 id="pw-title">Room password</h3>
@@ -2874,6 +2884,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         },
         onLocked: () => { pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
         onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
+        // R5 / E5§2: greeters answered with two+ different genesis keys — pick one room.
+        onFork: (opts) => showForkPick(opts),
         onUpdate: () => renderFromOcc(),
         onRelayMsg: onRelayFrame,
       });
@@ -3266,6 +3278,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Join (or create) the room. The room id lives in the URL from the very
     // first moment — a reload, a bookmark, or a share all land in the SAME
     // room, and the room outlives everyone in it.
+    // ---- R5 / E5§2: pick ONE of two+ meetings under this URL ----------------
+    const forkModal = document.getElementById('fork-modal');
+    const forkChoices = document.getElementById('fork-choices');
+    function showForkPick(opts) {
+      if (!forkModal || !forkChoices || !opts || !opts.length) return;
+      forkChoices.innerHTML = '';
+      opts.forEach((o, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = 'text-align:left;padding:.7rem .85rem;border-radius:.6rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer';
+        const faces = (o.faces || []).slice(0, 5).join(', ') || '(no faces yet)';
+        btn.innerHTML = '<b>Meeting ' + String.fromCharCode(65 + i) + '</b>'
+          + ' <span style="opacity:.65;font-size:.82rem">· ~' + (o.n || o.faces.length || '?') + ' people</span>'
+          + '<small style="display:block;margin-top:.25rem;opacity:.7;font-family:ui-monospace,monospace;font-size:.75rem">' + faces + '</small>';
+        btn.onclick = () => {
+          forkModal.style.display = 'none';
+          try { if (meshNode && meshNode.chooseFork) meshNode.chooseFork(o.gkey); } catch (e) {}
+          setStatus('Joining the meeting you picked…');
+        };
+        forkChoices.appendChild(btn);
+      });
+      forkModal.style.display = 'flex';
+      setStatus('This link reaches more than one room — pick one.');
+    }
+    // DEBUG/tests: inject a fork pick UI
+    window.__gifosShowForkPick = showForkPick;
+
     // ---- room password UI: one modal, two moods -------------------------------
     const pwModal = document.getElementById('pw-modal');
     function showPwModal(locked) {
@@ -6805,6 +6844,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Greeter-list forensics (fragment founding): what onGreeters saw —
       // listLen, decryptable count, relay founded flag, action taken.
       greeterTrace: () => { try { return meshNode && meshNode.greeterTrace ? meshNode.greeterTrace() : []; } catch (e) { return []; } },
+      chooseFork: (gkey) => { try { return !!(meshNode && meshNode.chooseFork && meshNode.chooseFork(gkey)); } catch (e) { return false; } },
+      forkPaused: () => { try { const s = meshSeat(); return !!(s && s.forkPaused); } catch (e) { return false; } },
       // DEBUG-TREE — REMOVE BEFORE LAUNCH. Gossip a probe; every seat self-
       // reports; resolve the whole-mesh census (array of meshSelfReport()).
       probeTree: (ms) => new Promise((resolve) => {
