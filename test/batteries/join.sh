@@ -80,6 +80,9 @@ run "sim — headless-row admission (single-step devolution control)" \
 run "mesh.js — Q5 row-clique designation chain (exhaustive C=5)" \
     node test/mesh/q5-designation.js
 
+run "mesh.js — R5/E5§2 multi-greeter fork pick-one" \
+    node test/mesh/r5-fork-pick.js
+
 # ── the port: mesh.js replaying the sim's scenarios at scale ────────────────
 run "mesh.js — harness (JOIN N=1000, 50% kill, s1row, s1all, D5)" \
     node test/mesh/mesh-harness.js

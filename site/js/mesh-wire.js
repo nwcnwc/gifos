@@ -84,6 +84,8 @@
   //   onUpdate(node)  per-tick UI hook
   //   onLocked()      R6: greeters exist but none decrypt — wrong password
   //   onStranded()    R6: meeting is live but unreachable a full TTL
+  //   onFork(opts)    R5/E5§2: two+ genesis keys at the door — human pick-one
+  //                   opts = [{gkey, gateway, faces, n}, …]; call node.chooseFork(gkey)
   //   onGossip(src,m) room-wide app traffic delivery (exact-once)
   //   onRelayMsg(m)   every relay frame the wire does not consume — 'whoami',
   //                   'pw', 'ban', 'votes', 'joined', app-layer sealed 'peer'
@@ -205,6 +207,8 @@
         if (iAmAGreeter()) REGISTER_MYSELF_AS_A_GREETER(k);
         else KNOCK_FOR_THE_GREETER_LIST(k);
       },
+      // R5: seat fires this when multi-greeter probe finds 2+ genesis keys.
+      onFork: (optsList) => { if (opts.onFork) try { opts.onFork(optsList); } catch (e) {} },
       wake() {},
     };
 
@@ -451,6 +455,8 @@
       // Greeter-list forensics: ring of recent onGreeters outcomes (listLen /
       // open / founded / action). See greeterTrace push in onGreeters.
       greeterTrace() { return greeterTrace.slice(); },
+      // R5/E5§2: after onFork, the app picks one genesis key; seat joins only that room.
+      chooseFork(gkey) { return !!(seat && seat.chooseFork && seat.chooseFork(gkey)); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
       stop() { stopped = true; if (timer) clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
     };
