@@ -361,18 +361,19 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
     bool leftPack = (hole.r==coord.r && hole.i<coord.i);
     bool colPack  = (hole.i==coord.i && hole.r<coord.r);
     if(!leftPack && !colPack) return;
-    // E2, PREEMPTIVE — column-pack only. A VERTICAL healer is the one mover
-    // that is routinely still linked to the seat it would displace: its owner
-    // is its direct up-link. A severed head confirms its row-mate dead via the
-    // D5 early probe (correct from its blind vantage) and hands the hole down
-    // to exactly that child, which then evicts a live occupant it can hear —
-    // the id tie-break takes the incumbent, not the mover (sweep sever leg:
-    // 197/200). A cell heard FIRST-HAND is alive by definition, so declining
-    // here can never mask a real hole.
-    // Deliberately NOT applied to left-pack / findLeaf: those movers are not
-    // linked to the corpse, `live` merely ages out over 60 ticks, and blocking
-    // them starves mass-kill and partition healing (churn seed 5, split 7).
-    if(colPack && firstHandLive(ckey(hole))) return;
+    // E2, PREEMPTIVE. Every S1 pack move — left along the row, up the column —
+    // targets a ROOK NEIGHBOUR of mine, so I am directly linked to whoever is
+    // sitting there and am the best-placed node to answer "is that chair
+    // actually empty?". The healer that declared the hole often cannot: a head
+    // severed from its own row-mate confirms it dead via the D5 early probe
+    // (correct from ITS vantage) and hands the hole to a neighbour that still
+    // hears the occupant perfectly. Moving in anyway mints a duplicate, and the
+    // id tie-break takes the INCUMBENT, not the mover (sweep sever leg: 197/200
+    // via the column, 199/200 via the row).
+    // The threshold must be heldRightNow, NOT firstHandLive: a crashed occupant
+    // stays firstHandLive for 60 ticks, and blocking heals that long starves
+    // mass-kill and partition recovery (churn seed 5, split 7, D5 crash leg).
+    if(heldRightNow(ckey(hole))) return;
   }
   doMove(hole,-1,nbrs);
 }

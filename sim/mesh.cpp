@@ -90,6 +90,7 @@ static const long long SIT_RECHECK=25;   // assigner recheck cadence
 // remains the backstop when no transport event fired; an answered probe clears
 // the observation entirely — no eviction, E2 stands.
 static const long long EARLY_HOLD=12;
+static const long long HELD_BEATS=24;    // 3 D1 rook beats (heartbeat every 8): "the occupant is answering me RIGHT NOW", as opposed to firstHandLive's 60-tick decay window
 // T — the mover's lease (atomic seat switching, law T in healing-laws.md).
 // A self-move TAKES its new seat FIRST and vacates the old one only when the
 // claim CONFIRMS (a new neighbour answers, or the window closes with no
@@ -226,6 +227,15 @@ struct Seat {
   // NOT first-hand live, so it can never yield a live healer out of a hole. This
   // is the echo-immune fix — gossip informs routing, never liveness.
   inline bool firstHandLive(uint64_t ck){ auto it=live.find(ck); return it!=live.end() && TICK-it->second<=60; }
+  // HELD RIGHT NOW — a much tighter read of the same evidence, for the one
+  // question a MOVER must answer before taking a chair: is someone sitting in
+  // it at this instant? The D1 rook heartbeat is every 8 ticks, so a reachable
+  // occupant refreshes `live` ~8-tickly; 3 beats of grace distinguishes "still
+  // talking to me" from firstHandLive's 60-tick decay window, which a CRASHED
+  // occupant also satisfies for its first 7 missed beats. Guarding a move on
+  // the 60-tick form blocks legitimate heals after a mass kill; guarding on
+  // this form blocks only movers whose target is demonstrably still answering.
+  inline bool heldRightNow(uint64_t ck){ auto it=live.find(ck); return it!=live.end() && TICK-it->second<=HELD_BEATS; }
   // A three-state helpers (empty / sitting-down / seated) --------------------
   inline bool softSitting(uint64_t k){
     auto it=sitting.find(k); if(it==sitting.end()) return false;
