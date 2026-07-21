@@ -4,6 +4,24 @@
 <meta charset="UTF-8">
 <meta name="robots" content="noindex">
 <title>GifOS</title>
+<!-- Link-preview card for pretty invite links. GitHub Pages serves THIS file for
+     /meet/…, /call/…, and /join/… (the router below redirects real users to the
+     right page). A JS-less scraper can't tell those apart, so the static card is
+     neutral ("Join on GifOS"). On theme subdomains the mirror Worker upgrades
+     /meet & /call to the themed MEETING card with a 200 status (mirror/src/mirror.js).
+     og:url is omitted so the scraper keeps the actual invite URL (incl. subdomain). -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GifOS">
+<meta property="og:title" content="Join on GifOS">
+<meta property="og:description" content="Tap the link and you're in — right in your browser. One link, no account, no installs.">
+<meta property="og:image" content="https://gifos.app/og-join.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="Join on GifOS — one link, no account, no installs.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Join on GifOS">
+<meta name="twitter:description" content="Tap the link and you're in. One link · no account · no installs.">
+<meta name="twitter:image" content="https://gifos.app/og-join.png">
 <script>
 /*
  * 404.html — the pretty-link router. GitHub Pages serves this for any path it

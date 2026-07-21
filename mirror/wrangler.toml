@@ -8,10 +8,12 @@ compatibility_date = "2026-01-01"
 # burned by bots probing random hostnames — they fall through to the zone's DNS
 # target and die there), so nobody can spin up infinite computers.
 #
-# TO ADD A COMPUTER: add its themes/<label>/ folder to the site, then add a
-# route block below (named labels are fine, e.g. "neon.gifos.app/*") and run
-# `npx wrangler deploy`. Requires a proxied (orange-cloud) DNS record covering
-# the name — the existing "*" record works; see README.
+# TO ADD A COMPUTER: add its themes/<label>/ folder to the site (include a
+# themes/<label>/meet-og.png link-preview card — the mirror Worker points texted
+# meeting invites at it), then add a route block below (named labels are fine,
+# e.g. "neon.gifos.app/*") and run `npx wrangler deploy`. Requires a proxied
+# (orange-cloud) DNS record covering the name — the existing "*" record works;
+# see README.
 # New named computers go here too, e.g.:
 #   [[routes]]
 #   pattern = "neon.gifos.app/*"

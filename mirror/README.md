@@ -16,7 +16,9 @@ somehow reaches the Worker without a matching route 301-redirects to `gifos.app`
 ## Adding a computer
 
 1. Add its theme folder to the site: `site/themes/<label>/` (see
-   `site/js/gifos-themes.js`). Push — GitHub Pages redeploys.
+   `site/js/gifos-themes.js`). Include a `site/themes/<label>/meet-og.png`
+   link-preview card (2400×1260) — this Worker points texted meeting invites
+   from `<label>.gifos.app` at it. Push — GitHub Pages redeploys.
 2. Add a route block for it in `wrangler.toml` (named labels like
    `neon.gifos.app/*` are fine), then `wrangler deploy` (below).
 
