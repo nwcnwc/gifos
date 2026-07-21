@@ -135,6 +135,24 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - Do not auto-reload mid-meeting without consent — a forced refresh drops
     media and the user's seat. Ask, always.
 
+- **V2 — Operator system message (banner from the greeter package).** A
+  hard-coded notice string in the relay source (`relay/src/relay.js`, changed by
+  redeploying the relay — no dashboard, no storage, no API), returned in the
+  `greeters` answer alongside `list` / `founded` / `admitted`. `meet.html`
+  renders it as a dismissible banner at the top of the meeting page; the user
+  ✕'s it to acknowledge and it goes away.
+  - Payload: `{ id, text, level }` — `id` is a short slug the operator bumps
+    when the message changes; `level` is `info` / `warn` for styling. Empty or
+    absent ⇒ no banner (the normal state).
+  - Dismissal is remembered **per `id`** in `localStorage`, so a re-knock or a
+    reload does not resurrect a banner the user already ✕'d, but a *new* notice
+    (new `id`) shows again. Same ✕ = close/dismiss convention as everywhere
+    else — this is a dismiss, not a delete, so ✕ is correct here.
+  - Text only; no HTML, no links executed from relay-supplied markup — the
+    banner sets `textContent`. The relay is a greeter, not a content channel.
+  - Composes with V1: the stale-client prompt is a *modal* (blocks join),
+    the operator notice is a *banner* (never blocks). Distinct surfaces.
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
