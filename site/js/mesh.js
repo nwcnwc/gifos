@@ -205,6 +205,32 @@
       return true;
     }
     cellTaken(k) { return this.occ.has(k) || this.softSitting(k); }
+    // Requeue/moved ghost: alive but not at k. Silent death (alive=false) stays
+    // reserved for ring-hold (headless C). Unknown ids stay reserved (conservative
+    // — free-ing them broke D5 sever probes). Not "merely lack first-hand".
+    occIsPhantom(k) {
+      const x = this.occGet(k); if (x == null) return false;
+      if (this.firstHandLive(k)) return false;
+      const st = this.env.peek ? this.env.peek(x) : null;
+      if (!st) return false; // unknown: keep reserved
+      if (!st.alive) return false; // dead without LEAVE: ring-hold reserved
+      if (!st.hasCoord || ck(st.coord) !== k) return true; // requeued/moved
+      return false;
+    }
+    admitterReachable(k) {
+      const x = this.occGet(k); if (x == null || x === this.id) return false;
+      if (this.firstHandLive(k)) return true;
+      const st = this.env.peek ? this.env.peek(x) : null;
+      if (!st || !st.alive) return false;
+      return !!(st.hasCoord && ck(st.coord) === k);
+    }
+    // Soft or non-phantom occ. Requeue phantoms free for rejoin (atomic D).
+    cellReserved(k) {
+      if (this.softSitting(k)) return true;
+      if (this.firstHandLive(k)) return true;
+      if (!this.occ.has(k)) return false;
+      return !this.occIsPhantom(k);
+    }
     cellSeated(k) {
       if (this.hasCoord && ck(this.coord) === k) return true;
       return this.firstHandLive(k) && this.occ.has(k);
@@ -571,14 +597,10 @@
           }
           for (let j = 0; j < C(); j++) {
             const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
-            if (this.cellTaken(k)) continue;             // occ seated OR soft sitting-down (A)
-            // Frontier test by DIRECT knowledge only (the old 11a admit-
-            // liveness: occGet(down)==null) — NOT hasDownChild, whose childOf
-            // arm never expires: a stale heir entry would permanently steer
-            // arrivals away from a clear cell, leaving it to the much slower
-            // leaf-promotion backstop. A: also block soft-sitting down-child.
+            // Soft / real occupant reserved; phantoms free for rejoin.
+            if (this.cellReserved(k)) continue;
             const dk = ck(topo.down(cell));
-            if (this.occGet(dk) != null || this.softSitting(dk)) continue;
+            if (this.softSitting(dk) || (this.cellReserved(dk) && !this.occIsPhantom(dk))) continue;
             // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
             //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by
             //    its designated healer (the H2 scoocher / vertical promotion)
@@ -595,39 +617,45 @@
                 continue;
               }
             }
-            // H-CHAIN: devolve ONLY when vacated (no occ, no soft).
-            if (!this.cellTaken(ck(adm)) && rowLive[adm.r]) {
+            // H-CHAIN: devolve when admitter not reserved; prefer real row-mates.
+            if (!this.cellReserved(ck(adm)) && rowLive[adm.r]) {
               for (let dj = 1; dj < C(); dj++) {
                 const d = { pc: 0, r: adm.r, i: dj };
-                if (this.occ.has(ck(d))) { adm = d; break; }
+                if (this.cellReserved(ck(d)) && !this.occIsPhantom(ck(d))) { adm = d; break; }
               }
             }
             // S1 column-clique admission: only when primary was known (s1seen)
-            // and is now empty — never when simply unknown. Devolve only to
+            // and is not reserved — never when simply unknown. Devolve only to
             // STRICTLY DEEPER same-column seats (no wrap into denser upper rows).
-            if (!this.cellTaken(ck(adm)) && this.s1seen.has(ck(adm))) {
+            if (!this.cellReserved(ck(adm)) && this.s1seen.has(ck(adm))) {
               for (let rr = cell.r + 1; rr < C(); rr++) {
                 const d = { pc: 0, r: rr, i: cell.i };
-                if (this.occ.has(ck(d))) { adm = d; break; }
+                if (this.cellReserved(ck(d)) && !this.occIsPhantom(ck(d))) { adm = d; break; }
               }
             }
             if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
-              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
+              if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) {
+                this.healTry.set(k, TICK);
+                if (this.occIsPhantom(k)) {
+                  this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k); this.kidful.delete(k); this.tlForget(k);
+                }
+                this.admit(cell, mm); return;
+              }
               continue;                                  // admit gate cooling — consider the next cell
             }
-            const aid = this.occGet(ck(adm));
-            // Hand-off by occ only — do NOT gate on firstHandLive (headless-row C).
-            if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+            // Hand off to reachable real admitter; never emit to a corpse.
+            if (this.admitterReachable(ck(adm))) {
+              this.emit(this.occGet(ck(adm)), { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return;
+            }
           }
         }
-        // Only go deep when no admissible S1 free cell remains (live-row heads
-        // are never admit targets — do not count them as free).
+        // Only go deep when no admissible S1 free cell remains (phantoms free).
         let s1admFree = 0;
         for (let t = 0; t < C(); t++) {
           const liveR = rowLive[t];
           for (let j = 0; j < C(); j++) {
             if (j === 0 && liveR) continue;
-            if (!this.cellTaken(ck({ pc: 0, r: t, i: j }))) s1admFree++;
+            if (!this.cellReserved(ck({ pc: 0, r: t, i: j }))) s1admFree++;
           }
         }
         if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
