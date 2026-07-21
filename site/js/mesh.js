@@ -546,10 +546,10 @@
         // its own live row and seat a 2-person room as COLUMN-mates (the
         // headless-row repro, leg A). Computed up front for all rows: the
         // headless-row devolution below needs the ADMITTER's row too.
-        const rowLive = [], rowSeen = [];
+        const rowLive = [], rowSeen = [], rowHeld = [];
         for (let t = 0; t < C(); t++) {
-          rowLive[t] = (this.coord.r === t); rowSeen[t] = rowLive[t];
-          for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; }
+          rowLive[t] = (this.coord.r === t); rowSeen[t] = rowLive[t]; rowHeld[t] = false;
+          for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; if (this.cellReserved(k)) rowHeld[t] = true; }
         }
         for (let t = 0; t < C(); t++) {
           // A + H7: previous row fully reserved and head not only soft-sitting.
@@ -561,7 +561,15 @@
             if (!prevFull) break;
           }
           const liveRow = rowLive[t], everSeen = rowSeen[t];
-          if (!liveRow && everSeen) {
+          // A VACATED row is not a corpse. Resurrection is for a row that DIED
+          // wholesale — its stale occ lingers (nobody left to sweep it) and
+          // blocks ordinary admission. A row the left-pack legitimately emptied
+          // (cascade scoot-up) holds NO reservation at all: it is the frontier
+          // again, and the head of the row above (proven full by the H7 gate)
+          // seats it. Without this a drained row sent every FIND to the row
+          // below — never live in a shrinking room — and newcomers past the
+          // frontier searched forever (churn-combos B with spawn>1).
+          if (!liveRow && everSeen && rowHeld[t]) {
             // RESURRECTION (old H7, row-targeted): this row LIVED and is now
             // entirely silent — a whole-row death. Its subtrees drain (anchor
             // dead at lastAck>80, long before the RING_HOLD vertical heal) and
