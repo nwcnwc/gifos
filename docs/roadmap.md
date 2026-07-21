@@ -11,13 +11,17 @@ the wrong shape until it's reworked to fit.
 
 ---
 
-## 1. (removed) TURN relay tier
+## 1. (removed) GifOS-operated TURN relay tier
 
-A paid TURN tier was sketched here and REJECTED: TURN is a media relay
-SERVER, and GifOS media goes peer-to-peer, never through a server — the
-meeting footer's promise and the design's non-negotiable. The connectivity
-answer for hard NATs stays within the rules: the P1 friend-relay (media
-through a MUTUAL FRIEND's browser) and better ICE, not a server.
+A **GifOS-hosted** paid TURN tier was sketched here and REJECTED: that would
+make *our* infrastructure a media relay server, and default Meet media stays
+peer-to-peer (plus friend-relay) — the meeting footer's promise. Connectivity
+without our media servers: P1 friend-relay (media through a MUTUAL FRIEND's
+browser) and better ICE.
+
+**Not the same as §4c:** admin rooms may later point at a **customer-chosen**
+media relay (their TURN/SFU / vendor). GifOS still does not have to carry A/V;
+the enterprise brings the pipe. Default / open rooms stay STUN-only + friend-relay.
 
 ## 2. General x402 support (HTTP-native, account-free payments)
 
@@ -231,3 +235,58 @@ track. Aligns with camera-optional meetings and data-optional social modes in
 - CPU budget on phones; $/min cloud avatar spend UX.
 - Blur/consent vs avatar-as-silhouette; admin rooms that require a real camera.
 - Token mint via `brokerApi` vs trusted-origin WebRTC SDK for streaming vendors.
+
+### 4c. Admin rooms: customer-configured media relay
+
+**What.** **Admin rooms only** can set their own **media relay** (TURN and/or
+SFU endpoint + credentials policy) so ICE may use that path when direct P2P
+and friend-relay are not enough. Covers **corporate / cross-firewall** meetings:
+Company A and Company B never need a path to each other — only to the
+**enterprise’s** (or its vendor’s) relay. Open/anarchic rooms stay unchanged:
+STUN + friend-relay only; **no** GifOS-operated media relay (see §1 rejected).
+
+**Why it fits.**
+- Solves the dual-VPN/firewall case without making gifos.app a Zoom backend.
+- Trust and compliance stay with the org that mints the admin room: they pick
+  Cloudflare Calls, coturn in their VPC, Twilio, a partner SFU, etc.
+- Admin room address already means **consent to authority**
+  (`/meet/<room>/<verifier>`); extending that authority to “this room’s media
+  assist endpoint” is the same consent shape.
+- Keeps R2 for **our** relay: greeter only; A/V still must not ride
+  `relay.gifos.app`. The media assist host is **not** the greeter DO.
+- Optional later: x402 (§2) to mint or unlock “relay-capable admin room”
+  features on GifOS-side tooling — fee for *capability/UX*, not for us
+  hairpinning everyone’s video by default.
+
+**Sketch.**
+- **Admin config (signed, room-scoped):** admin sets media-assist descriptor
+  gossiped/sealed with other admin state — e.g. TURN URIs, username/cred
+  mechanism (ephemeral REST mint via enterprise URL, long-lived secret never
+  in the public link), optional SFU mode flag, “prefer P2P → friend-relay →
+  configured relay” policy.
+- **Join UX:** clear badge — “This admin room may use an organization media
+  relay” — before camera on; link still works for guests from other companies
+  without GifOS accounts.
+- **Client ICE:** when room policy has assist configured, `gifos-net` /
+  Meet adds those ICE servers (and SFU signaling if applicable) **for that
+  room only**; default rooms keep STUN-only.
+- **Fallback order:** direct → friend-relay (E5) → customer relay; never
+  invent a GifOS global TURN.
+- **Credentials:** prefer short-lived TURN REST credentials from an
+  enterprise-controlled endpoint (admin points at their issuer); avoid putting
+  long-lived TURN passwords in shareable URLs.
+- **Mesh control plane unchanged:** seating, healing, Stage/Stadium packing
+  still peer-side; assist only unblocks **transport** when paths fail (or
+  when policy forces assist for compliance egress).
+
+**Open questions.**
+- TURN-only vs full SFU (SFU rewrites more of the media plane; TURN keeps
+  mesh compositing, only fixes connectivity).
+- How assist config is sealed/authenticated so a non-admin cannot point the
+  room at a malicious relay (must bind to admin signature / verifier).
+- Guest consent + enterprise allow-lists (some corps will only allow *their*
+  relay hostnames).
+- Credential mint CORS / broker: enterprise issuer may need the same
+  third-party API / proxy patterns as other keyed services.
+- Whether open-source “run this coturn” docs ship as the default enterprise
+  path so nobody needs GifOS to sell media minutes.
