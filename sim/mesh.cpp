@@ -258,8 +258,15 @@ struct Seat {
   // Soft or non-phantom occ. Requeue phantoms do not block rejoin (atomic D).
   inline bool cellReserved(uint64_t k){
     if(softSitting(k)) return true;
-    if(firstHandLive(k)) return true;
+    // A reservation needs a CLAIMANT. `live` is keyed by coord and is only
+    // cleared on a LEAVE I can attribute (occGet==leaver), so a cell vacated by
+    // a move — or by a LEAVE that raced my occ — stays "first-hand live" for the
+    // full 60-tick window with nobody in it. Treating that as reserved made
+    // genuinely-empty home cells look occupied all through a churn, and seekers
+    // were pushed DEEP instead of packing shallow (compaction leg 1: byDepth
+    // 3 went 1 -> 51). No occ entry => no claimant => free.
     if(!occ.count(k)) return false;
+    if(firstHandLive(k)) return true;
     return !occIsPhantom(k);
   }
   // Really seated (self-confirmed): I sit here, or first-hand live occupant.
