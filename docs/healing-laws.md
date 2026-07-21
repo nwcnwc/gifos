@@ -721,3 +721,35 @@ path exists, never by identity authority at first contact.
 There is no root to fight over and no arbiter to trust — every verdict above
 is computed independently by clients. Forced merge-by-authority and
 newcomer-as-sole-bridge auto-reunion are both forbidden (Sybil levers).
+
+### Partition: one half may FREEZE (known, accepted — Nathan, 2026-07-21)
+
+Both halves stay *correct* under a total partition — no duplicate seats, no
+split-brain; that is the hard invariant and `sim/sweep.sh` still fails on it.
+But roughly **one split in six leaves one half frozen**, seating ~16 of 200
+while the other half re-forms perfectly. Measured over 20 seeds: 18/20 clean.
+
+The mechanism, end to end:
+
+1. The half probes the seats held by the far side, `ringConfirmDead` completes,
+   and it **erases** their occ — these are confirmed dead, not merely silent.
+2. Some home row is now left with **no live member on this side**. Its head is
+   gone, so neither the head's `s1Fill`, nor H-CHAIN admission devolution, nor
+   the H2 left-pack backstop has anyone to act.
+3. H7's dense-fill gate sees that row is not full and **refuses to open any
+   later row**.
+4. `s1admFree` still counts those cells, so every seeker is answered NOROOM —
+   forever. The half stalls.
+
+Note this is exactly distinguishable from **silent death**, which must stay
+ring-hold conservative: a silently-dead occupant keeps its occ entry (reserved,
+so `cellTaken` holds and the row still reads full), whereas a partition-confirmed
+corpse has had its entry erased. Any future fix must key on that difference.
+
+**Accepted, not fixed.** A total partition is rare and the room recovers when
+the network heals. Both candidate remedies were rejected: letting the scan skip
+a confirmed-dead unfillable cell costs row density (the media near-field is
+row-scoped), and letting another seat admit into a memberless row reintroduces
+a healer race. Do NOT "fix" this by falling through to the deep path when home
+looks unservable — that fast-tracks silent death past H1-S1 ring-hold and is
+caught by `repro-headless-row` leg C.
