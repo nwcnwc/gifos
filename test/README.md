@@ -160,6 +160,7 @@ needs whatever they need. Run one before pushing a change in its area.
 | battery | gate |
 |---|---|
 | `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
+| `known-unfixed.sh` | **THE GRAVEYARD — every check in it is EXPECTED TO FAIL.** Behaviours we understood and DECIDED not to fix: too hard, not worth it, or a rule we want to keep would have to change. Not a gate, not run by CI, not called by any battery. Run it only when **we change our mind** and want to try again. RED is correct; a GREEN entry means someone fixed it — promote that check back into its real gate and delete it from here. Never soften an assertion to make it green. |
 | `mesh-churn.sh` | everything that must stay true about **LEAVING / CRASH / CHURN / BAD COMMS** — the full disruption matrix: loss+kill, cascade rejoin, link sever, silent row wipe, sweep (kill fractions × seeds + partition + D5), harness mass-kills + D5, vanish (Node + browser), dark peers, latejoin, E5 friend-relay, R5 pick-one, redun + mirror drills. `--quick` is sim + JS only (no browsers). Run this before shipping seating/healing changes. |
 
 **When to run which.** Touching admit/FIND/join shape → at least `join.sh --quick`.
@@ -316,13 +317,24 @@ app README image).
 
 ## Known state
 
+**Decided-not-to-fix things live in `batteries/known-unfixed.sh`**, which is
+expected to be RED end to end — including the partition FREEZE, the late-join
+app-adoption gap, and `e2e-fluence`. The entries below are the rest: flakes,
+environment traps, and unconfirmed reports, which are NOT the same thing as a
+decision and so are deliberately kept out of that script.
+
 - `browser/e2e-fluence.js` fails on the Deepgram pipeline — a long-standing
-  known failure, kept as a regression guard.
+  known failure, kept as a regression guard. (In `known-unfixed.sh`.)
 - Late joiners do not adopt an app already running in a meeting: app STATE
   rides the structural-neighbour `sga` flood while presence rides
   `meshNode.gossip`, so a newcomer learns an app is running but never receives
   the retained snapshot. `browser/e2e-meeting-app.js` and
   `browser/e2e-mymedia-meet.js` are left failing on purpose as guards.
+  (In `known-unfixed.sh`.)
+- A total partition may FREEZE one half (~1 split in 6): correctness holds
+  (no split-brain, asserted by `sim/sweep.sh`) but the frozen half seats a
+  fraction of its members. Decided 2026-07-21; see `docs/healing-laws.md`
+  § "Partition: one half may FREEZE". (In `known-unfixed.sh`.)
 - `browser/e2e-app-governance.js` open-room "latest-wins takeover" is flaky:
   B never becomes `appIsHost` (null `contentWindow` postMessage).
 - `drills/e2e-latejoin.js` ARRANGES its own socketless-neighbour scenario

@@ -48,20 +48,16 @@ done; done
 echo "  CHURN: $pass PASS, $fail FAIL"
 [ "$fail" -ne 0 ] && { echo "  --- failures ---"; printf '%s' "$fails"; }
 
-# The HARD invariant here is NO SPLIT-BRAIN: neither half may ever mint a
-# duplicate seat. That is asserted below and must never be relaxed.
+# The invariant under a total partition is NO SPLIT-BRAIN: neither half may
+# ever mint a duplicate seat. That is what is asserted here, and it must never
+# be relaxed.
 #
-# A stranded half is NOT a hard failure — it is a KNOWN, ACCEPTED limitation
-# (Nathan, 2026-07-21). About 1 split in 6 leaves one half frozen: it confirms
-# the far side dead and empties those home cells, but if a row is left with no
-# live member, nobody can admit into it, the H7 dense-fill gate refuses to open
-# later rows, and every remaining seeker gets NOROOM forever (measured: side
-# seats ~16/200). Accepted because a total partition is rare and the room
-# recovers when the network heals. Fixing it means either letting the scan skip
-# a confirmed-dead unfillable cell (costs row density) or letting another seat
-# admit into a memberless row (a healer race) — both rejected for now.
-# Reported as a MEASURE so it stays visible without permanently reddening the
-# gate and masking real regressions. See docs/healing-laws.md § partition.
+# Whether a half also FREEZES (seats a fraction of its members and strands the
+# rest) is deliberately NOT asserted here: that is a decided-unfixed behaviour,
+# and it lives in test/batteries/known-unfixed.sh where it stays RED on purpose.
+# Keeping it here would either redden this gate permanently — masking the next
+# real regression — or tempt someone to soften the split-brain assertion beside
+# it. See docs/healing-laws.md § "Partition: one half may FREEZE".
 echo "total partition (split 0.5): seeds 7 11 29, one process each ..."
 pbad=0
 for s in 7 11 29; do
@@ -69,7 +65,6 @@ for s in 7 11 29; do
           | "$BIN" --service 2>&1 | grep "SPLITSTATE")
   echo "  $line"
   grep -Eq "dups=[1-9]" <<<"$line" && { echo "  ^ SPLIT-BRAIN: a half minted a duplicate seat"; pbad=$((pbad+1)); }
-  grep -Eq "strand=[1-9]" <<<"$line" && echo "  ^ MEASURE: half frozen (known accepted partition limitation, ~1 split in 6)"
 done
 
 echo "early-probe (D5): crash / sever / blackhole, seed-3 pinned (seat 6 = home cell /0.2) ..."
