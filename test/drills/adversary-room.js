@@ -278,6 +278,50 @@ const check = (n, c, d) => {
   }
   console.log('tick rate (canonical 500ms; >625ms can expire the greeter pool): ' + rate.join(' '));
 
+  // ── GREETER-LIST forensics (fragment founding) ───────────────────────────
+  // R3/R6 take-over mints a second 0/0.0 room only when onGreeters sees
+  // empty list AND founded:true. greeter-expiry.js disproved pool-TTL alone.
+  // Dump every user's recent greeters outcomes so a fragment run shows
+  // whether late joiners got empty+founded, sealed-only (R6), mint-gap hold,
+  // or a normal deliver. action FOUND-EMPTY is the smoking gun.
+  console.log('greeterTrace (listLen open founded action) — late/final first:');
+  console.log('  actions: deliver | hold-mint-gap | locked | MINT (empty+founded while joining)');
+  console.log('           empty-founded-noop (empty+founded already seated — mesh ignores)');
+  const order = users.slice().sort((a, b) => {
+    const rank = (n) => n.startsWith('late') || n === 'final' ? 0 : n.startsWith('DARK') ? 2 : 1;
+    return rank(a.name) - rank(b.name) || a.name.localeCompare(b.name);
+  });
+  let mintByNonFounder = 0;
+  for (const u of order) {
+    const tr = await u.page.evaluate(() => {
+      try { return window.__gifosVideo.greeterTrace(); } catch (e) { return null; }
+    }).catch(() => null);
+    if (!tr || !tr.length) { console.log('  ' + u.name + ': (no greeter events)'); continue; }
+    const mint = tr.filter((e) => e.action === 'MINT').length;
+    const hold = tr.filter((e) => e.action === 'hold-mint-gap').length;
+    const locked = tr.filter((e) => e.action === 'locked').length;
+    const deliver = tr.filter((e) => e.action === 'deliver').length;
+    const emptyNoop = tr.filter((e) => e.action === 'empty-founded-noop').length;
+    if (mint && u.name !== 'good0') mintByNonFounder += mint;
+    const last = tr[tr.length - 1];
+    console.log('  ' + u.name + ': n=' + tr.length
+      + ' deliver=' + deliver + ' hold=' + hold + ' locked=' + locked
+      + ' MINT=' + mint + ' emptyNoop=' + emptyNoop
+      + ' last={list=' + last.listLen + ' open=' + last.open + ' founded=' + last.founded
+      + ' action=' + last.action + ' preState=' + last.state + '}');
+    // Full trail for anyone who MINT'd, or for late/final joiners
+    if (mint || emptyNoop || u.name.startsWith('late') || u.name === 'final') {
+      for (const e of tr) {
+        console.log('    t+' + e.tick + ' list=' + e.listLen + ' open=' + e.open
+          + ' founded=' + e.founded + ' action=' + e.action
+          + ' pre=' + e.state + (e.post != null ? ' post=' + e.post : ''));
+      }
+    }
+  }
+  // A non-founder MINT is the fragment-founding smoking gun (second 0/0.0).
+  check('no non-founder greeter MINT (no fragment founding via empty+founded)',
+    mintByNonFounder === 0, mintByNonFounder + ' non-founder MINT event(s)');
+
   console.log('\nadversaries: ' + [...darkIds].join(' ') + '  (profile: dark / cannot complete P2P)');
   await browser.close(); cleanup();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nALL PASS — a misbehaving participant cannot poison the room');

@@ -6775,6 +6775,9 @@
       meshCoord: () => { const c = meshCoord(); return c ? { pc: c.pc, r: c.r, i: c.i } : null; },
       meshState: () => { const s = meshSeat(); return s ? { state: s.state, stranded: s.stranded, occ: s.occ.size, tick: s.env.TICK } : null; },
       meshLinks: () => { const s = meshSeat(); return s ? Array.from(s.linkPeers()) : []; },
+      // Greeter-list forensics (fragment founding): what onGreeters saw —
+      // listLen, decryptable count, relay founded flag, action taken.
+      greeterTrace: () => { try { return meshNode && meshNode.greeterTrace ? meshNode.greeterTrace() : []; } catch (e) { return []; } },
       // DEBUG-TREE — REMOVE BEFORE LAUNCH. Gossip a probe; every seat self-
       // reports; resolve the whole-mesh census (array of meshSelfReport()).
       probeTree: (ms) => new Promise((resolve) => {
