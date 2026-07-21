@@ -77,6 +77,17 @@ run "sim — H-CHAIN multi-level devolution (admit + left-pack heal)" \
 run "sim — headless-row admission (single-step devolution control)" \
     ./sim/repro-headless-row.sh
 
+# Leave / crash / loss / scoot — the other half of seating correctness.
+# Full disruption matrix: test/batteries/mesh-churn.sh
+run "sim — loss wedge (10% packet loss admission)" \
+    ./sim/repro-loss-wedge.sh
+
+run "sim — atomic move + cascade scooch (dual-hold transit)" \
+    ./sim/repro-atomic-move.sh
+
+run "sim — churn combos (loss+kill, cascade rejoin, sever, silent row wipe)" \
+    ./sim/repro-churn-combos.sh
+
 run "mesh.js — Q5 row-clique designation chain (exhaustive C=5)" \
     node test/mesh/q5-designation.js
 

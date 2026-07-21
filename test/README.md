@@ -159,18 +159,37 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
-| `join.sh` | everything that must stay true about JOINING — including the adversary legs (`sim/repro-adversary.sh`: hostile fabrics and a dark seat at scale) — the sim's arrival patterns (burst/serial/batch/window, seating AND H7 shape), `mesh.js` at N=500/1000 plus flood and wire, real browsers asserting LINK COMPLETENESS and ONE room, and the adversary + late-join drills. `--quick` skips the browser ladders. |
+| `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
+| `mesh-churn.sh` | everything that must stay true about **LEAVING / CRASH / CHURN / BAD COMMS** — the full disruption matrix: loss+kill, cascade rejoin, link sever, silent row wipe, sweep (kill fractions × seeds + partition + D5), harness mass-kills + D5, vanish (Node + browser), dark peers, latejoin, E5 friend-relay, R5 pick-one, redun + mirror drills. `--quick` is sim + JS only (no browsers). Run this before shipping seating/healing changes. |
+
+**When to run which.** Touching admit/FIND/join shape → at least `join.sh --quick`.
+Touching heal/LEAVE/scooch/loss/D5/compaction → at least `mesh-churn.sh --quick`.
+Flag-day mesh work → both full batteries on the 8-core box.
 
 `site/` AUTO-DEPLOYS on push, so an untested change to `site/js/mesh-wire.js`,
 `site/js/mesh.js` or `site/meet.html` is a change to production. Prefer the
 8-core box — a weak host invents failures above N=10 from its own exhaustion.
 
-The battery brings the dev stack up itself (site 8099 + relay 8790, `RELAY_DEV=1`)
-when those ports are idle, because the browser ladders drive `swarm.js` at them
-and a bot that finds nothing there reports `seated=?/N` — a missing stack that
-reads exactly like a broken mesh, right down to N=2 failing. Each step's full
-output goes to `/tmp/join-battery/<n>.log` while it runs; the summary keeps only
-the last 12 lines.
+The join battery brings the dev stack up itself (site 8099 + relay 8790,
+`RELAY_DEV=1`) when those ports are idle, because the browser ladders drive
+`swarm.js` at them and a bot that finds nothing there reports `seated=?/N` —
+a missing stack that reads exactly like a broken mesh, right down to N=2
+failing. Each step's full output goes to `/tmp/join-battery/<n>.log` (or
+`/tmp/mesh-churn-battery/<n>.log`); the summary keeps only the last 12 lines.
+
+### Sim disruption catalogue (`sim/repro-*.sh` + `sweep.sh`)
+
+| script | disruption |
+|---|---|
+| `repro-join-patterns.sh` | every arrival pattern × size; H7 dense shape |
+| `repro-loss-wedge.sh` | ~10% packet loss at admit (three-state soft sit) |
+| `repro-atomic-move.sh` | dual-hold transit; cascade scooch after multi-LEAVE |
+| `repro-churn-combos.sh` | loss+kill, cascade+rejoin, sever live link, silent front-row wipe |
+| `repro-hchain.sh` | designation chain: dual leave, silent head, vertical, column |
+| `repro-headless-row.sh` | head gone; joiners still land in the home row |
+| `repro-compaction.sh` | pack-up under mass-kill |
+| `repro-adversary.sh` | loss/sever/subnets + dark seat holding a coord |
+| `sweep.sh` | kill fractions × seeds; total partition; D5 crash/sever/blackhole |
 
 ## servers/ — the fixture servers
 
