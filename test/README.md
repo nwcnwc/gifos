@@ -240,7 +240,7 @@ Each spawns its own relay and its own static server for THIS checkout's
 | drill | proves |
 |---|---|
 | `e2e-latejoin.js` | the late-join deadlock: greeter-door sponsor entry, ttl-bounded `fsig`/`fmesh` hops, the `nosock` bounce (meet-security §FWD, healing-laws R2) |
-| `e2e-peer-relay-reunion.js` | E5 peer-bridge reunion: ICE-split first (no media), then a Hub joins and friend-relay heals both ways (healing-laws E5) |
+| `e2e-peer-relay-reunion.js` | E5 §1 friend-relay among co-members: ICE-split pair in ONE room, third co-member joins same room → "via Hub" (not a two-meeting merge; that stays R5 pick-one) |
 | `mirror-drill.js` | the sdn DORMANT-MIRROR standby: 8 browsers force-seated at C=2, kill the direct relay, the parked mirror wakes |
 | `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake |
 | `e2e-vanish-browser.js` | the browser half of D5: pagehide→instant LEAVE, `dc.onclose`→`transportLost`→probe-gated early confirm, with a SIGKILLed victim browser |
