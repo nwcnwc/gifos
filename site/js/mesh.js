@@ -778,6 +778,13 @@
     promoteInto(hole, nbrs) {
       if (!this.hasCoord || ck(this.coord) === ck(hole)) return;
       if (this.moving) return;                       // T1: one move at a time
+      // E2, PREEMPTIVE: never move into a chair I can SEE is occupied. The
+      // healer that decided this was a hole may be blind to the occupant (a
+      // severed head confirms its row-mate dead via D5 and hands the hole to a
+      // down-child still directly linked to the seat it would evict). A cell I
+      // hear FIRST-HAND is alive by definition, so this can never mask a real
+      // hole — it only declines the duplicate before the tie-break mints one.
+      if (this.firstHandLive(ck(hole))) return;
       if (this.coord.pc === 0 && hole.pc !== 0) return;
       // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch
       // UP into denser (lower row index) same-column hole only — never DOWN
