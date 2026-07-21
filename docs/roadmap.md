@@ -446,6 +446,106 @@ breaking free P2P culture. Distinct from rejected §1 “silent TURN for all.”
 - TURN-only vs SFU; data-retention / jurisdiction for enterprise buyers.
 - Relationship to §4c when both BYO and rented are configured (precedence).
 
+### 5b-1. GifOS-sponsored Cloudflare TURN, rented per-period, verified on-chain (no DB)
+
+**What.** The concrete GifOS-operated instance of §5b: a **Cloudflare TURN**
+(Cloudflare Calls TURN / Realtime) that an **admin rents by the period** (day /
+week / month) with **x402**. The design constraint that shapes everything:
+**the TURN admission check keeps NO database.** It does not store who paid, does
+not track sessions, does not phone a billing API per connection. It answers one
+question — *"is there a paid, unexpired rental for this room right now?"* — by
+**reading the blockchain**, and it caches that answer for a short window.
+
+**Why it fits.** §5b says "GifOS may operate rented assist"; this is the *how*
+that stays true to the project's spine — **derive/verify, don't keep server
+state** (same instinct as the greeter relay's zero-knowledge registry and the
+"admission IS the credential" rule in §4c). No accounts, no payments DB, no
+per-user secret store to breach or subpoena. Rent is a fact on a public ledger;
+the TURN is a stateless reader of that fact.
+
+**Mechanism — payment as an on-chain, self-describing entitlement.**
+1. **Rent.** Admin hits an x402-gated "Rent GifOS TURN" flow (lobby Worker).
+   Payment settles to the **GifOS treasury** on Base (USDC). The settlement is
+   made **self-describing** so a reader can later recover *what* was bought
+   without a side DB. Two candidate encodings (pick in design):
+   - **On-chain marker (preferred): a tiny purpose-built rental contract.** The
+     x402 payment calls `rent(roomCommit, periods)`; the contract records
+     `paidUntil[roomCommit] = max(now, paidUntil) + periods·PERIOD` and takes
+     the fee. State is one mapping: **commitment → expiry timestamp.** That is
+     the "DB," but it lives on-chain and the TURN only *reads* it.
+   - **Event/memo encoding (no custom contract): ERC-20 transfer + calldata /
+     an emitted event** carrying `roomCommit` and `periods`; the reader sums
+     valid payments to a room's commitment. Cheaper to ship, more work to read
+     (scan + validate amount ≥ price·periods).
+2. **roomCommit is a commitment, not the room.** It is
+   `H(roomVerifier ‖ salt)` — public on-chain, but it does **not** reveal the
+   join link or room key. The admin proves rental by presenting the
+   pre-image binding (sealed into admin state, per §4c) so the client's TURN
+   credential request can be checked against `roomCommit` **without** the room
+   id ever appearing on-chain in the clear.
+3. **TURN admission = read + short cache.** When a client asks the TURN edge
+   (a Cloudflare Worker fronting Calls TURN, or coturn's REST auth hook) for a
+   credential:
+   - Client presents `{ roomCommit, seatAssertion }` (the §4c per-seat signed
+     assertion — reused verbatim, so **members are authorized by admission**,
+     not by holding the payment).
+   - Worker checks a **cached** `paidUntil[roomCommit]`; on cache miss it does
+     **one** chain read (contract call or indexed event query) and caches the
+     expiry with a TTL of a minute or two.
+   - If `now < paidUntil` **and** the seat assertion verifies → mint a
+     short-lived TURN REST credential (`username = <exp>:<pseudonym>`,
+     `password = HMAC(turnSecret, username)`), `exp` clamped to
+     `min(assertionExp, paidUntil, now+shortTTL)`. Else `402`/deny → client
+     falls back to friend-relay.
+   - **No write. No session row. No payment record.** Restart the Worker and it
+     re-derives everything from the chain.
+
+**What this buys us.**
+- **Statelessness end to end.** The only durable state is the on-chain expiry
+  mapping and the static `turnSecret` in the Worker's env. Nothing to migrate,
+  nothing to lose, nothing to breach that isn't already public.
+- **Rent is publicly auditable.** Anyone can verify a room's rental status;
+  GifOS cannot silently over-bill or deny a paid period.
+- **Renewal is idempotent.** A second `rent()` just pushes `paidUntil` further;
+  no subscription state machine, no autopay lock-in (autopay can be a client
+  cron that calls `rent()` before expiry — optional, later).
+
+**Consequences / hard edges to state up front:**
+- **Chain-read latency & cost.** Per-connection chain reads are a non-starter;
+  the short-TTL cache is load-bearing. Under a flash crowd the cache carries it,
+  and worst case is a ~2-minute lag between an on-chain rent/expiry and the edge
+  honoring it — acceptable for a rental, not for a paywall that must be exact.
+- **Grace at the boundary.** A credential minted at `paidUntil−10s` outlives the
+  rental by its TTL. Fine (it's a courtesy tail); just clamp `exp ≤ paidUntil`
+  if we want a hard cut, at the cost of dropped media exactly at expiry.
+- **Reorg / finality.** Read at a small confirmation depth; a reorged-away
+  `rent()` that already minted creds is a rounding error we eat (bounded by the
+  short cred TTL). Don't gate minting on deep finality — it would add minutes.
+- **TURN abuse is still the operator's problem (us, here).** Unlike §4c BYO,
+  *GifOS* runs this TURN, so **we** own the per-credential bandwidth quota,
+  peer/permission restriction, and egress caps. Price the period to cover the
+  bandwidth cap, not "unlimited."
+- **Privacy.** On-chain: a commitment, a period count, a fee — no room id, no
+  members, no media. The chain reveals *that a room was rented and for how
+  long*, nothing about who or what was said.
+- **Reader is not on the critical path.** RPC down / rate-limited / cache
+  cold-and-slow ⇒ client falls back to direct → friend-relay → (BYO §4c if
+  configured). Rented-assist failure is never a join failure.
+
+**Open questions.**
+- Custom rental contract vs event-scan encoding — contract is cleaner to read
+  and cheaper per-query but is code to write/audit/deploy; event-scan ships on
+  a bare ERC-20 transfer but pushes validation into the reader.
+- Which RPC / indexer the Worker trusts (Cloudflare's own, Base RPC, a light
+  indexer) and how to avoid a single-provider dependency for the read.
+- Whether per-period rent and §5b's per-minute metering coexist, or per-period
+  is simply the shipped shape of §5b (I lean: this *is* §5b's v1).
+- Cloudflare Calls TURN's own auth model vs fronting it with our Worker — does
+  Calls let us issue our own short-lived creds, or must we proxy?
+- Refund / early-cancel: on-chain rent is non-refundable by default; is that the
+  stated policy, or does the contract support a `cancel()` clawback of the
+  unused tail (adds state + a refund path)?
+
 ## 6. App store (GitHub catalog + free download + x402 IAP)
 
 **What.** A **Home Screen app store** that lists GIF apps. Makers **submit**
