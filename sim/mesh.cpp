@@ -74,6 +74,13 @@ static const long long STRAND_TTL=500;   // R6: a newcomer that cannot reach any
 // recoverable availability dip, so the ring always chooses the hole. Much longer
 // than the deep-tree confirmation (60), because the rook has many paths to exhaust.
 static const long long RING_HOLD=220;
+// A — three-state occupancy (empty / sitting-down / seated). An admitter writes
+// a soft sitting-down mark when it sends PLACE; only the joiner's take/CLAIM
+// upgrades to seated. Soft TTL + assigner recheck free a mark if PLACE was lost
+// (the ~10% loss wedge: ghost occ permanently blocked the cell). Never a
+// firstHandLive hand-off gate and never PLACE-TTL alone as the sole fix.
+static const long long SIT_TTL=90;       // soft sitting-down backstop (ticks)
+static const long long SIT_RECHECK=25;   // assigner recheck cadence
 // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies (a
 // FIRST-HAND observation — the modelled DataChannel close, never gossip), the
 // confirm probe may start immediately instead of waiting out the silence
@@ -172,6 +179,10 @@ struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
   Occ occ, live, s1seen, healTry, cousins, holeSince; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
+  // A three-state soft marks: cell → {joiner, assigner, at}. Empty = no entry in
+  // occ/sitting; sitting-down = sitting[]; seated = occ + firstHandLive (or self).
+  struct SoftSit { int joiner; int assigner; int at; };
+  unordered_map<uint64_t, SoftSit> sitting;
   // D5 early-probe state (keyed by coord ckey): translost = when MY transport to
   // that coord's occupant died (edge-triggered); tlProbeAt = last re-probe tick;
   // probeAck = last ROUTED answer for a probe of that coord (deliberately NOT
@@ -215,6 +226,26 @@ struct Seat {
   // NOT first-hand live, so it can never yield a live healer out of a hole. This
   // is the echo-immune fix — gossip informs routing, never liveness.
   inline bool firstHandLive(uint64_t ck){ auto it=live.find(ck); return it!=live.end() && TICK-it->second<=60; }
+  // A three-state helpers (empty / sitting-down / seated) --------------------
+  inline bool softSitting(uint64_t k){
+    auto it=sitting.find(k); if(it==sitting.end()) return false;
+    if(TICK-it->second.at>SIT_TTL){ sitting.erase(it); return false; }
+    return true;
+  }
+  // Cell is not free for a new admit: confirmed occ OR unexpired soft sit.
+  inline bool cellTaken(uint64_t k){ return occ.count(k) || softSitting(k); }
+  // Really seated (self-confirmed): I sit here, or first-hand live occupant.
+  inline bool cellSeated(uint64_t k){
+    if(hasCoord && ckey(coord)==k) return true;
+    return firstHandLive(k) && occ.count(k);
+  }
+  inline void clearSoft(uint64_t k){ sitting.erase(k); }
+  inline void markSitting(uint64_t k,int joiner){ sitting[k]={joiner,id,(int)TICK}; }
+  // Confirm seated for joiner at k (CLAIM/HELLO/take path).
+  inline void confirmSeated(uint64_t k,int joiner){
+    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
+  }
+  void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
   void rosterCells(Coord out[C]){ Coord h=ownedRowHead(); for(int c=0;c<C;c++) out[c]={h.pc,h.r,(uint8_t)c}; }
   // 11a FRONTIER-ONLY ADMISSION: admit a newcomer only into a TRUE frontier slot
@@ -223,7 +254,7 @@ struct Seat {
   // V) is already filling it, so a newcomer there would double-book. Skip it; the
   // caller forwards the FIND deeper (serveFind), keeping healers and newcomers
   // disjoint by construction.
-  bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(occ.count(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0) continue; f=rc[c]; return true; } return false; }
+  bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(cellTaken(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0||softSitting(ckey(down(rc[c])))) continue; f=rc[c]; return true; } return false; }
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }

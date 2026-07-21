@@ -63,6 +63,8 @@
   // because the rook has many paths to exhaust. A wrong ring-heal is the one act
   // that mints a divergent home; a held hole is a recoverable availability dip.
   const RING_HOLD = 220;     // sim/mesh.cpp RING_HOLD
+  // A three-state occupancy: soft sitting-down TTL + assigner recheck (loss wedge).
+  const SIT_TTL = 90, SIT_RECHECK = 25;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
   // (DataChannel close / hard pc failure — a FIRST-HAND observation, never
   // gossip), the confirm probe may start immediately instead of waiting out the
@@ -108,6 +110,8 @@
       this.occ = new Map(); this.live = new Map(); this.s1seen = new Map();
       this.healTry = new Map(); this.cousins = new Map();
       this.kidful = new Map(); this.childOf = new Map();
+      // A three-state: soft sitting-down marks {joiner, assigner, at} by cell key.
+      this.sitting = new Map();
       // holeSince: when a Section-1 cell I don't hear first-hand first looked
       // like a hole (H1-S1 confirm-window timer, probe-gated ringConfirmDead)
       this.holeSince = new Map();
@@ -194,6 +198,39 @@
     setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) this.tlForget(k); this.occ.set(k, v); }
     noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
+    // A three-state helpers (empty / sitting-down / seated)
+    softSitting(k) {
+      const s = this.sitting.get(k); if (!s) return false;
+      if (this.TICK - s.at > SIT_TTL) { this.sitting.delete(k); return false; }
+      return true;
+    }
+    cellTaken(k) { return this.occ.has(k) || this.softSitting(k); }
+    cellSeated(k) {
+      if (this.hasCoord && ck(this.coord) === k) return true;
+      return this.firstHandLive(k) && this.occ.has(k);
+    }
+    clearSoft(k) { this.sitting.delete(k); }
+    markSitting(k, joiner) { this.sitting.set(k, { joiner, assigner: this.id, at: this.TICK }); }
+    confirmSeated(k, joiner) {
+      this.clearSoft(k); this.setOcc(k, joiner); this.live.set(k, this.TICK); this.noteS1(k);
+    }
+    recheckSitting() {
+      if (!this.sitting.size) return;
+      const del = [];
+      for (const [k, s] of this.sitting) {
+        if (s.assigner !== this.id) continue;
+        if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
+        if (this.TICK - s.at < SIT_RECHECK) continue;
+        if (this.TICK - s.at >= SIT_TTL) {
+          del.push(k);
+          if (this.occGet(k) === s.joiner && !this.firstHandLive(k)) {
+            this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k);
+            this.kidful.delete(k); this.tlForget(k);
+          }
+        }
+      }
+      for (const k of del) this.sitting.delete(k);
+    }
     // E2 FIRST-HAND liveness: `live` is set ONLY by direct contact — a PHONE I
     // answered (onPhone), a HELLO/CLAIM its occupant sent me, a PONG from a rook
     // neighbour. GOSSIP (S1SYNC) never sets it. So firstHandLive is the ONLY
@@ -258,7 +295,15 @@
     // down-child, VERTICAL) is already filling it; a newcomer there would
     // double-book, lose the race, requeue OUT, and leave a gossip phantom
     // permanently blocking refill (bug #2). Skip it; serveFind forwards deeper.
-    firstFreeInRoster() { for (const rc of this.rosterCells()) { if (this.occ.has(ck(rc))) continue; if (this.occGet(ck(topo.down(rc))) != null) continue; return rc; } return null; }
+    firstFreeInRoster() {
+      for (const rc of this.rosterCells()) {
+        if (this.cellTaken(ck(rc))) continue;
+        const dk = ck(topo.down(rc));
+        if (this.occGet(dk) != null || this.softSitting(dk)) continue;
+        return rc;
+      }
+      return null;
+    }
     ownerCoord() { if (!this.hasCoord || this.coord.pc === 0) return null; return topo.up({ pc: this.coord.pc, r: this.coord.r, i: 0 }); }
     ownerId() { if (!this.hasCoord) return null; const u = topo.up({ pc: this.coord.pc, r: this.coord.r, i: 0 }); if (!u) return null; return this.occGet(ck(u)); }
     hasChildren() { for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) return true; } return false; }
@@ -410,7 +455,8 @@
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
       this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false;
-      this.occ.set(ck(c), this.id); this.noteS1(ck(c));
+      // A: self-confirm sitting-down → seated (only the joiner upgrades).
+      this.confirmSeated(ck(c), this.id);
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
       this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK;
       this.lastAck = this.TICK; this.lastPhone = this.TICK;
@@ -418,25 +464,33 @@
       if (c.pc === 0) { this.s1CheckAt = this.TICK + E3_PERIOD + (this.rng() * E3_PERIOD | 0); this.emitRelay(this.genKey); } // E3: a Section-1 seat registers as a greeter on seating
       this.announce(); this.wake();
     }
-    announce() { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } }
+    announce() {
+      const seen = new Set();
+      for (const olc of topo.ownedLinks(this.coord)) {
+        const lk = ck(olc); let x = this.occGet(lk);
+        if (x == null && this.softSitting(lk)) { const s = this.sitting.get(lk); if (s) x = s.joiner; }
+        if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'HELLO', ck: ck(this.coord), id: this.id }); }
+      }
+    }
 
     admit(c, f) {
       const nc = f.nc;
-      this.tlForget(ck(c)); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
-      this.occ.set(ck(c), nc); this.noteS1(ck(c));
+      const k = ck(c);
+      this.tlForget(k); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
       const nbrs = []; const ol = topo.ownedLinks(c);
       for (const olc of ol) { const x = this.occGet(ck(olc)); if (x != null && x !== nc) nbrs.push({ k: ck(olc), v: x }); }
       let selfNb = false; for (const olc of ol) if (ck(olc) === ck(this.coord)) selfNb = true;
       if (selfNb) nbrs.push({ k: ck(this.coord), v: this.id });
       const m = { t: 'PLACE', coord: c, owner: this.id, nbrs, tag: f.tag, nc };
-      // Q2: a compaction seeker (tag==1) is already SEATED and NOT adjacent to me
-      // — ROUTE the PLACE to its coord and deliver to WHOEVER sits there
-      // (rfinal=null, NOT a direct hand-off to the seated seeker, which would
-      // teleport). m.nc names the intended seeker; if it has moved on, the seat
-      // now at that coord ignores the PLACE (nc mismatch) and the seeker
-      // re-probes. A plain newcomer (tag falsy) is reached directly.
-      if (f.tag === 1) { this.route(f.coord, null, m); }
-      else { this.emit(nc, m); this._gspReplay(nc); } // an ADMITTED newcomer arrives with no gossip history — hand over the backlog
+      // Q2 compaction (tag==1): reserve with occ. Newcomer: soft sitting-down only
+      // (loss wedge — never permanent occ without self-confirm).
+      if (f.tag === 1) {
+        this.occ.set(k, nc); this.noteS1(k);
+        this.route(f.coord, null, m);
+      } else {
+        this.markSitting(k, nc);
+        this.emit(nc, m); this._gspReplay(nc);
+      }
     }
     serveFind(mm) {
       const TICK = this.TICK;
@@ -472,6 +526,12 @@
           for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; }
         }
         for (let t = 0; t < C(); t++) {
+          // A row-then-depth: fill row while head may be only sitting-down;
+          // do not spill to next row until previous head is seated.
+          if (t > 0) {
+            const prevHead = ck({ pc: 0, r: t - 1, i: 0 });
+            if (this.softSitting(prevHead) || (this.occ.has(prevHead) && !this.cellSeated(prevHead))) break;
+          }
           const liveRow = rowLive[t], everSeen = rowSeen[t];
           if (!liveRow && everSeen) {
             // RESURRECTION (old H7, row-targeted): this row LIVED and is now
@@ -509,13 +569,14 @@
           }
           for (let j = 0; j < C(); j++) {
             const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
-            if (this.occ.has(k)) continue;               // taken (or a stale phantom — the heal machinery clears those)
+            if (this.cellTaken(k)) continue;             // occ seated OR soft sitting-down (A)
             // Frontier test by DIRECT knowledge only (the old 11a admit-
             // liveness: occGet(down)==null) — NOT hasDownChild, whose childOf
             // arm never expires: a stale heir entry would permanently steer
             // arrivals away from a clear cell, leaving it to the much slower
-            // leaf-promotion backstop.
-            if (this.occGet(ck(topo.down(cell))) != null) continue; // internal hole — its down-child heals it (C1 frontier rule)
+            // leaf-promotion backstop. A: also block soft-sitting down-child.
+            const dk = ck(topo.down(cell));
+            if (this.occGet(dk) != null || this.softSitting(dk)) continue;
             // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
             //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by
             //    its designated healer (the H2 scoocher / vertical promotion)
@@ -523,23 +584,23 @@
             //    a healer).
             if (j === 0 && rowLive[t]) continue;
             let adm = j > 0 ? { pc: 0, r: t, i: 0 } : { pc: 0, r: (t - 1 + C()) % C(), i: 0 };
-            //  - H-CHAIN admission devolution (healing-laws H-CHAIN): when the
-            //    designated admitter seat is VACATED (occ EMPTY — D2 LEAVE;
-            //    mere silence never clears occ), duty devolves along that
-            //    admitter's ROW: col 1, then 2, … C−1. First OCCUPIED seat
-            //    wins. Empty chain → scooch still rebuilding; keep scanning.
-            //    Single-step col-1 devolution is the j=1 special case.
-            if (!this.occ.has(ck(adm)) && rowLive[adm.r]) {
+            // A: soft-only primary — assigner mass-fills the rest of the row.
+            // NEVER devolve on mere silence of an occ occupant (headless-row C).
+            if (this.softSitting(ck(adm)) && !this.occ.has(ck(adm)) && j > 0) {
+              const sit = this.sitting.get(ck({ pc: 0, r: t, i: 0 }));
+              if (sit && sit.assigner === this.id) {
+                if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
+                continue;
+              }
+            }
+            // H-CHAIN: devolve ONLY when vacated (no occ, no soft).
+            if (!this.cellTaken(ck(adm)) && rowLive[adm.r]) {
               for (let dj = 1; dj < C(); dj++) {
                 const d = { pc: 0, r: adm.r, i: dj };
                 if (this.occ.has(ck(d))) { adm = d; break; }
               }
             }
-            //  - H-CHAIN S1 COLUMN-clique admission: when the admitter row
-            //    chain is empty, a first-hand COLUMN-mate of the HOLE (W7
-            //    rook; S1 only) is the active admitter. Ascending row from
-            //    hole.r+1 (cyclic). Beyond the column clique → keep scanning.
-            if (!this.occ.has(ck(adm))) {
+            if (!this.cellTaken(ck(adm))) {
               for (let dr = 1; dr < C(); dr++) {
                 const d = { pc: 0, r: (cell.r + dr) % C(), i: cell.i };
                 if (this.occ.has(ck(d))) { adm = d; break; }
@@ -550,9 +611,8 @@
               continue;                                  // admit gate cooling — consider the next cell
             }
             const aid = this.occGet(ck(adm));
+            // Hand-off by occ only — do NOT gate on firstHandLive (headless-row C).
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
-            // admitter unknown/dead: keep scanning. Do NOT gate on firstHandLive
-            // (fast-tracks silent death past H1-S1 — headless-row leg C).
           }
         }
         // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
@@ -616,16 +676,32 @@
       for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) src.push(x); }
       if (hole.pc === this.coord.pc && hole.r === this.coord.r) { for (const m of topo.rowMates(this.coord)) { if (ck(m) === ck(hole)) continue; if (!(this.kidful.has(ck(m)) && this.kidful.get(ck(m)))) continue; const x = this.occGet(ck(m)); if (x != null && x !== this.id) src.push(x); } }
       if (hole.pc === 0 && this.coord.pc === 0) { for (const e of this.s1Roster()) if (e.v !== this.id && e.k !== ck(hole)) src.push(e.v); }
-      // H-CHAIN S1 column-pack scooch BEFORE FINDLEAF (FINDLEAF cannot land a
-      // same-column move). Left-pack keeps FINDLEAF-then-scooch so mass-kill
-      // gossip connectivity stays as before.
+      // Immediate LEFT-PACK designee: subtree first; after repeated FINDLEAF
+      // misses (healTry aged ≥90), scooch even with children so S1 cannot
+      // stay short forever after mass kill.
+      if (hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1
+          && this.occGet(ck(topo.down(hole))) == null) {
+        const mysrc = [];
+        for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) mysrc.push(x); }
+        const hk = ck(hole);
+        const tried = this.healTry.has(hk) ? this.healTry.get(hk) : -999;
+        if (mysrc.length && this.TICK - tried < 90) {
+          const who = mysrc[(this.rng() * mysrc.length) | 0];
+          this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return;
+        }
+        if (!this.hasChildren() || this.TICK - tried >= 90) { this.promoteInto(hole, nbrs); return; }
+        if (mysrc.length) {
+          const who = mysrc[(this.rng() * mysrc.length) | 0];
+          this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return;
+        }
+      }
+      // H-CHAIN S1 column-pack scooch BEFORE general FINDLEAF
       if (!this.hasChildren() && this.coord.pc === 0 && hole.pc === 0 && hole.i === this.coord.i && hole.r !== this.coord.r) {
         let rowRightEmpty = true;
         for (let j = hole.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: hole.r, i: j }))) { rowRightEmpty = false; break; }
         if (rowRightEmpty) { this.promoteInto(hole, nbrs); return; }
       }
       if (src.length) { const who = src[(this.rng() * src.length) | 0]; this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return; }
-      // 11a left-pack leaf scooch (only when no FINDLEAF source)
       if (!this.hasChildren() && hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1) this.promoteInto(hole, nbrs);
     }
     findLeaf(hole, nbrs, ttl) {
@@ -1136,13 +1212,20 @@
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
           this.live.set(m.ck, TICK); // first-hand: I just heard m.id directly at m.ck
-          this.noteS1(m.ck); return;
+          this.noteS1(m.ck);
+          this.clearSoft(m.ck); // A: HELLO from soft-sit joiner self-confirms
+          return;
         }
         case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
-        case 'CLAIM': if (!this.verifyFill(m)) return; if (this.occGet(m.ck) !== m.id) { this.setOcc(m.ck, m.id); this.live.set(m.ck, TICK); } this.noteS1(m.ck); return; // first-hand + S4 identity hook
+        case 'CLAIM':
+          if (!this.verifyFill(m)) return;
+          // A: joiner self-confirm — upgrade sitting-down → seated.
+          this.confirmSeated(m.ck, m.id);
+          return;
         case 'LEAVE': {
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
+          this.clearSoft(m.ck); // A: LEAVE clears soft sitting-down
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // H-CHAIN vertical: vacated down-child clears childOf on its owner
           // so LEFT-PACK can devolve (childOf otherwise never expired).
@@ -1158,7 +1241,10 @@
           // down-child (VERTICAL). Old col-1-only is chain length-1.
           if (HEALING && this.hasCoord && this.state === 3) {
             const c = unck(m.ck);
-            if (c.pc === this.coord.pc && c.r === this.coord.r && this.coord.i > c.i && !this.hasDownChild(c)) {
+            // Defer to VERTICAL only when down-child OCC is present — stale
+            // childOf on neighbours must not block LEFT-PACK forever.
+            if (c.pc === this.coord.pc && c.r === this.coord.r && this.coord.i > c.i
+                && this.occGet(ck(topo.down(c))) == null) {
               let first = true;
               for (let j = c.i + 1; j < this.coord.i; j++) if (this.occGet(ck({ pc: c.pc, r: c.r, i: j })) != null) { first = false; break; }
               if (first) { this.heal(c); return; }
@@ -1276,6 +1362,7 @@
       // self-expires (T3).
       if (this.moving && TICK - this.moveAt > CONFIRM_TTL) this.confirmMove();
       if (this.leaseUntil >= 0 && TICK > this.leaseUntil) { this.leaseCk = null; this.leaseUntil = -1; }
+      this.recheckSitting(); // A: assigner frees soft sitting-down if PLACE never confirmed
       if (this.coord.pc === 0) {
         // D1 over the rook: phone every live row+column neighbour each beat
         // (maintains first-hand liveness across all redundant home paths).
@@ -1297,9 +1384,8 @@
         // my own link to it died; firstHandLive may linger up to 60 ticks.)
         if (this.coord.i >= 1 && TICK - this.healAt > 20 && (!this.firstHandLive(ck({ pc: 0, r: this.coord.r, i: 0 })) || this.translost.has(ck({ pc: 0, r: this.coord.r, i: 0 })))) {
           const lft = { pc: 0, r: this.coord.r, i: this.coord.i - 1 }; const lk = ck(lft);
-          // D5 early path defers to the VERTICAL healer when the hole owns a
-          // down-child (bug #3's rule) — racing it minted duplicates.
-          const defer = this.translost.has(lk) && this.hasDownChild(lft);
+          // Defer to VERTICAL only when down-child OCC present (not stale childOf).
+          const defer = this.translost.has(lk) && this.occGet(ck(topo.down(lft))) != null;
           if (!defer && this.ringConfirmDead(lft)) { if (this.occ.has(lk)) { this.occ.delete(lk); this.live.delete(lk); this.s1seen.delete(lk); this.kidful.delete(lk); } this.holeSince.delete(lk); this.heal(lft); }
         }
         // W7: keep column links live — re-ping any vacant column-mate

@@ -87,14 +87,13 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   Remaining: self-wire-with-hint packaging, deeper multi-level vertical,
   full sweep soak after each land.
 
-- **A — Loss wedge under ~10% packet loss (DESIGN LOCKED; implement when A
-  is opened).** Diagnosed: lost PLACE leaves a phantom `s1seen` row head;
-  room caps at ~5 seats. Rejected: firstHandLive hand-off gate; PLACE TTL alone.
-  **Nathan 2026-07-21:** three-state occupancy empty / sitting-down / seated;
-  self-confirm to seated; mass-fill entire row while head is only sitting-down;
-  do not spill past the row (children) until head is seated; assigner rechecks
-  soft marks; soft TTL backstop; E2 yield on double claim. Full text:
-  `docs/handoff-2026-07-21.md` § Loss wedge design.
+- **A — Loss wedge under ~10% packet loss (LIVE 2026-07-21).** Three-state
+  occupancy empty / sitting-down / seated in sim + `mesh.js`. Soft sit on
+  admit; joiner self-confirms; assigner recheck + soft TTL 90; row fill while
+  head sitting-down OK; next row waits for head seated. Gate:
+  `sim/repro-loss-wedge.sh` (loss=0.10 N=60 → ≥55 seated; was 5/60 phantom).
+  Follow-ups: s1row gossip residual after mass S1 wipe; seed-10 sweep kill
+  can leave S1 short under 15k converge ticks.
 
 - **B / E5 — Friend-relay + pick-one (LAW ADOPTED, refined).** No paid
   media/data relay server. **Co-members** of one chosen meeting may use

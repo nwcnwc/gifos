@@ -38,12 +38,10 @@ echo "   $seat0"
 echo "   $seat6"
 seated=$(grep -oE 'seated=[0-9]+' <<<"$sB" | head -1 | cut -d= -f2)
 if [ "${seated:-0}" -ge 55 ] && grep -q 'dups=0' <<<"$sB" && ! grep -qE 'stranded=[1-9]' <<<"$sB"
-then echo "   B PASS (loss-tolerant seating ≥55/60)"
+then echo "   B PASS (loss-tolerant seating ≥55/60 — three-state soft sit)"
 else
-  echo "   B OPEN — loss wedge still present (expected until three-state lands)"
-  echo "   (seated=${seated:-?} want ≥55; check phantoms on seat 0 / searching seat 6)"
-  # Not a hard fail of this script until the fix is in: document only.
-  # fail=1  # enable when implementing A
+  echo "   B FAIL — loss wedge still present (seated=${seated:-?} want ≥55)"
+  fail=1
 fi
 
 echo "=== C) healthy burst N=100 still converges (no loss) ==="
@@ -55,5 +53,5 @@ then echo "   C PASS"
 else echo "   C FAIL — N=100 healthy burst regression"; fail=1; fi
 
 echo "----"
-if [ "$fail" -eq 0 ]; then echo "LOSS-WEDGE PIN OK (B may still be OPEN until three-state)"; exit 0
-else echo "LOSS-WEDGE PIN RED"; exit 1; fi
+if [ "$fail" -eq 0 ]; then echo "LOSS-WEDGE GREEN (three-state soft sit)"; exit 0
+else echo "LOSS-WEDGE RED"; exit 1; fi
