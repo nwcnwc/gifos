@@ -640,7 +640,166 @@ host-authoritative app), not the infinite-stadium killer app.
 
 ---
 
-## 9. What not to build (reminder list)
+## 9. Classic FPS — mesh is the pipe, not the map
+
+### 9.1 Pitch
+
+A **real first-person shooter that is fun as an FPS** — movement, aim, maps,
+weapons, spawns, scoreboard — where GifOS supplies **many players + durable
+P2P connectivity**, not the **shape** of play.
+
+Contrast with §8 Last One Standing (social/vote-off “FPS”) and §2 Festival
+(topology-as-venue):
+
+| | Last One Standing / Festival-shaped | **Classic FPS (this section)** |
+|---|---|---|
+| Arena | Meeting room, seats, Stage, vote | Authored map (CS/Quake-like, or simple arenas) |
+| Mesh role | Geometry + social verbs *are* the game | **Session fabric only** — join, gossip, DC, heal under churn |
+| Seat / row | May matter (table politics, swap) | **Irrelevant to gameplay** (hidden weather) |
+| Win | Last face in the room | Frags, objective, round timer — ordinary shooter rules |
+| A/V | Often central | Optional (proximity voice later; mute-by-default fine) |
+
+**One-liner:** the mesh is your **matchmaker + netcode bus + infinite room that
+doesn’t die when the host’s Wi‑Fi blips**; the game is still a shooter.
+
+### 9.2 What the mesh provides (and must not provide)
+
+**Provides:**
+
+- **Match session** = mesh room URL (or headless app-mesh session): greeter
+  registry only; no game server on gifos.app.
+- **Many concurrent peers** with bounded degree (tree + gossip), self-heal when
+  people drop mid-match.
+- **DataChannels** along mesh links (and sponsor-forward) for game messages:
+  inputs, state snapshots, events.
+- **Gossip** for match-wide facts: scoreboard, round phase, map vote, chat.
+- **Optional:** faces on a second channel (Meet chrome or in-HUD picture-in-picture)
+  without defining spawns from `{pc,r,i}`.
+
+**Must not provide (for this genre):**
+
+- Spawn points from seat coords  
+- Teams from mesh rows  
+- Fog of war from section depth  
+- “You win by sitting on Stage”  
+- Auto power-seating of “game hosts” by device score  
+
+Seats stay logistics. The **game simulation** lives in app state + a clear
+authority model (below).
+
+### 9.3 Fun-first product shape (start small, scale later)
+
+Real-time shooters are sensitive to latency and cheating. Ship joy before scale:
+
+| Tier | N | Simulation model | Why |
+|---|---|---|---|
+| **A — Party arena** | 2–16 | **Host-authoritative** (one peer runs sim; others send inputs) | Classic GifOS app-share model; easiest; great LAN/party |
+| **B — Scrim** | ~16–32 | Host + **interest management** (only nearby entities to each client) | Still one authority; mesh carries more peers than a star DC mesh would |
+| **C — Mass skirmish** | 32–100+ | Sharded instances / multiple matches per plaza, **not** one 500-player hit-scan world | Honest about physics; “many players” via many concurrent arenas on the same Festival shell |
+| **D — Huge presence** | Stadium-scale | Not hit-scan FPS — soft presence, bots, or §8 social modes | Don’t force 60 Hz world state through fair-share phones |
+
+**Default fun product:** Tier A with crisp movement and a few maps; advertise
+“bring 8 friends on a link.” Use the mesh so the **link outlives host failover**
+(anyone-owns / mirror takeover or mesh session) and so 16 DCs aren’t a full mesh
+of N² links — traffic rides the tree/gossip where appropriate, host still owns
+truth.
+
+### 9.4 Netcode sketch (host-authoritative FPS)
+
+```
+  clients                         host peer (sim)
+     |  input (aim, move, fire)      |
+     | ----------------------------> |  tick @ 20–60 Hz
+     |  snapshot / delta             |  validate, hit tests, damage
+     | <---------------------------- |
+```
+
+- **Host** = App GIF host or elected Stage DATA publisher for the match app —
+  not “strongest GPU,” not S1 seat. Failover: existing host-mirror / mesh
+  session rules when the match is anyone-owns; owned links keep a single host.
+- **Inputs** directed to host (mesh `to` / DC); **snapshots** host → others via
+  gossip or fan-out along mesh (for small N, host may DC each client if the
+  runtime still allows star; at larger N prefer mesh gossip of compressed
+  snapshots).
+- **Map, weapons, rules** are **content inside the App GIF** — not derived from
+  healing-laws geometry.
+- **Cheating:** host authority is the honest party-game bar; no server anticheat
+  DB. Optional: lockstep replay hashes for tournament modes later.
+
+Client-side prediction + reconciliation is a polish layer on the same model
+(standard FPS netcode textbooks apply; GifOS doesn’t invent a new one).
+
+### 9.5 Rendering & feel
+
+- **3D or 2.5D** in canvas/WebGL inside the App GIF (sandbox). Meet is optional
+  chrome, not the viewport.
+- **Mouse look / touch** — party on phones may want twin-stick or auto-aim assist
+  modes so “fun” survives mobile.
+- **Audio:** spatial SFX local; optional proximity voice only if mounted in a
+  meeting — **game does not require camera**.
+- **Avatar presence** ([`avatar-presence.md`](avatar-presence.md)): character
+  skins / nameplates from presence profile; not mesh seats.
+
+### 9.6 Modes that stay “real FPS”
+
+- Deathmatch / team DM  
+- Attack/defend objective (bomb, flag, king of hill)  
+- Round-based tactical (buy phase, short rounds)  
+- Gun game / party mutators  
+- Bot fill for low population (local AI on host)  
+
+Do **not** require Tide, swap, or vote-off for the core loop. Those can be
+**optional social layers** in a Festival plaza outside the match (queue, trash
+talk Stage, rematch) without defining the arena.
+
+### 9.7 “Many players” without lying
+
+Honest marketing:
+
+> **One link, a real shooter, as many friends as the match mode allows — no game
+> server bill, room heals when people drop.**
+
+Not:
+
+> “10,000-player battle royale on the stadium tree.”
+
+Scale story for GifOS FPS:
+
+1. **Concurrent matches** — many room URLs / many Stage apps under a Festival
+   hub (directory app).
+2. **Spectators** — large N watch via Stage app state or low-rate snapshot
+   stream (data), not full sim for every phone.
+3. **Battle-royale light** — if ever: large map with **zone** + sparse interest
+   management on host/shards; still not “seat = biome.”
+
+### 9.8 Why build it on GifOS at all?
+
+- Zero ops game server for indie/party scale.  
+- Share link is the match.  
+- Host leave can failover (self-healing sessions) instead of “lobby died.”  
+- Same desktop: ship the FPS as an **App GIF**, remix maps, steal mutators.  
+- Optional: after the match, drop into a Meet for the victory roast — mesh
+  connectivity already there; game shape stayed independent.
+
+### 9.9 Build order (FPS track)
+
+1. App GIF prototype: local player + bots, one map, no net (fun bar).  
+2. Host-authoritative 2–8 player over existing app multiplayer / Stage DATA.  
+3. Harden latency (prediction), two more maps, team mode.  
+4. Mesh-native session (headless mesh when standalone bus swap ships) so relay
+   isn’t the game bus.  
+5. Match browser hub (list open arenas) — still no topology-as-map.
+
+### 9.10 Explicit non-goals for this class
+
+- Using row/Stage/Stadium as the level geometry.  
+- Vote-off as the only gun (§8 remains a **different** product).  
+- Device-power host election.  
+- Claiming MMO FPS parity with dedicated tick servers on day one.
+
+---
+
+## 10. What not to build (reminder list)
 
 - Continuous large-scale authoritative physics MMO on the relay.
 - Mesh seating as owned real estate or guild property.
@@ -649,10 +808,12 @@ host-authoritative app), not the infinite-stadium killer app.
 - Global economy that requires gifos.app to store inventory.
 - Unmarked deathmatch on ordinary civil low-channels.
 - Teaching Stage or S1 as “high power seats for strong machines.”
+- **Classic FPS whose level geometry is the seat tree** — that confuses §9
+  (connectivity-only) with Festival-shaped games; keep them separate products.
 
 ---
 
-## 10. Suggested build order (if this becomes real work)
+## 11. Suggested build order (if this becomes real work)
 
 1. **Festival skin + Stage/table UX** (no new mesh laws) — prove fantasy.
 2. **Pair swap** in sim + `mesh.js` (law + repro + churn matrix) — primitive.
@@ -660,13 +821,15 @@ host-authoritative app), not the infinite-stadium killer app.
 4. **Tide rounds** as a Stage-hosted mode (Musical Chairs / Mixer).
 5. **Last One Standing** arena with match-scoped votes + winner reset beat.
 6. **Crew vs Tide** and deduction modes as content packs (App GIFs).
+7. **Classic FPS App GIF** (§9) — local fun bar → host-auth multiplayer →
+   mesh-native session; parallel track, does not block swap/Festival.
 
 Each step should stay green under existing mesh harnesses and must not weaken
 heal/empty-only/fair-share doctrines.
 
 ---
 
-## 11. Open questions
+## 12. Open questions
 
 - Match-scoped vote storage: pure gossip vs relay assist for tally UX only
   (relay must not become a ban DB of record for sport if avoidable).
@@ -676,10 +839,12 @@ heal/empty-only/fair-share doctrines.
 - Should compaction ever accept an **affinity hint** (still empty-only, still
   not power-based)? Probably later; easy to get wrong.
 - Cross-plaza (multi-URL) Festival map: directory app only, or deeper?
+- FPS: snapshot transport over gossip vs star-DC at party scale; host failover
+  mid-round rules (freeze, pause, or migrate sim).
 
 ---
 
-## 12. One-page summary
+## 13. One-page summary
 
 GifOS can host MMOG-scale **presence** without game servers because the stadium
 mesh already folds media and heals under churn. Games must treat **seats as
@@ -695,6 +860,11 @@ crew sports, deduction, markets, and quests all compose from those parts.
 **vote-off**, whose map is the room, whose victory is **solitude**, and whose
 reset is **leaving the empty throne** — built carefully so sport never poisons
 civil moderation tools.
+
+**Classic FPS** is the other edge: a **real shooter** where the mesh is only
+**connectivity + many peers + durable sessions** — maps and guns live in the
+App GIF; seats never define the arena. Party-scale host-auth first; mass is
+many concurrent matches, not one fake 10k hit-scan world.
 
 ---
 
