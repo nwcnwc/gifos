@@ -11,60 +11,51 @@ the wrong shape until it's reworked to fit.
 
 ---
 
-## 1. (removed) GifOS-operated TURN relay tier
+## 1. (removed as default) GifOS-operated media relay on free Meet
 
-A **GifOS-hosted** paid TURN tier was sketched here and REJECTED: that would
-make *our* infrastructure a media relay server, and default Meet media stays
-peer-to-peer (plus friend-relay) — the meeting footer's promise. Connectivity
-without our media servers: P1 friend-relay (media through a MUTUAL FRIEND's
-browser) and better ICE.
+A **always-on GifOS TURN** for every meeting was REJECTED: default Meet media
+stays peer-to-peer (plus friend-relay) — the meeting footer's promise.
+Connectivity without our media servers: P1 friend-relay and better ICE.
 
-**Not the same as §4c:** admin rooms may later point at a **customer-chosen**
-media relay (their TURN/SFU / vendor). GifOS still does not have to carry A/V;
-the enterprise brings the pipe. Default / open rooms stay STUN-only + friend-relay.
+**Still on the roadmap as opt-in paid products (not free default):**
+- **§4c** — admin room points at a **customer-chosen** relay (corp brings the pipe).
+- **§5b** — host **rents** a media-assist path via x402 when P2P fails (GifOS or
+  partner operates assist; room is labeled; free/open rooms stay STUN-only).
 
 ## 2. General x402 support (HTTP-native, account-free payments)
 
 **What.** Support the **x402** payment standard across GifOS — the open protocol
 built on HTTP `402 Payment Required`: a server answers a request with `402` plus
 machine-readable payment requirements, the client pays (typically a stablecoin
-like USDC on an L2 such as Base) and retries with an `X-PAYMENT` header, and a
+like USDC on an L2 such as Base) and retries with a payment proof header, and a
 facilitator verifies settlement before the resource is returned. "General
 support" means both **consuming** x402 (a GifOS app pays a metered API per
-request) and **charging** via x402 (a GifOS service).
+request) and **charging** via x402 (GifOS or makers).
+
+**Concrete products that ride this primitive** (detail below):
+- **§5** — Paid meetings (join tickets + optional rented media assist).
+- **§6** — App store (list GIFs; paid download / in-app purchases; platform cut).
 
 **Why it fits.** x402 is the most *GifOS-shaped* way to charge for anything:
 payment is a **wallet signature, not an account**. No signup, no stored billing
-identity, no server that has to remember who you are — exactly the no-accounts
-posture the whole system is built on. It turns "paid features" from an
-architectural contradiction into a clean, per-use, holder-of-a-key model that
-mirrors how the mesh already thinks about identity (an unforgeable key, not a
-login).
+identity — same posture as mesh identity (unforgeable key, not a login).
 
 **Sketch.**
-- **Charging side (server):** a facilitator-backed 402 gate. A metered-service cred
-  Worker (item 1) is the first customer — answer `402` with the price, verify the
-  `X-PAYMENT` settlement, then mint the ephemeral service credential. Same pattern
-  generalises to any future metered GifOS service.
-- **Consuming side (apps):** a small runtime shim so an App GIF can call an
-  x402-gated endpoint — on a `402`, surface the payment requirement to the user,
-  pay from their connected wallet, retry with the header. Must run inside the
-  app sandbox's existing network-permission model (`runtime.js`), so a paid call
-  is still subject to the same allow-list and consent as any other fetch.
-- Wallet connection is client-side and user-held; GifOS custodies nothing.
+- **Platform runtime:** wallet connect (user-held), consent UI, spend caps, 402
+  detect → pay → retry; sandboxed apps never see keys (same broker spirit as
+  `gifos.api` / AI).
+- **Charging Workers:** facilitator-backed verify/settle; mint **short-lived
+  capabilities** (join ticket, download unlock, relay-minute grant) — not user
+  balances.
+- **Platform cut:** prefer **split / dual pay-to** (maker or host + GifOS
+  treasury) so GifOS does not custody sale proceeds (Model B). No accounts.
+- Wallet connection is client-side; GifOS custodies nothing.
 
 **Open questions.**
-- **Sandbox + permissions.** How an x402 payment prompt composes with the app
-  permission model and the "apps can't call the GifOS origin" rule — payment
-  endpoints are third-party by definition, so this should slot into the existing
-  network allow-list, but the UX of a per-request charge inside a sandboxed app
-  needs design (consent, spend caps, no silent draining).
-- **Chain / asset / facilitator** choice (Base + USDC is the common default) and
-  whether to run our own facilitator or use a hosted one.
-- **No-custody guarantee.** Keep GifOS entirely out of the money path — it
-  brokers a 402 and verifies a receipt; it never holds funds or keys.
-- (item 1 was rejected; the first pilot service is TBD — any metered GifOS endpoint fits this pattern.)
-  x402 there before generalising to app-to-app metered calls.
+- Sandbox + permissions + per-request consent (no silent drain).
+- Chain / asset / facilitator (Base + USDC common default).
+- Fee bps and public disclosure in lobby/store UI.
+- First pilot: paid meeting join ticket vs store download vs both.
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
@@ -254,9 +245,8 @@ STUN + friend-relay only; **no** GifOS-operated media relay (see §1 rejected).
   assist endpoint” is the same consent shape.
 - Keeps R2 for **our** relay: greeter only; A/V still must not ride
   `relay.gifos.app`. The media assist host is **not** the greeter DO.
-- Optional later: x402 (§2) to mint or unlock “relay-capable admin room”
-  features on GifOS-side tooling — fee for *capability/UX*, not for us
-  hairpinning everyone’s video by default.
+- Complements **§5b** (rent assist via x402): §4c is BYO relay; §5b is pay
+  GifOS/partner to rent one. Both stay **opt-in**, never free-default Meet.
 
 **Sketch.**
 - **Admin config (signed, room-scoped):** admin sets media-assist descriptor
@@ -290,3 +280,101 @@ STUN + friend-relay only; **no** GifOS-operated media relay (see §1 rejected).
   third-party API / proxy patterns as other keyed services.
 - Whether open-source “run this coturn” docs ship as the default enterprise
   path so nobody needs GifOS to sell media minutes.
+
+## 5. Paid meetings (x402)
+
+Third meeting class alongside **open** and **admin**: **paid**. Creation /
+lobby UI lets a host configure money without GifOS user accounts. Free open
+and free admin rooms remain the default product; paid is explicit and labeled.
+
+### 5a. Charge to join (host pay-to + platform cut)
+
+**What.** On create (or admin settings): meeting type **Paid** → host sets
+**wallet address (pay-to)**, **price**, and **access duration** (e.g. 24h /
+30d / open-ended “lifetime for this room epoch”). Joiners hit a **lobby**,
+pay via x402, receive an **expiring join ticket**; only **valid payers** and
+**room admins/hosts** are admitted. GifOS takes a **small cut** (split or dual
+pay-to to treasury + host).
+
+**Why it fits.** Ticketed webinars, office hours, Festival stages — wallet is
+the ticket, not an account. Relay/greeter only checks a **capability** (not
+full payment stack on every DO). Media stays P2P unless §4c/§5b assist is also
+on. Subscriptions = **time-bounded entitlements** re-minted by a new payment
+when expired (true autopay optional later).
+
+**Sketch.**
+- Create UI: Open | Admin | **Paid** (+ optional Admin+Paid combine).
+- Lobby Worker: `402` → verify/settle (host + fee) → mint ticket
+  `{ room, validUntil, jti, role? }` saved in the browser for rejoin.
+- Relay: admit greeter path only with valid unexpired ticket (or admin proof);
+  no global paywall on free rooms.
+- Rejoin within window without paying again; expired → lobby renew.
+- Optional: bind ticket to device id to limit casual sharing.
+
+**Open questions.**
+- Ticket sharing policy; refunds/revoke list (admin-signed).
+- Host offline: mint must not depend on host browser (Worker).
+- Exact fee bps and whether cut is optional for self-hosted deploys.
+
+### 5b. Rent media relay when P2P fails (x402)
+
+**What.** A room (typically paid or admin) may **rent media assist** — TURN
+and/or partner path operated by GifOS or a contracted vendor — billed via
+x402 (per minute, per room-hour, or pass). Used when direct P2P and
+friend-relay cannot connect (dual firewall / hard NAT). **Not** the default
+for open rooms; join UX must show that A/V **may** traverse rented infra.
+
+**Why it fits.** Enterprise and mixed-VPN calls without forcing every corp to
+run coturn (§4c remains BYO). Monetizes a real cost (relay bandwidth) without
+breaking free P2P culture. Distinct from rejected §1 “silent TURN for all.”
+
+**Sketch.**
+- Room policy: `mediaAssist: rented` + grant from x402 (host prepays pool, or
+  each participant pays assist minutes — product choice).
+- ICE fallback: direct → friend-relay → **rented assist**.
+- Separate hosts from `relay.gifos.app` greeter (R2: greeter still carries no
+  media). Assist endpoints are dedicated media infra.
+- Badge: “Organization / rented media assist may be used in this room.”
+
+**Open questions.**
+- Host-prepaid bucket vs per-guest assist fees.
+- TURN-only vs SFU; data-retention / jurisdiction for enterprise buyers.
+- Relationship to §4c when both BYO and rented are configured (precedence).
+
+## 6. App store (GitHub catalog + x402 commerce)
+
+**What.** A **Home Screen app store** that lists GIF apps. Makers **submit**
+apps (pipeline: PR / push into a **GitHub repo** you control — e.g. curated
+`apps/` or `store/` catalog). Listed apps become installable from the store
+UI on the desktop. Commerce via x402:
+
+- **Paid entry** — pay to download / unlock the App GIF (host pay-to + **platform
+  cut**, same split model as §5a).
+- **In-app purchases** — running apps trigger 402 for extras (content packs,
+  hints, premium modes); runtime consent + spend caps; maker pay-to + optional
+  cut.
+
+**Why it fits.** Apps are already files; the store is discovery + trusted
+hash + checkout, not DRM theater. No accounts: maker = wallet + git identity;
+buyer = wallet. Curated GitHub repo keeps malware/policy review in a familiar
+workflow (review PR → merge → store index updates → Pages/deploy). Aligns with
+remix culture: free apps still list; paid is optional.
+
+**Sketch.**
+- **Catalog source:** GitHub repo (manifest: title, blurb, icon, content hash,
+  price, maker pay-to, fee bps, optional `capabilities` / screenshots).
+- **Publish path:** maker opens PR with App GIF + listing JSON; CI checks hash /
+  size / basic policy; merge publishes to store index consumed by Home Screen.
+- **Store UI:** folder or system surface on the desktop — browse, pay (if priced),
+  install GIF to Home Screen / Stolen Apps chest.
+- **Download Worker:** x402 gate on bytes; verify payment(s); stream object
+  only if hash matches listing (R2 or release asset).
+- **IAP:** `gifos.pay` / 402 on `gifos.api` or dedicated presence — shell shows
+  “Pay $X to &lt;maker&gt; (GifOS fee Y%)?”; never silent.
+- Free listings and free IAPs remain first-class.
+
+**Open questions.**
+- Curation bar (signed makers only? theme-computer stores?).
+- Update / version story for paid apps (pay once for all versions vs re-buy).
+- Abuse: malicious paid GIFs — review, report, delist without accounts system.
+- Whether IAP cut equals download cut; self-hosted store mirrors.
