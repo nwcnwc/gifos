@@ -294,17 +294,20 @@ void Seat::heal(Coord hole){
   // across my subtree children, my kidful row-mates, AND (for a home hole) other
   // Section-1 seats' subtrees means repeated heals eventually reach a live leaf; a
   // rare double-promotion is culled by E2's first-hand HELLO yield.
+  // FINDLEAF sources must be FIRST-HAND LIVE — phantoms in occ (stale after a
+  // cascade LEAVE) swallow FINDLEAF forever and leave home holes unfilled
+  // (atomic-move leg D: seated=7/9 with /0.1+/0.2 empty forever).
   vector<int> src;
-  { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) src.push_back(x); } }
-  if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id) src.push_back(x); } }
-  if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) src.push_back(e.v); }
+  { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rc[q]))) src.push_back(x); } }
+  if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rm[q]))) src.push_back(x); } }
+  if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole) && firstHandLive(e.k)) src.push_back(e.v); }
   // Immediate LEFT-PACK designee (hole is my left neighbour): try my subtree
   // first, then scooch. If FINDLEAF has been tried repeatedly and the head
   // hole is still open (healTry aged), scooch myself even with children so the
   // home cannot stay short forever (seed-10 mass-kill left /3.0 empty).
   if(hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1 && occGet(ckey(down(hole)))<0){
     vector<int> mysrc;
-    { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) mysrc.push_back(x); } }
+    { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rc[q]))) mysrc.push_back(x); } }
     uint64_t hk=ckey(hole);
     int tried=healTry.count(hk)?healTry[hk]:-999;
     if(!mysrc.empty() && (int)TICK-tried<90){ int who=mysrc[(int)(rng()*mysrc.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
@@ -324,8 +327,14 @@ void Seat::heal(Coord hole){
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
   if(!hasCoord) return;
   if(ttl>0){ Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
-    for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=ttl-1; emit(x,m); return; } } }
-  if(coord.pc==hole.pc && coord.r==hole.r && hole.i!=0) return;
+    for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rc[q]))){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=ttl-1; emit(x,m); return; } } }
+  // Same-row non-head hole: only LEFT-PACK (hole to my left). Old unconditional
+  // return dropped FINDLEAF on live row-mates — head s1Fill then starved when
+  // every deep leaf was gone and phantoms had polluted the source list.
+  if(coord.pc==hole.pc && coord.r==hole.r && hole.i!=0){
+    if(!(hole.i<coord.i) || hasChildren()) return;
+    promoteInto(hole,nbrs); return;
+  }
   promoteInto(hole,nbrs);
 }
 void Seat::promoteInto(Coord hole, vector<KV>& nbrs){

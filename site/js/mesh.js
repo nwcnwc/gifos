@@ -688,16 +688,17 @@
       // heals eventually reach a live leaf; a rare double-promotion is culled by
       // E2's first-hand HELLO yield.
       const src = [];
-      for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) src.push(x); }
-      if (hole.pc === this.coord.pc && hole.r === this.coord.r) { for (const m of topo.rowMates(this.coord)) { if (ck(m) === ck(hole)) continue; if (!(this.kidful.has(ck(m)) && this.kidful.get(ck(m)))) continue; const x = this.occGet(ck(m)); if (x != null && x !== this.id) src.push(x); } }
-      if (hole.pc === 0 && this.coord.pc === 0) { for (const e of this.s1Roster()) if (e.v !== this.id && e.k !== ck(hole)) src.push(e.v); }
+      // FINDLEAF sources must be first-hand live — phantoms swallow FINDLEAF.
+      for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id && this.firstHandLive(ck(rc))) src.push(x); }
+      if (hole.pc === this.coord.pc && hole.r === this.coord.r) { for (const m of topo.rowMates(this.coord)) { if (ck(m) === ck(hole)) continue; if (!(this.kidful.has(ck(m)) && this.kidful.get(ck(m)))) continue; const x = this.occGet(ck(m)); if (x != null && x !== this.id && this.firstHandLive(ck(m))) src.push(x); } }
+      if (hole.pc === 0 && this.coord.pc === 0) { for (const e of this.s1Roster()) if (e.v !== this.id && e.k !== ck(hole) && this.firstHandLive(e.k)) src.push(e.v); }
       // Immediate LEFT-PACK designee: subtree first; after repeated FINDLEAF
       // misses (healTry aged ≥90), scooch even with children so S1 cannot
       // stay short forever after mass kill.
       if (hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1
           && this.occGet(ck(topo.down(hole))) == null) {
         const mysrc = [];
-        for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) mysrc.push(x); }
+        for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id && this.firstHandLive(ck(rc))) mysrc.push(x); }
         const hk = ck(hole);
         const tried = this.healTry.has(hk) ? this.healTry.get(hk) : -999;
         if (mysrc.length && this.TICK - tried < 90) {
@@ -722,8 +723,20 @@
     }
     findLeaf(hole, nbrs, ttl) {
       if (!this.hasCoord) return;
-      if (ttl > 0) { const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k)); for (const q of idx) { const x = this.occGet(ck(rc[q])); if (x != null && x !== this.id) { this.emit(x, { t: 'FINDLEAF', hole, nbrs, ttl: ttl - 1 }); return; } } }
-      if (this.coord.pc === hole.pc && this.coord.r === hole.r && hole.i !== 0) return;
+      if (ttl > 0) {
+        const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
+        for (const q of idx) {
+          const x = this.occGet(ck(rc[q]));
+          if (x != null && x !== this.id && this.firstHandLive(ck(rc[q]))) {
+            this.emit(x, { t: 'FINDLEAF', hole, nbrs, ttl: ttl - 1 }); return;
+          }
+        }
+      }
+      // Same-row non-head hole: only LEFT-PACK (hole to my left), not a no-op return.
+      if (this.coord.pc === hole.pc && this.coord.r === hole.r && hole.i !== 0) {
+        if (!(hole.i < this.coord.i) || this.hasChildren()) return;
+        this.promoteInto(hole, nbrs); return;
+      }
       this.promoteInto(hole, nbrs);
     }
     promoteInto(hole, nbrs) {
