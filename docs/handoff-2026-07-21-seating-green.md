@@ -76,20 +76,22 @@ kill (churn seed 5, split 7, D5 crash leg all broke). `heldRightNow` (3 beats,
   density, and the media near-field is row-scoped); letting another seat admit
   into a memberless row (healer race — "don't devolve").
 
-`sweep.sh`'s partition leg now **hard-fails on dups only** and reports a
-stranded half as a MEASURE. Rationale: the freeze is chosen behaviour, and a
-gate that can never go green masks the next real regression. The 3 pinned seeds
-pass/fail on luck — the true rate lives in the laws.
-
-**Wide-seed partition measurement** (not in the battery; run when touching
-partition/heal code):
+**Where it is checked.** `sim/sweep.sh` asserts only the invariant — no
+split-brain — and says nothing about the freeze. The freeze lives in
+`test/batteries/known-unfixed.sh`:
 
 ```bash
-# /tmp/psweep.sh <binary> <label> — 20 seeds instead of the pinned 3
-for s in $(seq 1 20); do
-  printf "seed $s\ninit 400 0\nconverge\nsplit 0.5\ntick 40000\nsplitstate\nquit\n" | ./mesh --service
-done
+test/batteries/known-unfixed.sh              # sim entries (fast)
+test/batteries/known-unfixed.sh --browsers   # + browser entries (slow)
 ```
+
+**That script is expected to be RED.** It is the graveyard of things we
+understood and decided not to fix; it is not a gate, no battery calls it, and
+CI never runs it. Run it only when we change our mind. It measures the freeze
+over 20 seeds rather than the 3 `sweep.sh` pins (which pass or fail on luck),
+and reports `2/20 froze` against the baseline recorded when the decision was
+made. If an entry ever goes GREEN, promote that check back into its real gate
+and delete it from the file. Never soften an assertion to make it green.
 
 ---
 

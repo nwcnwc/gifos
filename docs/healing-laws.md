@@ -753,3 +753,11 @@ row-scoped), and letting another seat admit into a memberless row reintroduces
 a healer race. Do NOT "fix" this by falling through to the deep path when home
 looks unservable — that fast-tracks silent death past H1-S1 ring-hold and is
 caught by `repro-headless-row` leg C.
+
+**Where it is checked.** `sim/sweep.sh` asserts only the invariant — no
+split-brain, ever — and says nothing about the freeze. The freeze is checked in
+`test/batteries/known-unfixed.sh`, the graveyard of decided-unfixed behaviour,
+where it is **expected to be RED** and is measured across 20 seeds instead of
+the 3 that `sweep.sh` pins (those pass or fail on luck). Run that script only
+when we change our mind and want to try again; if it ever goes green, promote
+the check into a real gate and delete the entry.
