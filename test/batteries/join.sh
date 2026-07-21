@@ -68,6 +68,15 @@ run "sim — 7 arrival patterns x 13 sizes (burst/serial/batch/window)" \
 run "sim — hostile fabrics + a DARK SEAT that answers nothing (150 seats)" \
     ./sim/repro-adversary.sh
 
+run "sim — Q2 compaction (self-duty pack; ON vs OFF + mass-kill)" \
+    ./sim/repro-compaction.sh
+
+run "sim — H-CHAIN multi-level devolution (admit + left-pack heal)" \
+    ./sim/repro-hchain.sh
+
+run "sim — headless-row admission (single-step devolution control)" \
+    ./sim/repro-headless-row.sh
+
 # ── the port: mesh.js replaying the sim's scenarios at scale ────────────────
 run "mesh.js — harness (JOIN N=1000, 50% kill, s1row, s1all, D5)" \
     node test/mesh/mesh-harness.js
