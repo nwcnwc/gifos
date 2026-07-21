@@ -153,6 +153,47 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - Composes with V1: the stale-client prompt is a *modal* (blocks join),
     the operator notice is a *banner* (never blocks). Distinct surfaces.
 
+- **V3 — Home-page update prompt ("your gifos.app is behind").** The desktop
+  (`site/index.html` / `boot.html`, running `window.GIFOS_VERSION`) can sit open
+  for days across deploys. Compare the running `GIFOS_VERSION` against the
+  **currently deployed** version — read from a tiny static file the deploy
+  writes (e.g. `/site/version.json` `{ version, minSupported }`, fetched
+  cache-busted on boot / focus / a slow poll). When the running build is older,
+  show a popup: **"Your gifos.app is behind the current version — update now?"**
+  with **Update** (cache-busting reload of the shell), **Later**, and a
+  **"Don't show this message again"** checkbox.
+  - "Don't show again" is remembered in `localStorage` **keyed by the target
+    version** — so suppressing 0.7.0 → 0.7.1 does *not* silence the *next*
+    version's prompt. (A blanket forever-mute is a footgun: the whole point is
+    to move stragglers off a broken build. Per-version suppression keeps the
+    nag honest.) Consider still forcing the prompt — ignoring the checkbox —
+    when `running < minSupported` (a hard-incompatible floor, e.g. a DS flag
+    day), since staying is not actually a safe choice there.
+  - This is the **home/desktop** cousin of **V1** (which gates *meeting* join at
+    the relay). V3 needs no relay: the answer is a static file next to the app.
+    The two share the cache-busting-reload helper and the version-compare logic.
+  - Note the existing `pin` redirect in `index.html:62` already sends a pinned
+    `/versions/<x.y.z>/` load to its archive — V3 is about the *unpinned* live
+    shell drifting behind, a different case; don't nag pinned archive loads.
+
+- **V4 — Home-page system message (banner from a static JSON file).** The same
+  dismissible top-of-page banner as **V2**, but on the **desktop/home**, and
+  sourced from a **static JSON file in `/site`** (e.g. `/site/notice.json`)
+  instead of the relay greeter package. Nathan edits/commits that file (a push
+  auto-deploys via Pages) to raise a notice; **when the file is missing (404),
+  no banner is shown** — that is the normal state.
+  - **Same formatting rules as the relay notice (V2), verbatim:** payload
+    `{ id, text, level }`; `level` is `info` / `warn`; **`textContent` only, no
+    HTML / no executed links** from the file; dismissal remembered **per `id`**
+    in `localStorage` so a reload doesn't resurrect a ✕'d banner but a new `id`
+    shows again; ✕ = dismiss (not delete), matching the shared convention.
+  - Fetched cache-busted on boot; a 404 or parse error is silent (no banner, no
+    console noise beyond a debug line) — a missing/broken notice must never
+    break the desktop.
+  - V4 is to the home page what V2 is to `meet.html`; factor the banner render +
+    per-`id` dismissal into one shared helper both surfaces call, differing only
+    in **source** (relay greeter package vs static `/site` JSON).
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
