@@ -3,7 +3,9 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
-  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; occ[ckey(c)]=id; noteS1(ckey(c));
+  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false;
+  // A: self-confirm sitting-down → seated (only the joiner upgrades).
+  confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK;
   lastAck=(int)TICK; lastPhone=(int)TICK;
@@ -11,24 +13,57 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.pc==0){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3: a Section-1 seat registers as a greeter on seating (present the MEETING genesis key)
   announce(); wake(id);
 }
-void Seat::announce(){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);} } }
+void Seat::announce(){
+  Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen;
+  for(int k=0;k<n;k++){
+    uint64_t lk=ckey(ol[k]); int x=occGet(lk);
+    if(x<0 && softSitting(lk)) x=sitting[lk].joiner; // A: also greet soft-sit neighbours
+    if(x>=0&&x!=id&&!seen.count(x)){ seen.insert(x); Msg m;m.t=HELLO;m.ck=ckey(coord);m.id=id; emit(x,m);}
+  }
+}
+
+// A: assigner recheck + soft TTL — free sitting-down marks that never self-confirmed
+// (lost PLACE under packet loss). Only the assigner that wrote the mark rechecks.
+void Seat::recheckSitting(){
+  if(sitting.empty()) return;
+  vector<uint64_t> del;
+  for(auto&e:sitting){
+    SoftSit& s=e.second;
+    if(s.assigner!=id) continue;
+    // Confirmed seated by first-hand contact with the joiner at this cell.
+    if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ del.push_back(e.first); continue; }
+    // Soft TTL backstop: mark cannot live forever if recheck is skipped.
+    if(TICK-s.at < SIT_RECHECK) continue;
+    if(TICK-s.at >= SIT_TTL){
+      del.push_back(e.first);
+      // Ghost occ left by an older admit path or partial confirm: clear if not live.
+      if(occGet(e.first)==s.joiner && !firstHandLive(e.first)){
+        occ.erase(e.first); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first);
+      }
+    }
+  }
+  for(auto k:del) sitting.erase(k);
+}
 
 void Seat::admit(Coord c,Msg& f){
   int nc=f.nc;
-  tlForget(ckey(c));   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
-  occ[ckey(c)]=nc; noteS1(ckey(c));
+  uint64_t k=ckey(c);
+  tlForget(k);   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
-  for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[k]),x}); }
-  bool selfNb=false; for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(coord)) selfNb=true;
+  for(int i=0;i<n;i++){ int x=occGet(ckey(ol[i])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[i]),x}); }
+  bool selfNb=false; for(int i=0;i<n;i++) if(ckey(ol[i])==ckey(coord)) selfNb=true;
   if(selfNb) nbrs.push_back({ckey(coord),id});
   Msg m; m.t=PLACE; m.coord=c; m.owner=id; m.nbrs=nbrs; m.tag=f.tag; m.nc=nc;
-  // Q2: a compaction seeker (tag==1) is already SEATED and NOT adjacent to me —
-  // ROUTE the PLACE to its coord and deliver to WHOEVER sits there (rfinal=-1,
-  // NOT a direct hand-off to the seated seeker, which would teleport). m.nc names
-  // the intended seeker; if it has moved on, the seat now at that coord ignores
-  // the PLACE (nc mismatch) and the seeker simply re-probes. A plain newcomer
-  // (tag==0) is reached directly through the greeter/bootstrap.
-  if(f.tag==1){ COMPACT_ADMITS++; route(f.coord,-1,m); } else emit(nc,m);
+  // Q2 compaction (tag==1): destination reserve still uses occ (seeker is already
+  // seated elsewhere; atomic doMove on PLACE). Newcomer (tag==0): soft sitting-down
+  // only — never permanent occ without self-confirm (loss wedge).
+  if(f.tag==1){
+    occ[k]=nc; noteS1(k);
+    COMPACT_ADMITS++; route(f.coord,-1,m);
+  } else {
+    markSitting(k, nc);   // sitting-down: assigner wrote PLACE, not yet seated
+    emit(nc,m);
+  }
 }
 void Seat::serveFind(Msg& mm){
   if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
@@ -61,6 +96,16 @@ void Seat::serveFind(Msg& mm){
     for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t];
       for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; } }
     for(int t=0;t<C;t++){
+      // A row-then-depth gate: fill the entire row while its head may still be
+      // only sitting-down; do NOT spill to the next row (or deeper) until the
+      // previous row's head is seated (self-confirmed). Soft sitting on head
+      // of row t-1 blocks starting row t.
+      if(t>0){
+        uint64_t prevHead=ckey({0,(uint8_t)(t-1),0});
+        if(softSitting(prevHead) || (occ.count(prevHead) && !cellSeated(prevHead))){
+          break;   // wait for head self-confirm (or soft TTL free) before depth
+        }
+      }
       bool liveRow=rowLive[t], everSeen=rowSeen[t];
       if(!liveRow && everSeen){
         // RESURRECTION (old H7, row-targeted): this row LIVED and is now
@@ -95,40 +140,36 @@ void Seat::serveFind(Msg& mm){
       }
       for(int j=0;j<C;j++){
         Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
-        if(occ.count(k)) continue;                     // taken (or a stale phantom — the heal machinery clears those)
+        if(cellTaken(k)) continue;                     // occ seated OR soft sitting-down (A three-state)
         // Frontier test by DIRECT knowledge only (the old 11a admit-liveness:
         // occGet(down)<0) — NOT hasDownChild, whose childOf arm never expires:
         // a stale heir entry would permanently steer arrivals away from a
         // clear cell, leaving it to the much slower leaf-promotion backstop.
-        if(occGet(ckey(down(cell)))>=0) continue;      // internal hole — its down-child heals it (C1 frontier rule)
+        // A: also block if down-child is only sitting-down (not yet seated).
+        if(occGet(ckey(down(cell)))>=0 || softSitting(ckey(down(cell)))) continue;
         // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
         //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by its
         //    designated healer (the H2 scoocher / vertical promotion) — never
         //    an admission target (C1: an admission must not race a healer).
         if(j==0 && rowLive[t]) continue;
         Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
-        //  - H-CHAIN admission devolution (healing-laws H-CHAIN): when the
-        //    designated admitter seat is VACATED (occ EMPTY — D2 LEAVE
-        //    delivered; mere silence never clears occ, so severance stays
-        //    behind H1-S1 ring-hold), duty devolves along that admitter's
-        //    ROW clique: col 1, then 2, … C−1 (ascending). Each earlier
-        //    designee must also be empty so we only skip confirmed-vacated
-        //    seats above us (depth rule on the admission path). First
-        //    OCCUPIED seat in that order is the active admitter. If the
-        //    whole chain is empty the scooch is still rebuilding: keep
-        //    scanning (transient). Single-step col-1 devolution is the
-        //    j=1 special case of this walk.
-        if(!occ.count(ckey(adm)) && rowLive[adm.r]){
+        // A: soft-only primary (sitting-down, no occ yet) — not a FIND peer.
+        // Assigner who wrote the soft head may fill the rest of the row.
+        // NEVER devolve on mere silence of an occ occupant (that is the
+        // firstHandLive hand-off gate — breaks headless-row silent death).
+        if(softSitting(ckey(adm)) && !occ.count(ckey(adm)) && j>0){
+          auto it=sitting.find(ckey({0,(uint8_t)t,0}));
+          if(it!=sitting.end() && it->second.assigner==id){
+            if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
+            continue;
+          }
+        }
+        // H-CHAIN: devolve ONLY when admitter seat is VACATED (no occ, no soft).
+        if(!cellTaken(ckey(adm)) && rowLive[adm.r]){
           Coord d={0,adm.r,0};
           for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(occ.count(ckey(d))){ adm=d; break; } }
-          // empty chain → leave adm as the vacated primary; aid path falls through
         }
-        //  - H-CHAIN S1 COLUMN-clique admission devolution: when the admitter
-        //    row chain is empty, duty falls to a first-hand COLUMN-mate of
-        //    the HOLE (W7 rook; Section 1 only). Fixed order: ascending row
-        //    from hole.r+1 (cyclic). Beyond the column clique → keep scanning
-        //    (E1 / resurrection), never a hearsay handoff.
-        if(!occ.count(ckey(adm))){
+        if(!cellTaken(ckey(adm))){
           for(int dr=1;dr<C;dr++){
             Coord d={0,(uint8_t)((cell.r+dr)%C),cell.i};
             if(occ.count(ckey(d))){ adm=d; break; }
@@ -139,6 +180,7 @@ void Seat::serveFind(Msg& mm){
           continue;                                    // admit gate cooling — consider the next cell
         }
         int aid=occGet(ckey(adm));
+        // Hand-off by occ only — do NOT gate on firstHandLive (headless-row C).
         if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
         // admitter unknown/dead: its own cell sits earlier in the scan (or is
         // being healed) — keep scanning so growth never deadlocks on one head
@@ -241,10 +283,20 @@ void Seat::heal(Coord hole){
   { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) src.push_back(e.v); }
-  // H-CHAIN S1 column-pack scooch BEFORE FINDLEAF: FINDLEAF to other S1 seats
-  // cannot land a same-column move (promoteInto is column-scoped for the
-  // designee). Left-pack keeps the historical order (FINDLEAF then scooch)
-  // so mass-kill gossip connectivity is unchanged.
+  // Immediate LEFT-PACK designee (hole is my left neighbour): try my subtree
+  // first, then scooch. If FINDLEAF has been tried repeatedly and the head
+  // hole is still open (healTry aged), scooch myself even with children so the
+  // home cannot stay short forever (seed-10 mass-kill left /3.0 empty).
+  if(hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1 && occGet(ckey(down(hole)))<0){
+    vector<int> mysrc;
+    { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) mysrc.push_back(x); } }
+    uint64_t hk=ckey(hole);
+    int tried=healTry.count(hk)?healTry[hk]:-999;
+    if(!mysrc.empty() && (int)TICK-tried<90){ int who=mysrc[(int)(rng()*mysrc.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
+    if(!hasChildren() || (int)TICK-tried>=90){ promoteInto(hole,nbrs); return; }
+    if(!mysrc.empty()){ int who=mysrc[(int)(rng()*mysrc.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
+  }
+  // H-CHAIN S1 column-pack scooch BEFORE general FINDLEAF
   if(!hasChildren() && coord.pc==0 && hole.pc==0 && hole.i==coord.i && hole.r!=coord.r){
     bool rowRightEmpty=true;
     for(int j=hole.i+1;j<C;j++) if(firstHandLive(ckey({0,hole.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
@@ -687,12 +739,19 @@ void Seat::recv(Msg& m){
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
-      noteS1(m.ck); return; }
+      noteS1(m.ck);
+      // A: HELLO from the soft-sit joiner self-confirms the seat.
+      clearSoft(m.ck);
+      return; }
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue(); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
-    case CLAIM: if(occGet(m.ck)!=m.id){ setOcc(m.ck,m.id); live[m.ck]=(int)TICK; } noteS1(m.ck); return;
+    case CLAIM:
+      // A: joiner self-confirm — upgrade sitting-down → seated.
+      confirmSeated(m.ck, m.id);
+      return;
     case LEAVE: {
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
+      clearSoft(m.ck);   // A: LEAVE clears any soft sitting-down on that cell
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
       // H-CHAIN vertical: when a DOWN-CHILD vacates, clear childOf on its
       // owner. childOf never expired before, so hasDownChild stayed true
@@ -710,7 +769,10 @@ void Seat::recv(Msg& m){
       // is the chain length-1 case.
       if(HEALING&&hasCoord&&state==3){
         Coord c=unck(m.ck);
-        if(c.pc==coord.pc&&c.r==coord.r&&coord.i>c.i&&!hasDownChild(c)){
+        // Defer to VERTICAL only when down-child OCC is present — stale childOf
+        // on neighbours (who never saw the down-child LEAVE) must not block
+        // LEFT-PACK forever (same lesson as column-clique).
+        if(c.pc==coord.pc&&c.r==coord.r&&coord.i>c.i&&occGet(ckey(down(c)))<0){
           bool first=true;
           for(int j=c.i+1;j<coord.i;j++) if(occGet(ckey({c.pc,c.r,(uint8_t)j}))>=0){ first=false; break; }
           if(first){ heal(c); return; }
@@ -796,6 +858,7 @@ void Seat::tick(){
   // rolled back already); the tombstone self-expires (T3).
   if(moving && TICK-moveAt>CONFIRM_TTL) confirmMove();
   if(leaseUntil>=0 && TICK>leaseUntil){ leaseCk=0; leaseUntil=-1; }
+  recheckSitting();   // A: assigner frees soft sitting-down if PLACE never confirmed
   if(coord.pc==0){
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
     tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
@@ -807,7 +870,7 @@ void Seat::tick(){
     // left is confirmed dead. Restricted to headless rows so it never races the
     // head's s1Fill. This is what rebuilds an all-heads-dead column-0.
     if(coord.i>=1 && TICK-healAt>20 && (!firstHandLive(ckey({0,coord.r,0})) || translost.count(ckey({0,coord.r,0})))){ Coord lft={0,coord.r,(uint8_t)(coord.i-1)}; uint64_t lk=ckey(lft);   // head NOT first-hand alive (phantom-proof) ⇒ headless row ⇒ rebuild leftward. D5: a pending transport-loss for the head counts as "no live head" (my own link to it died; firstHandLive may linger up to 60 ticks)
-      bool defer = translost.count(lk) && hasDownChild(lft);   // D5 early path defers to the VERTICAL healer when the hole owns a down-child (bug #3's rule) — racing it minted duplicates
+      bool defer = translost.count(lk) && occGet(ckey(down(lft)))>=0;   // D5: defer to VERTICAL only when down-child OCC present (not stale childOf)
       if(!defer && ringConfirmDead(lft)){ if(occ.count(lk)){occ.erase(lk);live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
     if(TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++) if(occGet(ckey(cm[q]))<0) routeTo(cm[q],1); }   // W7: keep column links live — re-ping any vacant column-mate (standby path, cross-links heal fast)
     if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);

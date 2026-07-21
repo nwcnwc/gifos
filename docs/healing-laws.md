@@ -246,6 +246,14 @@ childless — a leaf. **Only leaves move. No exceptions.**
     **Still PENDING:** self-wire-with-hint packaging, deeper multi-level
     vertical beyond childOf-clear. Standing guard: never ship a devolution
     that guesses without first-hand confirm.
+
+- **A — three-state occupancy (empty / sitting-down / seated) — LIVE (2026-07-21).**
+  Admitter writes soft **sitting-down** on PLACE (not permanent occ). Joiner
+  **take**/CLAIM/HELLO self-confirms to **seated**. Assigner recheck + soft TTL
+  (90 ticks) frees lost PLACE marks under packet loss. Row fill while head is
+  only sitting-down is allowed; spill to the next row waits for head seated.
+  Pin: `sim/repro-loss-wedge.sh` (loss=0.10 burst N=60 → seated≥55; was 5/60).
+  Rejected forever: firstHandLive hand-off gate; PLACE TTL alone.
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
   special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a

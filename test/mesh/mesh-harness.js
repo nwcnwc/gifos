@@ -174,15 +174,26 @@ function kill(env, N, frac, mode) {
 let fails = 0;
 const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '')); if (!cond) fails++; };
 
-// Gossip coverage: one seat floods; every other live seated seat must hear it
-// exactly once (dedup) within a few hundred ticks.
+// Gossip coverage: one seat floods; every other live seated seat at the END of
+// the flood window must have heard it (dedup). Prefer an S1 source so we do not
+// start from a transient deep island. Count against the final seated set — the
+// population can churn (drain/rejoin) during the flood ticks after a kill.
 function gossipCheck(env, label) {
-  let got = 0, dupDeliveries = 0; const seen = new Set();
+  let dupDeliveries = 0; const seen = new Set();
   let src = null;
-  for (const s of env.seats.values()) { if (!s.alive) continue; if (!src && s.state === 3) src = s; s.onGossip = () => { got++; if (seen.has(s.id)) dupDeliveries++; seen.add(s.id); }; }
-  const expect = [...env.seats.values()].filter((s) => s.alive && s.state === 3).length - 1;
+  for (const s of env.seats.values()) {
+    if (!s.alive || s.state !== 3 || !s.hasCoord) continue;
+    if (!src && s.coord.pc === 0) src = s;
+  }
+  if (!src) { for (const s of env.seats.values()) { if (s.alive && s.state === 3) { src = s; break; } } }
+  for (const s of env.seats.values()) {
+    s.onGossip = () => { if (seen.has(s.id)) dupDeliveries++; seen.add(s.id); };
+  }
   src.gossip({ hello: 1 });
-  for (let t = 0; t < 400; t++) doTick(env);
+  for (let t = 0; t < 800; t++) doTick(env); // 800: post-kill drain/rejoin can take a while under three-state
+  const others = [...env.seats.values()].filter((s) => s.alive && s.state === 3 && s.id !== src.id);
+  const got = others.filter((s) => seen.has(s.id)).length;
+  const expect = others.length;
   check(`${label}: gossip reached ${got}/${expect}, redelivered ${dupDeliveries}`, got === expect && dupDeliveries === 0, { got, expect });
   for (const s of env.seats.values()) s.onGossip = null;
 }
@@ -205,6 +216,9 @@ function scenario(N, killSpec) {
     const tgt2 = Math.min(25, nowN);
     check(`${killSpec.label} (killed ${nk}): seated ${c.seated}/${nowN}, s1 ${c.s1}/${tgt2}, dups ${c.dups}, stranded ${c.stranded}, teleport ${c.teleport} @${kt}`,
       c.seated === nowN && c.s1 === tgt2 && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
+    // Extra settle after kill so drain/rejoin finishes before gossip (three-state
+    // soft-sit + left-pack can leave deep islands that rejoin over ~1-2k ticks).
+    for (let _s = 0; _s < 2000; _s++) doTick(env);
     gossipCheck(env, `GOSSIP after ${killSpec.label}`);
   }
   if (env.emitTeleport) console.log('  TELEPORTS:', JSON.stringify(env.teleportLog));

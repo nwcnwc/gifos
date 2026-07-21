@@ -68,10 +68,10 @@ grep -q 'BAD unseated=1' <<<"$bD" || { echo "   D FAIL — silent death fast-tra
 [ "$okD" -eq 0 ] && fail=1
 
 echo "=== E) vertical: kill down-child then owner — LEFT-PACK heals without long drain ==="
-# Room large enough that /0.0 has a live down-child at 0/0.0. Kill the
-# vertical healer first, then the owner. With childOf cleared on LEAVE, row
-# col-1 must heal /0.0 in ~probe time (not E1 drain ~80-220).
-outE=$(run "seed 2" "init 50 0" "converge 15000" \
+# Need a live down-child under /0.0 (0/0.0). N=80 keeps a dense home so
+# column-0 always has a vertical heir after three-state seating (N=50 could
+# leave 0/0.0 empty while other columns held the deep seats).
+outE=$(run "seed 2" "init 80 0" "converge 20000" \
   "find 0/0.0" "find /0.0" \
   "killat 0/0.0" "tick 30" \
   "killat /0.0" "tick 100" \
