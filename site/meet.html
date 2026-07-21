@@ -11,6 +11,23 @@
 <script src="/js/sw-register.js" defer></script>
 <script>/* Global UI text size (Settings → Text size). Scales the meeting chrome; applied early, live across tabs. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>Meeting — GifOS</title>
+<!-- Link-preview card for texted / posted invites. og:url is deliberately OMITTED
+     so scrapers use the actual fetched URL and keep the invite's subdomain (the
+     computer's theme) — the mirror Worker can later rewrite og:image per theme.
+     The image is a STATIC branded card: a meeting invite can't leak per-room info
+     to a scraper, and messaging previews never animate a URL anyway. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GifOS">
+<meta property="og:title" content="Join the meeting on GifOS">
+<meta property="og:description" content="Peer-to-peer video, right in your browser. One link — no account, no installs.">
+<meta property="og:image" content="https://gifos.app/meet-og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="Join the meeting on GifOS — one link, no account, no installs.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Join the meeting on GifOS">
+<meta name="twitter:description" content="Peer-to-peer video in your browser. One link · no account · no installs.">
+<meta name="twitter:image" content="https://gifos.app/meet-og.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%B9%3C/text%3E%3C/svg%3E">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
