@@ -195,9 +195,16 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - **`meet.html` therefore carries TWO notice sources:** the relay operator
     notice (V2, from the greeter package — meeting-scoped, may differ per relay
     deploy) *and* the static site notice (V4, from `/site` — platform-wide). Two
-    independent banners (independent `id` namespaces / dismissal keys); if both
-    are live, stack them (site notice above relay notice, say). Don't collapse
-    them into one — they have different authors and lifecycles.
+    independent banners (independent `id` namespaces / dismissal keys). If both
+    are live, **de-dupe: when the relay notice and the site notice are verbatim
+    identical, show it only once; otherwise stack them** (site notice above
+    relay notice, say). "Verbatim identical" = same `text` after trim (the
+    signal is the message a user reads; don't require `id`/`level` to match,
+    since the two authors won't coordinate slugs). When de-duped to one banner,
+    a single ✕ dismisses it — record the dismissal under **both** sources' `id`
+    keys so it doesn't reappear from the other source on reload. Don't otherwise
+    collapse them — different authors and lifecycles, they only merge when the
+    text truly coincides.
   - V4 is to the whole site what V2 is to the meeting; factor the banner render
     + per-`id` dismissal into **one shared helper** every surface (home, meet,
     run) calls, differing only in **source** (relay greeter package for V2's
