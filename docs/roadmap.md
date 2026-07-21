@@ -156,6 +156,11 @@ Product-facing mesh features that do not change the fair-share / no-beefy-node
 doctrine. Design depth for games and social rooms lives in
 [`docs/mmog-ideas.md`](mmog-ideas.md); this section is the roadmap pointer.
 
+Also in that doc (§9): a **classic FPS** track where the mesh is **only**
+connectivity + many peers (host-authoritative App GIF shooter) — not seat
+geometry as the map. Separate from swap/Festival and from vote-off “Last One
+Standing.”
+
 ### 4a. Voluntary seat swap / pool / tide
 
 **What.** Let two (later N) living occupants **mutually** exchange seats; then
