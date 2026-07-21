@@ -114,6 +114,27 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   Historically timed out at the ICE-blocked pair; the dedicated E5 drill is
   the focused gate. Media-plane investigation if that drill fails.
 
+- **V1 — Relay-detected stale client (version gate on knock).** A tab that has
+  had `meet.html` open across a deploy keeps running the old wire/derivation
+  code; today nothing tells it. Add `ver: GIFOS_VERSION` to the `knock` frame
+  (a build string, not room content — no zero-knowledge cost, R2 still
+  arbitrates nothing) and have the relay compare it against the version it is
+  itself deployed with / a configured minimum. When the knocker is older, the
+  relay answers the knock with a `stale` flag (still returning the greeter list
+  — the relay must not *refuse* anyone, it only reports), and the client shows a
+  modal: **Reload to the current version** or **Join anyway**. Reload does a
+  cache-busting reload of `meet.html`; join-anyway proceeds unchanged so a
+  pinned `/versions/<x.y.z>/` build is never locked out.
+  Design notes / open questions:
+  - Distinguish *incompatible* (DS derivation tag changed → old and new clients
+    land in different relay sessions anyway, so "join anyway" is a lie) from
+    merely *older* (cosmetic/bugfix). Incompatible should be a hard prompt with
+    reload as the only useful action; carry the `DS` tag alongside `ver`.
+  - Applies to seated peers too, not just knockers: an already-seated stale tab
+    never re-knocks except on E3, so the E3 re-knock is the natural nag point.
+  - Do not auto-reload mid-meeting without consent — a forced refresh drops
+    media and the user's seat. Ask, always.
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
