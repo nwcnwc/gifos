@@ -194,7 +194,8 @@ empty-destination / heal motion — swap is the bilateral occupied-cell cousin.
 **What.** A participant may **replace their camera (and optionally reshape
 their mic)** with a chosen **avatar** presentation and **voice filters**, while
 remaining a first-class seat on the same media plane (row / Stage / Stadium
-still composite and forward whatever they publish).
+still composite and forward whatever they publish). Presence is configured once
+on the desktop and **piped into Meet and any App GIF that supports avatars**.
 
 **Why it fits.** Privacy, accessibility, low-bandwidth / no-camera contexts,
 playful Festival/MMOG identity, and civil rooms where faces are optional — without
@@ -203,26 +204,23 @@ pixels leave the device; receivers never strip a “real” face out of an avata
 track. Aligns with camera-optional meetings and data-optional social modes in
 `mmog-ideas.md`.
 
-**Sketch.**
-- **Video path:** local capture pipeline gains a branch — camera | avatar
-  renderer (canvas/WebGL, GIF/WebM loop, or static portrait) → same
-  `replaceTrack` / ship paths used today for blur and stage park. Avatar frames
-  are real MediaStream video so packers and friend-relay need no special case.
-- **Audio path:** optional Voice Focus–style chain or WASM/AudioWorklet filters
-  (pitch, robot, denoise, mute-as-filter) before the mic track is published;
-  mix-minus and Stage ear rules unchanged (filters are pre-mix at the sender).
-- **UX:** meeting controls — Avatar on/off, pick asset (theme pack / user GIF),
-  voice filter preset; status chip so others know it’s not a raw camera when
-  that matters for trust (optional room policy: admin rooms may require clear
-  cam; open rooms may prefer avatar-default).
-- **Persistence:** preference in local meeting prefs / desktop settings — no
-  server profile.
+**Sketch.** Full brief: **[`docs/avatar-presence.md`](avatar-presence.md)**.
+- **Settings:** reuse **Third-party APIs** for optional vendor keys (HeyGen
+  LiveAvatar, D-ID, LemonSlice, …); user picks provider + an **avatar
+  description file** (`gifos.avatar/1` JSON / GIF) they own. Keys never enter
+  sandboxed apps (same broker discipline as `gifos.api` / AI).
+- **Runtime presence seam:** adapters turn description + credentials into a
+  `MediaStream`; Meet/`gifos.presence.*` consumers only see tracks/frames — not
+  each vendor’s SDK. Local/static avatars work with **no** third party (v1).
+- **Video path:** camera | avatar renderer → same `replaceTrack` / ship paths
+  as blur and stage park; packers and friend-relay need no special case.
+- **Audio path:** optional AudioWorklet filters (or later provider-linked voice)
+  before publish; mix-minus / Stage ear unchanged.
+- **UX:** Avatar on/off, description file, voice preset, trust chip (“avatar”);
+  pause metered cloud sessions when backgrounded / not useful.
 
 **Open questions.**
 - Trust signaling: when is “this is an avatar” mandatory vs cosmetic.
-- CPU budget on phones when many avatars animate inside Stadium composites
-  (sender-side cheap loops; receivers still decode one mosaic).
-- Interaction with Max-blur / consent clear rules (avatar as always-ok
-  silhouette vs still subject to group blur).
-- Asset format: baked theme avatars vs user-supplied GIF/WebM and moderation
-  (open rooms + file pin already password-gated for files).
+- CPU budget on phones; $/min cloud avatar spend UX.
+- Blur/consent vs avatar-as-silhouette; admin rooms that require a real camera.
+- Token mint via `brokerApi` vs trusted-origin WebRTC SDK for streaming vendors.
