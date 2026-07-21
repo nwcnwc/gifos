@@ -35,25 +35,28 @@ if grep -q 'CHECK PASS' <<<"$cA" && grep -q 'dups=0' <<<"$sA" && ! grep -qE 'str
 then echo "   A PASS"
 else echo "   A FAIL — loss+kill recovery broke"; fail=1; fi
 
-echo "=== B) triple front-row LEAVE then 1 newcomer (seed 3, N=12) ==="
-# Atomic-move D: survivors only. Here one late joiner must still get a seat after
-# the scoot storm (the free /1.4). Multi-newcomer bursts after cascade can leave
-# 2 searchers (row-2 open lag) — pin single rejoin until that is closed.
+echo "=== B) triple front-row LEAVE then 3 newcomers (seed 3, N=12) ==="
+# Atomic-move D: survivors only. Late joiners must still seat after the scoot
+# storm — and MORE of them than the one free hole the cascade left (/1.4), so
+# the frontier has to re-open the row the left-pack drained (row 2). That row is
+# "once-seen, now silent": it must NOT be mistaken for a whole-row corpse and
+# handed to the row below (never live in a shrinking room) — see rowHeld in
+# serveFind. Pinned at spawn 3 -> 12/12 since that fix.
 outB=$(run "seed 3" "init 12 0" "converge 8000" \
   "killat /0.0" "killat /0.1" "killat /0.2" "tick 800" "state" "check" \
-  "spawn 1" "tick 2000" "state" "bad" "check" \
-  "find /0.0" "find /0.1" "find /0.2" "find /0.3" "find /0.4" "find /1.4")
+  "spawn 3" "tick 4000" "state" "bad" "check" \
+  "find /0.0" "find /0.1" "find /0.2" "find /0.3" "find /0.4" "find /1.4" "find /2.0")
 sB0=$(grep '^STATE' <<<"$outB" | head -1)
 cB0=$(grep '^CHECK' <<<"$outB" | head -1)
 sB=$(grep '^STATE' <<<"$outB" | tail -1)
 cB=$(grep '^CHECK' <<<"$outB" | tail -1)
 bB=$(grep '^BAD' <<<"$outB" | tail -1)
 echo "   after cascade: $sB0 | $cB0"
-echo "   after spawn+1: $sB | $cB"
+echo "   after spawn+3: $sB | $cB"
 if grep -q 'CHECK PASS' <<<"$cB0" && grep -qE 'seated=9' <<<"$sB0" \
-   && grep -q 'CHECK PASS' <<<"$cB" && grep -qE 'seated=10' <<<"$sB" \
+   && grep -q 'CHECK PASS' <<<"$cB" && grep -qE 'seated=12' <<<"$sB" \
    && grep -q 'dups=0' <<<"$sB" && ! grep -qE 'unseated=[1-9]|stranded=[1-9]' <<<"$sB$bB"
-then echo "   B PASS (cascade survivors + one late joiner)"
+then echo "   B PASS (cascade survivors + three late joiners past the frontier)"
 else echo "   B FAIL — cascade rejoin left the room sick"; fail=1; fi
 
 echo "=== C) sever one live S1 link 200 ticks — both ends stay seated ==="

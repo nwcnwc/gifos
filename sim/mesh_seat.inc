@@ -92,9 +92,9 @@ void Seat::serveFind(Msg& mm){
     // row and seat a 2-person room as COLUMN-mates (the headless-row repro,
     // leg A). Computed up front for all rows: the headless-row devolution
     // below needs the liveness of the ADMITTER's row too.
-    bool rowLive[C], rowSeen[C];
-    for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t];
-      for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; } }
+    bool rowLive[C], rowSeen[C], rowHeld[C];
+    for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t]; rowHeld[t]=false;
+      for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; if(cellReserved(k)) rowHeld[t]=true; } }
     for(int t=0;t<C;t++){
       // A + H7: do NOT start the next S1 row until the previous row is fully
       // reserved (every cell taken or soft-sitting) AND its head is not merely
@@ -107,7 +107,16 @@ void Seat::serveFind(Msg& mm){
         if(!prevFull) break;
       }
       bool liveRow=rowLive[t], everSeen=rowSeen[t];
-      if(!liveRow && everSeen){
+      // A VACATED row is not a corpse. Resurrection exists for a row that DIED
+      // wholesale: its stale occ lingers (nobody left to sweep it) and blocks
+      // ordinary admission, so the row BELOW re-seeds it column-wise. A row the
+      // left-pack legitimately emptied (cascade scoot-up) holds NO reservation
+      // at all — it is simply the frontier again, and the ordinary admitter (the
+      // head of the row above, already proven full by the H7 gate) can seat it.
+      // Without this, a once-occupied row that drained sent every FIND to the
+      // row below — never live in a shrinking room — and newcomers past the
+      // frontier searched forever (churn-combos B with spawn>1).
+      if(!liveRow && everSeen && rowHeld[t]){
         // RESURRECTION (old H7, row-targeted): this row LIVED and is now
         // entirely silent — a whole-row death. Its subtrees drain (anchor dead
         // at lastAck>80, long before the RING_HOLD vertical heal) and re-enter
