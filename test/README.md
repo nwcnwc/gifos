@@ -265,6 +265,7 @@ Each spawns its own relay and its own static server for THIS checkout's
 | `mirror-drill.js` | the sdn DORMANT-MIRROR standby: 8 browsers force-seated at C=2, kill the direct relay, the parked mirror wakes |
 | `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake |
 | `e2e-vanish-browser.js` | the browser half of D5: pagehide→instant LEAVE, `dc.onclose`→`transportLost`→probe-gated early confirm, with a SIGKILLed victim browser |
+| `e2e-meet-app-prettyurl.js` | an app shared into a meeting STAYS mounted under the pretty `/meet/<room>` URL. Forces the gifos.app-only pretty-URL rewrite locally (route-patches `pretty=true`, blocks the SW) so the document base moves as it does on prod, then asserts the runtime does not 404 `app-owner.js` and the app is not torn down ~1s after mount. Guards the prod-only regression where a relative dynamic script load broke under the moved base |
 
 ## swarm/ — scale and live tools
 
