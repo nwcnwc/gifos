@@ -535,6 +535,16 @@
                 if (this.occ.has(ck(d))) { adm = d; break; }
               }
             }
+            //  - H-CHAIN S1 COLUMN-clique admission: when the admitter row
+            //    chain is empty, a first-hand COLUMN-mate of the HOLE (W7
+            //    rook; S1 only) is the active admitter. Ascending row from
+            //    hole.r+1 (cyclic). Beyond the column clique → keep scanning.
+            if (!this.occ.has(ck(adm))) {
+              for (let dr = 1; dr < C(); dr++) {
+                const d = { pc: 0, r: (cell.r + dr) % C(), i: cell.i };
+                if (this.occ.has(ck(d))) { adm = d; break; }
+              }
+            }
             if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
               continue;                                  // admit gate cooling — consider the next cell
@@ -606,10 +616,16 @@
       for (const rc of this.rosterCells()) { const x = this.occGet(ck(rc)); if (x != null && x !== this.id) src.push(x); }
       if (hole.pc === this.coord.pc && hole.r === this.coord.r) { for (const m of topo.rowMates(this.coord)) { if (ck(m) === ck(hole)) continue; if (!(this.kidful.has(ck(m)) && this.kidful.get(ck(m)))) continue; const x = this.occGet(ck(m)); if (x != null && x !== this.id) src.push(x); } }
       if (hole.pc === 0 && this.coord.pc === 0) { for (const e of this.s1Roster()) if (e.v !== this.id && e.k !== ck(hole)) src.push(e.v); }
+      // Local leaf scooch BEFORE FINDLEAF: when I AM the designated childless
+      // mover (left-pack or S1 column-pack), FINDLEAF to other S1 seats is a
+      // no-op. Only leaves move (P); if I have children, fall through to FINDLEAF.
+      if (!this.hasChildren() && hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1) { this.promoteInto(hole, nbrs); return; }
+      if (!this.hasChildren() && this.coord.pc === 0 && hole.pc === 0 && hole.i === this.coord.i && hole.r !== this.coord.r) {
+        let rowRightEmpty = true;
+        for (let j = hole.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: hole.r, i: j }))) { rowRightEmpty = false; break; }
+        if (rowRightEmpty) { this.promoteInto(hole, nbrs); return; }
+      }
       if (src.length) { const who = src[(this.rng() * src.length) | 0]; this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return; }
-      // 11a: childless right-neighbour SCOOCHES left into its left-neighbour
-      // hole (head when coord.i==1) — left-pack base case (only a leaf moves)
-      if (!this.hasChildren() && hole.pc === this.coord.pc && hole.r === this.coord.r && hole.i === this.coord.i - 1) this.promoteInto(hole, nbrs);
     }
     findLeaf(hole, nbrs, ttl) {
       if (!this.hasCoord) return;
@@ -621,8 +637,13 @@
       if (!this.hasCoord || ck(this.coord) === ck(hole)) return;
       if (this.moving) return;                       // T1: one move at a time
       if (this.coord.pc === 0 && hole.pc !== 0) return;
-      // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), never sideways/down
-      if (this.coord.pc === 0 && hole.pc === 0 && !(hole.r === this.coord.r && hole.i < this.coord.i)) return;
+      // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch
+      // into same-column hole when the row chain is exhausted.
+      if (this.coord.pc === 0 && hole.pc === 0) {
+        const leftPack = hole.r === this.coord.r && hole.i < this.coord.i;
+        const colPack = hole.i === this.coord.i && hole.r !== this.coord.r;
+        if (!leftPack && !colPack) return;
+      }
       this.doMove(hole, null, nbrs);
     }
     // T1 CLAIM-BEFORE-VACATE (dual-hold transit): take the NEW seat FIRST — the
@@ -1140,6 +1161,24 @@
               let first = true;
               for (let j = c.i + 1; j < this.coord.i; j++) if (this.occGet(ck({ pc: c.pc, r: c.r, i: j })) != null) { first = false; break; }
               if (first) { this.heal(c); return; }
+            }
+            // H-CHAIN S1 COLUMN-clique (reactive): same column on the home
+            // rook. Row-right empty = no firstHandLive (gossip phantoms must
+            // not block). Defer to VERTICAL only when down-child is OCCUPIED
+            // (stale childOf must not block). First col-mate ascending-row.
+            if (this.coord.pc === 0 && c.pc === 0 && this.coord.i === c.i && this.coord.r !== c.r
+                && this.occGet(ck(topo.down(c))) == null) {
+              let rowRightEmpty = true;
+              for (let j = c.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: c.r, i: j }))) { rowRightEmpty = false; break; }
+              if (rowRightEmpty) {
+                let first = true;
+                for (let dr = 1; dr < C(); dr++) {
+                  const rr = (c.r + dr) % C();
+                  if (rr === this.coord.r) break;
+                  if (this.occGet(ck({ pc: 0, r: rr, i: c.i })) != null) { first = false; break; }
+                }
+                if (first) { this.heal(c); return; }
+              }
             }
           }
           return;

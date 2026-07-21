@@ -91,6 +91,30 @@ elif grep -Eq 'FIND /0.0 -> seat [0-9]+' <<<"$fOwner1" && ! grep -q 'FIND /0.0 -
 then echo "   E PASS (owner hole refilled after vertical healer died)"
 else echo "   E FAIL — /0.0 not healed after down-child+owner leave (stale childOf?)"; fail=1; fi
 
+echo "=== F) S1 column-clique: kill rightward row then /0.1 — column-mate heals fast ==="
+# N=7 fills /0.0..4 + /1.0 + /1.1. Kill /0.4,/0.3,/0.2 so the row-right
+# chain of /0.1 is empty; then kill /0.1. Without column devolution the
+# hole waits RING_HOLD (~220) for the head s1Fill backstop. With it, the
+# column-mate at /1.1 heals on the LEAVE reactive path (~tens of ticks).
+outF=$(run "seed 3" "init 7 0" "converge 8000" \
+  "find /0.1" "find /1.1" \
+  "killat /0.4" "tick 20" "killat /0.3" "tick 20" "killat /0.2" "tick 20" \
+  "killat /0.1" "tick 40" \
+  "find /0.1" "state")
+fPre=$(grep 'FIND /0.1' <<<"$outF" | head -1)
+fCol=$(grep 'FIND /1.1' <<<"$outF" | head -1)
+fPost=$(grep 'FIND /0.1' <<<"$outF" | tail -1)
+sF=$(grep '^STATE' <<<"$outF")
+echo "   pre: $fPre | col-mate $fCol"
+echo "   after right-clear + kill /0.1 +40: $fPost"
+echo "   $sF"
+if grep -q 'FIND /0.1 -> seat -1' <<<"$fPre" || grep -q 'FIND /1.1 -> seat -1' <<<"$fCol"; then
+  echo "   F FAIL — precondition: need /0.1 and /1.1 occupied before kills"; fail=1
+elif grep -Eq 'FIND /0.1 -> seat [0-9]+' <<<"$fPost" && ! grep -q 'FIND /0.1 -> seat -1' <<<"$fPost" \
+   && grep -q 'dups=0' <<<"$sF"
+then echo "   F PASS (column-mate healed /0.1 within 40 ticks)"
+else echo "   F FAIL — /0.1 empty after 40 ticks (column-clique did not engage)"; fail=1; fi
+
 echo "----"
 if [ "$fail" -eq 0 ]; then echo "H-CHAIN GREEN"; exit 0
 else echo "H-CHAIN RED"; exit 1; fi

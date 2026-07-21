@@ -237,12 +237,15 @@ childless — a leaf. **Only leaves move. No exceptions.**
     owner so LEFT-PACK is not stuck deferring to a dead vertical healer
     (`repro-hchain` leg E);
     (4) **Q5 row-clique audit** — exhaustive C=5 mask check
-    (`test/mesh/q5-designation.js`).
+    (`test/mesh/q5-designation.js`);
+    (5) **S1 column-clique devolution** — when the row-right chain is empty,
+    first occupied column-mate (ascending row from hole.r+1, cyclic) heals /
+    admits; childless column-mate may scooch (`repro-hchain` leg F).
     Gates: `sim/repro-hchain.sh`, `sim/repro-headless-row.sh`, Q5, full
     `sim/sweep.sh` GREEN after these land.
-    **Still PENDING:** Section-1 column-clique devolution, self-wire-with-hint
-    packaging, deeper multi-level vertical beyond childOf-clear. Standing
-    guard: never ship a devolution that guesses without first-hand confirm.
+    **Still PENDING:** self-wire-with-hint packaging, deeper multi-level
+    vertical beyond childOf-clear. Standing guard: never ship a devolution
+    that guesses without first-hand confirm.
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
   special — it is H1 applied at the top. H6 folded into E3; H3/H4/H5 healed a
