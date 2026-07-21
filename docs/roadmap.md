@@ -81,9 +81,11 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   battery inclusion; not a greenfield build.
 
 - **D / H-CHAIN — designation chain (PARTIAL LIVE).** Row-clique multi-level
-  devolution for vacated-admitter admission + reactive left-pack heal is in
-  sim + `mesh.js` (`repro-hchain.sh` GREEN). Remaining: vertical recursion,
-  S1 column clique, Q5 small-N audit, full sweep soak.
+  devolution for vacated-admitter admission + reactive left-pack heal +
+  vertical childOf-clear + **S1 column-clique** (heal/admit when row-right
+  empty; `repro-hchain` leg F) is in sim + `mesh.js`. Q5 audits row+column.
+  Remaining: self-wire-with-hint packaging, deeper multi-level vertical,
+  full sweep soak after each land.
 
 - **A — Loss wedge under ~10% packet loss (DESIGN LOCKED; implement when A
   is opened).** Diagnosed: lost PLACE leaves a phantom `s1seen` row head;

@@ -123,6 +123,17 @@ void Seat::serveFind(Msg& mm){
           for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(occ.count(ckey(d))){ adm=d; break; } }
           // empty chain → leave adm as the vacated primary; aid path falls through
         }
+        //  - H-CHAIN S1 COLUMN-clique admission devolution: when the admitter
+        //    row chain is empty, duty falls to a first-hand COLUMN-mate of
+        //    the HOLE (W7 rook; Section 1 only). Fixed order: ascending row
+        //    from hole.r+1 (cyclic). Beyond the column clique → keep scanning
+        //    (E1 / resurrection), never a hearsay handoff.
+        if(!occ.count(ckey(adm))){
+          for(int dr=1;dr<C;dr++){
+            Coord d={0,(uint8_t)((cell.r+dr)%C),cell.i};
+            if(occ.count(ckey(d))){ adm=d; break; }
+          }
+        }
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
           continue;                                    // admit gate cooling — consider the next cell
@@ -230,8 +241,17 @@ void Seat::heal(Coord hole){
   { Coord rc[C]; rosterCells(rc); for(int q=0;q<C;q++){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==coord.pc && hole.r==coord.r){ Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ if(ckey(rm[q])==ckey(hole)) continue; if(!(kidful.count(ckey(rm[q]))&&kidful[ckey(rm[q])])) continue; int x=occGet(ckey(rm[q])); if(x>=0&&x!=id) src.push_back(x); } }
   if(hole.pc==0 && coord.pc==0){ auto r=s1Roster(); for(auto&e:r) if(e.v!=id && e.k!=ckey(hole)) src.push_back(e.v); }
+  // Local leaf scooch BEFORE FINDLEAF: when I AM the designated childless
+  // mover (left-pack or S1 column-pack), FINDLEAF to other S1 seats is a
+  // no-op (they refuse same-row non-head holes / wrong-column promoteInto).
+  // Only leaves move (P); if I have children, fall through to FINDLEAF.
+  if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1){ promoteInto(hole,nbrs); return; }
+  if(!hasChildren() && coord.pc==0 && hole.pc==0 && hole.i==coord.i && hole.r!=coord.r){
+    bool rowRightEmpty=true;
+    for(int j=hole.i+1;j<C;j++) if(firstHandLive(ckey({0,hole.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
+    if(rowRightEmpty){ promoteInto(hole,nbrs); return; }
+  }
   if(!src.empty()){ int who=src[(int)(rng()*src.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
-  if(!hasChildren() && hole.pc==coord.pc && hole.r==coord.r && hole.i==coord.i-1) promoteInto(hole,nbrs);   // 11a: childless right-neighbour SCOOCHES left into its left-neighbour hole (head when coord.i==1) — left-pack base case (only a leaf moves)
 }
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
   if(!hasCoord) return;
@@ -244,7 +264,14 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
   if(moving) return;                                 // T1: one move at a time
   if(coord.pc==0 && hole.pc!=0) return;
-  if(coord.pc==0 && hole.pc==0 && !(hole.r==coord.r && hole.i<coord.i)) return;   // 11a: a Section-1 seat may scooch LEFT within its row (left-pack), not just into the head
+  // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch into
+  // same-column hole when the row chain is exhausted (caller enforces empty
+  // rightward; geometry only checks same column).
+  if(coord.pc==0 && hole.pc==0){
+    bool leftPack = (hole.r==coord.r && hole.i<coord.i);
+    bool colPack  = (hole.i==coord.i && hole.r!=coord.r);
+    if(!leftPack && !colPack) return;
+  }
   doMove(hole,-1,nbrs);
 }
 // T1 CLAIM-BEFORE-VACATE (dual-hold transit): take the NEW seat FIRST — the
@@ -687,6 +714,26 @@ void Seat::recv(Msg& m){
           bool first=true;
           for(int j=c.i+1;j<coord.i;j++) if(occGet(ckey({c.pc,c.r,(uint8_t)j}))>=0){ first=false; break; }
           if(first){ heal(c); return; }
+        }
+        // H-CHAIN S1 COLUMN-clique (reactive): I share the hole's column on
+        // the home rook. Act only when no FIRST-HAND-LIVE row-right designee
+        // exists (gossip phantoms of /0.j must not block — column-mates are
+        // not first-hand of those cells) and I am the first occupied
+        // column-mate in ascending-row order from hole.r+1. Defer to VERTICAL
+        // only when a real OCCUPIED down-child is present (stale childOf must
+        // not block; that was the whole vertical hand-off point).
+        if(coord.pc==0&&c.pc==0&&coord.i==c.i&&coord.r!=c.r&&occGet(ckey(down(c)))<0){
+          bool rowRightEmpty=true;
+          for(int j=c.i+1;j<C;j++) if(firstHandLive(ckey({0,c.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
+          if(rowRightEmpty){
+            bool first=true;
+            for(int dr=1;dr<C;dr++){
+              uint8_t rr=(uint8_t)((c.r+dr)%C);
+              if(rr==coord.r) break;
+              if(occGet(ckey({0,rr,c.i}))>=0){ first=false; break; }
+            }
+            if(first){ heal(c); return; }
+          }
         }
       }
       return; }
