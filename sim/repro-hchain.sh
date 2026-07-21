@@ -68,10 +68,10 @@ grep -q 'BAD unseated=1' <<<"$bD" || { echo "   D FAIL — silent death fast-tra
 [ "$okD" -eq 0 ] && fail=1
 
 echo "=== E) vertical: kill down-child then owner — LEFT-PACK heals without long drain ==="
-# Need a live down-child under /0.0 (0/0.0). N=80 keeps a dense home so
-# column-0 always has a vertical heir after three-state seating (N=50 could
-# leave 0/0.0 empty while other columns held the deep seats).
-outE=$(run "seed 2" "init 80 0" "converge 20000" \
+# Need a live down-child under /0.0 (0/0.0). N=100 keeps a dense home so
+# column-0 always has a vertical heir after three-state + H7 dense fill
+# (N=80 can leave 0/0.0 empty while other columns hold the deep seats).
+outE=$(run "seed 2" "init 100 0" "converge 20000" \
   "find 0/0.0" "find /0.0" \
   "killat 0/0.0" "tick 30" \
   "killat /0.0" "tick 400" \

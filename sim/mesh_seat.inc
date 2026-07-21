@@ -140,13 +140,14 @@ void Seat::serveFind(Msg& mm){
       }
       for(int j=0;j<C;j++){
         Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
-        if(cellTaken(k)) continue;                     // occ seated OR soft sitting-down (A three-state)
-        // Frontier test by DIRECT knowledge only (the old 11a admit-liveness:
-        // occGet(down)<0) — NOT hasDownChild, whose childOf arm never expires:
-        // a stale heir entry would permanently steer arrivals away from a
-        // clear cell, leaving it to the much slower leaf-promotion backstop.
-        // A: also block if down-child is only sitting-down (not yet seated).
-        if(occGet(ckey(down(cell)))>=0 || softSitting(ckey(down(cell)))) continue;
+        // Soft / real occupant reserved. Phantom occ (dead or moved claimant)
+        // is free for rejoin — but live peers we only know via gossip stay
+        // reserved (avoids FIND ping-pong between greeters).
+        if(cellReserved(k)) continue;
+        // Frontier: block only on real/soft down-child, not phantom occ.
+        uint64_t dk=ckey(down(cell));
+        if(cellReserved(dk) && !occIsPhantom(dk)) continue;
+        if(softSitting(dk)) continue;
         // HEADLESS-ROW admission (the H7 amendment; roadmap §3 gap):
         //  - the vacated HEAD of a LIVE row is an INTERNAL HOLE owned by its
         //    designated healer (the H2 scoocher / vertical promotion) — never
@@ -164,44 +165,46 @@ void Seat::serveFind(Msg& mm){
             continue;
           }
         }
-        // H-CHAIN: devolve ONLY when admitter seat is VACATED (no occ, no soft).
-        if(!cellTaken(ckey(adm)) && rowLive[adm.r]){
+        // H-CHAIN: devolve when admitter is not reserved (empty or phantom).
+        // Prefer first-hand live row-mates as the devolved admitter.
+        if(!cellReserved(ckey(adm)) && rowLive[adm.r]){
           Coord d={0,adm.r,0};
-          for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(occ.count(ckey(d))){ adm=d; break; } }
+          for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; break; } }
         }
         // S1 column-clique admission: ONLY when we once knew the primary
-        // admitter (s1seen) and it is now empty — never when simply unknown.
+        // admitter (s1seen) and it is not reserved — never when simply unknown.
         // Devolve only to STRICTLY DEEPER same-column seats (no wrap into denser
         // upper rows). Gossip-lag wrap dual-PLACE'd /1.2 (N=9 serial → /0.4 hole).
-        if(!cellTaken(ckey(adm)) && s1seen.count(ckey(adm))){
+        if(!cellReserved(ckey(adm)) && s1seen.count(ckey(adm))){
           for(int rr=cell.r+1;rr<C;rr++){
             Coord d={0,(uint8_t)rr,cell.i};
-            if(occ.count(ckey(d))){ adm=d; break; }
+            if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; break; }
           }
         }
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
-          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){
+            healTry[k]=(int)TICK;
+            if(occIsPhantom(k)){ occ.erase(k); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
+            admit(cell,mm); return;
+          }
           continue;                                    // admit gate cooling — consider the next cell
         }
-        int aid=occGet(ckey(adm));
-        // Hand-off by occ only — do NOT gate on firstHandLive (headless-row C).
-        if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
-        // admitter unknown/dead: its own cell sits earlier in the scan (or is
-        // being healed) — keep scanning so growth never deadlocks on one head
-        // (Do NOT gate hand-off on firstHandLive here: that fast-tracks silent
-        // death past H1-S1 ring-hold — headless-row leg C. Devolution is only
-        // on vacated occ, above.)
+        // Hand off to a reachable real admitter. Never emit to a corpse id.
+        // Silent-but-real heads stay reachable (headless-row C / hchain D).
+        if(admitterReachable(ckey(adm))){
+          Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(occGet(ckey(adm)),m); return;
+        }
+        // admitter unknown/dead/phantom: keep scanning
       }
     }
     // Only go deep when no ADMISSIBLE S1 free cell remains. Live-row heads are
-    // never admission targets (healer's hole) — do not count them as free or
-    // we block deep forever while left-pack fills heads (N=1000 s1 stuck).
+    // never admission targets (healer's hole). Phantoms count as free.
     int s1admFree=0;
     for(int t=0;t<C;t++){
       bool liveR=rowLive[t];
       for(int j=0;j<C;j++){
         if(j==0 && liveR) continue; // head of live row: not an admit target
-        if(!cellTaken(ckey({0,(uint8_t)t,(uint8_t)j}))) s1admFree++;
+        if(!cellReserved(ckey({0,(uint8_t)t,(uint8_t)j}))) s1admFree++;
       }
     }
     if(s1admFree>0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }

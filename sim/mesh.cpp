@@ -234,6 +234,34 @@ struct Seat {
   }
   // Cell is not free for a new admit: confirmed occ OR unexpired soft sit.
   inline bool cellTaken(uint64_t k){ return occ.count(k) || softSitting(k); }
+  // Requeue/moved ghost: claimant is still ALIVE but not seated at k (cascade
+  // LEAVE + gossip re-seed). Silent death (alive=0, no LEAVE) is NOT a free
+  // chair — ring-hold must still apply (headless-row C / hchain D).
+  // Also NOT "I merely lack first-hand" of a live peer still at k (FIND ping-pong).
+  inline bool occIsPhantom(uint64_t k){
+    int x=occGet(k); if(x<0) return false;
+    if(firstHandLive(k)) return false;
+    if(x>=(int)alive.size()) return true;
+    if(!alive[x]) return false; // dead without LEAVE: still reserved for ring-hold
+    Seat* s=(x<(int)seats.size())?seats[x]:nullptr;
+    if(!s || !s->hasCoord || ckey(s->coord)!=k) return true; // requeued/moved
+    return false; // live silent occupant still claiming k
+  }
+  // Can I hand a FIND to the occupant of k?
+  inline bool admitterReachable(uint64_t k){
+    int x=occGet(k); if(x<0||x==id) return false;
+    if(x>=(int)alive.size()||!alive[x]) return false; // never emit to a corpse
+    if(firstHandLive(k)) return true;
+    Seat* s=(x<(int)seats.size())?seats[x]:nullptr;
+    return s && s->hasCoord && ckey(s->coord)==k; // silent-but-real (headless C)
+  }
+  // Soft or non-phantom occ. Requeue phantoms do not block rejoin (atomic D).
+  inline bool cellReserved(uint64_t k){
+    if(softSitting(k)) return true;
+    if(firstHandLive(k)) return true;
+    if(!occ.count(k)) return false;
+    return !occIsPhantom(k);
+  }
   // Really seated (self-confirmed): I sit here, or first-hand live occupant.
   inline bool cellSeated(uint64_t k){
     if(hasCoord && ckey(coord)==k) return true;
