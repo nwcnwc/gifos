@@ -95,6 +95,10 @@ void Seat::serveFind(Msg& mm){
     bool rowLive[C], rowSeen[C], rowHeld[C];
     for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t]; rowHeld[t]=false;
       for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; if(cellReserved(k)) rowHeld[t]=true; } }
+    // Did the scan find a free home cell that I can actually seat someone in,
+    // now or shortly? Distinguishes "wait, home has room" from "home's free
+    // cells are all orphaned" — see the NOROOM gate at the end of the scan.
+    bool s1Servable=false;
     for(int t=0;t<C;t++){
       // A + H7: do NOT start the next S1 row until the previous row is fully
       // reserved (every cell taken or soft-sitting) AND its head is not merely
@@ -131,7 +135,7 @@ void Seat::serveFind(Msg& mm){
         // same upward cascade the old H7 wrap produced.
         if(coord.r==(uint8_t)((t+1)%C)){ uint64_t k=ckey({0,(uint8_t)t,coord.i});
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm); return; }
-          continue; }
+          s1Servable=true; continue; }   // this resurrection cell is mine, just cooling
         // Forward toward the admitter row below ONLY over a FIRST-HAND-LIVE link.
         // Using raw occGet here was a bug: when the admitter row is ALSO wholly
         // dead, its cells linger as stale occ echoes (a corpse's id, never cleared
@@ -171,7 +175,7 @@ void Seat::serveFind(Msg& mm){
           auto it=sitting.find(ckey({0,(uint8_t)t,0}));
           if(it!=sitting.end() && it->second.assigner==id){
             if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
-            continue;
+            s1Servable=true; continue;   // mine to fill (I wrote the soft head), just cooling
           }
         }
         // H-CHAIN: devolve when admitter is not reserved (empty or phantom).
@@ -196,6 +200,7 @@ void Seat::serveFind(Msg& mm){
             if(occIsPhantom(k)){ occ.erase(k); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
             admit(cell,mm); return;
           }
+          s1Servable=true;                             // the cell is mine to fill, just cooling
           continue;                                    // admit gate cooling — consider the next cell
         }
         // Hand off to a reachable real admitter. Never emit to a corpse id.
@@ -216,11 +221,31 @@ void Seat::serveFind(Msg& mm){
         if(!cellReserved(ckey({0,(uint8_t)t,(uint8_t)j}))) s1admFree++;
       }
     }
-    if(s1admFree>0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
+    // NOROOM must mean "home has room AND somebody will seat you", never "home
+    // has a cell nobody alive can admit into". The scan above just walked every
+    // such cell: if it neither acted nor found one it could act on later
+    // (s1Servable — mine, merely cooling), then every free home cell is
+    // orphaned — its designated and devolved admitters are all unreachable —
+    // and bouncing the seeker here strands it forever. A half of a PARTITIONED
+    // room hits exactly this: it keeps ~7 home cells whose admitters are on the
+    // far side, so under the claimant rule they read free, and the half seated
+    // 26 of 194 with the rest searching against a permanent NOROOM. Fall
+    // through to the deep path instead — the room grows, and the orphaned home
+    // cells are refilled by the healers that own them.
+    if(s1admFree>0 && s1Servable){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm); return; }
+  // Descend — but NEVER into the void. The S1 hand-off above is careful to pick
+  // a reachable admitter; this forward used raw occ, so it happily emitted the
+  // FIND at an occupant on the far side of a partition (or a corpse), where it
+  // is silently swallowed. The seeker then waits out its whole timeout and
+  // retries, forever. That is why the starved half of a split room seats its
+  // home row and NOTHING deeper: its greeters kept forwarding newcomers at
+  // peers they cannot reach (seed 8: side A 16/200 seated, 184 searching).
+  // Prefer a FIRST-HAND-LIVE next hop; if this roster has none, say NOROOM so
+  // the seeker retries another greeter NOW instead of burning its timeout.
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
-  for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+  for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rc[q]))){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
   Msg m;m.t=NOROOM; emit(mm.nc,m);
 }
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
