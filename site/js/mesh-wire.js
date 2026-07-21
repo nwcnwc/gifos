@@ -84,8 +84,12 @@
   //   onUpdate(node)  per-tick UI hook
   //   onLocked()      R6: greeters exist but none decrypt — wrong password
   //   onStranded()    R6: meeting is live but unreachable a full TTL
-  //   onFork(opts)    R5/E5§2: two+ genesis keys at the door — human pick-one
-  //                   opts = [{gkey, gateway, faces, n}, …]; call node.chooseFork(gkey)
+  //   onFork(opts)    R5/E5§2: two+ door clusters — human pick-one
+  //                   (multi-genesis OR same-key torn greeter halves).
+  //                   opts = [{id, gkey, gateway, faces, tier, n}, …];
+  //                   call node.chooseFork(id). Faces: Stage, else Stadium.
+  //   homeFaces()     optional: greeter attaches {stage:[pid], stadium:[pid]}
+  //                   on HOME for the pick-one UI
   //   onGossip(src,m) room-wide app traffic delivery (exact-once)
   //   onRelayMsg(m)   every relay frame the wire does not consume — 'whoami',
   //                   'pw', 'ban', 'votes', 'joined', app-layer sealed 'peer'
@@ -207,8 +211,10 @@
         if (iAmAGreeter()) REGISTER_MYSELF_AS_A_GREETER(k);
         else KNOCK_FOR_THE_GREETER_LIST(k);
       },
-      // R5: seat fires this when multi-greeter probe finds 2+ genesis keys.
+      // R5: seat fires this when multi-greeter probe finds 2+ door clusters.
       onFork: (optsList) => { if (opts.onFork) try { opts.onFork(optsList); } catch (e) {} },
+      // Greeter HOME may attach Stage / Stadium face lists for pick-one UI.
+      homeFaces: () => (typeof opts.homeFaces === 'function' ? opts.homeFaces() : { stage: [], stadium: [] }),
       wake() {},
     };
 
