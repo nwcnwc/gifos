@@ -149,3 +149,80 @@ mix-minus) is live. What it still owed, verbatim but renumbered:
 - **Scale verification + release** — 500-bot multi-region swarm of the routed
   mesh, home-LAN real-device pass, then cut a versioned release
   (`scripts/archive-version.sh`).
+
+## 4. Meeting agency & presence
+
+Product-facing mesh features that do not change the fair-share / no-beefy-node
+doctrine. Design depth for games and social rooms lives in
+[`docs/mmog-ideas.md`](mmog-ideas.md); this section is the roadmap pointer.
+
+### 4a. Voluntary seat swap / pool / tide
+
+**What.** Let two (later N) living occupants **mutually** exchange seats; then
+generalize to **affinity pools** (teams/friends with standing consent) and a
+**Rally vs Shuffle (Tide)** liquidity market so people who want to sit together
+and people who want a random new seat complete each other. Pair swap is the
+primitive; pools and tide are product on top.
+
+**Why it fits.** Mesh seating is deliberately unpredictable (heal, admit,
+compaction) — reliability must not be player-authored geometry. Players still
+need agency for co-location and games without **auto power-seating** (adversaries
+would farm strong hardware into heavy coords; media plane forbids a beefy node).
+Consented occupancy trades preserve empty-only claim / no silent eviction while
+unlocking MMOG and festival play. Full write-up: **`docs/mmog-ideas.md` §§3–7**
+(pair swap, pools, Rally/Shuffle, game catalog). Related foundation already
+**LIVE:** law T atomic moves (`doMove`, dual-hold, tombstone) for
+empty-destination / heal motion — swap is the bilateral occupied-cell cousin.
+
+**Sketch.**
+- Sim + `mesh.js`: pair **lease** on `(coordA, coordB)`; dual claim-before-vacate
+  under mutual signed accept; healers must not treat leased cells as holes;
+  rollback on expiry/contradiction; churn-matrix repro (swap∩kill, S1↔leaf).
+- UI: “Switch seats with…”; later pool join with intent tags Together / Anywhere
+  / Stay; Stage-hosted Tide rounds optional.
+- Never: unilateral claim of a live seat, device-power ranking, or drafting
+  non-consenting peers.
+
+**Open questions.**
+- Match lease visibility to designated healers without new long-range RPCs.
+- Rate limits so pools cannot thrash the tree during heal storms.
+- Whether affinity may only **hint** empty-destination compaction (still not
+  power-based) — default no until proven safe.
+
+### 4b. Avatar + voice filters (replace live A/V feed)
+
+**What.** A participant may **replace their camera (and optionally reshape
+their mic)** with a chosen **avatar** presentation and **voice filters**, while
+remaining a first-class seat on the same media plane (row / Stage / Stadium
+still composite and forward whatever they publish).
+
+**Why it fits.** Privacy, accessibility, low-bandwidth / no-camera contexts,
+playful Festival/MMOG identity, and civil rooms where faces are optional — without
+a media server or accounts. Sender still enforces blur/consent rules on whatever
+pixels leave the device; receivers never strip a “real” face out of an avatar
+track. Aligns with camera-optional meetings and data-optional social modes in
+`mmog-ideas.md`.
+
+**Sketch.**
+- **Video path:** local capture pipeline gains a branch — camera | avatar
+  renderer (canvas/WebGL, GIF/WebM loop, or static portrait) → same
+  `replaceTrack` / ship paths used today for blur and stage park. Avatar frames
+  are real MediaStream video so packers and friend-relay need no special case.
+- **Audio path:** optional Voice Focus–style chain or WASM/AudioWorklet filters
+  (pitch, robot, denoise, mute-as-filter) before the mic track is published;
+  mix-minus and Stage ear rules unchanged (filters are pre-mix at the sender).
+- **UX:** meeting controls — Avatar on/off, pick asset (theme pack / user GIF),
+  voice filter preset; status chip so others know it’s not a raw camera when
+  that matters for trust (optional room policy: admin rooms may require clear
+  cam; open rooms may prefer avatar-default).
+- **Persistence:** preference in local meeting prefs / desktop settings — no
+  server profile.
+
+**Open questions.**
+- Trust signaling: when is “this is an avatar” mandatory vs cosmetic.
+- CPU budget on phones when many avatars animate inside Stadium composites
+  (sender-side cheap loops; receivers still decode one mosaic).
+- Interaction with Max-blur / consent clear rules (avatar as always-ok
+  silhouette vs still subject to group blur).
+- Asset format: baked theme avatars vs user-supplied GIF/WebM and moderation
+  (open rooms + file pin already password-gated for files).
