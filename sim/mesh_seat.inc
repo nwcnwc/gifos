@@ -96,15 +96,15 @@ void Seat::serveFind(Msg& mm){
     for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t];
       for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; } }
     for(int t=0;t<C;t++){
-      // A row-then-depth gate: fill the entire row while its head may still be
-      // only sitting-down; do NOT spill to the next row (or deeper) until the
-      // previous row's head is seated (self-confirmed). Soft sitting on head
-      // of row t-1 blocks starting row t.
+      // A + H7: do NOT start the next S1 row until the previous row is fully
+      // reserved (every cell taken or soft-sitting) AND its head is not merely
+      // soft-sitting. Dense row-major fill for the media plane.
       if(t>0){
         uint64_t prevHead=ckey({0,(uint8_t)(t-1),0});
-        if(softSitting(prevHead) || (occ.count(prevHead) && !cellSeated(prevHead))){
-          break;   // wait for head self-confirm (or soft TTL free) before depth
-        }
+        if(softSitting(prevHead)) break;
+        bool prevFull=true;
+        for(int j=0;j<C;j++) if(!cellTaken(ckey({0,(uint8_t)(t-1),(uint8_t)j}))){ prevFull=false; break; }
+        if(!prevFull) break;
       }
       bool liveRow=rowLive[t], everSeen=rowSeen[t];
       if(!liveRow && everSeen){
@@ -169,9 +169,13 @@ void Seat::serveFind(Msg& mm){
           Coord d={0,adm.r,0};
           for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(occ.count(ckey(d))){ adm=d; break; } }
         }
-        if(!cellTaken(ckey(adm))){
-          for(int dr=1;dr<C;dr++){
-            Coord d={0,(uint8_t)((cell.r+dr)%C),cell.i};
+        // S1 column-clique admission: ONLY when we once knew the primary
+        // admitter (s1seen) and it is now empty — never when simply unknown.
+        // Devolve only to STRICTLY DEEPER same-column seats (no wrap into denser
+        // upper rows). Gossip-lag wrap dual-PLACE'd /1.2 (N=9 serial → /0.4 hole).
+        if(!cellTaken(ckey(adm)) && s1seen.count(ckey(adm))){
+          for(int rr=cell.r+1;rr<C;rr++){
+            Coord d={0,(uint8_t)rr,cell.i};
             if(occ.count(ckey(d))){ adm=d; break; }
           }
         }
@@ -189,7 +193,18 @@ void Seat::serveFind(Msg& mm){
         // on vacated occ, above.)
       }
     }
-    // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
+    // Only go deep when no ADMISSIBLE S1 free cell remains. Live-row heads are
+    // never admission targets (healer's hole) — do not count them as free or
+    // we block deep forever while left-pack fills heads (N=1000 s1 stuck).
+    int s1admFree=0;
+    for(int t=0;t<C;t++){
+      bool liveR=rowLive[t];
+      for(int j=0;j<C;j++){
+        if(j==0 && liveR) continue; // head of live row: not an admit target
+        if(!cellTaken(ckey({0,(uint8_t)t,(uint8_t)j}))) s1admFree++;
+      }
+    }
+    if(s1admFree>0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
@@ -296,8 +311,9 @@ void Seat::heal(Coord hole){
     if(!hasChildren() || (int)TICK-tried>=90){ promoteInto(hole,nbrs); return; }
     if(!mysrc.empty()){ int who=mysrc[(int)(rng()*mysrc.size())]; Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=40; emit(who,m); return; }
   }
-  // H-CHAIN S1 column-pack scooch BEFORE general FINDLEAF
-  if(!hasChildren() && coord.pc==0 && hole.pc==0 && hole.i==coord.i && hole.r!=coord.r){
+  // H-CHAIN S1 column-pack scooch UP only (hole.r < coord.r) BEFORE FINDLEAF.
+  // Downward holes fall through to FINDLEAF (deep leaves), never raid denser rows.
+  if(!hasChildren() && coord.pc==0 && hole.pc==0 && hole.i==coord.i && hole.r<coord.r){
     bool rowRightEmpty=true;
     for(int j=hole.i+1;j<C;j++) if(firstHandLive(ckey({0,hole.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
     if(rowRightEmpty){ promoteInto(hole,nbrs); return; }
@@ -316,12 +332,13 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
   if(moving) return;                                 // T1: one move at a time
   if(coord.pc==0 && hole.pc!=0) return;
-  // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch into
-  // same-column hole when the row chain is exhausted (caller enforces empty
-  // rightward; geometry only checks same column).
+  // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch UP
+  // into a denser (strictly lower row index) same-column hole when the row
+  // chain is exhausted. Never scooch DOWN — that raids H7-dense upper rows
+  // into sparser lower ones (N=9 serial: /0.2 → /1.2 left /0.4 empty forever).
   if(coord.pc==0 && hole.pc==0){
     bool leftPack = (hole.r==coord.r && hole.i<coord.i);
-    bool colPack  = (hole.i==coord.i && hole.r!=coord.r);
+    bool colPack  = (hole.i==coord.i && hole.r<coord.r);
     if(!leftPack && !colPack) return;
   }
   doMove(hole,-1,nbrs);
@@ -778,21 +795,18 @@ void Seat::recv(Msg& m){
           if(first){ heal(c); return; }
         }
         // H-CHAIN S1 COLUMN-clique (reactive): I share the hole's column on
-        // the home rook. Act only when no FIRST-HAND-LIVE row-right designee
-        // exists (gossip phantoms of /0.j must not block — column-mates are
-        // not first-hand of those cells) and I am the first occupied
-        // column-mate in ascending-row order from hole.r+1. Defer to VERTICAL
-        // only when a real OCCUPIED down-child is present (stale childOf must
-        // not block; that was the whole vertical hand-off point).
-        if(coord.pc==0&&c.pc==0&&coord.i==c.i&&coord.r!=c.r&&occGet(ckey(down(c)))<0){
+        // the home rook and sit in a STRICTLY DEEPER row (coord.r > hole.r) so
+        // the scooch is UP into denser H7 territory — never the reverse.
+        // Act only when no FIRST-HAND-LIVE row-right designee exists and I am
+        // the first occupied column-mate walking hole.r+1 .. (no wrap raid of
+        // upper rows). Defer to VERTICAL only when down-child is OCCUPIED.
+        if(coord.pc==0&&c.pc==0&&coord.i==c.i&&coord.r>c.r&&occGet(ckey(down(c)))<0){
           bool rowRightEmpty=true;
           for(int j=c.i+1;j<C;j++) if(firstHandLive(ckey({0,c.r,(uint8_t)j}))){ rowRightEmpty=false; break; }
           if(rowRightEmpty){
             bool first=true;
-            for(int dr=1;dr<C;dr++){
-              uint8_t rr=(uint8_t)((c.r+dr)%C);
-              if(rr==coord.r) break;
-              if(occGet(ckey({0,rr,c.i}))>=0){ first=false; break; }
+            for(int rr=c.r+1;rr<coord.r;rr++){
+              if(occGet(ckey({0,(uint8_t)rr,c.i}))>=0){ first=false; break; }
             }
             if(first){ heal(c); return; }
           }
