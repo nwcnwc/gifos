@@ -64,27 +64,56 @@ login).
 
 ## 3. Mesh follow-ups (carried from `option-a-plan.md`, deleted 2026-07-18)
 
-- **Compaction via atomic moves (2026-07-19, design agreed with Nathan).** A seat
-  that observes strictly-better vacancies above — a shallower seat, or joining an
-  occupied row instead of sitting in a lone-row section — initiates an ordinary
-  ATOMIC MOVE to the frontier (normal admission, S4-signed, transit lease, grace
-  over the media hop); the up-seat/parent is the natural admitter with the
-  freshest frontier view. Hysteresis: move only on stable strict improvement,
-  rate-limited, so boundary oscillation never sloshes seats. Payoffs: kills
-  persistent lone-row deep sections (the sdn mirror's one provable no-route
-  case becomes transient-only), removes wasted depth/latency in shrinking
-  rooms, and packs the tree the stadium metaphor always assumed. Depends on:
-  law T (atomic moves) landing. Queue position: after the healing amendment.
+### Priority (Nathan, 2026-07-20) — do in this order
 
-- **e2e-video "via Hub" peer-relay leg fails deterministically (2026-07-19,
-  PRE-EXISTING on main).** After the seated-greeter false-lockout fix
-  unblocked the suite past assert 33, e2e-video consistently reaches 72
-  asserts and times out at line ~590: the ICE-blocked pair (LeftIsle /
-  RightIsle) never shows "via Hub" relayed video frames within 45s — media
-  plane, no console errors, reproduced identically on pristine origin/main
-  (+ the lockout fix only). Everything before and after in the mesh/control
-  plane is green. Needs a media-plane investigation (peer relay adoption /
-  frame flow), unrelated to admission or the mover's lease.
+**E (Q2 compaction) → D (H-CHAIN) → A (loss wedge) → B (peer-bridge reunion).**
+
+Rationale: compaction and H-CHAIN pack and heal the tree; the loss wedge (A)
+may shrink once those land and is **not** to be freestyled before them. Peer-
+bridge reunion (B / law E5) is product-settled and partially LIVE (friend-
+relay); its dedicated split-first drill is the gate, not a redesign.
+
+### Items
+
+- **E / Q2 — Compaction via atomic moves (LIVE in sim + mesh.js; self-duty).**
+  A settled deep LEAF that sees a strictly-better vacancy above initiates an
+  ordinary ATOMIC MOVE (law T) by probing **its own** up-chain — it asks
+  parent/peers to place *itself* better if they can see a densifying slot.
+  **Self-duty only (Nathan):** never orders other seats to move. Hysteresis
+  (COMPACT_SETTLE / period / leaf-only / rightmost-in-row). Gate:
+  `sim/repro-compaction.sh` GREEN. Remaining for E: optional home-LAN soak /
+  battery inclusion; not a greenfield build.
+
+- **D / H-CHAIN — designation chain (SPECIFIED; build next after E soak).**
+  When the one designated healer/admitter is itself gone, duty devolves along
+  the fixed first-hand witness chain (healing-laws H-CHAIN). Speed/determinism
+  win over slow E1 drain — not a correctness fix. Sim-first + `repro-hchain.sh`
+  + Q5 small-N audit; standing guard: never ship a devolution that guesses.
+
+- **A — Loss wedge under ~10% packet loss (PARKED behind E/D).** Diagnosed:
+  lost PLACE leaves a phantom `s1seen` row head; resurrection hands FINDs to a
+  never-seated admitter; room caps at ~5 seats. Two law-touching fixes tried
+  and rejected (firstHandLive gate wrecks healthy convergence; PLACE TTL never
+  reaches the cell). Nathan: prefer E/D first — they should not make A worse
+  and may reduce pressure. Do not implement A candidates without a fresh call.
+
+- **B / E5 — Peer-bridge reunion (LAW ADOPTED).** No paid media/data relay
+  between partitions. Detect splits (E3). When a peer joins (or is already
+  present) who can **peer-relay** across the seam, take advantage immediately
+  (friend-relay / "via Hub"). Forced merge-by-count is forbidden. Drill:
+  `test/drills/e2e-peer-relay-reunion.js` (split first, then bridge peer).
+
+- **A4 — Founder dies mid-founding (CLOSED by design, Nathan 2026-07-20).**
+  The second joiner does not need the founder's process to stay alive: the
+  relay already holds genesis admission (`H(gk)`), and later knockers with the
+  matching key join the existing instance. A vanished founder is an ordinary
+  leave/heal of seat `0/0.0`, not a stuck "founded but unjoinable" room. Do
+  not re-open unless a repro shows the registry stuck with no genesis and no
+  greeters while `founded` lies.
+
+- **e2e-video "via Hub" peer-relay leg (known flake / investigate under B).**
+  Historically timed out at the ICE-blocked pair; the dedicated E5 drill is
+  the focused gate. Media-plane investigation if that drill fails.
 
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
@@ -114,8 +143,8 @@ mix-minus) is live. What it still owed, verbatim but renumbered:
 - **Final greeting-only relay audit** — after the two items above, delete every
   remaining non-greeting relay path and prove the relay carries only knock +
   first-greeter handshake.
-- **Seating compaction** — route newcomers to the shallowest hole via the
-  echo-immune live signal (sim-first; the fragmentation fix).
+- **Seating compaction** — covered by Q2 self-duty (above); residual is soak /
+  scale, not a second design.
 - **Scale verification + release** — 500-bot multi-region swarm of the routed
   mesh, home-LAN real-device pass, then cut a versioned release
   (`scripts/archive-version.sh`).
