@@ -1,8 +1,10 @@
-// r5-fork-pick.js — R5 / E5§2: multi-greeter HOME probe pauses for pick-one
-// when greeters answer with TWO+ distinct genesis keys. Human (or test)
-// chooses one; seat joins ONLY that meeting — never both, never a merge.
+// r5-fork-pick.js — R5 / E5§2 door pick-one.
 //
-// Pure mesh.js (no browser). Usage: node test/mesh/r5-fork-pick.js
+// Real split-room case: ONE genesis key, greeters from two torn halves return
+// disjoint S1 rosters — only the newcomer at the door sees both. Also covers
+// multi-genesis (rare). Faces prefer Stage, else Stadium, else roster.
+//
+// Pure mesh.js. Usage: node test/mesh/r5-fork-pick.js
 'use strict';
 require('../../site/js/gifos-net.js');
 require('../../site/js/mesh.js');
@@ -14,8 +16,8 @@ const check = (n, c, d) => {
   if (!c) fail++;
 };
 
-const bus = new Map(); // peer -> seat
-function mkEnv(onFork) {
+const bus = new Map();
+function mkEnv(onFork, homeFaces) {
   return {
     TICK: 0, HEALING: true, COMPACTION: false,
     send(from, to, m) {
@@ -24,72 +26,83 @@ function mkEnv(onFork) {
     },
     knock() {}, wake() {},
     onFork: onFork || null,
+    homeFaces: homeFaces || null,
   };
 }
 
 (async () => {
-  // ---- A: two greeters, two genesis keys → onFork fires; chooseFork seats ----
+  // ---- A: same genesis, DISJOINT rosters → two options (the real tear) ----
   let forked = null;
   const envA = mkEnv((opts) => { forked = opts; });
-  const joiner = new mesh.Seat('j_new', envA);
-  bus.set(joiner.id, joiner);
-  // Plant greeter A and B as "HOME" responders by intercepting WHOHOME:
-  // simpler: drive the seat through GREETERS then inject HOME frames.
-  joiner.join();
-  joiner.recv({ t: 'GREETERS', list: ['g_a', 'g_b', 'g_c'] });
-  check('multi-greeter starts fork probe', joiner.forkProbe === true && joiner.state === 1);
-  // Three HOMEs: two share key KA, one has KB → two options.
-  joiner.recv({ t: 'HOME', id: 'g_a', gkey: 'KA', roster: [{ k: 1, v: 'p_alice' }, { k: 2, v: 'p_bob' }] });
-  joiner.recv({ t: 'HOME', id: 'g_b', gkey: 'KA', roster: [{ k: 1, v: 'p_alice' }, { k: 3, v: 'p_cara' }] });
-  joiner.recv({ t: 'HOME', id: 'g_c', gkey: 'KB', roster: [{ k: 1, v: 'p_dan' }] });
-  // Force settle (pending drained)
-  joiner.forkPending = 0;
-  joiner.maybeResolveFork();
-  check('onFork fired with 2 options', forked && forked.length === 2, forked && forked.map((o) => o.gkey));
-  check('seat is paused for pick-one', joiner.forkPaused === true && joiner.state === 1);
-  check('not yet seated', joiner.state !== 3 && !joiner.hasCoord);
+  const jA = new mesh.Seat('jA', envA);
+  bus.set(jA.id, jA);
+  jA.join();
+  jA.recv({ t: 'GREETERS', list: ['g_left', 'g_right'] });
+  check('multi-greeter starts fork probe', jA.forkProbe === true && jA.state === 1);
+  // Same gkey, no shared peers → two clusters
+  jA.recv({
+    t: 'HOME', id: 'g_left', gkey: 'SAME',
+    roster: [{ k: 1, v: 'p_alice' }, { k: 2, v: 'p_bob' }],
+    stage: ['p_alice'], stadium: ['p_alice', 'p_bob', 'p_cara'],
+  });
+  jA.recv({
+    t: 'HOME', id: 'g_right', gkey: 'SAME',
+    roster: [{ k: 1, v: 'p_dan' }, { k: 2, v: 'p_eve' }],
+    stage: [], stadium: ['p_dan', 'p_eve'],
+  });
+  jA.forkPending = 0;
+  jA.maybeResolveFork();
+  check('same-key disjoint rosters → onFork with 2 options', forked && forked.length === 2, forked && forked.map((o) => o.gateway));
+  check('left option prefers Stage faces', forked && forked.some((o) => o.tier === 'stage' && o.faces.includes('p_alice')));
+  check('right option falls back to Stadium (empty stage)', forked && forked.some((o) => o.tier === 'stadium' && o.faces.includes('p_dan')));
+  check('paused for pick-one', jA.forkPaused === true);
 
-  const ok = joiner.chooseFork('KB');
-  check('chooseFork(KB) accepted', ok === true);
-  check('joined only KB (genKey)', joiner.genKey === 'KB');
-  check('not paused after pick', joiner.forkPaused === false);
-  // askSeat → state 2 searching
-  check('entered admission (state search/ask)', joiner.state === 2 || joiner.state === 1, joiner.state);
+  const right = forked.find((o) => o.faces.includes('p_dan'));
+  check('chooseFork by option id', jA.chooseFork(right.id) === true);
+  check('joined right half only (gateway)', jA.gateway === 'g_right');
+  check('same genesis key kept', jA.genKey === 'SAME');
+  check('not paused after pick', jA.forkPaused === false);
 
-  // ---- B: single genesis across greeters → no onFork, auto-accept ----
+  // ---- B: same genesis, OVERLAPPING rosters → one cluster, no pick ----
   let forkedB = null;
-  const envB = mkEnv((opts) => { forkedB = opts; });
-  const j2 = new mesh.Seat('j2', envB);
-  bus.set(j2.id, j2);
-  j2.join();
-  j2.recv({ t: 'GREETERS', list: ['g1', 'g2'] });
-  j2.recv({ t: 'HOME', id: 'g1', gkey: 'ONE', roster: [{ k: 1, v: 'p1' }, { k: 2, v: 'p2' }] });
-  j2.recv({ t: 'HOME', id: 'g2', gkey: 'ONE', roster: [{ k: 1, v: 'p1' }, { k: 3, v: 'p3' }] });
-  j2.forkPending = 0;
-  j2.maybeResolveFork();
-  check('single genesis: onFork NOT fired', forkedB === null);
-  check('single genesis: auto-accepted ONE', j2.genKey === 'ONE' && j2.forkPaused === false);
+  const jB = new mesh.Seat('jB', mkEnv((o) => { forkedB = o; }));
+  bus.set(jB.id, jB);
+  jB.join();
+  jB.recv({ t: 'GREETERS', list: ['g1', 'g2'] });
+  jB.recv({ t: 'HOME', id: 'g1', gkey: 'ONE', roster: [{ k: 1, v: 'p1' }, { k: 2, v: 'p2' }], stage: ['p1'], stadium: ['p1', 'p2'] });
+  jB.recv({ t: 'HOME', id: 'g2', gkey: 'ONE', roster: [{ k: 1, v: 'p1' }, { k: 3, v: 'p3' }], stage: ['p1'], stadium: ['p1', 'p3'] });
+  jB.forkPending = 0;
+  jB.maybeResolveFork();
+  check('overlapping same-key: no onFork', forkedB === null);
+  check('overlapping same-key: auto-join ONE', jB.genKey === 'ONE' && !jB.forkPaused);
 
-  // ---- C: one greeter → classic path (no fork probe) ----
-  const envC = mkEnv(() => { throw new Error('onFork should not fire'); });
-  const j3 = new mesh.Seat('j3', envC);
-  bus.set(j3.id, j3);
-  j3.join();
-  j3.recv({ t: 'GREETERS', list: ['only_g'] });
-  check('single greeter: no fork probe', j3.forkProbe === false && j3.state === 1 && j3.gateway === 'only_g');
+  // ---- C: two genesis keys still pick-one ----
+  let forkedC = null;
+  const jC = new mesh.Seat('jC', mkEnv((o) => { forkedC = o; }));
+  bus.set(jC.id, jC);
+  jC.join();
+  jC.recv({ t: 'GREETERS', list: ['ga', 'gb'] });
+  jC.recv({ t: 'HOME', id: 'ga', gkey: 'KA', roster: [{ k: 1, v: 'pa' }], stage: ['pa'], stadium: ['pa'] });
+  jC.recv({ t: 'HOME', id: 'gb', gkey: 'KB', roster: [{ k: 1, v: 'pb' }], stage: [], stadium: ['pb'] });
+  jC.forkPending = 0;
+  jC.maybeResolveFork();
+  check('multi-genesis: onFork with 2', forkedC && forkedC.length === 2);
 
-  // ---- D: no onFork callback + two keys → deterministic lowest gkey ----
-  const envD = mkEnv(null);
-  const j4 = new mesh.Seat('j4', envD);
-  bus.set(j4.id, j4);
-  j4.join();
-  j4.recv({ t: 'GREETERS', list: ['ga', 'gb'] });
-  j4.recv({ t: 'HOME', id: 'ga', gkey: 'ZZ', roster: [{ k: 1, v: 'pz' }] });
-  j4.recv({ t: 'HOME', id: 'gb', gkey: 'AA', roster: [{ k: 1, v: 'pa' }] });
-  j4.forkPending = 0;
-  j4.maybeResolveFork();
-  check('no UI: picks lowest gkey deterministically (AA < ZZ)', j4.genKey === 'AA' && !j4.forkPaused);
+  // ---- D: single greeter classic path ----
+  const jD = new mesh.Seat('jD', mkEnv(() => { throw new Error('no fork'); }));
+  bus.set(jD.id, jD);
+  jD.join();
+  jD.recv({ t: 'GREETERS', list: ['only'] });
+  check('single greeter: no fork probe', jD.forkProbe === false && jD.gateway === 'only');
 
-  console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS — R5 multi-greeter fork pick-one');
+  // ---- E: forkFaceList helper Stage > Stadium > roster ----
+  const fl1 = mesh.Seat.forkFaceList({ stage: ['s1'], stadium: ['m1'], faces: ['r1'] });
+  const fl2 = mesh.Seat.forkFaceList({ stage: [], stadium: ['m1'], faces: ['r1'] });
+  const fl3 = mesh.Seat.forkFaceList({ stage: [], stadium: [], faces: ['r1'] });
+  check('face list: Stage wins', fl1.tier === 'stage' && fl1.faces[0] === 's1');
+  check('face list: Stadium when no Stage', fl2.tier === 'stadium' && fl2.faces[0] === 'm1');
+  check('face list: roster last', fl3.tier === 'roster' && fl3.faces[0] === 'r1');
+
+  console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS — R5 same-key tear + Stage/Stadium faces');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

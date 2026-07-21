@@ -523,13 +523,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <!-- R5 / E5§2: two+ genesis keys under this URL — human picks ONE meeting. -->
+  <!-- R5 / E5§2: two door clusters (multi-genesis OR same-key torn halves) — pick ONE. -->
   <div class="name-modal" id="fork-modal" style="display:none">
     <div class="name-box" style="max-width:26rem;text-align:left">
       <h3>Which meeting?</h3>
       <p style="font-size:.9rem;opacity:.85;margin:.4rem 0 1rem">This link reaches more than one live room. Pick the one you want to join — we will not merge them or put you between both.</p>
       <div id="fork-choices" style="display:flex;flex-direction:column;gap:.55rem"></div>
-      <p style="font-size:.78rem;opacity:.55;margin-top:.9rem">Faces below are short peer ids already in each room (no server knows names).</p>
+      <p style="font-size:.78rem;opacity:.55;margin-top:.9rem">We show people on the <b>Stage</b> when we can; if the stage is empty, the <b>Stadium</b> (everyone that room can see).</p>
     </div>
   </div>
 
@@ -2884,8 +2884,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         },
         onLocked: () => { pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
         onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
-        // R5 / E5§2: greeters answered with two+ different genesis keys — pick one room.
+        // R5 / E5§2: two door clusters (multi-genesis or same-key torn halves).
         onFork: (opts) => showForkPick(opts),
+        // Greeter HOME carries Stage (preferred) / Stadium faces for pick-one.
+        homeFaces: () => {
+          try {
+            const stg = (typeof stageIds === 'function' ? stageIds() : []).map(String);
+            const stad = new Set();
+            try { for (const id of rosterIds) stad.add(String(id)); } catch (e) {}
+            try { if (myId) stad.add(String(myId)); } catch (e) {}
+            try { for (const pid of statusOf.keys()) stad.add(String(pid)); } catch (e) {}
+            return { stage: stg, stadium: [...stad] };
+          } catch (e) { return { stage: [], stadium: [] }; }
+        },
         onUpdate: () => renderFromOcc(),
         onRelayMsg: onRelayFrame,
       });
@@ -3288,13 +3299,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.style.cssText = 'text-align:left;padding:.7rem .85rem;border-radius:.6rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer';
-        const faces = (o.faces || []).slice(0, 5).join(', ') || '(no faces yet)';
+        // Prefer Stage faces; fall back to Stadium (then raw faces).
+        let tier = o.tier || 'roster';
+        let faces = o.faces || [];
+        if ((!faces.length || tier === 'roster') && o.stage && o.stage.length) { faces = o.stage; tier = 'stage'; }
+        if ((!faces.length || tier === 'roster') && o.stadium && o.stadium.length) { faces = o.stadium; tier = 'stadium'; }
+        const tierLbl = tier === 'stage' ? 'Stage' : tier === 'stadium' ? 'Stadium' : 'Door';
+        const faceStr = faces.slice(0, 6).map((f) => String(f).slice(0, 10)).join(', ') || '(no faces yet)';
         btn.innerHTML = '<b>Meeting ' + String.fromCharCode(65 + i) + '</b>'
-          + ' <span style="opacity:.65;font-size:.82rem">· ~' + (o.n || o.faces.length || '?') + ' people</span>'
-          + '<small style="display:block;margin-top:.25rem;opacity:.7;font-family:ui-monospace,monospace;font-size:.75rem">' + faces + '</small>';
+          + ' <span style="opacity:.65;font-size:.82rem">· ' + tierLbl + ' · ~' + (o.n || faces.length || '?') + ' people</span>'
+          + '<small style="display:block;margin-top:.25rem;opacity:.7;font-family:ui-monospace,monospace;font-size:.75rem">' + faceStr + '</small>';
         btn.onclick = () => {
           forkModal.style.display = 'none';
-          try { if (meshNode && meshNode.chooseFork) meshNode.chooseFork(o.gkey); } catch (e) {}
+          // Prefer option id (same-gkey clusters); fall back to gkey.
+          const key = o.id || o.gkey;
+          try { if (meshNode && meshNode.chooseFork) meshNode.chooseFork(key); } catch (e) {}
           setStatus('Joining the meeting you picked…');
         };
         forkChoices.appendChild(btn);

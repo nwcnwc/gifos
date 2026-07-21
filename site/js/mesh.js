@@ -131,10 +131,13 @@
       // I keep getting NOROOM is competing for a slot, NOT stranded (bug #6).
       this.lastReach = -1; this.strandedAt = 0;
       this.gateway = null;       // the greeter this (unseated) newcomer routes through
-      // R5 / E5§2: multi-greeter HOME probe before seating. Collect genesis keys
-      // from greeters; if two+ distinct keys appear, pause for human pick-one
-      // (env.onFork) rather than silently joining a random room or bridging.
-      this.forkProbe = false; this.forkAt = -1; this.forkHomes = new Map(); // gkey -> { gkey, gateway, roster, faces }
+      // R5 / E5§2: multi-greeter HOME probe before seating. Cluster replies by
+      // genesis key AND by roster overlap (same-key torn home = two greeter
+      // halves the newcomer alone can see). Two+ clusters ⇒ human pick-one.
+      // Faces for the UI: Stage first, else Stadium (app fills via HOME fields).
+      this.forkProbe = false; this.forkAt = -1;
+      this.forkSamples = []; // raw HOME samples before clustering
+      this.forkOpts = new Map(); // optionId -> { id, gkey, gateway, roster, stage, stadium, faces }
       this.forkPending = 0; this.forkPaused = false;
       // ---- T: atomic seat switching (mover's lease) ----
       this.moving = false; this.moveAt = -1;        // transit: NEW seat taken, OLD not yet vacated (dual-hold)
@@ -287,39 +290,104 @@
     // else I learn the real key via the dance and re-present it once seated.
     join() {
       this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
-      this.forkProbe = false; this.forkPaused = false; this.forkHomes = new Map(); this.forkPending = 0;
+      this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
+      this.forkOpts = new Map(); this.forkPending = 0;
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
     askSeat(target) { this.state = 2; this.retryAt = this.TICK; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
-    // R5: after multi-greeter HOMEs, either seat into the only genesis key,
-    // pause for human pick-one (env.onFork), or fall through to classic join.
+    // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
+    static forkFaceList(sample) {
+      if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
+      if (sample.stadium && sample.stadium.length) return { tier: 'stadium', faces: sample.stadium.slice(0, 12) };
+      return { tier: 'roster', faces: (sample.faces || []).slice(0, 12) };
+    }
+    // Peer-id set from a HOME roster [{k,v}|id, …].
+    static rosterPeers(roster) {
+      const s = new Set();
+      for (const e of roster || []) {
+        const v = e && (e.v != null ? e.v : e);
+        if (v != null && v !== '') s.add(String(v));
+      }
+      return s;
+    }
+    // Jaccard-ish: any shared peer ⇒ same cluster; else separate (torn halves).
+    static rostersOverlap(a, b) {
+      if (!a.size || !b.size) return false;
+      for (const p of a) if (b.has(p)) return true;
+      return false;
+    }
+    // Cluster HOME samples: different gkey always split; same gkey splits when
+    // rosters are disjoint (the real split-room door case).
+    clusterForkSamples(samples) {
+      const clusters = []; // each: { gkey, gateway, roster, stage, stadium, faces, peers }
+      for (const s of samples) {
+        const peers = Seat.rosterPeers(s.roster);
+        let placed = false;
+        for (const c of clusters) {
+          if (c.gkey !== s.gkey) continue;
+          if (Seat.rostersOverlap(c.peers, peers)) {
+            // merge into existing same-key cluster (union faces / prefer richer stage)
+            for (const p of peers) c.peers.add(p);
+            if ((s.stage || []).length > (c.stage || []).length) c.stage = s.stage;
+            if ((s.stadium || []).length > (c.stadium || []).length) c.stadium = s.stadium;
+            if ((s.roster || []).length > (c.roster || []).length) { c.roster = s.roster; c.gateway = s.gateway; }
+            placed = true; break;
+          }
+        }
+        if (!placed) {
+          clusters.push({
+            gkey: s.gkey, gateway: s.gateway, roster: s.roster,
+            stage: s.stage || [], stadium: s.stadium || [], peers,
+          });
+        }
+      }
+      return clusters.map((c, i) => {
+        const fl = Seat.forkFaceList(c);
+        const id = String(c.gkey) + '#' + i + '#' + String(c.gateway || i);
+        return {
+          id, gkey: c.gkey, gateway: c.gateway, roster: c.roster,
+          stage: c.stage || [], stadium: c.stadium || [],
+          faces: fl.faces, tier: fl.tier, n: c.peers.size || fl.faces.length,
+        };
+      });
+    }
+    // R5: after multi-greeter HOMEs, one cluster → seat; two+ → pick-one.
     maybeResolveFork() {
       if (!this.forkProbe || this.forkPaused || this.state !== 1) return;
       const TICK = this.TICK;
       const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30);
-      if (!ready && this.forkHomes.size < 2) return;
-      const opts = [...this.forkHomes.values()];
-      if (opts.length === 0) {
-        // No HOME yet — keep waiting until retry path re-knocks.
+      if (!ready && this.forkSamples.length < 2) return;
+      if (this.forkSamples.length === 0) {
         if (ready) { this.forkProbe = false; this.retryAt = TICK - 10; }
         return;
       }
+      const opts = this.clusterForkSamples(this.forkSamples);
+      this.forkOpts = new Map(opts.map((o) => [o.id, o]));
       if (opts.length === 1) { this.acceptFork(opts[0]); return; }
-      // Two+ genesis keys under this URL: human must pick (E5§2 / R5).
+      // Two+ clusters (multi-genesis OR same-key torn greeter halves).
       this.forkProbe = false; this.forkPaused = true;
       if (typeof this.env.onFork === 'function') {
-        this.env.onFork(opts.map((o) => ({ gkey: o.gkey, gateway: o.gateway, faces: o.faces.slice(0, 8), n: o.faces.length })));
+        this.env.onFork(opts.map((o) => ({
+          id: o.id, gkey: o.gkey, gateway: o.gateway,
+          faces: o.faces, tier: o.tier, n: o.n,
+          stage: o.stage, stadium: o.stadium,
+        })));
       } else {
-        // No UI (sim / headless): deterministic pick — lowest gkey string.
-        opts.sort((a, b) => (a.gkey < b.gkey ? -1 : a.gkey > b.gkey ? 1 : 0));
+        // No UI: deterministic — prefer lowest gkey, then lowest option id.
+        opts.sort((a, b) => (a.gkey < b.gkey ? -1 : a.gkey > b.gkey ? 1 : a.id < b.id ? -1 : 1));
         this.acceptFork(opts[0]);
       }
     }
-    // Human (or sim) chose one meeting: seat into that genesis only — never merge.
-    chooseFork(gkey) {
+    // Human (or sim) chose one option id (or legacy gkey if unique). Never merge.
+    chooseFork(idOrGkey) {
       if (!this.forkPaused) return false;
-      const o = this.forkHomes.get(String(gkey));
+      let o = this.forkOpts.get(String(idOrGkey));
+      if (!o) {
+        // allow chooseFork(gkey) when only one option has that gkey
+        const hits = [...this.forkOpts.values()].filter((x) => x.gkey === String(idOrGkey));
+        if (hits.length === 1) o = hits[0];
+      }
       if (!o) return false;
       this.acceptFork(o);
       return true;
@@ -942,9 +1010,9 @@
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL && (this.lastReach < 0 || TICK - this.lastReach > STRAND_TTL)) { this.stranded = true; this.strandedAt = TICK; return; }
           this.lastGreeters = m.list;
           if (this.state === 0 && !this.forkPaused) {
-            // R5: probe SEVERAL greeters for HOME/gkey before seating. One
-            // greeter → classic path. Many greeters → collect genesis keys;
-            // two+ distinct keys ⇒ human pick-one (E5§2), never auto-bridge.
+            // R5: probe SEVERAL greeters. One greeter → classic path. Many →
+            // collect HOMEs; cluster by gkey + roster overlap. Two+ clusters
+            // (multi-genesis OR same-key torn halves) ⇒ human pick-one.
             const pool = m.list.filter((g) => g && g !== this.id);
             if (!pool.length) return;
             if (pool.length === 1) {
@@ -953,14 +1021,13 @@
               this.state = 1; this.retryAt = TICK;
               return;
             }
-            this.forkProbe = true; this.forkAt = TICK; this.forkHomes = new Map();
-            this.forkPending = 0;
-            // Fan to up to 5 greeters (shuffle for load spread).
+            this.forkProbe = true; this.forkAt = TICK; this.forkSamples = [];
+            this.forkOpts = new Map(); this.forkPending = 0;
             const order = pool.slice();
             for (let i = order.length - 1; i > 0; i--) { const j = (this.rng() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
             const fan = order.slice(0, Math.min(5, order.length));
             this.forkPending = fan.length;
-            this.state = 1; this.retryAt = TICK + 40; // settle window for HOMEs
+            this.state = 1; this.retryAt = TICK + 40;
             for (const g of fan) this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 });
           }
           return;
@@ -968,7 +1035,22 @@
         case 'WHOHOME': {
           if (!this.hasCoord) { this.emit(m.from, { t: 'HOME' }); return; }
           if (m.ttl <= 0) return;
-          if (this.coord.pc === 0) { this.emit(m.from, { t: 'HOME', roster: this.s1Roster(), id: this.id, gkey: this.genKey }); return; } // the newcomer dance hands over THIS meeting's genesis key
+          if (this.coord.pc === 0) {
+            // App may attach Stage / Stadium face lists for R5 pick-one UI.
+            let stage = [], stadium = [];
+            try {
+              if (typeof this.env.homeFaces === 'function') {
+                const f = this.env.homeFaces() || {};
+                stage = (f.stage || []).map(String);
+                stadium = (f.stadium || []).map(String);
+              }
+            } catch (e) {}
+            this.emit(m.from, {
+              t: 'HOME', roster: this.s1Roster(), id: this.id, gkey: this.genKey,
+              stage, stadium,
+            });
+            return;
+          }
           const fwd = (x) => { if (x != null && x !== this.id && x !== m.via) { this.emit(x, { t: 'WHOHOME', from: m.from, via: this.id, ttl: m.ttl - 1 }); return true; } return false; };
           if (this.coord.i !== 0) { if (fwd(this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })))) return; } else { if (fwd(this.ownerId())) return; }
           const x = topo.crossLink(this.coord); if (x && fwd(this.occGet(ck(x)))) return;
@@ -976,17 +1058,21 @@
           return;
         }
         case 'HOME': {
-          // R5 multi-greeter probe: collect by genesis key; do not seat yet.
+          // R5 multi-greeter probe: collect samples; cluster later.
           if (this.forkProbe && this.state === 1 && !this.forkPaused) {
             this.lastReach = TICK;
             if (this.forkPending > 0) this.forkPending--;
             const gk = m.gkey != null ? String(m.gkey) : '';
             if (gk && m.roster && m.roster.length) {
               const faces = (m.roster || []).map((e) => (e && (e.v != null ? e.v : e))).filter(Boolean).map((v) => String(v).slice(0, 12));
-              const prev = this.forkHomes.get(gk);
-              if (!prev || faces.length > prev.faces.length) {
-                this.forkHomes.set(gk, { gkey: gk, gateway: m.id != null ? m.id : this.gateway, roster: m.roster, faces });
-              }
+              this.forkSamples.push({
+                gkey: gk,
+                gateway: m.id != null ? m.id : this.gateway,
+                roster: m.roster,
+                stage: (m.stage || []).map(String),
+                stadium: (m.stadium || []).map(String),
+                faces,
+              });
             }
             this.maybeResolveFork();
             return;

@@ -507,16 +507,20 @@ confirmation rides frames the seating already produces.)*
   they later form, drop the relay path. LIVE: `site/meet.html` peer-relay;
   `test/browser/e2e-video.js` / `test/drills/e2e-peer-relay-reunion.js`.
 
-  **(2) A newcomer who can see TWO meetings — human picks ONE; never auto-bridge.**
-  If a joiner is in a position to observe two distinct homes / greeter-side
-  meetings (different genesis, or a same-key tear that looks like two rooms
-  from the door), they must **not** become the automatic peer-relay that
-  stitches those rooms together. That person may be an **attacker who
-  engineered** being the only common witness. Stick with the current design:
-  surface the choice and let the human **join meeting A or meeting B** (R5
-  faces / pick-one UI). Choosing one meeting seats them there only; it does
-  not merge the other. Detection of tears stays E3; forced merge-by-count
-  stays forbidden.
+  **(2) A newcomer who can see TWO rooms at the door — human picks ONE; never
+  auto-bridge.** The common case is **one genesis** with a torn home: people
+  already inside each half cannot reach the other, but **Section-1 greeters
+  from both halves** still re-knock into the same greeter pool. Only a
+  **new joiner** sees both doors. (Two genesis keys under one URL is rarer —
+  same UI.) The joiner must **not** become the automatic peer-relay that
+  stitches the halves (attacker who engineered sole common visibility).
+  **Pick-one UI:** probe several greeters' HOME replies; cluster by genesis
+  key **and** roster overlap (disjoint same-key rosters = two halves). Surface
+  each option with **Stage faces** when the greeter reports any; if the Stage
+  is empty, **Stadium** faces (everyone that half can see); roster is last
+  resort. Choosing seats into **that** greeter/roster only — never merges the
+  other. Detection for seated members stays E3; forced merge-by-count stays
+  forbidden.
 
   **What this is not:**
   - Not a paid TURN tier.
