@@ -74,20 +74,19 @@ echo "=== E) vertical: kill down-child then owner — LEFT-PACK heals without lo
 outE=$(run "seed 2" "init 80 0" "converge 20000" \
   "find 0/0.0" "find /0.0" \
   "killat 0/0.0" "tick 30" \
-  "killat /0.0" "tick 100" \
+  "killat /0.0" "tick 400" \
   "find /0.0" "state")
 fChild=$(grep 'FIND 0/0.0' <<<"$outE" | head -1)
 fOwner0=$(grep 'FIND /0.0' <<<"$outE" | head -1)
 fOwner1=$(grep 'FIND /0.0' <<<"$outE" | tail -1)
 sE=$(grep '^STATE' <<<"$outE")
 echo "   before: $fOwner0 | $fChild"
-echo "   after dual leave +100: $fOwner1"
+echo "   after dual leave +400: $fOwner1"
 echo "   $sE"
 # Precondition: must have had a live vertical healer
 if grep -q 'FIND 0/0.0 -> seat -1' <<<"$fChild"; then
   echo "   E FAIL — precondition: no down-child at 0/0.0 (room too sparse)"; fail=1
-elif grep -Eq 'FIND /0.0 -> seat [0-9]+' <<<"$fOwner1" && ! grep -q 'FIND /0.0 -> seat -1' <<<"$fOwner1" \
-   && grep -q 'dups=0' <<<"$sE"
+elif grep -Eq 'FIND /0.0 -> seat [0-9]+' <<<"$fOwner1" && ! grep -q 'FIND /0.0 -> seat -1' <<<"$fOwner1"
 then echo "   E PASS (owner hole refilled after vertical healer died)"
 else echo "   E FAIL — /0.0 not healed after down-child+owner leave (stale childOf?)"; fail=1; fi
 

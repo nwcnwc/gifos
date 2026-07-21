@@ -526,11 +526,13 @@
           for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; }
         }
         for (let t = 0; t < C(); t++) {
-          // A row-then-depth: fill row while head may be only sitting-down;
-          // do not spill to next row until previous head is seated.
+          // A + H7: previous row fully reserved and head not only soft-sitting.
           if (t > 0) {
             const prevHead = ck({ pc: 0, r: t - 1, i: 0 });
-            if (this.softSitting(prevHead) || (this.occ.has(prevHead) && !this.cellSeated(prevHead))) break;
+            if (this.softSitting(prevHead)) break;
+            let prevFull = true;
+            for (let j = 0; j < C(); j++) if (!this.cellTaken(ck({ pc: 0, r: t - 1, i: j }))) { prevFull = false; break; }
+            if (!prevFull) break;
           }
           const liveRow = rowLive[t], everSeen = rowSeen[t];
           if (!liveRow && everSeen) {
@@ -600,9 +602,12 @@
                 if (this.occ.has(ck(d))) { adm = d; break; }
               }
             }
-            if (!this.cellTaken(ck(adm))) {
-              for (let dr = 1; dr < C(); dr++) {
-                const d = { pc: 0, r: (cell.r + dr) % C(), i: cell.i };
+            // S1 column-clique admission: only when primary was known (s1seen)
+            // and is now empty — never when simply unknown. Devolve only to
+            // STRICTLY DEEPER same-column seats (no wrap into denser upper rows).
+            if (!this.cellTaken(ck(adm)) && this.s1seen.has(ck(adm))) {
+              for (let rr = cell.r + 1; rr < C(); rr++) {
+                const d = { pc: 0, r: rr, i: cell.i };
                 if (this.occ.has(ck(d))) { adm = d; break; }
               }
             }
@@ -615,7 +620,17 @@
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
           }
         }
-        // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
+        // Only go deep when no admissible S1 free cell remains (live-row heads
+        // are never admit targets — do not count them as free).
+        let s1admFree = 0;
+        for (let t = 0; t < C(); t++) {
+          const liveR = rowLive[t];
+          for (let j = 0; j < C(); j++) {
+            if (j === 0 && liveR) continue;
+            if (!this.cellTaken(ck({ pc: 0, r: t, i: j }))) s1admFree++;
+          }
+        }
+        if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
       }
       const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm); return; }
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
@@ -695,8 +710,9 @@
           this.emit(who, { t: 'FINDLEAF', hole, nbrs, ttl: 40 }); return;
         }
       }
-      // H-CHAIN S1 column-pack scooch BEFORE general FINDLEAF
-      if (!this.hasChildren() && this.coord.pc === 0 && hole.pc === 0 && hole.i === this.coord.i && hole.r !== this.coord.r) {
+      // H-CHAIN S1 column-pack scooch UP only (hole.r < coord.r) BEFORE FINDLEAF.
+      // Downward holes fall through to FINDLEAF — never raid denser upper rows.
+      if (!this.hasChildren() && this.coord.pc === 0 && hole.pc === 0 && hole.i === this.coord.i && hole.r < this.coord.r) {
         let rowRightEmpty = true;
         for (let j = hole.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: hole.r, i: j }))) { rowRightEmpty = false; break; }
         if (rowRightEmpty) { this.promoteInto(hole, nbrs); return; }
@@ -715,10 +731,11 @@
       if (this.moving) return;                       // T1: one move at a time
       if (this.coord.pc === 0 && hole.pc !== 0) return;
       // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch
-      // into same-column hole when the row chain is exhausted.
+      // UP into denser (lower row index) same-column hole only — never DOWN
+      // (raids H7-dense upper rows; N=9 serial left /0.4 empty forever).
       if (this.coord.pc === 0 && hole.pc === 0) {
         const leftPack = hole.r === this.coord.r && hole.i < this.coord.i;
-        const colPack = hole.i === this.coord.i && hole.r !== this.coord.r;
+        const colPack = hole.i === this.coord.i && hole.r < this.coord.r;
         if (!leftPack && !colPack) return;
       }
       this.doMove(hole, null, nbrs);
@@ -1249,19 +1266,17 @@
               for (let j = c.i + 1; j < this.coord.i; j++) if (this.occGet(ck({ pc: c.pc, r: c.r, i: j })) != null) { first = false; break; }
               if (first) { this.heal(c); return; }
             }
-            // H-CHAIN S1 COLUMN-clique (reactive): same column on the home
-            // rook. Row-right empty = no firstHandLive (gossip phantoms must
-            // not block). Defer to VERTICAL only when down-child is OCCUPIED
-            // (stale childOf must not block). First col-mate ascending-row.
-            if (this.coord.pc === 0 && c.pc === 0 && this.coord.i === c.i && this.coord.r !== c.r
+            // H-CHAIN S1 COLUMN-clique (reactive): same column, STRICTLY DEEPER
+            // row (coord.r > hole.r) so scooch is UP into denser H7 territory.
+            // Row-right empty = no firstHandLive. First col-mate between hole
+            // and me (no wrap raid of upper rows). Defer VERTICAL if down OCC.
+            if (this.coord.pc === 0 && c.pc === 0 && this.coord.i === c.i && this.coord.r > c.r
                 && this.occGet(ck(topo.down(c))) == null) {
               let rowRightEmpty = true;
               for (let j = c.i + 1; j < C(); j++) if (this.firstHandLive(ck({ pc: 0, r: c.r, i: j }))) { rowRightEmpty = false; break; }
               if (rowRightEmpty) {
                 let first = true;
-                for (let dr = 1; dr < C(); dr++) {
-                  const rr = (c.r + dr) % C();
-                  if (rr === this.coord.r) break;
+                for (let rr = c.r + 1; rr < this.coord.r; rr++) {
                   if (this.occGet(ck({ pc: 0, r: rr, i: c.i })) != null) { first = false; break; }
                 }
                 if (first) { this.heal(c); return; }
