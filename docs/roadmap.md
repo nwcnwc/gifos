@@ -176,23 +176,33 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
     `/versions/<x.y.z>/` load to its archive — V3 is about the *unpinned* live
     shell drifting behind, a different case; don't nag pinned archive loads.
 
-- **V4 — Home-page system message (banner from a static JSON file).** The same
-  dismissible top-of-page banner as **V2**, but on the **desktop/home**, and
-  sourced from a **static JSON file in `/site`** (e.g. `/site/notice.json`)
-  instead of the relay greeter package. Nathan edits/commits that file (a push
-  auto-deploys via Pages) to raise a notice; **when the file is missing (404),
-  no banner is shown** — that is the normal state.
+- **V4 — Site-wide system message (banner from a static JSON file).** The same
+  dismissible top-of-page banner as **V2**, but sourced from a **static JSON
+  file in `/site`** (e.g. `/site/notice.json`) instead of the relay greeter
+  package, and shown on **every first-party surface: the desktop/home
+  (`index.html` / `boot.html`), `meet.html`, and `run.html`.** Nathan
+  edits/commits that file (a push auto-deploys via Pages) to raise a notice;
+  **when the file is missing (404), no banner is shown** — that is the normal
+  state.
   - **Same formatting rules as the relay notice (V2), verbatim:** payload
     `{ id, text, level }`; `level` is `info` / `warn`; **`textContent` only, no
     HTML / no executed links** from the file; dismissal remembered **per `id`**
     in `localStorage` so a reload doesn't resurrect a ✕'d banner but a new `id`
     shows again; ✕ = dismiss (not delete), matching the shared convention.
-  - Fetched cache-busted on boot; a 404 or parse error is silent (no banner, no
+  - Fetched cache-busted on load; a 404 or parse error is silent (no banner, no
     console noise beyond a debug line) — a missing/broken notice must never
-    break the desktop.
-  - V4 is to the home page what V2 is to `meet.html`; factor the banner render +
-    per-`id` dismissal into one shared helper both surfaces call, differing only
-    in **source** (relay greeter package vs static `/site` JSON).
+    break any page.
+  - **`meet.html` therefore carries TWO notice sources:** the relay operator
+    notice (V2, from the greeter package — meeting-scoped, may differ per relay
+    deploy) *and* the static site notice (V4, from `/site` — platform-wide). Two
+    independent banners (independent `id` namespaces / dismissal keys); if both
+    are live, stack them (site notice above relay notice, say). Don't collapse
+    them into one — they have different authors and lifecycles.
+  - V4 is to the whole site what V2 is to the meeting; factor the banner render
+    + per-`id` dismissal into **one shared helper** every surface (home, meet,
+    run) calls, differing only in **source** (relay greeter package for V2's
+    meeting banner vs static `/site` JSON for V4's site-wide banner). `run.html`
+    and the home page have no relay, so they show only the V4 static notice.
 
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
