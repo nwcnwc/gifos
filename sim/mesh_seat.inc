@@ -107,15 +107,22 @@ void Seat::serveFind(Msg& mm){
         //    an admission target (C1: an admission must not race a healer).
         if(j==0 && rowLive[t]) continue;
         Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
-        //  - a cell whose designated admitter seat is a VACATED head — occ
-        //    EMPTY, i.e. a delivered LEAVE (D2-confirmed); mere silence never
-        //    clears occ, so severance / silent death stays behind the H1-S1
-        //    ring-hold — has its admission duty DEVOLVE to that head-hole's
-        //    one fixed H2 healer: the occupant of column 1 of the admitter's
-        //    row. Fixed designation, one seat, no race — the same shape as
-        //    C3's designated-healer discipline. If column 1 is empty too the
-        //    scooch chain is still rebuilding: keep scanning (transient).
-        if(!occ.count(ckey(adm)) && rowLive[adm.r]) adm={0,adm.r,1};
+        //  - H-CHAIN admission devolution (healing-laws H-CHAIN): when the
+        //    designated admitter seat is VACATED (occ EMPTY — D2 LEAVE
+        //    delivered; mere silence never clears occ, so severance stays
+        //    behind H1-S1 ring-hold), duty devolves along that admitter's
+        //    ROW clique: col 1, then 2, … C−1 (ascending). Each earlier
+        //    designee must also be empty so we only skip confirmed-vacated
+        //    seats above us (depth rule on the admission path). First
+        //    OCCUPIED seat in that order is the active admitter. If the
+        //    whole chain is empty the scooch is still rebuilding: keep
+        //    scanning (transient). Single-step col-1 devolution is the
+        //    j=1 special case of this walk.
+        if(!occ.count(ckey(adm)) && rowLive[adm.r]){
+          Coord d={0,adm.r,0};
+          for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(occ.count(ckey(d))){ adm=d; break; } }
+          // empty chain → leave adm as the vacated primary; aid path falls through
+        }
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
           continue;                                    // admit gate cooling — consider the next cell
@@ -124,6 +131,9 @@ void Seat::serveFind(Msg& mm){
         if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
         // admitter unknown/dead: its own cell sits earlier in the scan (or is
         // being healed) — keep scanning so growth never deadlocks on one head
+        // (Do NOT gate hand-off on firstHandLive here: that fast-tracks silent
+        // death past H1-S1 ring-hold — headless-row leg C. Devolution is only
+        // on vacated occ, above.)
       }
     }
     // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
@@ -657,10 +667,21 @@ void Seat::recv(Msg& m){
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
-      // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just LEFT; I am
-      // its fixed right-neighbour healer. I heal it UNLESS it owns a down-child
-      // (then the VERTICAL rule — that down-child — heals it, so I defer).
-      if(HEALING&&hasCoord&&state==3){ Coord c=unck(m.ck); if(c.pc==coord.pc&&c.r==coord.r&&c.i==0&&coord.i==1&&!hasDownChild(c)){ heal(c); return; } }
+      // H-CHAIN LEFT-PACK (reactive): a row-mate to my LEFT just LEFT. I heal
+      // it if I am the first OCCUPIED seat strictly right of the hole with
+      // every intermediate column empty (confirmed vacated) — i.e. the
+      // right-neighbour, or the next row-mate after a vacated chain of
+      // right-neighbours (healing-laws H-CHAIN). I defer if the hole owns a
+      // down-child (VERTICAL rule). The old "only col-1 heals the head" is
+      // the chain length-1 case.
+      if(HEALING&&hasCoord&&state==3){
+        Coord c=unck(m.ck);
+        if(c.pc==coord.pc&&c.r==coord.r&&coord.i>c.i&&!hasDownChild(c)){
+          bool first=true;
+          for(int j=c.i+1;j<coord.i;j++) if(occGet(ckey({c.pc,c.r,(uint8_t)j}))>=0){ first=false; break; }
+          if(first){ heal(c); return; }
+        }
+      }
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {

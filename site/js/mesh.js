@@ -399,24 +399,26 @@
             //    a healer).
             if (j === 0 && rowLive[t]) continue;
             let adm = j > 0 ? { pc: 0, r: t, i: 0 } : { pc: 0, r: (t - 1 + C()) % C(), i: 0 };
-            //  - a cell whose designated admitter seat is a VACATED head —
-            //    occ EMPTY, i.e. a delivered LEAVE (D2-confirmed); mere
-            //    silence never clears occ, so severance / silent death stays
-            //    behind the H1-S1 ring-hold — has its admission duty DEVOLVE
-            //    to that head-hole's one fixed H2 healer: the occupant of
-            //    column 1 of the admitter's row. Fixed designation, one seat,
-            //    no race — the same shape as C3's designated-healer
-            //    discipline. If column 1 is empty too the scooch chain is
-            //    still rebuilding: keep scanning (transient).
-            if (!this.occ.has(ck(adm)) && rowLive[adm.r]) adm = { pc: 0, r: adm.r, i: 1 };
+            //  - H-CHAIN admission devolution (healing-laws H-CHAIN): when the
+            //    designated admitter seat is VACATED (occ EMPTY — D2 LEAVE;
+            //    mere silence never clears occ), duty devolves along that
+            //    admitter's ROW: col 1, then 2, … C−1. First OCCUPIED seat
+            //    wins. Empty chain → scooch still rebuilding; keep scanning.
+            //    Single-step col-1 devolution is the j=1 special case.
+            if (!this.occ.has(ck(adm)) && rowLive[adm.r]) {
+              for (let dj = 1; dj < C(); dj++) {
+                const d = { pc: 0, r: adm.r, i: dj };
+                if (this.occ.has(ck(d))) { adm = d; break; }
+              }
+            }
             if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) { this.healTry.set(k, TICK); this.admit(cell, mm); return; }
               continue;                                  // admit gate cooling — consider the next cell
             }
             const aid = this.occGet(ck(adm));
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
-            // admitter unknown/dead: its own cell sits earlier in the scan (or
-            // is being healed) — keep scanning so growth never deadlocks
+            // admitter unknown/dead: keep scanning. Do NOT gate on firstHandLive
+            // (fast-tracks silent death past H1-S1 — headless-row leg C).
           }
         }
         // no admissible S1 cell (home full, or every hole is a healer's) ⇒ deep
@@ -942,10 +944,19 @@
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
-          // 11a LEFT-PACK (reactive): a row-mate to my immediate LEFT just
-          // LEFT; I am its fixed right-neighbour healer. I heal it UNLESS it
-          // owns a down-child (then the VERTICAL rule heals it — I defer).
-          if (HEALING && this.hasCoord && this.state === 3) { const c = unck(m.ck); if (c.pc === this.coord.pc && c.r === this.coord.r && c.i === 0 && this.coord.i === 1 && !this.hasDownChild(c)) { this.heal(c); return; } }
+          // H-CHAIN LEFT-PACK (reactive): a row-mate to my LEFT just LEFT. I
+          // heal it if I am the first OCCUPIED seat strictly right of the hole
+          // with every intermediate column empty (healing-laws H-CHAIN). Defer
+          // if the hole owns a down-child (VERTICAL). Old "only col-1 heals
+          // the head" is chain length-1.
+          if (HEALING && this.hasCoord && this.state === 3) {
+            const c = unck(m.ck);
+            if (c.pc === this.coord.pc && c.r === this.coord.r && this.coord.i > c.i && !this.hasDownChild(c)) {
+              let first = true;
+              for (let j = c.i + 1; j < this.coord.i; j++) if (this.occGet(ck({ pc: c.pc, r: c.r, i: j })) != null) { first = false; break; }
+              if (first) { this.heal(c); return; }
+            }
+          }
           return;
         }
         case 'GREETWALK': return; // H6 retired
