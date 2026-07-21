@@ -352,15 +352,6 @@ void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
 void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
   if(!hasCoord||ckey(coord)==ckey(hole)) return;
   if(moving) return;                                 // T1: one move at a time
-  // E2, PREEMPTIVE: never move into a chair I can SEE is occupied. The healer
-  // that decided this was a hole may be blind to the occupant (a severed head
-  // confirms its row-mate dead via D5 and hands the hole to a down-child that
-  // is still directly linked to the very seat it is about to evict). A cell I
-  // hear FIRST-HAND is alive by definition, so this can never mask a real hole
-  // — it only declines the duplicate before the id tie-break creates one.
-  // (D5 sweep sever leg: seat 6 severed from its head was evicted by its own
-  // down-child and the room fell to 197/200.)
-  if(firstHandLive(ckey(hole))) return;
   if(coord.pc==0 && hole.pc!=0) return;
   // 11a left-pack: scooch LEFT within the row. H-CHAIN S1 column: scooch UP
   // into a denser (strictly lower row index) same-column hole when the row
@@ -370,6 +361,18 @@ void Seat::promoteInto(Coord hole, vector<KV>& nbrs){
     bool leftPack = (hole.r==coord.r && hole.i<coord.i);
     bool colPack  = (hole.i==coord.i && hole.r<coord.r);
     if(!leftPack && !colPack) return;
+    // E2, PREEMPTIVE — column-pack only. A VERTICAL healer is the one mover
+    // that is routinely still linked to the seat it would displace: its owner
+    // is its direct up-link. A severed head confirms its row-mate dead via the
+    // D5 early probe (correct from its blind vantage) and hands the hole down
+    // to exactly that child, which then evicts a live occupant it can hear —
+    // the id tie-break takes the incumbent, not the mover (sweep sever leg:
+    // 197/200). A cell heard FIRST-HAND is alive by definition, so declining
+    // here can never mask a real hole.
+    // Deliberately NOT applied to left-pack / findLeaf: those movers are not
+    // linked to the corpse, `live` merely ages out over 60 ticks, and blocking
+    // them starves mass-kill and partition healing (churn seed 5, split 7).
+    if(colPack && firstHandLive(ckey(hole))) return;
   }
   doMove(hole,-1,nbrs);
 }
