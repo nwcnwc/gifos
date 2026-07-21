@@ -227,8 +227,15 @@
     // Soft or non-phantom occ. Requeue phantoms free for rejoin (atomic D).
     cellReserved(k) {
       if (this.softSitting(k)) return true;
-      if (this.firstHandLive(k)) return true;
+      // A reservation needs a CLAIMANT. `live` is keyed by coord and is only
+      // cleared on a LEAVE I can attribute (occGet==leaver), so a cell vacated
+      // by a move — or by a LEAVE that raced my occ — stays "first-hand live"
+      // for the full 60-tick window with nobody in it. Treating that as
+      // reserved made empty home cells look occupied through a churn and pushed
+      // seekers DEEP instead of packing shallow (compaction leg 1: byDepth 3
+      // went 1 -> 51). No occ entry => no claimant => free.
       if (!this.occ.has(k)) return false;
+      if (this.firstHandLive(k)) return true;
       return !this.occIsPhantom(k);
     }
     cellSeated(k) {
