@@ -127,6 +127,7 @@
       this.retryAt = -1; this.seatTries = 0; this.lastPhone = -99; this.lastAck = 0;
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
+      this.rookSeenAt = 0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
       this.myKey = 'mk_' + id;   // throwaway personal genesis key (unique per seat)
       this.genKey = null;        // THIS meeting's genesis key (learned via the dance, or minted)
       this.joinStart = -1; this.stranded = false; this.evil = false; this.alive = true;
@@ -322,6 +323,15 @@
     }
     ownedRowHead() { return { pc: topo.childPath(this.coord.pc, this.coord.i), r: this.coord.r, i: 0 }; }
     rosterCells() { const h = this.ownedRowHead(); const out = []; for (let c = 0; c < C(); c++) out.push({ pc: h.pc, r: h.r, i: c }); return out; }
+    // Do I hear ANY rook neighbour (row/col/down) first-hand? An S1 seat that
+    // hears NONE for a long time is an isolated fragment — it can neither phone
+    // (heartbeat is occ-gated) nor route-probe (no link), so E2 can't yield it.
+    anyRookLive() {
+      if (!this.hasCoord || this.coord.pc !== 0) return false;
+      for (const m of topo.rowMates(this.coord)) if (this.firstHandLive(ck(m))) return true;
+      for (const m of topo.colMates(this.coord)) if (this.firstHandLive(ck(m))) return true;
+      return this.firstHandLive(ck(topo.down(this.coord)));
+    }
     // 11a FRONTIER-ONLY ADMISSION: admit a newcomer only into a TRUE frontier
     // slot — a free cell whose down-child is NOT occupied. A free cell that
     // still owns a subtree is an INTERNAL hole: its fixed healer (that
@@ -491,7 +501,7 @@
       // A: self-confirm sitting-down → seated (only the joiner upgrades).
       this.confirmSeated(ck(c), this.id);
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
-      this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK;
+      this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK; this.rookSeenAt = this.TICK;
       this.lastAck = this.TICK; this.lastPhone = this.TICK;
       if (owner != null) this.emit(owner, { t: 'CLAIM', ck: ck(c), id: this.id });
       if (c.pc === 0) { this.s1CheckAt = this.TICK + E3_PERIOD + (this.rng() * E3_PERIOD | 0); this.emitRelay(this.genKey); } // E3: a Section-1 seat registers as a greeter on seating
@@ -1228,6 +1238,16 @@
             this.state = 1; this.retryAt = TICK + 40;
             for (const g of fan) this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 });
           }
+          // Split-off fragment self-rescue: a seated S1 seat isolated from EVERY
+          // rook neighbour for a full strand window, while the pool lists OTHER
+          // live greeters, is a duplicate E2 can never reach (it can't phone —
+          // occ-gated — or route-probe — no link). The relay re-knock is its one
+          // shared channel with the real ring: requeue and rejoin cleanly. The
+          // old rule ignored the list even when drowning; this is the exception
+          // for when you actually need the life-saver. A lone genesis lists no
+          // other greeter, so it never trips.
+          if (this.state === 3 && this.coord.pc === 0 && TICK - this.rookSeenAt > STRAND_TTL
+              && m.list.some((g) => g != null && g !== this.id)) { this.requeue(); return; }
           return;
         }
         case 'WHOHOME': {
@@ -1462,6 +1482,7 @@
       if (this.leaseUntil >= 0 && TICK > this.leaseUntil) { this.leaseCk = null; this.leaseUntil = -1; }
       this.recheckSitting(); // A: assigner frees soft sitting-down if PLACE never confirmed
       if (this.coord.pc === 0) {
+        if (this.anyRookLive()) this.rookSeenAt = TICK;   // fragment detector: reset while I hear anyone
         // D1 over the rook: phone every live row+column neighbour each beat
         // (maintains first-hand liveness across all redundant home paths).
         if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.s1Heartbeat(); this.s1Sync(); this._gspRefan(); }

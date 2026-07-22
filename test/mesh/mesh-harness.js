@@ -4,6 +4,7 @@
 // s1row, s1all), asserting the sim's convergence targets (dups=0, s1 = 25/25).
 // Since we deleted the Node sim, mesh.js + this harness ARE the JS reference:
 // the production seating/healing brain and its regression test, one artifact.
+if (process.env.HARNESS_C) globalThis.GIFOS_SCALE = Object.assign({}, globalThis.GIFOS_SCALE, { C: +process.env.HARNESS_C });
 require('../../site/js/gifos-net.js'); // net.topo + SCALE
 require('../../site/js/mesh.js');      // GifOS.mesh.Seat
 const net = globalThis.GifOS.net, mesh = globalThis.GifOS.mesh;
@@ -131,7 +132,7 @@ function doTick(env) {
 // the sim's batch print (which stops at a good-window and reports transient
 // dups), we run past the transient so the test asserts the settled dups=0 state.
 function converge(env, N, cap) {
-  const tgt = Math.min(25, N); const start = env.TICK;
+  const tgt = Math.min(net.SCALE.C * net.SCALE.C, N); const start = env.TICK;
   while (env.TICK < start + cap) {
     doTick(env);
     if (env.TICK % 64 === 0) { const c = counts(env); if (c.seated === N && c.s1 === tgt && c.dups === 0) return env.TICK; }
@@ -152,7 +153,7 @@ function spawnDue(env) {
 }
 // Drive ticks including spawns until everyone has arrived + FULLY converged.
 function runJoin(env, N, cap) {
-  const tgt = Math.min(25, N); const start = env.TICK;
+  const tgt = Math.min(net.SCALE.C * net.SCALE.C, N); const start = env.TICK;
   while (env.TICK < start + cap) {
     spawnDue(env); doTick(env);
     if (env.TICK % 64 === 0 && env._spawned === N) { const c = counts(env); if (c.seated === N && c.s1 === tgt && c.dups === 0) return env.TICK; }
@@ -213,7 +214,7 @@ function scenario(N, killSpec) {
   spawn(env, N);
   const jt = runJoin(env, N, 20000);
   let c = counts(env);
-  const tgt = Math.min(25, N);
+  const tgt = Math.min(net.SCALE.C * net.SCALE.C, N);
   check(`JOIN N=${N}: seated ${c.seated}/${N}, s1 ${c.s1}/${tgt}, dups ${c.dups}, stranded ${c.stranded}, teleport ${c.teleport} @${jt}`,
     c.seated === N && c.s1 === tgt && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
   if (!killSpec) gossipCheck(env, `GOSSIP N=${N}`);
@@ -222,7 +223,7 @@ function scenario(N, killSpec) {
     const nowN = N - nk;
     const kt = converge(env, nowN, 40000);
     c = counts(env);
-    const tgt2 = Math.min(25, nowN);
+    const tgt2 = Math.min(net.SCALE.C * net.SCALE.C, nowN);
     check(`${killSpec.label} (killed ${nk}): seated ${c.seated}/${nowN}, s1 ${c.s1}/${tgt2}, dups ${c.dups}, stranded ${c.stranded}, teleport ${c.teleport} @${kt}`,
       c.seated === nowN && c.s1 === tgt2 && c.dups === 0 && c.stranded === 0 && c.teleport === 0, c);
     // Extra settle after kill so drain/rejoin finishes before gossip (three-state
