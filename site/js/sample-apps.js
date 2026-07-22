@@ -109,12 +109,16 @@
   .cell.win{background:color-mix(in srgb,var(--accent,#5cff7b) 24%,var(--surface,#233a18));border-color:var(--accent,#5cff7b)}
   .score{color:var(--text,#e0e0f0);font-size:14px;margin-top:2px}
   button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:var(--accent,#5cff7b);color:var(--onaccent,#0a0a0f);cursor:pointer;font:inherit;font-weight:700}
+  .ask{margin:-6px 0 22px;color:var(--muted,#8888aa);text-align:center;padding:0 12px;min-height:1px}
+  .ask button{margin:6px 5px 0;padding:7px 15px}
+  .ask .no{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
 </style>
 <header>Tic-Tac-Toe</header>
 <div class="status" id="status">Loading…</div>
 <div class="score" id="score"></div>
 <div class="board" id="board"></div>
 <button id="new">New game</button>
+<div class="ask" id="ask"></div>
 <script>
   const db = gifos.db('game');
   const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
@@ -147,6 +151,7 @@
       d.textContent = v || '';
       d.onclick = async function(){
         if (current.cells[i] || !canPlayTurn()) return;
+        if (current.rematch) delete current.rematch;   // a move supersedes any pending new-game request
         const seat = current.turn;
         current.players = Object.assign({}, current.players); current.players[seat] = current.players[seat] || me.id;
         current.names = Object.assign({}, current.names); if (current.players[seat]===me.id) current.names[seat] = me.name;
@@ -168,15 +173,44 @@
       : (playable ? 'Your move (' + current.turn + ')' : 'Waiting for ' + (label(current.turn) || current.turn)) + '  —  ' + vs;
     const sc = Object.assign({X:0,O:0,D:0}, current.score);
     document.getElementById('score').textContent = 'Series — X: ' + sc.X + ' · O: ' + sc.O + ' · draws: ' + sc.D;
+    renderConsent();
   }
   db.subscribe(function(items){ const b = items.find(function(x){ return x.id === 'board'; }); if (b) current = b; render(); });
   // New game keeps the series score and alternates who starts.
-  document.getElementById('new').onclick = function(){
+  function startNew(){
     const nxt = fresh();
     nxt.score = Object.assign({X:0,O:0,D:0}, current.score);
     nxt.starts = current.starts === 'X' ? 'O' : 'X'; nxt.turn = nxt.starts;
     nxt.players = current.players; nxt.names = current.names;
-    return db.put(nxt);
+    return db.put(nxt);   // fresh() carries no rematch flag, so this also clears any pending request
+  }
+  // Wiping a shared board is disruptive, so once a real opponent is present and
+  // the board has been played on, "New game" asks first: the request rides the
+  // shared board doc and the OTHER player must accept before anything is cleared.
+  function needsConsent(){ return opponentPresent() && current.cells.some(Boolean); }
+  function clearRematch(){ const c = Object.assign({}, current); delete c.rematch; current = c; return db.put(c).then(render); }
+  function renderConsent(){
+    const askEl = document.getElementById('ask'), btn = document.getElementById('new');
+    askEl.textContent = '';
+    const req = current.rematch;
+    if (!req){ btn.textContent = 'New game'; btn.style.display = ''; return; }
+    if (req.by === me.id){                       // my own request — waiting on the opponent
+      btn.textContent = 'Cancel request'; btn.style.display = '';
+      askEl.textContent = 'Waiting for the other player to accept a new game…';
+    } else {                                     // opponent asked — I decide
+      btn.style.display = 'none';
+      const span = document.createElement('span');
+      span.textContent = (req.name ? req.name : 'Your opponent') + ' wants to start a new game. ';
+      const yes = document.createElement('button'); yes.textContent = 'Start new game'; yes.onclick = startNew;
+      const no = document.createElement('button'); no.className = 'no'; no.textContent = 'Keep playing'; no.onclick = clearRematch;
+      askEl.appendChild(span); askEl.appendChild(yes); askEl.appendChild(no);
+    }
+  }
+  document.getElementById('new').onclick = function(){
+    if (current.rematch && current.rematch.by === me.id) return clearRematch();   // cancel my pending request
+    if (!needsConsent()) return startNew();
+    const c = Object.assign({}, current); c.rematch = { by: me.id, name: me.name }; current = c;
+    return db.put(c).then(render);
   };
   render();
 </script>`;
@@ -194,12 +228,16 @@
   .cell.win{box-shadow:0 0 0 4px var(--accent,#5cff7b) inset,0 0 10px var(--accent,#5cff7b)}
   .score{color:var(--text,#e0e0f0);font-size:14px}
   button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:var(--accent,#ffb43c);color:var(--onaccent,#0a0a0f);font-weight:700;cursor:pointer}
+  .ask{margin:0 0 12px;color:var(--muted,#8888aa);text-align:center;padding:0 12px;min-height:1px}
+  .ask button{margin:6px 5px 0;padding:7px 15px}
+  .ask .no{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
 </style>
 <header>Connect Four</header>
 <div class="status" id="status">Loading…</div>
 <div class="score" id="score"></div>
 <div class="grid" id="grid"></div>
 <button id="new">New game</button>
+<div class="ask" id="ask"></div>
 <script>
   const db = gifos.db('game'), W=7, H=6;
   const fresh = () => ({ id:'board', cells:new Array(W*H).fill(null), turn:'R', starts:'R', winner:null, line:null, players:{}, names:{}, score:{R:0,Y:0,D:0} });
@@ -220,6 +258,7 @@
     if(!canPlay()) return;
     let row=-1; for(let y=H-1;y>=0;y--){ if(!cur.cells[y*W+col]){ row=y; break; } }
     if(row<0) return;
+    if(cur.rematch) delete cur.rematch;   // a move supersedes any pending new-game request
     const seat=cur.turn;
     cur.players=Object.assign({},cur.players); cur.players[seat]=cur.players[seat]||me.id;
     cur.names=Object.assign({},cur.names); if(cur.players[seat]===me.id) cur.names[seat]=me.name;
@@ -242,15 +281,44 @@
       : (canPlay()?'Your move':'Waiting for '+label(cur.turn))+'  —  '+vs;
     const sc=Object.assign({R:0,Y:0,D:0},cur.score);
     document.getElementById('score').textContent='Series — 🔴 '+sc.R+' · 🟡 '+sc.Y+' · draws: '+sc.D;
+    renderConsent();
   }
   db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b) cur=b; render(); });
   // New game keeps the series score and alternates who starts.
-  document.getElementById('new').onclick=function(){
+  function startNew(){
     const nxt=fresh();
     nxt.score=Object.assign({R:0,Y:0,D:0},cur.score);
     nxt.starts=cur.starts==='R'?'Y':'R'; nxt.turn=nxt.starts;
     nxt.players=cur.players; nxt.names=cur.names;
-    return db.put(nxt);
+    return db.put(nxt);   // fresh() carries no rematch flag, so this also clears any pending request
+  }
+  // Wiping a shared board is disruptive, so once a real opponent is present and
+  // the board has been played on, "New game" asks first: the request rides the
+  // shared board doc and the OTHER player must accept before anything is cleared.
+  function needsConsent(){ return opp() && cur.cells.some(Boolean); }
+  function clearRematch(){ const c=Object.assign({},cur); delete c.rematch; cur=c; return db.put(c).then(render); }
+  function renderConsent(){
+    const askEl=document.getElementById('ask'), btn=document.getElementById('new');
+    askEl.textContent='';
+    const req=cur.rematch;
+    if(!req){ btn.textContent='New game'; btn.style.display=''; return; }
+    if(req.by===me.id){                          // my own request — waiting on the opponent
+      btn.textContent='Cancel request'; btn.style.display='';
+      askEl.textContent='Waiting for the other player to accept a new game…';
+    } else {                                     // opponent asked — I decide
+      btn.style.display='none';
+      const span=document.createElement('span');
+      span.textContent=(req.name?req.name:'Your opponent')+' wants to start a new game. ';
+      const yes=document.createElement('button'); yes.textContent='Start new game'; yes.onclick=startNew;
+      const no=document.createElement('button'); no.className='no'; no.textContent='Keep playing'; no.onclick=clearRematch;
+      askEl.appendChild(span); askEl.appendChild(yes); askEl.appendChild(no);
+    }
+  }
+  document.getElementById('new').onclick=function(){
+    if(cur.rematch && cur.rematch.by===me.id) return clearRematch();   // cancel my pending request
+    if(!needsConsent()) return startNew();
+    const c=Object.assign({},cur); c.rematch={by:me.id,name:me.name}; cur=c;
+    return db.put(c).then(render);
   };
   render();
 </script>`;
