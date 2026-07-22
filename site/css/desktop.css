@@ -313,11 +313,12 @@ details.adv h4 { margin-top: .8rem; }
 .modal.wide .widebtn { width: 100%; padding: .55rem; border-radius: .5rem; border: 1px solid var(--accent);
   background: var(--accent); color: var(--onaccent, #fff); cursor: pointer; margin-bottom: .3rem; }
 #ad-create { background: var(--accent); border: 1px solid var(--accent); color: var(--onaccent, #fff); }
-.modal-actions { display: flex; flex-direction: column; gap: .5rem; }
+/* Breathing room between a dialog's message (or the section above) and its
+   action buttons — without it the buttons feel cramped against the text. */
+.modal-actions { display: flex; flex-direction: column; gap: .5rem; margin-top: 1rem; }
 .modal-actions button { width: 100%; }
 /* In the Settings sheet the actions sit right under the collapsed "Advanced
-   settings" summary; give them a clear separator + breathing room so Save isn't
-   cramped against it. */
+   settings" summary; add a clear separator on top of the breathing room. */
 .modal.wide .modal-actions { margin-top: 1.1rem; padding-top: .95rem; border-top: 1px solid var(--border); }
 .modal-actions button.danger { background: #a12626; border-color: #a12626; color: #fff; }
 .modal-actions button.danger:hover { background: #c22e2e; }
