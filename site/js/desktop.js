@@ -23,6 +23,7 @@
 
   let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
   let edgeBuild = BUILD;            // version.json.edgeBuild — the LATEST edge build available
+  let releaseBuilds = {};           // version.json.builds — release → edge build it was cut from
   let availableVersions = [VERSION];
   let changelog = null;             // from changelog.json (live), rendered in the Version panel
   const pinnedVersion = () => { try { return localStorage.getItem('gifos_pin'); } catch (e) { return null; } };
@@ -1438,6 +1439,7 @@
       const info = await r.json();
       latestVersion = info.current || VERSION;
       edgeBuild = Number(info.edgeBuild) || BUILD;   // latest edge build number, live
+      releaseBuilds = (info.builds && typeof info.builds === 'object') ? info.builds : {};
       // Persist the live-release pointer so the root loader can redirect default
       // visitors instantly on the next visit without waiting on version.json.
       try { if (latestVersion) localStorage.setItem('gifos_current', latestVersion); } catch (e) {}
@@ -1914,9 +1916,13 @@
       const isRunning = !onEdge && (pinned ? v === pinned : v === VERSION);
       const tags = (isLive ? '<span class="vpill live">live</span>' : '') +
                    (isRunning ? '<span class="vpill run">running</span>' : '');
+      // The edge build number this release was cut from (releases before build
+      // numbering have none — shown without a build).
+      const bn = Number(releaseBuilds[v]);
+      const buildTag = bn ? '<span class="vbuild">build ' + bn + '</span>' : '';
       const btn = isRunning ? '<span class="vtag">running</span>'
         : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use the live release' : 'Roll back to this') + '</button>';
-      return '<div class="vrow"><span>v' + escapeHtml(v) + ' ' + tags + '</span>' + btn + '</div>';
+      return '<div class="vrow"><span>v' + escapeHtml(v) + ' ' + tags + buildTag + '</span>' + btn + '</div>';
     }).join('');
 
     container.innerHTML =

@@ -36,6 +36,7 @@ body {
   letter-spacing: .03em; text-transform: uppercase; border-radius: .3rem; padding: .05rem .35rem; vertical-align: middle; }
 .vpill.live { color: #fff; background: color-mix(in srgb, #34c759 78%, #000); }
 .vpill.run { color: var(--accent); border: 1px solid var(--accent); }
+.vbuild { margin-left: .4rem; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 
 /* version list in Settings */
 .vlist { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .3rem; }

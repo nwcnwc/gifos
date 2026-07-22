@@ -30,24 +30,31 @@ BUILD=$(git -C "$ROOT" rev-list --count HEAD -- site 2>/dev/null || echo 0)
 sed -i -E "s/window\.GIFOS_VERSION = '[^']*';/window.GIFOS_VERSION = '$V';/" "$DEST/index.html" "$DEST/boot.html"
 printf '/* frozen at release cut by archive-version.sh */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > "$DEST/js/build.js"
 
-# Rebuild version.json: newest first, current = the new version. minData tracks
-# the OLDEST build still shipped under /versions/ (they get pruned over time).
-# There is no 'edge' release number: the site root is the UNRELEASED edge build,
-# identified by a build number (baked at deploy). Releases are the numbered
-# immutable snapshots under /versions/; 'current' names the one that is live.
-# 'edgeBuild' here is a placeholder (0) — pages.yml overwrites it at deploy.
+# Rebuild version.json (node, so the version→build 'builds' map is preserved and
+# extended). newest first, current = the new version. minData tracks the OLDEST
+# build still shipped under /versions/ (they get pruned over time). There is no
+# 'edge' release number: the site root is the UNRELEASED edge build, identified by
+# a build number (baked at deploy). 'edgeBuild' here is a placeholder (0) —
+# pages.yml overwrites it at deploy. 'builds[V]' records the edge build this
+# release was cut from.
 mapfile -t VERSIONS < <(ls -1 "$SITE/versions" | sort -rV)
 LIST=$(printf '"%s",' "${VERSIONS[@]}"); LIST="[${LIST%,}]"
 MINDATA="${VERSIONS[${#VERSIONS[@]}-1]:-$V}"
-cat > "$SITE/version.json" <<EOF
-{
-  "current": "$V",
-  "edgeBuild": 0,
-  "versions": $LIST,
-  "minData": "$MINDATA",
-  "note": "Data migrations are additive-only and the App-GIF window.gifos API is a stable, add-only contract, so any archived build under /versions/ can safely read the current desktop. 'current' is the live release — an immutable snapshot under /versions/. The site root (/) is the unreleased edge build, ahead of the release; 'edgeBuild' is its latest build number (baked at deploy by pages.yml). Edge builds are not archived — you can only move to the newest."
-}
-EOF
+NOTE="Data migrations are additive-only and the App-GIF window.gifos API is a stable, add-only contract, so any archived build under /versions/ can safely read the current desktop. 'current' is the live release — an immutable snapshot under /versions/. The site root (/) is the unreleased edge build, ahead of the release; 'edgeBuild' is its latest build number (baked at deploy by pages.yml). Edge builds are not archived — you can only move to the newest. 'builds' maps each release to the edge build number it was cut from (releases before build numbering are absent)."
+node -e '
+  const fs = require("fs"), f = process.env.SITE + "/version.json";
+  let old = {}; try { old = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) {}
+  const builds = Object.assign({}, old.builds || {}); builds[process.env.V] = Number(process.env.BUILD) || 0;
+  const out = {
+    current: process.env.V,
+    edgeBuild: 0,
+    versions: JSON.parse(process.env.LIST),
+    builds,
+    minData: process.env.MINDATA,
+    note: process.env.NOTE,
+  };
+  fs.writeFileSync(f, JSON.stringify(out, null, 2) + "\n");
+' V="$V" BUILD="$BUILD" LIST="$LIST" MINDATA="$MINDATA" NOTE="$NOTE" SITE="$SITE"
 
 echo "Archived site/versions/$V (frozen as GIFOS_VERSION=$V, build $BUILD) and set version.json current=$V."
 echo "The site root stays the UNRELEASED edge build (GIFOS_VERSION='edge'); its build number auto-bumps at deploy."
