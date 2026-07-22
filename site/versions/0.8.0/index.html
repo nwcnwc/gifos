@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0f">
+<!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
+     cascade (js/gifos-themes.js) applies real vars, so the purple :root default
+     from desktop.css never paints first. Reveals the instant --accent is set; a
+     failsafe timeout guarantees we never stay hidden if a theme file 404s or
+     hangs. See js/gifos-themes.js. -->
+<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:#0a0a0f}</style>
+<script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
+function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');}
+function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();else requestAnimationFrame(chk);}
+requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GifOS">
+<script src="/js/sw-register.js" defer></script>
+<script>/* Global UI text size (Settings → Text size). Scales rem-based chrome everywhere; applied early to avoid a flash, and live across tabs via the storage event. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
+<title>GifOS — Your GIF-Powered Computer, in the Browser</title>
+<meta name="description" content="GifOS is a free web OS where every app is a GIF. A persistent Home Screen in your browser — no account, no installs. Build apps with AI, play multiplayer games with one invite link, hold peer-to-peer meetings, and back up your whole computer as a single GIF.">
+<link rel="canonical" href="https://gifos.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GifOS">
+<meta property="og:title" content="GifOS — every app is a GIF">
+<meta property="og:description" content="A free web OS in your browser. Apps are GIF files you own. Multiplayer with one link, AI-built apps, meetings, and your whole computer backs up to a single GIF.">
+<meta property="og:url" content="https://gifos.app/">
+<meta property="og:image" content="https://gifos.app/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GifOS — every app is a GIF">
+<meta name="twitter:description" content="A free web OS in your browser. Apps are GIF files you own.">
+<meta name="twitter:image" content="https://gifos.app/og.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "GifOS",
+  "url": "https://gifos.app/",
+  "applicationCategory": "OperatingSystem",
+  "operatingSystem": "Web browser",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "description": "A web operating system where every app is a GIF file. Persistent local-first Home Screen, multiplayer via one invite link, peer-to-peer meetings, AI-built apps, and whole-computer backups as a single GIF.",
+  "softwareHelp": "https://gifos.app/about.html",
+  "sameAs": ["https://github.com/nwcnwc/gifos"]
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
+<!-- CHANNEL LOADER — runs before any app code. The site root (/) is the UNRELEASED
+     edge build; releases are immutable /versions/<x.y.z>/ snapshots. A fresh
+     visitor follows the live-release pointer (version.json.current); '?edge' opts
+     into the root edge build; a pin sticks to one snapshot. '?stable'/'?unpin'
+     returns to the default release channel. Snapshots under /versions/ never
+     redirect again. The pointer read is synchronous so the redirect happens
+     before any app code runs (no flash, no wasted boot); after the first visit
+     it's a cached fast path. Keep this snippet identical across the entry pages. -->
+<script>
+window.GIFOS_VERSION = '0.8.0';
+(function () {
+  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
+  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  function has(k) { return !!(q && q.has(k)); }
+  try {
+    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
+  } catch (e) {}
+  var pin = null, chan = null, cur = null;
+  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+  var here = location.pathname + location.hash;                 // carry the page + invite hash across
+  function go(v) { location.replace('/versions/' + v + here); }
+  if (pin) { go(pin); return; }                                // pinned to a snapshot
+  if (chan === 'edge') return;                                  // opted into the edge build → run this root
+  if (cur) { go(cur); return; }                                // default, fast path (last-known release)
+  // Default, first visit: resolve the release pointer, then redirect. On failure
+  // (offline, no cache) fall through and run this edge build.
+  try {
+    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
+  } catch (e) {}
+})();
+</script>
+<link rel="stylesheet" href="css/desktop.css">
+</head>
+<body>
+  <div class="update-bar" id="update-bar" style="display:none">
+    <span id="update-msg">A new version of GifOS is available.</span>
+    <button id="update-action">What’s new</button>
+    <button class="dismiss" id="update-dismiss" title="Dismiss">✕</button>
+  </div>
+  <div class="menubar">
+    <button class="brand-btn" id="sys-menu-btn"><span class="brand">GifOS</span><span class="caret">▾</span></button>
+    <span class="crumbs" id="crumbs">Home</span>
+    <span class="spacer"></span>
+    <button id="history-btn" title="Invite links you've visited">Invites</button>
+    <button id="add-btn">＋ Add</button>
+  </div>
+  <div id="desktop"></div>
+  <noscript>
+    <div style="padding:2rem;font:16px system-ui;max-width:640px">
+      <h1>GifOS — your GIF-powered computer</h1>
+      <p>GifOS is a free web OS where every app is a GIF file you own. It needs
+      JavaScript to run. <a href="/about.html">Learn what GifOS is</a> or see the
+      <a href="https://github.com/nwcnwc/gifos">source code</a>.</p>
+    </div>
+  </noscript>
+  <input type="file" id="file-input" multiple style="display:none">
+  <input type="file" id="restore-input" accept=".gif,image/gif" style="display:none">
+
+  <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-sign.js"></script>
+  <script src="js/gifos-zip.js"></script>
+  <script src="js/gifos-icons.js"></script>
+  <script src="js/gifos-themes.js"></script>
+  <script src="js/gifos-store.js"></script>
+  <script src="js/irl-apps.js"></script>
+  <script src="js/sample-apps.js"></script>
+  <script src="js/build.js"></script>
+  <script src="js/desktop.js"></script>
+</body>
+</html>

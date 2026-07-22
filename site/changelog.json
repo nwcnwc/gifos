@@ -2,6 +2,19 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.8.0",
+      "date": "2026-07-22",
+      "critical": false,
+      "headline": "Bigger meetings, offline computers, and release channels",
+      "notes": [
+        "Meetings scale to much larger rooms: a self-healing peer-to-peer structure (Stage, sections, rows and seats) keeps the session together as people join, drop, and rejoin — no central server in the middle.",
+        "Your computer and its saved apps now work fully offline (airplane mode); networked features like meetings and Ask AI simply wait for a connection.",
+        "New Version panel: it separates the live release, the unreleased edge build (with a build number), and past snapshots you can pin to or roll back to. gifos.app serves the stable release by default; the edge channel is opt-in.",
+        "Fixed: creating an invite could fail with “relay connection failed” when a custom relay was set — the error now names the cause, and “Erase this computer” clears the leftover setting.",
+        "Erase this computer now fully wipes everything it stores — saved API keys, meeting secrets, and settings — so a reset truly leaves nothing behind."
+      ]
+    },
+    {
       "version": "0.7.0",
       "date": "2026-07-12",
       "critical": false,
