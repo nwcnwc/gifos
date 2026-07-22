@@ -444,6 +444,81 @@ increasing in cost and in blast-radius containment — ship T0, design toward T2
 - Whether open-source “run this coturn” docs ship as the default enterprise
   path so nobody needs GifOS to sell media minutes.
 
+### 4d. Subrooms / breakout sessions
+
+**What.** A meeting can spawn **subrooms** — each a full, ordinary GifOS room
+(its own stadium = its own relay session = its own URL and key, per the stadium
+doctrine), linked back to a **parent** room. Two governance shapes matching the
+two room classes:
+
+- **Open rooms — grassroots subrooms.** *Anyone* can create a subroom and
+  **share the link in chat**; others click to hop over. No authority, no
+  assignment — it's just "spin off a side room and drop the link," the same
+  freedom open rooms already give. The subroom is a normal room; the only new
+  thing is the create-and-share affordance in the meeting UI.
+- **Admin rooms — managed breakouts.** An **admin** auto-creates **N** subrooms
+  at once ("Create 6 breakout rooms"), which appear **pinned in a side panel**
+  (a **Breakouts** sidebar, sibling to the Chat sidebar). The admin can then
+  **force-assign** participants — **random shuffle**, even split, assign-by-hand
+  (drag a name into a room), reshuffle, and **"bring everyone back"** to the
+  parent. This is the classic large-meeting break-out-session flow.
+
+**Why it fits.**
+- Subrooms are **not a new primitive** — each is already exactly a room. The
+  mesh, seating, healing, media plane, chat, apps all work in a subroom
+  unchanged. We're adding **relationship + orchestration**, not a new network
+  object. Keeps the "no beefy node / one relay session per stadium" doctrine.
+- Open-room grassroots subrooms are a **zero-authority** feature: share a link,
+  done — no relay change, no signed governance. Ships first, cheaply.
+- Admin breakouts extend the **existing admin authority** (`/meet/<room>/<verifier>`
+  = consent to authority) with a new signed verb — the same shape as ban /
+  setpw / votekick, so it rides the planned "door verbs → signed governance
+  gossip" path (§3) rather than inventing a control channel.
+
+**Sketch.**
+- **Data model:** parent holds a signed (admin rooms) or chat-shared (open
+  rooms) **breakout manifest** — a list of `{ label, roomUrl/key, assignments? }`.
+  In admin rooms this is admin-signed room state gossiped to seats; in open
+  rooms it's just links pasted in chat (no manifest, no authority).
+- **Create:** admin action "Create N breakouts" derives N fresh room
+  keys/URLs (reuse the normal room-create/derive path, `gifos-net.js` DS
+  scheme) and publishes the manifest. Grassroots create = the normal
+  "new room" flow surfaced as a chat action.
+- **Breakouts sidebar (admin rooms):** panel listing the N rooms, occupancy
+  counts, per-room "Join", and admin-only "Shuffle / Even split / Assign /
+  Bring all back" controls. Row-styling and dismissal conventions match the
+  Chat sidebar; row actions follow the standardized button set.
+- **Force-assign = a directed request, not a kidnapping.** An admin assignment
+  is signed room gossip telling client X "your breakout is room Y." The client
+  **navigates itself** there (leaves the parent seat cleanly = ordinary
+  leave/heal; knocks into Y). Media/seat can't be seized server-side — the
+  relay arbitrates nothing (R2). So "force" = the client obeys a trusted admin
+  instruction, with (design choice) a brief "moving you to Breakout 3…" toast;
+  optionally a **soft** mode that *invites* rather than auto-moves.
+- **Bring everyone back:** admin publishes "return"; assigned clients navigate
+  back to the parent URL and re-seat. Same mechanism, reverse direction.
+- **Return-home ergonomics:** subroom UI shows a persistent "← Back to main
+  room" affordance so grassroots hoppers (open rooms) aren't stranded.
+
+**Open questions.**
+- **Identity / rejoin across the hop:** moving to a subroom is leave-parent +
+  join-child; does the participant keep a stable pseudonym/identity across both
+  (so the admin's roster and "bring back" can track them), and how does that
+  interact with the per-seat identity (S4) — likely a meeting-scoped identity
+  that spans parent+children, distinct from seat coords.
+- **Parent liveness while empty:** if everyone breaks out, the parent stadium
+  may go empty — does it stay "founded" (relay holds genesis, so return works)
+  or must the admin/one anchor stay? Ties to the A4 founder-vanish reasoning.
+- **Does an admin follow into a breakout** to moderate, and can they broadcast
+  to all breakouts at once (a "10 seconds left" message fan-out to N rooms)?
+- **Assignment privacy:** in admin rooms, is the full assignment map visible to
+  everyone (who's in which room) or only to admins? Default: counts public,
+  names admin-only unless the room opts to show them.
+- **Nesting / limits:** cap N (media + socket budget across N relay sessions);
+  forbid or allow breakouts-of-breakouts (probably forbid v1).
+- **Paid/§5 interaction:** do breakouts of a paid room inherit the join ticket,
+  or is each a free child? (Likely inherit — same meeting epoch.)
+
 ## 5. Paid meetings (x402)
 
 Third meeting class alongside **open** and **admin**: **paid**. Creation /
