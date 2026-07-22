@@ -47,8 +47,8 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   }, null, { timeout: 8000 });
   await page.waitForSelector('#set-version .changelog', { timeout: 8000 }).catch(() => {});
   const clText = await page.locator('#set-version .changelog').innerText().catch(() => '');
-  check('Version panel renders the changelog', /0\.7\.0/.test(clText) && clText.length > 0, clText.slice(0, 80).replace(/\n/g, ' | '));
-  check('Version panel offers an Upgrade/Re-download button', await page.locator('#set-upgrade').count() === 1);
+  check('Version panel renders the changelog', /v\d+\.\d+\.\d+/.test(clText) && clText.length > 0, clText.slice(0, 80).replace(/\n/g, ' | '));
+  check('Version panel offers a Load/Re-pull edge action', await page.locator('#set-edge').count() === 1);
   await page.locator('#set-close').click();
 
   // ---- 4. cache-first service worker: no silent update on reload ----
