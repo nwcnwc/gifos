@@ -20,6 +20,13 @@ mkdir -p "$DEST"
 cp "$SITE/index.html" "$SITE/run.html" "$SITE/meet.html" "$SITE/boot.html" "$DEST/"
 cp "$SITE/sign.html" "$SITE/about.html" "$DEST/" 2>/dev/null || true
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
+# Freeze the themes too, so a pinned build is a pixel-perfect time capsule — its
+# chrome, icon packs, eggs, and wallpapers as they were at the cut. The frozen
+# gifos-themes.js resolves theme files relative to its own /versions/<v>/js/
+# location, so this copy is what a pinned build actually loads (the live root and
+# subdomains still resolve to the top-level /themes/). Whole tree = every
+# computer's override folder, so a pinned build works on any subdomain.
+cp -r "$SITE/themes" "$DEST/"
 
 # Freeze the snapshot's identity. The copied root files say GIFOS_VERSION='edge'
 # (unreleased) — stamp the real release number into the snapshot's index.html and

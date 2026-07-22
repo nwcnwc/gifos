@@ -85,15 +85,25 @@
   // the meeting/app pages skip the art packs entirely.
   const wantIcons = !!GifOS.iconPacks;
   const d = root.document;
+  // Resolve theme files relative to THIS script's own location, so a page served
+  // from an immutable snapshot (/versions/<x>/js/gifos-themes.js) loads THAT
+  // snapshot's frozen themes/ — a pinned build stays a pixel-perfect time capsule
+  // instead of borrowing the live look. On the live root and the numbered
+  // subdomains this script sits at /js/, so base is '/' and it resolves to
+  // /themes/<label>/ exactly as before. Falls back to '/' if currentScript is
+  // unavailable (older engines / unusual load).
+  const self = (d && d.currentScript && d.currentScript.src) || '';
+  const jsAt = self.lastIndexOf('/js/');
+  const base = jsAt !== -1 ? self.slice(0, jsAt + 1) : '/';
   if (d) {
     for (let i = 0; i < dirs.length; i++) {
-      d.write('<scr' + 'ipt src="/' + dirs[i] + '/theme.js"></scr' + 'ipt>');
+      d.write('<scr' + 'ipt src="' + base + dirs[i] + '/theme.js"></scr' + 'ipt>');
       if (wantIcons) {
-        d.write('<scr' + 'ipt src="/' + dirs[i] + '/icons.js"></scr' + 'ipt>');
-        d.write('<scr' + 'ipt src="/' + dirs[i] + '/eggs.js"></scr' + 'ipt>');
+        d.write('<scr' + 'ipt src="' + base + dirs[i] + '/icons.js"></scr' + 'ipt>');
+        d.write('<scr' + 'ipt src="' + base + dirs[i] + '/eggs.js"></scr' + 'ipt>');
         // A live background is a per-computer thing (no default), so only an
         // override folder is asked for one — and only on the desktop.
-        if (dirs[i] !== 'themes') d.write('<scr' + 'ipt src="/' + dirs[i] + '/wallpaper.js"></scr' + 'ipt>');
+        if (dirs[i] !== 'themes') d.write('<scr' + 'ipt src="' + base + dirs[i] + '/wallpaper.js"></scr' + 'ipt>');
       }
     }
   }
