@@ -9,6 +9,7 @@ differs between them.
 |---|---|---|
 | `servers/` | — | the fixture servers everything else talks to |
 | `unit/` | nothing | pure Node, in-process, sub-second |
+| `sim/` | a C++ compiler (`g++`) | the C++ reference mesh (source of truth) + its `repro-*.sh` / `sweep.sh` |
 | `mesh/` | own relay (spawned) | the mesh control plane + wire, in-process |
 | `relay/` | own relay (spawned) | the relay protocol surface |
 | `browser/` | site on 8099 + relay on 8790 | Playwright suites |
