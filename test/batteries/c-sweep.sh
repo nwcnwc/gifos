@@ -22,17 +22,15 @@ set -u
 cd "$(dirname "$0")/../.."
 CVALUES="${CSWEEP_CVALUES:-2 3 4 5}"
 SEEDS="${CSWEEP_SEEDS:-1 2 3 4 5}"
-# The verdict gates on the PRODUCTION-RELEVANT claim: C=4 and C=5 clean ⇒ the
-# multi-section machinery holds and C>=5 is safe. C=2 and C=3 are degenerate —
-# a 2x2 section is a rook graph of degree 3 (vs 9 at C=5), so the E2 dedup has
-# almost no redundancy — and the sweep found real, reproducible duplicate-
-# minting there (C=2 gradual-shrink heal; C=3 partition starved-half). Those get
-# WORSE as C shrinks and vanish by C=4, the signature of a tiny-section
-# pathology, not a threat to larger C. They are KNOWN and not shipped (prod is
-# C=5); a regression at C>=4 is what fails this battery. See the findings note
-# at the end and test/batteries/known-unfixed.sh.
-fail=0        # C>=4 failures — these fail the battery
-lowCfail=0    # C<4 findings — surfaced, do not fail the battery
+# STRICT at every C. The first run of this sweep found split-brain at C=2 and
+# C=3 — a burst race seated a duplicate into an already-taken Section-1 cell,
+# landing isolated (no links) so E2 could never yield it. That is now fixed:
+# an isolated S1 fragment uses its relay re-knock to detect it is split off and
+# requeue (the "E3 life-saver exception", commit 2e7aa18 / docs/healing-laws.md
+# § split-off fragment). So the invariants hold at ALL of C=2..5 and any dup at
+# any C is a real regression. Keeping the low C values in the sweep is the whole
+# point: they exercise the sparse-rook regime where that bug lived, at trivial N.
+fail=0
 
 # N sized to ~10x a section (C*C) so the tree is several sections deep, capped
 # so runtimes stay trivial. field <line> <key> pulls a COMPACT/STATE number.
@@ -48,11 +46,8 @@ for C in $CVALUES; do
   run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
   cok(){ grep -q 'CHECK PASS' <<<"$1" && ! grep -qE 'dups=[1-9]|stranded=[1-9]' <<<"$1"; }
   cP=0; cF=0
-  # A failure at C>=4 is a real regression (fail); at C<4 it is a known
-  # degenerate-section finding (surface it, but don't fail the battery).
   leg(){ if [ "$2" = 1 ]; then echo "   PASS — $1"; cP=$((cP+1));
-    elif [ "$C" -ge 4 ]; then echo "   FAIL — $1${3:+  ($3)}"; cF=$((cF+1)); fail=1;
-    else echo "   KNOWN(low-C) — $1${3:+  ($3)}"; cF=$((cF+1)); lowCfail=$((lowCfail+1)); fi; }
+    else echo "   FAIL — $1${3:+  ($3)}"; cF=$((cF+1)); fail=1; fi; }
 
   # --- 1) ARRIVAL PATTERNS: every shape converges to a clean multi-section tree
   for jm in burst serial batch window; do
@@ -96,11 +91,6 @@ for C in $CVALUES; do
 done
 
 echo "═══════════════════════════════════════════════════════════"
-if [ "$lowCfail" -ne 0 ]; then
-  echo "  NOTE: $lowCfail known low-C (C<4) finding(s) surfaced — degenerate tiny"
-  echo "  sections mint duplicates under specific stress (C=2 gradual-shrink heal,"
-  echo "  C=3 partition starved-half). Real but not shipped (prod is C=5); they"
-  echo "  worsen as C shrinks and are absent by C=4. See known-unfixed.sh."
-fi
-[ "$fail" -eq 0 ] && { echo "  C-SWEEP GREEN — C>=4 (incl. production C=5) holds every invariant"; exit 0; }
-echo "  C-SWEEP RED — a C>=4 invariant regressed"; exit 1
+[ "$fail" -eq 0 ] && { echo "  C-SWEEP GREEN — every invariant holds across C=$CVALUES"; exit 0; }
+echo "  C-SWEEP RED — an invariant regressed (a dup at low C = the split-off"
+echo "  fragment bug is back; see docs/healing-laws.md § split-off fragment)"; exit 1

@@ -505,6 +505,26 @@ confirmation rides frames the seating already produces.)*
     not an E3 auto-merge.
   - **The relay stays dumb regardless (R2).** It only serves the same sealed
     list; it never arbitrates.
+  - **E3-SELF. The split-off fragment reads the list to rescue ITSELF (ADDED
+    2026-07-22 — Nathan).** The "re-knocker ignores the greeter list" rule needed
+    the same exception a life-saver rule needs: *you may use it when you are the
+    one drowning.* A burst race can admit a newcomer into an ALREADY-taken
+    Section-1 cell — an admitter with a stale "free" view places it, and it lands
+    with an empty occ and NO links. It can then neither phone (the heartbeat only
+    calls cells it already knows an occupant for) nor route-probe (no link to
+    route over), so E2 — which yields the higher id only when a PHONE crosses
+    between the two claimants — can never fire. A permanent isolated duplicate.
+    The seat's ONE remaining shared channel with the real ring is this very
+    re-knock. So: a seated S1 seat that has heard NO rook neighbour first-hand
+    for a full strand window, while the pool lists OTHER live greeters, is a
+    split-off fragment — it **requeues and rejoins**. This is SAFE and is NOT the
+    forbidden auto-remedy above: it moves ONLY ITSELF (a Sybil lever needs to
+    force the *other* half to move); a genuinely-alone genesis lists no other
+    greeter, so it never trips. Surfaced by the C=2/C=3 multi-section sweep,
+    where the sparse rook mesh (degree 3 vs 9 at C=5) makes both the seating race
+    and the isolation likely; the fix is degree-agnostic and holds C=2..5 clean.
+    LIVE: `sim/mesh.cpp` + `site/js/mesh.js` (`anyRookLive`/`rookSeenAt`, GREETERS
+    handler); gated by `test/batteries/c-sweep.sh`.
 - **E5. Friend-relay inside ONE chosen meeting — never a silent merge of two
   (ADOPTED 2026-07-20, refined same day — Nathan).** Two scopes, do not mix them.
 
