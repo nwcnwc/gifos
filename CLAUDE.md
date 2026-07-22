@@ -48,9 +48,14 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
 ## Conventions that bite
 
 - `site/versions/<x.y.z>/` are FROZEN archived builds — never edit them.
-  Releases are cut with `scripts/archive-version.sh <version>`; bump
-  `window.GIFOS_VERSION` in BOTH `site/index.html` and `site/boot.html`
-  (and in the fresh copies under the new archive).
+  Releases are cut with `scripts/archive-version.sh <version>`, which snapshots
+  the current `site/` (js, css, themes, html) into `site/versions/<version>/`,
+  stamps that snapshot's `GIFOS_VERSION`, bakes its build number, and rewrites
+  `version.json`. The site ROOT stays `GIFOS_VERSION='edge'` (the unreleased edge
+  build) — do NOT bump it; a fresh visitor follows `version.json.current` to the
+  release snapshot. After cutting, commit + push; Pages deploys and stamps the
+  live edge build number. (The archive script's build number is anchored — bump
+  `ANCHOR_SHA`/`ANCHOR_BUILD` in it when you re-anchor at a future release.)
 - The link/crypto derivation scheme ("derive, don't send", `site/js/gifos-net.js`)
   is versioned by its `DS` tag. Changing any derivation is a deliberate flag
   day — old and new clients land in different relay sessions.
