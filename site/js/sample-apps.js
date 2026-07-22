@@ -1574,7 +1574,7 @@ document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{ model=b.dat
   if(!window.gifos||!gifos.ai){ log.innerHTML='<div class="note">Open this inside GifOS to use AI.</div>'; return; }
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
-    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text” or “Smartest text”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
+    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text LLM” or “Smartest text LLM”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
 })();
 document.getElementById('f').onsubmit=async e=>{
   e.preventDefault(); const t=document.getElementById('t'); const q=t.value.trim(); if(!q)return; t.value='';

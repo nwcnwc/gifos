@@ -1076,7 +1076,7 @@
   // The AI "types" a manifest can name under capabilities.ai (an array), each a
   // row the user sets up in Settings → AI models. Labels match that screen.
   const AI_ROLE_LABELS = {
-    smartest: 'Smartest text', cheapest: 'Cheapest text', tts: 'Text → speech',
+    smartest: 'Smartest text LLM', cheapest: 'Cheapest text LLM', tts: 'Text → speech',
     stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video',
   };
   // Which AI roles a manifest declares. true / missing array = generic (any).
