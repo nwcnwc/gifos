@@ -18,7 +18,7 @@ unless that changes).
 
 | Commit | What | Verification |
 |---|---|---|
-| `1114dac` | **3A — atomic seat-moves (law T) + headless-row admission fix.** Rebased onto main (its 12 commits forked BEFORE D5/media landed); the D5×law-T conflicts were hand-woven (D5's `tlClear`/`tlForget`/`TRANSLOST` coexisting with law-T's dual-hold/`MOVED`) across `sim/mesh.cpp`, `sim/mesh_seat.inc`, `site/js/mesh.js`. | harness ALL PASS (incl D5 suite), `repro-headless-row` + `repro-atomic-move` GREEN, **full 300-case churn sweep 300/0**, e2e autoheal/failover/reconnect PASS, e2e-video 72 PASS (fails only at the pre-existing line-590 "via Hub" leg, same as pristine main) |
+| `1114dac` | **3A — atomic seat-moves (law T) + headless-row admission fix.** Rebased onto main (its 12 commits forked BEFORE D5/media landed); the D5×law-T conflicts were hand-woven (D5's `tlClear`/`tlForget`/`TRANSLOST` coexisting with law-T's dual-hold/`MOVED`) across `test/sim/mesh.cpp`, `test/sim/mesh_seat.inc`, `site/js/mesh.js`. | harness ALL PASS (incl D5 suite), `repro-headless-row` + `repro-atomic-move` GREEN, **full 300-case churn sweep 300/0**, e2e autoheal/failover/reconnect PASS, e2e-video 72 PASS (fails only at the pre-existing line-590 "via Hub" leg, same as pristine main) |
 | `91d72fd` | roadmap: dropped the now-CLOSED headless-row entry | — |
 | `fef0ae5` | **3B — tiles follow fast detection.** Event-driven tile/roster removal off D2/D5; hand-queue 15s freshness; `'left'` fast-removal gated on opened-then-closed channel. | `e2e-vanish-browser` ALL PASS: graceful vanish **0.9s** (target ≤3s), crash tile-gone **7.0s** / seat-freed **6.9s** (target ≤10s), AWAY (18s hidden) never removes, BLIP never false-removes; meet.html parses, harness + e2e-autoheal no regression |
 | `0a3cb70` | **Q1 law text — H-CHAIN designation chain.** `docs/healing-laws.md`. Encodes Nathan's DEPTH RULE + the S1-rich/deep scoping. Marked **STATUS: SPECIFIED, sim-verification PENDING** (same convention as W7 and S4). | Nathan reviewed the text 2026-07-19: **"looks good."** |
@@ -46,11 +46,11 @@ correctness fix.
 So each of Q2, then H-CHAIN, runs the FULL pipeline:
 
 1. **Design** is already agreed (Q2 in roadmap §3; H-CHAIN in healing-laws.md).
-2. **Sim-first** — implement in `sim/mesh.cpp` + `sim/mesh_seat.inc` (source of
+2. **Sim-first** — implement in `test/sim/mesh.cpp` + `test/sim/mesh_seat.inc` (source of
    truth), add a deterministic repro (like `repro-atomic-move.sh`), verify.
 3. **Port to `site/js/mesh.js`** line-for-line; pin with `test/mesh/mesh-harness.js`.
 4. **Gate** — `node --check` mesh.js/mesh-wire.js + meet.html inline scripts;
-   `node test/mesh/mesh-harness.js` ALL PASS; build sim + **full `sim/sweep.sh`**
+   `node test/mesh/mesh-harness.js` ALL PASS; build sim + **full `test/sim/sweep.sh`**
    (300/0); the new repro GREEN; relevant browser e2e green.
 5. **Ship to production** — commit to `main`, push (auto-deploys gifos.app). NO
    wrangler (neither Q2 nor H-CHAIN touches `relay/`).
@@ -139,7 +139,7 @@ restate faithfully in code comments citing the law):
   bring the case back** — do not ship a devolution that guesses.
 
 **Build approach:** generalize 3A's single-step admission devolution (the
-template, `sim/mesh_seat.inc` ~line 100: `if(!occ.count(ckey(adm)) &&
+template, `test/sim/mesh_seat.inc` ~line 100: `if(!occ.count(ckey(adm)) &&
 rowLive[adm.r]) adm={0,adm.r,1};`) into the multi-level chain, plus the healing
 side (the reactive left-pack at the LEAVE handler + the s1Fill/backstop paths).
 Add `repro-hchain.sh` (or `repro-dangling-healer.sh`): construct a hole whose
@@ -198,13 +198,13 @@ piece against current code before trusting it):
 
 - **Merge gate (control plane):** `node --check` the changed JS + meet.html
   inline scripts; `node test/mesh/mesh-harness.js` ALL PASS; build sim + **full
-  `sim/sweep.sh`** (300/0) + the change's repro; browser e2e as needed. Only
+  `test/sim/sweep.sh`** (300/0) + the change's repro; browser e2e as needed. Only
   all-green → commit to main + push. `relay/` unchanged ⇒ NO wrangler.
 - **Commit AND push after every milestone** (CLAUDE.md). Rebase onto main to
   keep history linear; no merge commits.
 - **Full sweep** takes ~2–3 h (300 cases, single-threaded). Run in background
   with a PRIVATE `BIN=` (it uses a shared `/tmp/gifos-mesh-sweep` path that can
-  collide). The QUICK sweep (`sim/sweep.sh`, no `full`) is ~18 min / 30 cases
+  collide). The QUICK sweep (`test/sim/sweep.sh`, no `full`) is ~18 min / 30 cases
   and covers kills {0.2,0.4,0.5} — enough for a fast signal; the FULL run is the
   merge gate.
 - **Local browser e2e:** chrome path — the e2e-*.js hardcode
@@ -251,7 +251,7 @@ piece against current code before trusting it):
    `docs/healing-laws.md` (esp. the H section + H-CHAIN), `docs/roadmap.md` §3,
    `docs/media-plane.md`, and the memory index.
 2. Confirm the baseline is green: `node test/mesh/mesh-harness.js` (expect ALL PASS),
-   `g++ -O2 -std=c++17 -fsyntax-only sim/mesh.cpp` (expect OK).
+   `g++ -O2 -std=c++17 -fsyntax-only test/sim/mesh.cpp` (expect OK).
 3. **Build Q2 (compaction) end-to-end** (§3): sim-first + `repro-compaction.sh`
    → mesh.js port → full gate → push (deploys) → **home-LAN live test** (§5).
    Commit each milestone. Bring the hysteresis design back if the sim sloshes.
@@ -271,7 +271,7 @@ piece against current code before trusting it):
 > merged and green on main; the H-CHAIN law text is written and I approved it;
 > nothing else in the queue is implemented. Your mission: take **Q2 (compaction)**
 > all the way through — sim-first with a repro, port to mesh.js, full merge gate
-> (`node test/mesh/mesh-harness.js` ALL PASS + full `sim/sweep.sh` 300/0 + browser
+> (`node test/mesh/mesh-harness.js` ALL PASS + full `test/sim/sweep.sh` 300/0 + browser
 > e2e), push to main (auto-deploys gifos.app; NO wrangler, it doesn't touch
 > relay/), and then TEST IT ON LIVE PRODUCTION using the home-LAN hardware (the
 > tailnet-Pi swarm in §5 — verify swarm.js/the `mon` monitor actually surface

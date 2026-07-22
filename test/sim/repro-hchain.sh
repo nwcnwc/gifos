@@ -14,13 +14,13 @@
 #      row 0 — no regression of single-step devolution.
 #   D) CONTROL: silent head death stays ring-hold-conservative (headless C).
 #
-# Usage: sim/repro-hchain.sh
+# Usage: test/sim/repro-hchain.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-hchain}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
 fail=0

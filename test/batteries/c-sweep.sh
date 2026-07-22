@@ -41,7 +41,7 @@ for C in $CVALUES; do
   echo "═══════════════════════════════════════════════════════════"
   echo "  C=$C   (section = ${C}x${C} = $((C*C)) seats)"
   echo "═══════════════════════════════════════════════════════════"
-  g++ -O2 -std=c++17 -DGIFOS_C=$C -o "$BIN" sim/mesh.cpp || { echo "  BUILD FAILED at C=$C"; fail=1; continue; }
+  g++ -O2 -std=c++17 -DGIFOS_C=$C -o "$BIN" test/sim/mesh.cpp || { echo "  BUILD FAILED at C=$C"; fail=1; continue; }
   SEC=$((C*C)); N=$((SEC*10)); [ "$N" -gt 300 ] && N=300; [ "$N" -lt 20 ] && N=20
   run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
   cok(){ grep -q 'CHECK PASS' <<<"$1" && ! grep -qE 'dups=[1-9]|stranded=[1-9]' <<<"$1"; }

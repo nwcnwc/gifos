@@ -25,7 +25,7 @@ Do **not** re-litigate three-state loss-wedge or only-scoot-up join shape — th
 
 | Path | Role |
 |------|------|
-| `sim/repro-churn-combos.sh` | Combined disruptions: loss+kill, cascade+1 late joiner, sever live link, silent front-row wipe |
+| `test/sim/repro-churn-combos.sh` | Combined disruptions: loss+kill, cascade+1 late joiner, sever live link, silent front-row wipe |
 | `test/batteries/mesh-churn.sh` | Full **leave/crash/churn/comms** battery (`--quick` = sim+JS only) |
 | `test/batteries/join.sh` | Also runs loss-wedge, atomic-move, churn-combos |
 | `test/README.md` | Documents both batteries + sim disruption catalogue |

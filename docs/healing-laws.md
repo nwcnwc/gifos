@@ -3,8 +3,8 @@
 This is the rulebook for how a meeting keeps itself alive when people come, go,
 and vanish. **Every heal change must name which law it implements.**
 
-The C++ reference sim is the SOURCE OF TRUTH: `sim/mesh.cpp` +
-`sim/mesh_seat.inc` + `sim/topo.h`. Production runs a line-for-line port —
+The C++ reference sim is the SOURCE OF TRUTH: `test/sim/mesh.cpp` +
+`test/sim/mesh_seat.inc` + `test/sim/topo.h`. Production runs a line-for-line port —
 `site/js/mesh.js` (the Seat brain) on `net.topo`, bound to real transports by
 `site/js/mesh-wire.js` — pinned against the sim's numbers by
 `test/mesh/mesh-harness.js` and end-to-end by `test/mesh/e2e-mesh-wire.js`. Security
@@ -149,7 +149,7 @@ childless — a leaf. **Only leaves move. No exceptions.**
   cell pointed at the vacated head, every head cell at a row that never
   lived — and fell through the whole home scan to seat the joiner DEEP under
   a survivor, or died at the corpse and rode the FIND-retry cadence: the
-  "headless-row admission gap". Repro: `sim/repro-headless-row.sh`.)
+  "headless-row admission gap". Repro: `test/sim/repro-headless-row.sh`.)
   **The resurrection clause (H7's original job, kept).** A row that LIVED and
   is now entirely silent — a whole-row death, distinguished from a never-born
   row by any `s1seen` memory of it — is re-seeded by ARRIVAL traffic, not by
@@ -170,7 +170,7 @@ childless — a leaf. **Only leaves move. No exceptions.**
   FIND to a dead seat and the scan would `return` at the lower row before ever
   reaching the upper row it could admit — two adjacent dead home rows would
   deadlock forever (a real bug that shipped until seed-33/kill-0.6 in the Q2
-  compaction sweep surfaced it, `sim/repro-compaction.sh` era). First-hand
+  compaction sweep surfaced it, `test/sim/repro-compaction.sh` era). First-hand
   liveness sees the corpse for what it is, falls through to bottom-up, and the
   cascade reaches a live admitter.
   *(History: H7 used to be "column backfill" — a seat parked each newcomer in
@@ -187,7 +187,7 @@ childless — a leaf. **Only leaves move. No exceptions.**
   hole's right-neighbour, a home cell's admitter. The failure class this closes
   ("dangling designation"): that one actor is *also* dead. The rule states, ONCE,
   how the duty devolves; admission (the H7 headless-row amendment's "devolved
-  admitter" is already this family, `sim/repro-headless-row.sh`), healing, and
+  admitter" is already this family, `test/sim/repro-headless-row.sh`), healing, and
   resurrection (A2, below) all cite it rather than each re-inventing a backup.
   - **WHO — the witness chain.** If a hole's designated actor is confirmed dead
     (D4/D2 — never mere silence), the duty devolves along a FIXED order drawn
@@ -241,8 +241,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
     (5) **S1 column-clique devolution** — when the row-right chain is empty,
     first occupied column-mate (ascending row from hole.r+1, cyclic) heals /
     admits; childless column-mate may scooch (`repro-hchain` leg F).
-    Gates: `sim/repro-hchain.sh`, `sim/repro-headless-row.sh`, Q5, full
-    `sim/sweep.sh` GREEN after these land.
+    Gates: `test/sim/repro-hchain.sh`, `test/sim/repro-headless-row.sh`, Q5, full
+    `test/sim/sweep.sh` GREEN after these land.
     **Still PENDING:** self-wire-with-hint packaging, deeper multi-level
     vertical beyond childOf-clear. Standing guard: never ship a devolution
     that guesses without first-hand confirm.
@@ -252,7 +252,7 @@ childless — a leaf. **Only leaves move. No exceptions.**
   **take**/CLAIM/HELLO self-confirms to **seated**. Assigner recheck + soft TTL
   (90 ticks) frees lost PLACE marks under packet loss. Row fill while head is
   only sitting-down is allowed; spill to the next row waits for head seated.
-  Pin: `sim/repro-loss-wedge.sh` (loss=0.10 burst N=60 → seated≥55; was 5/60).
+  Pin: `test/sim/repro-loss-wedge.sh` (loss=0.10 burst N=60 → seated≥55; was 5/60).
   Rejected forever: firstHandLive hand-off gate; PLACE TTL alone.
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
   survivor" — replaced by the fixed designation above. H8 is no longer
@@ -423,12 +423,12 @@ confirmation rides frames the seating already produces.)*
     another seat to move, never runs a global optimizer. The up-chain walk
     (FIND tag==1) + atomic move (law T) is the mechanism; hysteresis and
     leaf-only / rightmost-in-row gates keep it from sloshing. **STATUS: LIVE**
-    in `sim/mesh.cpp` + `site/js/mesh.js` (`tryCompact` / `serveCompact`),
-    gated by `sim/repro-compaction.sh`.
+    in `test/sim/mesh.cpp` + `site/js/mesh.js` (`tryCompact` / `serveCompact`),
+    gated by `test/sim/repro-compaction.sh`.
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
   **STATUS: specified, NOT yet implemented** — `crossLink` still returns the
-  sparse transpose (and none for heads) in both `sim/topo.h` and
+  sparse transpose (and none for heads) in both `test/sim/topo.h` and
   `site/js/gifos-net.js`.
 
 ## E — when ordinary healing isn't enough
@@ -523,7 +523,7 @@ confirmation rides frames the seating already produces.)*
     greeter, so it never trips. Surfaced by the C=2/C=3 multi-section sweep,
     where the sparse rook mesh (degree 3 vs 9 at C=5) makes both the seating race
     and the isolation likely; the fix is degree-agnostic and holds C=2..5 clean.
-    LIVE: `sim/mesh.cpp` + `site/js/mesh.js` (`anyRookLive`/`rookSeenAt`, GREETERS
+    LIVE: `test/sim/mesh.cpp` + `site/js/mesh.js` (`anyRookLive`/`rookSeenAt`, GREETERS
     handler); gated by `test/batteries/c-sweep.sh`.
 - **E5. Friend-relay inside ONE chosen meeting — never a silent merge of two
   (ADOPTED 2026-07-20, refined same day — Nathan).** Two scopes, do not mix them.
@@ -745,7 +745,7 @@ newcomer-as-sole-bridge auto-reunion are both forbidden (Sybil levers).
 ### Partition: one half may FREEZE (known, accepted — Nathan, 2026-07-21)
 
 Both halves stay *correct* under a total partition — no duplicate seats, no
-split-brain; that is the hard invariant and `sim/sweep.sh` still fails on it.
+split-brain; that is the hard invariant and `test/sim/sweep.sh` still fails on it.
 But roughly **one split in six leaves one half frozen**, seating ~16 of 200
 while the other half re-forms perfectly. Measured over 20 seeds: 18/20 clean.
 
@@ -774,7 +774,7 @@ a healer race. Do NOT "fix" this by falling through to the deep path when home
 looks unservable — that fast-tracks silent death past H1-S1 ring-hold and is
 caught by `repro-headless-row` leg C.
 
-**Where it is checked.** `sim/sweep.sh` asserts only the invariant — no
+**Where it is checked.** `test/sim/sweep.sh` asserts only the invariant — no
 split-brain, ever — and says nothing about the freeze. The freeze is checked in
 `test/batteries/known-unfixed.sh`, the graveyard of decided-unfixed behaviour,
 where it is **expected to be RED** and is measured across 20 seeds instead of

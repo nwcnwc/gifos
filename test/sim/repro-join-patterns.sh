@@ -17,9 +17,9 @@
 #      instead of row-mates is "converged" by any count-based check and wrong
 #      by the media plane, whose near field is row-scoped.
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN=${MESH_BIN:-/tmp/mesh-jp}
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || exit 9
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || exit 9
 
 MODES=("burst" "serial 1" "serial 8" "batch 5 1" "batch 5 20" "batch 12 3" "window 0")
 SIZES=(1 2 3 5 6 7 9 11 25 26 30 100 500)

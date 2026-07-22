@@ -15,13 +15,13 @@
 #      minDepth) and STRICTLY fewer lone-row deep sections than the control.
 #   3) SETTLING — cMoves is stable across a long final idle window (no slosh).
 #
-# Usage: sim/repro-compaction.sh
+# Usage: test/sim/repro-compaction.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-compact}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
 field(){ sed -nE "s/.* $2=([0-9-]+).*/\1/p" <<<"$1" | tail -1; }   # field "<line>" name

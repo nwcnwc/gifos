@@ -18,17 +18,17 @@
 # killed seats or reset TICK, so re-using one session across seed+kill cycles
 # leaks state and produces bogus failures. One process per (seed,kill).
 #
-# Usage:  sim/sweep.sh            # quick: seeds 1-10 x kills {0.2,0.4,0.5}
-#         sim/sweep.sh full       # full:  seeds 1-50 x kills {0.1..0.6}
-#         N=1200 sim/sweep.sh     # override seat count (default 800)
+# Usage:  test/sim/sweep.sh            # quick: seeds 1-10 x kills {0.2,0.4,0.5}
+#         test/sim/sweep.sh full       # full:  seeds 1-50 x kills {0.1..0.6}
+#         N=1200 test/sim/sweep.sh     # override seat count (default 800)
 set -u
-cd "$(dirname "$0")/.."                       # repo root
+cd "$(dirname "$0")/../.."                       # repo root
 BIN="${BIN:-/tmp/gifos-mesh-sweep}"
 N="${N:-800}"
 TICKS="${TICKS:-15000}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 if [ "${1:-}" = "full" ]; then SEEDS=$(seq 1 50); KILLS="0.1 0.2 0.3 0.4 0.5 0.6"
 else                           SEEDS=$(seq 1 10); KILLS="0.2 0.4 0.5"; fi

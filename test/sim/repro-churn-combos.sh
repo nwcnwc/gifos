@@ -11,13 +11,13 @@
 #   D) silent s1-row wipe (killat each cell silent) then settle — ring-hold
 #      then re-fill without permanent unseated
 #
-# Usage: sim/repro-churn-combos.sh
+# Usage: test/sim/repro-churn-combos.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-churn}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
 fail=0

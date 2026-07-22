@@ -32,7 +32,7 @@ red(){ printf '  RED  (expected) — %s\n' "$1"; still=$((still+1)); }
 green(){ printf '  GREEN (!!) — %s\n' "$1"; fixed=$((fixed+1)); }
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 2; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 2; }
 
 # ---------------------------------------------------------------- partition --
 hdr "A PARTITIONED HALF MAY FREEZE  (decided: Nathan, 2026-07-21)"
@@ -46,7 +46,7 @@ echo "                 entries; a home row is left with NO live member, so nobod
 echo "                 admit into it; H7's dense-fill gate then refuses to open any"
 echo "                 later row, and every remaining seeker gets NOROOM forever."
 echo "    NOTE: no-split-brain (dups=0) is a REAL invariant and is asserted in"
-echo "          sim/sweep.sh, which must stay green. Only the FREEZE lives here."
+echo "          test/sim/sweep.sh, which must stay green. Only the FREEZE lives here."
 echo "    measuring across 20 seeds (the 3 seeds pinned in sweep.sh pass on luck) ..."
 frozen=0; dups=0
 for s in $(seq 1 20); do

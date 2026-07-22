@@ -473,13 +473,13 @@
     HB: 4000,         // status heartbeat ms — the gossip pulse everything idempotent rides
   }, root.GIFOS_SCALE || {});
 
-  // ---- the mesh topology as arithmetic (port of sim/topo.h) ------------------
+  // ---- the mesh topology as arithmetic (port of test/sim/topo.h) ------------------
   // A coordinate is { pc, r, i }: pc the SECTION path encoded as an integer, r
   // the row (0..C-1), i the column (0..C-1). Path encoding: '' = 0; appending
   // digit d (0..C-1) => pc*6 + (d+1) (base-6 leaves headroom past C=5). So
   // parentPath(pc) = floor((pc-1)/6), lastDigit(pc) = (pc-1)%6. Every heal and
   // every media link derives from THESE functions — no seat ever "asks" the
-  // structure, it computes it. Mirrors sim/topo.h exactly (verified by
+  // structure, it computes it. Mirrors test/sim/topo.h exactly (verified by
   // test/unit/topo.js); the ONLY divergence is ckey returns a STRING map key (JS
   // has no uint64 — the sim packs the same fields into a 64-bit int for speed).
   const topo = (() => {
@@ -490,7 +490,7 @@
     // Q2 COMPACTION: tree depth of a section path (Section 1 == 0). "Shallower" =
     // smaller depth = closer to the home; a compacting leaf moves only to a
     // STRICTLY shallower row, so depth is a monotone-decreasing potential.
-    // (sim/topo.h pcDepth)
+    // (test/sim/topo.h pcDepth)
     const pcDepth = (pc) => { let d = 0; while (pc) { pc = parentPath(pc); d++; } return d; };
     const isRoot = (c) => c.pc === 0;
     const ckey = (c) => c.pc + '_' + c.r + '_' + c.i;                 // Map key (string, not uint64)
@@ -511,11 +511,11 @@
     // W7: column-mates — every seat sharing my column across the OTHER rows
     // (heads included, no diagonal). This is the extra half of the Section-1
     // rook's graph. Section 1 (pc==0) ONLY — deep sections keep the sparse
-    // transpose (crossLink), so colMates is EMPTY for pc!=0. (sim/topo.h colMates)
+    // transpose (crossLink), so colMates is EMPTY for pc!=0. (test/sim/topo.h colMates)
     const colMates = (s) => { const out = []; if (s.pc !== 0) return out; const C = Cn(); for (let j = 0; j < C; j++) if (j !== s.r) out.push({ pc: s.pc, r: j, i: s.i }); return out; };
     // Max owned-link degree of any seat: Section 1 is the C×C ROOK'S GRAPH (W7):
     // C-1 row + C-1 column + 1 down = 2C-1 = 9. Deep sections keep the sparse
-    // C+1 bound. 2C-1 dominates. (sim/topo.h MAXLINKS)
+    // C+1 bound. 2C-1 dominates. (test/sim/topo.h MAXLINKS)
     const MAXLINKS = () => 2 * Cn() - 1;
     // ownedLinks:
     //  Section 1 (pc==0): the C×C ROOK'S GRAPH — rowMates(C-1) + colMates(C-1) +
