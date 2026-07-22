@@ -192,6 +192,7 @@ struct Seat {
   Occ translost, tlProbeAt, probeAck;
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
+  int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
   int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
@@ -293,6 +294,14 @@ struct Seat {
   void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
   void rosterCells(Coord out[C]){ Coord h=ownedRowHead(); for(int c=0;c<C;c++) out[c]={h.pc,h.r,(uint8_t)c}; }
+  // Do I hear ANY of my rook neighbours (row/col/down) first-hand? A Section-1
+  // seat that has NONE for a long time is an ISOLATED FRAGMENT — it can neither
+  // phone (heartbeat is occ-gated) nor route-probe (no link to route over), so
+  // E2 can never yield it. Its one remaining channel is the relay (E3 re-knock).
+  bool anyRookLive(){ if(!hasCoord||coord.pc!=0) return false;
+    Coord rm[C-1],cm[C-1]; rowMates(coord,rm); colMates(coord,cm);
+    for(int q=0;q<C-1;q++){ if(firstHandLive(ckey(rm[q]))) return true; if(firstHandLive(ckey(cm[q]))) return true; }
+    return firstHandLive(ckey(down(coord))); }
   // A shuffled [0..C-1] — the roster-column visit order, C-derived (was a
   // hardcoded {0,1,2,3,4}, which over-read the C-cell roster for C<5).
   vector<int> shufCols(){ vector<int> v; v.reserve(C); for(int q=0;q<C;q++) v.push_back(q); for(int k=C-1;k>0;k--){ int j=(int)(rng()*(k+1)); swap(v[k],v[j]); } return v; }

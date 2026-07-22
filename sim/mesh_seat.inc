@@ -7,7 +7,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
-  drainAt=0; seatTries=0; seatedAt=(int)TICK;
+  drainAt=0; seatTries=0; seatedAt=(int)TICK; rookSeenAt=(int)TICK;   // grace: don't call a just-seated seat isolated
   lastAck=(int)TICK; lastPhone=(int)TICK;
   if(owner>=0){ Msg m; m.t=CLAIM; m.ck=ckey(c); m.id=id; emit(owner,m); }
   if(c.pc==0){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3: a Section-1 seat registers as a greeter on seating (present the MEETING genesis key)
@@ -770,6 +770,20 @@ void Seat::recv(Msg& m){
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
       // greeter in the pool (anti-poison floor); it IGNORES the greeters it gets
       // back. The roster self-audit is gone — genesis/fork convergence is E4/R5.
+      // EXCEPT the split-off fragment: a burst race can seat a newcomer into an
+      // already-taken cell with an empty occ and NO links (the admitter that
+      // placed it was itself confused). It then can't phone (heartbeat is occ-
+      // gated) or route-probe (no link), so E2 never yields it — a permanent
+      // isolated duplicate. Its ONE shared channel with the real ring is this
+      // relay re-knock: if I have heard NO rook neighbour first-hand for a full
+      // strand window yet the pool lists OTHER live greeters, I am split off —
+      // requeue and rejoin cleanly. A genuinely-alone genesis lists no other
+      // greeter, so it never trips. (Surfaced by the C=2/C=3 sweep, where the
+      // sparse rook mesh makes the seating race and the isolation both likely.)
+      if(state==3 && coord.pc==0 && TICK-rookSeenAt>STRAND_TTL){
+        bool other=false; for(int g:m.list) if(g!=id && g>=0){ other=true; break; }
+        if(other){ requeue(); return; }
+      }
       return; }
     case WHOHOME: {
       if(!hasCoord){ Msg h;h.t=HOME; emit(m.from,h); return; }
@@ -931,6 +945,7 @@ void Seat::tick(){
   if(leaseUntil>=0 && TICK>leaseUntil){ leaseCk=0; leaseUntil=-1; }
   recheckSitting();   // A: assigner frees soft sitting-down if PLACE never confirmed
   if(coord.pc==0){
+    if(anyRookLive()) rookSeenAt=(int)TICK;   // fragment detector: reset while I hear anyone
     if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
     tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
     if(coord.i==0 && ((TICK%12)==0 || !translost.empty())){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race. D5: while a transport-loss observation is pending, check every beat — heal()'s cooldowns keep it storm-free
