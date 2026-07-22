@@ -1439,29 +1439,36 @@
   }
 
   // localStorage keys we DELIBERATELY keep across a factory reset: device
-  // display / accessibility prefs that aren't "computer content". Losing the
-  // text size on an erase would be a real accessibility regression for a
-  // low-vision user, with nothing gained. Everything else in the gifos_*
-  // namespace is computer state and gets swept (see eraseComputer).
-  const ERASE_KEEP = new Set(['gifos_ui_scale', 'gifos_meet_bar']);
+  // display / accessibility prefs that aren't "computer content", and the user's
+  // chosen version channel (pin / edge / release). Losing the text size on an
+  // erase would be a real accessibility regression; losing the channel pin would
+  // strand a user on a different build than they signed up for after the reset
+  // re-seeds. Everything else in the gifos_* namespace is computer state and gets
+  // swept (see eraseComputer).
+  const ERASE_KEEP = new Set([
+    'gifos_ui_scale', 'gifos_meet_bar',
+    'gifos_pin', 'gifos_channel', 'gifos_current',
+  ]);
 
   // Erase the WHOLE computer, not just the Home Screen data. clearAll() wipes
-  // IndexedDB (every app, file and their state); then — the part that was
-  // missing — we unpin and drop the cached shell so the reload re-downloads the
-  // newest computer from the live site instead of rebooting the same old cached
-  // one. Offline, we can't fetch a fresh build, so we keep the cached shell and
-  // just reboot it with empty storage (a clean computer on the current version).
+  // IndexedDB (every app, file and their state); then we drop the cached shell
+  // and reload. The reload target is the user's preserved channel (pin/edge/
+  // release) so the re-seed happens on the SAME build they were already on,
+  // instead of silently downgrading them to the live release. Offline, we can't
+  // fetch a fresh shell, so we keep the cached shell and just reboot it with
+  // empty storage (a clean computer on the current version).
   //
   // localStorage is the other half of "the whole computer", and it's easy to
   // under-clean it: enumerating keys one by one means every new gifos_* key a
   // feature adds silently survives a reset (that's how the relay override got
   // stranded — invites failed with "relay connection failed" while a private
   // window worked). So we SWEEP the entire gifos_* namespace instead, keeping
-  // only ERASE_KEEP. That also clears the leftovers a partial wipe used to
-  // leave behind: the version pin, the relay override, saved AI/API keys and
-  // meeting admin/room secrets (a privacy leak on a shared or handed-on
-  // browser), per-app permission opt-offs and signed-app trust pins, invite
-  // history, and the saved name/uid — a fresh computer regenerates those.
+  // only ERASE_KEEP. That clears the leftovers a partial wipe used to leave
+  // behind: the relay override, saved AI/API keys and meeting admin/room secrets
+  // (a privacy leak on a shared or handed-on browser), per-app permission
+  // opt-offs and signed-app trust pins, invite history, and the saved name/uid
+  // — a fresh computer regenerates those. The version channel is intentionally
+  // NOT erased so the user stays on their chosen build.
   function eraseLocalStorage() {
     try {
       const kill = [];
@@ -1473,10 +1480,32 @@
     } catch (e) { /* storage unavailable — nothing to sweep */ }
   }
 
+  // Where to send the browser after a successful erase. Must match the channel
+  // loader logic in index.html: pinned snapshot first, then edge opt-in, then
+  // the default live release path. We cache-bust with a neutral `?ts=` so the
+  // shell is fetched fresh; we deliberately do NOT use `?latest` because the
+  // channel loader treats that as an explicit "unpin and use live release" flag.
+  function eraseReloadUrl() {
+    try {
+      const pin = localStorage.getItem('gifos_pin');
+      const chan = localStorage.getItem('gifos_channel');
+      const ts = Date.now();
+      if (pin) return '/versions/' + encodeURIComponent(pin) + '/?ts=' + ts;
+      if (chan === 'edge') return '/?edge&ts=' + ts;
+    } catch (e) {}
+    return '/?ts=' + Date.now();
+  }
+
   async function eraseComputer() {
     eraseLocalStorage();
+    // Set the reseed flag for the build we're about to land on so it bakes the
+    // current default apps into the fresh desktop (the flag is consumed by
+    // reseedDefaultsIfFlagged on the next boot). Because we keep the channel
+    // keys, this re-seed happens on the user's chosen build, not the live
+    // release default.
+    try { localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
     await store.clearAll();
-    if (await reachable()) { await dropShellCaches(); location.replace('/?latest=' + Date.now()); }
+    if (await reachable()) { await dropShellCaches(); location.replace(eraseReloadUrl()); }
     else location.reload();
   }
 
@@ -1811,7 +1840,7 @@
       // Erasing the whole computer lives here — inside Advanced, behind its own
       // collapsed disclosure — so it can never be hit by accident.
       '<details class="adv danger-zone"><summary>Erase this computer</summary>' +
-      '<p class="add-help">This wipes the <b>whole computer</b> stored in this browser — every app, file, folder, wallpaper and all app state — then reinstalls a fresh one on the latest version. There is no undo and no server copy. Back up first (menu → “Back up Home Screen”) if you might want it back.</p>' +
+      '<p class="add-help">This wipes the <b>whole computer</b> stored in this browser — every app, file, folder, wallpaper and all app state — then reinstalls a fresh one on the <b>same version channel</b> you’re already using (edge, the live release, or a pinned snapshot). There is no undo and no server copy. Back up first (menu → “Back up Home Screen”) if you might want it back.</p>' +
       '<button class="widebtn danger" id="set-erase">Erase this computer…</button>' +
       '</details>' +
       '</details>' +
