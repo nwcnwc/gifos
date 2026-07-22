@@ -60,6 +60,30 @@ echo "    result: $frozen/20 seeds froze a half   (baseline when decided: 2/20)"
 if [ "$frozen" -eq 0 ]; then green "no half froze in 20 seeds — partition recovery is total now"
 else red "$frozen/20 splits froze a half"; fi
 
+# ------------------------------------------------------------- low-C dups --
+hdr "TINY SECTIONS (C=2, C=3) MINT DUPLICATES UNDER STRESS  (decided: not shipped)"
+why "production is C=5. The C-sweep (test/batteries/c-sweep.sh) validates the
+                 multi-section machinery at C=2..5; C=4 and C=5 are clean on every
+                 invariant. C=2 and C=3 degenerate — a 2x2 section is a rook graph of
+                 degree 3 (vs 9 at C=5), so E2's first-hand dedup has almost no redundant
+                 path — and mint real duplicate cells under two stresses. They worsen as C
+                 shrinks and are GONE by C=4, so they do not threaten C>=5."
+cost "hardening the dedup / heal for a near-redundancy-free mesh — only worth it
+                 if a tiny C is ever shipped, which it is not."
+echo "    what breaks: (a) C=2 gradual shrink (repeated small kills) → a heal"
+echo "                 split-brain, dups appear even with compaction OFF; (b) C=3"
+echo "                 partition → the starved half mints a duplicate (freeze + dup)."
+c2=$(g++ -O2 -std=c++17 -DGIFOS_C=2 -o /tmp/gifos-mesh-c2k sim/mesh.cpp && \
+     printf "seed 2\ninit 40 0\nconverge 400000\nkill 0.15\nconverge 200000\nkill 0.15\nconverge 200000\ntick 100000\ncheck\nquit\n" | /tmp/gifos-mesh-c2k --service 2>&1 | grep '^CHECK')
+c3=$(g++ -O2 -std=c++17 -DGIFOS_C=3 -o /tmp/gifos-mesh-c3k sim/mesh.cpp && \
+     printf "seed 5\njoinmode burst\ninit 90 0\nconverge 400000\nsplit 0.5\ntick 60000\nsplitstate\nquit\n" | /tmp/gifos-mesh-c3k --service 2>&1 | grep '^SPLITSTATE')
+echo "    C=2 shrink: $c2"
+echo "    C=3 split : $c3"
+c2dup=$(grep -qE 'dups=[1-9]' <<<"$c2" && echo 1 || echo 0)
+c3dup=$(grep -qE 'dups=[1-9]' <<<"$c3" && echo 1 || echo 0)
+if [ "$c2dup" = 0 ] && [ "$c3dup" = 0 ]; then green "no low-C dup reproduced — tiny-section dedup is clean now"
+else red "low-C dups reproduce (C=2 shrink=$c2dup, C=3 split=$c3dup)"; fi
+
 # ----------------------------------------------------------------- browsers --
 if [ "$BROWSERS" = 1 ]; then
   export MEET_CHROME="${MEET_CHROME:-/opt/google/chrome/chrome}"
