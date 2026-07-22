@@ -26,7 +26,12 @@ cp -r "$SITE/js" "$SITE/css" "$DEST/"
 # boot.html, and bake its build number into the snapshot's build.js so the frozen
 # release reports the build it was cut from. The channel loader in these copies is
 # inert under /versions/ (it returns early), so the snapshot just runs directly.
-BUILD=$(git -C "$ROOT" rev-list --count HEAD -- site 2>/dev/null || echo 0)
+# Anchored build number — must match .github/workflows/pages.yml (this branch's
+# history is squashed, so a raw count under-counts). Bump ANCHOR_* when you
+# re-anchor at a future release.
+ANCHOR_SHA=3d84267            # the "release: cut v0.8.0" commit
+ANCHOR_BUILD=280             # v0.8.0's real commit count in the original history
+BUILD=$(( ANCHOR_BUILD + $(git -C "$ROOT" rev-list --count ${ANCHOR_SHA}..HEAD -- site 2>/dev/null || echo 0) ))
 sed -i -E "s/window\.GIFOS_VERSION = '[^']*';/window.GIFOS_VERSION = '$V';/" "$DEST/index.html" "$DEST/boot.html"
 printf '/* frozen at release cut by archive-version.sh */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > "$DEST/js/build.js"
 
