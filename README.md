@@ -162,8 +162,12 @@ The desktop seeds itself with the default apps on first run. Open **two tabs** o
 
 ### Tests
 
+Every suite is a standalone Node script — there's no runner. Run one with `node test/<dir>/<file>.js`; it exits non-zero on failure. Suites are grouped by **what they need to run** — see **[`test/README.md`](test/README.md)** for the full index, prerequisites, and the pre-push gates. A representative slice:
+
 ```bash
-node test/unit/node-roundtrip.js       # GIF codec: encode/decode/repack round-trips
+node test/unit/node-roundtrip.js          # GIF codec: encode/decode/repack round-trips
+node test/unit/sign.js                    # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
+node test/mesh/mesh-harness.js            # meeting mesh: JS control plane vs the C++ reference
 node test/browser/e2e.js                  # the desktop, sandbox, versioning (Chromium)
 node test/browser/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
 node test/browser/e2e-store.js            # per-record store: orphan safety + delete/replace invariants
@@ -174,10 +178,10 @@ node test/browser/e2e-media-recovery.js   # denied camera re-asks on tap; black 
 node test/browser/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
 node test/browser/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/browser/e2e-boot.js             # computer images: boot, isolate, reboot fresh
-node test/unit/sign.js                 # provenance: Ed25519 + OpenPGP (EdDSA & RSA) vs real gpg
 ```
 
-The e2e suites expect the static server on `:8099` and (for relay/video) `test/servers/relay-local.js` on `:8790`.
+- **`test/unit/`** needs nothing; **`test/browser/`** wants the static site on `:8099` plus `test/servers/relay-local.js` on `:8790` for the relay/video suites; **`test/drills/`** spawn their own servers.
+- **`test/sim/`** is the C++ reference mesh (built with `g++`) that the JS port is verified against; **`test/batteries/`** are the cross-environment gates to run before pushing mesh/wire changes.
 
 ## Deployment
 
