@@ -17,13 +17,21 @@
   const crumbs = document.getElementById('crumbs');
 
   const VERSION = root.GIFOS_VERSION || '0.6.0';
+  const BUILD = Number(root.GIFOS_BUILD) || 0;   // this build's edge build number (build.js)
   const TRASH_ID = 'sys_trash';
   const REPO_URL = 'https://github.com/nwcnwc/gifos';
 
-  let latestVersion = VERSION;      // from version.json
+  let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
+  let edgeBuild = BUILD;            // version.json.edgeBuild — the LATEST edge build available
   let availableVersions = [VERSION];
   let changelog = null;             // from changelog.json (live), rendered in the Version panel
   const pinnedVersion = () => { try { return localStorage.getItem('gifos_pin'); } catch (e) { return null; } };
+  // The site root is the UNRELEASED edge build; its GIFOS_VERSION is the sentinel
+  // 'edge' (unnumbered). Releases are immutable /versions/<x>/ snapshots with a
+  // real number. onSnapshot() ⇒ we booted a snapshot; runningEdge() ⇒ the root.
+  const EDGE = 'edge';
+  const onSnapshot = () => location.pathname.indexOf('/versions/') !== -1;
+  const runningEdge = () => VERSION === EDGE || !onSnapshot();
   // Compare dotted versions: >0 if a>b.
   function cmpVer(a, b) {
     const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
@@ -1302,7 +1310,9 @@
   const updateBar = document.getElementById('update-bar');
   function applyUpdateBar() {
     const pinned = pinnedVersion();
-    const behind = cmpVer(latestVersion, VERSION) > 0;
+    // The edge build is AHEAD of the release, never behind — don't nag it. Only a
+    // snapshot older than the live release prompts an update.
+    const behind = !runningEdge() && cmpVer(latestVersion, VERSION) > 0;
     if (!behind) { updateBar.style.display = 'none'; return; }
     updateBar.style.display = '';
     const msg = document.getElementById('update-msg');
@@ -1379,21 +1389,6 @@
     try { const r = await fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' }); return !!(r && r.ok); } catch (e) { return false; }
   }
 
-  // Force this computer onto the latest live build: unpin, drop the cached shell,
-  // and reload straight from gifos.app. Guarded on reachability so we never wipe
-  // the offline shell when there's no network to replace it. Returns false (and
-  // tells the user) when offline.
-  async function upgradeToLatest() {
-    if (!(await reachable())) {
-      showConfirm('Can’t reach gifos.app', 'You appear to be offline. Reconnect and try again — upgrading has to download the latest computer from the site.', [{ label: 'OK' }]);
-      return false;
-    }
-    try { localStorage.removeItem('gifos_pin'); } catch (e) {}
-    await refreshShell();  // re-pull the whole shell (or activate a waiting worker)
-    location.replace('/?latest=' + Date.now()); // cache-buster + ?latest clears any pin in the bootstrap
-    return true;
-  }
-
   // localStorage keys we DELIBERATELY keep across a factory reset: device
   // display / accessibility prefs that aren't "computer content". Losing the
   // text size on an erase would be a real accessibility regression for a
@@ -1442,6 +1437,10 @@
       if (!r.ok) return false;
       const info = await r.json();
       latestVersion = info.current || VERSION;
+      edgeBuild = Number(info.edgeBuild) || BUILD;   // latest edge build number, live
+      // Persist the live-release pointer so the root loader can redirect default
+      // visitors instantly on the next visit without waiting on version.json.
+      try { if (latestVersion) localStorage.setItem('gifos_current', latestVersion); } catch (e) {}
       availableVersions = Array.isArray(info.versions) && info.versions.length ? info.versions : [VERSION];
       // Release notes live in changelog.json (also network-first). Best-effort:
       // the Version panel still works without it.
@@ -1839,52 +1838,99 @@
     bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   }
 
-  function switchToVersion(v) {
-    if (v === latestVersion) { upgradeToLatest(); return; } // fresh pull, not a pinned redirect
-    try { localStorage.setItem('gifos_pin', v); } catch (e) {}
-    location.reload(); // bootstrap redirects to /versions/<v>/ (an immutable archived build)
+  // ----- the three version moves, all channel-aware (see the root loader) -----
+  // PIN to an immutable /versions/<v>/ snapshot (roll back, or stick to the live
+  // release). Clears the edge channel so the loader honours the pin.
+  function pinTo(v) {
+    try { localStorage.setItem('gifos_pin', v); localStorage.removeItem('gifos_channel'); } catch (e) {}
+    location.replace('/versions/' + v + '/');
+  }
+  // USE THE LIVE RELEASE: default channel (no pin, no edge). The loader resolves
+  // version.json.current and lands on that snapshot.
+  function useRelease() {
+    try { localStorage.removeItem('gifos_pin'); localStorage.removeItem('gifos_channel'); } catch (e) {}
+    location.replace('/?stable&ts=' + Date.now());
+  }
+  // LOAD THE UNRELEASED EDGE build at the site root. Opt into the edge channel and
+  // re-pull the whole shell fresh so the newest root code actually lands.
+  async function loadEdge() {
+    if (!(await reachable())) {
+      showConfirm('Can’t reach gifos.app', 'You appear to be offline. Reconnect and try again — the unreleased build has to download from the site.', [{ label: 'OK' }]);
+      return;
+    }
+    try { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); } catch (e) {}
+    await refreshShell();
+    location.replace('/?edge&ts=' + Date.now());
   }
 
-  // Render the Advanced → Version panel into `container`. Always states the LIVE
-  // latest (from the last version.json check), and offers the two moves the user
-  // asked for: UPGRADE this computer to the latest live build (a real fresh pull
-  // that busts the offline cache), or ROLL BACK / pin any archived version.
-  // `net` is 'offline' when the live check just failed, so we say so plainly.
+  // Render the Advanced → Version panel. It separates the things that used to be
+  // conflated into one "latest":
+  //   • RUNNING NOW  — the build this computer loaded: the unreleased edge build
+  //                    (site root) or a numbered snapshot it was pinned to.
+  //   • LIVE RELEASE — version.json.current: the immutable snapshot a fresh
+  //                    visitor to gifos.app gets by default.
+  //   • UNRELEASED   — the edge build at the site root (/), unnumbered, ahead of
+  //                    the release; loaded with its own button.
+  //   • SNAPSHOTS    — every immutable /versions/<x>/ build, each pinnable.
+  // `net` is 'offline' when the live version.json check just failed.
   function paintVersion(container, net) {
     if (!container) return;
     const pinned = pinnedVersion();
-    const behind = cmpVer(latestVersion, VERSION) > 0;
     const offline = net === 'offline';
-    const line = offline
-      ? 'Running <b>v' + escapeHtml(VERSION) + '</b>. Couldn’t reach gifos.app to check for the latest — you may be offline.'
-      : pinned
-        ? 'Running <b>v' + escapeHtml(VERSION) + '</b>, pinned. The latest on gifos.app is <b>v' + escapeHtml(latestVersion) + '</b>.'
-        : behind
-          ? 'Running <b>v' + escapeHtml(VERSION) + '</b>. A newer version, <b>v' + escapeHtml(latestVersion) + '</b>, is live on gifos.app.'
-          : 'Running <b>v' + escapeHtml(VERSION) + '</b> — the latest on gifos.app.';
-    // The upgrade action always downloads a fresh copy from the live site; when
-    // you're already current it doubles as a "force a clean re-download".
-    const upgradeBtn = (behind || pinned)
-      ? '<button class="widebtn" id="set-upgrade">⬆ Upgrade this computer to v' + escapeHtml(latestVersion) + '</button>'
-      : '<button class="widebtn ghost" id="set-upgrade">Re-download the latest (v' + escapeHtml(latestVersion) + ')</button>';
-    // Version list, newest first: current is inert; latest offers Upgrade; older
-    // offer Roll back (pinning redirects to the immutable archived build).
+    const onEdge = runningEdge();
+    // Edge builds carry a monotonic build number (build.js), not a release version.
+    const newerEdge = onEdge && edgeBuild > BUILD;   // a fresher edge build is out
+    const runningFact = onEdge
+      ? 'the <b>unreleased edge build</b> — build ' + BUILD + ' (site root)'
+      : (VERSION === latestVersion ? '<b>v' + escapeHtml(VERSION) + '</b> — the live release'
+                                   : '<b>v' + escapeHtml(VERSION) + '</b> — a pinned snapshot');
+    const edgeFact = offline
+      ? (onEdge ? 'build ' + BUILD + ' <span class="vpill run">running</span>' : '<span class="vtag">unknown — offline</span>')
+      : 'the <b>edge build</b> at the site root — build ' + edgeBuild
+        + (onEdge ? (newerEdge ? ' · you’re on ' + BUILD : ' <span class="vpill run">running</span>') : '');
+
+    const facts =
+      '<div class="vfacts">' +
+        '<div class="vfact"><span class="vfl">Running now</span>' +
+          '<span class="vfv">' + runningFact + '</span></div>' +
+        '<div class="vfact"><span class="vfl">Live release</span>' +
+          '<span class="vfv">' + (offline ? '<span class="vtag">unknown — offline</span>'
+            : '<b>v' + escapeHtml(latestVersion) + '</b> — the snapshot a fresh visitor gets') + '</span></div>' +
+        '<div class="vfact"><span class="vfl">Latest edge</span>' +
+          '<span class="vfv">' + edgeFact + '</span></div>' +
+      '</div>';
+
+    // Load the LATEST edge build (site root). Always available — edge is a single
+    // moving target you can only ever move forward to, never a specific past build.
+    const edgeLabel = !onEdge ? '⬆ Load the latest edge build (build ' + edgeBuild + ')'
+      : (newerEdge ? '⬆ Update to the latest edge build (build ' + edgeBuild + ')'
+                   : 'Re-pull the latest edge build (build ' + edgeBuild + ')');
+    const edgeBtn = '<button class="widebtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>';
+
+    // Snapshots, newest first. A row is "running" only when it's the pinned build
+    // (on the edge root you're running the moving root, not a frozen snapshot).
     const rows = availableVersions.slice().sort(cmpVer).reverse().map((v) => {
-      const isLatest = v === latestVersion;
-      const isActive = v === VERSION && !pinned;
-      const tag = (isLatest ? ' (latest)' : '') + (isActive ? ' — running now' : (pinned === v ? ' — pinned' : ''));
-      const btn = isActive ? '<span class="vtag">running</span>'
-        : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLatest ? 'Upgrade to this' : 'Roll back to this') + '</button>';
-      return '<div class="vrow"><span>v' + escapeHtml(v) + escapeHtml(tag) + '</span>' + btn + '</div>';
+      const isLive = v === latestVersion;
+      const isRunning = !onEdge && (pinned ? v === pinned : v === VERSION);
+      const tags = (isLive ? '<span class="vpill live">live</span>' : '') +
+                   (isRunning ? '<span class="vpill run">running</span>' : '');
+      const btn = isRunning ? '<span class="vtag">running</span>'
+        : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use the live release' : 'Roll back to this') + '</button>';
+      return '<div class="vrow"><span>v' + escapeHtml(v) + ' ' + tags + '</span>' + btn + '</div>';
     }).join('');
+
     container.innerHTML =
-      '<p class="add-help" id="set-latest">' + line + '</p>' +
+      facts +
+      (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the live release — you may be offline. The snapshots below still work.</p>' : '') +
       changelogHtml() +
-      upgradeBtn +
-      '<p class="add-help">Nothing updates on its own — a plain reload always keeps you on the version you’re running. Upgrading pulls the newest build straight from gifos.app (the whole computer, not just one page, so the update fully lands). Rolling back runs a past build unchanged from a subfolder. Your files and data are shared across versions (migrations are additive), so switching is safe and reversible.</p>' +
+      edgeBtn +
+      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. The <b>live release</b> is the frozen snapshot a fresh visitor to gifos.app gets. The <b>edge build</b> is the site root right now, ahead of the release; it carries a build number that bumps on every change, and you can always jump to the latest — but edge builds aren’t archived, so you can’t go back to a specific one. <b>Snapshots</b> are past releases you can pin to and roll back to freely. Your files and data are shared across all of them (migrations are additive), so switching is safe.</p>' +
       '<div class="vlist">' + rows + '</div>';
-    const up = container.querySelector('#set-upgrade'); if (up) up.onclick = upgradeToLatest;
-    container.querySelectorAll('.vbtn').forEach((b) => { b.onclick = () => switchToVersion(b.getAttribute('data-v')); });
+    const eb = container.querySelector('#set-edge'); if (eb) eb.onclick = loadEdge;
+    container.querySelectorAll('.vbtn').forEach((b) => {
+      const v = b.getAttribute('data-v');
+      b.onclick = () => (v === latestVersion ? useRelease() : pinTo(v));
+    });
   }
 
   // Release notes for the Version panel. Shows every entry newer than the running
@@ -1892,11 +1938,14 @@
   // record. Critical releases are flagged so they stand out before you update.
   function changelogHtml() {
     if (!Array.isArray(changelog) || !changelog.length) return '';
-    const newer = changelog.filter((e) => e && cmpVer(e.version, VERSION) > 0).sort((a, b) => cmpVer(a.version, b.version)).reverse();
-    const list = newer.length ? newer : changelog.slice().sort((a, b) => cmpVer(a.version, b.version)).reverse().slice(0, 1);
-    const heading = newer.length ? 'What’s new since v' + escapeHtml(VERSION) : 'Latest release notes';
+    // The edge build has no release number and is ahead of every release, so
+    // "what's new since <me>" is meaningless there — just show recent notes.
+    const edge = runningEdge();
+    const newer = edge ? [] : changelog.filter((e) => e && cmpVer(e.version, VERSION) > 0).sort((a, b) => cmpVer(a.version, b.version)).reverse();
+    const list = newer.length ? newer : changelog.slice().sort((a, b) => cmpVer(a.version, b.version)).reverse().slice(0, edge ? 3 : 1);
+    const heading = newer.length ? 'What’s new since v' + escapeHtml(VERSION) : (edge ? 'Recent release notes' : 'Latest release notes');
     const items = list.map((e) => {
-      const critical = !!e.critical && cmpVer(e.version, VERSION) > 0;
+      const critical = !!e.critical && !edge && cmpVer(e.version, VERSION) > 0;
       const notes = (Array.isArray(e.notes) ? e.notes : []).map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('');
       return '<div class="cl-entry' + (critical ? ' cl-critical' : '') + '">' +
         '<div class="cl-head"><b>v' + escapeHtml(e.version) + '</b>' +

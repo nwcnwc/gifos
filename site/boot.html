@@ -11,13 +11,33 @@
 <script src="/js/sw-register.js" defer></script>
 <script>/* Global UI text size (Settings → Text size). Applied early; live across tabs. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.7,Math.min(1.6,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>GifOS — Booting image…</title>
+<!-- CHANNEL LOADER — identical to index.html. The VM shell carries the SAME
+     channel identity as its host: at the site root it is the edge build; under
+     /versions/<x>/ it is that release. Runs before the boot sequence below. -->
 <script>
-// The VM shell carries the SAME build version as index.html (kept in lockstep
-// by scripts/archive-version.sh's release checklist). Without it, desktop.js
-// falls back to an old literal and a booted computer nags about an "update"
-// the moment version.json moves past that fallback — with an update bar
-// overlaying the VM's icons.
-window.GIFOS_VERSION = '0.7.0';
+window.GIFOS_VERSION = 'edge';
+(function () {
+  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
+  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  function has(k) { return !!(q && q.has(k)); }
+  try {
+    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
+  } catch (e) {}
+  var pin = null, chan = null, cur = null;
+  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+  var here = location.pathname + location.hash;
+  function go(v) { location.replace('/versions/' + v + here); }
+  if (pin) { go(pin); return; }
+  if (chan === 'edge') return;
+  if (!/(^|\.)gifos\.app$/.test(location.hostname)) return;     // non-prod (localhost/preview) → edge
+  if (cur) { go(cur); return; }
+  try {
+    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
+  } catch (e) { /* offline, no cache → run this edge build */ }
+})();
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%BF%3C/text%3E%3C/svg%3E">
 <script>
@@ -80,6 +100,7 @@ window.GIFOS_VERSION = '0.7.0';
   <script src="js/gifos-store.js"></script>
   <script src="js/irl-apps.js"></script>
   <script src="js/sample-apps.js"></script>
+  <script src="js/build.js"></script>
   <script>
   (function () {
     var gif = GifOS.gif;

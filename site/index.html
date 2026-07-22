@@ -47,24 +47,41 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 }
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
+<!-- CHANNEL LOADER — runs before any app code. The site root (/) is the UNRELEASED
+     edge build; releases are immutable /versions/<x.y.z>/ snapshots. A fresh
+     visitor follows the live-release pointer (version.json.current); '?edge' opts
+     into the root edge build; a pin sticks to one snapshot. '?stable'/'?unpin'
+     returns to the default release channel. Snapshots under /versions/ never
+     redirect again. The pointer read is synchronous so the redirect happens
+     before any app code runs (no flash, no wasted boot); after the first visit
+     it's a cached fast path. Keep this snippet identical across the entry pages. -->
 <script>
-// Version + pinning bootstrap. Runs before any app code. The canonical site
-// (gifos.app/) is always the latest build; past builds live under
-// /versions/<x.y.z>/. A user can pin a version (deep Settings) — we redirect
-// here so the pin takes effect before anything else loads. ?unpin returns to
-// latest. Archived builds live under /versions/ and never redirect again.
-window.GIFOS_VERSION = '0.7.0';
+window.GIFOS_VERSION = 'edge';
 (function () {
-  window.gifosPinTarget = function (pathname, search) {
-    var q = new URLSearchParams(search || '');
-    if (q.has('unpin') || q.has('latest')) { try { localStorage.removeItem('gifos_pin'); } catch (e) {} return { clear: true }; }
-    var pin = null; try { pin = localStorage.getItem('gifos_pin'); } catch (e) {}
-    if (pin && pin !== window.GIFOS_VERSION && pathname.indexOf('/versions/') === -1) return { redirect: '/versions/' + pin + '/' };
-    return null;
-  };
-  var d = window.gifosPinTarget(location.pathname, location.search);
-  if (d && d.clear) history.replaceState(null, '', location.pathname);
-  else if (d && d.redirect) location.replace(d.redirect);
+  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
+  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  function has(k) { return !!(q && q.has(k)); }
+  try {
+    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
+  } catch (e) {}
+  var pin = null, chan = null, cur = null;
+  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+  var here = location.pathname + location.hash;                 // carry the page + invite hash across
+  function go(v) { location.replace('/versions/' + v + here); }
+  if (pin) { go(pin); return; }                                // pinned to a snapshot
+  if (chan === 'edge') return;                                  // opted into the edge build → run this root
+  // Default channel follows the live release — but only on the real domain. On
+  // localhost / preview hosts the root IS what you're developing, so stay edge.
+  if (!/(^|\.)gifos\.app$/.test(location.hostname)) return;
+  if (cur) { go(cur); return; }                                // default, fast path (last-known release)
+  // Default, first visit: resolve the release pointer, then redirect. On failure
+  // (offline, no cache) fall through and run this edge build.
+  try {
+    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
+  } catch (e) {}
 })();
 </script>
 <link rel="stylesheet" href="css/desktop.css">
@@ -102,6 +119,7 @@ window.GIFOS_VERSION = '0.7.0';
   <script src="js/gifos-store.js"></script>
   <script src="js/irl-apps.js"></script>
   <script src="js/sample-apps.js"></script>
+  <script src="js/build.js"></script>
   <script src="js/desktop.js"></script>
 </body>
 </html>

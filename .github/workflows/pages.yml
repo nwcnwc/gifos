@@ -24,8 +24,24 @@ jobs:
       url: https://gifos.app/
     runs-on: ubuntu-latest
     steps:
+      # Full history so the edge build number (count of site-touching commits) is
+      # accurate — a shallow checkout would report 1.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/configure-pages@v5
+      # Edge build number: a monotonic counter that bumps on every push touching
+      # the site tree. It's DERIVED (git rev-list count), not a committed counter,
+      # so there's no self-triggering commit loop and it always deploys. Baked into
+      # the served artifact (not committed): build.js carries it as GIFOS_BUILD (the
+      # build you're running, cache-first), and version.json carries it as edgeBuild
+      # (the latest available, network-first). The Version panel compares the two.
+      - name: Stamp edge build number
+        run: |
+          BUILD=$(git rev-list --count HEAD -- site)
+          echo "edge build = $BUILD"
+          printf '/* baked at deploy by pages.yml — see site/js/build.js */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > site/js/build.js
+          node -e "const f='site/version.json',j=JSON.parse(require('fs').readFileSync(f));j.edgeBuild=$BUILD;require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
       # Cache-busting: stamp ?v=<short-sha> onto every LOCAL css/js reference in
       # the published HTML. Each deploy gets a unique version, so a returning
       # browser fetches fresh CSS/JS the moment it loads a new page instead of
