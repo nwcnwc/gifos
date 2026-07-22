@@ -118,7 +118,7 @@ a .zip for multi-file apps). GifOS packs the GIF there.
    - ai: gifos.ai.chat/tts/stt/image/video and gifos.ai.models(). DECLARE the AI
      TYPES you use as an array — capabilities.ai:["smartest","cheapest","image"]
      — not a bare true, so the user knows which models to set up and the app is
-     gated to those types (smartest/cheapest text, tts, stt, image,
+     gated to those types (smartest/cheapest text LLM, tts, stt, image,
      image_to_video, video). The user wires endpoints + keys per type in
      Settings -> AI models; the app never sees a key.
    - api: gifos.api(name, { method, path, query, headers, body, as }) for ANY
