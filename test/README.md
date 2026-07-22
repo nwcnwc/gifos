@@ -266,6 +266,7 @@ Each spawns its own relay and its own static server for THIS checkout's
 | `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake |
 | `e2e-vanish-browser.js` | the browser half of D5: pagehide→instant LEAVE, `dc.onclose`→`transportLost`→probe-gated early confirm, with a SIGKILLed victim browser |
 | `e2e-meet-app-prettyurl.js` | an app shared into a meeting STAYS mounted under the pretty `/meet/<room>` URL. Forces the gifos.app-only pretty-URL rewrite locally (route-patches `pretty=true`, blocks the SW) so the document base moves as it does on prod, then asserts the runtime does not 404 `app-owner.js` and the app is not torn down ~1s after mount. Guards the prod-only regression where a relative dynamic script load broke under the moved base |
+| `e2e-meet-app-guest-perms.js` | a GUEST of a meeting mounts a shared network-capable app (the Bible Browser) AND is shown its "reach the internet" challenge, under the pretty `/meet/<room>` base. Same pretty-forcing as above, two participants: guards the CLIENT-side face of the `app-owner.js` moved-base 404 — where `bootClientBus` threw before `mountApp` (so no iframe, no `__gifosPermissions`) and the guest saw a blank space with no challenge |
 
 ## swarm/ — scale and live tools
 
