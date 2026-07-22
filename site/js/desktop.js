@@ -1400,8 +1400,16 @@
   // newest computer from the live site instead of rebooting the same old cached
   // one. Offline, we can't fetch a fresh build, so we keep the cached shell and
   // just reboot it with empty storage (a clean computer on the current version).
+  //
+  // A factory reset also clears the custom relay override (gifos_relay): a fresh
+  // computer talks to the default relay, and a stale override pointing at a dead
+  // relay (e.g. a leftover ws://127.0.0.1 from local testing) is exactly the kind
+  // of invisible, invite-breaking state that survives a normal "wipe everything"
+  // and leaves the user stuck — invites fail with "relay connection failed" while
+  // a private window (no override) works fine.
   async function eraseComputer() {
     try { localStorage.removeItem('gifos_pin'); } catch (e) {}
+    try { localStorage.removeItem('gifos_relay'); } catch (e) {}
     await store.clearAll();
     if (await reachable()) { await dropShellCaches(); location.replace('/?latest=' + Date.now()); }
     else location.reload();
