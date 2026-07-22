@@ -5,7 +5,15 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-static const int C = 5;
+// Section size. Compile-time so array bounds (MAXLINKS, out[C-1]) stay static;
+// override for the multi-section C-sweep with -DGIFOS_C=<n>. The base-6 path
+// encoding below has headroom for any C<=5, so C in {2,3,4,5} needs no other
+// change (a smaller room reaches multiple sections with far fewer seats, which
+// is the point of sweeping low C — it exercises the cross-section tree cheaply).
+#ifndef GIFOS_C
+#define GIFOS_C 5
+#endif
+static const int C = GIFOS_C;
 // Max owned-link degree of any seat. Section 1 (pc==0) is the 5x5 ROOK'S GRAPH
 // (W7): C-1 row-mates + C-1 column-mates + 1 down = 2C-1 = 9. Deep sections keep
 // the sparse C+1 bound (C-1 row-mates + 1 cross + 1 up + 1 down). 2C-1 dominates.
