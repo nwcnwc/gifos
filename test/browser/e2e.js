@@ -131,7 +131,7 @@ async function openApp(page, ctx, folder, label) {
   await gamesIcons.nth(1).dblclick();
   await sleep(400);
   const importedKids = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('imported folder contains its games', ['Tic-Tac-Toe.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((g) => importedKids.includes(g)));
+  check('imported folder contains its games', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif', 'Ping Pong.gif'].every((g) => importedKids.includes(g)));
   // and the minesweeper state survived the bundle round-trip
   const [mineAgain] = await Promise.all([
     context.waitForEvent('page'),
@@ -196,11 +196,11 @@ async function openApp(page, ctx, folder, label) {
   });
   await sleep(250);
 
-  // Games folder has the four games
+  // Games folder has the five games
   await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
   await sleep(250);
   const gameLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((a) => gameLabels.includes(a)));
+  check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess, Ping Pong', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif', 'Ping Pong.gif'].every((a) => gameLabels.includes(a)));
   // Minesweeper reveals cells; Chess shows a lobby
   const mine = await openApp(page, context, null, 'Minesweeper.gif'); // already inside Games
   await mine.waitForSelector('iframe');
