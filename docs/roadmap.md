@@ -600,6 +600,79 @@ game state).
 - **Recording / screenshots:** faces-as-game-sprites raises the same consent
   questions as any A/V capture; inherit the meeting's existing capture policy.
 
+### 4f. Meeting party games (flagship default apps)
+
+**What.** Ship a set of **multiplayer games designed for a live meeting** — apps
+that ride the Stage DATA lane and use the room roster, chat, and (optionally
+§4e) the video tiles. Headliner, **must-have**:
+
+- **Draw & Guess (the classic drawing game).** One player draws on a **shared
+  canvas** (extend the existing **Paint** default app, `sample-apps.js`) from a
+  secret prompt; **everyone else races to guess** by typing, with **team play**
+  and scoring. Round timer, drawer rotation, word list + custom decks, points
+  for guesser *and* drawer, "close!" near-miss hinting optional. This is the
+  canonical video-meeting party game and a flagship demo of "the meeting is a
+  platform."
+
+Beyond the headliner, the same slot fits **charades** (act it on camera, others
+guess — leans on §4e to spotlight the actor's tile), **trivia/buzzer**,
+**Codenames-style word grids**, and the GamePigeon-parity quick games
+(Checkers, Battleship, Word Hunt, 8-Ball) noted under §3/GamePigeon comparison.
+
+**Why it fits.**
+- In-meeting apps already ride the **Stage DATA lane** (`app-mesh.md`) with a
+  shared `db`/collection model (see Chess/Connect-Four/Chat default apps) — a
+  drawing game is a shared **stroke stream** + **guess stream** + **score doc**,
+  nothing new in the network model.
+- **Paint already exists** as a default app with a shared `canvas` collection;
+  Draw & Guess is Paint + turns + a hidden prompt + a guess/score loop. Highest
+  payoff for least new primitive.
+- It's the sharpest answer to "GamePigeon but for a whole live room": a
+  real-time, N-player, in-video game no message-transport toy can do — and it
+  showcases teams, chat, timing, and (with §4e) the faces themselves.
+- Party games are proven GifOS territory (the **IRL Games** folder:
+  Fake Facts, One Clue, Wolves, …) — this extends that instinct from
+  in-person/pass-the-phone to the **live remote meeting**.
+
+**Sketch (Draw & Guess specifically).**
+- **State:** `strokes` (append-only, the canvas — reuse Paint's model),
+  `guesses` (chat-like stream, but the app judges them against the hidden word),
+  `game` doc (`round`, `drawer`, `word` *revealed only to the drawer*, `phase`,
+  `timer`, `teams`, `scores`).
+- **Secret word to the drawer only:** the prompt must reach *just* the current
+  drawer, not the guessers — same hidden-info discipline as §4e's memory game.
+  Either the app derives per-round who may read `word` (client-enforced with the
+  drawer's identity) or the drawer's client generates the word locally from a
+  shared seeded deck + round index (no secret ever on the wire). Prefer the
+  latter — **derive, don't send** — so a peeking client can't read the answer.
+- **Judging:** guesser types in a guess lane; the drawer's/authority client
+  matches against the word (normalize case/space, fuzzy for near-miss),
+  awards points, advances phase. No server — an elected round-authority (the
+  drawer, or a rotating host) writes the score doc; others verify against the
+  same deck.
+- **Teams & rotation:** team assignment doc; drawer rotates round-robin across
+  teams; scoreboard sidebar. Reuse the row-styling / sidebar conventions.
+- **Timer:** shared countdown in the `game` doc; end-of-round reveal.
+- **Composes with §4e:** charades/act-it modes spotlight the actor's video tile;
+  Draw & Guess can float the canvas over the Stage. Not required for v1 (Draw &
+  Guess works as an ordinary app panel), but the seam is there.
+
+**Open questions.**
+- **Anti-cheat on the hidden word:** derive-locally is peek-proof but means the
+  drawer's deck and round-index must be authoritative and unforgeable; how does
+  a late joiner sync the deck position without learning past/future words early?
+- **Round authority election:** who writes scores if the drawer drops
+  mid-round — fall to host, or a deterministic next-seat rule (ties to the
+  mesh's existing leave/heal).
+- **Word decks:** ship a default deck; allow custom decks (a maker submits a
+  deck app via §6 store?); age-appropriate / room-configurable content.
+- **Guess channel vs meeting chat:** separate lane (so guesses don't spam chat)
+  or reuse chat with app-side judging? Probably separate lane, with correct
+  guesses echoed to chat.
+- **Scope:** is 4f a curated first-party pack, or mostly a **showcase** proving
+  the §6 app-store + §4e seams so the community builds the long tail? (Lean:
+  ship Draw & Guess first-party as the flagship; let the rest be store apps.)
+
 ## 5. Paid meetings (x402)
 
 Third meeting class alongside **open** and **admin**: **paid**. Creation /
