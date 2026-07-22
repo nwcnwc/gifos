@@ -33,6 +33,10 @@
     '.perm-row .host{display:block;font-weight:600;word-break:break-word;cursor:pointer}' +
     '.perm-row.any .host{color:color-mix(in srgb,#ff8a3d 60%,var(--text,#e0e0f0))}' +
     '.perm-row .desc{display:block;margin-top:.15rem;color:var(--muted,#8888aa);font-size:.8rem;line-height:1.35}' +
+    '.perm-row .cap-set{display:block;margin-top:.3rem;font-size:.78rem;line-height:1.35;word-break:break-word}' +
+    '.perm-row .cap-set.on{color:color-mix(in srgb,#4ade80 68%,var(--text,#e0e0f0))}' +
+    '.perm-row .cap-set.off{color:color-mix(in srgb,#ff8a3d 66%,var(--text,#e0e0f0))}' +
+    '.perm-row .cap-set b{font-weight:600}' +
     '.perm-box .foot{color:var(--muted,#6a6a86);font-size:.75rem;line-height:1.5;margin:1rem 0 1.1rem}' +
     '.perm-box .done{padding:.5rem 1.4rem;border-radius:.5rem;border:1px solid var(--accent,#7b5cff);background:var(--accent,#7b5cff);color:var(--onaccent,#fff);cursor:pointer;font:inherit}' +
     '.perm-btns{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.1rem}' +
@@ -58,6 +62,19 @@
   var apiNames = function (manifest) { var a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
   var aiRoles = function (manifest) { var a = manifest && manifest.capabilities && manifest.capabilities.ai; return Array.isArray(a) ? a.filter(function (r) { return AI_ROLE_LABELS[r]; }) : []; };
   function ls() { return root.localStorage; }
+  function cfgOf(key) { try { return JSON.parse(ls().getItem(key) || '{}') || {}; } catch (e) { return {}; } }
+  function hostOf(url) { try { return new URL(url).host; } catch (e) { return String(url || '').replace(/^\w+:\/\//, '').split('/')[0] || ''; } }
+  // Current state of a settings-backed ability, so the consent popup can say
+  // whether it's set, what to, and (if not) where to set it. "what it's set to"
+  // is the configured model (or the endpoint host if no model was named) — never
+  // the key, which the popup must never reveal.
+  function aiRoleState(role) { var c = cfgOf('gifos_ai_config')[role] || {}; return { set: !!c.url, label: AI_ROLE_LABELS[role] || role, detail: c.url ? (c.model || hostOf(c.url)) : '' }; }
+  function apiAcctState(name) { var c = cfgOf('gifos_api_config')[name] || {}; return { set: !!c.url, label: name.charAt(0).toUpperCase() + name.slice(1), detail: c.url ? hostOf(c.url) : '' }; }
+  function capStatusLine(st, whereHtml) {
+    return st.set
+      ? '<span class="cap-set on">✓ ' + escapeText(st.label) + ' — set to <b>' + escapeText(st.detail) + '</b></span>'
+      : '<span class="cap-set off">• ' + escapeText(st.label) + ' isn’t set up yet — ' + whereHtml + '</span>';
+  }
 
   function attach(chipEl, opts) {
     opts = opts || {};
@@ -90,24 +107,30 @@
       function setCapEnabled(k, on) {
         try { var s = capOff().filter(function (x) { return x !== k; }); if (!on) s.push(k); ls().setItem(capOffKey, JSON.stringify(s)); } catch (e) {}
       }
-      function capRow(k, title, desc) {
+      function capRow(k, title, desc, statusHtml) {
         return '<label class="perm-row"><input type="checkbox" data-cap="' + escapeText(k) + '"' + (capEnabled(k) ? ' checked' : '') + '>' +
           '<span><span class="host">' + title + '</span>' +
-          '<br><span class="desc">' + desc + ' Uncheck to turn this off for this app.</span></span></label>';
+          '<br><span class="desc">' + desc + ' Uncheck to turn this off for this app.</span>' +
+          (statusHtml || '') + '</span></label>';
       }
       function capBlock() {
         if (!caps.length) return '';
         return caps.map(function (k) {
           if (k === 'api') {
-            var names = apiNames(manifest).map(function (n) { return escapeText(n.charAt(0).toUpperCase() + n.slice(1)); });
-            return capRow('api', 'Use your ' + names.join(', ') + ' account' + (names.length > 1 ? 's' : ''), CAP_DESC.api);
+            var apis = apiNames(manifest);
+            var names = apis.map(function (n) { return escapeText(n.charAt(0).toUpperCase() + n.slice(1)); });
+            // Per-account: is it wired up in Settings, and if so to which host?
+            var apiStatus = apis.map(function (n) { return capStatusLine(apiAcctState(n), 'add it in <b>Settings → Third-party APIs</b>'); }).join('');
+            return capRow('api', 'Use your ' + names.join(', ') + ' account' + (names.length > 1 ? 's' : ''), CAP_DESC.api, apiStatus);
           }
           if (k === 'ai') {
             var roles = aiRoles(manifest);
             var which = roles.length
               ? ' <span class="host" style="font-weight:400">— ' + roles.map(function (r) { return escapeText(AI_ROLE_LABELS[r]); }).join(', ') + '</span>'
               : '';
-            return capRow('ai', CAP_LABELS.ai + which, CAP_DESC.ai + (roles.length ? ' Set these up in Settings → AI models.' : ''));
+            // Per-role: is a model set up, and if so which one? (else where to set it)
+            var aiStatus = roles.map(function (r) { return capStatusLine(aiRoleState(r), 'add it in <b>Settings → AI models</b>'); }).join('');
+            return capRow('ai', CAP_LABELS.ai + which, CAP_DESC.ai, aiStatus);
           }
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');
