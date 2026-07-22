@@ -158,7 +158,7 @@
     const putApp = async (a, parent, pos) => {
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
-        isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif' });
+        isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif', isDefault: true });
       await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
         parent, x: pos.x, y: pos.y, iconSize: 64 });
     };
@@ -181,6 +181,54 @@
     };
     for (const folder of seed.folders) await putFolder(folder, null, rightX, rowY(rightRow++));
     await load();
+  }
+
+  // ---- rebuild the built-in default apps from THIS build's code ----------------
+  // A default app's code is baked into its GIF at seed time, so a desktop seeded
+  // on one build keeps that build's Connect Four (etc.) even after you switch to a
+  // newer build — there was no way to pull the newer default apps short of a
+  // factory reset. On an explicit build switch (pin / release / edge) we re-bake
+  // each seeded default app from the RUNNING build's sample-apps.js. Only the app
+  // CODE (and its icon art) is swapped, IN PLACE: the app keeps its saved data,
+  // which lives in the store keyed by fileId, so game scores / notes carry over.
+  // (A new build's data format could in theory be incompatible with the old data;
+  // we don't guard for that — the remedy is to erase the computer.) Apps that
+  // merely share a default appId but are stolen/imported copies are left alone —
+  // never touch anything under Stolen Apps (only seeded copies carry isDefault).
+  async function rebuildDefaultApps() {
+    if (!(GifOS.samples && GifOS.samples.build)) return 0;
+    const seed = await GifOS.samples.build();
+    const fresh = {};
+    const add = (a) => { if (a && a.appId && !(a.appId in fresh)) fresh[a.appId] = a; };
+    (seed.loose || []).forEach(add);
+    (function walk(list) { (list || []).forEach((f) => { (f.apps || []).forEach(add); walk(f.sub); }); })(seed.folders);
+    const files = await store.allFiles();
+    const fileById = {}; for (const f of files) fileById[f.id] = f;
+    const itemById = {}; for (const it of items) itemById[it.id] = it;
+    const underStolen = (it) => { let c = it, g = 0; while (c && g++ < 64) { if (c.id === 'sys_stolen' || c.parent === 'sys_stolen') return true; c = c.parent ? itemById[c.parent] : null; } return false; };
+    let n = 0;
+    for (const it of items) {
+      if (it.kind !== 'file' || !it.fileId) continue;
+      const f = fileById[it.fileId];
+      if (!f || !f.isApp || !f.appId) continue;
+      const a = fresh[f.appId];
+      if (!a) continue;                                  // user-built/renamed app, or a default this build dropped
+      if (underStolen(it) && f.isDefault !== true) continue;  // a stolen copy that shares a default appId — leave it
+      await store.putFile(Object.assign({}, f, { bytes: a.bytes, accent: a.accent, isDefault: true }));
+      n++;                                               // code swapped in place; the app's saved data (by fileId) is untouched
+    }
+    return n;
+  }
+
+  // On the FIRST load after a build switch, the switch set gifos_reseed — re-bake
+  // the default apps from this build, once, then clear the flag. Best-effort: a
+  // failed rebuild must never block boot.
+  async function reseedDefaultsIfFlagged() {
+    let flagged = false;
+    try { flagged = localStorage.getItem('gifos_reseed') === '1'; } catch (e) {}
+    if (!flagged) return;
+    try { localStorage.removeItem('gifos_reseed'); } catch (e) {}
+    try { if (await rebuildDefaultApps()) await load(); } catch (e) { /* never block boot */ }
   }
 
   // System items exist on every desktop, including old ones from before they
@@ -1843,14 +1891,17 @@
   // ----- the three version moves, all channel-aware (see the root loader) -----
   // PIN to an immutable /versions/<v>/ snapshot (roll back, or stick to the live
   // release). Clears the edge channel so the loader honours the pin.
+  // gifos_reseed tells the build we're switching TO to re-bake its default apps on
+  // first load (see reseedDefaultsIfFlagged) — set on every build move so the new
+  // build's default apps actually land instead of the ones baked at seed time.
   function pinTo(v) {
-    try { localStorage.setItem('gifos_pin', v); localStorage.removeItem('gifos_channel'); } catch (e) {}
+    try { localStorage.setItem('gifos_pin', v); localStorage.removeItem('gifos_channel'); localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
     location.replace('/versions/' + v + '/');
   }
   // USE THE LIVE RELEASE: default channel (no pin, no edge). The loader resolves
   // version.json.current and lands on that snapshot.
   function useRelease() {
-    try { localStorage.removeItem('gifos_pin'); localStorage.removeItem('gifos_channel'); } catch (e) {}
+    try { localStorage.removeItem('gifos_pin'); localStorage.removeItem('gifos_channel'); localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
     location.replace('/?stable&ts=' + Date.now());
   }
   // LOAD THE UNRELEASED EDGE build at the site root. Opt into the edge channel and
@@ -1860,7 +1911,7 @@
       showConfirm('Can’t reach gifos.app', 'You appear to be offline. Reconnect and try again — the unreleased build has to download from the site.', [{ label: 'OK' }]);
       return;
     }
-    try { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); } catch (e) {}
+    try { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
     await refreshShell();
     location.replace('/?edge&ts=' + Date.now());
   }
@@ -1930,7 +1981,7 @@
       (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the live release — you may be offline. The snapshots below still work.</p>' : '') +
       changelogHtml() +
       edgeBtn +
-      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. The <b>live release</b> is the frozen snapshot a fresh visitor to gifos.app gets. The <b>edge build</b> is the site root right now, ahead of the release; it carries a build number that bumps on every change, and you can always jump to the latest — but edge builds aren’t archived, so you can’t go back to a specific one. <b>Snapshots</b> are past releases you can pin to and roll back to freely. Your files and data are shared across all of them (migrations are additive), so switching is safe.</p>' +
+      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. The <b>live release</b> is the frozen snapshot a fresh visitor to gifos.app gets. The <b>edge build</b> is the site root right now, ahead of the release; it carries a build number that bumps on every change, and you can always jump to the latest — but edge builds aren’t archived, so you can’t go back to a specific one. <b>Snapshots</b> are past releases you can pin to and roll back to freely. Your files and data are shared across all of them (migrations are additive), so switching is safe — it also rebuilds the built-in <b>default apps</b> to the build you switch to, and the data saved inside them carries over.</p>' +
       '<div class="vlist">' + rows + '</div>';
     const eb = container.querySelector('#set-edge'); if (eb) eb.onclick = loadEdge;
     container.querySelectorAll('.vbtn').forEach((b) => {
@@ -2324,7 +2375,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
+  load().then(seedIfEmpty).then(reseedDefaultsIfFlagged).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);
