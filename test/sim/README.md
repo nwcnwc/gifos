@@ -5,7 +5,7 @@ threading (Node tops out ~thousands of seats/sec; goal is billions — everyone
 on Earth). Faithful port of the NO-ROOT topology + all healing laws
 (P, D1-D4, H1-H7, C1-C3, W1-W5, E1-E3, R1-R4) from test/mesh-scale.js.
 
-    g++ -O2 -std=c++17 -o mesh sim/mesh.cpp
+    g++ -O2 -std=c++17 -o mesh test/sim/mesh.cpp
     ./mesh 100000 0            # batch: JOIN 100k, report convergence + ticks/s
     ./mesh 5000 0.5           # JOIN then 50% departure heal
 
@@ -23,9 +23,9 @@ on Earth). Faithful port of the NO-ROOT topology + all healing laws
       killat <path>/<r>.<i> [silent]  # kill the occupant of ONE coord (deterministic scenarios)
       quit
 
-Scenario suites: sim/sweep.sh (churn + partition verdict),
-sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3),
-sim/repro-atomic-move.sh (the mover's lease, law T: mover death mid-transit,
+Scenario suites: test/sim/sweep.sh (churn + partition verdict),
+test/sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3),
+test/sim/repro-atomic-move.sh (the mover's lease, law T: mover death mid-transit,
 lease-window death, cascade scooches, churn during transit).
 
 Files: topo.h (topology arithmetic), mesh.cpp (fabric + run/service),

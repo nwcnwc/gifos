@@ -76,7 +76,7 @@ kill (churn seed 5, split 7, D5 crash leg all broke). `heldRightNow` (3 beats,
   density, and the media near-field is row-scoped); letting another seat admit
   into a memberless row (healer race — "don't devolve").
 
-**Where it is checked.** `sim/sweep.sh` asserts only the invariant — no
+**Where it is checked.** `test/sim/sweep.sh` asserts only the invariant — no
 split-brain — and says nothing about the freeze. The freeze lives in
 `test/batteries/known-unfixed.sh`:
 
@@ -120,8 +120,8 @@ and delete it from the file. Never soften an assertion to make it green.
 - To gate `site/js/mesh.js` before it hits auto-deploying `main`: push a temp
   branch, `git reset --hard` nvidia onto it, run batteries, then fast-forward
   `main`. `git am` onto nvidia failed; the branch route is clean.
-- `sim/repro-*.sh` honour `BIN=` for the OUTPUT path but always rebuild from
-  `sim/mesh.cpp` — to test a variant you must swap the source in the checkout,
+- `test/sim/repro-*.sh` honour `BIN=` for the OUTPUT path but always rebuild from
+  `test/sim/mesh.cpp` — to test a variant you must swap the source in the checkout,
   not point `BIN` at a prebuilt binary. This silently invalidated one A/B run.
 - The battery caught a bad fix of mine that every single-purpose repro missed.
   Run it cold before believing any seating/healing change.

@@ -1,6 +1,6 @@
 /*
  * mesh.js — the GifOS no-root mesh CONTROL PLANE, a faithful port of the C++
- * reference sim (sim/mesh.cpp + sim/mesh_seat.inc + sim/topo.h). This is the
+ * reference sim (test/sim/mesh.cpp + test/sim/mesh_seat.inc + test/sim/topo.h). This is the
  * production seating + healing brain; docs/healing-laws.md is its law catalog
  * and docs/sim-split-brain.md the anti-divergence casebook (7 fixed bugs —
  * every one of them is mirrored here, do not regress them).
@@ -51,7 +51,7 @@
   const ck = topo.ckey, unck = topo.unck;
   const C = () => net.SCALE.C;
 
-  // ---- constants (mirror sim/mesh.cpp — SWEPT values, tuned for C=5 and the
+  // ---- constants (mirror test/sim/mesh.cpp — SWEPT values, tuned for C=5 and the
   // lastPhone>=8 heartbeat cadence; re-sweep in the sim before changing) ----
   const RELAY_TTL = 500;     // greeter entry lifetime (ticks)
   const RELAY_CAP = 72;      // max greeter entries the relay holds
@@ -62,7 +62,7 @@
   // this settled window — far higher than the deep-tree confirmation (60),
   // because the rook has many paths to exhaust. A wrong ring-heal is the one act
   // that mints a divergent home; a held hole is a recoverable availability dip.
-  const RING_HOLD = 220;     // sim/mesh.cpp RING_HOLD
+  const RING_HOLD = 220;     // test/sim/mesh.cpp RING_HOLD
   // A three-state occupancy: soft sitting-down TTL + assigner recheck (loss wedge).
   const SIT_TTL = 90, SIT_RECHECK = 25;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
@@ -74,21 +74,21 @@
   // pending), short enough that an ungraceful death is confirmed in seconds.
   // The horizon (60 / RING_HOLD) remains the backstop when no transport event
   // fired; an answered probe clears the observation entirely.
-  const EARLY_HOLD = 12;     // sim/mesh.cpp EARLY_HOLD
+  const EARLY_HOLD = 12;     // test/sim/mesh.cpp EARLY_HOLD
   // T — the mover's lease (atomic seat switching, healing-laws.md law T).
   // A self-move TAKES its new seat FIRST and vacates the old one only when the
   // claim CONFIRMS; a contradiction rolls the mover back to its still-held old
   // seat. After confirm the old cell keeps a bounded FORWARDING TOMBSTONE.
-  const CONFIRM_TTL = 16;    // sim/mesh.cpp CONFIRM_TTL
-  const LEASE_TTL = 40;      // sim/mesh.cpp LEASE_TTL
+  const CONFIRM_TTL = 16;    // test/sim/mesh.cpp CONFIRM_TTL
+  const LEASE_TTL = 40;      // test/sim/mesh.cpp LEASE_TTL
   // Q2 — COMPACTION (roadmap §3, healing-laws law T): a settled deep LEAF that a
   // fresh probe would place STRICTLY SHALLOWER walks its own ALIVE up-chain and
   // joins the nearest strictly-shallower OCCUPIED row (densify) via an atomic
   // law-T move. Rate-limited + local-quiescence-gated so a healing boundary never
   // sloshes; depth is a monotone potential ⇒ MOVES provably settle.
-  const COMPACT_PERIOD = 90; // sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
-  const COMPACT_SETTLE = 300; // sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
-  const COMPACT_TTL = 30;    // sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
+  const COMPACT_PERIOD = 90; // test/sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
+  const COMPACT_SETTLE = 300; // test/sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
+  const COMPACT_TTL = 30;    // test/sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;

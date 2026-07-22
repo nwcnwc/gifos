@@ -83,7 +83,7 @@ so it is the one mover routinely still linked to the seat it would displace.
 
 ## OPEN: Q2 compaction lone-row density
 
-`sim/repro-compaction.sh` leg 1 FAILS. Bisected cleanly to **`7207598`** (same
+`test/sim/repro-compaction.sh` leg 1 FAILS. Bisected cleanly to **`7207598`** (same
 commit as the sever bug, different mechanism).
 
 ```

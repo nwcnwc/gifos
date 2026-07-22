@@ -1,4 +1,4 @@
-// topo.js — unit test for net.topo, the JS port of sim/topo.h. Parity with the
+// topo.js — unit test for net.topo, the JS port of test/sim/topo.h. Parity with the
 // C++ is by-construction (line-for-line arithmetic); this pins the invariants
 // the heal + media planes rely on, plus hand-computed values, so a future edit
 // that drifts from topo.h fails loudly.
@@ -65,7 +65,7 @@ check('colMates(pc!=0) is empty (deep tree keeps the sparse transpose)', ok);
 
 // W7: Section 1 (pc==0) is the 5x5 ROOK'S GRAPH — uniform degree 2C-1 = 9
 // (C-1 row + C-1 column + 1 down), heads included; structure is EXACTLY
-// full row + full column + down, nothing else; no up-link. (sim/topo_test.cpp)
+// full row + full column + down, nothing else; no up-link. (test/sim/topo_test.cpp)
 check('MAXLINKS === 2C-1', topo.MAXLINKS() === 2 * C - 1, topo.MAXLINKS());
 let rookDeg = true, rookStruct = true, rookNoUp = true;
 for (let r = 0; r < C; r++) for (let i = 0; i < C; i++) {

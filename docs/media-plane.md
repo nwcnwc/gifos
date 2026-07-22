@@ -23,7 +23,7 @@ common witness). Implementation: `site/meet.html` peer-relay; gate:
 co-member joins the **same** room and relays — not a two-meeting merge).
 
 The whole geometry derives from `C` (`site/js/gifos-net.js` SCALE, C=5) and the
-link primitives in `sim/topo.h` (ported to `net.topo`):
+link primitives in `test/sim/topo.h` (ported to `net.topo`):
 
 - **row mesh** — a seat is fully meshed with its `C-1` row-mates.
 - **cross-link** — every non-head (column > 0) holds one link to its transpose

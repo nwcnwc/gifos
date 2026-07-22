@@ -18,7 +18,7 @@ points at the four canonical docs that specify each layer:
 The page itself is `site/meet.html`, a **system app** (trusted first-party code,
 not a sandboxed GIF app) because live camera/mic + WebRTC cannot run in the app
 sandbox. Its control brain is `site/js/mesh.js` (a line-for-line port of the C++
-reference sim in `sim/`), bound to real WebRTC transports by
+reference sim in `test/sim/`), bound to real WebRTC transports by
 `site/js/mesh-wire.js`, with media in `site/js/mesh-media.js` and the shared
 transport fabric in `site/js/gifos-net.js`.
 
@@ -88,7 +88,7 @@ returns the current roster. When seats die, rows heal themselves by promoting a
 leaf from their own subtree, and orphaned subtrees either refill in place or drain
 and re-seat — all P2P, with the relay untouched. The full set of detection,
 healing, anti-cascade, and entry laws is [`healing-laws.md`](healing-laws.md);
-`site/js/mesh.js` is the faithful port of the reference sim (`sim/`) that
+`site/js/mesh.js` is the faithful port of the reference sim (`test/sim/`) that
 implements them (fixed-designation healing, first-hand liveness, S4 identity).
 
 **Efficiency note:** encodes = links. A seat only ever encodes media for the

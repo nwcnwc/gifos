@@ -3,7 +3,7 @@
 #
 #   test/swarm/join-ladder.sh [burst|serial|group] [N...]
 #
-# sim/repro-join-patterns.sh proves the control plane seats everyone, in H7
+# test/sim/repro-join-patterns.sh proves the control plane seats everyone, in H7
 # row-major order, under every arrival pattern. This is the same ladder run in
 # actual browsers against a real relay — because "the sim is fine" and "a
 # meeting works" are different claims, and the gap between them is where every

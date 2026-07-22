@@ -77,7 +77,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   parent/peers to place *itself* better if they can see a densifying slot.
   **Self-duty only (Nathan):** never orders other seats to move. Hysteresis
   (COMPACT_SETTLE / period / leaf-only / rightmost-in-row). Gate:
-  `sim/repro-compaction.sh` GREEN. Remaining for E: optional home-LAN soak /
+  `test/sim/repro-compaction.sh` GREEN. Remaining for E: optional home-LAN soak /
   battery inclusion; not a greenfield build.
 
 - **D / H-CHAIN — designation chain (PARTIAL LIVE).** Row-clique multi-level
@@ -91,7 +91,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   occupancy empty / sitting-down / seated in sim + `mesh.js`. Soft sit on
   admit; joiner self-confirms; assigner recheck + soft TTL 90; row fill while
   head sitting-down OK; next row waits for head seated. Gate:
-  `sim/repro-loss-wedge.sh` (loss=0.10 N=60 → ≥55 seated; was 5/60 phantom).
+  `test/sim/repro-loss-wedge.sh` (loss=0.10 N=60 → ≥55 seated; was 5/60 phantom).
   Follow-ups: s1row gossip residual after mass S1 wipe; seed-10 sweep kill
   can leave S1 short under 15k converge ticks.
 

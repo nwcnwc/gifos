@@ -25,9 +25,9 @@
 # and the property under test is the same: a participant that will not
 # cooperate must never stop anyone else from getting in.
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN=${MESH_BIN:-/tmp/mesh-adv}
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || exit 9
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || exit 9
 fail=0
 
 # verdict <label> <expected-seated> <output>

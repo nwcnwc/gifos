@@ -30,7 +30,7 @@ reality. Cheap and deterministic at the bottom, slow and true at the top.
 
 | rung | what runs | proves | blind to |
 |---|---|---|---|
-| `sim/mesh.cpp` + `sim/repro-*.sh` | the C++ reference, to millions of seats | the LAWS: topology, seating, healing, every arrival pattern | transports, crypto, browsers, wall-clock |
+| `test/sim/mesh.cpp` + `test/sim/repro-*.sh` | the C++ reference, to millions of seats | the LAWS: topology, seating, healing, every arrival pattern | transports, crypto, browsers, wall-clock |
 | `test/mesh/mesh-harness.js` | `site/js/mesh.js` replaying the sim's own scenarios at N=500/1000 | the JS port still matches the brain | real transports |
 | `test/mesh/e2e-mesh-wire.js`, `flood.js`, `e2e-mesh-identity.js` | mesh + `mesh-wire.js` over a REAL relay, real sealing and signing, in Node | the wire binding: knock, greeters, genesis, S4 | WebRTC, browsers |
 | `test/drills/*` | real browsers, real WebRTC, own relay + site | what a meeting actually does | scale |
@@ -41,7 +41,7 @@ before `init`: `net loss=` drops messages, `net sever=` kills links and leaves
 them dead, `net subnets=N density=D` makes whole groups of peers *mutually
 unreachable*, `net lat=`/`qual=` degrade the path, and `sever A B T` cuts one
 named link with `TRANSLOST` observed at both ends exactly as a closed
-DataChannel is. `sim/repro-adversary.sh` uses these to ask the adversary
+DataChannel is. `test/sim/repro-adversary.sh` uses these to ask the adversary
 question at 150+ seats, deterministically — including a DARK SEAT that holds
 its cell and answers nothing while twenty newcomers arrive. That is where the
 adversarial claim is established; the browser drill confirms reality agrees.
@@ -179,7 +179,7 @@ a missing stack that reads exactly like a broken mesh, right down to N=2
 failing. Each step's full output goes to `/tmp/join-battery/<n>.log` (or
 `/tmp/mesh-churn-battery/<n>.log`); the summary keeps only the last 12 lines.
 
-### Sim disruption catalogue (`sim/repro-*.sh` + `sweep.sh`)
+### Sim disruption catalogue (`test/sim/repro-*.sh` + `sweep.sh`)
 
 | script | disruption |
 |---|---|
@@ -349,7 +349,7 @@ decision and so are deliberately kept out of that script.
   `browser/e2e-mymedia-meet.js` are left failing on purpose as guards.
   (In `known-unfixed.sh`.)
 - A total partition may FREEZE one half (~1 split in 6): correctness holds
-  (no split-brain, asserted by `sim/sweep.sh`) but the frozen half seats a
+  (no split-brain, asserted by `test/sim/sweep.sh`) but the frozen half seats a
   fraction of its members. Decided 2026-07-21; see `docs/healing-laws.md`
   § "Partition: one half may FREEZE". (In `known-unfixed.sh`.)
 - `browser/e2e-app-governance.js` open-room "latest-wins takeover" is flaky:

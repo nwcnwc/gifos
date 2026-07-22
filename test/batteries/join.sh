@@ -6,7 +6,7 @@
 #
 # Run this before pushing anything that touches how a seat is admitted or how
 # a frame is carried — site/js/mesh-wire.js, site/js/mesh.js, site/meet.html,
-# sim/mesh*.  site/ AUTO-DEPLOYS on push, so an untested change to those files
+# test/sim/mesh*.  site/ AUTO-DEPLOYS on push, so an untested change to those files
 # is a change to production; this script exists so that is never an excuse.
 #
 # It covers joining at three levels, because a bug can hide at any one of them:
@@ -63,30 +63,30 @@ run() {
 
 # ── the brain: every arrival pattern, seating AND H7 row-major shape ────────
 run "sim — 7 arrival patterns x 13 sizes (burst/serial/batch/window)" \
-    ./sim/repro-join-patterns.sh
+    ./test/sim/repro-join-patterns.sh
 
 run "sim — hostile fabrics + a DARK SEAT that answers nothing (150 seats)" \
-    ./sim/repro-adversary.sh
+    ./test/sim/repro-adversary.sh
 
 run "sim — Q2 compaction (self-duty pack; ON vs OFF + mass-kill)" \
-    ./sim/repro-compaction.sh
+    ./test/sim/repro-compaction.sh
 
 run "sim — H-CHAIN multi-level devolution (admit + left-pack heal)" \
-    ./sim/repro-hchain.sh
+    ./test/sim/repro-hchain.sh
 
 run "sim — headless-row admission (single-step devolution control)" \
-    ./sim/repro-headless-row.sh
+    ./test/sim/repro-headless-row.sh
 
 # Leave / crash / loss / scoot — the other half of seating correctness.
 # Full disruption matrix: test/batteries/mesh-churn.sh
 run "sim — loss wedge (10% packet loss admission)" \
-    ./sim/repro-loss-wedge.sh
+    ./test/sim/repro-loss-wedge.sh
 
 run "sim — atomic move + cascade scooch (dual-hold transit)" \
-    ./sim/repro-atomic-move.sh
+    ./test/sim/repro-atomic-move.sh
 
 run "sim — churn combos (loss+kill, cascade rejoin, sever, silent row wipe)" \
-    ./sim/repro-churn-combos.sh
+    ./test/sim/repro-churn-combos.sh
 
 run "mesh.js — Q5 row-clique designation chain (exhaustive C=5)" \
     node test/mesh/q5-designation.js

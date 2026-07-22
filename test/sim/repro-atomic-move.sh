@@ -19,15 +19,15 @@
 #      left-pack chain of concurrent transits converges, no dups.
 #   E) churn during transit: overlapping mass-kills at N=800 -> CHECK PASS
 #      (seated=all, s1=25, dups=0, stranded=0, teleport=0, transitStale=0).
-# The admission-racing-a-move case is sim/repro-headless-row.sh (kept green).
+# The admission-racing-a-move case is test/sim/repro-headless-row.sh (kept green).
 #
-# Usage: sim/repro-atomic-move.sh
+# Usage: test/sim/repro-atomic-move.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-atomic}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
 fail=0

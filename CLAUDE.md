@@ -70,7 +70,7 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   whole room = ONE relay session = one URL; the relay is a zero-knowledge
   greeter registry for the entire stadium — healing-laws R2/R3 — and sections
   are pure peer-to-peer tree structure). The control plane is site/js/mesh.js
-  (a faithful port of the C++ reference sim — sim/mesh.cpp is source of
+  (a faithful port of the C++ reference sim — test/sim/mesh.cpp is source of
   truth), bound to transports by site/js/mesh-wire.js; security doctrines
   (crypto lock, signed authority, sponsor forwarding) live in
   docs/meet-security.md. The old deacon/deck/fold model is DEAD (git history

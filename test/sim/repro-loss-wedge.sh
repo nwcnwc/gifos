@@ -6,13 +6,13 @@
 # cell as taken → permanent ghost → room stuck well below N. Healthy bursts
 # must not regress once three-state sitting-down/seated lands.
 #
-# Usage: sim/repro-loss-wedge.sh
+# Usage: test/sim/repro-loss-wedge.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-loss}"
 
 echo "building sim -> $BIN"
-g++ -O2 -std=c++17 -o "$BIN" sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
+g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 1; }
 
 run(){ printf '%s\n' "$@" "quit" | "$BIN" --service 2>&1; }
 fail=0

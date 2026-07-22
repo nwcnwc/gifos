@@ -43,33 +43,33 @@ echo "mesh-churn battery — tip $(git rev-parse --short HEAD 2>/dev/null || ech
 
 # ── SIM: leave / crash / loss / scoot / rejoin ─────────────────────────────
 run "sim — join patterns (arrival shape; H7 density baseline)" \
-    ./sim/repro-join-patterns.sh
+    ./test/sim/repro-join-patterns.sh
 
 run "sim — loss wedge (10% packet loss admission)" \
-    ./sim/repro-loss-wedge.sh
+    ./test/sim/repro-loss-wedge.sh
 
 run "sim — atomic move / dual-hold transit + cascade scooch" \
-    ./sim/repro-atomic-move.sh
+    ./test/sim/repro-atomic-move.sh
 
 run "sim — H-CHAIN devolution (admit + left-pack + column + silent head)" \
-    ./sim/repro-hchain.sh
+    ./test/sim/repro-hchain.sh
 
 run "sim — headless-row admission" \
-    ./sim/repro-headless-row.sh
+    ./test/sim/repro-headless-row.sh
 
 run "sim — Q2 compaction under mass-kill" \
-    ./sim/repro-compaction.sh
+    ./test/sim/repro-compaction.sh
 
 run "sim — adversary fabrics + dark seat (hostile net)" \
-    ./sim/repro-adversary.sh
+    ./test/sim/repro-adversary.sh
 
 run "sim — churn combos (loss+kill, cascade rejoin, sever, silent row wipe)" \
-    ./sim/repro-churn-combos.sh
+    ./test/sim/repro-churn-combos.sh
 
 # sweep is the long churn matrix (seeds × kill fractions + partition + D5)
 SWEEP_TIMEOUT=${SWEEP_TIMEOUT:-1800}
 STEP_TIMEOUT=$SWEEP_TIMEOUT run "sim — sweep (churn matrix + partition + D5 early-probe)" \
-    ./sim/sweep.sh
+    ./test/sim/sweep.sh
 
 # ── JS PORT: same brain under Node ─────────────────────────────────────────
 run "mesh.js — harness (JOIN, %kill, s1row/s1all, D5 crash/sever/blackhole)" \
