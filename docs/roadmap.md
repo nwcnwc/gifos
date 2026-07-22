@@ -519,6 +519,72 @@ two room classes:
 - **Paid/§5 interaction:** do breakouts of a paid room inherit the join ticket,
   or is each a free child? (Likely inherit — same meeting epoch.)
 
+### 4e. App-driven media layout (apps place Stage / Row / Stadium tiles)
+
+**What.** Let an **app running in a meeting** control the **on-screen placement
+and transform of the live video tiles** — the Stage strip, the Row tiles, the
+Stadium tile — instead of the fixed grid. Today the media plane decides where
+each face draws (`media-plane.md`: Stage strip, Channel-R row tiles, one Stadium
+tile). Expose that as a **layout seam** an in-meeting app can drive: give me the
+set of live tiles as movable, positionable, transformable objects and let the
+app say *where each one goes and how it's drawn.* The wild version: an app that
+lets you **drag row-mates' heads onto cartoon bodies**, or **arrange faces on a
+building and launch Angry-Birds at them** — the meeting's real faces become game
+sprites.
+
+**Why it fits.**
+- The media plane already **owns tile identity and compositing** (who's on
+  Stage, row tile order, the single Stadium tile). This is a **presentation
+  seam over data the plane already computes** — apps read a tile roster + drive
+  placement; they never touch transport, seating, or the mix-minus audio fold.
+- Extends the in-meeting app model (Stage DATA lane, `app-mesh.md`) from
+  *content beside the faces* to *content that arranges the faces* — the
+  strongest possible "the meeting is a canvas" statement, and a genuine
+  GamePigeon-beater: live-video party games no message-transport toy can do.
+- Reuses the **presence seam** already sketched in §4b (avatars): consumers see
+  `MediaStream`/frames, not SDKs. Layout is the same seam, one level up — where
+  the frame draws, not what the frame is.
+
+**Sketch.**
+- **`gifos.stage` / `gifos.presence.layout` API (in-meeting apps):** the app
+  gets a **live tile roster** — `[{ tileId, seat:{pc,r,i}, kind:'stage'|'row'|'stadium', name, stream/frameSource }]` — plus **subscribe** for
+  join/leave/step-up churn. The app supplies a **placement**: per-tile
+  `{ x, y, w, h, rotation, z, shape/mask, opacity }`, or hands back a draw
+  callback and GifOS renders each tile's current frame into the app's canvas.
+- **Two render modes:** (a) **overlay** — app positions the plane's own tile
+  DOM/canvas nodes (cheap, keeps GifOS compositing); (b) **frame handoff** —
+  app receives each tile's frames and draws them itself (heads-on-cartoons,
+  masks, physics), GifOS just supplies pixels + audio stays on the normal fold.
+- **Audio is untouched.** Layout moves *pixels*; mix-minus, Stage ear, and the
+  per-packer audio fold (`media-plane.md`) are unchanged. Muting a face's video
+  into a sprite does not change who you hear. (Design: does a "launched" head go
+  silent, or keep talking off-screen? Probably keep audio — it's a visual game.)
+- **Local-only by default; shared is opt-in.** The layout an app paints is a
+  **local view** (my screen arranges the faces my way) unless the app uses the
+  Stage DATA lane to **sync** placement so everyone sees the same board (a real
+  multiplayer game vs. a personal toy). Consent + a "this app is rearranging
+  video" trust chip, like camera/mic capabilities.
+- **Degrade gracefully:** a tile whose stream drops (leave/heal, primary goes
+  dark per `media-plane.md`) must not crash the app — the roster event removes
+  it; the app decides (sprite vanishes, ragdoll falls, etc.).
+
+**Open questions.**
+- **Consent to be a sprite:** can a participant refuse to have *their* face
+  dragged onto a cartoon / launched? Likely a per-user "allow apps to restyle my
+  tile" toggle; admin rooms may force or forbid it.
+- **Overlay vs frame-handoff perf:** frame handoff is a per-tile video→canvas
+  copy every frame — CPU/GPU budget on phones (ties to §4b's CPU concern).
+  Maybe cap frame-handoff to Stage + own row (O(C) tiles), never the whole
+  Stadium.
+- **Scope of control:** may an app move the **Stadium** tile (the far-field
+  aggregate) or only Stage + Row (near field)? Moving Stadium is mostly
+  cosmetic; near-field is where the games live.
+- **Fairness / no-hijack:** an app must not use layout to *hide* who's speaking
+  or fake presence (someone drawn as "gone" who is really there). Trust chip +
+  maybe a always-available "show me the real grid" escape hatch.
+- **Recording / screenshots:** faces-as-game-sprites raises the same consent
+  questions as any A/V capture; inherit the meeting's existing capture policy.
+
 ## 5. Paid meetings (x402)
 
 Third meeting class alongside **open** and **admin**: **paid**. Creation /
