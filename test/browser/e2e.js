@@ -112,7 +112,7 @@ async function openApp(page, ctx, folder, label) {
   check('folder downloads as a single GIF bundle', /Games\.gif/.test(folderDl.suggestedFilename()));
   const bundlePath = await folderDl.path();
   const bundleBytes = Array.from(new Uint8Array(fs.readFileSync(bundlePath)));
-  // the bundle is a valid folder GIF carrying folder.json + 4 children
+  // the bundle is a valid folder GIF carrying folder.json + 5 children
   const bundleOk = await page.evaluate(async (arr) => {
     const a = await GifOS.gif.decode(new Uint8Array(arr));
     if (!a) return null;
@@ -120,7 +120,7 @@ async function openApp(page, ctx, folder, label) {
     const fj = JSON.parse(new TextDecoder().decode(a.files['folder.json']));
     return { type: m.type, name: m.name, kids: fj.items.length, hasFiles: !!a.files['files/0'] };
   }, bundleBytes);
-  check('bundle is a folder GIF with 4 children inside', bundleOk && bundleOk.type === 'folder' && bundleOk.kids === 4 && bundleOk.hasFiles);
+  check('bundle is a folder GIF with 5 children inside', bundleOk && bundleOk.type === 'folder' && bundleOk.kids === 5 && bundleOk.hasFiles);
   // import the bundle → a new "Games" folder appears with its games
   await page.setInputFiles('#file-input', { name: 'Games.gif', mimeType: 'image/gif', buffer: Buffer.from(bundleBytes) });
   await sleep(600);
@@ -217,6 +217,12 @@ async function openApp(page, ctx, folder, label) {
   await chessApp.locator('.lobby').waitFor({ timeout: 8000 });
   check('chess tournament shows a lobby', /Join lobby/.test(await chessApp.locator('.lobby').textContent()) || (await chessApp.locator('button', { hasText: 'Join lobby' }).count()) >= 0);
   await chess.close();
+  const ping = await openApp(page, context, null, 'Ping Pong.gif');
+  await ping.waitForSelector('iframe');
+  const pingApp = ping.frameLocator('iframe');
+  await pingApp.locator('canvas#game').waitFor({ timeout: 8000 });
+  check('ping pong renders a game canvas', true);
+  await ping.close();
   await page.locator('#crumbs a').click();
   await sleep(200);
   check('storage pill is gone from the system bar (moved to Settings)', (await page.locator('#storage-pill').count()) === 0);
