@@ -651,8 +651,17 @@ async function openApp(page, ctx, folder, label) {
   hostilePage.on('console', (m) => { if (/Content Security Policy.*ignored/i.test(m.text())) cspIgnored = true; });
   await hostilePage.waitForSelector('iframe');
   const hostileApp = hostilePage.frameLocator('iframe');
-  await hostilePage.waitForTimeout(1600);
-  const verdict = JSON.parse(await hostileApp.locator('#out').textContent());
+  // Poll for the verdict JSON instead of a fixed wait — the bridge fetch can
+  // take longer than the original 1.6 s on a loaded host, causing a spurious
+  // JSON parse of the "running" placeholder.
+  const out = hostileApp.locator('#out');
+  let verdictText = '';
+  for (let i = 0; i < 60; i++) {
+    await hostilePage.waitForTimeout(100);
+    verdictText = await out.textContent();
+    if (verdictText && !/^running$/i.test(verdictText.trim())) break;
+  }
+  const verdict = JSON.parse(verdictText);
   check('CSP is actually applied to a no-<head> app (not ignored)', !cspIgnored);
   check('CSP blocks direct XHR + WebSocket + image beacon (3 violations)', verdict.v >= 3);
   check('WebRTC constructors neutered (no DataChannel exfil)', verdict.rtc === 'blocked');
