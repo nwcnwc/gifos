@@ -315,6 +315,10 @@ details.adv h4 { margin-top: .8rem; }
 #ad-create { background: var(--accent); border: 1px solid var(--accent); color: var(--onaccent, #fff); }
 .modal-actions { display: flex; flex-direction: column; gap: .5rem; }
 .modal-actions button { width: 100%; }
+/* In the Settings sheet the actions sit right under the collapsed "Advanced
+   settings" summary; give them a clear separator + breathing room so Save isn't
+   cramped against it. */
+.modal.wide .modal-actions { margin-top: 1.1rem; padding-top: .95rem; border-top: 1px solid var(--border); }
 .modal-actions button.danger { background: #a12626; border-color: #a12626; color: #fff; }
 .modal-actions button.danger:hover { background: #c22e2e; }
 .modal-actions button.ghost { background: none; border-color: var(--border); color: var(--muted); }
