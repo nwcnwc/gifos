@@ -31,15 +31,22 @@ jobs:
           fetch-depth: 0
       - uses: actions/configure-pages@v5
       # Edge build number: a monotonic counter that bumps on every push touching
-      # the site tree. It's DERIVED (git rev-list count), not a committed counter,
-      # so there's no self-triggering commit loop and it always deploys. Baked into
-      # the served artifact (not committed): build.js carries it as GIFOS_BUILD (the
-      # build you're running, cache-first), and version.json carries it as edgeBuild
-      # (the latest available, network-first). The Version panel compares the two.
+      # the site tree. DERIVED (git rev-list count), not a committed counter, so no
+      # self-triggering commit loop and it always deploys.
+      #
+      # ANCHORED: this branch's history was squashed/re-imported, so a raw
+      # `rev-list --count` under-counts (the pre-0.8.0 history is collapsed into one
+      # commit). We instead count site commits SINCE the v0.8.0 cut and add the real
+      # commit count v0.8.0 had in the original history — so the number lines up with
+      # the actual project history (0.6.0=31, 0.7.0=268, 0.8.0=280) and keeps
+      # climbing. Bump ANCHOR_* when you re-anchor at a future release.
       - name: Stamp edge build number
         run: |
-          BUILD=$(git rev-list --count HEAD -- site)
-          echo "edge build = $BUILD"
+          ANCHOR_SHA=3d84267            # the "release: cut v0.8.0" commit
+          ANCHOR_BUILD=280              # v0.8.0's real commit count in the original history
+          SINCE=$(git rev-list --count ${ANCHOR_SHA}..HEAD -- site 2>/dev/null || echo 0)
+          BUILD=$((ANCHOR_BUILD + SINCE))
+          echo "edge build = $BUILD (anchor $ANCHOR_BUILD + $SINCE since $ANCHOR_SHA)"
           printf '/* baked at deploy by pages.yml — see site/js/build.js */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > site/js/build.js
           node -e "const f='site/version.json',j=JSON.parse(require('fs').readFileSync(f));j.edgeBuild=$BUILD;require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
       # Cache-busting: stamp ?v=<short-sha> onto every LOCAL css/js reference in
