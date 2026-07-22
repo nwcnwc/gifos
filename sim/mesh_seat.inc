@@ -240,7 +240,7 @@ void Seat::serveFind(Msg& mm){
   //            head needs (headless-row C, hchain D: gating those on liveness
   //            fast-tracks silent death past H1-S1 ring-hold).
   // Only when neither pass finds anyone is it honestly NOROOM.
-  Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=(int)idx.size()-1;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
+  Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
       if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
@@ -361,7 +361,7 @@ void Seat::heal(Coord hole){
 }
 void Seat::findLeaf(Coord hole, vector<KV>& nbrs, int ttl){
   if(!hasCoord) return;
-  if(ttl>0){ Coord rc[C]; rosterCells(rc); vector<int> idx={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(idx[k],idx[j]);}
+  if(ttl>0){ Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
     for(int q:idx){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id&&firstHandLive(ckey(rc[q]))){ Msg m;m.t=FINDLEAF;m.hole=hole;m.nbrs=nbrs;m.ttl=ttl-1; emit(x,m); return; } } }
   // Same-row non-head hole: only LEFT-PACK (hole to my left). Old unconditional
   // return dropped FINDLEAF on live row-mates — head s1Fill then starved when
@@ -988,7 +988,7 @@ void Seat::tick(){
       if(ownEarly){ occ.erase(ok); live.erase(ok); s1seen.erase(ok); kidful.erase(ok); }
       healTry[ok]=(int)TICK; healAt=(int)TICK; didHeal=true;
       vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
-      Coord rc[C]; rosterCells(rc); vector<int> ix={0,1,2,3,4}; for(int k=4;k>0;k--){int j=(int)(rng()*(k+1));swap(ix[k],ix[j]);}
+      Coord rc[C]; rosterCells(rc); vector<int> ix=shufCols();
       bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }
       if(!sent) promoteInto(oc,nb);   // I'm childless => I AM the leaf
     }
