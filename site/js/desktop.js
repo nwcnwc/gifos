@@ -1394,6 +1394,13 @@
     return true;
   }
 
+  // localStorage keys we DELIBERATELY keep across a factory reset: device
+  // display / accessibility prefs that aren't "computer content". Losing the
+  // text size on an erase would be a real accessibility regression for a
+  // low-vision user, with nothing gained. Everything else in the gifos_*
+  // namespace is computer state and gets swept (see eraseComputer).
+  const ERASE_KEEP = new Set(['gifos_ui_scale', 'gifos_meet_bar']);
+
   // Erase the WHOLE computer, not just the Home Screen data. clearAll() wipes
   // IndexedDB (every app, file and their state); then — the part that was
   // missing — we unpin and drop the cached shell so the reload re-downloads the
@@ -1401,15 +1408,29 @@
   // one. Offline, we can't fetch a fresh build, so we keep the cached shell and
   // just reboot it with empty storage (a clean computer on the current version).
   //
-  // A factory reset also clears the custom relay override (gifos_relay): a fresh
-  // computer talks to the default relay, and a stale override pointing at a dead
-  // relay (e.g. a leftover ws://127.0.0.1 from local testing) is exactly the kind
-  // of invisible, invite-breaking state that survives a normal "wipe everything"
-  // and leaves the user stuck — invites fail with "relay connection failed" while
-  // a private window (no override) works fine.
+  // localStorage is the other half of "the whole computer", and it's easy to
+  // under-clean it: enumerating keys one by one means every new gifos_* key a
+  // feature adds silently survives a reset (that's how the relay override got
+  // stranded — invites failed with "relay connection failed" while a private
+  // window worked). So we SWEEP the entire gifos_* namespace instead, keeping
+  // only ERASE_KEEP. That also clears the leftovers a partial wipe used to
+  // leave behind: the version pin, the relay override, saved AI/API keys and
+  // meeting admin/room secrets (a privacy leak on a shared or handed-on
+  // browser), per-app permission opt-offs and signed-app trust pins, invite
+  // history, and the saved name/uid — a fresh computer regenerates those.
+  function eraseLocalStorage() {
+    try {
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('gifos_') === 0 && !ERASE_KEEP.has(k)) kill.push(k);
+      }
+      kill.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+    } catch (e) { /* storage unavailable — nothing to sweep */ }
+  }
+
   async function eraseComputer() {
-    try { localStorage.removeItem('gifos_pin'); } catch (e) {}
-    try { localStorage.removeItem('gifos_relay'); } catch (e) {}
+    eraseLocalStorage();
     await store.clearAll();
     if (await reachable()) { await dropShellCaches(); location.replace('/?latest=' + Date.now()); }
     else location.reload();
