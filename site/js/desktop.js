@@ -1473,8 +1473,8 @@
   // an app that requests the "ai" capability calls through the runtime and never
   // sees a key. Each role is an OpenAI-shaped base URL + key + model name.
   const AI_TYPES = [
-    { key: 'smartest', label: 'Smartest text', ph: 'gpt-4o', op: 'chat' },
-    { key: 'cheapest', label: 'Cheapest text', ph: 'gpt-4o-mini', op: 'chat' },
+    { key: 'smartest', label: 'Smartest text LLM', ph: 'gpt-4o', op: 'chat' },
+    { key: 'cheapest', label: 'Cheapest text LLM', ph: 'gpt-4o-mini', op: 'chat' },
     { key: 'tts', label: 'Text → speech', ph: 'tts-1', op: 'tts' },
     { key: 'stt', label: 'Speech → text', ph: 'whisper-1', op: 'stt' },
     { key: 'image', label: 'Text → image', ph: 'gpt-image-1', op: 'image' },
