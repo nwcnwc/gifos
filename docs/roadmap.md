@@ -527,10 +527,13 @@ Stadium tile — instead of the fixed grid. Today the media plane decides where
 each face draws (`media-plane.md`: Stage strip, Channel-R row tiles, one Stadium
 tile). Expose that as a **layout seam** an in-meeting app can drive: give me the
 set of live tiles as movable, positionable, transformable objects and let the
-app say *where each one goes and how it's drawn.* The wild version: an app that
-lets you **drag row-mates' heads onto cartoon bodies**, or **arrange faces on a
-building and launch Angry-Birds at them** — the meeting's real faces become game
-sprites.
+app say *where each one goes and how it's drawn.* The wild versions: an app that
+lets you **drag row-mates' heads onto cartoon bodies**; **arrange faces on a
+building and launch Angry-Birds at them**; or a **classic memory / concentration
+game overlaid on the Stadium** — the far-field faces are **covered by tiles**
+you flip two at a time, trying to remember who is underneath and match pairs.
+The meeting's real faces become game sprites (and, for the memory game, hidden
+game state).
 
 **Why it fits.**
 - The media plane already **owns tile identity and compositing** (who's on
@@ -576,9 +579,21 @@ sprites.
   copy every frame — CPU/GPU budget on phones (ties to §4b's CPU concern).
   Maybe cap frame-handoff to Stage + own row (O(C) tiles), never the whole
   Stadium.
-- **Scope of control:** may an app move the **Stadium** tile (the far-field
-  aggregate) or only Stage + Row (near field)? Moving Stadium is mostly
-  cosmetic; near-field is where the games live.
+- **Scope of control:** may an app move/mask the **Stadium** tile (the
+  far-field aggregate) or only Stage + Row (near field)? Not purely cosmetic —
+  the **memory game covers Stadium faces** and reveals them, so an app needs to
+  address the individual faces *inside* the Stadium aggregate, not just the one
+  composited tile. That may mean exposing the Stadium's constituent sub-tiles
+  (or a per-face id list) to the layout API, which the far-field packer today
+  folds into one tile — a real question for how far the seam reaches into the
+  media plane. Near-field (Stage + Row) is the cheap, always-available case.
+- **Hidden-info games need real occlusion, not just z-order.** A memory game is
+  only fair if a covered face is **actually not rendered** while hidden (you
+  must not be able to peek by reading the underlying video element / a
+  screenshot / devtools). Frame-handoff mode gives this for free (GifOS only
+  hands the app frames it chooses to draw); an overlay-mode "cover" that just
+  stacks a tile on top is peekable and unfit for hidden-info play. So hidden-info
+  overlays likely **require** frame-handoff.
 - **Fairness / no-hijack:** an app must not use layout to *hide* who's speaking
   or fake presence (someone drawn as "gone" who is really there). Trust chip +
   maybe a always-available "show me the real grid" escape hatch.
