@@ -218,12 +218,11 @@
   }
   document.getElementById('new').onclick = function(){
     if (current.rematch && current.rematch.by === me.id) return clearRematch();   // cancel my pending request
-    if (!current.cells.some(Boolean)) return startNew();                          // untouched board — nothing to lose
     if (opponentPresent()){                                                       // real opponent — ask them to consent
       const c = Object.assign({}, current); c.rematch = { by: me.id, name: me.name }; current = c;
       return db.put(c).then(render);
     }
-    askLocal = true; render();                                                    // solo — local fat-finger guard
+    askLocal = true; render();                                                    // solo — always confirm (fat-finger guard)
   };
   render();
 </script>`;
@@ -338,12 +337,11 @@
   }
   document.getElementById('new').onclick=function(){
     if(cur.rematch && cur.rematch.by===me.id) return clearRematch();   // cancel my pending request
-    if(!cur.cells.some(Boolean)) return startNew();                    // untouched board — nothing to lose
     if(opp()){                                                         // real opponent — ask them to consent
       const c=Object.assign({},cur); c.rematch={by:me.id,name:me.name}; cur=c;
       return db.put(c).then(render);
     }
-    askLocal=true; render();                                          // solo — local fat-finger guard
+    askLocal=true; render();                                          // solo — always confirm (fat-finger guard)
   };
   render();
 </script>`;
