@@ -54,14 +54,15 @@
   // App-state rides the meeting mesh's Stage DATA lane (GifOS.meetStageData),
   // NOT a second relay session. The OWNER signs canonical snap/delta frames;
   // every participant verifies against the owner pubkey (site/js/app-owner.js).
-  // The module is loaded as its own <script> where the page includes it
-  // (run.html), or injected on demand where it doesn't (meet.html): runtime.js
-  // must not require an HTML edit to function.
+  // No page bundles that module in a <script> tag; appOwnerLib injects it on
+  // demand the first time owner-authority is needed (and caches it), so runtime.js
+  // never requires an HTML edit to function.
   // Anchor the on-demand load to THIS script's own URL, captured now — at
-  // static-load time, before anything runs. meet.html rewrites its address to
-  // the pretty /meet/<room> form (history.replaceState) once it boots on prod,
-  // which moves the document's base URL; a bare relative 'js/app-owner.js' then
-  // resolves to /meet/js/app-owner.js and 404s, the host signer never builds,
+  // static-load time, before anything runs. Both pages that host app-state
+  // rewrite their address after boot (meet.html → the pretty /meet/<room> form,
+  // run.html → /join/<…>, via history.replaceState), which moves the document's
+  // base URL; a bare relative 'js/app-owner.js' then resolves to
+  // /meet/js/app-owner.js (or /join/js/…) and 404s, the signer never builds,
   // and the shared app tears straight back down (~1s after it mounts). runtime.js
   // is always a sibling of app-owner.js, so resolving against our own src is
   // correct in every deploy — subpath, pretty URL, or bare /meet.html.
