@@ -506,7 +506,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           shareLink(inviteUrl, inviteExp);
         }).catch(function (err) {
           hostBtn.disabled = false; hostBtn.textContent = 'Invite';
-          status.textContent = 'Could not create the invite: ' + err.message;
+          // A custom relay override (Settings → Advanced → Relay, stored in
+          // localStorage) is a common, invisible cause of "relay connection
+          // failed": a stale value — e.g. a leftover ws://127.0.0.1 from local
+          // testing — points invites at a dead relay while a private window (no
+          // override) works fine. Name it and say how to clear it, so the user
+          // isn't left thinking they're pinned to an old build.
+          var override = ''; try { override = localStorage.getItem('gifos_relay') || ''; } catch (e) {}
+          var msg = 'Could not create the invite: ' + err.message;
+          if (override && override !== window.GIFOS_RELAY && /relay connection failed|No relay configured/i.test(err.message || '')) {
+            msg = 'Could not create the invite — this computer is set to a custom relay (' + override +
+                  ') that isn’t answering. Open GifOS on the home screen, go to Settings → Advanced → Relay, clear that box and Save (leave it empty to use the default relay).';
+          }
+          status.textContent = msg;
           connPop.classList.add('show'); // errors deserve to be seen
         });
       }
