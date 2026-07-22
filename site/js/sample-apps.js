@@ -1063,8 +1063,11 @@
   const resetBtn = document.getElementById('reset');
 
   const TW = 18, TL = 36, NH = 2.6, BR = 0.75, PADW = 4.4, PADH = 1.0;
-  const GRAV = -0.0015;
-  const DT = 16;
+  // Original gravity (-0.0015) and lob (vz 0.012) made the serve drop into the
+  // net instantly, so every serve auto-scored. These values give a playable arc:
+  // the ball clears the net, bounces once on the opponent's side, and stays
+  // within paddle reach for a rally.
+  const GRAV = -0.00025;
   const BROADCAST = 3;
   const GUEST_TIMEOUT = 3500;
   const STATE_TIMEOUT = 3000;
@@ -1140,7 +1143,7 @@
 
   function serve() {
     const s = game.serving;
-    game.vx = 0; game.vz = 0.012;
+    game.vx = 0; game.vz = 0.12;
     game.vy = s === 'host' ? 0.020 : -0.020;
     game.sx = 0; game.sy = 0; game.sz = 0; game.sp = 0;
     game.lastHitter = s;
@@ -1181,10 +1184,10 @@
     const movingToward = (who === 'host' && game.vy < 0) || (who === 'guest' && game.vy > 0);
     if (!movingToward) return;
     const dy = Math.abs(game.by - end);
-    if (dy > 1.2) return;
+    if (dy > 2.0) return;
     const px = who === 'host' ? game.hostX : game.guestX;
     const dx = Math.abs(game.bx - px);
-    if (dx > PADW/2 + BR || game.bz > BR + 2.8) return;
+    if (dx > PADW/2 + BR || game.bz > BR + 10) return;
     const s = nextSwing[who];
     if (s) nextSwing[who] = null;
     const force = s ? s.force : 0.5;
@@ -1193,7 +1196,7 @@
     const base = 0.018 + force * 0.022;
     game.vy = (who === 'host' ? 1 : -1) * base;
     game.vx += (game.bx - px) * 0.0012 + smx * 0.00025;
-    game.vz = 0.012 + Math.max(0, -smy) * 0.0002;
+    game.vz = 0.10 + Math.max(0, -smy) * 0.0002;
     game.sx += smy * 0.0004;
     game.sy += smx * 0.00025;
     game.sz += smx * 0.0004;
