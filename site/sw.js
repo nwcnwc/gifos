@@ -27,7 +27,7 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v5';
+var SHELL_VERSION = 'v6';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
@@ -38,7 +38,7 @@ var CORE = [
   '/css/desktop.css',
   '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js',
-  '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js',
+  '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js', '/js/build.js',
   '/themes/theme.js', '/themes/icons.js', '/themes/eggs.js',
   '/gifos.key', '/version.json', '/changelog.json', '/og.png', '/manifest.webmanifest', '/icon.svg',
 ];

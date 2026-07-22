@@ -25,6 +25,18 @@ body {
 }
 .update-bar .dismiss { margin-left: auto; background: none; border: 0; color: var(--muted); padding: .25rem .5rem; }
 
+/* version facts (running / live / unreleased) at the top of the Version panel */
+.vfacts { display: flex; flex-direction: column; gap: .35rem; margin: .1rem 0 .8rem; }
+.vfact { display: flex; align-items: baseline; gap: .6rem; padding: .45rem .7rem;
+  border: 1px solid var(--border); border-radius: .5rem; font-size: .85rem; }
+.vfl { flex: 0 0 auto; min-width: 8.5rem; color: var(--muted); font-size: .74rem;
+  text-transform: uppercase; letter-spacing: .03em; }
+.vfv { flex: 1 1 auto; }
+.vpill { display: inline-block; margin-left: .35rem; font-size: .66rem; font-weight: 700;
+  letter-spacing: .03em; text-transform: uppercase; border-radius: .3rem; padding: .05rem .35rem; vertical-align: middle; }
+.vpill.live { color: #fff; background: color-mix(in srgb, #34c759 78%, #000); }
+.vpill.run { color: var(--accent); border: 1px solid var(--accent); }
+
 /* version list in Settings */
 .vlist { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .3rem; }
 .vrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem;

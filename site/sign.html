@@ -6,6 +6,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
+<!-- CHANNEL LOADER — see index.html. Resolves the release pointer before any app
+     code so this tool opens on the right build. Identical across entry pages. -->
+<script>
+(function () {
+  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
+  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  function has(k) { return !!(q && q.has(k)); }
+  try {
+    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
+  } catch (e) {}
+  var pin = null, chan = null, cur = null;
+  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+  var here = location.pathname + location.hash;
+  function go(v) { location.replace('/versions/' + v + here); }
+  if (pin) { go(pin); return; }
+  if (chan === 'edge') return;
+  if (!/(^|\.)gifos\.app$/.test(location.hostname)) return;     // non-prod (localhost/preview) → edge
+  if (cur) { go(cur); return; }
+  try {
+    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
+  } catch (e) {}
+})();
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GifOS">
 <script src="/js/sw-register.js" defer></script>
