@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0f">
+<!-- CHANNEL LOADER — see index.html. Resolves the release pointer before any app
+     code so this tool opens on the right build. Identical across entry pages. -->
+<script>
+(function () {
+  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
+  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  function has(k) { return !!(q && q.has(k)); }
+  try {
+    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
+  } catch (e) {}
+  var pin = null, chan = null, cur = null;
+  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+  var here = location.pathname + location.hash;
+  function go(v) { location.replace('/versions/' + v + here); }
+  if (pin) { go(pin); return; }
+  if (chan === 'edge') return;
+  if (!/(^|\.)gifos\.app$/.test(location.hostname)) return;     // non-prod (localhost/preview) → edge
+  if (cur) { go(cur); return; }
+  try {
+    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
+  } catch (e) {}
+})();
+</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GifOS">
+<script src="/js/sw-register.js" defer></script>
+<title>Sign a GIF — GifOS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+         background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 1.5rem 1.2rem 4rem; }
+  .brand { font-weight: 800; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  h1 { font-size: 1.5rem; margin: .3rem 0 .2rem; }
+  .lead { color: var(--muted, #9a9ab5); margin-bottom: 1.4rem; }
+  h2 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  p { color: var(--muted, #9a9ab5); margin-bottom: .7rem; }
+  b { color: var(--text, #e0e0f0); }
+  label { display: block; color: var(--text, #cfcfe8); font-size: .85rem; margin: .8rem 0 .3rem; }
+  input, textarea { width: 100%; padding: .6rem .7rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+    background: var(--surface, #14141f); color: var(--text, #e0e0f0); font: inherit; }
+  textarea { font-family: ui-monospace, monospace; font-size: .8rem; }
+  .drop { border: 2px dashed var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; text-align: center;
+    color: var(--muted, #9a9ab5); cursor: pointer; margin-bottom: 1rem; }
+  .drop.have { border-color: #34c759; color: var(--text, #cfcfe8); }
+  .drop.over { border-color: var(--accent, #7b5cff); background: rgba(123,92,255,.06); }
+  .tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
+  .tabs button { flex: 1; padding: .6rem; border-radius: .6rem; border: 1px solid var(--border, #2a2a3f);
+    background: var(--surface, #14141f); color: var(--muted, #9a9ab5); cursor: pointer; font: inherit; }
+  /* Active tab: an accent border + faint accent wash marks it; the label uses
+     the theme's full text colour (not white, which vanishes on light themes
+     whose accent is a pale pastel). */
+  .tabs button.on { border-color: var(--accent, #7b5cff); color: var(--text, #fff);
+    background: color-mix(in srgb, var(--accent, #7b5cff) 16%, transparent); }
+  .pane { display: none; } .pane.on { display: block; }
+  button.act { padding: .7rem 1.3rem; border-radius: .6rem; border: 1px solid var(--accent, #7b5cff);
+    background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; font-weight: 600; margin-top: .8rem; }
+  button.act:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: var(--surface, #14141f); border-color: var(--border, #2a2a3f); color: var(--text, #cfcfe8); }
+  .box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .6rem; padding: .8rem; margin: .7rem 0; }
+  .box code, code { font-family: ui-monospace, monospace; color: var(--accent, #7b5cff); word-break: break-all; }
+  .msg { margin-top: .8rem; font-size: .9rem; }
+  .msg.ok { color: color-mix(in srgb, #34c759 60%, var(--text, #e0e0f0)); } .msg.err { color: color-mix(in srgb, #ff6b6b 62%, var(--text, #e0e0f0)); }
+  .step { color: var(--accent, #7b5cff); font-weight: 700; }
+  a { color: var(--accent, #7b5cff); }
+  .foot { margin-top: 2.5rem; font-size: .82rem; color: var(--muted, #667); }
+</style>
+<script src="js/gifos-themes.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="brand">GifOS</span> · Sign a GIF 🛡️</h1>
+  <p class="lead">Prove you made an app GIF. Signing binds these exact app bytes to your <b>domain</b> or <b>email</b>, so GifOS shows <b>“Signed by you”</b> to anyone who opens it. Everything happens in your browser — no upload, no account. Your app's saved <i>data</i> is never part of the signature, so it stays valid as people use the app.</p>
+
+  <div class="drop" id="drop">Drop your <b>.gif</b> here, or click to choose one</div>
+  <input type="file" id="file" accept=".gif,image/gif" style="display:none">
+
+  <div id="signui" style="display:none">
+    <div class="tabs">
+      <button id="tab-domain" class="on">Sign with a domain</button>
+      <button id="tab-email">Sign with email (PGP)</button>
+    </div>
+
+    <!-- DOMAIN -->
+    <div class="pane on" id="pane-domain">
+      <p>Signs with an <b>Ed25519</b> key you generate here. Publish the public half at <code id="keyurl">https://yourdomain/gifos.key</code> and anyone can verify — the key location is derived from the domain, so “Signed by it” means you control it.</p>
+      <label>Your domain</label>
+      <input id="domain" placeholder="yourdomain.com" autocomplete="off">
+      <div class="box">
+        <p style="margin:0 0 .5rem"><span class="step">1.</span> Get a signing key</p>
+        <button class="act ghost" id="gen">Generate a new key</button>
+        <button class="act ghost" id="import-key">Load my saved key…</button>
+        <input type="file" id="keyfile" accept=".json" style="display:none">
+        <div id="keyout" style="display:none">
+          <label>Put THIS at <code id="keyurl2"></code> (public — safe to share):</label>
+          <textarea id="pubkey" rows="2" readonly></textarea>
+          <button class="act ghost" id="dl-pub">Download gifos.key</button>
+          <button class="act ghost" id="dl-priv">Download my private key (keep secret!)</button>
+          <p style="font-size:.82rem;color:#ffcc44;margin:.5rem 0 0">Keep the private key file safe — it's how you sign. Losing it just means generating a new one and re-publishing gifos.key.</p>
+        </div>
+      </div>
+      <div class="box">
+        <p style="margin:0 0 .5rem"><span class="step">2.</span> Sign the GIF</p>
+        <button class="act" id="sign-domain" disabled>Sign & download</button>
+      </div>
+    </div>
+
+    <!-- EMAIL -->
+    <div class="pane" id="pane-email">
+      <p>Signs with your own <b>OpenPGP</b> key using your existing tools — <b>Ed25519 and RSA (2048+) keys both work</b>, and your private key never touches this page. Others verify against the copy of your key on <a href="https://keys.openpgp.org" target="_blank">keys.openpgp.org</a>, so <b>publish your key there first</b> and confirm your email.</p>
+      <label>Your email</label>
+      <input id="email" placeholder="you@example.com" autocomplete="off">
+      <div class="box">
+        <p style="margin:0 0 .5rem"><span class="step">1.</span> Download the statement to sign</p>
+        <button class="act ghost" id="dl-stmt" disabled>Download gifos-statement.bin</button>
+      </div>
+      <div class="box">
+        <p style="margin:0 0 .5rem"><span class="step">2.</span> Sign it with your PGP key (in a terminal):</p>
+        <p style="margin:0"><code>gpg --detach-sign --digest-algo SHA256 gifos-statement.bin</code></p>
+        <p style="font-size:.82rem;margin:.4rem 0 0">That makes <code>gifos-statement.bin.sig</code>.</p>
+      </div>
+      <div class="box">
+        <p style="margin:0 0 .5rem"><span class="step">3.</span> Upload the .sig and download your signed GIF</p>
+        <input type="file" id="sigfile" accept=".sig,.gpg,application/pgp-signature">
+        <button class="act" id="sign-email" disabled>Attach & download</button>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="foot">Signing proves authorship, not safety. Anyone can strip a signature (the file just becomes anonymous), and a signature only says the contents are unchanged since signing. <a href="/">← Back to GifOS</a></div>
+</div>
+
+<script>
+  // Bind to the right computer BEFORE the store loads, so "Sign this GIF" from
+  // a booted computer image reads that image's files, not the host's.
+  (function () {
+    var db = new URLSearchParams(location.hash.slice(1)).get('db');
+    if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+  })();
+</script>
+<script src="js/gifos-gif.js"></script>
+<script src="js/gifos-sign.js"></script>
+<script src="js/gifos-store.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let gifBytes = null, gifName = 'app.gif', keyPair = null, statementBytes = null;
+  const msg = (t, cls) => { $('msg').textContent = t; $('msg').className = 'msg ' + (cls || ''); };
+  const download = (bytes, name, mime) => {
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  const today = () => { try { return new Date().toISOString().slice(0, 10); } catch (e) { return null; } };
+
+  // ---- load the GIF ----
+  const drop = $('drop');
+  drop.onclick = () => $('file').click();
+  ['dragenter', 'dragover'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (ev) => { const f = ev.dataTransfer.files[0]; if (f) loadFile(f); });
+  $('file').onchange = (ev) => { if (ev.target.files[0]) loadFile(ev.target.files[0]); };
+  async function loadFile(f) {
+    setBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+  }
+  function setBytes(bytes, name) {
+    gifBytes = bytes;
+    gifName = (name || 'app.gif').replace(/\.gif$/i, '');
+    if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) { msg('That is not a GIF file.', 'err'); return; }
+    drop.classList.add('have');
+    drop.innerHTML = '<b>' + gifName + '.gif</b> loaded — sign it below';
+    $('signui').style.display = '';
+    const existing = GifOS.sign.readSig(gifBytes);
+    msg(existing ? 'Note: this GIF is already signed by ' + existing.id + '. Signing replaces it.' : '', existing ? 'err' : '');
+    refresh();
+  }
+  // Preloaded from the Home Screen: sign.html#id=<fileId>[&db=<namespace>]
+  (async function () {
+    const id = new URLSearchParams(location.hash.slice(1)).get('id');
+    if (!id || !window.GifOS || !GifOS.store) return;
+    try {
+      const rec = await GifOS.store.getFile(id);
+      if (rec && rec.bytes) setBytes(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), rec.name);
+    } catch (e) { /* fall back to the drop zone */ }
+  })();
+
+  // ---- tabs ----
+  function tab(which) {
+    $('tab-domain').classList.toggle('on', which === 'domain');
+    $('tab-email').classList.toggle('on', which === 'email');
+    $('pane-domain').classList.toggle('on', which === 'domain');
+    $('pane-email').classList.toggle('on', which === 'email');
+  }
+  $('tab-domain').onclick = () => tab('domain');
+  $('tab-email').onclick = () => tab('email');
+
+  // ---- domain flow ----
+  const dom = () => $('domain').value.trim().toLowerCase();
+  function refresh() {
+    const d = dom();
+    $('keyurl').textContent = 'https://' + (d || 'yourdomain') + '/gifos.key';
+    $('keyurl2').textContent = 'https://' + (d || 'yourdomain') + '/gifos.key';
+    $('sign-domain').disabled = !(gifBytes && keyPair && GifOS.sign.isDomain(d));
+    $('dl-stmt').disabled = !(gifBytes && GifOS.sign.isEmail($('email').value.trim()));
+    $('sign-email').disabled = !(gifBytes && statementBytes && $('sigfile').files.length);
+  }
+  $('domain').oninput = refresh;
+  $('email').oninput = () => { statementBytes = null; refresh(); };
+  $('sigfile').onchange = refresh;
+
+  $('gen').onclick = async () => {
+    const g = await GifOS.sign.generateDomainKey();
+    keyPair = g.keyPair;
+    $('pubkey').value = g.publicKeyB64;
+    $('keyout').style.display = '';
+    msg('New key generated. Download BOTH files below, publish gifos.key on your domain, keep the private key safe.', 'ok');
+    refresh();
+  };
+  $('dl-pub').onclick = () => download(new TextEncoder().encode($('pubkey').value + '\n'), 'gifos.key', 'text/plain');
+  $('dl-priv').onclick = async () => {
+    const jwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+    download(new TextEncoder().encode(JSON.stringify(jwk, null, 2)), 'gifos-signing-key.json', 'application/json');
+  };
+  $('import-key').onclick = () => $('keyfile').click();
+  $('keyfile').onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try {
+      const jwk = JSON.parse(await f.text());
+      const priv = await crypto.subtle.importKey('jwk', jwk, { name: 'Ed25519' }, true, ['sign']);
+      // derive the public half so we can show gifos.key again
+      const pubJwk = { kty: jwk.kty, crv: jwk.crv, x: jwk.x }; delete pubJwk.d;
+      const pubKey = await crypto.subtle.importKey('jwk', pubJwk, { name: 'Ed25519' }, true, ['verify']);
+      const pubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', pubKey));
+      keyPair = { privateKey: priv, publicKey: pubKey };
+      $('pubkey').value = GifOS.sign._bytesToB64(pubRaw);
+      $('keyout').style.display = '';
+      msg('Key loaded.', 'ok'); refresh();
+    } catch (e) { msg('Could not load that key file: ' + e.message, 'err'); }
+  };
+  $('sign-domain').onclick = async () => {
+    try {
+      const signed = await GifOS.sign.signDomain(gifBytes, dom(), keyPair, today());
+      download(signed, gifName + '.gif', 'image/gif');
+      msg('Signed by ' + dom() + ' — downloaded. Make sure gifos.key is live on your domain so others can verify.', 'ok');
+    } catch (e) { msg('Signing failed: ' + e.message, 'err'); }
+  };
+
+  // ---- email flow ----
+  $('dl-stmt').onclick = async () => {
+    try {
+      statementBytes = await GifOS.sign.emailStatement(gifBytes, $('email').value.trim());
+      download(statementBytes, 'gifos-statement.bin', 'application/octet-stream');
+      msg('Statement downloaded. Sign it with gpg (step 2), then upload the .sig.', 'ok');
+      refresh();
+    } catch (e) { msg('Failed: ' + e.message, 'err'); }
+  };
+  $('sign-email').onclick = async () => {
+    try {
+      const sigBytes = new Uint8Array(await $('sigfile').files[0].arrayBuffer());
+      const signed = GifOS.sign.attachEmailSig(gifBytes, $('email').value.trim(), sigBytes, today());
+      download(signed, gifName + '.gif', 'image/gif');
+      msg('Signed by ' + $('email').value.trim() + ' — downloaded. Publish your key on keys.openpgp.org so others can verify.', 'ok');
+    } catch (e) { msg('Failed: ' + e.message, 'err'); }
+  };
+})();
+</script>
+</body>
+</html>

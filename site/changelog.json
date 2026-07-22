@@ -2,37 +2,18 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
-      "version": "0.8.0",
+      "version": "0.8.1",
       "date": "2026-07-22",
       "critical": false,
-      "headline": "Bigger meetings, offline computers, and release channels",
+      "headline": "First public release",
       "notes": [
-        "Meetings scale to much larger rooms: a self-healing peer-to-peer structure (Stage, sections, rows and seats) keeps the session together as people join, drop, and rejoin — no central server in the middle.",
-        "Your computer and its saved apps now work fully offline (airplane mode); networked features like meetings and Ask AI simply wait for a connection.",
-        "New Version panel: it separates the live release, the unreleased edge build (with a build number), and past snapshots you can pin to or roll back to. gifos.app serves the stable release by default; the edge channel is opt-in.",
-        "Fixed: creating an invite could fail with “relay connection failed” when a custom relay was set — the error now names the cause, and “Erase this computer” clears the leftover setting.",
-        "Erase this computer now fully wipes everything it stores — saved API keys, meeting secrets, and settings — so a reset truly leaves nothing behind."
-      ]
-    },
-    {
-      "version": "0.7.0",
-      "date": "2026-07-12",
-      "critical": false,
-      "headline": "Share media in meetings + opt-in updates",
-      "notes": [
-        "Fixed: sharing a large video in a meeting now loads fully for guests (big shared files were silently truncated in transit).",
-        "Updates are now opt-in — your computer no longer refreshes itself in the background. A plain reload always keeps your current version; update when you choose from Settings → Advanced → Version.",
-        "The \"Erase This Computer\" button moved deep into Advanced settings so it can't be tapped by accident.",
-        "My Media: smaller interface, live recording preview, front/back camera flip, and guests can play videos you mark visible."
-      ]
-    },
-    {
-      "version": "0.6.0",
-      "date": "2026-06-01",
-      "critical": false,
-      "headline": "Pre-launch test build",
-      "notes": [
-        "An earlier pre-launch build, kept for testing and rollback. Your files and data carry across versions (migrations are additive), so switching between builds is safe and reversible."
+        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs, and sharing the file shares the whole app with its saved data inside.",
+        "Peer-to-peer Meetings that scale to large rooms on a self-healing mesh, with no server in the middle — and you can run any app live inside a meeting.",
+        "Any app goes multiplayer with one invite link (direct WebRTC, relay fallback); the link is yours by a secret only your app holds.",
+        "Fully offline-capable: your computer and its apps run in airplane mode. Back up a whole computer as one GIF and boot it anywhere.",
+        "Ten themed computers (the numbered subdomains), provenance signing, and per-person AI/API keys that apps can use but never see.",
+        "Two-player games (Tic-Tac-Toe, Connect Four) ask before New game clears the board — the other player consents, or you confirm your own reset.",
+        "Version panel: pin or roll back to any release. Switching a build rebuilds the built-in default apps to that build, and the data saved inside them carries over."
       ]
     }
   ]
