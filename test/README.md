@@ -193,6 +193,20 @@ failing. Each step's full output goes to `/tmp/join-battery/<n>.log` (or
 | `repro-adversary.sh` | loss/sever/subnets + dark seat holding a coord |
 | `sweep.sh` | kill fractions × seeds; total partition; D5 crash/sever/blackhole |
 
+**ALWAYS CAP `converge` in a stress scenario, or it hangs forever.** `converge`
+with no argument returns only once the room reaches a *clean* target (everyone
+seated, a full Section 1, zero duplicates). Under a fault where that target is
+*unreachable by design* — ~10% loss (the loss wedge leaves a permanent phantom),
+severance, subnet partition, or an N so large it can't fully settle — it never
+returns and spins a full core at 100% CPU with no output, indefinitely. (A
+leftover 100k/1M-seat scratch battery did exactly this: it hung ~11.5h on a
+`net loss=0.10 sever=…` leg that called bare `converge`.) So in any lossy /
+severed / partitioned / very-large run, give `converge` an explicit tick cap
+(`converge 500000`) and treat "didn't reach the target within the cap" as a
+measured result (`state` / `check` after it), never as something to wait out.
+The committed `repro-*.sh` / `sweep.sh` already do this — copy their pattern for
+any ad-hoc scaling battery, and never leave one running unattended without caps.
+
 ## servers/ — the fixture servers
 
 `relay-local.js` mirrors the production Worker (`relay/src/relay.js`) and is
