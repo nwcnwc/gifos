@@ -1068,6 +1068,7 @@
   // the ball clears the net, bounces once on the opponent's side, and stays
   // within paddle reach for a rally.
   const GRAV = -0.00025;
+  const DT = 16;   // ms per physics tick
   const BROADCAST = 3;
   const GUEST_TIMEOUT = 3500;
   const STATE_TIMEOUT = 3000;
