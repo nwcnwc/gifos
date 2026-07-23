@@ -152,16 +152,19 @@
     return it;
   }
 
+  // Create a default app (file + item). Used both for initial seed and for
+  // adding missing defaults after a build switch.
+  async function putDefaultApp(a, parent, pos) {
+    const fileId = store.uid('file');
+    await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
+      isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif', isDefault: true });
+    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
+      parent, x: pos.x, y: pos.y, iconSize: 64 });
+  }
+
   async function seedIfEmpty() {
     if (items.length) return;
     const seed = await GifOS.samples.build();
-    const putApp = async (a, parent, pos) => {
-      const fileId = store.uid('file');
-      await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
-        isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif', isDefault: true });
-      await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
-        parent, x: pos.x, y: pos.y, iconSize: 64 });
-    };
     // Layout: Welcome top-left; Meeting (the killer app) alone in the
     // top-right corner; the app folders run down the right-hand side under it.
     const cols = Math.max(2, Math.floor((surface.clientWidth - 20) / GRID.pitch));
@@ -169,13 +172,13 @@
     const rowY = (r) => GRID.origin + r * GRID.rowPitch;
     let rightRow = 0, leftRow = 0;
     for (const a of seed.loose) {
-      if (a.appId === 'meet' || a.appId === 'video') await putApp(a, null, { x: rightX, y: rowY(rightRow++) });
-      else await putApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
+      if (a.appId === 'meet' || a.appId === 'video') await putDefaultApp(a, null, { x: rightX, y: rowY(rightRow++) });
+      else await putDefaultApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
     const putFolder = async (folder, parent, x, y) => {
       const f = await createFolder(folder.name, parent, x, y);
       let inside = 1; // cell 0 belongs to the up-hole
-      for (const a of folder.apps) await putApp(a, f.id, gridPosition(inside++));
+      for (const a of folder.apps) await putDefaultApp(a, f.id, gridPosition(inside++));
       for (const sub of folder.sub || []) { const p = gridPosition(inside++); await putFolder(sub, f.id, p.x, p.y); }
       return f;
     };
@@ -195,9 +198,14 @@
   // we don't guard for that — the remedy is to erase the computer.) Apps that
   // merely share a default appId but are stolen/imported copies are left alone —
   // never touch anything under Stolen Apps (only seeded copies carry isDefault).
-  async function rebuildDefaultApps() {
-    if (!(GifOS.samples && GifOS.samples.build)) return 0;
-    const seed = await GifOS.samples.build();
+  //
+  // This function also ADDS any default apps that exist in the running build but
+  // are missing from the desktop — e.g. Ping Pong added on edge after the user was
+  // last on the live release. Missing loose apps are placed in free root cells;
+  // missing folder apps go into their folder (creating the folder if necessary).
+  async function rebuildDefaultApps(seed) {
+    if (!(GifOS.samples && GifOS.samples.build)) return { updated: 0, added: 0 };
+    seed = seed || await GifOS.samples.build();
     const fresh = {};
     const add = (a) => { if (a && a.appId && !(a.appId in fresh)) fresh[a.appId] = a; };
     (seed.loose || []).forEach(add);
@@ -206,18 +214,63 @@
     const fileById = {}; for (const f of files) fileById[f.id] = f;
     const itemById = {}; for (const it of items) itemById[it.id] = it;
     const underStolen = (it) => { let c = it, g = 0; while (c && g++ < 64) { if (c.id === 'sys_stolen' || c.parent === 'sys_stolen') return true; c = c.parent ? itemById[c.parent] : null; } return false; };
-    let n = 0;
+    const seenAppIds = new Set();
+    let updated = 0;
     for (const it of items) {
       if (it.kind !== 'file' || !it.fileId) continue;
       const f = fileById[it.fileId];
       if (!f || !f.isApp || !f.appId) continue;
+      seenAppIds.add(f.appId);
       const a = fresh[f.appId];
       if (!a) continue;                                  // user-built/renamed app, or a default this build dropped
       if (underStolen(it) && f.isDefault !== true) continue;  // a stolen copy that shares a default appId — leave it
       await store.putFile(Object.assign({}, f, { bytes: a.bytes, accent: a.accent, isDefault: true }));
-      n++;                                               // code swapped in place; the app's saved data (by fileId) is untouched
+      updated++;                                         // code swapped in place; the app's saved data (by fileId) is untouched
     }
-    return n;
+
+    // Add defaults that are present in this build but missing from the desktop.
+    const folderByName = {}; for (const it of items) { if (it.kind === 'folder' && it.name && !it.parent) folderByName[it.name] = it; }
+    let added = 0;
+    const addMissingApp = async (a, parentId, pos) => {
+      if (seenAppIds.has(a.appId)) return;
+      await putDefaultApp(a, parentId, pos);
+      seenAppIds.add(a.appId);
+      added++;
+    };
+    const cols = Math.max(2, Math.floor((surface.clientWidth - 20) / GRID.pitch));
+    const rightX = GRID.origin + (cols - 1) * GRID.pitch;
+    const rowY = (r) => GRID.origin + r * GRID.rowPitch;
+    let rightRow = 0, leftRow = 0;
+    const nextRootSpot = (appId) => {
+      if (appId === 'meet' || appId === 'video') return { x: rightX, y: rowY(rightRow++) };
+      return { x: GRID.origin, y: rowY(leftRow++) };
+    };
+    for (const a of seed.loose || []) await addMissingApp(a, null, nextRootSpot(a.appId));
+    const addFolder = async (folder, parentId, x, y) => {
+      let f = folderByName[folder.name];
+      if (!f || f.parent !== parentId) {
+        if (parentId) {
+          const parentItem = itemById[parentId];
+          const pspot = nearestFreeCell(GRID.origin, GRID.origin + GRID.rowPitch, parentId, null);
+          f = await createFolder(folder.name, parentId, pspot.x, pspot.y);
+        } else {
+          f = await createFolder(folder.name, null, x, y);
+        }
+        folderByName[folder.name] = f;
+        itemById[f.id] = f;
+        added++; // count newly created folder separately? we'll include it.
+      }
+      let inside = 1;
+      for (const a of folder.apps || []) await addMissingApp(a, f.id, gridPosition(inside++));
+      for (const sub of folder.sub || []) {
+        const p = gridPosition(inside++);
+        await addFolder(sub, f.id, p.x, p.y);
+      }
+      return f;
+    };
+    for (const folder of seed.folders || []) await addFolder(folder, null, rightX, rowY(rightRow++));
+
+    return { updated, added };
   }
 
   // On the FIRST load after a build switch, the switch set gifos_reseed — re-bake
@@ -228,7 +281,11 @@
     try { flagged = localStorage.getItem('gifos_reseed') === '1'; } catch (e) {}
     if (!flagged) return;
     try { localStorage.removeItem('gifos_reseed'); } catch (e) {}
-    try { if (await rebuildDefaultApps()) await load(); } catch (e) { /* never block boot */ }
+    try {
+      const seed = await GifOS.samples.build();
+      const { updated, added } = await rebuildDefaultApps(seed);
+      if (updated || added) await load();
+    } catch (e) { /* never block boot */ }
   }
 
   // System items exist on every desktop, including old ones from before they
