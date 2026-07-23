@@ -1077,13 +1077,14 @@
   let pointer = null;
   let tick = 0, lastGuestBeat = 0, lastStateAt = 0;
   let bounces = {}, nextSwing = { host: null, guest: null };
+  let cpuTargetX = 0, cpuSwingQueued = false;
 
   function freshGame() {
     return { id: 'game', bx: 0, by: 4, bz: 5, vx: 0, vy: 0, vz: 0, sx: 0, sy: 0, sz: 0, sp: 0, hostX: 0, guestX: 0, hostScore: 0, guestScore: 0, serving: 'host', lastHitter: null, paused: false, pausedBy: null, pausedAt: 0, epoch: 1, t: 0 };
   }
 
   function boot() {
-    sub.textContent = owner ? 'You serve — drag to aim, smudge for spin' : 'Waiting for the host to serve';
+    sub.textContent = owner ? 'You serve — drag to aim, smudge for spin (solo vs computer)' : 'Waiting for the host to serve';
     if (!owner) resetBtn.style.display = 'none';
     resize();
     window.addEventListener('resize', resize);
@@ -1102,17 +1103,52 @@
     requestAnimationFrame(render);
   }
 
+  function isCpu() {
+    return owner && (!lastGuestBeat || (Date.now() - lastGuestBeat > GUEST_TIMEOUT));
+  }
+
   function hostTick() {
     const now = Date.now();
-    if (lastGuestBeat && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
+    const cpu = isCpu();
+    // With a CPU opponent we never pause for a missing guest; a real guest
+    // times out normally and shows the reconnect overlay.
+    if (!cpu && lastGuestBeat && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
       game.paused = true; game.pausedBy = 'guest'; game.pausedAt = now;
     }
     if (gst.swing) { nextSwing.guest = gst.swing; gst.swing = null; }
-    game.guestX = gst.x || game.guestX;
+    if (cpu) runCpu();
+    else game.guestX = gst.x || game.guestX;
     game.hostX = clampX(pointer ? pointer.tableX : game.hostX);
     if (!game.paused) step(DT);
     game.t = now;
     if (++tick % BROADCAST === 0) db.put(game);
+  }
+
+  // Simple beatable computer opponent. It mirrors the user's side, moves its
+  // paddle toward where the ball is heading, and swings when the ball comes
+  // into reach. No spin, slight reaction lag, imperfect aim — good enough for
+  // a rally, not impossible to beat.
+  function runCpu() {
+    // Track ball x (with a little lag so it can be wrong-footed).
+    const leadX = game.bx + game.vx * 60; // guess where ball will be
+    cpuTargetX += (leadX - cpuTargetX) * 0.08;
+    game.guestX = clampX(cpuTargetX);
+
+    // Swing when the ball is approaching the guest end, within paddle reach,
+    // and no swing already queued. Use a gentle, consistent force.
+    const approachingGuest = game.vy > 0;
+    const inRange = game.by > TL - 5.5 && game.by < TL - 0.8;
+    const reachableZ = game.bz < BR + 6;
+    if (approachingGuest && inRange && reachableZ && !cpuSwingQueued && !nextSwing.guest) {
+      cpuSwingQueued = true;
+      // Slight delay so it doesn't feel robotic; still returns most balls.
+      setTimeout(() => {
+        const aimOffset = (Math.random() - 0.5) * 1.6; // imperfect aim
+        const force = 0.55 + Math.random() * 0.2;
+        nextSwing.guest = { force, smudgeX: aimOffset, smudgeY: -4, tableX: game.guestX, t: performance.now() };
+        cpuSwingQueued = false;
+      }, 40 + Math.random() * 80);
+    }
   }
 
   function guestTick() {
@@ -1170,6 +1206,7 @@
     resetBall(to);
     bounces = {};
     nextSwing = { host: null, guest: null };
+    cpuSwingQueued = false;
   }
 
   function resetBall(server) {
@@ -1177,6 +1214,7 @@
     game.vx = 0; game.vy = 0; game.vz = 0;
     game.sx = 0; game.sy = 0; game.sz = 0; game.sp = 0;
     game.lastHitter = null;
+    cpuTargetX = 0;
   }
 
   function hit(who) {
@@ -1265,7 +1303,7 @@
     let show = false, title = '', body = '';
     if (!owner && now - lastStateAt > STATE_TIMEOUT) {
       show = true; title = 'Connection paused'; body = 'Tap Ready when you are back online so you are ready when the ball comes at you.';
-    } else if (owner && game.paused) {
+    } else if (owner && game.paused && !isCpu()) {
       show = true; title = 'Opponent away'; body = 'Waiting for them to come back online and tap Ready.';
     }
     overlay.classList.toggle('on', show);
