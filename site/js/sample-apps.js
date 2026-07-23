@@ -1073,18 +1073,18 @@
   const STATE_TIMEOUT = 3000;
 
   let game = freshGame();
-  let gst = { id: 'guest', x: 0, y: -0.7, heartbeat: 0, ready: false, swing: null, t: 0 };
+  let gst = { id: 'guest', x: 0, y: 0.7, heartbeat: 0, ready: false, swing: null, t: 0 };
   let pointer = null;
   let tick = 0, lastGuestBeat = 0, lastStateAt = 0;
   let bounces = [];
-  let cpu = { targetX: 0, targetY: -0.7, swingQueued: false, swingUntil: 0 };
+  let cpu = { targetX: 0, targetY: 0.7, swingQueued: false, swingUntil: 0 };
 
   function freshGame() {
     return {
       id: 'game',
       bx: 0, by: -0.5, bz: 0.4, vx: 0, vy: 0, vz: 0,
       hostX: 0, hostY: -0.75, hostZ: 0.35,
-      guestX: 0, guestY: -0.75, guestZ: 0.35,
+      guestX: 0, guestY: 0.75, guestZ: 0.35,
       hostScore: 0, guestScore: 0,
       serving: 'host', serveStep: 'toss', serveTimer: 0,
       lastHitter: null, pointOver: false, pointOverUntil: 0,
@@ -1093,7 +1093,7 @@
   }
 
   function boot() {
-    sub.textContent = owner ? 'You serve — drag paddle, swipe to hit (solo vs computer)' : 'Waiting for host to serve';
+    sub.textContent = owner ? 'You serve — drag paddle, swipe to hit (solo vs computer)' : 'Drag paddle, swipe to hit — waiting for host to serve';
     if (!owner) resetBtn.style.display = 'none';
     resize();
     window.addEventListener('resize', resize);
@@ -1122,11 +1122,11 @@
     }
     if (gst.swing) { game.guestSwing = gst.swing; gst.swing = null; }
     if (cpuMode) runCpu(now);
-    else {
+    else if (gst.heartbeat) {
       game.guestX = gst.x || game.guestX;
       game.guestY = gst.y || game.guestY;
     }
-    if (pointer) moveHostPaddle();
+    if (pointer) moveLocalPaddle();
     if (!game.paused) step(DT);
     game.t = now;
     if (++tick % BROADCAST === 0) db.put(game);
@@ -1134,20 +1134,29 @@
 
   function guestTick() {
     const now = Date.now();
-    gst.x = clamp(game.hostX || gst.x, -0.9, 0.9);
-    gst.y = clamp(game.hostY || gst.y, -0.95, -0.55);
+    // The guest controls their paddle in their own local coordinate system
+    // (their end is y=-0.95..-0.55), but the shared game stores host at -y
+    // and guest at +y. Convert local guest coords to shared guest coords.
+    gst.x = clamp(pointer ? screenToTableX(pointer.x) : gst.x, -0.9, 0.9);
+    const localY = pointer ? screenToTableY(pointer.y) : -0.75;
+    gst.y = clamp(-localY, 0.55, 0.95);
     gst.heartbeat = now; gst.t = now;
     if (!game.paused) gst.ready = false;
     if (++tick % BROADCAST === 0) db.put(gst);
   }
 
-  function moveHostPaddle() {
-    const r = canvas.getBoundingClientRect();
+  function moveLocalPaddle() {
     const tx = screenToTableX(pointer.x);
     const ty = screenToTableY(pointer.y);
-    // Host paddle is constrained to their end of the table and a little off the surface.
-    game.hostX = clamp(tx, -0.9, 0.9);
-    game.hostY = clamp(ty, -0.95, -0.55);
+    if (owner) {
+      game.hostX = clamp(tx, -0.9, 0.9);
+      game.hostY = clamp(ty, -0.95, -0.55);
+    } else {
+      // Guest's local view has their end at the bottom (ty in -0.95..-0.55).
+      // Store it in shared coords at the guest (+y) end.
+      gst.x = clamp(tx, -0.9, 0.9);
+      gst.y = clamp(-ty, 0.55, 0.95);
+    }
   }
 
   function runCpu(now) {
@@ -1175,12 +1184,12 @@
         const aimY = -0.55 + Math.random() * 0.20;
         const dx = aimX - game.guestX;
         const dy = aimY - game.guestY;
-        const speed = 0.0016 + Math.random() * 0.0006;
+        const speed = 0.016 + Math.random() * 0.006;
         const len = Math.hypot(dx, dy) || 1;
         game.guestSwing = {
           vx: (dx / len) * speed,
           vy: (dy / len) * speed,
-          vz: 0.0028 + Math.random() * 0.0010,
+          vz: 0.028 + Math.random() * 0.010,
           t: performance.now()
         };
         cpu.swingQueued = false;
@@ -1309,8 +1318,8 @@
     } else {
       // Passive return if ball just touches paddle without an active swing.
       sx = 0;
-      sy = isHost ? 0.0022 : -0.0022;
-      sz = 0.0030;
+      sy = isHost ? 0.022 : -0.022;
+      sz = 0.030;
     }
 
     // Contact point influences aim, but keep it subtle so the swing dominates.
@@ -1319,9 +1328,9 @@
     sz += (0.22 - dz) * 0.006;
 
     // Ensure the ball goes toward the opponent and clears the net.
-    if (isHost) { if (sy < 0.0012) sy = 0.0012; }
-    else { if (sy > -0.0012) sy = -0.0012; }
-    if (sz < 0.0018) sz = 0.0018;
+    if (isHost) { if (sy < 0.012) sy = 0.012; }
+    else { if (sy > -0.012) sy = -0.012; }
+    if (sz < 0.018) sz = 0.018;
 
     game.vx = sx;
     game.vy = sy;
@@ -1396,17 +1405,17 @@
         const len = Math.max(1, dist);
         // Speed is in table units per millisecond. A swipe up sends the ball deep;
         // a swipe left/right aims it across the table. Tuned for ~0.5-1s crossings.
-        const speed = Math.min(0.0032, 0.0012 + dist / 50000);
+        const speed = Math.min(0.032, 0.012 + dist / 5000);
         const nx = dx / len, ny = dy / len;
         game.hostSwing = {
           vx: nx * speed,
           vy: Math.abs(ny) < 0.25 ? speed * 0.85 : ny * speed,
-          vz: 0.0032 + Math.abs(ny) * 0.0012,
+          vz: 0.032 + Math.abs(ny) * 0.012,
           t: performance.now()
         };
       } else if (game.serving && game.serveStep === 'toss' && dist <= 24) {
         // Short tap during serve: give a simple, reliable serve straight ahead.
-        game.hostSwing = { vx: 0, vy: 0.0022, vz: 0.0035, t: performance.now() };
+        game.hostSwing = { vx: 0, vy: 0.022, vz: 0.035, t: performance.now() };
       }
       pointer = null;
     });
@@ -1415,11 +1424,13 @@
 
   function screenToTableX(px) {
     const W = canvas.clientWidth;
-    return (px - W/2) / (W * 0.42);
+    // Guests see the table mirrored, so their left/right is the same screen direction.
+    const dir = owner ? 1 : -1;
+    return dir * (px - W/2) / (W * 0.42);
   }
   function screenToTableY(py) {
     const H = canvas.clientHeight;
-    // Host end is bottom of screen (y = -0.95), mid-screen is roughly y = -0.55.
+    // Local player's end is always at the bottom of the screen.
     const t = Math.max(0, Math.min(1, (H - py) / (H * 0.28)));
     return -0.55 - t * 0.45;
   }
@@ -1491,6 +1502,7 @@
   // ---- rendering ----
   function render() {
     const W = canvas.width, H = canvas.height;
+    const flip = !owner;  // guest sees the table from the opposite end
     ctx.clearRect(0, 0, W, H);
     // Draw gym background
     ctx.fillStyle = '#2a221c';
@@ -1509,8 +1521,8 @@
     ctx.closePath();
     ctx.fill();
 
-    // Project table corners
-    const p = (x, y, z) => project3D(x, y, z, W, H);
+    // Project table corners. For guests we mirror y so their end is at the bottom.
+    const p = (x, y, z) => project3D(x, flip ? -y : y, z, W, H, flip);
     const corners = [
       p(-TW/2, -TL/2, 0), p(TW/2, -TL/2, 0), p(TW/2, TL/2, 0), p(-TW/2, TL/2, 0)
     ];
@@ -1542,32 +1554,36 @@
       ctx.fill();
     }
 
-    // Paddles
-    drawPaddle(p, game.hostX, game.hostY, game.hostZ, '#ff4444', true);
-    const gx = owner ? game.guestX : gst.x;
-    const gy = owner ? game.guestY : gst.y;
-    const gz = owner ? game.guestZ : 0.35;
-    drawPaddle(p, gx, gy, gz, '#4488ff', false);
+    // Paddles: for the guest, swap which paddle is "mine" and flip its y.
+    const myIsHost = owner;
+    const px1 = myIsHost ? game.hostX : gst.x;
+    const py1 = myIsHost ? game.hostY : gst.y;
+    const pz1 = myIsHost ? game.hostZ : 0.35;
+    const px2 = myIsHost ? game.guestX : game.hostX;
+    const py2 = myIsHost ? game.guestY : game.hostY;
+    const pz2 = myIsHost ? game.guestZ : game.hostZ;
+    // The local player is always drawn at the bottom of their own screen.
+    drawPaddle(p, px1, py1, pz1, '#ff4444', true);
+    drawPaddle(p, px2, py2, pz2, '#4488ff', false);
 
     // Ball
-    drawBall(p);
+    drawBall(p, flip);
 
     scoreEl.textContent = game.hostScore + ' — ' + game.guestScore;
     requestAnimationFrame(render);
   }
 
-  function project3D(x, y, z, W, H) {
-    // View from behind host side (y=-1), looking toward guest (y=+1)
+  function project3D(x, y, z, W, H, flipView) {
+    // View from behind the local player's side. Host: y=-1 looking toward +1.
+    // Guest (flipView): we already mirrored y before calling, so we still view from y=-1.
     const fov = 0.55;
     const eyeY = -2.6;
-    const eyeZ = 1.5;
-    const dy = y - eyeY;
-    const dz = eyeZ - z;
-    const scale = fov / (dy + 0.001);
+    const scale = fov / (y - eyeY + 0.001);
     return {
       x: W/2 + x * W * scale,
-      y: H * 0.62 - (z + dy * 0.35) * H * scale,
-      sc: scale * 120
+      // y maps depth to screen y (near end lower, far end higher), and z adds height.
+      y: H * (0.80 - y * 0.18) - z * H * scale,
+      sc: scale * 6
     };
   }
 
@@ -1612,7 +1628,7 @@
     ctx.restore();
   }
 
-  function drawBall(p) {
+  function drawBall(p, flip) {
     const b = p(game.bx, game.by, game.bz);
     const r = 7 * b.sc;
     ctx.fillStyle = '#fff';
