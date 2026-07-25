@@ -42,6 +42,9 @@
  *   --jsonl <path>    append one JSON snapshot line every --every seconds, in
  *                     ANY mode (env MEET_JSONL too; '%d' → YYYY-MM-DD, daily
  *                     rotation for free). The monitor service's durable record.
+ *   --ensure-pass <pw>  room-lock KEEPER (env MEET_ENSURE_PASS): join with NO
+ *                     password; an OPEN room gets locked with this password by
+ *                     us, a LOCKED door gets it entered. Supersedes --pass.
  *
  * COMMANDS (at the prompt, via --once, or `watch`):
  *   state | s     my seat, mesh state, links, occ, participants, consent
@@ -126,6 +129,11 @@ const cfg = {
   json: !!args.json,
   edge: !!args.edge,     // pin the EDGE channel (?edge) — else gifos.app redirects to the release snapshot
   jsonl: args.jsonl || process.env.MEET_JSONL || '', // append a JSON snapshot line every --every s, in ANY mode ('%d' in the path becomes YYYY-MM-DD)
+  // --ensure-pass <pw>: the room-lock KEEPER mode (the monitor's). Join with
+  // NO password first; seated in an OPEN room ⇒ SET this password (the page's
+  // own Password UI, so present members learn it live); the locked-door
+  // prompt appears instead ⇒ ENTER it and join. Supersedes --pass.
+  ensurePass: args['ensure-pass'] || process.env.MEET_ENSURE_PASS || '',
 };
 const MODE = args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
@@ -237,7 +245,7 @@ function streamLine(t, s, level) {
 }
 
 // ---- browser session ------------------------------------------------------
-let browser = null, ctx = null, page = null, joined = false;
+let browser = null, ctx = null, page = null, joined = false, lastRoomKey = '';
 async function ensureBrowser() {
   if (browser) return;
   browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME, args: [
@@ -258,7 +266,11 @@ async function join(room, opts) {
   const roomKey = room + (cfg.av ? '.' + cfg.av : '');
   const seed = "localStorage.setItem('gifos_name'," + JSON.stringify(cfg.name) + ");localStorage.setItem('gifos_meet_bar','1');"
     + (cfg.relay ? "localStorage.setItem('gifos_relay'," + JSON.stringify(cfg.relay) + ");" : '')
-    + (cfg.pass ? "localStorage.setItem(" + JSON.stringify('gifos_vpw_' + roomKey) + "," + JSON.stringify(cfg.pass) + ");" : '');
+    // ensure-pass NEVER pre-seeds the password: it must knock without one
+    // first, so an open room stays joinable and gets LOCKED by us — a
+    // pre-seeded pw at an open door is a proof mismatch the relay rejects.
+    + (cfg.pass && !cfg.ensurePass ? "localStorage.setItem(" + JSON.stringify('gifos_vpw_' + roomKey) + "," + JSON.stringify(cfg.pass) + ");" : '');
+  lastRoomKey = roomKey;
   await ctx.addInitScript({ content: seed });
   await ctx.addInitScript({ content: camInitScript() });
   page = await ctx.newPage();
@@ -726,10 +738,62 @@ function compactOldJsonl(todayPath) {
   } catch (e) { /* no dir yet — first run */ }
 }
 
+// ---- room-lock keeper (--ensure-pass / MEET_ENSURE_PASS) --------------------
+// The state machine that makes a resident bot the room's lock-keeper:
+//   at a LOCKED door (pw-modal in 'join' mode)  → enter the password, join
+//   SEATED and the room is OPEN (no stored pw)  → set the password (page UI,
+//                                                 so present members re-key live)
+//   SEATED and the stored pw is ours            → nothing to do
+//   SEATED and someone changed it to something  → log it, never fight over it
+// All through the page's own modal — the exact flow a human takes, so every
+// re-key/kick side effect the UI wires up happens too.
+function startEnsurePass() {
+  if (!cfg.ensurePass) return;
+  let busy = false, lastEnter = 0, satisfied = false, conflictLogged = false;
+  setInterval(async () => {
+    if (!page || !joined || busy) return;
+    busy = true;
+    try {
+      const st = await page.evaluate((rk) => {
+        const m = document.getElementById('pw-modal');
+        const vis = m && m.style.display !== 'none';
+        let coord = null; try { coord = window.__gifosVideo.meshCoord(); } catch (e) {}
+        let stored = ''; try { stored = localStorage.getItem('gifos_vpw_' + rk) || ''; } catch (e) {}
+        return { mode: vis ? (m.dataset.mode || '') : '', seated: !!coord, stored };
+      }, lastRoomKey);
+      const fillAndSave = (v) => page.evaluate((pw) => {
+        const i = document.getElementById('pw-new');
+        i.value = pw; i.dispatchEvent(new Event('input', { bubbles: true }));
+        document.getElementById('pw-save').click();
+      }, v);
+      if (st.mode === 'join') {
+        if (Date.now() - lastEnter > 8000) { // a wrong-pw bounce reopens the modal — retry politely, log each
+          lastEnter = Date.now();
+          await fillAndSave(cfg.ensurePass);
+          console.error('[ensure-pass] locked door — presented the password');
+        }
+      } else if (st.seated && !st.stored) {
+        await page.evaluate(() => document.getElementById('pwbtn').click());
+        await sleep(500);
+        await fillAndSave(cfg.ensurePass);
+        console.error('[ensure-pass] room was OPEN — set the password');
+        satisfied = false; // verify on the next tick via stored
+      } else if (st.seated && st.stored === cfg.ensurePass) {
+        if (!satisfied) { satisfied = true; console.error('[ensure-pass] room is locked with our password'); }
+      } else if (st.seated && st.stored && st.stored !== cfg.ensurePass && !conflictLogged) {
+        conflictLogged = true;
+        console.error('[ensure-pass] room password was changed by someone else — leaving it alone');
+      }
+    } catch (e) { /* page busy/navigating */ }
+    busy = false;
+  }, 3000).unref();
+}
+
 // ---- main -----------------------------------------------------------------
 (async () => {
   process.on('SIGINT', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
   startJsonl();
+  startEnsurePass();
 
   if (MODE === 'watch' || MODE === 'once' || MODE === 'script') {
     if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once/--script'); process.exit(1); }

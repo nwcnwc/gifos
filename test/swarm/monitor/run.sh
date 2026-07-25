@@ -24,10 +24,11 @@ SESSION="${MEET_TMUX_SESSION:-gifos-meet}"
 # release version.json points default users at — set that when you want the
 # monitor to see exactly what a fresh visitor sees.
 EDGE_FLAG=""; [ "${MEET_EDGE:-1}" != "0" ] && EDGE_FLAG="--edge"
-# MEET_PASS: the room's password, when the room is locked. Set it in
-# ~/.config/gifos-meet-monitor.env on the host (chmod 600), never in the
-# repo. Harmless while the room is open.
-PASS_ARGS=(); [ -n "${MEET_PASS:-}" ] && PASS_ARGS=(--pass "$MEET_PASS")
+# MEET_PASS: the room password the monitor KEEPS (--ensure-pass): it joins an
+# open room and locks it with this, or presents it at an already-locked door.
+# Set it in ~/.config/gifos-meet-monitor.env on the host (chmod 600), never in
+# the repo. Empty = the monitor neither locks nor presents anything.
+PASS_ARGS=(); [ -n "${MEET_PASS:-}" ] && PASS_ARGS=(--ensure-pass "$MEET_PASS")
 mkdir -p "$DATA"
 
 while true; do
