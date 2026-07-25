@@ -184,6 +184,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .name-box .rec-opt.inline input { margin: 0; }
   #stagefeed .rowtile { width: 100%; }
   .rowtile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  /* Stage feeds are verbatim cameras: show the FULL broadcast frame, exactly
+     as the room's recording captures it — never a crop. */
+  #stagefeed .rowtile video { object-fit: contain; }
   .rowtile .rlabel { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px;
     font-size: .65rem; color: var(--text, #e0e0f0); background: rgba(10,10,15,.7);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -241,9 +244,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     border-radius: .5rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b);
     color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
   #app-list button:hover { border-color: var(--accent, #7b5cff); }
+  /* Row tiles show the WHOLE broadcast frame (16:9 camera, contained, never
+     cropped) — what you see is what the room and the recording get. The
+     stadium mosaic keeps its own packed-grid rules below. */
   .tile { position: relative; background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
-          overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
-  .tile video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+          overflow: hidden; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
+  .tile video { width: 100%; height: 100%; object-fit: contain; background: #000; }
   /* Two blur strengths. blur2 (Max) destroys every readable edge; blur1
      (plain) keeps a soft silhouette but hides detail. When a user blurs
      THEMSELVES their browser also broadcasts blurred pixels (canvas), so a
@@ -296,6 +302,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                   border-radius: .4rem; border: 1px solid rgba(255,255,255,.16); background: rgba(10,10,15,.85);
                   color: #eceef8; cursor: pointer; font-size: .75rem; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  /* Real fullscreen (the maxbtn): release the aspect box, square the corners. */
+  .tile:fullscreen { aspect-ratio: auto; border-radius: 0; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
   #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
                background: var(--bg, #101018); border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
@@ -442,6 +450,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10.5 22 7v10l-7-3.5"/>
         <line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg>
+    </button>
+    <button id="flipcam" class="iconbtn" aria-label="Switch camera" title="Switch between front and back camera" style="display:none">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 8a8 8 0 0 0-14.9-2"/><polyline points="5 2 5 6 9 6"/>
+        <path d="M4 16a8 8 0 0 0 14.9 2"/><polyline points="19 22 19 18 15 18"/></svg>
     </button>
     <span class="blurctl" title="How much your own video is blurred to everyone else">
       <span class="blurlbl">Blur</span>
@@ -1252,9 +1265,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const cap = document.createElement('div');
       cap.className = 'cap';
       tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips); tile.appendChild(cap);
+      // Full screen, the normal convention: the button toggles, Esc exits,
+      // :fullscreen CSS releases the tile's aspect box. iOS Safari can only
+      // fullscreen a <video>, so it gets the native video fullscreen instead.
       const maxbtn = document.createElement('button');
-      maxbtn.className = 'maxbtn'; maxbtn.textContent = '⤢'; maxbtn.title = 'Make this the focus feed';
-      maxbtn.addEventListener('click', (e) => { e.stopPropagation(); focusId = focusId === id ? null : id; layout(); });
+      maxbtn.className = 'maxbtn'; maxbtn.textContent = '⛶'; maxbtn.title = 'Full screen';
+      maxbtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (document.fullscreenElement === tile) { document.exitFullscreen().catch(() => {}); return; }
+        if (tile.requestFullscreen) tile.requestFullscreen().catch(() => {});
+        else if (video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e2) {} }
+      });
       tile.appendChild(maxbtn);
       let modbar = null, voteBtn = null;
       if (!isMe) {
@@ -3182,6 +3203,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       setMod(id, 'app', true);
     });
 
+    // ---- which camera: front or back (the standard mobile flip) -------------
+    // facingMode is an IDEAL, so desktops with one webcam are unaffected; the
+    // choice persists per device. The flip button only appears when the
+    // hardware actually has a second camera (see maybeShowFlip).
+    let camFacing = 'user';
+    try { camFacing = localStorage.getItem('gifos_cam_facing') || 'user'; } catch (e) {}
+    const camVideoConstraints = () => ({ width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: camFacing } });
+    let flipChecked = false;
+    function maybeShowFlip() {
+      if (flipChecked || !localStream || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      flipChecked = true; // device labels are readable now that a stream was granted
+      navigator.mediaDevices.enumerateDevices().then((ds) => {
+        if (ds.filter((d) => d.kind === 'videoinput').length > 1) {
+          const b = document.getElementById('flipcam');
+          if (b) b.style.display = '';
+        }
+      }).catch(() => {});
+    }
     // If the tab was backgrounded long enough for the OS to kill the camera,
     // grab it again and swap the fresh tracks into every live link.
     function reviveCamera() {
@@ -3191,7 +3230,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       regrabCamera();
     }
     function regrabCamera() {
-      navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+      navigator.mediaDevices.getUserMedia({ video: camVideoConstraints(), audio: true })
         .then((s) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
           // fresh tracks come back live — restore the user's actual choices
@@ -3756,9 +3795,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // that crash the boot; join view-only, exactly as for a denied camera.
           const md = navigator.mediaDevices;
           const gum = (md && md.getUserMedia)
-            ? md.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+            ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
             : Promise.reject(new Error('no media devices'));
-          return gum.then((stream) => { localStream = stream; }, () => { localStream = null; });
+          return gum.then((stream) => { localStream = stream; maybeShowFlip(); }, () => { localStream = null; });
         })
         .then(() => {
           // Join QUIET by default: mic and camera acquired (permission granted,
@@ -6110,13 +6149,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       lateAsk = true;
       setStatus('Asking for camera & microphone…');
-      md.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+      md.getUserMedia({ video: camVideoConstraints(), audio: true })
         .then((s) => {
           lateAsk = false;
           // Quiet-join discipline still holds: only the tapped control goes on.
           for (const tr of s.getTracks()) tr.enabled = tr.kind === (kind === 'cam' ? 'video' : 'audio');
           if (!localStream) {
             localStream = s;
+            maybeShowFlip();
             const n = meTile.tile.querySelector('.note'); if (n) n.remove();
             meTile.video.style.display = '';
             meTile.video.srcObject = localStream;
@@ -6195,6 +6235,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       broadcastStatus();
       reactRoomState();  // camera on/off changes your consent
       updateMediaSession();
+    };
+    // Flip front/back camera (mobile convention). regrabCamera does the whole
+    // swap: same MediaStream identity, senders re-fed, blur pipe rebuilt.
+    document.getElementById('flipcam').onclick = () => {
+      if (!localStream) return;
+      camFacing = camFacing === 'user' ? 'environment' : 'user';
+      try { localStorage.setItem('gifos_cam_facing', camFacing); } catch (e) {}
+      regrabCamera();
     };
 
     // ---- stay in the meeting when the tab is hidden ---------------------------

@@ -307,12 +307,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the hand shows as a chip on the tile', /hand raised/.test(await aPage.locator('.tile', { hasText: 'Cai' }).textContent()));
   await cPage.locator('#hand').click(); await bPage.locator('#hand').click(); // hands down
 
-  // ---------- maximize: any feed becomes YOUR focus feed ----------
+  // ---------- fullscreen: the tile button follows the normal convention ----------
   const bobTile = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
   await bobTile.locator('.maxbtn').click();
-  check('maximize makes that feed the focus feed at the top', await bobTile.evaluate((t) => t.classList.contains('focus') && parseInt(t.style.order, 10) < -50000));
+  check('the tile button enters real fullscreen on that tile', await bobTile.evaluate((t) => document.fullscreenElement === t));
   await bobTile.locator('.maxbtn').click();
-  check('maximize toggles back to the grid', await bobTile.evaluate((t) => !t.classList.contains('focus')));
+  check('a second press exits fullscreen', await aPage.evaluate(() => document.fullscreenElement === null));
 
   // ---------- speaking: live audio lights the tile border ----------
   await bPage.locator('#mic').click(); // unmute — the fake device emits a tone
