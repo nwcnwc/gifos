@@ -2,6 +2,16 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.8.2",
+      "date": "2026-07-25",
+      "critical": true,
+      "headline": "Meeting stability: a relay blip can no longer tear a room in two",
+      "notes": [
+        "Meeting greeters now re-register the instant their relay socket reconnects (plus an idle keepalive and a zombie-socket watchdog), so a relay hiccup no longer leaves the room's door unmanned for minutes. Before this, a joiner in that window could stall at 'participants: 1' or accidentally found a second copy of the meeting — the split-room picker and the bouncing participant counts some rooms saw.",
+        "Meeting diagnostics now show when a participant's media is arriving via a friend-relay instead of a direct connection."
+      ]
+    },
+    {
       "version": "0.8.1",
       "date": "2026-07-22",
       "critical": false,

@@ -14,6 +14,11 @@ ROOM="${MEET_ROOM:-test}"
 NAME="${MEET_NAME:-MonitorBot}"
 DATA="${MEET_DATA:-$HOME/gifos-meet-monitor}"
 SESSION="${MEET_TMUX_SESSION:-gifos-meet}"
+# MEET_EDGE=1 (default) pins the monitor to the EDGE channel — fixes land there
+# first and the test room is a debugging surface. MEET_EDGE=0 follows whatever
+# release version.json points default users at — set that when you want the
+# monitor to see exactly what a fresh visitor sees.
+EDGE_FLAG=""; [ "${MEET_EDGE:-1}" != "0" ] && EDGE_FLAG="--edge"
 mkdir -p "$DATA"
 
 while true; do
@@ -23,7 +28,7 @@ while true; do
   ( sleep 25; tmux send-keys -t "$SESSION" 'watch 5 info' Enter 2>/dev/null ) &
   KICK=$!
   node "$REPO/test/swarm/meet.js" \
-    --room "$ROOM" --name "$NAME" --cam --edge \
+    --room "$ROOM" --name "$NAME" --cam $EDGE_FLAG \
     --every 5 --jsonl "$DATA/snapshots-%d.jsonl" \
     2>> "$DATA/stderr.log"
   kill "$KICK" 2>/dev/null

@@ -20,8 +20,11 @@ ssh raspberrypi -t 'tmux attach -t gifos-meet'
 #   C-b d      detach (service keeps running)
 ```
 
-It runs the **edge** channel (`--edge`) — the room is a debugging surface, and
-fixes land on edge first.
+It runs the **edge** channel by default (`MEET_EDGE=1` → `--edge`) — the room
+is a debugging surface, and fixes land on edge first. Set `MEET_EDGE=0` (e.g.
+as an Environment= override in the unit) to follow the default release channel
+instead — the monitor then sees exactly what a fresh visitor sees. meet.js uses
+a fresh browser context per join, so the choice never sticks across restarts.
 
 ## Install (on the pi, from the repo checkout)
 
