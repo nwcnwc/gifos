@@ -102,6 +102,16 @@
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
     let sock = null, deepSince = -1;
+    // Wire-level greeter registration health (production only — the sim has no
+    // sockets, so none of this is mesh law). The relay's greeter pool is pure
+    // socket-attachment state: an entry dies WITH its socket, and the E3
+    // re-knock that would restore it is 100-200s away. Without these three
+    // timestamps a single relay blip empties the pool for minutes — joiners
+    // stall at a dead door (hold-mint-gap) or, knocking before any old member
+    // reconnects, FOUND a second meeting (the production room tear).
+    let lastRelayRx = 0;   // last frame heard from the relay on the live socket
+    let lastRegAt = 0;     // last time we sent a greeter registration
+    let regPendingAt = 0;  // a registration awaiting its greeters reply (zombie detector)
     // Greeter-list forensics (fragment founding): every greeters reply we
     // handle is stamped here — list length, how many blobs opened under our
     // room key, the relay's founded flag, and which branch we took. R3/R6
@@ -238,8 +248,16 @@
 
     function makeSock() {
       sock = net.steadySocket(makeUrl);
+      lastRelayRx = Date.now(); // fresh socket starts its idle clock now
+      // EVERY (re)connect: if I am a seated Section-1 greeter, my pool entry
+      // died with the old socket — restore it NOW, not at the next E3 tick.
+      // The URL CONNECT knock re-seeds the genesis key but carries no sealed
+      // address, so without this the pool stays empty until E3 (100-200s):
+      // exactly the window the tear drill founds a second meeting in.
+      sock.onopen = () => { if (!stopped && iAmAGreeter()) reregister('reconnect'); };
       sock.onmessage = (ev) => {
         if (stopped) return;
+        lastRelayRx = Date.now();
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.t === 'greeters') { onGreeters(m); return; }
         if (m.t === 'peer' && m.msg) {
@@ -307,6 +325,21 @@
         .then((b) => sendRaw({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
         .catch(() => sendRaw({ t: 'knock', gk: k }));
     }
+    // (2b) RE-REGISTER on a wire event — same door function as (2), fired when
+    // the TRANSPORT (not the E3 timer) says the pool entry may be gone: the
+    // socket just reconnected, a greeters reply came back empty, or the idle
+    // keepalive is due. Throttled so a solo greeter's own empty replies can
+    // never chain into a knock loop. Every call is stamped into greeterTrace.
+    function reregister(why) {
+      if (stopped || !seat || !iAmAGreeter()) return;
+      const now = Date.now();
+      if (now - lastRegAt < 8000) return;
+      lastRegAt = now; regPendingAt = now;
+      REGISTER_MYSELF_AS_A_GREETER(seat.genKey);
+      greeterTrace.push({ t: now, tick: env.TICK, state: seat.state, post: seat.state,
+        listLen: -1, open: -1, founded: false, action: 're-register:' + why });
+      if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
+    }
 
     // (3) ASK TO BE LET IN — I am an ENTRANT with no seat and no channels, so
     // the relay carries my WHOHOME/FIND to the greeter I chose from the list.
@@ -353,6 +386,7 @@
         try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
       }
       if (stopped || !seat) return;
+      regPendingAt = 0; // the relay answered — the socket is provably alive
       // Capture join state BEFORE recv — GREETERS empty+founded take()s at
       // state===0 and leaves state=3, so a post-recv snapshot would hide the
       // actual mint under "already seated".
@@ -384,6 +418,14 @@
         listLen: list.length, open: ids.length, founded: !!m.founded, action,
       });
       if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
+      // A seated Section-1 greeter looking at an EMPTY pool is looking at a
+      // door with no doorman — the very knock a joiner would stall or FOUND
+      // on. My own entry is never in my replies (the relay excludes the
+      // asking socket), so an empty reply is the one reliable "pool is bare"
+      // signal I get. Re-register (throttled; a reply chain can't loop).
+      // NB: after reregister()'s own 8s throttle, a solo greeter settles at
+      // E3/keepalive cadence — this adds no steady-state relay traffic.
+      if (!ids.length && preState === 3 && iAmAGreeter()) reregister('empty-pool');
     }
 
     function startLoop() {
@@ -406,6 +448,27 @@
         else if (deepSince < 0) deepSince = env.TICK;
         if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
         if (needsRelay && (!sock || sock.rejected)) makeSock(); // re-arm reachability
+        // Greeter socket health (wire-level, not mesh law — the sim has no
+        // sockets). A NAT/middlebox drops a silent websocket without telling
+        // either end; the socket then reads OPEN while every send vanishes (a
+        // ZOMBIE). E3's 100-200s cadence sits beyond common idle timeouts, so
+        // a zombied greeter silently falls out of the pool — the door goes
+        // unmanned while the greeter believes it is still on duty (the
+        // production monitor spent hours in exactly this state).
+        if (iAmAGreeter() && sock && !sock.rejected) {
+          const nowMs = Date.now();
+          if (regPendingAt && nowMs - regPendingAt > 12000) {
+            // a registration the relay never answered ⇒ zombie socket:
+            // rebuild it (the fresh socket's onopen re-registers).
+            regPendingAt = 0;
+            try { sock.close(); } catch (e) {}
+            sock = null; makeSock();
+          } else if (nowMs - lastRelayRx > 55000) {
+            // idle keepalive: re-register before any middlebox forgets the
+            // pipe; the greeters reply doubles as proof the socket is alive.
+            reregister('keepalive');
+          }
+        }
         if (opts.onUpdate) opts.onUpdate(node);
       }, tickMs);
     }
