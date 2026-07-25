@@ -102,8 +102,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- the client VOTE loop (the relay majority itself is relay-voteoff.js) ----
   const bId = await otherId(a);
+  // new flow: arm "vote out of room" from the bar's Vote menu, then tap the ✕
+  await a.locator('#votebtn').click();
+  await a.locator('#vote-modal [data-vm="kick"]').click();
   await a.evaluate((id) => {
-    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votebtn');
+    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votedot');
     if (btn) btn.click();
   }, bId);
   await a.waitForFunction((id) => window.__gifosVideo.votesAgainst(id) === 1, bId, { timeout: 15000 });
@@ -113,8 +116,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('one vote of two devices boots nobody (min-2 majority)',
     await b.evaluate(() => window.__gifosVideo.room() && !window.__gifosVideo.bannedOut()));
   await a.evaluate((id) => {
-    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votebtn');
-    if (btn) btn.click(); // withdraw
+    const btn = document.querySelector('.tile[data-peer="' + id + '"] .votedot');
+    if (btn) btn.click(); // withdraw (kick mode is still armed)
   }, bId);
   await a.waitForFunction((id) => window.__gifosVideo.votesAgainst(id) === 0, bId, { timeout: 15000 });
   check('withdrawing the vote clears the tally (and the personal global list)',

@@ -776,8 +776,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with an admin present, a consenting guest goes clear on her own — no unanimity', true);
   await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
   check('…and she broadcasts raw', true);
-  check('vote-off is HIDDEN in admin rooms (admins ban instead)',
-    (await adam.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) === 'none');
+  check('vote menu is HIDDEN in admin rooms (admins ban instead)',
+    (await adam.evaluate(() => getComputedStyle(document.querySelector('#votebtn')).display)) === 'none');
   // The admin BLOCKS Beth per-tile → she blurs on every screen and broadcasts
   // blurred, regardless of her own None.
   const bethTileOnAdam = adam.locator('.tile:not(.me)').first();
@@ -982,21 +982,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // third (majority of 3 = 2).
   const voteRoom = 'vote' + Math.floor(Math.random() * 1e6).toString(36);
   const vHash = 'v=' + voteRoom;
+  // New vote flow: arm "vote out of room" mode from the bar's Vote menu, then
+  // tap the red ✕ target on the tile.
+  const armKick = async (pg) => { await pg.locator('#votebtn').click(); await pg.locator('#vote-modal [data-vm="kick"]').click(); };
   const patCtx = await newUser('Pat'), quinnCtx = await newUser('Quinn'), vicCtx = await newUser('Vic');
   const pat = await openRoom(patCtx, 'pat', vHash);
   const quinn = await openRoom(quinnCtx, 'quinn', vHash);
   const vic = await openRoom(vicCtx, 'vic', vHash);
   await pat.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
-  check('vote-off buttons show in a non-admin room',
-    (await pat.evaluate(() => getComputedStyle(document.querySelector('.tile:not(.me) .votebtn')).display)) !== 'none');
+  check('the Vote menu shows in a non-admin room',
+    (await pat.evaluate(() => getComputedStyle(document.querySelector('#votebtn')).display)) !== 'none');
   // Pat votes Vic off — one vote, not enough (majority of 3 is 2); progress shows.
+  await armKick(pat);
   const vicTileOnPat = pat.locator('.tile:not(.me)', { hasText: 'Vic' });
-  await vicTileOnPat.locator('.votebtn').click();
+  await vicTileOnPat.locator('.votedot').click();
   await pat.waitForFunction(() => window.__gifosVideo.voteNeed() >= 2, null, { timeout: 6000 });
   check('one vote is not enough to remove someone', !(await vic.evaluate(() => window.__gifosVideo.bannedOut())));
   // Quinn also votes Vic off → majority reached → Vic is kicked.
+  await armKick(quinn);
   const vicTileOnQuinn = quinn.locator('.tile:not(.me)', { hasText: 'Vic' });
-  await vicTileOnQuinn.locator('.votebtn').click();
+  await vicTileOnQuinn.locator('.votedot').click();
   await vic.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('a majority voting someone off removes them', true);
   const vicRejoin = await openRoom(vicCtx, 'vic2', vHash);
@@ -1022,10 +1027,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     !(await pat2.evaluate(() => { const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Vic')); return !!(t && /to remove/.test(t.textContent)); })));
   check('and the device is admitted normally into the new room', !(await vicB.evaluate(() => window.__gifosVideo.bannedOut())));
   // A fresh majority IN THIS room still removes them — per-room vote-off works.
-  await pat2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votebtn').click();
+  await armKick(pat2);
+  await pat2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votedot').click();
   const quinn2 = await openRoom(quinnCtx, 'quinn-b', v2Hash);
   await quinn2.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
-  await quinn2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votebtn').click();
+  await armKick(quinn2);
+  await quinn2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votedot').click();
   await vicB.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('a fresh majority in the new room removes them (per-room vote-off still works)', true);
   await vicB.close();

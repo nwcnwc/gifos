@@ -268,11 +268,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .closed-box p { color: var(--muted, #8888aa); font-size: .9rem; line-height: 1.5; margin-bottom: 1.2rem; }
   .closed-box button { padding: .55rem 1.6rem; border-radius: .5rem; border: 1px solid var(--accent, #7b5cff);
                        background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
-  .votebtn { position: absolute; top: .3rem; left: .3rem; z-index: 4; padding: .12rem .4rem;
-    border-radius: .35rem; border: 1px solid #6a2a2a; background: rgba(40,10,10,.7); color: #ff8f8f;
-    font-size: .72rem; cursor: pointer; display: none; }
-  body.canvote .tile:not(.me) .votebtn { display: inline-block; }
-  .votebtn.voted { background: #7a1f1f; color: #fff; border-color: #ff5c5c; }
+  /* VOTE MODE (open rooms): entered from the bar's Vote menu. The tile grows a
+     big centered target — a green dot to vote someone ONTO the stage, a red ✕
+     on stage panels to vote them OFF it, a red ✕ on floor panels to vote them
+     out of the room. Your own standing vote glows. */
+  .tile .votedot { display: none; position: absolute; inset: 0; margin: auto; width: 3.4rem; height: 3.4rem;
+    border-radius: 50%; z-index: 6; border: 3px solid rgba(255,255,255,.9); cursor: pointer;
+    align-items: center; justify-content: center; font: bold 1.7rem system-ui; color: #fff; padding: 0; }
+  body.vm-up.canvote .tile:not(.me):not(.onstage) .votedot { display: flex; background: rgba(28,168,83,.92); }
+  body.vm-down.canvote .tile.onstage:not(.me) .votedot,
+  body.vm-kick.canvote .tile:not(.me):not(.onstage) .votedot { display: flex; background: rgba(214,40,48,.92); }
+  body.vm-down .tile .votedot::after, body.vm-kick .tile .votedot::after { content: '✕'; }
+  .tile .votedot.voted { box-shadow: 0 0 0 4px #fff, 0 0 20px rgba(255,255,255,.55); }
+  /* Stagers live in the composited Stage strip (one canvas), not in .tile
+     panels — so vote-off-stage overlays one labeled ✕ per stager across the
+     strip. The NAME is the target (authoritative), not pixel geometry. */
+  .stgvotes { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-evenly; z-index: 6; }
+  .stgvotes button { display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    background: none; border: none; cursor: pointer; color: #fff; font: inherit; padding: .3rem .5rem; }
+  .stgvotes button .x { width: 3rem; height: 3rem; border-radius: 50%; background: rgba(214,40,48,.92);
+    border: 3px solid rgba(255,255,255,.9); display: flex; align-items: center; justify-content: center;
+    font: bold 1.5rem system-ui; }
+  .stgvotes button .nm { font-size: .72rem; background: rgba(10,10,15,.75); padding: .1rem .45rem; border-radius: .35rem; }
+  .stgvotes button.voted .x { box-shadow: 0 0 0 4px #fff, 0 0 20px rgba(255,255,255,.55); }
+  /* Bottom-anchored so it never covers the controls bar or the tiles' targets. */
+  #votebanner { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 40;
+    display: flex; gap: .8rem; align-items: center; max-width: min(40rem, 94vw);
+    background: rgba(10,10,15,.92); border: 1px solid var(--accent, #7b5cff);
+    border-radius: .7rem; padding: .5rem .9rem; font-size: .85rem; color: #e0e0f0; }
+  #votebanner button { padding: .25rem .8rem; border-radius: .4rem; border: 1px solid var(--accent, #7b5cff);
+    background: var(--accent, #7b5cff); color: var(--onaccent, #fff); cursor: pointer; font: inherit; }
+  #votebtn { display: none; }
+  body.canvote #votebtn { display: inline-block; }
+  .voteopt { display: block; width: 100%; text-align: left; margin-bottom: .5rem; padding: .6rem .8rem;
+    border-radius: .5rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b);
+    color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
+  .voteopt:hover { border-color: var(--accent, #7b5cff); }
+  .voteopt small { display: block; color: var(--muted, #8888aa); font-size: .78rem; margin-top: .15rem; }
   /* Tile overlays always sit on live/dark video, so their text stays a fixed
      light regardless of the computer's theme — themed (dark-on-light) text
      would vanish against these permanently-dark pills. */
@@ -470,6 +502,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
     <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Video off</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
+    <button id="votebtn" title="Vote someone onto the stage, off the stage, or out of the room — majorities decide">Vote</button>
     <button id="admbtn" title="Room admin controls" style="display:none">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
     <button id="chatbtn" title="Chat and share files — stays between the people on this meeting, never on a server">Chat</button>
@@ -571,6 +604,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <p style="font-size:.78rem;opacity:.55;margin-top:.9rem">We show people on the <b>Stage</b> when we can; if the stage is empty, the <b>Stadium</b> (everyone that room can see).</p>
     </div>
   </div>
+
+  <!-- VOTE picker (open rooms): choose what you are voting on, then tap the
+       targets on the tiles. One vote per person; majorities act; leaving the
+       room withdraws your stage votes automatically. -->
+  <div class="name-modal" id="vote-modal" style="display:none">
+    <div class="name-box" style="max-width:24rem;text-align:left">
+      <h3>Place a vote</h3>
+      <p style="font-size:.85rem;opacity:.8;margin:.4rem 0 .9rem">One vote per person, counted while the voter is in the room. A majority of the room acts — nobody has special power here.</p>
+      <button class="voteopt" data-vm="up">🟢 Vote onto stage<small>A green dot appears on everyone not on the stage — tap to vote them up. At a majority they take the stage.</small></button>
+      <button class="voteopt" data-vm="down">🔴 Vote off stage<small>A red ✕ appears on the stage panels — tap to vote them down. At a majority they step off.</small></button>
+      <button class="voteopt" data-vm="kick">⛔ Vote out of room<small>A red ✕ appears on everyone not on the stage — your vote follows them into every room you share.</small></button>
+      <div style="display:flex;justify-content:flex-end;margin-top:.3rem"><button id="vote-cancel">Cancel</button></div>
+    </div>
+  </div>
+  <div id="votebanner" style="display:none"><span id="votebanner-text"></span><button id="vote-done">Done</button></div>
 
   <div class="name-modal" id="pw-modal" style="display:none">
     <div class="name-box">
@@ -922,10 +970,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return st.stg || 0;
       };
       const out = [];
+      // Receiver-side vote enforcement: a device the room has majority-voted
+      // OFF the stage is excluded on EVERY phone, whatever its own stg flag
+      // says — a hacked client can refuse to step down, but nobody paints or
+      // mixes it as stage anymore (same every-receiver-filters principle as
+      // canStage above).
+      const vt = hasAdminRoom() ? null : stageVoteTallies();
       for (const id of new Set([myId, ...rosterIds])) {
         if (!id) continue;
         const t = stgOf(id);
-        if (t && canStage(id)) out.push([id, t]);
+        if (!t || !canStage(id)) continue;
+        if (vt) { const dv = devFor(id); if (dv && (vt.down[dv] || 0) >= vt.need) continue; }
+        out.push([id, t]);
       }
       return out.sort((a, b) => (a[1] - b[1]) || (a[0] < b[0] ? -1 : 1)).slice(0, SCALE.C).map((x) => x[0]);
     };
@@ -985,6 +1041,75 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       lastVoteSync = sig;
       relaySendObj({ t: 'votekick', devs: relevant });
     }
+    // ---- STAGE votes (open rooms): onto the stage / off the stage -----------
+    // Same trust shape as vote-off: each voter carries ONLY their own vote
+    // lists (device-keyed, capped), which ride their status heartbeat. Every
+    // RECEIVER tallies raw per-voter lists itself — deduped by voter device,
+    // self-votes ignored, need = majority of devices present — so a bad actor
+    // can fabricate exactly one voter's worth of votes: their own. Votes are
+    // session-scoped and evaporate with the voter (the 15s status freshness):
+    // leaving the room withdraws them. Execution is SELF-OWNED (the target's
+    // client steps itself up/down on a tally about itself) with a receiver-
+    // side backstop: stageIds() excludes a majority-voted-down dev on every
+    // phone, so a hacked client that refuses to step down is simply no longer
+    // painted or mixed as stage by anyone.
+    const myStageVotes = { up: new Set(), down: new Set() };
+    const STAGE_VOTE_CAP = 8; // per-voter active targets — bounds the heartbeat payload
+    let stgTallyCache = { at: 0, up: {}, down: {}, upVoters: {}, need: 2 };
+    function stageVoteTallies() {
+      const now = Date.now();
+      if (now - stgTallyCache.at < 500) return stgTallyCache;
+      const bagUp = {}, bagDn = {};
+      const add = (bag, voterDev, list) => {
+        for (const d of (Array.isArray(list) ? list : [])) {
+          if (!d || d === voterDev) continue; // a self-vote counts for nothing
+          (bag[d] = bag[d] || new Set()).add(voterDev || 'x');
+        }
+      };
+      add(bagUp, myDevHash, myStatus.vup); add(bagDn, myDevHash, myStatus.vdn);
+      for (const [pid, st] of statusOf) {
+        if (now - (st.at || 0) > 15000) continue; // stale voter = no vote
+        add(bagUp, devOf[pid], st.vup); add(bagDn, devOf[pid], st.vdn);
+      }
+      const cnt = (bag) => { const t = {}; for (const d in bag) t[d] = bag[d].size; return t; };
+      // SCALE GUARD (the C-nary tree matters here): tallies come from the
+      // statuses I can SEE, but the majority is measured against the ROOM —
+      // participantCount(), which rides the tree's aggregated counting. The
+      // asymmetry is deliberately conservative: under-count votes, never
+      // under-count the room. In a stadium-scale room a mutually-visible
+      // clique therefore can NEVER manufacture a majority over anyone —
+      // stage votes simply cannot pass until a true room majority is visible.
+      // Exact tallying beyond section scale is the tree-aggregation protocol
+      // (docs/vote-scale.md) — sim-first, like every mesh law.
+      const pop = new Set(Object.values(devOf)); if (myDevHash) pop.add(myDevHash);
+      const roomN = Math.max(pop.size, (typeof participantCount === 'function' ? participantCount() : 0) || 0);
+      stgTallyCache = { at: now, up: cnt(bagUp), down: cnt(bagDn), upVoters: bagUp,
+        need: Math.max(2, Math.floor(roomN / 2) + 1) };
+      return stgTallyCache;
+    }
+    const devFor = (id) => (id === myId ? myDevHash : devOf[id]);
+    // The exact voter set behind MY step-up tally — declining remembers this
+    // signature, so the same standing votes can't bounce me straight back up.
+    const myUpVoteSig = () => {
+      const s = stageVoteTallies().upVoters[myDevHash];
+      return s ? Array.from(s).sort().join(',') : '';
+    };
+    let vupDismissedSig = null;
+    function reactStageVotes() {
+      if (hasAdminRoom() || !myDevHash) return;
+      const vt = stageVoteTallies();
+      if (myStatus.stg && (vt.down[myDevHash] || 0) >= vt.need) {
+        setStage(false);
+        setStatus('The room voted you off the stage.');
+        return;
+      }
+      if (!myStatus.stg && (vt.up[myDevHash] || 0) >= vt.need
+          && canStage(myId) && stageIds().length < SCALE.C
+          && myUpVoteSig() !== vupDismissedSig) {
+        setStage(true);
+        setStatus('The room voted you onto the stage. Step down whenever you like.');
+      }
+    }
 
     let connBcastT = null;
     const myConns = () => Array.from(peers).filter(([, p]) => p.connected).map(([pid]) => pid);
@@ -997,6 +1122,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // presence is the mesh occ map now, not counting-by-aggregation.
       const c = meshCoord();
       myStatus.seat = c ? { pc: c.pc, r: c.r, i: c.i } : undefined;
+      // My stage votes ride the pulse (open rooms): present targets only, so
+      // a departed target's entry never lingers in the payload; capped so a
+      // hoarder can't bloat everyone's gossip.
+      if (!hasAdminRoom()) {
+        const present = new Set(Object.values(devOf));
+        const slice = (s) => Array.from(s).filter((d) => present.has(d)).slice(0, STAGE_VOTE_CAP);
+        myStatus.vup = slice(myStageVotes.up);
+        myStatus.vdn = slice(myStageVotes.down);
+      } else { delete myStatus.vup; delete myStatus.vdn; }
       // The heartbeat also re-gossips room moderation (group mute/blur) and the
       // admin guest-blur level. Both are timestamped and idempotent, so a lost
       // 'mod' message heals on the next tick instead of leaving one phone
@@ -1279,11 +1413,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       tile.appendChild(maxbtn);
       let modbar = null, voteBtn = null;
       if (!isMe) {
-        // Vote-off-the-island button (non-admin rooms only; shown via body.canvote)
+        // The vote TARGET (non-admin rooms): hidden until the bar's Vote menu
+        // arms a mode — then it's the green dot / red ✕ centered on the tile.
         voteBtn = document.createElement('button');
-        voteBtn.className = 'votebtn'; voteBtn.textContent = 'Vote off';
-        voteBtn.title = 'Vote to remove this person — when a majority of the room agrees they are kicked out. Your vote follows them into every meeting you share.';
-        voteBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleVote(id); });
+        voteBtn.className = 'votedot';
+        voteBtn.addEventListener('click', (e) => { e.stopPropagation(); castVote(id); });
         tile.appendChild(voteBtn);
         modbar = document.createElement('div');
         modbar.className = 'modbar';
@@ -1346,6 +1480,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // vote-off progress (non-admin rooms): show how close a tile is to removal
       const dv = devOf[id];
       if (!isMe && voteNeed && dv && voteTally[dv]) chips.push('<span class="warn">🗳 ' + voteTally[dv] + '/' + voteNeed + ' to remove</span>');
+      // stage-vote progress: everyone watches the same arithmetic converge
+      if (!hasAdminRoom()) {
+        const vt = stageVoteTallies(), sdv = isMe ? myDevHash : dv;
+        if (sdv && vt.up[sdv]) chips.push('<span>🗳 ' + vt.up[sdv] + '/' + vt.need + ' to the stage</span>');
+        if (sdv && vt.down[sdv]) chips.push('<span class="warn">🗳 ' + vt.down[sdv] + '/' + vt.need + ' off the stage</span>');
+      }
       t.chips.innerHTML = chips.join('');
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
       t.tile.classList.toggle('cam-off', !!st.camOff || !!gCam); // admin video-off hides the tile on every receiver
@@ -1354,7 +1494,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // a CSS blur on top would double it; receiver-side CSS blur is for the
       // remote tiles only.
       if (bl && !isMe) t.video.classList.add('blur' + bl);
-      if (t.voteBtn) t.voteBtn.classList.toggle('voted', !!(dv && myVoteoffs.has(dv)));
+      if (t.voteBtn) {
+        const mine = voteMode === 'kick' ? (dv && myVoteoffs.has(dv))
+          : voteMode === 'up' ? (dv && myStageVotes.up.has(dv))
+          : voteMode === 'down' ? (dv && myStageVotes.down.has(dv)) : false;
+        t.voteBtn.classList.toggle('voted', !!mine);
+      }
       if (!isMe) {
         // Group mute is enforced on MY device — via the tile's COMPANION audio
         // (busVolume): the <video> itself stays picture-only, so a hidden tab
@@ -1389,8 +1534,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const apply = (id, t) => {
         const focused = focusId === id;
         t.tile.classList.toggle('focus', focused);
-        const mb = t.tile.querySelector('.maxbtn');
-        if (mb) { mb.textContent = focused ? '⤡' : '⤢'; mb.title = focused ? 'Back to the grid' : 'Make this the focus feed'; }
         const si = stg.indexOf(id === 'me' ? myId : id);
         t.tile.classList.toggle('onstage', si >= 0);
         let o = rank.has(id) ? -5000 + rank.get(id) : 0;
@@ -3158,6 +3301,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // frame alone never reaches a quiet or socketless member.
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); adminWatch(); }
       reactStageSelf(); // staged (gossiped stageIds) ⇒ my MAIN senders park; step-down restores them
+      reactStageVotes(); // room majorities move ME (self-owned): voted up ⇒ step up, voted down ⇒ step down
+      if (voteMode === 'down') paintStageVoteTargets(); // the strip's ✕ targets follow stage membership
       reconcileGrid();  // stager tiles hide/return as the gossiped stage set changes
       // Row-mate set changed (heal, teleport, newcomer): re-derive my MAIN
       // senders. A peer that BECAME a row-mate has a pc that predates the row
@@ -5420,7 +5565,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       reactStageSelf(); // don't wait for the beat: park/restore my MAIN senders now
     }
     stageBtn.onclick = () => {
-      if (myStatus.stg) { setStage(false); return; }
+      if (myStatus.stg) {
+        // Declining a vote-up: remember the exact voter set, so the same
+        // standing votes don't bounce me straight back onto the stage. A NEW
+        // voter re-arms the invitation.
+        const vt = stageVoteTallies();
+        if ((vt.up[myDevHash] || 0) >= vt.need) vupDismissedSig = myUpVoteSig();
+        setStage(false); return;
+      }
       if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can take the stage here.'); return; }
       if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
       setStage(true);
@@ -5921,6 +6073,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       ctx.fillStyle = '#e0e0f0'; ctx.font = '13px system-ui';
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(lbl, x + 10, y + h - 16);
+      // PROVENANCE, burned in: the recorder's OWN panel carries the Recording
+      // badge inside the recorded pixels — a circulated file always shows who
+      // made it. (The live chip everyone sees is DOM; this is the baked copy.)
+      if (src.me) recBadge(ctx, x + w / 2, y + 9, w);
+    }
+    function recBadge(ctx, cx, top, maxW) {
+      const txt = '⏺ Recording — ' + (myName() || 'me').slice(0, 32);
+      ctx.font = 'bold 13px system-ui';
+      const tw = Math.min(ctx.measureText(txt).width, maxW - 24);
+      ctx.fillStyle = 'rgba(190,30,40,.88)';
+      ctx.fillRect(cx - tw / 2 - 9, top, tw + 18, 22);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, cx, top + 11, maxW - 24);
+      ctx.textAlign = 'left';
     }
     function recGrid(ctx, srcs, x, y, w, h) {
       if (!srcs.length) return;
@@ -5980,6 +6146,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           } else {
             recGrid(ctx, stage.concat(grid), 0, 0, canvas.width, canvas.height); // one tier fills the frame
           }
+          // Scope excludes my own panel (e.g. recording just the stage from the
+          // floor) → the provenance badge rides the frame's corner instead.
+          if (![...stage, ...grid].some((s) => s.me)) recBadge(ctx, canvas.width - 130, canvas.height - 34, 236);
         };
         draw();
         // worker metronome (~15 fps): recording keeps compositing when the tab
@@ -6370,9 +6539,69 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (on) myVoteoffs.add(dev); else myVoteoffs.delete(dev);
       saveVoteoffs(myVoteoffs);
       syncVotes();
-      const t = peers.get(id); if (t && t.voteBtn) t.voteBtn.classList.toggle('voted', on);
       setStatus(on ? 'Vote recorded — it follows this person into every room you share.' : 'Vote withdrawn.');
     }
+    // ---- vote MODE: pick what you're voting on, then tap the targets ---------
+    let voteMode = null; // null | 'up' | 'down' | 'kick'
+    function setVoteMode(m) {
+      voteMode = m;
+      for (const k of ['up', 'down', 'kick']) document.body.classList.toggle('vm-' + k, voteMode === k);
+      const b = document.getElementById('votebanner');
+      b.style.display = m ? 'flex' : 'none';
+      if (m) {
+        const need = stageVoteTallies().need;
+        document.getElementById('votebanner-text').textContent =
+          m === 'up' ? 'Tap the green dot to vote someone ONTO the stage — at ' + need + ' votes they take it. Tap again to withdraw.'
+          : m === 'down' ? 'Tap the ✕ on a stage panel to vote them OFF — at ' + need + ' votes they step down. Tap again to withdraw.'
+          : 'Tap the ✕ to vote someone OUT of the room — a majority removes them. Tap again to withdraw.';
+      }
+      refreshAllTiles();
+      paintStageVoteTargets();
+    }
+    // Stagers have no .tile of their own (they live in the composited strip),
+    // so vote-off-stage paints one labeled ✕ per stager over the strip tile.
+    function paintStageVoteTargets() {
+      for (const host of document.querySelectorAll('#stagefeed .rowtile')) {
+        let box = host.querySelector('.stgvotes');
+        if (voteMode !== 'down' || hasAdminRoom()) { if (box) box.remove(); continue; }
+        if (!box) { box = document.createElement('div'); box.className = 'stgvotes'; host.appendChild(box); }
+        const stg = stageIds().filter((id) => id !== myId);
+        const want = stg.map((id) => id + '|' + (rosterNames[id] || '…') + '|' + (devOf[id] && myStageVotes.down.has(devOf[id]) ? 1 : 0)).join(',');
+        if (box.dataset.sig === want) continue;
+        box.dataset.sig = want;
+        box.innerHTML = '';
+        for (const id of stg) {
+          const b = document.createElement('button');
+          b.innerHTML = '<span class="x">✕</span><span class="nm"></span>';
+          b.querySelector('.nm').textContent = rosterNames[id] || 'them';
+          if (devOf[id] && myStageVotes.down.has(devOf[id])) b.classList.add('voted');
+          b.addEventListener('click', (e) => { e.stopPropagation(); castVote(id); paintStageVoteTargets(); });
+          box.appendChild(b);
+        }
+      }
+    }
+    function castVote(id) {
+      if (!voteMode || hasAdminRoom()) return;
+      if (voteMode === 'kick') { toggleVote(id); refreshAllTiles(); return; }
+      const dev = devOf[id];
+      if (!dev) { setStatus('Still learning who this is — try again in a moment.'); return; }
+      const set = myStageVotes[voteMode];
+      if (set.has(dev)) set.delete(dev);
+      else {
+        if (set.size >= STAGE_VOTE_CAP) { setStatus('You already carry ' + STAGE_VOTE_CAP + ' standing ' + (voteMode === 'up' ? 'stage' : 'step-down') + ' votes — withdraw one first.'); return; }
+        set.add(dev);
+      }
+      stgTallyCache.at = 0;  // my own vote shows instantly
+      broadcastStatus();     // it rides the pulse to everyone else
+      refreshAllTiles();
+    }
+    document.getElementById('votebtn').onclick = () => { document.getElementById('vote-modal').style.display = 'flex'; };
+    document.getElementById('vote-cancel').onclick = () => { document.getElementById('vote-modal').style.display = 'none'; };
+    document.getElementById('vote-done').onclick = () => setVoteMode(null);
+    for (const el of document.querySelectorAll('#vote-modal .voteopt')) {
+      el.onclick = () => { document.getElementById('vote-modal').style.display = 'none'; setVoteMode(el.dataset.vm); };
+    }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && voteMode) setVoteMode(null); });
     paintControls();
     // ---- Invite: the one place every meeting link is made ----------------------
     // A meeting's room IS its URL and is host-less, so "sharing" is handing out
@@ -7128,6 +7357,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // what this browser actually SENDS: 'blurred' (canvas) vs 'raw' (camera)
       outboundKind: () => (blurPipe && blurLevelFor('me') > 0 && !myStatus.camOff ? 'blurred' : 'raw'),
       voteNeed: () => voteNeed,
+      stageVotes: () => { const vt = stageVoteTallies(); return { up: Object.assign({}, vt.up), down: Object.assign({}, vt.down), need: vt.need }; },
+      voteMode: () => voteMode,
       votesAgainst: (id) => voteTally[devOf[id]] || 0,
       myVoteCount: () => myVoteoffs.size,
       consensus: () => allConsent(),
