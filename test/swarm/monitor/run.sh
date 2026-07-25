@@ -9,6 +9,11 @@
 # The durable record is the --jsonl snapshot file, which ticks in ANY mode —
 # pausing the on-screen stream never pauses the forensics.
 set -u
+# Host-local config (room password etc.) lives in a dotfile, NOT in systemd
+# Environment= — the tmux SERVER outlives service restarts when other sessions
+# exist, and a persisted server hands new sessions its own stale environment,
+# silently dropping unit env changes. A sourced file has no such failure mode.
+[ -f "$HOME/.config/gifos-meet-monitor.env" ] && . "$HOME/.config/gifos-meet-monitor.env"
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 ROOM="${MEET_ROOM:-test}"
 NAME="${MEET_NAME:-MonitorBot}"
@@ -19,9 +24,9 @@ SESSION="${MEET_TMUX_SESSION:-gifos-meet}"
 # release version.json points default users at — set that when you want the
 # monitor to see exactly what a fresh visitor sees.
 EDGE_FLAG=""; [ "${MEET_EDGE:-1}" != "0" ] && EDGE_FLAG="--edge"
-# MEET_PASS: the room's password, when the room is locked. Set it via a
-# systemd drop-in on the host (systemctl --user edit gifos-meet-monitor),
-# not in the repo unit. Harmless while the room is open.
+# MEET_PASS: the room's password, when the room is locked. Set it in
+# ~/.config/gifos-meet-monitor.env on the host (chmod 600), never in the
+# repo. Harmless while the room is open.
 PASS_ARGS=(); [ -n "${MEET_PASS:-}" ] && PASS_ARGS=(--pass "$MEET_PASS")
 mkdir -p "$DATA"
 
