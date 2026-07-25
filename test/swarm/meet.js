@@ -667,15 +667,63 @@ function printHelp() {
 function startJsonl() {
   if (!cfg.jsonl) return;
   const pathFor = () => cfg.jsonl.replace('%d', new Date().toISOString().slice(0, 10));
+  let curPath = pathFor();
+  compactOldJsonl(curPath); // catch days a restart closed without a live rotation
   setInterval(async () => {
+    const p = pathFor();
+    if (p !== curPath) { const done = curPath; curPath = p; compactJsonl(done); } // date flipped — compact the closed day
     if (!page || !joined) return;
     const s = await D().catch(() => null);
     if (!s || s.err) return;
     // rows/mosaic/me ride along; drop nothing — disk is cheaper than a gap in
     // the record when tonight's bug needed exactly the field we trimmed.
     const line = JSON.stringify(Object.assign({ _t: new Date().toISOString() }, s)) + '\n';
-    fs.appendFile(pathFor(), line, () => {});
+    fs.appendFile(p, line, () => {});
   }, cfg.every * 1000).unref();
+}
+// When a day's file closes, squeeze out the boredom. An idle 1-2 person room
+// writes ~17k near-identical lines/day; the record only needs the EVENTS.
+// Kept: any line where the shape changed vs the previous line (joins, leaves,
+// link flaps, seat moves, quality of the roster), anything with 3+ people,
+// dups or friend-relaying, plus one heartbeat line per 10 min so a quiet day
+// still proves the monitor was alive. Rewrites in place with a header line
+// (_compacted) so a re-run skips it. ~22MB idle day → well under 1MB.
+function compactJsonl(file) {
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    if (!raw || raw.slice(0, 20).indexOf('_compacted') !== -1) return;
+    const out = [];
+    let prevSig = null, lastBeat = 0, kept = 0, total = 0;
+    for (const ln of raw.split('\n')) {
+      if (!ln) continue;
+      total++;
+      let s; try { s = JSON.parse(ln); } catch (e) { out.push(ln); kept++; continue; } // never drop what we can't read
+      const t = Date.parse(s._t || '') || 0;
+      const sig = [s.participants, s.inMeeting, s.occ, s.coord, s.state, s.links, s.connY, s.liveVid, s.relayedN, s.ghosts, s.dups,
+        (s.roster || []).map((r) => r.peer + (r.conn ? '+' : '-') + (r.relay || '')).sort().join(',')].join('|');
+      const interesting = (s.participants >= 3) || (s.inMeeting >= 3) || s.dups > 0 || s.relayedN > 0 || sig !== prevSig;
+      const heartbeat = t - lastBeat >= 600000;
+      prevSig = sig;
+      if (!interesting && !heartbeat) continue;
+      if (heartbeat) lastBeat = t;
+      out.push(ln); kept++;
+    }
+    fs.writeFileSync(file, JSON.stringify({ _compacted: new Date().toISOString(), kept, total }) + '\n' + out.join('\n') + (out.length ? '\n' : ''));
+    console.error('[jsonl] compacted ' + file + ': ' + total + ' → ' + kept + ' lines');
+  } catch (e) { /* a failed compaction leaves the full file — never lose data to tidiness */ }
+}
+// Any prior days' files the pattern matches (a restart can close a day with no
+// live rotation tick) — compact everything that isn't today's file.
+function compactOldJsonl(todayPath) {
+  if (cfg.jsonl.indexOf('%d') === -1) return;
+  try {
+    const dir = path.dirname(todayPath);
+    const rx = new RegExp('^' + path.basename(cfg.jsonl).split('%d').map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(\\d{4}-\\d{2}-\\d{2})') + '$');
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (rx.test(f) && full !== todayPath) compactJsonl(full);
+    }
+  } catch (e) { /* no dir yet — first run */ }
 }
 
 // ---- main -----------------------------------------------------------------
