@@ -19,6 +19,10 @@ SESSION="${MEET_TMUX_SESSION:-gifos-meet}"
 # release version.json points default users at — set that when you want the
 # monitor to see exactly what a fresh visitor sees.
 EDGE_FLAG=""; [ "${MEET_EDGE:-1}" != "0" ] && EDGE_FLAG="--edge"
+# MEET_PASS: the room's password, when the room is locked. Set it via a
+# systemd drop-in on the host (systemctl --user edit gifos-meet-monitor),
+# not in the repo unit. Harmless while the room is open.
+PASS_ARGS=(); [ -n "${MEET_PASS:-}" ] && PASS_ARGS=(--pass "$MEET_PASS")
 mkdir -p "$DATA"
 
 while true; do
@@ -28,7 +32,7 @@ while true; do
   ( sleep 25; tmux send-keys -t "$SESSION" 'watch 5 info' Enter 2>/dev/null ) &
   KICK=$!
   node "$REPO/test/swarm/meet.js" \
-    --room "$ROOM" --name "$NAME" --cam $EDGE_FLAG \
+    --room "$ROOM" --name "$NAME" --cam $EDGE_FLAG "${PASS_ARGS[@]}" \
     --every 5 --jsonl "$DATA/snapshots-%d.jsonl" \
     2>> "$DATA/stderr.log"
   kill "$KICK" 2>/dev/null
