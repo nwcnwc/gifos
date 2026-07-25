@@ -2,6 +2,20 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.8.3",
+      "date": "2026-07-25",
+      "critical": false,
+      "headline": "Meetings: honest video frames, camera flip, real fullscreen, and room votes",
+      "notes": [
+        "Your row and the Stage now show each camera's whole broadcast frame — exactly what a recording captures — instead of a crop.",
+        "Switch between front and back cameras with the new flip button (appears when your device has both).",
+        "The tile button is now a real fullscreen button: one press fills your screen, Esc or a second press exits.",
+        "Recordings carry a burned-in 'Recording — name' badge on the recorder's own panel, so a shared file always shows who made it.",
+        "New Vote menu: vote someone onto the stage, off the stage, or out of the room. One vote per person, majorities decide, and your stage votes are withdrawn automatically when you leave.",
+        "Meeting monitors and locked test rooms aside: this release also carries the 0.8.2 door-stability fixes for anyone who skipped it."
+      ]
+    },
+    {
       "version": "0.8.2",
       "date": "2026-07-25",
       "critical": true,
