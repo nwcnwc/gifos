@@ -312,7 +312,14 @@ server.on('upgrade', (req, socket, head) => {
   // gates GENESIS (empty registry ⇒ first knocker founds), and hands newcomers
   // the opaque list. Zero-knowledge — it never holds the meeting-URL key.
   const genesisHash = () => {
-    for (const c of sess.clients.values()) if (c.gkh) return c.gkh;
+    // Mirrors relay.js: the genesis lives only on connections provably ALIVE
+    // at the door (unexpired greeter blob, or a knock within one TTL) — a
+    // zombie socket must not hold a greeterless room founded forever (E3's
+    // reopening clause).
+    const now = Date.now();
+    for (const c of sess.clients.values()) {
+      if (c.gkh && ((c.gblob && (c.gexp || 0) > now) || (c.gseen || 0) + GREETER_TTL_MS > now)) return c.gkh;
+    }
     return null;
   };
   const greeterList = (except) => {
@@ -328,6 +335,7 @@ server.on('upgrade', (req, socket, head) => {
     let founded = false, admitted = false;
     if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; } // empty ⇒ found (R3)
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
+    if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
     c.send(JSON.stringify({ t: 'greeters', list: greeterList(c), founded, admitted }));
   };

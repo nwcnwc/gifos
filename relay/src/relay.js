@@ -253,7 +253,21 @@ export class Session {
   // Section-1 seat's attachment. Any live seat carries it; when the last seat
   // leaves it is forgotten and the room reopens for a fresh genesis (R2/R3).
   genesisHash() {
-    for (const ws of this.members()) { const g = this.att(ws).gkh; if (g) return g; }
+    // E3's reopening clause, literally: "when all of them fall silent for one
+    // TTL, the list empties and the room reopens for a fresh genesis". The
+    // genesis therefore lives only on sockets provably ALIVE at the door —
+    // holding an unexpired greeter blob, or having KNOCKED within one TTL
+    // (gseen; the connect knock stamps it, so a reconnecting member keeps the
+    // room through a blip). A ZOMBIE socket — dead phone, unreaped by the
+    // network — never knocks again: honoring its stale attachment forever left
+    // the room founded-but-greeterless, every knocker holding on the mint gap,
+    // the meeting unjoinable by anyone until the socket happened to be reaped
+    // (observed live 2026-07-25, room "test", a sleeping phone).
+    const now = Date.now();
+    for (const ws of this.members()) {
+      const a = this.att(ws);
+      if (a.gkh && ((a.gblob && (a.gexp || 0) > now) || (a.gseen || 0) + GREETER_TTL_MS > now)) return a.gkh;
+    }
     return null;
   }
   // The sealed greeter list: every unexpired Seal(K,address) blob a Section-1
@@ -287,6 +301,7 @@ export class Session {
     } else if (gk && (await sha256hex(gk)) === have) {
       a.gkh = have; admitted = true;             // matching key ⇒ join the pool
     }
+    if (a.gkh) a.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) {
       a.gblob = String(gblob).slice(0, GBLOB_CAP);
       a.gexp = Date.now() + GREETER_TTL_MS;
