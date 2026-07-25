@@ -1,0 +1,32 @@
+# gifos-meet-monitor.service — the "test" room's resident observer, done right:
+# test/swarm/meet.js (the real meeting CLI, from the repo checkout) running
+# INSIDE a tmux session, so a human — or Claude over ssh — can attach at any
+# time for live debugging:
+#
+#   tmux attach -t gifos-meet     # ENTER pauses the stream → meet> prompt;
+#                                 # `watch` resumes; detach with C-b d
+#
+# The durable record is $MEET_DATA/snapshots-YYYY-MM-DD.jsonl (one JSON line
+# per 5s tick — includes per-peer conn/vid/relay(friend-relay) state), which
+# keeps ticking no matter what the interactive pane is doing.
+#
+# tmux runs its own server, so the unit is oneshot+RemainAfterExit: start
+# creates the detached session, stop kills it. In-pane crash recovery is
+# run.sh's while-loop, not systemd's.
+[Unit]
+Description=GifOS Meet Monitor (tmux session: gifos-meet, room: test)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment="MEET_ROOM=test"
+Environment="MEET_NAME=MonitorBot"
+Environment="MEET_DATA=%h/gifos-meet-monitor"
+Environment="MEET_TMUX_SESSION=gifos-meet"
+ExecStart=/usr/bin/tmux new-session -d -s gifos-meet -c %h/projects/gifos %h/projects/gifos/test/swarm/monitor/run.sh
+ExecStop=/usr/bin/tmux kill-session -t gifos-meet
+
+[Install]
+WantedBy=default.target

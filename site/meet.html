@@ -6956,7 +6956,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           return { peer: String(pid).slice(0, 12), name: rosterNames[pid] || null, coord: coordOfPeer.get(pid) || null,
             ip: ipsOf[pid] || null, camOff: st ? !!st.camOff : null, blur: st ? st.blur : null,
             stAge: st ? Math.round((now - (st.at || 0)) / 1000) : null,
-            conn: p ? !!p.connected : false, vid: !!(p && p.video && p.video.srcObject && p.video.videoWidth > 0) }; };
+            conn: p ? !!p.connected : false, vid: !!(p && p.video && p.video.srcObject && p.video.videoWidth > 0),
+            // friend-relay (E5§1): media arrives via this mutual friend's browser.
+            // conn=false + relay set is a WORKING call over the fallback path —
+            // liveLinks alone reads it as an outage (the 01:48 forensics gap).
+            relay: (p && p.relayed) ? String(p.relayed).slice(0, 12) : null }; };
         const ghosts = rosterIds.filter((pid) => { const st = statusOf.get(pid); return !st || now - (st.at || 0) > 15000; });
         const at = new Map(); const dups = []; for (const [pid, k] of coordOfPeer) { if (at.has(k)) dups.push({ coord: k, a: at.get(k).slice(0, 8), b: String(pid).slice(0, 8) }); else at.set(k, String(pid)); }
         let mos = null; try { mos = window.__gifosVideo.mosaic(); } catch (e) { mos = { err: String(e).slice(0, 60) }; }

@@ -37,6 +37,11 @@
  *   --videos <dir>    override the clip pack dir
  *   --chrome <path>   chromium binary               (env MEET_CHROME also works)
  *   --headful         show the browser window
+ *   --edge            pin the EDGE channel (?edge) — without it gifos.app
+ *                     redirects to the frozen release snapshot
+ *   --jsonl <path>    append one JSON snapshot line every --every seconds, in
+ *                     ANY mode (env MEET_JSONL too; '%d' → YYYY-MM-DD, daily
+ *                     rotation for free). The monitor service's durable record.
  *
  * COMMANDS (at the prompt, via --once, or `watch`):
  *   state | s     my seat, mesh state, links, occ, participants, consent
@@ -119,6 +124,8 @@ const cfg = {
   settle: Math.max(0, parseFloat(args.settle || '0')), // --once/--watch: wait N s after seating before acting (let composites fill)
   forSecs: args['for'] ? Math.max(1, parseFloat(args['for'])) : Infinity,
   json: !!args.json,
+  edge: !!args.edge,     // pin the EDGE channel (?edge) — else gifos.app redirects to the release snapshot
+  jsonl: args.jsonl || process.env.MEET_JSONL || '', // append a JSON snapshot line every --every s, in ANY mode ('%d' in the path becomes YYYY-MM-DD)
 };
 const MODE = args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
@@ -205,6 +212,7 @@ function snapshotInPage() {
     withCoord: (d.roster || []).filter((r) => r.coord).length,
     connY: (d.roster || []).filter((r) => r.conn).length,
     liveVid: (d.roster || []).filter((r) => r.vid).length,
+    relayedN: (d.roster || []).filter((r) => r.relay).length, // friend-relayed peers — a WORKING call liveLinks reads as down
     ghosts: (d.ghosts || []).length, dups: (d.dups || []).length,
     gridShown: gridVisible.length, gridTotal: grid.length,
     tx, mosaic: d.mosaic, roster: d.roster || [], rows: d.rows || [], me: d.me,
@@ -217,7 +225,7 @@ function snapshotInPage() {
 function streamLine(t, s, level) {
   if (s.err) return `t+${t}s  (${s.err})`;
   const seat = s.coord || (s.state != null ? 'st' + s.state : 'unseated');
-  let line = `t+${pad(t, 4)} seat=${pad(seat, 8)} inMtg=${s.inMeeting} occ=${s.occ} links=${s.links} vid=${s.liveVid}/${s.rosterN}`;
+  let line = `t+${pad(t, 4)} seat=${pad(seat, 8)} inMtg=${s.inMeeting} occ=${s.occ} links=${s.links} vid=${s.liveVid}/${s.rosterN}${s.relayedN ? ' via=' + s.relayedN : ''}`;
   if (LEVELS[level] >= 1) line += ` grid=${s.gridShown}/${s.gridTotal} consent=${s.consent} ghosts=${s.ghosts} dups=${s.dups} net{relay:${s.tx.relaySig || 0} dc:${s.tx.dcSig || 0} fwd:${s.tx.fwdSig || 0}}`;
   if (LEVELS[level] >= 2) {
     const mos = s.mosaic || {};
@@ -257,7 +265,7 @@ async function join(room, opts) {
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
-  const url = cfg.base + '/meet.html#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
+  const url = cfg.base + '/meet.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
   console.error('[meet] joining ' + url + ' as "' + cfg.name + '"' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
@@ -490,8 +498,8 @@ async function runCmd(line) {
       console.log(`  net: relay-sig=${d.tx.relaySig || 0}  dc-sig=${d.tx.dcSig || 0}  sponsor-fwd=${d.tx.fwdSig || 0}  relay-status=${d.tx.relayStatus || 0} dc-status=${d.tx.dcStatus || 0}`);
       break;
     case 'roster': case 'r':
-      console.log('  ' + pad('name', 16) + pad('coord', 9) + pad('ip', 15) + pad('cam', 5) + pad('blur', 5) + pad('age', 5) + pad('conn', 5) + 'vid');
-      for (const r of d.roster) console.log('  ' + pad(r.name || '—', 16) + pad(r.coord || '—', 9) + pad(r.ip || '—', 15) + pad(r.camOff == null ? '?' : (r.camOff ? 'off' : 'ON'), 5) + pad(r.blur == null ? '?' : r.blur, 5) + pad(r.stAge == null ? '?' : r.stAge + 's', 5) + pad(r.conn ? 'y' : '-', 5) + (r.vid ? 'LIVE' : '-'));
+      console.log('  ' + pad('name', 16) + pad('coord', 9) + pad('ip', 15) + pad('cam', 5) + pad('blur', 5) + pad('age', 5) + pad('conn', 5) + pad('vid', 5) + 'via');
+      for (const r of d.roster) console.log('  ' + pad(r.name || '—', 16) + pad(r.coord || '—', 9) + pad(r.ip || '—', 15) + pad(r.camOff == null ? '?' : (r.camOff ? 'off' : 'ON'), 5) + pad(r.blur == null ? '?' : r.blur, 5) + pad(r.stAge == null ? '?' : r.stAge + 's', 5) + pad(r.conn ? 'y' : '-', 5) + pad(r.vid ? 'LIVE' : '-', 5) + (r.relay || '-'));
       console.log('  (' + d.roster.length + ' peers)');
       break;
     case 'who': {
@@ -651,9 +659,29 @@ function printHelp() {
   console.log(block ? block[0].replace(/^ \* ?/gm, '  ') : 'see the header of test/swarm/meet.js');
 }
 
+// ---- machine record (--jsonl / MEET_JSONL) ---------------------------------
+// One JSON snapshot line every --every seconds, in ANY mode — the monitor's
+// durable record, deliberately independent of whatever the interactive pane is
+// showing (a paused `watch` must never pause the forensics). '%d' in the path
+// becomes YYYY-MM-DD, so a long-running service rotates daily by construction.
+function startJsonl() {
+  if (!cfg.jsonl) return;
+  const pathFor = () => cfg.jsonl.replace('%d', new Date().toISOString().slice(0, 10));
+  setInterval(async () => {
+    if (!page || !joined) return;
+    const s = await D().catch(() => null);
+    if (!s || s.err) return;
+    // rows/mosaic/me ride along; drop nothing — disk is cheaper than a gap in
+    // the record when tonight's bug needed exactly the field we trimmed.
+    const line = JSON.stringify(Object.assign({ _t: new Date().toISOString() }, s)) + '\n';
+    fs.appendFile(pathFor(), line, () => {});
+  }, cfg.every * 1000).unref();
+}
+
 // ---- main -----------------------------------------------------------------
 (async () => {
   process.on('SIGINT', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
+  startJsonl();
 
   if (MODE === 'watch' || MODE === 'once' || MODE === 'script') {
     if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once/--script'); process.exit(1); }
