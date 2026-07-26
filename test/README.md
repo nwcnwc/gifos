@@ -265,7 +265,9 @@ Roughly three families in one directory:
   `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-app-governance`, `e2e-autoheal`,
   `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`, `e2e-pip`
   (backgrounding floats the best room video in a PiP overlay; source picker
-  never floats your own preview).
+  never floats your own preview), `e2e-away-holdover` (G1: pocketed phones —
+  consent holds without flapping, roster never blinks, vote need drops to the
+  engaged majority, 60s holdover expiry backstop; 5 browsers, ~4 min).
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`.

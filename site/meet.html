@@ -1131,7 +1131,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let connBcastT = null;
     const myConns = () => Array.from(peers).filter(([, p]) => p.connected).map(([pid]) => pid);
     const mySid = () => (localStream ? localStream.id : null);
+    let pulseHalt = false; // test hook: simulates a throttled phone's silent pulse gaps
     function broadcastStatus() {
+      if (pulseHalt) return;
       myStatus.at = Date.now(); // timestamped: out-of-order gossip can't roll me back
       // My SEAT rides the heartbeat: coord is the tree fact everything else
       // (rows, links, Stage membership order) derives from. The old deck
@@ -7418,6 +7420,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         active: !!(document.pictureInPictureElement || Array.from(document.querySelectorAll('video')).some((v) => v.webkitPresentationMode === 'picture-in-picture')),
       }),
       pipEnterForTest: () => enterPip(),
+      // freeze my outgoing pulses (throttled-phone simulation for the G1 drill)
+      haltPulseForTest: (on) => { pulseHalt = !!on; },
+      stageVoteNeed: () => stageVoteTallies().need,
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
       handqShown: () => handqEl.classList.contains('on'),

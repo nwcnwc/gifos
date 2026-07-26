@@ -211,7 +211,23 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
     meeting banner vs static `/site` JSON for V4's site-wide banner). `run.html`
     and the home page have no relay, so they show only the V4 static notice.
 
-- **G1 — Presence holdover for throttled phones (freshness ≠ liveness).**
+- **G1 — Presence holdover for throttled phones (SHIPPED to edge 2026-07-25,
+  commit 61dfc80; gate `test/browser/e2e-away-holdover.js` — 12 checks green).**
+  As built: `stHold(pid)` in meet.html — fresh <15s stays the rule everywhere,
+  then a 60s holdover while the last pulse said `away: true` or transport
+  vouches (`p.connected`); applied to roster/in-meeting and to consent
+  (**Nathan's call 2026-07-25: an away phone's prior deliberate consent
+  STANDS** — expiry past 60s is the privacy backstop for hard-frozen phones,
+  and departure still deletes the status so holdover cannot revive the dead).
+  Votes: an away device sits out ENTIRELY — standing votes and `need`
+  denominator leave together (symmetric, so away ≡ briefly leaving and can't
+  manufacture a majority); `need` = majority of the engaged room
+  (`participantCount()` minus explicitly-away devices). Sender side: the meet
+  heartbeat AND the mesh-wire tick (seat.tick / 55s greeter keepalive / 12s
+  zombie watchdog) are clocked by a one-line Blob Worker — worker messages
+  escape background DOM-timer chunking, so an app-switched phone beats at true
+  cadence and greets at full fidelity; a fully frozen renderer remains the
+  mesh's/E3-reopening's case. Historical design notes below.
   Observed on the pi monitor 2026-07-25: a locked Android phone blinks out of
   the roster for one ~5s snapshot every 25-30s, `ghosts` toggling in sync, and
   in a seatless half-state the participant count itself bounced 2↔1. Cause:
