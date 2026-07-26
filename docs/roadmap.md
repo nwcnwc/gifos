@@ -335,6 +335,13 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   fully off for join-quiet phones; lateMedia re-grabs on tap, ~0.5s);
   hidden-tab meters at 900ms. All probe/gate verified (e2e-vis-park,
   e2e-away-holdover ALL PASS).
+  **Wave 3 SHIPPED (edge 2026-07-26, commit 1b04bc0)** — after the Moto
+  drained 30%→2% overnight ON ITS CHARGER: phones are tier ≥1 always (one
+  rung down even plugged in); charging-but-level-falling = emergency tier 3;
+  a PARKED phone (3 min no touch/no speech) releases the wake lock (screen
+  rests; audio/presence/worker beats carry on) and floors the rung — any
+  tap/word/return restores. `debugDump().powTier`. Plus the fullscreen
+  FILMSTRIP view (big feed + tappable thumbs of stage/row-mates/stadium/me).
   **Not done (needs Nathan / next wave):**
   - *Compositor duty on phones:* packer duty follows the SEAT (topology law).
     A phone that seats as a head runs packers + aux encodes. Duty-aware
