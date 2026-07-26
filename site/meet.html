@@ -3333,7 +3333,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // │ reconstructs the ENTIRE tree — exposing link asymmetry / orphans / dup │
     // │ coords no single occ can show. NOT product surface: pure diagnostics.  │
     // └─────────────────────────────────────────────────────────────────────┘
-    const DEBUG_ON = /(?:^|[#&?])debug=(?:on|1|true)/i.test(location.hash + location.search); // DEBUG-TREE gate
+    // DEBUG-TREE gate — sticky per TAB (sessionStorage), because both the
+    // canonical-URL rewrite and the resume-self-heal reload drop the URL flag:
+    // a diagnosed room must stay diagnosable after a member reloads, or the
+    // census reads a healthy rejoiner as a silent corpse (2026-07-26).
+    const DEBUG_ON = (() => {
+      const on = /(?:^|[#&?])debug=(?:on|1|true)/i.test(location.hash + location.search);
+      try { if (on) sessionStorage.setItem('gifos_debug', '1'); } catch (e) {}
+      try { return on || sessionStorage.getItem('gifos_debug') === '1'; } catch (e) { return on; }
+    })();
     function meshSelfReport() { // DEBUG-TREE
       const c = meshCoord(), s = meshSeat();
       // `from` is the FULL peer id — the census doubles as an occ seed for the
