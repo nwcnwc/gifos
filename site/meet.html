@@ -311,6 +311,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      --muted: on themes with a colored surface (blue!), fixed gray muted text
      lands at near-zero contrast and the popup is illegible. */
   .voteopt small { display: block; color: var(--text, #e0e0f0); opacity: .72; font-size: .78rem; margin-top: .15rem; }
+  /* FULLSCREEN VIEW: one feed big + every other live feed as floating thumbs
+     (right edge in landscape, bottom edge in portrait) — tap a thumb to swap
+     it into the big view. Standard call UX. */
+  #fsview { display: none; position: fixed; inset: 0; background: #000; z-index: 60; }
+  #fsview.on { display: block; }
+  #fsmain { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #fsstrip { position: absolute; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; gap: .5rem;
+    padding: .55rem; overflow-y: auto; overflow-x: hidden; z-index: 2;
+    background: linear-gradient(to left, rgba(0,0,0,.55), transparent); }
+  .fsthumb { position: relative; width: 132px; aspect-ratio: 16/9; border: 2px solid rgba(255,255,255,.25);
+    border-radius: .5rem; overflow: hidden; cursor: pointer; flex: 0 0 auto; background: #111; }
+  .fsthumb.sel { border-color: var(--accent, #7b5cff); box-shadow: 0 0 10px rgba(123,92,255,.5); }
+  .fsthumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fsthumb .fslbl { position: absolute; left: .25rem; bottom: .25rem; font-size: .65rem;
+    background: rgba(10,10,15,.72); color: #eceef8; padding: .05rem .35rem; border-radius: .3rem; max-width: 92%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (orientation: portrait) {
+    #fsstrip { right: 0; left: 0; top: auto; bottom: 0; flex-direction: row;
+      overflow-x: auto; overflow-y: hidden; background: linear-gradient(to top, rgba(0,0,0,.55), transparent); }
+    .fsthumb { width: 108px; }
+  }
+  #fsclose { position: absolute; top: .6rem; left: .6rem; z-index: 3; width: 2.2rem; height: 2.2rem;
+    border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(10,10,15,.6);
+    color: #eceef8; font-size: 1rem; cursor: pointer; }
   /* Tile overlays always sit on live/dark video, so their text stays a fixed
      light regardless of the computer's theme — themed (dark-on-light) text
      would vanish against these permanently-dark pills. */
@@ -340,8 +364,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                   border-radius: .4rem; border: 1px solid rgba(255,255,255,.16); background: rgba(10,10,15,.85);
                   color: #eceef8; cursor: pointer; font-size: .75rem; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
-  /* Real fullscreen (the maxbtn): release the aspect box, square the corners. */
-  .tile:fullscreen { aspect-ratio: auto; border-radius: 0; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
   #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
                background: var(--bg, #101018); border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
@@ -846,6 +868,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Quality ladder: total participants → per-link video constraints. With a
     // mesh, upload cost grows with (n-1) links, so both resolution and each
     // link's bitrate step down to keep total upstream roughly flat.
+    // NOTE: the room-size rung is only the STARTING POINT — adapt() then steps
+    // further down this same ladder by the device's power tier (on battery /
+    // battery low / charger losing / phone at all / parked phone). See the
+    // battery-tier block above adapt().
     const LADDER = [
       { max: 2, w: 1280, h: 720, fps: 30, kbps: 1800, label: '720p' },
       { max: 4, w: 854,  h: 480, fps: 24, kbps: 800,  label: '480p' },
@@ -1269,11 +1295,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // leaving the room — a floating overlay keeps the meeting's best face on
     // screen, the way every native call app does. Video only: audio already
     // survives backgrounding (the live mic capture keeps the audio graph
-    // running). Three entry paths, best-effort each: Chrome fires the
+    // running). Three AUTO entry paths, best-effort each: Chrome fires the
     // MediaSession 'enterpictureinpicture' action itself when the user leaves
-    // a tab that is capturing cam/mic; iOS Safari honors autoPictureInPicture
-    // on the aimed candidate; and we try directly on visibilitychange for
-    // browsers that grant a recent-gesture grace. Returning to the tab
+    // a tab that is capturing cam/mic (permission + site-engagement gated);
+    // iOS Safari honors autoPictureInPicture on the aimed candidate; and we
+    // try directly on visibilitychange for browsers that grant a
+    // recent-gesture grace. Plus one MANUAL path that works wherever the API
+    // exists: the #pipbtn Float button (a tap is a gesture — see below).
+    // On Android the only unconditional AUTO path is the native
+    // fullscreen-video one, hence the button. Returning to the tab
     // dismisses the float. Side-benefit: a page with an open PiP window is
     // exempt from Chrome's intensive timer throttling, so the float also
     // keeps our status heartbeat inside the 15s freshness window (see G1).
@@ -1566,6 +1596,88 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       admGraceT = setTimeout(startAdminCountdown, ADMIN_GRACE_MS); // silent 10s grace
     }
 
+    // ---- FULLSCREEN VIEW with a filmstrip (standard call UX) ------------------
+    // The maximize button opens ONE fullscreen surface: the chosen feed big,
+    // every other live feed (stage, row-mates, stadium, my preview) as
+    // floating thumbs on the right (landscape) or bottom (portrait); tapping
+    // a thumb swaps the big view. Pure DISPLAY layer — srcObjects are
+    // borrowed, no app/mesh state is touched, and the extra thumb sinks are
+    // torn down the moment the view closes.
+    const fsview = document.createElement('div'); fsview.id = 'fsview';
+    const fsmain = document.createElement('video'); fsmain.id = 'fsmain';
+    fsmain.autoplay = true; fsmain.muted = true; fsmain.setAttribute('playsinline', ''); fsmain.setAttribute('muted', '');
+    const fsstrip = document.createElement('div'); fsstrip.id = 'fsstrip';
+    const fsclose = document.createElement('button'); fsclose.id = 'fsclose'; fsclose.textContent = '✕'; fsclose.title = 'Exit full screen';
+    fsview.appendChild(fsmain); fsview.appendChild(fsstrip); fsview.appendChild(fsclose);
+    document.body.appendChild(fsview);
+    let fsSel = null, fsTick = null;
+    function fsSources() {
+      const out = [];
+      for (const v of stagefeedEl.querySelectorAll('.rowtile video')) {
+        if (pipReady(v)) out.push({ key: 'stage:' + ((v.closest('.rowtile') || {}).dataset || {}).row, label: 'On stage', v });
+      }
+      for (const [pid, p] of peers) {
+        if (p.connected && pipReady(p.video) && !(statusOf.get(pid) || {}).camOff) {
+          out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video });
+        }
+      }
+      const sd = stadiumEl.querySelector('[data-row="sd"] video');
+      if (pipReady(sd)) out.push({ key: 'sd', label: 'The stadium', v: sd });
+      if (meTile && !myStatus.camOff && pipReady(meTile.video)) out.push({ key: 'me', label: 'You', v: meTile.video });
+      return out;
+    }
+    function fsPaintSel() { for (const th of fsstrip.children) th.classList.toggle('sel', th.dataset.key === fsSel); }
+    function fsRefresh() {
+      const src = fsSources();
+      const main = src.find((s) => s.key === fsSel) || src[0] || null;
+      if (main) {
+        fsSel = main.key;
+        const st = main.v.srcObject;
+        if (fsmain.srcObject !== st) { fsmain.srcObject = st; const pr = fsmain.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      } else fsmain.srcObject = null;
+      const want = src.map((s) => s.key).join('|');
+      if (fsstrip.dataset.set !== want) {
+        fsstrip.dataset.set = want;
+        fsstrip.textContent = '';
+        for (const s of src) {
+          const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
+          const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
+          tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
+          const lb = document.createElement('span'); lb.className = 'fslbl'; lb.textContent = s.label;
+          th.appendChild(tv); th.appendChild(lb);
+          th.onclick = () => { fsSel = s.key; fsRefresh(); };
+          fsstrip.appendChild(th);
+        }
+      } else {
+        // same set — re-borrow in place (a renegotiated stream swaps identity)
+        for (const th of fsstrip.children) {
+          const s = src.find((x) => x.key === th.dataset.key);
+          const tv = th.querySelector('video');
+          if (s && tv && tv.srcObject !== s.v.srcObject) { tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
+        }
+      }
+      fsPaintSel();
+    }
+    function openFsView(key) {
+      fsSel = key || null;
+      fsview.classList.add('on');
+      fsRefresh();
+      if (!fsTick) fsTick = setInterval(fsRefresh, 2000);
+      if (fsview.requestFullscreen) fsview.requestFullscreen().catch(() => {});
+    }
+    function closeFsView() {
+      if (fsTick) { clearInterval(fsTick); fsTick = null; }
+      fsview.classList.remove('on');
+      fsmain.srcObject = null;
+      for (const tv of fsstrip.querySelectorAll('video')) tv.srcObject = null; // no leftover sinks — decode work ends with the view
+      fsstrip.textContent = ''; fsstrip.dataset.set = '';
+      if (document.fullscreenElement === fsview) document.exitFullscreen().catch(() => {});
+    }
+    fsclose.onclick = () => closeFsView();
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && fsview.classList.contains('on')) closeFsView();
+    });
+
     // ---- tiles ---------------------------------------------------------------
     function makeTile(id, name, isMe, headless) {
       const tile = document.createElement('div');
@@ -1583,16 +1695,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const cap = document.createElement('div');
       cap.className = 'cap';
       tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(label); tile.appendChild(chips); tile.appendChild(cap);
-      // Full screen, the normal convention: the button toggles, Esc exits,
-      // :fullscreen CSS releases the tile's aspect box. iOS Safari can only
-      // fullscreen a <video>, so it gets the native video fullscreen instead.
+      // Full screen opens the filmstrip view (#fsview): this feed big, every
+      // other live feed as tappable floating thumbs. Esc / ✕ exits. iOS
+      // Safari can only fullscreen a <video>, so it gets the native one.
       const maxbtn = document.createElement('button');
       maxbtn.className = 'maxbtn'; maxbtn.textContent = '⛶'; maxbtn.title = 'Full screen';
       maxbtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (document.fullscreenElement === tile) { document.exitFullscreen().catch(() => {}); return; }
-        if (tile.requestFullscreen) tile.requestFullscreen().catch(() => {});
-        else if (video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e2) {} }
+        // iOS Safari can only fullscreen a <video> natively — no overlay there.
+        if (!document.fullscreenEnabled && video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e2) {} return; }
+        openFsView(isMe ? 'me' : 'peer:' + id);
       });
       tile.appendChild(maxbtn);
       let modbar = null, voteBtn = null;
@@ -1784,6 +1896,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           speaking = Math.sqrt(dev / m.data.length) > 5;
         }
         t.tile.classList.toggle('speaking', speaking);
+        if (id === 'me' && speaking) lastActive = Date.now(); // talking IS activity — a speaker's phone is never "parked"
         speakingOf.set(id, speaking); // fed to the packer overlay (green talking frame on composite faces)
       }
     }, 180);
@@ -1804,15 +1917,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // There is no single "keep working when unfocused" API — what keeps a meeting
     // alive in the background is the combination browsers exempt from
     // throttling: an ACTIVE WebRTC connection (we have one), a screen WAKE
-    // LOCK so the phone doesn't sleep mid-meeting, and WORKER-driven timers for
-    // our canvas pipelines — a hidden tab clamps main-thread timers to ≥1s
-    // (which froze the blurred broadcast and recordings), but a Web Worker's
-    // metronome keeps ticking.
+    // LOCK while someone is actually using the phone (a PARKED phone — minutes
+    // with no touch and no speech — deliberately RELEASES it and lets the
+    // screen rest: a pinned-on screen out-drank a charger overnight; audio,
+    // presence, and worker-clocked beats carry the meeting on), and
+    // WORKER-driven timers for our canvas pipelines — a hidden tab clamps
+    // main-thread timers to ≥1s (which froze the blurred broadcast and
+    // recordings), but a Web Worker's metronome keeps ticking.
     let wakeLock = null;
+    // Parked-phone idleness state lives HERE (above keepAwake's first call)
+    // — the deciders and the poke() reactivator are with the battery tiers.
+    let lastActive = Date.now(), idleNow = false;
     async function keepAwake() {
+      if (idleNow) return; // a parked phone's screen is allowed to rest
       try { if (navigator.wakeLock && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
     }
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastActive = Date.now(); if (idleNow) { idleNow = false; adapt(); } keepAwake(); } });
     keepAwake();
     let metro = null;
     const metroSubs = new Set(); // callbacks ticked ~15x/s, background included
@@ -2078,10 +2198,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // from a dead one; a charger restores the full rung on the spot. Browsers
     // without the Battery API (iOS Safari, Firefox) read as tier 0 — plugged.
     let battTier = 0; // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
+    // PHONES CUT DEEPER, EVEN PLUGGED IN (Nathan 2026-07-26, after a Moto
+    // drained 30%→2% OVERNIGHT ON ITS CHARGER): a phone SoC+screen can lose
+    // to a weak charger at full quality, so being a phone is itself tier ≥1.
+    const IS_MOBILE = !!((navigator.userAgentData && navigator.userAgentData.mobile)
+      || /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent));
+    // CHARGER LOSING: plugged in but the level is FALLING — the overnight
+    // Moto failure exactly. Emergency tier until the level rises again.
+    let drainTier = 0, lastLvl = null;
     if (navigator.getBattery) navigator.getBattery().then((b) => {
       const upd = () => {
         const t = b.charging ? 0 : (b.level <= 0.25 ? 3 : (b.level <= 0.5 ? 2 : 1));
-        if (t === battTier) return;
+        if (b.charging && lastLvl !== null) {
+          if (b.level < lastLvl) drainTier = 3;
+          else if (b.level > lastLvl) drainTier = 0;
+        } else if (!b.charging) drainTier = 0; // unplugged: battTier owns it
+        lastLvl = b.level;
+        if (t === battTier) { adapt(); return; } // drainTier may still have moved
         battTier = t;
         adapt();
         setStatus(t === 0 ? '🔌 On power — full video quality restored.'
@@ -2089,12 +2222,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
       b.onchargingchange = upd; b.onlevelchange = upd; upd();
     }).catch(() => {});
+    // PARKED PHONE: minutes with no touch and no speech means nobody is
+    // holding this phone — release the wake lock (the pinned-on screen is
+    // 1-2W, the single biggest burner of a parked phone's night) and floor
+    // the send quality. Any touch, word, or return restores everything.
+    const IDLE_MS = 180000; // (lastActive/idleNow live beside wakeLock — keepAwake runs before this block)
+    const poke = () => {
+      lastActive = Date.now();
+      if (idleNow) { idleNow = false; adapt(); keepAwake(); }
+    };
+    addEventListener('pointerdown', poke, { passive: true });
+    addEventListener('keydown', poke);
+    setInterval(() => {
+      const idle = IS_MOBILE && Date.now() - lastActive > IDLE_MS;
+      if (idle === idleNow) return;
+      idleNow = idle;
+      adapt();
+      if (idle) {
+        try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+        setStatus('😴 Phone looks parked — letting the screen rest. Tap for full quality.');
+      } else keepAwake();
+    }, 10000);
     function adapt() {
       const n = Math.max(2, 1 + peers.size);
       let q = rung(n);
-      if (battTier) {
-        q = LADDER[Math.min(LADDER.indexOf(q) + battTier, LADDER.length - 1)];
-        if (battTier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
+      // Effective power tier: the deepest cut wins — battery level, a losing
+      // charger, being a phone at all (≥1), or a parked phone (floor).
+      const tier = Math.max(battTier, drainTier, IS_MOBILE ? 1 : 0, idleNow ? 3 : 0);
+      if (tier) {
+        q = LADDER[Math.min(LADDER.indexOf(q) + tier, LADDER.length - 1)];
+        if (tier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
       }
       const track = localStream && localStream.getVideoTracks()[0];
       if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
@@ -7666,6 +7823,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       quality: () => rung(participantCount()).label,
       power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
       battTier: () => battTier, // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
+      powTier: () => ({ batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 1 : 0, idle: idleNow ? 3 : 0 }),
+      pokeForTest: () => poke(),
+      idleForTest: (ms) => { lastActive = Date.now() - (ms | 0); },
       camTrackLive: () => !!(localStream && localStream.getVideoTracks()[0] && localStream.getVideoTracks()[0].readyState === 'live'),
       // hidden-viewer dormancy forensics: mains I parked at the far side's
       // request / parks I asked for / is my main video toward pid carrying
