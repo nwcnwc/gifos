@@ -329,24 +329,33 @@ function radioInitScript() {
   })();`;
 }
 
-// The freeze lever's target: every --type=renderer process descended from OUR
-// browser. Walked via /proc (Linux) — meet.js always runs on the same box as
-// the browser it drives, so this holds locally and over ssh alike.
-function rendererPids() {
-  if (!browser || !browser.process || !browser.process()) return [];
-  const root = browser.process().pid;
+// Process-tree walk via /proc (Linux). The browser is a CHILD of this very
+// process (playwright spawns it), so descendants of process.pid are exactly
+// the browser tree — no playwright API needed (browser.process() is absent
+// in some playwright builds). meet.js always runs on the same box as the
+// browser it drives, so this holds locally and over ssh alike.
+function procTree() {
   const ppid = {}, cmd = {};
   for (const p of fs.readdirSync('/proc')) {
     if (!/^\d+$/.test(p)) continue;
     try {
       const st = fs.readFileSync('/proc/' + p + '/stat', 'utf8');
-      const m = /\) \S+ (\d+)/.exec(st);
-      ppid[p] = m && m[1];
+      ppid[p] = st.slice(st.lastIndexOf(')') + 2).split(' ')[1]; // comm may contain spaces
       cmd[p] = fs.readFileSync('/proc/' + p + '/cmdline', 'utf8');
     } catch (e) {}
   }
-  const isDesc = (p) => { let cur = p, hops = 0; while (cur && hops++ < 15) { if (+cur === root) return true; cur = ppid[cur]; } return false; };
-  return Object.keys(cmd).filter((p) => cmd[p] && cmd[p].includes('--type=renderer') && isDesc(p)).map(Number);
+  const isDesc = (p) => { let cur = ppid[p], hops = 0; while (cur && hops++ < 15) { if (+cur === process.pid) return true; cur = ppid[cur]; } return false; };
+  return { ppid, cmd, isDesc };
+}
+// the freeze lever's target: every --type=renderer under OUR tree
+function rendererPids() {
+  const t = procTree();
+  return Object.keys(t.cmd).filter((p) => t.cmd[p] && t.cmd[p].includes('--type=renderer') && t.isDesc(p)).map(Number);
+}
+// the die lever's target: the whole browser tree under us
+function browserTreePids() {
+  const t = procTree();
+  return Object.keys(t.cmd).filter((p) => t.isDesc(p)).map(Number);
 }
 
 // Visibility override — the pattern proven in e2e-vis-park/-away-holdover/-pip.
@@ -766,9 +775,11 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'die') { // the battery hit 0% / the OS killed the app: SIGKILL, no goodbyes
-    try { const proc = browser.process ? browser.process() : null; if (proc) proc.kill('SIGKILL'); else await browser.close(); } catch (e) {}
+    const pids = browserTreePids();
+    for (const p of pids) { try { process.kill(p, 'SIGKILL'); } catch (e) {} }
+    if (!pids.length) { try { await browser.close(); } catch (e) {} } // last resort: graceful (shouldn't happen on Linux)
     browser = null; ctx = null; page = null; joined = false; cdp = null;
-    console.log('  DIED (browser SIGKILLed — abrupt vanish)');
+    console.log('  DIED (browser tree SIGKILLed: ' + (pids.length || 'via close') + ' — abrupt vanish)');
     return true;
   }
   if (cmd === 'waitseat') {
