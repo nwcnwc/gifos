@@ -223,6 +223,23 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   every pulse gap evicts the phone: tile churn for everyone, the consent
   `(x/n)` line bounces, and since `rosterIds` feeds `leafCount()` the count
   flap wobbles the vote-majority `need` denominator too.
+  **Why this is bigger than cosmetics (10-phone walkthrough, 2026-07-25):**
+  phones whose owners walk away screen-off become *limbo lurkers* — the held
+  mic capture keeps them connected (mesh liveness correctly refuses to kill a
+  live link), but their throttled pulses fail every 15s gate. Two confirmed
+  consequences beyond the blinking: (1) **password rooms re-blur for
+  everyone** — `allConsent()` demands a FRESH consenting pulse from every
+  seated peer, so one pocketed phone flaps the whole room between clear and
+  blurred every ~30s; (2) **governance deadlocks** — vote tallies count only
+  fresh voters but `need` is a majority of `participantCount()`, which keeps
+  counting connected-but-away phones, so 5 of 10 pocketed ⇒ need 6 > 5 live
+  and no vote can pass. (Hard-dead phones are fine: ICE failed → sweeper →
+  D5 → heal converges the mesh on the real humans in ~1-2 min. The stage
+  already self-heals — a stale stager is auto-evicted.) The honest
+  `away: true` pulse (sent on visibilitychange before the freeze) plus the
+  `peerAway()` hard-freeze fallback are the coherent signal: away/holdover
+  peers should leave the vote `need` denominator, and the consent question
+  below decides the re-blur.
   **Principle:** the 15s gate conflates *recent gossip* with *process alive*.
   Where there is direct transport evidence, a stale pulse must not evict —
   `alive()` already ORs `fresh || p.connected || fhLive(v)`; the
