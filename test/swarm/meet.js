@@ -249,7 +249,11 @@ let browser = null, ctx = null, page = null, joined = false, lastRoomKey = '';
 async function ensureBrowser() {
   if (browser) return;
   browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME, args: [
-    '--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required',
+    // NB: no --disable-dev-shm-usage here. That flag belongs to swarm.js, which
+    // runs hundreds of bots and would exhaust /dev/shm; meet.js is strictly a
+    // single browser (ensureBrowser guards one instance), so spilling shared
+    // memory to /tmp just burns disk — ~30GB/day on the Pi's SD card.
+    '--no-sandbox', '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
     '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests',
   ] });
