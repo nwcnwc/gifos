@@ -1311,13 +1311,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let pipAimed = null;
     function pipReaim() {
       const v = pipSource();
+      sendVisPark(); // hidden-viewer dormancy re-aims with the float (and catches mates that connected while hidden)
       if (v === pipAimed) return;
       try { if (pipAimed) pipAimed.autoPictureInPicture = false; } catch (e) {}
       try { if (v) v.autoPictureInPicture = true; } catch (e) {}
       pipAimed = v;
     }
+    // HIDDEN-VIEWER DORMANCY (media-plane's demand law, applied to mains): a
+    // hidden tab still made every row-mate run a full camera encoder AT it —
+    // N pocketed phones = N invisible encoders burning on every sender, and
+    // G1's holdover keeps those pockets in the room for the duration. While
+    // hidden, ask each mate to PARK the main video it sends me — except the
+    // one the PiP float is showing. Audio never parks: the call goes on.
+    // Deltas only, self-pruning, and recording keeps everything live (a
+    // frozen feed must never be baked into a recording). Old clients ignore
+    // the 'vis' frame — opportunistic savings, no flag day.
+    const visParkSent = new Map(); // pid -> last park bool actually sent
+    function sendVisPark() {
+      for (const k of [...visParkSent.keys()]) if (!peers.has(k)) visParkSent.delete(k);
+      const recording = !!(typeof recRec !== 'undefined' && recRec && recRec.state !== 'inactive');
+      const hidden = document.hidden && !recording;
+      let floatPid = null;
+      if (hidden) { const v = pipSource(); for (const [pid, p] of peers) if (p.video === v) { floatPid = pid; break; } }
+      for (const [pid, p] of peers) {
+        const park = hidden && pid !== floatPid;
+        if (visParkSent.get(pid) === park) continue;
+        if (p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'vis', park }); visParkSent.set(pid, park); }
+        else visParkSent.delete(pid); // never mark unsent state as delivered
+      }
+    }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) enterPip(); else exitPip();
+      sendVisPark();
     });
     // The floated element can die mid-background (a stage strip teardown pulls
     // its tile). Element gone from the doc = not a user close — re-aim at the
@@ -1959,7 +1984,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (added) { if (p.dc && p.dc.readyState === 'open') compKick(p.id); else renegotiate(p); }
         }
         if (p.mainV) {
-          if (!cam || !vt) { if (p.mainV.track) p.mainV.replaceTrack(null).catch(() => {}); }
+          // remoteParkMain: hidden-viewer dormancy — the far side told us it
+          // can't see this feed right now ({k:'vis'}); park the encoder.
+          if (!cam || !vt || p.remoteParkMain) { if (p.mainV.track) p.mainV.replaceTrack(null).catch(() => {}); }
           else if (p.mainV.track !== vt) p.mainV.replaceTrack(vt).catch(() => {});
         }
         if (p.mainA) {
@@ -2468,6 +2495,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
+      p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
       // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
       // down) already receive my face INSIDE the composited band/product/
@@ -4360,6 +4388,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (ji && (!m.streamId || ji.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, false);
         // …and a re-parked mirror hop re-parks its upstream the same way.
         if (m.key.indexOf('sdnm:') === 0) { const up = mosIn.get('sdnmr:' + m.key.slice(5)); if (up) demand(up.via, m.key, up.streamId, false); }
+      } else if (m.k === 'vis') {
+        // HIDDEN-VIEWER DORMANCY (the demand law applied to mains): the far
+        // side is a hidden tab that isn't showing my face (its PiP floats
+        // someone else, or nothing) — park my main video encoder toward it.
+        // Audio never parks (the call goes on in a pocket); their return is
+        // a pure replaceTrack, the m-line never leaves. Old clients simply
+        // never send this — pure opportunistic watts.
+        p.remoteParkMain = !!m.park;
+        refreshOutbound();
       } else if (m.k === 'sga' && typeof m.sid === 'string') {
         // Stage data lane (§11): app-state frame — dedup, deliver, re-fan.
         sgaRecv(p.id, m);
