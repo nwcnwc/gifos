@@ -342,6 +342,12 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   rests; audio/presence/worker beats carry on) and floors the rung — any
   tap/word/return restores. `debugDump().powTier`. Plus the fullscreen
   FILMSTRIP view (big feed + tappable thumbs of stage/row-mates/stadium/me).
+  **PRODUCT PRINCIPLE (Nathan 2026-07-26): battery savings are BASELINE,
+  always-on behavior — not a mode.** Screen brightness is the USER's dial
+  (set for their environment; a dimmed screen in sunlight is unusable) and
+  we never touch it — parked mode only releases the wake lock so the OS's
+  own screen policy applies to an unattended phone. Brand goal: GifOS Meet
+  known as the battery-friendliest call platform.
   **Not done (needs Nathan / next wave):**
   - *Compositor duty on phones:* packer duty follows the SEAT (topology law).
     A phone that seats as a head runs packers + aux encodes. Duty-aware
