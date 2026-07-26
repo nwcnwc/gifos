@@ -191,6 +191,8 @@ export class Session {
     this.env = env;           // for the TRUSTED_IPS test-mode allowlist
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
     this.joinLog = new Map(); // ip -> [join timestamps]; best-effort, in-memory
+    this.bornAt = Date.now(); // wedge self-heal: age-gates the self-abort below
+    this.wedgeStrikes = [];   // timestamps of internal accept-path failures
     // Edge-answered keepalive: a client-level ping is answered WITHOUT waking
     // (or billing) the hibernated object. Nothing sends {"t":"ping"} today —
     // this guarantees that if anything ever does, it stays free.
@@ -310,7 +312,33 @@ export class Session {
     this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded, admitted });
   }
 
+  // WEDGE SELF-HEAL (2026-07-26, field incident): a Durable Object can wedge
+  // — every NEW websocket accept throws ("Network connection lost.") while
+  // the established hibernated sockets keep working. The room's door was
+  // dead for an hour: every newcomer stranded or fragmented, the seated room
+  // never noticed, and only a manual same-code redeploy (which restarts the
+  // object) fixed it. The object now performs that restart ITSELF: repeated
+  // internal failures on the accept path call state.abort(); the platform
+  // re-instantiates fresh on the next request, and hibernatable sockets +
+  // their greeter attachments SURVIVE — the seated room never blips.
+  // Guards against abort-looping: a young object (<60s) never aborts (a
+  // failure that early is more likely our own bug on a poisoned input), and
+  // it takes two strikes inside 60s so one transient hiccup restarts nobody.
+  wedgeStrike(e) {
+    const now = Date.now();
+    this.wedgeStrikes = (this.wedgeStrikes || []).filter((t) => now - t < 60000);
+    this.wedgeStrikes.push(now);
+    console.log('wedge-strike', String(e && e.message).slice(0, 100), 'n=' + this.wedgeStrikes.length);
+    if (this.wedgeStrikes.length >= 2 && now - (this.bornAt || 0) > 60000) {
+      console.log('wedge-abort: restarting this session object');
+      try { this.state.abort('wedged accept path'); } catch (e2) { /* abort() never returns normally */ }
+    }
+  }
   async fetch(request) {
+    try { return await this.fetchInner(request); }
+    catch (e) { this.wedgeStrike(e); throw e; }
+  }
+  async fetchInner(request) {
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('expected websocket', { status: 426 });
     }

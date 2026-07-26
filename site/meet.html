@@ -327,6 +327,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .fsthumb .fslbl { position: absolute; left: .25rem; bottom: .25rem; font-size: .65rem;
     background: rgba(10,10,15,.72); color: #eceef8; padding: .05rem .35rem; border-radius: .3rem; max-width: 92%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* JOINING VEIL: until the seat is real, joining LOOKS like joining — never
+     like an empty room. Sits UNDER the password/name modals (z 40): typing
+     the password is part of joining. */
+  #joinveil { position: fixed; inset: 0; z-index: 35; background: rgba(10,10,15,.82);
+    display: flex; align-items: center; justify-content: center; }
+  #joinveil .jv-box { text-align: center; max-width: 320px; padding: 1.5rem; }
+  #joinveil h3 { color: var(--text, #e0e0f0); margin-bottom: .5rem; }
+  #joinveil p { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; }
+  #joinveil .jv-spin { width: 2.2rem; height: 2.2rem; margin: 0 auto 1rem; border-radius: 50%;
+    border: 3px solid var(--border, #2a2a3f); border-top-color: var(--accent, #7b5cff);
+    animation: jvspin 1s linear infinite; }
+  @keyframes jvspin { to { transform: rotate(360deg); } }
   /* The follow-the-speaker chip rides the strip like a thumb. */
   .fsthumb.fsauto { display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: .2rem; background: #191926; color: #eceef8; }
@@ -1262,9 +1274,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return w;
       } catch (e) { setInterval(fn, ms); return null; }
     }
-    let hbTick = 0;
+    let hbTick = 0, hbLastAt = Date.now();
     if (bgClock(SCALE.HB, () => {
       hbTick++;
+      hbLastAt = Date.now(); // the freeze detector's clock (see visibilitychange below)
       // A hidden tab beats at a third of the pace (12s — still inside every 15s
       // freshness window): a phone in a pocket keeps its seat without waking
       // the relay 21,600 times a day. The worker clock makes the 12s REAL —
@@ -1285,6 +1298,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       myStatus.away = !!document.hidden;
       broadcastStatus();
       if (document.hidden) return;
+      // RESUME-AFTER-FREEZE SELF-HEAL (2026-07-26): Android freezes a
+      // backgrounded tab COMPLETELY after ~5min — workers included — so a
+      // long app-switch comes back with a stale world: every status expired,
+      // our seat healed away, the view says "everyone left" while the room
+      // hums along without us. The page can PROVE it was frozen (the worker
+      // beat clock shows a gap no live page can produce) — so do what the
+      // user's manual refresh does, automatically: a clean re-entry.
+      // 150s ≫ the worst honest beat gap (4s clock, worker-held), ≪ any
+      // freeze that actually stales the room (statuses die at 60s holdover).
+      if (Date.now() - hbLastAt > 150000 && peers.size) { location.reload(); return; }
       reactRoomState();
       // Android freezes <video> elements consuming canvas-capture streams
       // while the tab is hidden — the TRACK stays live (others keep seeing
@@ -3165,6 +3188,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       occPrevIds = occNow; occPrevMyCk = myCk;
     }
+    // ---- JOINING MUST LOOK LIKE JOINING (Fix 2, 2026-07-26) -----------------
+    // A page that cannot complete the knock used to look like an EMPTY ROOM:
+    // your own preview, no faces, a quiet status pill — indistinguishable from
+    // "everyone left" (exactly what a wedged relay door showed the S10, every
+    // refresh). Until the seat is REAL (state 3 + coord) a joining page shows
+    // a veil that says what is actually happening; past 20s it names the door
+    // as the likely problem. It never founds and never fakes — the wire keeps
+    // re-knocking underneath, and the veil lifts the instant the seat lands.
+    // (Sits UNDER the password modal: typing the password IS joining.)
+    let joinVeilEl = null, unseatedSince = 0;
+    setInterval(() => {
+      if (!room || typeof meshSeat !== 'function') return;
+      const s = meshSeat();
+      const seated = !!(s && s.state === 3 && s.hasCoord);
+      if (seated) { unseatedSince = 0; if (joinVeilEl) { joinVeilEl.remove(); joinVeilEl = null; } return; }
+      const now = Date.now();
+      if (!unseatedSince) { unseatedSince = now; return; }
+      if (now - unseatedSince < 4000) return; // fast joins never see it
+      if (!joinVeilEl) {
+        joinVeilEl = document.createElement('div');
+        joinVeilEl.id = 'joinveil';
+        joinVeilEl.innerHTML = '<div class="jv-box"><div class="jv-spin"></div><h3 id="jv-t">Reaching the meeting…</h3><p id="jv-p">Connecting you to the room.</p></div>';
+        document.body.appendChild(joinVeilEl);
+      }
+      if (now - unseatedSince > 20000) {
+        joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
+        joinVeilEl.querySelector('#jv-p').textContent = 'The meeting door isn’t answering — this can be your network or the room’s relay. Retrying automatically; you’ll join the moment it answers.';
+      }
+    }, 1000);
+
     // The directory is DERIVED, every tick, from the mesh: occ (coord → peer,
     // maintained by the healing laws) plus fresh status gossip. Replaces the
     // relay-roster reconcile — the relay's roster is the greeter pool, not
@@ -3185,7 +3238,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // contact, E2) must be enough to form the link, or link formation
       // deadlocks on the very gossip that needs the link.
       const fhLive = (v) => { for (const [k, vv] of s.occ) if (vv === v) { const at = s.live.get(k); return at !== undefined && (s.env.TICK - at) <= 60; } return false; };
-      const alive = (v) => { if (stHold(v)) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); }; // stHold = 15s fresh + the G1 away/transport holdover
+      // TRANSPORT VOUCHES ARE CAPPED (the frozen-tab lesson, 2026-07-26): a
+      // renderer Android froze mid-meeting kept answering ICE consent from
+      // its NETWORK process — p.connected read true for 30+ minutes while not
+      // one frame of gossip arrived, and every peer painted its zombie tile
+      // for the duration. A connection may vouch for a QUIET peer only while
+      // we have actually HEARD something recently (lastHeard, any sealed
+      // frame); real presence always has a heartbeat. 180s ≫ any legitimate
+      // throttle gap (worker beats hold 12s hidden), ≪ the zombie hours.
+      const VOUCH_MS = 180000;
+      const alive = (v) => {
+        if (stHold(v)) return true; // 15s fresh + the G1 away/transport holdover (60s-bounded)
+        const p = peers.get(v);
+        if (p && p.connected && Date.now() - (p.lastHeard || 0) < VOUCH_MS) return true;
+        return fhLive(v);
+      };
       for (const v of s.occ.values()) if (v && v !== myId && notTomb(v) && alive(v)) ids.add(v);
       // DIAL EVERY NEIGHBOUR THE MESH NAMES — never only the ones already
       // talking to us. `alive()` below asks "have I heard from this peer
@@ -7818,6 +7885,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pipEnterForTest: () => enterPip(),
       // freeze my outgoing pulses (throttled-phone simulation for the G1 drill)
       haltPulseForTest: (on) => { pulseHalt = !!on; },
+      // backdate the beat clock (renderer-freeze simulation for the resume self-heal drill)
+      freezeGapForTest: (ms) => { hbLastAt = Date.now() - (ms | 0); },
       stageVoteNeed: () => stageVoteTallies().need,
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
