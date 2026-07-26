@@ -1237,13 +1237,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const v of stagefeedEl.querySelectorAll('.rowtile video')) if (pipReady(v)) return v;
       let first = null;
       for (const [pid, p] of peers) {
-        if (!p.connected || !pipReady(p.video)) continue;
+        // a camOff peer's track still decodes (black) frames — skip by STATUS
+        if (!p.connected || (statusOf.get(pid) || {}).camOff || !pipReady(p.video)) continue;
         if (speakingOf.get(pid)) return p.video; // the talker beats first-connected
         first = first || p.video;
       }
       if (first) return first;
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
-      return pipReady(sd) ? sd : null; // never float my own preview
+      if (pipReady(sd)) return sd;
+      // Alone in the room (or nobody else's video is up yet): float my OWN
+      // preview — it shows the camera is still live and the room still open
+      // while I'm in another app. Only when the camera is actually ON: the
+      // join-quiet default (camOff) would float a black box.
+      return (meTile && !myStatus.camOff && pipReady(meTile.video)) ? meTile.video : null;
     }
     async function enterPip() {
       const v = pipSource();

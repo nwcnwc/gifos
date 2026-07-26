@@ -5,9 +5,12 @@
 // way native call apps do. Entry is best-effort per browser (Chrome auto-PiP
 // via the MediaSession action, Safari via autoPictureInPicture, plus a direct
 // attempt); what MUST hold everywhere is the source picker and the wiring:
-//   1. alone in a room, nothing is aimed — my own preview is never floated
-//   2. once a peer's video is live, the picker aims at that peer's tile
-//   3. a synthetic hide → show round-trip runs the enter/exit paths without a
+//   1. alone and join-quiet (camera off), nothing is aimed — never a black box
+//   2. alone with the camera ON, my own preview floats (the room is still open)
+//   3. a peer whose camera is OFF never steals the aim (their track decodes
+//      black frames — the picker goes by STATUS, not frames)
+//   4. a peer with a live camera beats my own preview
+//   5. a synthetic hide → show round-trip runs the enter/exit paths without a
 //      single page error (headless Chromium may refuse to actually open the
 //      overlay — no user gesture — so pip().active is reported, not required)
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
@@ -34,13 +37,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return pg;
   };
 
-  // ---- 1: alone → nothing aimed (never my own preview) ----------------------
+  // ---- 1: alone + join-quiet (camera off) → nothing aimed --------------------
   const A = await mk('Ann');
   await sleep(4000);
-  check('alone in the room, the PiP picker aims at nothing',
+  check('alone and join-quiet, the PiP picker aims at nothing',
     (await A.evaluate(() => window.__gifosVideo.pip().aimed)) === null);
 
-  // ---- 2: a peer's live video becomes the aim --------------------------------
+  // ---- 2: alone with the camera ON → my own preview floats -------------------
+  await A.locator('#cam').click();
+  await A.waitForFunction(() => window.__gifosVideo.pip().aimed === 'peer:me', null, { timeout: 10000 });
+  check('alone with the camera on, the picker aims at MY preview', true);
+
+  // ---- 3: a camera-off peer never steals the aim ------------------------------
   const B = await mk('Ben');
   for (let i = 0; i < 30; i++) {
     const st = [];
@@ -49,11 +57,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     if (i === 29) { console.log('JOIN STALL:', st.join(' ')); process.exit(1); }
     await sleep(2000);
   }
-  await A.waitForFunction(() => /^peer:/.test(window.__gifosVideo.pip().aimed || ''), null, { timeout: 20000 });
-  check('with a connected peer, the picker aims at THEIR tile video',
-    /^peer:/.test(await A.evaluate(() => window.__gifosVideo.pip().aimed)));
-  check('...and the peer aims back the same way',
-    /^peer:/.test(await B.evaluate(() => window.__gifosVideo.pip().aimed)));
+  await sleep(3000); // status pulses settle
+  check('a quiet (camera-off) peer does not steal the aim from my preview',
+    (await A.evaluate(() => window.__gifosVideo.pip().aimed)) === 'peer:me');
+
+  // ---- 4: a peer with a LIVE camera beats my own preview ----------------------
+  await B.locator('#cam').click();
+  await A.waitForFunction(() => /^peer:k/.test(window.__gifosVideo.pip().aimed || ''), null, { timeout: 15000 });
+  check('the peer turning their camera on takes the aim', true);
+  check('...and the other side aims at their peer too, never themselves',
+    /^peer:k/.test(await B.evaluate(() => window.__gifosVideo.pip().aimed)));
 
   // ---- 3: hide → show round-trip runs enter/exit without page errors --------
   const fakeVisibility = (pg, hidden) => pg.evaluate((h) => {
