@@ -22,7 +22,7 @@ into levers (all are `meet.js` commands; see "The levers" below):
 | reality | lever | what it does |
 |---|---|---|
 | app-switch (screen on) | `hide` / `show` | visibility override + `visibilitychange` — JS keeps running (throttled phone) |
-| LONG app-switch / screen off | `freeze` / `thaw` | CDP web-lifecycle **frozen** — JS fully stops, exactly Android's 5-min tab freeze (the S10 incident) |
+| LONG app-switch / screen off | `freeze` / `thaw` | renderer **SIGSTOP** — main thread, workers, encoders all stop while the network process keeps answering ICE consent: the exact S10-incident anatomy. (CDP web-lifecycle "frozen" was a no-op — the worker metronome kept beating.) |
 | coverage dropout (tunnel, elevator, dead zone) | `radio off` / `radio on` | in-page RADIO SILENCE: relay WS + every DataChannel go quiet **both directions, with no close events**, new sockets fail — a tunnel, not a hangup |
 | battery states | `battery <pct> [charging\|drain]` | drives the fake `navigator.getBattery` → the real tier machinery (phone ≥1, <50% → 2, <25% → 3, charger-losing → 3) |
 | parked phone | `idlemin <mins>` / `poke` | backdates/refreshes `lastActive` → wake-lock release + rung floor |

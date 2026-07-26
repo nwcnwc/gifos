@@ -329,6 +329,26 @@ function radioInitScript() {
   })();`;
 }
 
+// The freeze lever's target: every --type=renderer process descended from OUR
+// browser. Walked via /proc (Linux) — meet.js always runs on the same box as
+// the browser it drives, so this holds locally and over ssh alike.
+function rendererPids() {
+  if (!browser || !browser.process || !browser.process()) return [];
+  const root = browser.process().pid;
+  const ppid = {}, cmd = {};
+  for (const p of fs.readdirSync('/proc')) {
+    if (!/^\d+$/.test(p)) continue;
+    try {
+      const st = fs.readFileSync('/proc/' + p + '/stat', 'utf8');
+      const m = /\) \S+ (\d+)/.exec(st);
+      ppid[p] = m && m[1];
+      cmd[p] = fs.readFileSync('/proc/' + p + '/cmdline', 'utf8');
+    } catch (e) {}
+  }
+  const isDesc = (p) => { let cur = p, hops = 0; while (cur && hops++ < 15) { if (+cur === root) return true; cur = ppid[cur]; } return false; };
+  return Object.keys(cmd).filter((p) => cmd[p] && cmd[p].includes('--type=renderer') && isDesc(p)).map(Number);
+}
+
 // Visibility override — the pattern proven in e2e-vis-park/-away-holdover/-pip.
 const applyVisibility = (pg, hidden) => pg.evaluate((h) => {
   Object.defineProperty(document, 'hidden', { get: () => h, configurable: true });
@@ -685,20 +705,31 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'freeze') {
-    // a LONG app-switch: Android freezes the tab — JS stops entirely. Hidden
-    // first (that's how real freezes happen), then CDP web-lifecycle frozen.
+    // a LONG app-switch: Android freezes the tab — JS stops ENTIRELY, workers
+    // included. CDP Page.setWebLifecycleState turned out to be a no-op for the
+    // worker metronome (the "frozen" page kept beating every 12s — behavior
+    // battery, 2026-07-26), so the honest lever is SIGSTOP on the page's
+    // renderer process: main thread, workers, WebRTC encoders all stop, while
+    // the browser's network process stays alive answering ICE consent — the
+    // EXACT anatomy of the real Android-freeze incident. Hidden first (real
+    // freezes happen to hidden tabs, and the app's visibilitychange sends its
+    // honest "away" before the lights go out, as on a real phone).
     lever.hidden = true; await applyVisibility(page, true);
-    if (!cdp) cdp = await ctx.newCDPSession(page);
-    await cdp.send('Page.setWebLifecycleState', { state: 'frozen' });
+    await sleep(300); // let the "away" status flush before the renderer stops
+    const pids = rendererPids();
+    if (!pids.length) { console.log('  ! no renderer process found — cannot freeze'); return true; }
+    for (const p of pids) { try { process.kill(p, 'SIGSTOP'); } catch (e) {} }
+    lever.frozenPids = pids;
     lever.frozen = true;
-    console.log('  FROZEN (tab lifecycle) — page JS is stopped; `thaw [gapSecs]` to return');
+    console.log('  FROZEN (renderer SIGSTOP: ' + pids.join(',') + ') — `thaw [gapSecs]` to return');
     return true;
   }
   if (cmd === 'thaw') {
     if (!lever.frozen) { console.log('  not frozen'); return true; }
-    if (!cdp) cdp = await ctx.newCDPSession(page);
-    await cdp.send('Page.setWebLifecycleState', { state: 'active' });
+    for (const p of lever.frozenPids || []) { try { process.kill(p, 'SIGCONT'); } catch (e) {} }
+    lever.frozenPids = null;
     lever.frozen = false;
+    await sleep(300); // the woken renderer needs a beat before evaluate
     const gap = parseFloat(rest[0]);
     if (gap > 0) await page.evaluate((ms) => { try { window.__gifosVideo.freezeGapForTest(ms); } catch (e) {} }, Math.round(gap * 1000));
     lever.hidden = false; await applyVisibility(page, false);
