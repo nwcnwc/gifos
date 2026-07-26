@@ -1066,11 +1066,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           (bag[d] = bag[d] || new Set()).add(voterDev || 'x');
         }
       };
-      add(bagUp, myDevHash, myStatus.vup); add(bagDn, myDevHash, myStatus.vdn);
+      // An AWAY device sits out voting ENTIRELY — vote and denominator both
+      // (G1). Symmetry is the security property: marking yourself away costs
+      // you your standing votes in the same breath it removes you from the
+      // majority bar, so away can never be used to manufacture a majority —
+      // it is exactly equivalent to briefly leaving. (away is self-reported
+      // on your own pulse; nobody can mark someone ELSE away.)
+      const awayDevs = new Set(), engagedDevs = new Set();
+      if (!myStatus.away) { add(bagUp, myDevHash, myStatus.vup); add(bagDn, myDevHash, myStatus.vdn); if (myDevHash) engagedDevs.add(myDevHash); }
+      else if (myDevHash) awayDevs.add(myDevHash);
       for (const [pid, st] of statusOf) {
+        if (st.away) { if (devOf[pid]) awayDevs.add(devOf[pid]); continue; }
         if (now - (st.at || 0) > 15000) continue; // stale voter = no vote
         add(bagUp, devOf[pid], st.vup); add(bagDn, devOf[pid], st.vdn);
+        if (devOf[pid]) engagedDevs.add(devOf[pid]);
       }
+      // one DEVICE, two sessions (a stale away pid + a fresh one): present wins
+      for (const d of engagedDevs) awayDevs.delete(d);
       const cnt = (bag) => { const t = {}; for (const d in bag) t[d] = bag[d].size; return t; };
       // SCALE GUARD (the C-nary tree matters here): tallies come from the
       // statuses I can SEE, but the majority is measured against the ROOM —
@@ -1082,7 +1094,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Exact tallying beyond section scale is the tree-aggregation protocol
       // (docs/vote-scale.md) — sim-first, like every mesh law.
       const pop = new Set(Object.values(devOf)); if (myDevHash) pop.add(myDevHash);
-      const roomN = Math.max(pop.size, (typeof participantCount === 'function' ? participantCount() : 0) || 0);
+      for (const d of awayDevs) pop.delete(d); // away devices leave the bar they can't vote against
+      // The room-level count still includes away lurkers (they hold live
+      // connections); subtract only the EXPLICITLY-away devices I can see.
+      // A silently-frozen phone (no away pulse got out) stays in the bar —
+      // conservative, and ICE death heals it out of the count in ~1-2 min.
+      const roomN = Math.max(pop.size, ((typeof participantCount === 'function' ? participantCount() : 0) || 0) - awayDevs.size);
       stgTallyCache = { at: now, up: cnt(bagUp), down: cnt(bagDn), upVoters: bagUp,
         need: Math.max(2, Math.floor(roomN / 2) + 1) };
       return stgTallyCache;
@@ -1182,12 +1199,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The HEARTBEAT: re-announce my status + stream sid every few seconds. It
     // is idempotent and tiny, and it is what keeps every phone's view of the
     // room converged — a single lost message now costs seconds, not the meeting.
+    //
+    // THE CLOCK IS A WORKER (G1 sender side): a background phone clamps DOM
+    // timers into 25-60s chunks — long past every 15s freshness rule — but
+    // worker messages are not timer-aligned, so a one-line Worker metronome
+    // keeps the true cadence while the page merely answers it. A fully FROZEN
+    // renderer stops message delivery too; that terminal case is what the
+    // receiver-side holdover (stHold) and the mesh's own death detection are
+    // for. Fallback to setInterval where Workers are unavailable.
+    let hbVia = 'interval';
+    function bgClock(ms, fn) {
+      try {
+        const w = new Worker(URL.createObjectURL(new Blob(
+          ['setInterval(function(){postMessage(0)},' + (ms | 0) + ')'], { type: 'text/javascript' })));
+        w.onmessage = fn;
+        return w;
+      } catch (e) { setInterval(fn, ms); return null; }
+    }
     let hbTick = 0;
-    setInterval(() => {
+    if (bgClock(SCALE.HB, () => {
       hbTick++;
       // A hidden tab beats at a third of the pace (12s — still inside every 15s
       // freshness window): a phone in a pocket keeps its seat without waking
-      // the relay 21,600 times a day.
+      // the relay 21,600 times a day. The worker clock makes the 12s REAL —
+      // under the old DOM timer a pocketed phone actually beat every 25-60s.
       const throttled = document.hidden && hbTick % 3 !== 0;
       // Beat whenever anyone can hear us: the relay socket, or any live
       // DataChannel (status prefers DCs — see sendSig — so a healing relay
@@ -1196,7 +1231,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (peers.size && audible && !throttled) broadcastStatus();
       if (typeof reconcileApp === 'function') reconcileApp();
       pipReaim(); // keep Safari's auto-PiP flag on the current best candidate
-    }, SCALE.HB);
+    })) hbVia = 'worker';
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
     // thing we say is an honest "away", and the first thing back is "here".
@@ -1292,6 +1327,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const p = peers.get(pid);
       return !!st.away || !!(p && p.lastHeard && Date.now() - p.lastHeard > 13000);
     };
+    // G1 HOLDOVER: freshness ≠ liveness. The 15s rule assumed the hidden-tab
+    // heartbeat (12s) always lands inside it, but a locked phone's DOM timers
+    // stretch to 25-60s chunks — every pulse gap evicted the phone from
+    // roster/consent, blinking tiles and re-blurring password rooms. A peer
+    // whose pulses have merely gone SLOW stays a participant for HOLDOVER_MS
+    // when either they honestly said away (the visibilitychange pulse fires
+    // before the freeze) or transport still vouches for them (p.connected).
+    // A tombstoned/left peer has no statusOf entry at all (it is deleted on
+    // departure — "a stale status must not haunt the room") so holdover can
+    // never revive a confirmed departure. HOLDOVER_MS stays well under the
+    // mesh E-timers: real death is still the mesh's call, not this one.
+    const HOLDOVER_MS = 60000;
+    const stHold = (pid) => {
+      const st = statusOf.get(pid);
+      if (!st) return false;
+      const age = Date.now() - (st.at || 0);
+      if (age < 15000) return true;
+      if (age >= HOLDOVER_MS) return false;
+      const p = peers.get(pid);
+      return !!st.away || !!(p && p.connected);
+    };
     function mergeMod(incoming) {
       let changed = false;
       for (const target in incoming || {}) {
@@ -1365,7 +1421,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // a ghost) counts as NOT consenting: clear is the deliberate unanimous
     // state, never the default. Same 15s freshness renderFromOcc uses.
     const roomConsentIds = () => (typeof rosterIds !== 'undefined' && Array.isArray(rosterIds)) ? rosterIds : Array.from(peers.keys());
-    const freshConsent = (pid) => { const st = statusOf.get(pid); return !!st && Date.now() - (st.at || 0) < 15000 && consents(st); };
+    // G1 + Nathan's call (2026-07-25): an away phone's PRIOR deliberate
+    // consent stands while it is still provably present (stHold) — a pocketed
+    // phone must not flap the whole room between clear and blurred. A ghost
+    // still counts as NOT consenting (stHold is false once its status entry
+    // is deleted or the holdover expires); leaving/votekick still revokes.
+    const freshConsent = (pid) => { const st = statusOf.get(pid); return !!st && stHold(pid) && consents(st); };
     function allConsent() {
       if (!consents(myStatus)) return false;
       for (const pid of roomConsentIds()) { if (!freshConsent(pid)) return false; }
@@ -2752,7 +2813,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // contact, E2) must be enough to form the link, or link formation
       // deadlocks on the very gossip that needs the link.
       const fhLive = (v) => { for (const [k, vv] of s.occ) if (vv === v) { const at = s.live.get(k); return at !== undefined && (s.env.TICK - at) <= 60; } return false; };
-      const alive = (v) => { const st = statusOf.get(v); if (st && Date.now() - (st.at || 0) < 15000) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); };
+      const alive = (v) => { if (stHold(v)) return true; const p = peers.get(v); if (p && p.connected) return true; return fhLive(v); }; // stHold = 15s fresh + the G1 away/transport holdover
       for (const v of s.occ.values()) if (v && v !== myId && notTomb(v) && alive(v)) ids.add(v);
       // DIAL EVERY NEIGHBOUR THE MESH NAMES — never only the ones already
       // talking to us. `alive()` below asks "have I heard from this peer
@@ -2771,7 +2832,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (devOf[v] && devOf[v] === myDevHash) continue;   // a stale session of my own device
         if (linkTo(v)) ensureLink(v, rosterNames[v] || null);
       }
-      for (const [pid, st] of statusOf) if (pid !== myId && Date.now() - (st.at || 0) < 15000 && notTomb(pid)) ids.add(pid);
+      for (const [pid] of statusOf) if (pid !== myId && stHold(pid) && notTomb(pid)) ids.add(pid);
       rosterIds = Array.from(ids);
       for (const pid of rosterIds) {
         // A peer carrying MY device id is a stale session of my own device —
@@ -7300,7 +7361,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const info = (pid) => { const st = statusOf.get(pid) || null; const p = peers.get(pid);
           return { peer: String(pid).slice(0, 12), name: rosterNames[pid] || null, coord: coordOfPeer.get(pid) || null,
             ip: ipsOf[pid] || null, camOff: st ? !!st.camOff : null, blur: st ? st.blur : null,
-            stAge: st ? Math.round((now - (st.at || 0)) / 1000) : null,
+            stAge: st ? Math.round((now - (st.at || 0)) / 1000) : null, away: st ? !!st.away : null,
             conn: p ? !!p.connected : false, vid: !!(p && p.video && p.video.srcObject && p.video.videoWidth > 0),
             // friend-relay (E5§1): media arrives via this mutual friend's browser.
             // conn=false + relay set is a WORKING call over the fallback path —
@@ -7316,7 +7377,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           participants: participantCount(), inMeeting: rosterIds.length + 1,
           rows: (() => { if (!c) return []; const g = []; for (let r = 0; r < SCALE.C; r++) { const row = []; for (let i = 0; i < SCALE.C; i++) { const pid = meshOccAt({ pc: c.pc, r, i }); row.push(pid ? String(pid).slice(0, 8) : null); } g.push(row); } return g; })(), // real C×C section grid
           ghosts: ghosts.map((p) => String(p).slice(0, 12)), dups,
-          consent: (typeof allConsent === 'function' ? allConsent() : null),
+          consent: (typeof allConsent === 'function' ? allConsent() : null), hbVia,
           mosaic: mos, roster: rosterIds.map(info),
         };
       },

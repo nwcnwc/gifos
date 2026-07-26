@@ -429,7 +429,16 @@
     }
 
     function startLoop() {
-      timer = setInterval(() => {
+      // THE TICK CLOCK IS A WORKER where one exists (G1 sender side): this
+      // one interval drives seat.tick(), the 55s greeter keepalive and the
+      // 12s zombie watchdog — on a backgrounded phone a DOM setInterval
+      // stretches into 25-60s chunks, so the keepalive arrives late enough
+      // for a NAT to zombie the socket and the watchdog to miss it. Worker
+      // messages are not timer-aligned, so the cadence holds while the page
+      // is throttled. (A fully frozen renderer stops these too — that is the
+      // relay's E3 reopening clause's case, not ours.) Node/sim and any
+      // Worker-less context keep the plain interval.
+      const tick = () => {
         if (stopped) return;
         env.TICK++;
         seat.tick();
@@ -470,7 +479,17 @@
           }
         }
         if (opts.onUpdate) opts.onUpdate(node);
-      }, tickMs);
+      };
+      if (typeof Worker !== 'undefined' && typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
+        try {
+          const w = new Worker(URL.createObjectURL(new Blob(
+            ['setInterval(function(){postMessage(0)},' + (tickMs | 0) + ')'], { type: 'text/javascript' })));
+          w.onmessage = tick;
+          timer = { worker: w };
+          return;
+        } catch (e) { /* CSP or platform said no — the plain interval below */ }
+      }
+      timer = setInterval(tick, tickMs);
     }
 
     // Build the seat once the peer id (and, for S4, the identity) is known, then
@@ -527,7 +546,7 @@
       // R5/E5§2: after onFork, the app picks one genesis key; seat joins only that room.
       chooseFork(gkey) { return !!(seat && seat.chooseFork && seat.chooseFork(gkey)); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
-      stop() { stopped = true; if (timer) clearInterval(timer); if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
+      stop() { stopped = true; if (timer && timer.worker) { try { timer.worker.terminate(); } catch (e) {} } else if (timer) clearInterval(timer); timer = null; if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
     };
 
     if (wantMint) {
