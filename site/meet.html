@@ -491,6 +491,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <path d="M20 8a8 8 0 0 0-14.9-2"/><polyline points="5 2 5 6 9 6"/>
         <path d="M4 16a8 8 0 0 0 14.9 2"/><polyline points="19 22 19 18 15 18"/></svg>
     </button>
+    <button id="pipbtn" class="iconbtn" aria-label="Float the meeting" title="Float the meeting in a mini window — it stays on screen while you use other apps" style="display:none">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+    </button>
     <span class="blurctl" title="How much your own video is blurred to everyone else">
       <span class="blurlbl">Blur</span>
       <span id="blurseg" class="segwrap" role="group" aria-label="Blur level">
@@ -1306,6 +1310,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } catch (e) {}
     }
     try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { enterPip(); }); } catch (e) {}
+    // The FLOAT button: Chrome's AUTO PiP on tab-leave is chrome-gated (the
+    // per-site "Automatic picture-in-picture" permission plus site-engagement
+    // heuristics — a first-visit phone often gets nothing), and on Android
+    // the only unconditional auto path is native fullscreen-video PiP. A TAP
+    // is a user gesture, and gesture-backed requestPictureInPicture is
+    // allowed everywhere the API exists: tap Float, the mini window opens,
+    // then switch apps and it rides along. Hidden where no PiP API exists
+    // (Firefox, some WebViews) — those only have the browser's own UI.
+    (() => {
+      const btn = document.getElementById('pipbtn');
+      const testV = document.createElement('video');
+      const capable = !!(document.pictureInPictureEnabled || typeof testV.webkitSetPresentationMode === 'function');
+      if (!capable) return;
+      btn.style.display = '';
+      const floating = () => !!(document.pictureInPictureElement
+        || Array.from(document.querySelectorAll('video')).some((v) => v.webkitPresentationMode === 'picture-in-picture'));
+      btn.onclick = () => { if (floating()) exitPip(); else enterPip(); };
+    })();
     // Safari's auto-PiP flag rides the current best candidate; re-aimed on the
     // heartbeat since who's on stage / who's talking drifts.
     let pipAimed = null;
@@ -6687,11 +6709,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       wire('togglecamera', () => camBtn.onclick());
       wire('hangup', () => { sendMeshLeave(); location.replace('index.html'); });
       // Chrome auto-enters picture-in-picture for call sites that handle this —
-      // flip away and the stage follows you as a floating tile.
-      wire('enterpictureinpicture', async () => {
-        const v = document.querySelector('.tile.onstage video, .tile:not(.me) video, .tile video');
-        if (v && v.requestPictureInPicture) { try { await v.requestPictureInPicture(); } catch (e) { /* denied — fine */ } }
-      });
+      // flip away and the stage follows you as a floating tile. MUST route
+      // through enterPip(): registering a second handler here used to CLOBBER
+      // the ranked source picker (last setActionHandler wins) with a dumb
+      // tile query that could float a black camOff tile.
+      wire('enterpictureinpicture', () => enterPip());
       updateMediaSession();
     })();
     // The blur slider: pick Max / Min / No blur directly. It records YOUR choice;
@@ -7538,6 +7560,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pip: () => ({
         aimed: (() => { const v = pipSource(); if (!v) return null; const t = v.closest('[data-peer]'); if (t) return 'peer:' + t.dataset.peer; const r = v.closest('.rowtile'); return r ? 'row:' + r.dataset.row : 'other'; })(),
         active: !!(document.pictureInPictureElement || Array.from(document.querySelectorAll('video')).some((v) => v.webkitPresentationMode === 'picture-in-picture')),
+        // capability forensics: which PiP doors exist on THIS browser
+        caps: {
+          api: !!document.pictureInPictureEnabled,
+          req: typeof HTMLVideoElement.prototype.requestPictureInPicture === 'function',
+          webkit: typeof document.createElement('video').webkitSetPresentationMode === 'function',
+          autoAttr: 'autoPictureInPicture' in HTMLVideoElement.prototype,
+        },
+        btnShown: (() => { const b = document.getElementById('pipbtn'); return !!b && b.style.display !== 'none'; })(),
       }),
       pipEnterForTest: () => enterPip(),
       // freeze my outgoing pulses (throttled-phone simulation for the G1 drill)
