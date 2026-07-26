@@ -126,8 +126,10 @@ class Actor {
       if (INSECURE_ORIGINS) envParts.push('MEET_INSECURE_ORIGINS=' + shq(INSECURE_ORIGINS));
       if (h.chrome) envParts.push('MEET_CHROME=' + shq(h.chrome));
       if (h.nodePath) envParts.push('NODE_PATH=' + shq(h.nodePath));
+      // actors run the PUSHED .bb-meet.js — never the repo's own meet.js,
+      // which other services on that box (e.g. a resident monitor) may run
       const remote = 'cd ' + shq(h.dir) + ' && ' + (envParts.length ? 'env ' + envParts.join(' ') + ' ' : '')
-        + shq(h.node || 'node') + ' test/swarm/meet.js ' + a.map(shq).join(' ');
+        + shq(h.node || 'node') + ' test/swarm/.bb-meet.js ' + a.map(shq).join(' ');
       this.child = spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', h.ssh, remote],
         { stdio: ['pipe', 'pipe', 'pipe'] });
     }
@@ -277,7 +279,7 @@ class Cast {
     for (const a of this.all()) if (a.host && a.host.ssh) remotes.set(a.host.ssh, a.host);
     for (const [, h] of remotes) {
       await new Promise((res, rej) => {
-        const p = spawn('ssh', ['-o', 'BatchMode=yes', h.ssh, 'mkdir -p ' + shq(h.dir + '/test/swarm') + ' && cat > ' + shq(h.dir + '/test/swarm/meet.js')], { stdio: ['pipe', 'ignore', 'inherit'] });
+        const p = spawn('ssh', ['-o', 'BatchMode=yes', h.ssh, 'mkdir -p ' + shq(h.dir + '/test/swarm') + ' && cat > ' + shq(h.dir + '/test/swarm/.bb-meet.js')], { stdio: ['pipe', 'ignore', 'inherit'] });
         fs.createReadStream(MEET).pipe(p.stdin);
         p.on('exit', (c) => c === 0 ? res() : rej(new Error('meet.js push to ' + h.name + ' failed (' + c + ')')));
       });
