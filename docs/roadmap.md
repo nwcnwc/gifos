@@ -326,12 +326,16 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   must show `video/H264` + an OMX/c2 hardware impl (NOT libvpx/OpenH264) and
   `limit` ≠ 'cpu'; then the real test — charge level must RISE while sitting
   in a 3-person room. The pi monitor eval path reads it remotely.
+  **Wave 2 SHIPPED (edge 2026-07-26, commits f868865 / 5515f79):** Float
+  button (gesture-backed PiP — Android auto-PiP is chrome-gated, a tap is
+  not) + fixed the enterpictureinpicture handler clobber; **battery tiers**
+  (Nathan's rule: on battery = 1 rung lighter, <50% = 2, <25% = 3 + 15fps
+  cap; no Battery API (iOS) = tier 0) — `debugDump().battTier`; **camera
+  idle-stop** (20s of camOff stops + removes the hardware track — sensor/ISP
+  fully off for join-quiet phones; lateMedia re-grabs on tap, ~0.5s);
+  hidden-tab meters at 900ms. All probe/gate verified (e2e-vis-park,
+  e2e-away-holdover ALL PASS).
   **Not done (needs Nathan / next wave):**
-  - *Mobile send ladder cap:* phones could send one rung lower + fps ≤20
-    (visually invisible at tile sizes, real watts) — product call on 1:1
-    quality vs battery, plus "am I a phone" detection taste.
-  - *Battery-reactive rung:* `navigator.getBattery()` — discharging (or
-    discharging-while-plugged!) drops a rung / caps fps; recovers on charge.
   - *Compositor duty on phones:* packer duty follows the SEAT (topology law).
     A phone that seats as a head runs packers + aux encodes. Duty-aware
     seating bias (phones prefer leaf seats?) is a LAW change — sim-first,
