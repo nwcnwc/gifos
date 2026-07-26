@@ -211,6 +211,53 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
     meeting banner vs static `/site` JSON for V4's site-wide banner). `run.html`
     and the home page have no relay, so they show only the V4 static notice.
 
+- **G1 — Presence holdover for throttled phones (freshness ≠ liveness).**
+  Observed on the pi monitor 2026-07-25: a locked Android phone blinks out of
+  the roster for one ~5s snapshot every 25-30s, `ghosts` toggling in sync, and
+  in a seatless half-state the participant count itself bounced 2↔1. Cause:
+  the **15s freshness rule** gates roster/tiles (`freshConsent`), the
+  in-meeting id set, stage-seat validity, and vote counting, and it assumes
+  the hidden-tab heartbeat (12s — "still inside every 15s freshness window",
+  `meet.html` heartbeat comment) always lands inside it — but Android
+  lock-screen intensive throttling defers page timers into 25-60s chunks, so
+  every pulse gap evicts the phone: tile churn for everyone, the consent
+  `(x/n)` line bounces, and since `rosterIds` feeds `leafCount()` the count
+  flap wobbles the vote-majority `need` denominator too.
+  **Principle:** the 15s gate conflates *recent gossip* with *process alive*.
+  Where there is direct transport evidence, a stale pulse must not evict —
+  `alive()` already ORs `fresh || p.connected || fhLive(v)`; the
+  roster/consent/stage gates don't. Sketch:
+  - Keep 15s as the "fresh" bar; add a **holdover (~60s)** that keeps a peer
+    in roster/tiles/count when the last status flagged `away: true` (the
+    honest visibilitychange broadcast already sent before the freeze) OR
+    transport is live (`p.connected` / open DC / relayed feed / seated occ).
+    Tombstones override instantly — `meshGone`, explicit leave, votekick;
+    grace never revives a confirmed departure ("a stale status must not haunt
+    the room's consensus" still holds — holdover extends *presence*, never
+    resurrects it).
+  - UI: dim the tile / an "away" glyph instead of removing it — communicate
+    the pocket, don't churn the grid.
+  - **Votes stay strict 15s** (scale-guard doctrine: under-count votes, never
+    the room). The `need` denominator stabilizes via the count fix alone.
+  - Stage: a staged phone keeps its C-capped seat through the holdover;
+    eviction only at expiry.
+  - Sender side (complementary, lesser half): beat immediately on Page
+    Lifecycle `resume` / `pageshow` (visibilitychange already beats on
+    return); a Worker-hosted heartbeat is tempting but Android freezes the
+    whole renderer, so receiver-side grace is the robust half.
+  Gate: a drill (`e2e-throttled-phone`) that stalls one peer's heartbeat ~40s
+  with its DC left open — roster and count must hold, zero blinks; then cut
+  the transport too — eviction lands at holdover expiry, not before. Plus the
+  pi-monitor sweep (`connY < participants-1` windows) staying clean with a
+  locked phone in the room.
+  Open questions:
+  - Exact holdover length vs the mesh E-timers — must stay well under E3 so
+    the mesh's own death detection still wins.
+  - Does *consent* hold through away? (Prior consent stands and the camera is
+    dark anyway, but it's a privacy call — review before building.)
+  - Do relayed feeds count as transport evidence? (`alive()` already says
+    yes via `fhLive`.)
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
