@@ -964,7 +964,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const SCALE = net.SCALE;
     // Capability bucket: uplink + cores + memory + power, folded into ONE coarse
     // score so jitter can't flap it. Measured once at boot (plus one async bump
-    // if we learn we're on wall power).
+    // if we learn we're on wall power). Currently INFORMATIONAL only — it rides
+    // the gossip and the debug hook, but no law consumes it (the old cap-based
+    // elections died with the deacon model).
     (function measureCap() {
       let s = 0;
       try { s += Math.min(8, navigator.hardwareConcurrency || 2); } catch (e) {}
@@ -982,14 +984,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const st = statusOf.get(id);
       return (st && st.cap) || 0;
     };
-    // Deterministic row map: stage members first (row 0 — filled by the stage
-    // machinery; empty until someone steps up), everyone else first-fit in
-    // sorted-id order, C per row. Every client computes the identical map
-    // from the identical roster — no coordinator, no gossip, no state.
+    // Deterministic display order: the Stage strip first (a CHOSEN set,
+    // capped at C — a special tier, NOT a mesh row; empty until someone
+    // steps up), everyone else first-fit in sorted-id order, C per display
+    // row. Every client computes the identical map from the identical
+    // roster — no coordinator, no gossip, no state.
     //
     // THE STAGE is pure derived bookkeeping too: stepping up just gossips a
-    // timestamp (myStatus.stg) and every phone computes the same row 0 —
-    // seats in step-up order, capped at C, and in admin rooms filtered to
+    // timestamp (myStatus.stg) and every phone computes the same Stage set —
+    // members in step-up order, capped at C, and in admin rooms filtered to
     // admins + grantees (the same moderation-table grant that gates apps; an
     // admin revoking it pulls the person off stage everywhere by arithmetic).
     // A DOM hacker can set their own flag, but every RECEIVER runs this
@@ -1826,7 +1829,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const pid of peers.keys()) collect(pid, statusOf.get(pid));
       hands.sort((a, b) => a[1] - b[1]);
       const rank = new Map(hands.map((h, i) => [h[0], i]));
-      const stg = stageIds(); // row 0 floats first, in step-up order
+      const stg = stageIds(); // the Stage floats first, in step-up order
       const apply = (id, t) => {
         const focused = focusId === id;
         t.tile.classList.toggle('focus', focused);
@@ -3000,10 +3003,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // link (initiated by whichever side the id-order rule picks); absent peers
     // start a grace clock instead of being dropped on the spot — a locked
     // phone rejoining in ten seconds keeps its tile and its meeting.
-    // Do I hold a LIVE MEDIA LINK to this peer? My row mates, everyone on
-    // the stage (row 0), and — when I'm my row's deacon — the other rows'
-    // deacons (the fold/forward edges). At default constants a small room is
-    // one row, so this set is EVERYONE — today's mesh, by arithmetic.
+    // Do I hold a LIVE MEDIA LINK to this peer? linkTo() answers straight
+    // from the seat's bounded neighbourhood (row-mates, cross, up/down, S1
+    // columns — see the BOUNDED DEGREE comment below). In a one-row room
+    // that set is everyone, by arithmetic.
     // Does my mesh already have an occupancy entry naming this peer? If it does
     // and linkTo() still says no, the peer genuinely is not my neighbour and its
     // offer is refused. If it does NOT, I simply have not learned it yet — see
@@ -3031,9 +3034,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!s || !s.hasCoord) return false;
       return s.linkPeers().has(pid);
     }
-    // Establish or retire ONE peer's media link per the row arithmetic. Also
-    // run by the sweeper: cap gossip settling can move a deacon election, and
-    // the link set must follow without waiting for the next roster.
+    // Establish or retire ONE peer's media link per the seat arithmetic. Also
+    // run by the sweeper: occupancy gossip settling can change who my
+    // neighbours are, and the link set must follow without waiting for the
+    // next roster.
     function ensureLink(pid, name) {
       if (!linkTo(pid)) return; // the sweeper retires unwanted links, with grace
       let p = peers.get(pid);
@@ -3671,15 +3675,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Departure tombstones expire once every occ echo of the freed seat has
       // settled — after that a same-id RE-JOIN is an ordinary newcomer.
       for (const [pid, at] of meshGone) if (now - at > 60000) meshGone.delete(pid);
-      // Elections settle as cap gossip arrives — follow the arithmetic.
+      // The link set follows the seat arithmetic — occupancy gossip settling
+      // can name new neighbours; dial them the tick they appear.
       for (const pid of rosterIds) {
         if (pid === myId || (devOf[pid] && devOf[pid] === myDevHash)) continue;
         if (linkTo(pid) && !peers.has(pid)) ensureLink(pid, rosterNames[pid] || null);
       }
       for (const [pid, p] of Array.from(peers)) {
-        // A link the arithmetic no longer wants gets the same 15s grace as
-        // uplinks and folds: elections flap while gossip settles, and an ICE
-        // rebuild two seconds after a needless drop is pure lost time.
+        // A link the arithmetic no longer wants gets a 15s grace: the seat
+        // map flaps while gossip settles, and an ICE rebuild two seconds
+        // after a needless drop is pure lost time.
         if (!linkTo(pid)) {
           if (!p.unlinkedSince) p.unlinkedSince = now;
           if (now - p.unlinkedSince > 15000) { dropPeer(pid); continue; }
@@ -3698,8 +3703,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // reneg reset ICE mid-flight. The browser won't downgrade it to
         // 'failed' for tens of seconds, and 'failed'/'disconnected' below never
         // fires meanwhile — so the link just hangs. That dead link may be the
-        // ONE peer we depend on: a row deacon forwarding every other row's fold
-        // down to us. A single wedged deacon link = zero folds, forever (this
+        // ONE peer we depend on: the up-link head whose composited section/
+        // stadium feed reaches us through that single pipe. One wedged up-link
+        // = zero composites, forever (this
         // is exactly what strands a human who joins a full section cold). Nudge
         // it with an ICE restart, then rebuild the transport outright if it is
         // still wedged well past any honest handshake. Only the initiator
@@ -6063,28 +6069,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       setStage(true);
     };
 
-    // ---- audio: four buses, receiver-side (docs/media-plane.md) ---------------
-    // Stage / My row / My section / The stadium are a grouping by LINK CLASS,
-    // not a sender tag: your faders are your own volume knobs, as ungovernable
-    // as any. Degenerate by arithmetic: a one-row room has no section members
-    // and a one-section room no stadium members, so those two faders don't even
-    // show — a room that is just your row is a plain Stage + My row two-channel
-    // mix, exactly today. The faders grow in as the room does.
+    // ---- audio: three buses, receiver-side (docs/media-plane.md) --------------
+    // Stage / My row / The stadium are a grouping by LINK CLASS, not a sender
+    // tag: your faders are your own volume knobs, as ungovernable as any.
+    // Degenerate by arithmetic: a room that is just your row has no stadium
+    // sources, so that fader doesn't even show (progressive disclosure below).
+    // The faders grow in as the room does. (The old fourth "My section" bus
+    // died with Channel Se — section-mates fold into the Stadium now.)
     const MIX_KEY = 'gifos_mix';
     const mix = Object.assign({ stage: 1, row: 1, stadium: 1 }, (() => {
       try { return JSON.parse(localStorage.getItem(MIX_KEY) || '{}'); } catch (e) { return {}; }
     })());
-    // Four buses, grouped by link CLASS (receiver-side volume only):
-    //   Stage       — the 's:' feeds, verbatim everywhere
+    // Three buses, grouped by link CLASS (receiver-side volume only):
+    //   Stage       — the stage strip / per-stager feeds, verbatim everywhere
     //   My row      — my direct row-mate links, the people I converse with
-    //   My section  — the OTHER rows of my own section (deacon-mesh peers +
-    //                 their folds): the near-field murmur around me
-    //   The stadium — everything cross-section: space-mate links, deck-mate
-    //                 rows, and deck folds — the far roar of the other sections
-    // Section and stadium are the old "Crowd" split along the seam that already
-    // orders the feed (in-section rows vs deck/deck-mate). Both are degenerate
-    // by arithmetic: a one-row room has no section members, a one-section room
-    // no stadium members — their faders simply don't show.
+    //   The stadium — the composited far room (the 'sd' fractal + row views):
+    //                 the roar of everyone beyond my row
+    // A one-row room has no stadium sources, so that fader simply doesn't show.
     // Audio playout is SPLIT from the video tiles. Mobile browsers PAUSE hidden
     // <video> elements — flipping to another tab used to silence the whole
     // meeting — but audio-only playback keeps going in the background, like
@@ -6109,8 +6110,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Stage first (a staged row mate is Stage); then MY ROW (the direct
         // conversation tier). Any OTHER direct link is STRUCTURAL — an up/down/
         // cross carrier whose tile Channel R hides. Its raw mic must NOT play:
-        // that person's audio reaches me properly SUMMED inside the composite
-        // folds (section band / stadium). Letting the raw track through gave a
+        // that person's audio reaches me properly SUMMED inside the stadium
+        // composites. Letting the raw track through gave a
         // disembodied "ghost voice" with no tile (and double-audio once the
         // composite carried them too).
         // Stagers' direct tracks are muted too: their voice arrives via the
@@ -6118,8 +6119,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const bus = stg.has(pid) ? null : mates.has(pid) ? 'row' : null;
         busVolume(p.video, bus ? mix[bus] : 0);
       }
-      // feed tiles (3b's mosaics): stage strip is Stage; stadium tiles are
-      // The stadium — empty until the fractal mosaic lands.
+      // feed tiles (the fractal mosaics): stage strip is Stage; stadium tiles
+      // are The stadium.
       for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
@@ -6472,8 +6473,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const st = statusOf.get(pid) || {};
         const src = { key: pid, video: p.video, label: p.name || '…', blur: blurLevelFor(pid), stream: p.video.srcObject,
           mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: !!st.camOff };
-        // Same bus classification as applyBuses: stage / my row / same-section
-        // deacon-mesh (My section) / cross-section space mate (The stadium).
+        // Same bus classification as applyBuses: stage / my row / everyone
+        // beyond my row (The stadium).
         if (stg.has(pid)) {
           // A stager's direct-link tracks are PARKED (stagers live on the
           // Stage ONLY) — record the 'stg:' aux feed we actually receive.
