@@ -1195,6 +1195,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const audible = relayUp() || Array.from(peers.values()).some((p) => p.dc && p.dc.readyState === 'open');
       if (peers.size && audible && !throttled) broadcastStatus();
       if (typeof reconcileApp === 'function') reconcileApp();
+      pipReaim(); // keep Safari's auto-PiP flag on the current best candidate
     }, SCALE.HB);
     // Tell the room when this phone steps away (screen off / another app) —
     // the browser fires visibilitychange before it freezes us, so the last
@@ -1217,6 +1218,67 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (meTile) kickVideo(meTile.video);
       for (const p of peers.values()) kickVideo(p.video);
     });
+    // ---- Picture-in-Picture: stepping out to another app must not mean
+    // leaving the room — a floating overlay keeps the meeting's best face on
+    // screen, the way every native call app does. Video only: audio already
+    // survives backgrounding (the live mic capture keeps the audio graph
+    // running). Three entry paths, best-effort each: Chrome fires the
+    // MediaSession 'enterpictureinpicture' action itself when the user leaves
+    // a tab that is capturing cam/mic; iOS Safari honors autoPictureInPicture
+    // on the aimed candidate; and we try directly on visibilitychange for
+    // browsers that grant a recent-gesture grace. Returning to the tab
+    // dismisses the float. Side-benefit: a page with an open PiP window is
+    // exempt from Chrome's intensive timer throttling, so the float also
+    // keeps our status heartbeat inside the 15s freshness window (see G1).
+    const pipReady = (v) => !!(v && v.srcObject && v.videoWidth > 0);
+    function pipSource() {
+      // The stage is the room's chosen broadcast — float it when live (the
+      // composited strip beyond S1, individual stager feeds inside S1).
+      for (const v of stagefeedEl.querySelectorAll('.rowtile video')) if (pipReady(v)) return v;
+      let first = null;
+      for (const [pid, p] of peers) {
+        if (!p.connected || !pipReady(p.video)) continue;
+        if (speakingOf.get(pid)) return p.video; // the talker beats first-connected
+        first = first || p.video;
+      }
+      if (first) return first;
+      const sd = stadiumEl.querySelector('[data-row="sd"] video');
+      return pipReady(sd) ? sd : null; // never float my own preview
+    }
+    async function enterPip() {
+      const v = pipSource();
+      if (!v || document.pictureInPictureElement === v) return;
+      try {
+        if (v.requestPictureInPicture) await v.requestPictureInPicture();
+        else if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode('picture-in-picture')) v.webkitSetPresentationMode('picture-in-picture');
+      } catch (e) { /* no gesture grace here — the browser's own auto paths still apply */ }
+    }
+    function exitPip() {
+      try {
+        if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+        else for (const v of document.querySelectorAll('video')) if (v.webkitPresentationMode === 'picture-in-picture') v.webkitSetPresentationMode('inline');
+      } catch (e) {}
+    }
+    try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { enterPip(); }); } catch (e) {}
+    // Safari's auto-PiP flag rides the current best candidate; re-aimed on the
+    // heartbeat since who's on stage / who's talking drifts.
+    let pipAimed = null;
+    function pipReaim() {
+      const v = pipSource();
+      if (v === pipAimed) return;
+      try { if (pipAimed) pipAimed.autoPictureInPicture = false; } catch (e) {}
+      try { if (v) v.autoPictureInPicture = true; } catch (e) {}
+      pipAimed = v;
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) enterPip(); else exitPip();
+    });
+    // The floated element can die mid-background (a stage strip teardown pulls
+    // its tile). Element gone from the doc = not a user close — re-aim at the
+    // next candidate. A float the USER dismissed stays dismissed.
+    document.addEventListener('leavepictureinpicture', (e) => {
+      if (document.hidden && e.target && !e.target.isConnected) enterPip();
+    }, true);
     // A peer whose gossip has gone silent is effectively away even if their
     // browser never got to say so (hard freeze) — used for tile labeling only.
     const peerAway = (pid) => {
@@ -7283,6 +7345,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         .sort((a, b) => a.row - b.row),
       stadiumShown: () => stadiumEl.classList.contains('on'),
       stadiumVideoLive: (row) => { const el = stadiumEl.querySelector('[data-row="' + row + '"] video'); return !!(el && el.srcObject && el.videoWidth > 0); },
+      // PiP forensics: what the overlay would float right now, and whether one is up.
+      pip: () => ({
+        aimed: (() => { const v = pipSource(); if (!v) return null; const t = v.closest('[data-peer]'); if (t) return 'peer:' + t.dataset.peer; const r = v.closest('.rowtile'); return r ? 'row:' + r.dataset.row : 'other'; })(),
+        active: !!(document.pictureInPictureElement || Array.from(document.querySelectorAll('video')).some((v) => v.webkitPresentationMode === 'picture-in-picture')),
+      }),
+      pipEnterForTest: () => enterPip(),
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
       handqShown: () => handqEl.classList.contains('on'),

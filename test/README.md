@@ -263,7 +263,9 @@ Roughly three families in one directory:
   stage, vote, admin rooms — 44 checks), `e2e-meet-password`, `e2e-video`,
   `e2e-sing`, `e2e-mosaic`, `e2e-media-recovery`, `e2e-handq`,
   `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-app-governance`, `e2e-autoheal`,
-  `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`.
+  `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`, `e2e-pip`
+  (backgrounding floats the best room video in a PiP overlay; source picker
+  never floats your own preview).
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`.

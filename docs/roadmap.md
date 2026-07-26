@@ -250,6 +250,11 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   the transport too — eviction lands at holdover expiry, not before. Plus the
   pi-monitor sweep (`connY < participants-1` windows) staying clean with a
   locked phone in the room.
+  Note: Picture-in-Picture (SHIPPED to edge, gate `e2e-pip`) already shrinks
+  this window on Android — a page with an open PiP overlay is exempt from
+  Chrome's intensive timer throttling, so a phone that app-switches (rather
+  than locks the screen) keeps its heartbeat inside 15s. G1 still matters for
+  the locked-screen / dismissed-float cases.
   Open questions:
   - Exact holdover length vs the mesh E-timers — must stay well under E3 so
     the mesh's own death detection still wins.
