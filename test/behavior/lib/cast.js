@@ -440,10 +440,14 @@ class Check {
       const coords = reps.map((r) => r.coord).filter(Boolean);
       const dup = coords.length !== new Set(coords).size;
       const byId = new Set(reps.map((r) => String(r.from).slice(0, 8)).concat(reps.map((r) => r.from)));
-      let orphans = 0;
-      for (const r of reps) { for (const x of (r.links || []).concat(r.up || [], r.down || [])) if (x && !byId.has(x)) orphans++; }
-      const ok = reps.length === n && coords.length === n && !dup && orphans === 0;
-      if (!ok) throw 'replies=' + reps.length + '/' + n + ' seated=' + coords.length + ' dup=' + dup + ' orphanRefs=' + orphans;
+      // Orphan refs are counted on CONN claims only: a conn entry that nobody
+      // answers for is a zombie channel (a real bug). Stale LINK names are
+      // sim-law-tolerated phantoms — hearsay informs routing, never liveness
+      // (mesh.cpp E2) — so they are residue, not failure.
+      let connOrphans = 0;
+      for (const r of reps) for (const x of (r.conn || [])) if (x && !byId.has(x)) connOrphans++;
+      const ok = reps.length === n && coords.length === n && !dup && connOrphans === 0;
+      if (!ok) throw 'replies=' + reps.length + '/' + n + ' seated=' + coords.length + ' dup=' + dup + ' connOrphans=' + connOrphans;
       return true;
     }, o);
   }

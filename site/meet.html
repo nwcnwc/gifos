@@ -1274,10 +1274,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return w;
       } catch (e) { setInterval(fn, ms); return null; }
     }
-    let hbTick = 0, hbLastAt = Date.now();
+    let hbTick = 0, hbLastAt = Date.now(), frozeGap = 0; // frozeGap: latched freeze evidence (see the beat handler)
     if (bgClock(SCALE.HB, () => {
       hbTick++;
-      hbLastAt = Date.now(); // the freeze detector's clock (see visibilitychange below)
+      // THE FREEZE DETECTOR'S CLOCK — the gap is measured HERE, before the
+      // clock refreshes, and LATCHED. Measuring only in visibilitychange lost
+      // a race on resume: the worker's queued beat flushes FIRST when the
+      // renderer thaws, so by the time visibilitychange fires the gap reads
+      // ~0 and the self-heal never triggers — the woken page then sits with
+      // dead DataChannels believing it is still seated (behavior battery,
+      // 2026-07-26; the same flush order is possible on a real Android
+      // resume). The latch survives the flush; the reload fires as soon as
+      // we are visible (here, or in visibilitychange below).
+      const nowBeat = Date.now();
+      if (nowBeat - hbLastAt > 150000 && peers.size) frozeGap = nowBeat - hbLastAt;
+      hbLastAt = nowBeat;
+      if (frozeGap && !document.hidden) { location.reload(); return; }
       // A hidden tab beats at a third of the pace (12s — still inside every 15s
       // freshness window): a phone in a pocket keeps its seat without waking
       // the relay 21,600 times a day. The worker clock makes the 12s REAL —
@@ -1307,7 +1319,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // user's manual refresh does, automatically: a clean re-entry.
       // 150s ≫ the worst honest beat gap (4s clock, worker-held), ≪ any
       // freeze that actually stales the room (statuses die at 60s holdover).
-      if (Date.now() - hbLastAt > 150000 && peers.size) { location.reload(); return; }
+      // frozeGap: the beat handler may have measured (and latched) the gap
+      // before this event fired — see the flush-order note at the clock.
+      if ((frozeGap || Date.now() - hbLastAt > 150000) && peers.size) { location.reload(); return; }
       reactRoomState();
       // Android freezes <video> elements consuming canvas-capture streams
       // while the tab is hidden — the TRACK stays live (others keep seeing
@@ -3187,6 +3201,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
       }
       occPrevIds = occNow; occPrevMyCk = myCk;
+      // VOUCH-CAP REAP (2026-07-26, the frozen-phone lesson part 2): an OS-
+      // frozen phone keeps its TCP open — no close event EVER arrives, the pc
+      // sits in 'disconnected' forever, and its peers-map entry became an
+      // immortal zombie (participantCount rides peers.size, so the room
+      // counted a corpse indefinitely; the roster had long dropped it). A
+      // peer that is neither rostered nor heard past the vouch cap is
+      // confirmed gone; the pc.close() inside is the first-hand hard
+      // transport event the mesh's D5 confirm needs, so the SEAT heals
+      // through the ordinary law path too. A pocketed-but-alive phone (G1)
+      // keeps beating and is never eligible.
+      const REAP_MS = 195000; // vouch cap + pulse slack
+      for (const [pid, p] of peers) {
+        if (rosterIds.includes(pid)) continue;
+        const st = statusOf.get(pid);
+        const heard = Math.max(p.lastHeard || 0, (st && st.rx) || 0);
+        if (heard && nowMs - heard > REAP_MS) confirmGone(pid, 'vouch-reap');
+      }
     }
     // ---- JOINING MUST LOOK LIKE JOINING (Fix 2, 2026-07-26) -----------------
     // A page that cannot complete the knock used to look like an EMPTY ROOM:
