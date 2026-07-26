@@ -307,7 +307,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     border-radius: .5rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b);
     color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
   .voteopt:hover { border-color: var(--accent, #7b5cff); }
-  .voteopt small { display: block; color: var(--muted, #8888aa); font-size: .78rem; margin-top: .15rem; }
+  /* Descriptions derive from the theme's TEXT color (at reduced opacity), not
+     --muted: on themes with a colored surface (blue!), fixed gray muted text
+     lands at near-zero contrast and the popup is illegible. */
+  .voteopt small { display: block; color: var(--text, #e0e0f0); opacity: .72; font-size: .78rem; margin-top: .15rem; }
   /* Tile overlays always sit on live/dark video, so their text stays a fixed
      light regardless of the computer's theme — themed (dark-on-light) text
      would vanish against these permanently-dark pills. */
@@ -1762,7 +1765,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         meters.set(id, { an, src, data: new Uint8Array(an.fftSize) });
       } catch (e) {}
     }
+    let meterHiddenTick = 0;
     setInterval(() => {
+      // Hidden tab: sample at 900ms, not 180ms — the only hidden consumer is
+      // the PiP re-aim (worker heartbeat, 4s), and five WebAudio reads/sec
+      // per participant is real power on a pocketed phone.
+      if (document.hidden && ++meterHiddenTick % 5) return;
       for (const [id, m] of meters) {
         const t = id === 'me' ? meTile : peers.get(id);
         if (!t) { meters.delete(id); continue; }
@@ -1966,7 +1974,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stopBlurPipe();
       return cam;
     }
+    // CAMERA IDLE-STOP: join-quiet is the default, so phones commonly sit a
+    // whole meeting "camera off" — but a merely-disabled track keeps the
+    // SENSOR + ISP capturing (black frames), a few hundred mW forever on a
+    // phone. After 20s of camOff, stop the hardware track and REMOVE it from
+    // localStream (removal — not just stop — keeps reviveCamera's ended-track
+    // check from re-grabbing on tab return). The Camera button's lateMedia
+    // path re-grabs on demand (~half a second); the blur pipe dies with its
+    // source and rebuilds on regrab. Armed/disarmed via refreshOutbound, which
+    // every camOff transition already runs through.
+    let camIdleT = null;
+    function reactCamIdle() {
+      if (!myStatus.camOff) { if (camIdleT) { clearTimeout(camIdleT); camIdleT = null; } return; }
+      if (camIdleT) return;
+      camIdleT = setTimeout(() => {
+        camIdleT = null;
+        if (!myStatus.camOff || !localStream) return;
+        const vt = localStream.getVideoTracks()[0];
+        if (!vt) return;
+        try { vt.stop(); } catch (e) {}
+        try { localStream.removeTrack(vt); } catch (e) {}
+        stopBlurPipe();
+        refreshOutbound(); // mains park on the now-null track; senders stay negotiated
+      }, 20000);
+    }
     function refreshOutbound() {
+      reactCamIdle();
       const vt = sentVideoTrack();
       // Your self-view shows EXACTLY the track you broadcast (raw or blurred).
       // One WYSIWYG source means the preview never becomes a second <video>
@@ -2038,9 +2071,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function participantCount() {
       return Math.max(leafCount(), knownTotal() || 0);
     }
+    // BATTERY TIERS (Nathan 2026-07-26): encode watts are the meeting's
+    // biggest phone cost, so quality follows the battery — ON BATTERY at all
+    // sends one rung lighter, under 50% two rungs, under 25% three rungs and
+    // capped at 15fps. A phone that stays in the room beats a pretty feed
+    // from a dead one; a charger restores the full rung on the spot. Browsers
+    // without the Battery API (iOS Safari, Firefox) read as tier 0 — plugged.
+    let battTier = 0; // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
+    if (navigator.getBattery) navigator.getBattery().then((b) => {
+      const upd = () => {
+        const t = b.charging ? 0 : (b.level <= 0.25 ? 3 : (b.level <= 0.5 ? 2 : 1));
+        if (t === battTier) return;
+        battTier = t;
+        adapt();
+        setStatus(t === 0 ? '🔌 On power — full video quality restored.'
+          : '🔋 On battery — sending lighter video to stretch it' + (t >= 2 ? ' (' + Math.round(b.level * 100) + '%)' : '') + '.');
+      };
+      b.onchargingchange = upd; b.onlevelchange = upd; upd();
+    }).catch(() => {});
     function adapt() {
       const n = Math.max(2, 1 + peers.size);
-      const q = rung(n);
+      let q = rung(n);
+      if (battTier) {
+        q = LADDER[Math.min(LADDER.indexOf(q) + battTier, LADDER.length - 1)];
+        if (battTier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
+      }
       const track = localStream && localStream.getVideoTracks()[0];
       if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
       for (const p of peers.values()) {
@@ -7610,6 +7665,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
       power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
+      battTier: () => battTier, // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
+      camTrackLive: () => !!(localStream && localStream.getVideoTracks()[0] && localStream.getVideoTracks()[0].readyState === 'live'),
       // hidden-viewer dormancy forensics: mains I parked at the far side's
       // request / parks I asked for / is my main video toward pid carrying
       visParked: () => Array.from(peers.entries()).filter(([, p]) => p.remoteParkMain).map(([id]) => id),
