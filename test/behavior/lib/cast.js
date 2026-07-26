@@ -1,0 +1,399 @@
+'use strict';
+/*
+ * cast.js — the behavior battery's orchestrator. Spawns one test/swarm/meet.js
+ * per ROLE (--drive machine mode: commands in on stdin, @@done/@@err/@@state/
+ * @@probe sentinels out), feeds each a timed story, and checks the LAWS across
+ * the whole cast. See test/behavior/README.md for the catalog it serves.
+ *
+ * A scenario file is:
+ *
+ *   const { scenario } = require('../lib/cast');
+ *   scenario('my-pattern', {
+ *     ana: { profile: 'phone', battery: '0.62' },
+ *     bob: { profile: 'desktop', video: 1 },
+ *   }, async (cast, check) => {
+ *     await cast.joinAll();
+ *     await check.converged(2);
+ *     await cast.get('ana').cmd('radio off');
+ *     await cast.sleep(30);
+ *     await cast.get('ana').cmd('radio on');
+ *     await check.converged(2, { within: 60, desc: 'ana self-healed' });
+ *     await check.oneTree(2);
+ *   });
+ *
+ * Role spec: profile phone|desktop, battery "<lvl>[,charging|drain]",
+ * video <n> (talking-head clip), cam (solid swatch; DEFAULT unless observe),
+ * observe (camera off), pass, adminPw (create/enter an admin room as admin),
+ * name (display name; default = capitalized role key).
+ *
+ * Scenario opts (4th arg): relayDev true = REQUIRES the real relay under
+ * wrangler dev (test/servers/relay-dev.sh, :8794) — SKIPs (exit 0, loud) if
+ * absent; 'opportunistic' = use it if up, else the default relay.
+ * timeoutMin (default 15) = hard watchdog.
+ *
+ * Env: BEHAVIOR_BASE / BEHAVIOR_RELAY redirect the stack (defaults
+ * http://127.0.0.1:8099 + ws://127.0.0.1:8790, auto-spawned if idle);
+ * BEHAVIOR_HEADFUL=1 shows browsers; BEHAVIOR_VERBOSE=1 mirrors every actor
+ * line to the console. Runs never touch production.
+ */
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const net = require('net');
+const readline = require('readline');
+
+const ROOT = path.join(__dirname, '..', '..', '..');
+const MEET = path.join(ROOT, 'test', 'swarm', 'meet.js');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const BASE = (process.env.BEHAVIOR_BASE || 'http://127.0.0.1:8099').replace(/\/$/, '');
+const DEFAULT_RELAY = 'ws://127.0.0.1:8790';
+const RELAY_DEV_URL = 'ws://127.0.0.1:8794';
+const HEADFUL = !!process.env.BEHAVIOR_HEADFUL;
+const VERBOSE = !!process.env.BEHAVIOR_VERBOSE;
+
+function findChrome() {
+  if (process.env.MEET_CHROME) return process.env.MEET_CHROME;
+  const home = process.env.HOME || '/root';
+  for (const p of [
+    '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    '/opt/pw-browsers/chromium-1228/chrome-linux64/chrome',
+    path.join(home, '.cache/ms-playwright/chromium-1228/chrome-linux64/chrome'),
+    path.join(home, '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'),
+  ]) if (fs.existsSync(p)) return p;
+  return ''; // let meet.js resolve
+}
+const CHROME = findChrome();
+
+function portUp(port, host) {
+  return new Promise((res) => {
+    const s = net.connect({ port, host: host || '127.0.0.1' });
+    const done = (v) => { try { s.destroy(); } catch (e) {} res(v); };
+    s.once('connect', () => done(true));
+    s.once('error', () => done(false));
+    setTimeout(() => done(false), 1500).unref();
+  });
+}
+
+// ---------------------------------------------------------------- Actor ----
+class Actor {
+  constructor(cast, role, spec) {
+    this.cast = cast; this.role = role; this.spec = spec || {};
+    this.name = this.spec.name || role.charAt(0).toUpperCase() + role.slice(1);
+    this.av = null; this.alive = false; this.joined = false;
+    this._q = Promise.resolve();
+  }
+  spawnChild() {
+    const a = [MEET, '--drive', '--name', this.name, '--profile', this.spec.profile || 'desktop',
+      '--base', BASE, '--relay', this.cast.relay,
+      '--jsonl', path.join(this.cast.runDir, this.role + '.jsonl'), '--every', '3'];
+    if (this.spec.battery) a.push('--battery', String(this.spec.battery));
+    if (this.spec.video !== undefined) a.push('--video', String(this.spec.video));
+    if (this.spec.observe) a.push('--observe');
+    if (this.spec.adminPw) a.push('--admin-pw', this.spec.adminPw);
+    if (this.spec.ensurePass) a.push('--ensure-pass', this.spec.ensurePass);
+    if (HEADFUL) a.push('--headful');
+    const env = Object.assign({}, process.env, CHROME ? { MEET_CHROME: CHROME } : {});
+    this.child = spawn(process.execPath, a, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.alive = true;
+    this.child.on('exit', (code) => { this.alive = false; this._resolvePending({ err: 'actor exited ' + code }); });
+    this._pending = null; this._payload = undefined; this._out = [];
+    this._ready = new Promise((res) => { this._readyRes = res; });
+    const outRl = readline.createInterface({ input: this.child.stdout });
+    outRl.on('line', (l) => this._onLine(l));
+    const errRl = readline.createInterface({ input: this.child.stderr });
+    errRl.on('line', (l) => {
+      const m = /\[meet\] admin verifier (\S+)/.exec(l);
+      if (m) this.av = m[1];
+      this.cast.logRaw(this.role + ' ! ' + l);
+    });
+  }
+  _onLine(l) {
+    if (l === '@@ready') { this._readyRes(); return; }
+    if (l.startsWith('@@state ') || l.startsWith('@@probe ')) {
+      try { this._payload = JSON.parse(l.slice(8)); } catch (e) { this._payload = null; }
+      return;
+    }
+    if (l === '@@done') { this._resolvePending({ payload: this._payload, out: this._out }); return; }
+    if (l.startsWith('@@err ')) { this._resolvePending({ err: l.slice(6), out: this._out }); return; }
+    this._out.push(l);
+    this.cast.logRaw(this.role + ' | ' + l);
+  }
+  _resolvePending(v) { if (this._pending) { const p = this._pending; this._pending = null; p(v); } }
+  // Serialized per actor. Returns { payload?, out, err? } — command-level
+  // errors come back in .err, they don't throw (a scenario decides severity).
+  cmd(line, timeoutMs) {
+    const run = () => new Promise((resolve) => {
+      if (!this.alive) return resolve({ err: 'actor not running', out: [] });
+      this.cast.logRaw(this.role + ' > ' + line);
+      this._payload = undefined; this._out = [];
+      let t;
+      this._pending = (v) => { clearTimeout(t); resolve(v); };
+      t = setTimeout(() => this._resolvePending({ err: 'cmd timeout: ' + line, out: this._out }), timeoutMs || 90000);
+      this.child.stdin.write(line + '\n');
+    }).then((r) => {
+      if (line === 'leave' || line === 'die') this.joined = false;
+      return r;
+    });
+    this._q = this._q.then(run, run);
+    return this._q;
+  }
+  async state() { const r = await this.cmd('jstate', 20000); return r.payload || { err: r.err || 'no state' }; }
+  async probe(secs) { const r = await this.cmd('probe ' + (secs || 4.5), 30000); return r.payload; }
+  async eval(js) { const r = await this.cmd('eval ' + js, 30000); const l = (r.out.find((x) => x.startsWith('  ')) || '').trim(); try { return JSON.parse(l); } catch (e) { return l; } }
+  join(room, opts) {
+    opts = opts || {};
+    let c = 'join ' + room;
+    if (opts.pass || this.spec.pass) c += ' --pass ' + (opts.pass || this.spec.pass);
+    if (opts.av) c += ' --av ' + opts.av;
+    const p = this.cmd(c, 120000).then((r) => { if (!r.err) this.joined = true; return r; });
+    return p;
+  }
+  async waitSeat(secs) {
+    const r = await this.cmd('waitseat ' + (secs || 60), (secs || 60) * 1000 + 20000);
+    return !(r.err || (r.out.join(' ').includes('not seated')));
+  }
+}
+
+// ----------------------------------------------------------------- Cast -----
+class Cast {
+  constructor(scenarioName, spec, opts) {
+    this.name = scenarioName; this.opts = opts || {};
+    this.room = 'bb-' + scenarioName.replace(/[^a-z0-9]+/gi, '-').slice(0, 24) + '-' + Math.random().toString(36).slice(2, 6);
+    this.runDir = path.join('/tmp/behavior', scenarioName + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19));
+    fs.mkdirSync(this.runDir, { recursive: true });
+    this.logFile = fs.createWriteStream(path.join(this.runDir, 'cast.log'));
+    this.actors = new Map();
+    for (const [role, s] of Object.entries(spec)) this.actors.set(role, new Actor(this, role, s));
+    this.children = []; // spawned stack servers
+    this.relay = process.env.BEHAVIOR_RELAY || DEFAULT_RELAY;
+    this.t0 = Date.now();
+  }
+  get(role) { const a = this.actors.get(role); if (!a) throw new Error('no actor ' + role); return a; }
+  all() { return [...this.actors.values()]; }
+  live() { return this.all().filter((a) => a.alive && a.joined); }
+  logRaw(line) { this.logFile.write('t+' + ((Date.now() - this.t0) / 1000).toFixed(1) + ' ' + line + '\n'); if (VERBOSE) console.log('    ' + line); }
+  log(msg) { const t = 't+' + ((Date.now() - this.t0) / 1000).toFixed(0) + 's'; console.log('  [' + t + '] ' + msg); this.logFile.write(t + ' == ' + msg + '\n'); }
+  async sleep(secs, why) { this.log('… ' + secs + 's' + (why ? ' — ' + why : '')); await sleep(secs * 1000); }
+
+  async ensureStack() {
+    // relay-dev requirement / opportunity first — it decides this.relay
+    if (!process.env.BEHAVIOR_RELAY && this.opts.relayDev) {
+      const devUp = await portUp(8794);
+      if (devUp) { this.relay = RELAY_DEV_URL; this.log('using the REAL relay under wrangler dev (:8794)'); }
+      else if (this.opts.relayDev === true) {
+        console.log('SKIP: this scenario needs the REAL relay — start test/servers/relay-dev.sh (:8794)');
+        process.exit(0);
+      } else this.log('relay-dev not up — opportunistic scenario falls back to ' + this.relay);
+    }
+    const wantSite = BASE === 'http://127.0.0.1:8099';
+    if (wantSite && !(await portUp(8099))) {
+      this.log('site :8099 idle — spawning python http.server');
+      this.children.push(spawn('python3', ['-m', 'http.server', '8099', '-d', 'site'], { cwd: ROOT, stdio: 'ignore' }));
+    }
+    if (this.relay === DEFAULT_RELAY && !(await portUp(8790))) {
+      this.log('relay :8790 idle — spawning relay-local (RELAY_DEV=1)');
+      this.children.push(spawn(process.execPath, [path.join(ROOT, 'test', 'servers', 'relay-local.js')],
+        { env: Object.assign({}, process.env, { RELAY_DEV: '1' }), stdio: 'ignore' }));
+    }
+    for (let i = 0; i < 20; i++) {
+      const siteOk = !wantSite || await portUp(8099);
+      const relayOk = await portUp(parseInt(this.relay.split(':').pop(), 10));
+      if (siteOk && relayOk) return;
+      await sleep(500);
+    }
+    throw new Error('stack did not come up (site=' + BASE + ' relay=' + this.relay + ')');
+  }
+
+  async up() {
+    await this.ensureStack();
+    for (const a of this.all()) a.spawnChild();
+    await Promise.all(this.all().map((a) => a._ready));
+    this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop') + ')').join(', ') + '  room=' + this.room + '  relay=' + this.relay);
+  }
+
+  // join everyone; roles = subset (default all), av auto-shared from the
+  // first adminPw actor once known. SERIAL-SEATED by default (each member
+  // seats before the next knocks — how most real meetings fill). A burst
+  // arrival is a deliberate stress: pass { serial: false, stagger: 0 }.
+  async joinAll(o) {
+    o = o || {};
+    const roles = o.roles ? o.roles.map((r) => this.get(r)) : this.all();
+    const serial = o.serial !== false;
+    for (const a of roles) {
+      const av = this.avKnown();
+      const r = await a.join(this.room, { av: a.spec.adminPw ? undefined : av });
+      if (r.err) throw new Error(a.role + ' failed to join: ' + r.err);
+      if (serial && !(await a.waitSeat(o.waitSeat || 60))) throw new Error(a.role + ' never seated');
+      if (o.stagger !== 0) await sleep((o.stagger || 3) * 1000);
+    }
+    if (!serial) {
+      const seats = await Promise.all(roles.map((a) => a.waitSeat(o.waitSeat || 60)));
+      roles.forEach((a, i) => { if (!seats[i]) throw new Error(a.role + ' never seated'); });
+    }
+    this.log('all seated: ' + roles.map((a) => a.role).join(', '));
+  }
+  avKnown() { for (const a of this.all()) if (a.av) return a.av; return undefined; }
+
+  // THE DEPLOY LEVER — a real Durable Object restart, only under relay-dev.
+  async deployRelay() {
+    if (this.relay !== RELAY_DEV_URL) throw new Error('deployRelay needs the relay-dev harness (:8794)');
+    const f = path.join(ROOT, 'relay', 'src', 'relay.js');
+    fs.utimesSync(f, new Date(), new Date());
+    this.log('DEPLOY: touched relay/src/relay.js — wrangler dev reloads (DO restart)');
+    await sleep(8000);
+    if (!(await portUp(8794))) throw new Error('relay-dev did not come back after deploy');
+  }
+
+  async down(failed) {
+    if (failed) {
+      for (const a of this.all()) if (a.alive && a.joined && !(await a.state()).err) {
+        await a.cmd('shot ' + path.join(this.runDir, a.role + '-fail.png'), 30000);
+      }
+    }
+    for (const a of this.all()) if (a.alive) { a.cmd('quit', 8000); }
+    await sleep(2500);
+    for (const a of this.all()) if (a.alive && a.child) { try { a.child.kill('SIGKILL'); } catch (e) {} }
+    for (const c of this.children) { try { c.kill(); } catch (e) {} }
+    this.logFile.end();
+  }
+}
+
+// ---------------------------------------------------------------- Check -----
+class Check {
+  constructor(cast) { this.cast = cast; this.passed = 0; this.failed = 0; this.failures = []; }
+  _pass(desc) { this.passed++; console.log('  ✔ ' + desc); }
+  _fail(desc, detail) {
+    this.failed++; this.failures.push(desc);
+    console.log('  ✘ ' + desc + (detail ? ' — ' + String(detail).slice(0, 500) : ''));
+  }
+  assert(cond, desc, detail) { cond ? this._pass(desc) : this._fail(desc, detail); return !!cond; }
+
+  // poll an async predicate until truthy — the workhorse
+  async until(desc, fn, o) {
+    o = o || {};
+    const within = (o.within || 60) * 1000, every = (o.every || 2.5) * 1000, t0 = Date.now();
+    let last;
+    while (Date.now() - t0 < within) {
+      try { last = await fn(); if (last) { this._pass(desc + ' (' + ((Date.now() - t0) / 1000).toFixed(0) + 's)'); return true; } }
+      catch (e) { last = String(e).slice(0, 200); }
+      await sleep(every);
+    }
+    this._fail(desc + ' (>' + (within / 1000) + 's)', typeof last === 'string' ? last : JSON.stringify(last && last.detail || last || null));
+    return false;
+  }
+
+  // the predicate must HOLD for the whole window (o.for secs); o.allow
+  // tolerates that many violating samples (a lone blip vs a flap storm)
+  async steady(desc, fn, o) {
+    o = o || {};
+    const dur = (o.for || 30) * 1000, every = (o.every || 2.5) * 1000, t0 = Date.now();
+    let viol = 0, last;
+    while (Date.now() - t0 < dur) {
+      try { if (!(await fn())) { viol++; last = 'predicate false'; } }
+      catch (e) { viol++; last = String(e).slice(0, 200); }
+      await sleep(every);
+    }
+    if (viol <= (o.allow || 0)) { this._pass(desc + ' (held ' + (dur / 1000) + 's' + (viol ? ', ' + viol + ' blip(s) within allowance' : '') + ')'); return true; }
+    this._fail(desc + ' — ' + viol + ' violating samples over ' + (dur / 1000) + 's', last);
+    return false;
+  }
+
+  // every LIVE joined actor (or o.roles) sees n participants, zero dups
+  async converged(n, o) {
+    o = o || {};
+    const desc = o.desc || 'room converges to ' + n + ' for everyone';
+    return this.until(desc, async () => {
+      const actors = o.roles ? o.roles.map((r) => this.cast.get(r)) : this.cast.live();
+      if (!actors.length) return false;
+      const sts = await Promise.all(actors.map((a) => a.state()));
+      const bad = [];
+      sts.forEach((s, i) => {
+        if (s.err) bad.push(actors[i].role + ':' + s.err);
+        else if (s.participants !== n) bad.push(actors[i].role + ':participants=' + s.participants);
+        else if (s.dups > 0) bad.push(actors[i].role + ':dups=' + s.dups);
+      });
+      if (bad.length) throw bad.join(' ');
+      return true;
+    }, o);
+  }
+
+  async seated(role, o) {
+    o = o || {};
+    return this.until(o.desc || role + ' is seated', async () => {
+      const s = await this.cast.get(role).state();
+      return !s.err && !!s.coord;
+    }, o);
+  }
+
+  // roster honesty: `role` no longer lists a peer named `name`
+  async rosterLacks(role, name, o) {
+    o = o || {};
+    return this.until(o.desc || role + "'s roster drops " + name, async () => {
+      const s = await this.cast.get(role).state();
+      return !s.err && !(s.roster || []).some((r) => (r.name || '') === name);
+    }, o);
+  }
+  async rosterHas(role, name, o) {
+    o = o || {};
+    return this.until(o.desc || role + "'s roster shows " + name, async () => {
+      const s = await this.cast.get(role).state();
+      return !s.err && (s.roster || []).some((r) => (r.name || '') === name);
+    }, o);
+  }
+
+  // whole-mesh census via one actor: n seats, all distinct coords, no orphans
+  async oneTree(n, o) {
+    o = o || {};
+    const via = this.cast.get(o.via || this.cast.live()[0].role);
+    const desc = o.desc || 'census: ONE tree, ' + n + ' seats, no dups, no orphans';
+    return this.until(desc, async () => {
+      const reps = await via.probe(4.5);
+      if (!reps || !Array.isArray(reps)) return false;
+      const coords = reps.map((r) => r.coord).filter(Boolean);
+      const dup = coords.length !== new Set(coords).size;
+      const byId = new Set(reps.map((r) => String(r.from).slice(0, 8)).concat(reps.map((r) => r.from)));
+      let orphans = 0;
+      for (const r of reps) { for (const x of (r.links || []).concat(r.up || [], r.down || [])) if (x && !byId.has(x)) orphans++; }
+      const ok = reps.length === n && coords.length === n && !dup && orphans === 0;
+      if (!ok) throw 'replies=' + reps.length + '/' + n + ' seated=' + coords.length + ' dup=' + dup + ' orphanRefs=' + orphans;
+      return true;
+    }, o);
+  }
+
+  summary(name) {
+    const verdict = this.failed === 0 ? 'PASS' : 'FAIL';
+    console.log('\n' + verdict + ' ' + name + ' — ' + this.passed + ' passed, ' + this.failed + ' failed'
+      + (this.failed ? '\n  failed: ' + this.failures.join(' | ') : ''));
+    return this.failed === 0;
+  }
+}
+
+// -------------------------------------------------------------- scenario ----
+function scenario(name, spec, fn, opts) {
+  opts = opts || {};
+  (async () => {
+    console.log('SCENARIO ' + name + (opts.relayDev === true ? ' [relay-dev]' : ''));
+    const cast = new Cast(name, spec, opts);
+    const check = new Check(cast);
+    const watchdog = setTimeout(() => {
+      console.log('\nFAIL ' + name + ' — WATCHDOG: scenario exceeded ' + (opts.timeoutMin || 15) + ' min');
+      cast.down(true).then(() => process.exit(1));
+    }, (opts.timeoutMin || 15) * 60000);
+    let ok = false;
+    try {
+      await cast.up();
+      await fn(cast, check);
+      ok = check.summary(name);
+    } catch (e) {
+      check._fail('scenario threw', (e && e.stack || e));
+      check.summary(name);
+    }
+    clearTimeout(watchdog);
+    await cast.down(!ok);
+    console.log('  run dir: ' + cast.runDir);
+    process.exit(ok ? 0 : 1);
+  })().catch((e) => { console.error('FATAL ' + (e && e.stack || e)); process.exit(1); });
+}
+
+module.exports = { scenario, Cast, Check, sleep, BASE };

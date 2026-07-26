@@ -156,6 +156,11 @@ const cfg = {
   // own Password UI, so present members learn it live); the locked-door
   // prompt appears instead ⇒ ENTER it and join. Supersedes --pass.
   ensurePass: args['ensure-pass'] || process.env.MEET_ENSURE_PASS || '',
+  // --admin-pw <pw>: create/enter an ADMIN room as its signed-in admin —
+  // derives K+V exactly like the lobby (meet-security §SIG), stashes the key,
+  // joins with &av=V. Prints "[meet] admin verifier <V>" so an orchestrator
+  // can hand the V to guests (their `join <room> --av <V>`).
+  adminPw: args['admin-pw'] || '',
   // --profile phone|desktop: what DEVICE this participant is. phone = mobile
   // UA (IS_MOBILE true in meet.html), 390×844 touch viewport, fake battery
   // defaulting to 90% ON BATTERY (tier ≥1 — a phone is never tier 0 by
@@ -403,6 +408,7 @@ async function join(room, opts) {
   opts = opts || {};
   if (opts.pass !== undefined) cfg.pass = opts.pass;
   if (opts.relay !== undefined) cfg.relay = opts.relay;
+  if (opts.av !== undefined) cfg.av = opts.av;
   if (opts.video) { cfg.videoIdx = -1; }
   cfg.room = room;
   await ensureBrowser();
@@ -423,6 +429,23 @@ async function join(room, opts) {
   await ctx.addInitScript({ content: batteryInitScript() });
   await ctx.addInitScript({ content: radioInitScript() });
   await ctx.addInitScript({ content: camInitScript() });
+  if (cfg.adminPw && !cfg.av) {
+    // derive the admin verifier in a bootstrap page of THIS context, so the
+    // signed-in key stash lands in the localStorage the room page will read
+    const boot = await ctx.newPage();
+    await boot.goto(cfg.base + '/meet.html' + (cfg.edge ? '?edge' : ''), { waitUntil: 'domcontentloaded' });
+    await boot.waitForFunction(() => window.GifOS && GifOS.net && GifOS.net.edKeysFromSeedHex, null, { timeout: 20000 });
+    cfg.av = await boot.evaluate(async ([roomId, pw]) => {
+      const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
+      const K = Array.from(new Uint8Array(bits)).map((x) => x.toString(16).padStart(2, '0')).join('');
+      const V = (await GifOS.net.edKeysFromSeedHex(K)).verifier;
+      localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
+      return V;
+    }, [room, cfg.adminPw]);
+    await boot.close();
+    console.error('[meet] admin verifier ' + cfg.av);
+  }
   page = await ctx.newPage();
   cdp = null; // stale CDP session dies with the old page
   page.on('load', () => { reapplyLevers(); }); // levers survive reloads (incl. the self-heal reload)
@@ -611,7 +634,7 @@ async function runCmd(line) {
   if (cmd === 'join') {
     const o = {}; let room = null;
     for (let i = 0; i < rest.length; i++) { const w = rest[i];
-      if (w === '--pass') o.pass = rest[++i]; else if (w === '--relay') o.relay = rest[++i]; else if (w === '--video') o.video = true; else if (!w.startsWith('--')) room = w; }
+      if (w === '--pass') o.pass = rest[++i]; else if (w === '--relay') o.relay = rest[++i]; else if (w === '--av') o.av = rest[++i]; else if (w === '--video') o.video = true; else if (!w.startsWith('--')) room = w; }
     if (!room) { console.log('  usage: join <room> [--pass x] [--relay ws(s)://…] [--video]'); return true; }
     await join(room, o); console.log('  joined "' + room + '" — give it a few seconds, then `state`'); return true;
   }
@@ -728,7 +751,7 @@ async function runCmd(line) {
       const V = window.__gifosVideo; const g = (f, d) => { try { const v = f(); return v === undefined ? d : v; } catch (e) { return d; } };
       return V ? { pow: g(() => V.powTier(), null), battTier: g(() => V.battTier(), null), visParked: g(() => V.visParked(), []), pid: g(() => V.myPid(), null), stagers: g(() => V.stageIds(), []) } : {};
     }).catch(() => ({})) : {};
-    const out = Object.assign({ role: cfg.name, lever: { hidden: lever.hidden, frozen: lever.frozen, radioOff: lever.radioOff, batt: lever.batt } }, extra, {
+    const out = Object.assign({ role: cfg.name, av: cfg.av || undefined, lever: { hidden: lever.hidden, frozen: lever.frozen, radioOff: lever.radioOff, batt: lever.batt } }, extra, {
       coord: s.coord, state: s.state, occ: s.occ, links: s.links, inMeeting: s.inMeeting, participants: s.participants,
       rosterN: s.rosterN, connY: s.connY, liveVid: s.liveVid, relayedN: s.relayedN, ghosts: s.ghosts, dups: s.dups, consent: s.consent,
       roster: (s.roster || []).map((r) => ({ peer: r.peer, name: r.name, coord: r.coord, conn: !!r.conn, vid: !!r.vid, camOff: r.camOff, stAge: r.stAge })),
