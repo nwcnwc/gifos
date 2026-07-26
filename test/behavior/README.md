@@ -405,7 +405,10 @@ somebody. This is the closing gauntlet and the launch dress rehearsal.
 | stage / vote / handq | 5a 5b 7a 12a 12c 19b |
 | late join vs settled room | 2b 14a 16a 16b 20a |
 
-44 scripts. Open bugs are load-bearing scenarios: **4b/16b** are the
+48 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+by its observable effect — run it FIRST when a scenario goes red, it says
+whether the lever machinery or the app broke). Open bugs are load-bearing
+scenarios: **4b/16b** are the
 post-deploy WHOHOME stall (#1, expected RED until fixed), **8a** is the
 fast-rejoin race (#2), **12b** measures the corpse-echo occ flap (#3).
 A red run of those is the battery doing its job — they stay red until the
@@ -419,7 +422,7 @@ intent: these MUST go green before launch.
 test/servers/relay-dev.sh                    # only for the [relay-dev] scenarios
 
 node test/behavior/scenarios/01a-household-rolling.js       # one scenario
-test/batteries/behavior.sh --core            # the CORE set (~14 scripts)
+test/batteries/behavior.sh --core            # the CORE set (21 scripts, ~1.5h)
 test/batteries/behavior.sh                   # everything (several hours)
 ```
 

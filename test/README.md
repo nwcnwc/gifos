@@ -15,6 +15,7 @@ differs between them.
 | `browser/` | site on 8099 + relay on 8790 | Playwright suites |
 | `drills/` | nothing | self-contained: spawn their OWN relay + site |
 | `swarm/` | the production site | scale bots + live meeting tools |
+| `behavior/` | site 8099 + relay (auto-spawned); relay-dev for deploys | the BEHAVIOR battery: 20 real-life use cases as persona-driven scenarios — see `behavior/README.md` |
 | `tools/` | varies | utilities, not assertion tests |
 | `batteries/` | everything below it | cross-environment GATES — run before pushing |
 
@@ -170,6 +171,7 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
+| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 20 use cases / 48 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys). `--core` = the 21-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro (open bug #1) and stay RED until it's fixed. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP). Prefer an idle multi-core box: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason). |
 | `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
 | `c-sweep.sh` | **The multi-section confidence battery.** Rebuilds the sim at C in {2,3,4,5} (`-DGIFOS_C`) and drives rooms big enough to form DEEP multi-section trees, checking the invariants that must hold however the tree branches: all seated, ZERO duplicate cells, zero stranded, full Section 1, and no split-brain under partition. Production is C=5, where a second section needs >25 people; low C reaches deep trees with a handful of seats, so C=2/3/4 exercise cross-section seating/heal/churn/partition/compaction cheaply. Verdict gates on C>=4 (incl. production C=5); C=2/3 duplicate-minting under stress is a known degenerate-tiny-section finding (see `known-unfixed.sh`). Sim-only, seconds per C. |
 | `known-unfixed.sh` | **THE GRAVEYARD — every check in it is EXPECTED TO FAIL.** Behaviours we understood and DECIDED not to fix: too hard, not worth it, or a rule we want to keep would have to change. Not a gate, not run by CI, not called by any battery. Run it only when **we change our mind** and want to try again. RED is correct; a GREEN entry means someone fixed it — promote that check back into its real gate and delete it from here. Never soften an assertion to make it green. |

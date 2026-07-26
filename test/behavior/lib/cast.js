@@ -97,7 +97,7 @@ class Actor {
     this.child = spawn(process.execPath, a, { env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.alive = true;
     this.child.on('exit', (code) => { this.alive = false; this._resolvePending({ err: 'actor exited ' + code }); });
-    this._pending = null; this._payload = undefined; this._out = [];
+    this._pending = null; this._payload = undefined; this._out = []; this._staleDone = 0;
     this._ready = new Promise((res) => { this._readyRes = res; });
     const outRl = readline.createInterface({ input: this.child.stdout });
     outRl.on('line', (l) => this._onLine(l));
@@ -114,8 +114,14 @@ class Actor {
       try { this._payload = JSON.parse(l.slice(8)); } catch (e) { this._payload = null; }
       return;
     }
-    if (l === '@@done') { this._resolvePending({ payload: this._payload, out: this._out }); return; }
-    if (l.startsWith('@@err ')) { this._resolvePending({ err: l.slice(6), out: this._out }); return; }
+    if (l === '@@done' || l.startsWith('@@err ')) {
+      // a sentinel for a command we gave up on (timeout) must be DISCARDED,
+      // or every later response misattributes by one — the desync cascade
+      if (this._staleDone > 0) { this._staleDone--; return; }
+      if (l === '@@done') this._resolvePending({ payload: this._payload, out: this._out });
+      else this._resolvePending({ err: l.slice(6), out: this._out });
+      return;
+    }
     this._out.push(l);
     this.cast.logRaw(this.role + ' | ' + l);
   }
@@ -129,7 +135,10 @@ class Actor {
       this._payload = undefined; this._out = [];
       let t;
       this._pending = (v) => { clearTimeout(t); resolve(v); };
-      t = setTimeout(() => this._resolvePending({ err: 'cmd timeout: ' + line, out: this._out }), timeoutMs || 90000);
+      t = setTimeout(() => {
+        if (this._pending) this._staleDone++; // its sentinel will still arrive — discard it then
+        this._resolvePending({ err: 'cmd timeout: ' + line, out: this._out });
+      }, timeoutMs || 90000);
       this.child.stdin.write(line + '\n');
     }).then((r) => {
       if (line === 'leave' || line === 'die') this.joined = false;
@@ -264,8 +273,12 @@ class Check {
   constructor(cast) { this.cast = cast; this.passed = 0; this.failed = 0; this.failures = []; }
   _pass(desc) { this.passed++; console.log('  ✔ ' + desc); }
   _fail(desc, detail) {
+    // stamp the loadavg: on a saturated box a red may be starvation, not the
+    // mesh (test/README "a weak host invents failures") — make that visible
+    let load = '';
+    try { load = ' [load ' + require('fs').readFileSync('/proc/loadavg', 'utf8').split(' ')[0] + '/' + require('os').cpus().length + 'cpu]'; } catch (e) {}
     this.failed++; this.failures.push(desc);
-    console.log('  ✘ ' + desc + (detail ? ' — ' + String(detail).slice(0, 500) : ''));
+    console.log('  ✘ ' + desc + (detail ? ' — ' + String(detail).slice(0, 500) : '') + load);
   }
   assert(cond, desc, detail) { cond ? this._pass(desc) : this._fail(desc, detail); return !!cond; }
 
