@@ -68,6 +68,15 @@ vote-off and bans.
 Keep the two files in step. When they drift, every suite below them is testing
 a relay that does not exist.
 
+`servers/relay-dev.sh` runs the REAL `relay/src/relay.js` locally under
+`wrangler dev` (ws://127.0.0.1:8794) — actual Durable Objects, hibernatable
+sockets, attachment-carried registry, the things no Node stand-in can mirror.
+Use it for relay-BEHAVIOR tests: DO restarts (`touch relay/src/relay.js` =
+a live deploy), hibernation, wedge recovery. The DO's console.log prints in
+the terminal. The 2026-07-26 incidents (accept-path wedge; post-deploy
+newcomer stall) live exactly in this layer; the behavior battery drives its
+relay-restart scenarios through this harness.
+
 ### 3. The desktop and apps
 
 `browser/*` drives the real UI in Playwright — the desktop, the app lifecycle,
