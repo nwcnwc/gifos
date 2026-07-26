@@ -248,7 +248,10 @@ function streamLine(t, s, level) {
 let browser = null, ctx = null, page = null, joined = false, lastRoomKey = '';
 async function ensureBrowser() {
   if (browser) return;
-  browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME, args: [
+  browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME,
+    // Playwright injects --disable-dev-shm-usage by default; dropping it from
+    // args below is not enough, it has to be suppressed here too.
+    ignoreDefaultArgs: ['--disable-dev-shm-usage'], args: [
     // NB: no --disable-dev-shm-usage here. That flag belongs to swarm.js, which
     // runs hundreds of bots and would exhaust /dev/shm; meet.js is strictly a
     // single browser (ensureBrowser guards one instance), so spilling shared
