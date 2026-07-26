@@ -1770,7 +1770,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         } catch (e) { metro = null; }
       }
       metroSubs.add(fn);
-      return () => metroSubs.delete(fn);
+      return () => {
+        metroSubs.delete(fn);
+        // Last subscriber gone (blur off, recording stopped): kill the worker.
+        // A subscriber-less 15Hz tick would otherwise spin forever, denying
+        // the SoC its deep-idle states — pure battery loss for zero work.
+        if (!metroSubs.size && metro) { try { metro.terminate(); } catch (e) {} metro = null; }
+      };
     }
 
     // Canvas blur that works EVERYWHERE. ctx.filter='blur()' is unsupported in
@@ -1869,12 +1875,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // never spend more than ~1/3 of wall time painting — each paint's cost
       // sets the earliest next paint (≥66ms = the captureStream 15fps budget).
       let paintLast = 0, paintCost = 0;
+      // Blur DESTROYS detail — painting and encoding it at capture size is
+      // pure heat. Cap the canvas at 480w (light) / 320w (heavy); receivers
+      // stretch the tile and a stretched blur is indistinguishable from a
+      // full-size one, while paint cost drops ~4-9x and the encoder's input
+      // pixels ~4x. The blur radius scales with the downscale so the LOOK is
+      // unchanged. Matters doubly because blurred-by-default is the privacy
+      // steady state: outside a fully-consented password room this pipe IS
+      // the camera path (a phone died on its charger running it full-size).
+      const capW = level >= 2 ? 320 : 480;
       const paint = () => {
         const now = performance.now();
         if (now - paintLast < Math.max(66, paintCost * 3)) return; // drop the frame
-        const w = src.videoWidth || 640, h = src.videoHeight || 480;
-        if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
-        try { blurDraw(ctx, src, 0, 0, w, h, px, level); } catch (e) {}
+        const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
+        const w = Math.min(capW, sw), h = Math.max(2, Math.round(w * sh / Math.max(1, sw)));
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        try { blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(px * w / Math.max(1, sw))), level); } catch (e) {}
         paintLast = now; paintCost = performance.now() - now;
       };
       // Draw on every DECODED camera frame when the browser supports it (the
@@ -1993,7 +2009,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // Carried media (folds, forwards, relay jobs) is budgeted by the
           // FOLD constants, not the per-face rung — a million-pixel fold at
           // the rung's floor would be soup.
-          const want = auxSenders.has(sender) ? 900000 : q.kbps * 1000; // composite ships are packed low-detail — 0.9Mbps not 2.5 (bandwidth+encode CPU)
+          // Composite ships are packed low-detail — 0.9Mbps not 2.5; and a
+          // BLURRED main feed has no detail at all — 250kbps paints it fully
+          // (the rung's 800k+ on blur was pure radio+encoder waste).
+          // (keyed on the sender IDENTITY, not sender.track — replaceTrack is
+          // async, so the track pointer lags the toggle by a beat)
+          const blurred = !!blurPipe && sender === p.mainV;
+          const want = auxSenders.has(sender) ? 900000 : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
           if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
           prm.encodings[0].maxBitrate = want;
           sender.setParameters(prm).catch(() => {});
