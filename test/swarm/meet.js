@@ -17,6 +17,16 @@
  *   3. ONE-SHOT (`--once <cmd>`): run a single command, print it, exit.
  *   4. SCRIPT (`--script "seat 0/1.1; sleep 45; state; shot /tmp/x.png"`):
  *      run ';'-separated commands in order (sleep <secs> waits), then exit.
+ *   5. DRIVE (`--drive`): machine mode for the behavior battery (lib/cast.js)
+ *      — commands in on stdin, one '@@done'/'@@err' sentinel per command,
+ *      '@@state'/'@@probe' JSON payloads. No prompt, no auto-join.
+ *
+ * BE A PHONE (the behavior battery's device profiles):
+ *   --profile phone     mobile UA (IS_MOBILE), 390×844 touch viewport, fake
+ *                       battery 90% ON BATTERY.  --profile desktop (default):
+ *                       1280-class viewport, battery charging.
+ *   --battery "<lvl>[,charging|drain]"   initial fake-battery state (lvl 0-1
+ *                       or %); 'drain' = plugged in but LOSING ground.
  *
  * PARTICIPATE (hold a real seat, help other tiles go clear):
  *   --video [n]   play a talking-head clip (test/swarm/swarm-videos/ pack) as my
@@ -80,6 +90,18 @@
  *   dups          two peers claiming one coord (a convergence bug)
  *   chat [msg]    print recent chat, or send a message
  *   cam on|off    turn my camera on/off        mic on|off
+ *   PHONE-REALITY LEVERS (the behavior battery; all live in any mode):
+ *   hide | show   app-switch away/back (visibility override + event)
+ *   freeze        LONG app-switch: tab lifecycle FROZEN — JS fully stops
+ *   thaw [gapS]   return from freeze; optional backdated beat gap (secs)
+ *   radio off|on  coverage dropout: WS+DC silent BOTH ways, no close events
+ *   battery <lvl> [charging|drain]   drive the fake battery (drain = losing
+ *                 ground while plugged in)
+ *   beatgap <s>   backdate the beat clock       idlemin <m>  backdate touch
+ *   poke          simulate a touch/speech       pulses off|on  halt pulses
+ *   reload        full page reload → rejoin     waitseat [s]  block til seated
+ *   leave         clean exit (pagehide LEAVE)   die  SIGKILL the browser
+ *   jstate        one-line machine JSON (@@state …)   probe [s]  census JSON
  *   name <n>      rename myself
  *   shot [path]   save a screenshot (PNG) of my meeting view
  *   dump          the whole debugDump as JSON
@@ -134,8 +156,16 @@ const cfg = {
   // own Password UI, so present members learn it live); the locked-door
   // prompt appears instead ⇒ ENTER it and join. Supersedes --pass.
   ensurePass: args['ensure-pass'] || process.env.MEET_ENSURE_PASS || '',
+  // --profile phone|desktop: what DEVICE this participant is. phone = mobile
+  // UA (IS_MOBILE true in meet.html), 390×844 touch viewport, fake battery
+  // defaulting to 90% ON BATTERY (tier ≥1 — a phone is never tier 0 by
+  // policy). desktop (default) = 1280×820, battery charging.
+  profile: args.profile || 'desktop',
+  // --battery "<lvl>[,charging|drain]": initial fake-battery state. lvl is
+  // 0-1 or 0-100. 'drain' = plugged in but LOSING (the overnight-Moto case).
+  battery: args.battery || '',
 };
-const MODE = args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
+const MODE = args.drive ? 'drive' : args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
 
 // ---- playwright + chromium resolution -------------------------------------
@@ -204,6 +234,114 @@ function camInitScript() {
     if(navigator.mediaDevices){navigator.mediaDevices.getUserMedia=mk;navigator.mediaDevices.getDisplayMedia=mk;}${autoOn} })();`;
 }
 
+// ---- phone-reality levers (the behavior battery's lever set) ---------------
+// Node-side desired state; REAPPLIED after every page load (a reload — user
+// or self-heal — wipes in-page overrides, but the phone it simulates is
+// still hidden / on battery / in a tunnel).
+function parseBattery(spec, profile) {
+  // default: a phone is ON BATTERY at 90% (tier ≥1 by policy); a desktop is
+  // plugged in (tier 0). '<lvl>[,charging|drain]' overrides.
+  const st = profile === 'phone' ? { level: 0.9, charging: false, drain: false }
+    : { level: 1, charging: true, drain: false };
+  if (!spec) return st;
+  for (const part of String(spec).split(',')) {
+    const p = part.trim();
+    if (p === 'charging') st.charging = true;
+    else if (p === 'drain') { st.charging = true; st.drain = true; }
+    else if (p === 'discharging' || p === 'battery') st.charging = false;
+    else if (p !== '' && !isNaN(+p)) { let v = +p; if (v > 1) v = v / 100; st.level = Math.max(0, Math.min(1, v)); }
+  }
+  return st;
+}
+const lever = { hidden: false, frozen: false, radioOff: false, batt: parseBattery(cfg.battery, cfg.profile) };
+let cdp = null; // CDP session for the web-lifecycle freeze lever
+
+// The fake navigator.getBattery — installed at init so meet.html's tier
+// machinery subscribes to US. window.__bbBatt.set(level, charging) fires the
+// same events a real battery does.
+function batteryInitScript() {
+  return `(() => {
+    const st = { level: ${lever.batt.level}, charging: ${lever.batt.charging} };
+    const ls = {};
+    const batt = { chargingTime: Infinity, dischargingTime: Infinity,
+      get level() { return st.level; }, get charging() { return st.charging; },
+      onchargingchange: null, onlevelchange: null,
+      addEventListener(t, f) { (ls[t] = ls[t] || []).push(f); },
+      removeEventListener(t, f) { ls[t] = (ls[t] || []).filter((x) => x !== f); },
+      dispatchEvent() { return true; } };
+    window.__bbBatt = { get: () => ({ level: st.level, charging: st.charging }),
+      set(level, charging) {
+        const lc = st.level !== level, cc = st.charging !== charging;
+        st.level = level; st.charging = charging;
+        const fire = (n) => { try { if (batt['on' + n]) batt['on' + n](); } catch (e) {} for (const f of (ls[n] || [])) { try { f(); } catch (e) {} } };
+        if (cc) fire('chargingchange');
+        if (lc) fire('levelchange');
+      } };
+    navigator.getBattery = () => Promise.resolve(batt);
+  })();`;
+}
+
+// RADIO SILENCE (coverage dropout): while __bbRadio.off, the relay WebSocket
+// and every DataChannel go quiet BOTH directions with NO close events — a
+// tunnel, not a hangup — and new WebSockets fail after a few seconds the way
+// a no-coverage dial does. Media frames keep flowing locally (loopback UDP is
+// not blockable per-page); the PROTOCOL plane — signaling, pulses, relay — is
+// what the mesh heals on, and that is silenced honestly.
+function radioInitScript() {
+  return `(() => {
+    window.__bbRadio = { off: false };
+    const gate = (proto) => {
+      const send = proto.send;
+      proto.send = function () { if (window.__bbRadio.off) return; return send.apply(this, arguments); };
+      const om = Object.getOwnPropertyDescriptor(proto, 'onmessage');
+      if (om && om.set) Object.defineProperty(proto, 'onmessage', { configurable: true,
+        get() { return this.__bbOm || null; },
+        set(fn) { this.__bbOm = fn; om.set.call(this, fn ? ((e) => { if (!window.__bbRadio.off) fn.call(this, e); }) : null); } });
+      const add = proto.addEventListener;
+      proto.addEventListener = function (t, f, o) {
+        if (t === 'message' && typeof f === 'function') { const w = (e) => { if (!window.__bbRadio.off) f.call(this, e); }; return add.call(this, t, w, o); }
+        return add.call(this, t, f, o); };
+    };
+    const RealWS = window.WebSocket;
+    gate(RealWS.prototype);
+    if (window.RTCDataChannel) gate(RTCDataChannel.prototype);
+    window.WebSocket = function (url, protos) {
+      if (!window.__bbRadio.off) return new RealWS(url, protos);
+      const fake = { url: String(url), readyState: 0, bufferedAmount: 0, binaryType: 'arraybuffer',
+        onopen: null, onmessage: null, onerror: null, onclose: null,
+        send() {}, close() { this.readyState = 3; },
+        addEventListener(t, f) { this['__bb_' + t] = f; }, removeEventListener() {}, dispatchEvent() { return true; } };
+      setTimeout(() => { if (fake.readyState === 3) return; fake.readyState = 3;
+        try { if (fake.onerror) fake.onerror(new Event('error')); } catch (e) {}
+        try { if (fake.__bb_error) fake.__bb_error(new Event('error')); } catch (e) {}
+        const ev = { code: 1006, reason: '', wasClean: false };
+        try { if (fake.onclose) fake.onclose(ev); } catch (e) {}
+        try { if (fake.__bb_close) fake.__bb_close(ev); } catch (e) {} }, 2500 + Math.random() * 3500);
+      return fake;
+    };
+    window.WebSocket.prototype = RealWS.prototype;
+    for (const k of ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']) window.WebSocket[k] = RealWS[k];
+  })();`;
+}
+
+// Visibility override — the pattern proven in e2e-vis-park/-away-holdover/-pip.
+const applyVisibility = (pg, hidden) => pg.evaluate((h) => {
+  Object.defineProperty(document, 'hidden', { get: () => h, configurable: true });
+  Object.defineProperty(document, 'visibilityState', { get: () => (h ? 'hidden' : 'visible'), configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+}, hidden);
+
+// Reapply every lever after any page load (reload command, self-heal reload).
+async function reapplyLevers() {
+  if (!page) return;
+  try {
+    await page.evaluate((b) => { if (window.__bbBatt) window.__bbBatt.set(b.level, b.charging); }, lever.batt);
+    if (lever.batt.drain) { await sleep(400); await page.evaluate((b) => { if (window.__bbBatt) window.__bbBatt.set(Math.max(0, b.level - 0.01), true); }, lever.batt); }
+    await page.evaluate((off) => { if (window.__bbRadio) window.__bbRadio.off = off; }, lever.radioOff);
+    if (lever.hidden) await applyVisibility(page, true);
+  } catch (e) { /* mid-navigation */ }
+}
+
 // ---- in-page snapshot (guarded; the whole thing reads window.__gifosVideo) --
 function snapshotInPage() {
   const V = window.__gifosVideo;
@@ -269,7 +407,10 @@ async function join(room, opts) {
   cfg.room = room;
   await ensureBrowser();
   if (ctx) { try { await ctx.close(); } catch (e) {} }
-  ctx = await browser.newContext({ viewport: { width: 900, height: 820 }, permissions: ['camera', 'microphone'] });
+  const phone = cfg.profile === 'phone';
+  ctx = await browser.newContext(Object.assign(
+    { viewport: phone ? { width: 390, height: 844 } : { width: 900, height: 820 }, permissions: ['camera', 'microphone'] },
+    phone ? { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36', isMobile: true, hasTouch: true, deviceScaleFactor: 3 } : {}));
   const roomKey = room + (cfg.av ? '.' + cfg.av : '');
   const seed = "localStorage.setItem('gifos_name'," + JSON.stringify(cfg.name) + ");localStorage.setItem('gifos_meet_bar','1');"
     + (cfg.relay ? "localStorage.setItem('gifos_relay'," + JSON.stringify(cfg.relay) + ");" : '')
@@ -279,8 +420,12 @@ async function join(room, opts) {
     + (cfg.pass && !cfg.ensurePass ? "localStorage.setItem(" + JSON.stringify('gifos_vpw_' + roomKey) + "," + JSON.stringify(cfg.pass) + ");" : '');
   lastRoomKey = roomKey;
   await ctx.addInitScript({ content: seed });
+  await ctx.addInitScript({ content: batteryInitScript() });
+  await ctx.addInitScript({ content: radioInitScript() });
   await ctx.addInitScript({ content: camInitScript() });
   page = await ctx.newPage();
+  cdp = null; // stale CDP session dies with the old page
+  page.on('load', () => { reapplyLevers(); }); // levers survive reloads (incl. the self-heal reload)
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
@@ -470,7 +615,8 @@ async function runCmd(line) {
     if (!room) { console.log('  usage: join <room> [--pass x] [--relay ws(s)://…] [--video]'); return true; }
     await join(room, o); console.log('  joined "' + room + '" — give it a few seconds, then `state`'); return true;
   }
-  if (!joined) { console.log('  not in a meeting yet — `join <room> [--pass x] [--relay y]` first (or `help`)'); return true; }
+  if (!joined && cmd !== 'jstate') { console.log('  not in a meeting yet — `join <room> [--pass x] [--relay y]` first (or `help`)'); return true; }
+  if (!joined && cmd === 'jstate') { console.log('@@state ' + JSON.stringify({ role: cfg.name, lever, err: 'not joined' })); return true; }
 
   if (cmd === 'cam' || cmd === 'mic') {
     const want = (arg || '').toLowerCase();
@@ -500,6 +646,101 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'eval') { const v = await page.evaluate((code) => { try { return JSON.stringify(eval(code)); } catch (e) { return 'ERR ' + e; } }, arg).catch((e) => String(e)); console.log('  ' + v); return true; }
+
+  // ---- phone-reality levers (the behavior battery) ----
+  if (lever.frozen && cmd !== 'thaw' && cmd !== 'jstate') { console.log('  ! page is FROZEN — only `thaw [gapSecs]` works'); return true; }
+  if (cmd === 'hide' || cmd === 'show') {
+    lever.hidden = cmd === 'hide';
+    await applyVisibility(page, lever.hidden);
+    console.log('  visibility → ' + (lever.hidden ? 'hidden (app-switched away)' : 'visible'));
+    return true;
+  }
+  if (cmd === 'freeze') {
+    // a LONG app-switch: Android freezes the tab — JS stops entirely. Hidden
+    // first (that's how real freezes happen), then CDP web-lifecycle frozen.
+    lever.hidden = true; await applyVisibility(page, true);
+    if (!cdp) cdp = await ctx.newCDPSession(page);
+    await cdp.send('Page.setWebLifecycleState', { state: 'frozen' });
+    lever.frozen = true;
+    console.log('  FROZEN (tab lifecycle) — page JS is stopped; `thaw [gapSecs]` to return');
+    return true;
+  }
+  if (cmd === 'thaw') {
+    if (!lever.frozen) { console.log('  not frozen'); return true; }
+    if (!cdp) cdp = await ctx.newCDPSession(page);
+    await cdp.send('Page.setWebLifecycleState', { state: 'active' });
+    lever.frozen = false;
+    const gap = parseFloat(rest[0]);
+    if (gap > 0) await page.evaluate((ms) => { try { window.__gifosVideo.freezeGapForTest(ms); } catch (e) {} }, Math.round(gap * 1000));
+    lever.hidden = false; await applyVisibility(page, false);
+    console.log('  thawed' + (gap > 0 ? ' with a backdated ' + gap + 's beat gap' : '') + ' — visible again');
+    return true;
+  }
+  if (cmd === 'radio') {
+    lever.radioOff = (arg || '').trim() !== 'on';
+    await page.evaluate((off) => { if (window.__bbRadio) window.__bbRadio.off = off; }, lever.radioOff);
+    console.log('  radio → ' + (lever.radioOff ? 'OFF (coverage dropout: WS+DC silent both ways, no close events)' : 'on'));
+    return true;
+  }
+  if (cmd === 'battery') {
+    lever.batt = parseBattery(rest.join(','), cfg.profile);
+    await page.evaluate((b) => { if (window.__bbBatt) window.__bbBatt.set(b.level, b.charging); }, lever.batt);
+    if (lever.batt.drain) { await sleep(400); await page.evaluate((b) => { if (window.__bbBatt) window.__bbBatt.set(Math.max(0, b.level - 0.01), true); }, lever.batt); }
+    console.log('  battery → ' + Math.round(lever.batt.level * 100) + '% ' + (lever.batt.drain ? 'DRAINING while plugged' : lever.batt.charging ? 'charging' : 'on battery'));
+    return true;
+  }
+  if (cmd === 'beatgap') { const s = parseFloat(rest[0]) || 0; await page.evaluate((ms) => { try { window.__gifosVideo.freezeGapForTest(ms); } catch (e) {} }, Math.round(s * 1000)); console.log('  beat clock backdated ' + s + 's'); return true; }
+  if (cmd === 'idlemin') { const m = parseFloat(rest[0]) || 0; await page.evaluate((ms) => { try { window.__gifosVideo.idleForTest(ms); } catch (e) {} }, Math.round(m * 60000)); console.log('  lastActive backdated ' + m + 'min'); return true; }
+  if (cmd === 'poke') { await page.evaluate(() => { try { window.__gifosVideo.pokeForTest(); } catch (e) {} }); console.log('  poked (touch/speech)'); return true; }
+  if (cmd === 'pulses') { const on = (arg || '').trim() === 'on'; await page.evaluate((halt) => { try { window.__gifosVideo.haltPulseForTest(halt); } catch (e) {} }, !on); console.log('  pulses → ' + (on ? 'on' : 'HALTED (throttled phone)')); return true; }
+  if (cmd === 'reload') {
+    await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => console.log('  ! reload: ' + String(e).slice(0, 120)));
+    await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
+    console.log('  reloaded — rejoining');
+    return true;
+  }
+  if (cmd === 'leave') { // clean exit: pagehide → LEAVE
+    try { await ctx.close(); } catch (e) {}
+    ctx = null; page = null; joined = false;
+    console.log('  left (clean pagehide LEAVE)');
+    return true;
+  }
+  if (cmd === 'die') { // the battery hit 0% / the OS killed the app: SIGKILL, no goodbyes
+    try { const proc = browser.process ? browser.process() : null; if (proc) proc.kill('SIGKILL'); else await browser.close(); } catch (e) {}
+    browser = null; ctx = null; page = null; joined = false; cdp = null;
+    console.log('  DIED (browser SIGKILLed — abrupt vanish)');
+    return true;
+  }
+  if (cmd === 'waitseat') {
+    const t0 = Date.now(), lim = (parseFloat(rest[0]) || 60) * 1000;
+    let c = null;
+    while (Date.now() - t0 < lim) {
+      c = await page.evaluate(() => { try { return window.__gifosVideo.meshCoord(); } catch (e) { return null; } }).catch(() => null);
+      if (c) break;
+      await sleep(1000);
+    }
+    console.log(c ? '  seated at ' + c.pc + '/' + c.r + '.' + c.i : '  ! not seated within ' + (lim / 1000) + 's');
+    return true;
+  }
+  if (cmd === 'jstate') {
+    const s = (page && joined && !lever.frozen) ? await D() : { err: lever.frozen ? 'frozen' : 'no page' };
+    const extra = (page && !lever.frozen) ? await page.evaluate(() => {
+      const V = window.__gifosVideo; const g = (f, d) => { try { const v = f(); return v === undefined ? d : v; } catch (e) { return d; } };
+      return V ? { pow: g(() => V.powTier(), null), battTier: g(() => V.battTier(), null), visParked: g(() => V.visParked(), []), pid: g(() => V.myPid(), null), stagers: g(() => V.stageIds(), []) } : {};
+    }).catch(() => ({})) : {};
+    const out = Object.assign({ role: cfg.name, lever: { hidden: lever.hidden, frozen: lever.frozen, radioOff: lever.radioOff, batt: lever.batt } }, extra, {
+      coord: s.coord, state: s.state, occ: s.occ, links: s.links, inMeeting: s.inMeeting, participants: s.participants,
+      rosterN: s.rosterN, connY: s.connY, liveVid: s.liveVid, relayedN: s.relayedN, ghosts: s.ghosts, dups: s.dups, consent: s.consent,
+      roster: (s.roster || []).map((r) => ({ peer: r.peer, name: r.name, coord: r.coord, conn: !!r.conn, vid: !!r.vid, camOff: r.camOff, stAge: r.stAge })),
+      err: s.err });
+    console.log('@@state ' + JSON.stringify(out));
+    return true;
+  }
+  if (cmd === 'probe') { // whole-mesh census, machine form: @@probe <json>
+    const reps = await page.evaluate((ms) => (window.__gifosVideo.probeTree ? window.__gifosVideo.probeTree(ms) : null), parseFloat(rest[0]) * 1000 || 4500).catch(() => null);
+    console.log('@@probe ' + JSON.stringify(reps));
+    return true;
+  }
 
   if (cmd === 'mon') {
     const secs = parseFloat(rest[0]) || 120, ivMs = parseFloat(rest[1]) || 1000;
@@ -691,7 +932,7 @@ function startJsonl() {
   setInterval(async () => {
     const p = pathFor();
     if (p !== curPath) { const done = curPath; curPath = p; compactJsonl(done); } // date flipped — compact the closed day
-    if (!page || !joined) return;
+    if (!page || !joined || lever.frozen) return; // an evaluate against a FROZEN page hangs
     const s = await D().catch(() => null);
     if (!s || s.err) return;
     // rows/mosaic/me ride along; drop nothing — disk is cheaper than a gap in
@@ -801,6 +1042,32 @@ function startEnsurePass() {
   process.on('SIGINT', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
   startJsonl();
   startEnsurePass();
+
+  if (MODE === 'drive') {
+    // Machine mode for the behavior battery (lib/cast.js): command lines in on
+    // stdin, exactly one '@@done' / '@@err <msg>' sentinel out per command;
+    // 'jstate'/'probe' additionally emit '@@state'/'@@probe' payload lines.
+    // No prompt, no auto-join — the cast script drives everything, including
+    // `join <room>`. stdin EOF = the cast is gone: shut down.
+    const rl = readline.createInterface({ input: process.stdin, terminal: false });
+    const q = []; let busy = false;
+    const pump = async () => {
+      if (busy) return; busy = true;
+      while (q.length) {
+        const line = q.shift();
+        try {
+          const cont = await runCmd(line);
+          console.log('@@done');
+          if (!cont) { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); }
+        } catch (e) { console.log('@@err ' + String(e && e.message || e).slice(0, 300)); }
+      }
+      busy = false;
+    };
+    rl.on('line', (l) => { if (l.trim() && !l.trim().startsWith('#')) { q.push(l.trim()); pump(); } });
+    rl.on('close', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
+    console.log('@@ready');
+    return;
+  }
 
   if (MODE === 'watch' || MODE === 'once' || MODE === 'script') {
     if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once/--script'); process.exit(1); }
