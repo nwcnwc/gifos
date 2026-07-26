@@ -2002,6 +2002,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       updateStatus();
       return q;
     }
+    // ---- power forensics -----------------------------------------------
+    // The Moto died ON THE CHARGER in a 3-person room — power work needs
+    // ground truth from the field, not lab guesses. Every 10s, cache each
+    // outbound video's negotiated codec, the browser's encoder IMPLEMENTATION
+    // (SoC hardware names vs 'libvpx'/'OpenH264' = software burn), and the
+    // encoder's own confession when it can't keep up (qualityLimitationReason
+    // 'cpu'). Read on a live phone via debugDump().power — the monitor's eval
+    // path reaches it remotely.
+    let powerStats = { at: 0, senders: [] };
+    setInterval(() => {
+      if (!peers.size) { powerStats = { at: Date.now(), senders: [] }; return; }
+      const out = [], jobs = [];
+      for (const [pid, p] of peers) {
+        for (const sender of p.pc.getSenders()) {
+          if (!sender.track || sender.track.kind !== 'video') continue;
+          jobs.push(sender.getStats().then((report) => {
+            const o = { to: String(pid).slice(0, 6), aux: auxSenders.has(sender) };
+            let codecId = null;
+            report.forEach((s) => {
+              if (s.type === 'outbound-rtp') {
+                o.impl = s.encoderImplementation || null;
+                o.limit = s.qualityLimitationReason || null;
+                o.res = (s.frameWidth || 0) + 'x' + (s.frameHeight || 0) + '@' + Math.round(s.framesPerSecond || 0);
+                codecId = s.codecId;
+              }
+            });
+            if (codecId) report.forEach((s) => { if (s.id === codecId) o.codec = s.mimeType; });
+            out.push(o);
+          }).catch(() => {}));
+        }
+      }
+      Promise.all(jobs).then(() => { powerStats = { at: Date.now(), senders: out }; });
+    }, 10000);
     function updateStatus() {
       refreshTrBtn();
       if (bannedOut) return;                      // the ban notice is permanent
@@ -2508,8 +2541,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       reactRoomState(); // a departure can complete the room's agreement to go clear
     }
 
+    // Prefer H.264 for outgoing video. With no preference set, Chrome↔Chrome
+    // negotiates VP8, which falls to SOFTWARE encode (libvpx) on most phone
+    // SoCs — and ENCODES = LINKS means a 3-person room runs one encoder per
+    // row-mate. Two software encoders out-drank a plugged-in phone's charger
+    // (it died at 100% brightness on the cable); H.264 encode is hardware on
+    // essentially every phone (Android CDD mandates 720p30) and desktops fall
+    // back to OpenH264 at worst. Pure SDP reorder, negotiated per-pair —
+    // mixed old/new clients interop untouched, so no DS flag day.
+    const H264_FIRST = (() => {
+      try {
+        const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities('video');
+        if (!caps || !caps.codecs.some((c) => /h264/i.test(c.mimeType))) return null;
+        return caps.codecs.filter((c) => /h264/i.test(c.mimeType))
+          .concat(caps.codecs.filter((c) => !/h264/i.test(c.mimeType)));
+      } catch (e) { return null; }
+    })();
+    function preferHwVideo(pc) {
+      if (!H264_FIRST) return;
+      for (const tr of pc.getTransceivers()) {
+        try { if (tr.receiver.track.kind === 'video' && tr.setCodecPreferences) tr.setCodecPreferences(H264_FIRST); } catch (e) {}
+      }
+    }
+
     function sendOffer(peerId, iceRestart) {
       const p = makePeer(peerId, null);
+      preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
         .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
@@ -2591,7 +2648,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // impolite peer ignores the remote offer and keeps its own.
         const accept = () => p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
-          .then(() => p.pc.createAnswer())
+          .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
           .then((ans) => p.pc.setLocalDescription(ans))
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch(() => {});
@@ -4347,7 +4404,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           p.renegAgain = true; // polite rollback: my changes go again after I answer
         }
         p.pc.setRemoteDescription(m.sdp)
-          .then(() => p.pc.createAnswer())
+          .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
           .then((a) => p.pc.setLocalDescription(a))
           .then(() => {
             dcSend(p, { k: 'ranswer', sdp: p.pc.localDescription });
@@ -4577,6 +4634,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // after the async createOffer; any failure re-arms renegAgain.
       if (p.makingOffer || p.pc.signalingState !== 'stable') { p.renegAgain = true; return; }
       p.makingOffer = true;
+      preferHwVideo(p.pc); // renegotiations add fresh m-lines (folds, stg, relay jobs) — they must inherit the preference
       p.pc.createOffer()
         .then((o) => { if (p.pc.signalingState !== 'stable') { const e = new Error('raced'); e.name = 'GlareRace'; throw e; } return p.pc.setLocalDescription(o); })
         .then(() => { dcSend(p, { k: 'roffer', sdp: p.pc.localDescription }); if (typeof clog === 'function') clog('roffer→' + String(p.id).slice(0, 6)); })
@@ -7462,6 +7520,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
       stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
+      power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
       room: () => room,
       roomPw: () => roomPw,
       micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
