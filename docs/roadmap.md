@@ -296,6 +296,53 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - Do relayed feeds count as transport evidence? (`alive()` already says
     yes via `fhLive`.)
 
+- **G2 — Phone power: a meeting must not out-drink a charger (STARTED, first
+  wave SHIPPED to edge 2026-07-26; commits 1e7456e / 29b6858 / 9eba60d; gates
+  `e2e-vis-park` 13 green, `e2e-pip` + `e2e-away-holdover` re-green).**
+  Field event (2026-07-25): a Moto in a 3-person locked room drained FASTER
+  THAN ITS CHARGER and died plugged in. Code audit found the watts:
+  (1) **No codec preference was ever set** → Chrome↔Chrome negotiated VP8,
+  which is SOFTWARE (libvpx) encode on most phone SoCs — and ENCODES = LINKS
+  means one encoder per row-mate (2 in that room, up to 4 on a full row).
+  (2) The sender-side **blur pipe painted + encoded at full capture size and
+  full rung bitrate** — blurred-by-default is the privacy steady state, so
+  outside a fully-consented password room this is the camera path.
+  (3) The 15Hz metro Worker ticked forever once created, even subscriber-less.
+  (4) A **hidden phone kept every mate encoding video at it** — G1 holdover
+  makes pockets first-class members, so N pocketed phones = N invisible
+  encoders on every sender, for the whole meeting.
+  **Shipped (edge):** H.264-first `setCodecPreferences` on every video m-line
+  (hardware encode on essentially every phone — Android CDD mandates it;
+  per-pair SDP, no flag day) + `debugDump().power` forensics (negotiated
+  codec, `encoderImplementation`, `qualityLimitationReason`, 10s cache);
+  blur pipe capped at 480w/320w with blur radius scaled (identical look,
+  ~4-9x paint and ~4x encode-input savings) + blurred mains floored to
+  250kbps; metro Worker terminated when its last subscriber leaves;
+  **hidden-viewer dormancy** — a hidden tab asks each mate to PARK the main
+  video it sends ({k:'vis'}, media-plane demand law applied to mains; PiP
+  float source stays hot, audio NEVER parks, recording disables it, transport
+  rebuild resets it, old clients ignore it).
+  **Verify on the Moto (edge + a day of normal rooms):** `debugDump().power`
+  must show `video/H264` + an OMX/c2 hardware impl (NOT libvpx/OpenH264) and
+  `limit` ≠ 'cpu'; then the real test — charge level must RISE while sitting
+  in a 3-person room. The pi monitor eval path reads it remotely.
+  **Not done (needs Nathan / next wave):**
+  - *Mobile send ladder cap:* phones could send one rung lower + fps ≤20
+    (visually invisible at tile sizes, real watts) — product call on 1:1
+    quality vs battery, plus "am I a phone" detection taste.
+  - *Battery-reactive rung:* `navigator.getBattery()` — discharging (or
+    discharging-while-plugged!) drops a rung / caps fps; recovers on charge.
+  - *Compositor duty on phones:* packer duty follows the SEAT (topology law).
+    A phone that seats as a head runs packers + aux encodes. Duty-aware
+    seating bias (phones prefer leaf seats?) is a LAW change — sim-first,
+    Nathan sign-off. Packers are already demand-gated + governor-capped, so
+    this is the smallest of the four; measure before designing.
+  - *Concurrent HW encoder sessions:* budget SoCs cap ~2-4 simultaneous
+    hardware encodes; a full row + stage may overflow back to software for
+    the overflow senders. `power` forensics now make this VISIBLE per-sender
+    (mixed impl names = overflow). If observed: cap mobile MAIN encodes and
+    let the composite/tree carry the rest (media-plane already supports it).
+
 - **F2 (column-major deep seating) — standing caveat (2026-07-18):** Section-1
   admission is ROW-major by law (healing-laws H7 row-fill): the media plane's
   near field is row-scoped, so the first C people in a room MUST be row-mates
