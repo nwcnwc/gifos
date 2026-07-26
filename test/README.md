@@ -267,7 +267,10 @@ Roughly three families in one directory:
   (backgrounding floats the best room video in a PiP overlay; source picker
   never floats your own preview), `e2e-away-holdover` (G1: pocketed phones —
   consent holds without flapping, roster never blinks, vote need drops to the
-  engaged majority, 60s holdover expiry backstop; 5 browsers, ~4 min).
+  engaged majority, 60s holdover expiry backstop; 5 browsers, ~4 min),
+  `e2e-vis-park` (hidden-viewer dormancy: a hidden tab's mates park the main
+  video they send it — PiP float source excepted, audio never parks, full
+  restore on return; 13 checks).
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`.

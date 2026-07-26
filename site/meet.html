@@ -7580,6 +7580,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
       power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
+      // hidden-viewer dormancy forensics: mains I parked at the far side's
+      // request / parks I asked for / is my main video toward pid carrying
+      visParked: () => Array.from(peers.entries()).filter(([, p]) => p.remoteParkMain).map(([id]) => id),
+      visParkAsked: () => Array.from(visParkSent.entries()).filter(([, v]) => v).map(([id]) => id),
+      mainSending: (pid) => { const p = peers.get(pid); return !!(p && p.mainV && p.mainV.track); },
+      mainAudioSending: (pid) => { const p = peers.get(pid); return !!(p && p.mainA && p.mainA.track); },
       room: () => room,
       roomPw: () => roomPw,
       micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
