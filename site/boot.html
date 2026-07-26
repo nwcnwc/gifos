@@ -19,7 +19,10 @@ window.GIFOS_VERSION = 'edge';
 (function () {
   if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
   var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
-  function has(k) { return !!(q && q.has(k)); }
+  // Flags may arrive IN THE HASH: the 404 pretty-URL router folds the query
+  // into the hash it builds (/meet/<room>?edge -> /meet.html#v=<room>&edge),
+  // so a channel flag must be honored from either place.
+  function has(k) { return !!(q && q.has(k)) || new RegExp('[#&]' + k + '(&|=|$)').test(location.hash || ''); }
   try {
     if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
     if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
