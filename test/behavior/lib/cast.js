@@ -46,11 +46,31 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 const MEET = path.join(ROOT, 'test', 'swarm', 'meet.js');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const BASE = (process.env.BEHAVIOR_BASE || 'http://127.0.0.1:8099').replace(/\/$/, '');
-const DEFAULT_RELAY = 'ws://127.0.0.1:8790';
-const RELAY_DEV_URL = 'ws://127.0.0.1:8794';
+// ---- the FLEET (optional): spread actors over real machines --------------
+// A LOCAL hosts file (never committed — it describes someone's home network)
+// distributes actors over ssh so one box's CPU can't invent flap. Format:
+//   { "base": "http://<orchestrator-addr>:8099", "relay": "ws://<addr>:8790",
+//     "relayDev": "ws://<addr>:8794",
+//     "hosts": [ { "name": "local", "weight": 1 },
+//                { "name": "big", "ssh": "bighost", "dir": "/home/u/gifos",
+//                  "node": "/path/to/node22", "chrome": "/path/chrome",
+//                  "nodePath": "/extra/node_modules", "weight": 3 } ] }
+// Remote hosts need: the dir (test/swarm/meet.js is PUSHED there fresh at
+// cast.up), playwright resolvable (nodePath if staged elsewhere), a browser.
+// Absent file = everything local (the default).
+const HOSTS_FILE = process.env.BEHAVIOR_HOSTS || path.join(process.env.HOME || '/root', '.gifos-behavior-hosts.json');
+let FLEET = null;
+try { FLEET = JSON.parse(fs.readFileSync(HOSTS_FILE, 'utf8')); } catch (e) {}
+
+const BASE = (process.env.BEHAVIOR_BASE || (FLEET && FLEET.base) || 'http://127.0.0.1:8099').replace(/\/$/, '');
+const DEFAULT_RELAY = process.env.BEHAVIOR_RELAY || (FLEET && FLEET.relay) || 'ws://127.0.0.1:8790';
+const RELAY_DEV_URL = (FLEET && FLEET.relayDev) || 'ws://127.0.0.1:8794';
+const INSECURE_ORIGINS = /^http:\/\/(?!127\.0\.0\.1|localhost)/.test(BASE) ? BASE : '';
 const HEADFUL = !!process.env.BEHAVIOR_HEADFUL;
 const VERBOSE = !!process.env.BEHAVIOR_VERBOSE;
+
+const shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+const urlHostPort = (u) => { const m = /^\w+:\/\/([^/:]+):(\d+)/.exec(u); return m ? { host: m[1], port: parseInt(m[2], 10) } : { host: '127.0.0.1', port: 80 }; };
 
 function findChrome() {
   if (process.env.MEET_CHROME) return process.env.MEET_CHROME;
@@ -84,7 +104,8 @@ class Actor {
     this._q = Promise.resolve();
   }
   spawnChild() {
-    const a = [MEET, '--drive', '--name', this.name, '--profile', this.spec.profile || 'desktop',
+    const h = this.host || { name: 'local' };
+    const a = ['--drive', '--name', this.name, '--profile', this.spec.profile || 'desktop',
       '--base', BASE, '--relay', this.cast.relay,
       '--jsonl', path.join(this.cast.runDir, this.role + '.jsonl'), '--every', '3'];
     if (this.spec.battery) a.push('--battery', String(this.spec.battery));
@@ -92,11 +113,30 @@ class Actor {
     if (this.spec.observe) a.push('--observe');
     if (this.spec.adminPw) a.push('--admin-pw', this.spec.adminPw);
     if (this.spec.ensurePass) a.push('--ensure-pass', this.spec.ensurePass);
-    if (HEADFUL) a.push('--headful');
-    const env = Object.assign({}, process.env, CHROME ? { MEET_CHROME: CHROME } : {});
-    this.child = spawn(process.execPath, a, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    if (HEADFUL && !h.ssh) a.push('--headful');
+    if (!h.ssh) {
+      const env = Object.assign({}, process.env,
+        CHROME ? { MEET_CHROME: CHROME } : {},
+        INSECURE_ORIGINS ? { MEET_INSECURE_ORIGINS: INSECURE_ORIGINS } : {});
+      this.child = spawn(process.execPath, [MEET].concat(a), { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    } else {
+      // remote actor: same stdio sentinel protocol, over ssh. The env rides
+      // inline; meet.js was pushed fresh to h.dir by cast.up().
+      const envParts = [];
+      if (INSECURE_ORIGINS) envParts.push('MEET_INSECURE_ORIGINS=' + shq(INSECURE_ORIGINS));
+      if (h.chrome) envParts.push('MEET_CHROME=' + shq(h.chrome));
+      if (h.nodePath) envParts.push('NODE_PATH=' + shq(h.nodePath));
+      const remote = 'cd ' + shq(h.dir) + ' && ' + (envParts.length ? 'env ' + envParts.join(' ') + ' ' : '')
+        + shq(h.node || 'node') + ' test/swarm/meet.js ' + a.map(shq).join(' ');
+      this.child = spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', h.ssh, remote],
+        { stdio: ['pipe', 'pipe', 'pipe'] });
+    }
     this.alive = true;
-    this.child.on('exit', (code) => { this.alive = false; this._resolvePending({ err: 'actor exited ' + code }); });
+    this.child.on('exit', (code) => {
+      this.alive = false;
+      this._resolvePending({ err: 'actor exited ' + code });
+      this._readyRes(); // an ssh/spawn failure must fail FAST, not hang up()
+    });
     this._pending = null; this._payload = undefined; this._out = []; this._staleDone = 0;
     this._ready = new Promise((res) => { this._readyRes = res; });
     const outRl = readline.createInterface({ input: this.child.stdout });
@@ -174,8 +214,21 @@ class Cast {
     this.logFile = fs.createWriteStream(path.join(this.runDir, 'cast.log'));
     this.actors = new Map();
     for (const [role, s] of Object.entries(spec)) this.actors.set(role, new Actor(this, role, s));
+    // fleet assignment: weighted round-robin over the hosts file (or local).
+    // A role can pin itself with spec.host = "<host name>".
+    const hosts = (FLEET && FLEET.hosts && FLEET.hosts.length) ? FLEET.hosts : [{ name: 'local' }];
+    // smooth weighted order (interleaved, not block-wise) so a small cast
+    // still spreads across machines instead of stacking on the heaviest
+    const cycle = hosts
+      .flatMap((h) => Array.from({ length: h.weight || 1 }, (_, i) => ({ h, pos: (i + 1) / (h.weight || 1) })))
+      .sort((a, b) => a.pos - b.pos).map((x) => x.h);
+    let ci = 0;
+    for (const a of this.all()) {
+      a.host = a.spec.host ? hosts.find((h) => h.name === a.spec.host) || cycle[ci++ % cycle.length]
+        : cycle[ci++ % cycle.length];
+    }
     this.children = []; // spawned stack servers
-    this.relay = process.env.BEHAVIOR_RELAY || DEFAULT_RELAY;
+    this.relay = DEFAULT_RELAY;
     this.t0 = Date.now();
   }
   get(role) { const a = this.actors.get(role); if (!a) throw new Error('no actor ' + role); return a; }
@@ -188,37 +241,56 @@ class Cast {
   async ensureStack() {
     // relay-dev requirement / opportunity first — it decides this.relay
     if (!process.env.BEHAVIOR_RELAY && this.opts.relayDev) {
-      const devUp = await portUp(8794);
-      if (devUp) { this.relay = RELAY_DEV_URL; this.log('using the REAL relay under wrangler dev (:8794)'); }
+      const dv = urlHostPort(RELAY_DEV_URL);
+      const devUp = await portUp(dv.port, dv.host);
+      if (devUp) { this.relay = RELAY_DEV_URL; this.log('using the REAL relay under wrangler dev (' + RELAY_DEV_URL + ')'); }
       else if (this.opts.relayDev === true) {
-        console.log('SKIP: this scenario needs the REAL relay — start test/servers/relay-dev.sh (:8794)');
+        console.log('SKIP: this scenario needs the REAL relay — start test/servers/relay-dev.sh (' + RELAY_DEV_URL + ')');
         process.exit(0);
       } else this.log('relay-dev not up — opportunistic scenario falls back to ' + this.relay);
     }
-    const wantSite = BASE === 'http://127.0.0.1:8099';
-    if (wantSite && !(await portUp(8099))) {
-      this.log('site :8099 idle — spawning python http.server');
-      this.children.push(spawn('python3', ['-m', 'http.server', '8099', '-d', 'site'], { cwd: ROOT, stdio: 'ignore' }));
+    const site = urlHostPort(BASE), relay = urlHostPort(this.relay);
+    const localMode = site.host === '127.0.0.1';
+    if (localMode && !(await portUp(site.port))) {
+      this.log('site :' + site.port + ' idle — spawning python http.server');
+      this.children.push(spawn('python3', ['-m', 'http.server', String(site.port), '-d', 'site'], { cwd: ROOT, stdio: 'ignore' }));
     }
-    if (this.relay === DEFAULT_RELAY && !(await portUp(8790))) {
-      this.log('relay :8790 idle — spawning relay-local (RELAY_DEV=1)');
+    if (localMode && relay.host === '127.0.0.1' && !(await portUp(relay.port))) {
+      this.log('relay :' + relay.port + ' idle — spawning relay-local (RELAY_DEV=1)');
       this.children.push(spawn(process.execPath, [path.join(ROOT, 'test', 'servers', 'relay-local.js')],
         { env: Object.assign({}, process.env, { RELAY_DEV: '1' }), stdio: 'ignore' }));
     }
     for (let i = 0; i < 20; i++) {
-      const siteOk = !wantSite || await portUp(8099);
-      const relayOk = await portUp(parseInt(this.relay.split(':').pop(), 10));
-      if (siteOk && relayOk) return;
+      if ((await portUp(site.port, site.host)) && (await portUp(relay.port, relay.host))) return;
       await sleep(500);
     }
-    throw new Error('stack did not come up (site=' + BASE + ' relay=' + this.relay + ')');
+    // fleet mode never auto-spawns — the stack must already run on the
+    // orchestrator box, bound to an address the fleet can reach
+    throw new Error('stack unreachable (site=' + BASE + ' relay=' + this.relay + ')'
+      + (localMode ? '' : ' — fleet mode expects it already running and bound to a reachable address'));
+  }
+
+  // push the CURRENT meet.js to every remote host in this cast — remote repo
+  // checkouts are allowed to be stale; the driver never is.
+  async syncFleet() {
+    const remotes = new Map();
+    for (const a of this.all()) if (a.host && a.host.ssh) remotes.set(a.host.ssh, a.host);
+    for (const [, h] of remotes) {
+      await new Promise((res, rej) => {
+        const p = spawn('ssh', ['-o', 'BatchMode=yes', h.ssh, 'mkdir -p ' + shq(h.dir + '/test/swarm') + ' && cat > ' + shq(h.dir + '/test/swarm/meet.js')], { stdio: ['pipe', 'ignore', 'inherit'] });
+        fs.createReadStream(MEET).pipe(p.stdin);
+        p.on('exit', (c) => c === 0 ? res() : rej(new Error('meet.js push to ' + h.name + ' failed (' + c + ')')));
+      });
+    }
+    if (remotes.size) this.log('pushed current meet.js to: ' + [...remotes.keys()].join(', '));
   }
 
   async up() {
     await this.ensureStack();
+    await this.syncFleet();
     for (const a of this.all()) a.spawnChild();
     await Promise.all(this.all().map((a) => a._ready));
-    this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop') + ')').join(', ') + '  room=' + this.room + '  relay=' + this.relay);
+    this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop') + '@' + (a.host && a.host.name || 'local') + ')').join(', ') + '  room=' + this.room + '  relay=' + this.relay);
   }
 
   // join everyone; roles = subset (default all), av auto-shared from the

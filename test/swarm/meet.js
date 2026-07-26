@@ -402,6 +402,11 @@ async function ensureBrowser() {
     '--no-sandbox', '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
     '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests',
+    // MEET_INSECURE_ORIGINS (comma list, same idea as SWARM_INSECURE_ORIGINS):
+    // lets a plain-http harness on another box (tailnet/LAN, no cert) still
+    // count as a secure context for getUserMedia/WebRTC.
+    ...((process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS)
+      ? ['--unsafely-treat-insecure-origin-as-secure=' + (process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS)] : []),
   ] });
 }
 async function join(room, opts) {
@@ -649,7 +654,8 @@ async function runCmd(line) {
   }
   if (cmd === 'name') { if (arg) await page.evaluate((n) => { try { localStorage.setItem('gifos_name', n); } catch (e) {} const el = document.getElementById('myname'); if (el) el.textContent = n; }, arg); console.log('  name → ' + arg); return true; }
   if (cmd === 'shot') {
-    const p = arg || ('/tmp/claude-1000/-home-nathan-projects-gifos/1270a1af-99d6-4f5c-b245-2a1eb40656dd/scratchpad/meet-shot.png');
+    const p = arg || '/tmp/meet-shot.png';
+    try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch (e) {} // an orchestrator path may not exist on THIS box
     // Snap NOW (this instant). The meeting scrolls INSIDE #feed, so fullPage
     // alone only grabs the viewport — grow the viewport to the content height
     // so the WHOLE window (every tile, below the fold) is in one shot, then
@@ -949,6 +955,7 @@ function printHelp() {
 // becomes YYYY-MM-DD, so a long-running service rotates daily by construction.
 function startJsonl() {
   if (!cfg.jsonl) return;
+  try { fs.mkdirSync(path.dirname(cfg.jsonl), { recursive: true }); } catch (e) {} // an orchestrator path may not exist on THIS box
   const pathFor = () => cfg.jsonl.replace('%d', new Date().toISOString().slice(0, 10));
   let curPath = pathFor();
   compactOldJsonl(curPath); // catch days a restart closed without a live rotation
