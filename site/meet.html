@@ -320,17 +320,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #fsstrip { position: absolute; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; gap: .5rem;
     padding: .55rem; overflow-y: auto; overflow-x: hidden; z-index: 2;
     background: linear-gradient(to left, rgba(0,0,0,.55), transparent); }
-  .fsthumb { position: relative; width: 132px; aspect-ratio: 16/9; border: 2px solid rgba(255,255,255,.25);
+  .fsthumb { position: relative; width: 160px; aspect-ratio: 16/9; border: 2px solid rgba(255,255,255,.25);
     border-radius: .5rem; overflow: hidden; cursor: pointer; flex: 0 0 auto; background: #111; }
   .fsthumb.sel { border-color: var(--accent, #7b5cff); box-shadow: 0 0 10px rgba(123,92,255,.5); }
   .fsthumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
   .fsthumb .fslbl { position: absolute; left: .25rem; bottom: .25rem; font-size: .65rem;
     background: rgba(10,10,15,.72); color: #eceef8; padding: .05rem .35rem; border-radius: .3rem; max-width: 92%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The follow-the-speaker chip rides the strip like a thumb. */
+  .fsthumb.fsauto { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .2rem; background: #191926; color: #eceef8; }
+  .fsthumb.fsauto .fsautoglyph { font-size: 1.35rem; line-height: 1; }
+  .fsthumb.fsauto .fslbl { position: static; background: none; padding: 0; }
+  /* The strip stays a RIGHT-SIDE column in every orientation — a vertical,
+     scrollable rail shows more participants than a bottom row. */
   @media (orientation: portrait) {
-    #fsstrip { right: 0; left: 0; top: auto; bottom: 0; flex-direction: row;
-      overflow-x: auto; overflow-y: hidden; background: linear-gradient(to top, rgba(0,0,0,.55), transparent); }
-    .fsthumb { width: 108px; }
+    .fsthumb { width: 124px; }
   }
   #fsclose { position: absolute; top: .6rem; left: .6rem; z-index: 3; width: 2.2rem; height: 2.2rem;
     border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(10,10,15,.6);
@@ -1613,7 +1618,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const fsclose = document.createElement('button'); fsclose.id = 'fsclose'; fsclose.textContent = '✕'; fsclose.title = 'Exit full screen';
     fsview.appendChild(fsmain); fsview.appendChild(fsstrip); fsview.appendChild(fsclose);
     document.body.appendChild(fsview);
-    let fsSel = null, fsTick = null;
+    let fsSel = null, fsTick = null, fsAutoPid = null;
+    // FOLLOW THE SPEAKER (fsSel === 'auto'): the big view rides whoever is
+    // talking. Hysteresis by memory — the last speaker HOLDS the view while
+    // nobody (or the same person) talks, so two voices trading lines don't
+    // strobe the screen; any explicit thumb tap pins again.
+    function fsPickAuto(src) {
+      for (const s of src) {
+        if (s.key.indexOf('peer:') !== 0) continue;
+        if (speakingOf.get(s.key.slice(5))) { fsAutoPid = s.key.slice(5); break; }
+      }
+      return (fsAutoPid && src.find((s) => s.key === 'peer:' + fsAutoPid))
+        || src.find((s) => s.key.indexOf('stage:') === 0) || src[0] || null;
+    }
     function fsSources() {
       const out = [];
       for (const v of stagefeedEl.querySelectorAll('.rowtile video')) {
@@ -1632,9 +1649,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function fsPaintSel() { for (const th of fsstrip.children) th.classList.toggle('sel', th.dataset.key === fsSel); }
     function fsRefresh() {
       const src = fsSources();
-      const main = src.find((s) => s.key === fsSel) || src[0] || null;
+      const main = fsSel === 'auto' ? fsPickAuto(src) : (src.find((s) => s.key === fsSel) || src[0] || null);
       if (main) {
-        fsSel = main.key;
+        if (fsSel !== 'auto') fsSel = main.key; // a pin re-anchors; auto stays auto
         const st = main.v.srcObject;
         if (fsmain.srcObject !== st) { fsmain.srcObject = st; const pr = fsmain.play(); if (pr && pr.catch) pr.catch(() => {}); }
       } else fsmain.srcObject = null;
@@ -1642,6 +1659,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (fsstrip.dataset.set !== want) {
         fsstrip.dataset.set = want;
         fsstrip.textContent = '';
+        const chip = document.createElement('div');
+        chip.className = 'fsthumb fsauto'; chip.dataset.key = 'auto';
+        chip.innerHTML = '<span class="fsautoglyph">🗣</span><span class="fslbl">Follow speaker</span>';
+        chip.onclick = () => { fsSel = 'auto'; fsAutoPid = null; fsRefresh(); };
+        fsstrip.appendChild(chip);
         for (const s of src) {
           const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
           const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
