@@ -130,6 +130,7 @@ manage them yourself:
 ```bash
 python3 -m http.server 8099 -d site
 node test/servers/relay-local.js          # ws://127.0.0.1:8790
+test/servers/relay-dev.sh                 # 8794 — the REAL relay under wrangler dev (relay-behavior tests)
 node test/servers/fake-ai.js              # 8791 — the AI suites
 node test/servers/fake-keyapi.js          # 8792 — e2e-api, e2e-fluence
 node test/servers/fake-cors-proxy.js      # 8793 — e2e-api, e2e-cors-proxy

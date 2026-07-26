@@ -74,8 +74,11 @@ The relay is a **greeter registry**, not a switchboard. A newcomer:
 1. **Knocks** the front door with a throwaway personal key, sending the hashed
    room URL.
 2. Gets back a **sealed greeter list** — a TTL'd set of sealed `{peerId, coord}`
-   addresses of Section-1 seats currently serving as greeters. (An empty list
-   means the room is fresh: the first knocker founds it — genesis.)
+   addresses of Section-1 seats currently serving as greeters. (A positive
+   empty-and-founded answer means the room is fresh: the first knocker founds
+   it — genesis. Silence or a failed knock founds NOTHING: the page shows an
+   honest "Reaching the meeting…" veil and keeps re-knocking — joining can
+   never be mistaken for an empty room.)
 3. **Reaches a greeter** (a randomly chosen one, to spread load), does the
    newcomer dance, and is **placed at a definitive vacant seat** in the tree.
 4. Once seated, most seats **drop their relay socket entirely and run
@@ -116,9 +119,16 @@ The controls worth knowing:
 - **Hand** — raise it to join the room-wide **hand queue** (below), in order.
 - **Password** — the key to *clear* video (see the door, below).
 - **Mix** — your own private sound board: independent faders for **Stage**, **My
-  row**, **My section**, and **The stadium** that appear as the room grows big
-  enough to need them, plus a **Timing** control (Conversation / Unison / Song).
-  It only changes what *you* hear.
+  row**, and **The stadium** that appear as the room grows big enough to need
+  them, plus a **Timing** control (Conversation / Unison / Song). It only
+  changes what *you* hear.
+- **Float** — pops the meeting's best video into a mini window that rides along
+  while you use other apps (picture-in-picture). Browsers that allow it also
+  float automatically when you switch away.
+- **Full screen** (the ⛶ on any tile) — one feed big, every other live feed
+  (Stage, row-mates, stadium, you) as tappable thumbs down the right edge. Tap
+  a thumb to swap it in, or tap **🗣 Follow speaker** to let the big view ride
+  whoever is talking.
 - **Invite** — mint a link; also where you create an admin room ("a room you
   control").
 - **Run app** — share an app (a Bible, a board, a game) the whole room uses
@@ -133,10 +143,24 @@ A **front door, not a cold plunge:** opening Meeting lands you in a **lobby**
 one) with the camera **off** until you choose — no light, no permission prompt
 just to read the menu. A real invite link or `/meet/<room>` skips the lobby.
 
-**Stepping away** keeps you in the meeting: flip to another tab and you keep
+**Stepping away** keeps you in the meeting: flip to another app and you keep
 hearing and being heard; your tile says "away" (never mislabeled as
-firewall-blocked), your camera pauses to save battery, and a wake-lock keeps the
-call and any recording alive in the background.
+firewall-blocked), the PiP float carries the room's best face along where the
+browser allows, and everyone else quietly **parks the video they were sending
+your hidden screen** (audio always flows) — a pocketed phone stops costing
+every sender an encoder. If the OS froze the page outright (a long
+app-switch), coming back triggers a clean automatic rejoin instead of a stale
+"everyone left" view.
+
+**Battery is a first-class law, not a mode**: hardware video encoding,
+blur rendered small (a blur has no detail to preserve), one-pipe media with
+parked standbys, and dormant everything-nobody-watches are the BASELINE.
+On top of that, quality steps down as your battery does (on battery / under
+50% / under 25%), a phone whose charger is losing ground cuts to minimum, a
+camera that stays off for 20s releases the sensor itself, and a phone nobody
+has touched or spoken into for a few minutes lets its screen rest (we release
+our wake lock — the screen-off decision stays the OS's, and screen
+*brightness* is always yours; we never touch it).
 
 ---
 
