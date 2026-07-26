@@ -2,9 +2,13 @@
 //  - "Erase This Computer" is GONE from the top-level system menu.
 //  - Settings → Advanced holds an "Erase this computer" disclosure + button.
 //  - The Version panel renders the live changelog (critical entries flagged).
-//  - The service worker installs and serves the shell CACHE-FIRST: a reload
-//    returns the SAME build even after the served file changes on disk (no
-//    silent update), and a proactive 'gifos-refresh-shell' pulls the new file.
+//  - The service worker splits its fetch policy by channel:
+//     * EDGE (site root, where this test runs): NETWORK-FIRST with revalidation —
+//       a plain reload REGRABS a root asset that changed on disk (edge tracks the
+//       newest GitHub Pages build), and an unchanged asset is 304-cheap.
+//     * RELEASE (/versions/<x.y.z>/): IMMUTABLE cache-first — a reload serves the
+//       SAME archived build even after the file changes on disk (no silent update).
+//    A proactive 'gifos-refresh-shell' still re-pulls the whole shell on demand.
 // Needs the static server on 8099 (SW needs a secure context — 127.0.0.1 counts).
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -51,7 +55,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('Version panel offers a Load/Re-pull edge action', await page.locator('#set-edge').count() === 1);
   await page.locator('#set-close').click();
 
-  // ---- 4. cache-first service worker: no silent update on reload ----
+  // ---- 4. channel-split service worker ----
   const swReady = await page.evaluate(async () => {
     if (!navigator.serviceWorker) return false;
     const reg = await navigator.serviceWorker.ready.catch(() => null);
@@ -61,20 +65,33 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   });
   check('service worker controls the page', swReady);
 
-  // Read a shell asset through the SW, then CHANGE it on disk, reload, and prove
-  // the SW still served the OLD cached copy (a silent update would show the new).
-  const marker = '/* CACHE_FIRST_PROBE ' + Date.now() + ' */';
+  const stamp = Date.now();
+  // 4a. EDGE / root: NETWORK-FIRST. Change a root shell asset on disk, reload, and
+  // prove the SW REGRABBED it (an edge user must always land on the newest build).
+  const edgeMarker = '/* EDGE_REVALIDATE_PROBE ' + stamp + ' */';
   const swRegPath = 'site/js/sw-register.js';
-  const original = fs.readFileSync(swRegPath, 'utf8');
-  const before = await page.evaluate(async () => (await (await fetch('/js/sw-register.js')).text()).length);
+  const swRegOrig = fs.readFileSync(swRegPath, 'utf8');
+  // 4b. RELEASE / versions: IMMUTABLE cache-first. Prime an archived asset into the
+  // cache, change it on disk, reload, and prove the SW still served the OLD copy.
+  const VER_URL = '/versions/0.8.3/js/build.js';
+  const verPath = 'site/versions/0.8.3/js/build.js';
+  const verOrig = fs.readFileSync(verPath, 'utf8');
+  const verMarker = '/* VERSIONS_IMMUTABLE_PROBE ' + stamp + ' */';
+  // Prime the archived asset through the SW so it is cached BEFORE we mutate disk.
+  await page.evaluate((u) => fetch(u).then((r) => r.text()).catch(() => ''), VER_URL);
   try {
-    fs.writeFileSync(swRegPath, marker + '\n' + original);
+    fs.writeFileSync(swRegPath, edgeMarker + '\n' + swRegOrig);
+    fs.writeFileSync(verPath, verMarker + '\n' + verOrig);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.icon', { timeout: 20000 });
-    const afterReload = await page.evaluate(async () => (await (await fetch('/js/sw-register.js')).text()));
-    check('a plain reload serves the SAME cached shell (no silent update)', !afterReload.includes('CACHE_FIRST_PROBE'), 'len=' + afterReload.length + ' base=' + before);
 
-    // Now the proactive update path: ask the SW to refresh the whole shell.
+    const edgeAfter = await page.evaluate(async () => (await (await fetch('/js/sw-register.js')).text()));
+    check('edge/root: a plain reload REGRABS the changed shell asset (network-first)', edgeAfter.includes('EDGE_REVALIDATE_PROBE'), 'len=' + edgeAfter.length);
+
+    const verAfter = await page.evaluate(async (u) => (await (await fetch(u)).text()), VER_URL);
+    check('release/versions: a reload serves the SAME immutable build (no silent update)', !verAfter.includes('VERSIONS_IMMUTABLE_PROBE'), 'len=' + verAfter.length);
+
+    // The proactive update path still re-pulls the whole (root) shell on demand.
     const refreshed = await page.evaluate(() => new Promise((resolve) => {
       const nav = navigator.serviceWorker;
       const t = setTimeout(() => resolve('timeout'), 9000);
@@ -82,10 +99,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
       nav.addEventListener('message', onMsg);
       nav.controller.postMessage({ type: 'gifos-refresh-shell' });
     }));
-    const afterRefresh = await page.evaluate(async () => (await (await fetch('/js/sw-register.js')).text()));
-    check('proactive refresh-shell pulls the NEW file into the cache', refreshed === 'ok' && afterRefresh.includes('CACHE_FIRST_PROBE'), 'ack=' + refreshed);
+    check('proactive refresh-shell acks after re-pulling the shell', refreshed === 'ok', 'ack=' + refreshed);
   } finally {
-    fs.writeFileSync(swRegPath, original); // restore the source file no matter what
+    fs.writeFileSync(swRegPath, swRegOrig); // restore source files no matter what
+    fs.writeFileSync(verPath, verOrig);
   }
 
   await ctx.close();

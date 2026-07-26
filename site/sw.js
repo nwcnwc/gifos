@@ -14,16 +14,30 @@
  * proxy), and Ask AI. Those are CROSS-ORIGIN requests — the fetch handler never
  * touches them, so they fail the same friendly way they always did offline.
  *
- * Update path: updates are OPT-IN and never happen behind the user's back. A
- * plain refresh (or hard refresh) always serves the SAME installed shell — the
- * fetch handler is cache-first with NO background revalidation — so a deploy
- * can't silently change a running computer. When a new sw.js ships it installs
- * but WAITS (it does not skipWaiting over an existing shell). The desktop learns
- * a release is available by fetching version.json + changelog.json network-first,
- * and shows it in Settings → Advanced → Version with a changelog (critical items
- * called out). Only when the user chooses "Upgrade this computer" does the page
- * either activate the waiting worker or send 'gifos-refresh-shell' to re-fetch
- * the ENTIRE shell fresh (the computer is far more than index.html) and reload.
+ * Update path — TWO policies, split by channel (the fetch handler decides by URL:
+ * /versions/ is a release, everything else is the edge root):
+ *
+ *  - RELEASE / pinned users live entirely under /versions/<x.y.z>/, which are
+ *    IMMUTABLE snapshots: cache-first forever, NO background revalidation. Updates
+ *    are OPT-IN and never happen behind their back — a plain (or hard) refresh
+ *    serves the SAME installed shell, and a new sw.js installs but WAITS (it does
+ *    not skipWaiting over an existing shell). The desktop learns a release exists
+ *    by fetching version.json + changelog.json network-first, and shows it in
+ *    Settings → Advanced → Version with a changelog (critical items called out).
+ *    Only when the user chooses "Upgrade this computer" does the page activate the
+ *    waiting worker or send 'gifos-refresh-shell' to re-fetch the ENTIRE shell
+ *    fresh (the computer is far more than index.html) and reload.
+ *
+ *  - EDGE users (localStorage gifos_channel='edge') are served from the site ROOT
+ *    and have asked to track the newest build on GitHub Pages. Root assets are
+ *    therefore NETWORK-FIRST with revalidation: every load issues a conditional GET
+ *    (If-None-Match / If-Modified-Since), so a changed file is regrabbed and an
+ *    unchanged one comes back 304 and reuses the cached bytes (no re-download —
+ *    "caching is fine if the files haven't changed"). Offline or a stalled socket
+ *    falls back to cache, so edge still boots and still works in airplane mode.
+ *    sw-register.js lets a freshly-installed worker take over on its own for edge
+ *    (no forced reload, so a live meeting is never interrupted) so this strategy
+ *    itself reaches existing edge users without a manual upgrade step.
  */
 'use strict';
 
@@ -118,6 +132,45 @@ function raceNetwork(req, cache, ms) {
   });
 }
 
+// Network-FIRST with conditional revalidation, bounded by a timeout — the edge
+// channel's strategy. cache:'no-cache' forces the browser to check the server
+// every time (If-None-Match / If-Modified-Since): a 304 returns the cached bytes
+// with no download, a changed asset downloads fresh. Fresh OK responses are put
+// back in the cache for offline. Resolves null on non-OK, error, or timeout so
+// the caller falls back to the cache — a stalled socket must never hang a parser-
+// blocking <script>, and a transient 5xx should serve the last good build.
+function revalidate(req, cache, ms) {
+  return new Promise(function (resolve) {
+    var settled = false;
+    var t = setTimeout(function () { if (!settled) { settled = true; resolve(null); } }, ms);
+    var rr;
+    try { rr = new Request(req, { cache: 'no-cache' }); } catch (e) { rr = req; }
+    fetch(rr).then(function (res) {
+      var ok = res && res.ok && (res.type === 'basic' || res.type === 'default');
+      if (ok) cache.put(req, res.clone()).catch(function () {});
+      if (!settled) { settled = true; clearTimeout(t); resolve(ok ? res : null); }
+    }, function () { if (!settled) { settled = true; clearTimeout(t); resolve(null); } });
+  });
+}
+
+// Last-resort response when nothing is cached AND the network didn't answer
+// (offline / stalled), so a request can NEVER hang the page:
+//  - a navigation → the app shell (its scripts boot from cache/IndexedDB);
+//  - a script/style (e.g. a theme-override the cascade document.writes) → an
+//    EMPTY 200 so the parser-blocking <script> resolves instead of stalling the
+//    tab; a missing override simply falls back to the base;
+//  - anything else → a clean error the caller can handle.
+async function degrade(req, url, cache) {
+  if (req.mode === 'navigate') { var idx = await cache.match('/index.html'); if (idx) return idx; }
+  if (req.destination === 'script' || /\.m?js(\?|$)/.test(url.pathname)) {
+    return new Response('', { status: 200, headers: { 'Content-Type': 'application/javascript' } });
+  }
+  if (req.destination === 'style' || /\.css(\?|$)/.test(url.pathname)) {
+    return new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } });
+  }
+  return Response.error();
+}
+
 self.addEventListener('activate', function (e) {
   e.waitUntil((async function () {
     var keys = await caches.keys();
@@ -150,33 +203,38 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Everything else same-origin: CACHE-FIRST with NO background revalidation. The
-  // installed shell is authoritative — a refresh or hard-refresh serves the SAME
-  // build every time, so the computer is never updated behind the user's back.
-  // Updating is an explicit choice in Settings → Advanced → Version, which either
-  // activates a waiting worker or sends 'gifos-refresh-shell' to re-pull the whole
-  // shell. (Only assets never cached before — e.g. an archived /versions/ build
-  // opened for the first time — reach the network here, and get cached for offline.)
+  // Archived release builds under /versions/<x.y.z>/ are IMMUTABLE snapshots:
+  // CACHE-FIRST with NO background revalidation. A pinned/release user lives
+  // entirely under /versions/, so a refresh or hard-refresh serves the SAME build
+  // every time — the computer is never updated behind their back; the opt-in flow
+  // (Settings → Advanced → Version) is the only thing that moves it. (Only a build
+  // never cached before — e.g. an archived version opened for the first time —
+  // reaches the network here, and gets cached for offline.)
+  if (url.pathname.lastIndexOf('/versions/', 0) === 0) {
+    e.respondWith((async function () {
+      var cache = await caches.open(CACHE);
+      var cached = await cache.match(req, { ignoreSearch: true });
+      if (cached) return cached;                   // immutable snapshot wins; no silent refresh
+      var fresh = await raceNetwork(req, cache, 4000);
+      if (fresh) return fresh;
+      return degrade(req, url, cache);
+    })());
+    return;
+  }
+
+  // Everything else is the EDGE (site-root) shell. A visitor on the edge channel
+  // is served from the root (release users are redirected to /versions/), and edge
+  // means "track the newest build on GitHub Pages." So NETWORK-FIRST with
+  // revalidation: a conditional GET checks the server every load — an unchanged
+  // asset comes back 304 and reuses the cache (no re-download), a changed one is
+  // regrabbed fresh. Fall back to the cache when offline or too slow, so the shell
+  // still boots and airplane mode still works.
   e.respondWith((async function () {
     var cache = await caches.open(CACHE);
-    var cached = await cache.match(req, { ignoreSearch: true });
-    if (cached) return cached;                     // installed shell wins; no silent refresh
-    var fresh = await raceNetwork(req, cache, 4000);
+    var fresh = await revalidate(req, cache, 4000);
     if (fresh) return fresh;
-    // Nothing cached and the network didn't answer (offline / stalled). Degrade
-    // so a request can NEVER hang the page:
-    //  - a navigation → the app shell (its scripts boot from cache/IndexedDB);
-    //  - a script/style (e.g. a theme-override the cascade document.writes) →
-    //    an EMPTY 200 so the parser-blocking <script> resolves instead of
-    //    stalling the tab; a missing override simply falls back to the base;
-    //  - anything else → a clean error the caller can handle.
-    if (req.mode === 'navigate') { var idx = await cache.match('/index.html'); if (idx) return idx; }
-    if (req.destination === 'script' || /\.m?js(\?|$)/.test(url.pathname)) {
-      return new Response('', { status: 200, headers: { 'Content-Type': 'application/javascript' } });
-    }
-    if (req.destination === 'style' || /\.css(\?|$)/.test(url.pathname)) {
-      return new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } });
-    }
-    return Response.error();
+    var cached = await cache.match(req, { ignoreSearch: true });
+    if (cached) return cached;                      // offline / stalled → last good build
+    return degrade(req, url, cache);
   })());
 });
