@@ -3258,7 +3258,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         conn: [...peers.values()].filter((p) => p.connected).map((p) => String(p.id).slice(0, 8)),
         up: c ? nb(net.topo.up(c)) : null, down: c ? nb(net.topo.down(c)) : null,
         camOff: !!myStatus.camOff, blur: myStatus.blur,
-        vid: !!(localStream && localStream.getVideoTracks && localStream.getVideoTracks().length) };
+        vid: !!(localStream && localStream.getVideoTracks && localStream.getVideoTracks().length),
+        // POWER/PARK forensics (G2): the census is the one channel that reads
+        // a live PHONE's own state remotely (pi monitor → probeTree). hidden/
+        // away, the power tier stack, who I asked to park, my PiP aim, the
+        // worker-vs-DOM heartbeat clock, and each sender's negotiated codec +
+        // encoder implementation (SoC hardware name vs libvpx/OpenH264).
+        hidden: !!document.hidden, hbVia,
+        pow: { batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 1 : 0, idle: idleNow ? 3 : 0 },
+        parkAsked: Array.from(visParkSent.entries()).filter(([, v]) => v).map(([id]) => String(id).slice(0, 8)),
+        parked: Array.from(peers.entries()).filter(([, p]) => p.remoteParkMain).map(([id]) => String(id).slice(0, 8)),
+        pipAim: (() => { try { const v = pipSource(); if (!v) return null; const t = v.closest('[data-peer]'); return t ? 'peer:' + String(t.dataset.peer).slice(0, 8) : 'comp'; } catch (e) { return 'err'; } })(),
+        power: (powerStats.senders || []).map((s) => ({ to: s.to, codec: s.codec, impl: s.impl, limit: s.limit })) };
     }
 
     // ---- the room: a reconnecting relay socket (signaling only) ---------------
