@@ -54,9 +54,15 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the two sides agree on the offset (|offA + offB| small)', Math.abs((cA.off || 0) + (cB.off || 0)) < 60, 'offA=' + cA.off + ' offB=' + cB.off);
 
   // ---- talk grid: near-field alignment applied ----
-  await a.waitForFunction(() => { const g = window.__gifosVideo.grid(); return Object.values(g.targets).length >= 1; }, null, { timeout: 10000 });
+  // A late-healed pair (the dc-watchdog path) can derive its FIRST target
+  // before the mesh has seated the partner as a row-mate — that sample reads
+  // bus:'stadium' and re-derives to 'row' on the next GRID tick. Wait for
+  // the ROW target (the steady state the law names), same 10s budget; the
+  // assertion below is unchanged. (targets.length alone sampled the pre-seat
+  // derivation: the post-watchdog flake shape, 2026-07-27.)
+  await a.waitForFunction(() => { const g = window.__gifosVideo.grid(); return Object.values(g.targets).some((t) => t.bus === 'row'); }, null, { timeout: 10000 });
   const tA = await a.evaluate(() => window.__gifosVideo.grid());
-  const tgt = Object.values(tA.targets)[0];
+  const tgt = Object.values(tA.targets).find((t) => t.bus === 'row');
   check('talk mode aligns the near field (row target, jitterBufferTarget set)', tgt && tgt.bus === 'row' && tgt.D > 0 && tgt.set === true, JSON.stringify(tgt));
   check('nobody is singing yet', tA.sing === false && tA.mic === 'voice');
   check('CONVERSATION is the default timing', tA.timing === 'chat', 'timing=' + tA.timing);
