@@ -154,6 +154,7 @@ const cfg = {
   json: !!args.json,
   edge: !!args.edge,     // pin the EDGE channel (?edge) — else gifos.app redirects to the release snapshot
   seedDesktop: !!args['seed-desktop'], // first-visit index.html before joining: the desktop seed GIF-encodes the sample apps into THIS profile's store (~90s, CPU-bound) so `app run` has something to share
+  meshC: parseInt(args['mesh-c'] || '0', 10) || 0, // override the stadium shape constant (window.GIFOS_SCALE={C:n}) — the K-sweep doctrine: small C exercises deep trees with few browsers. EVERY member of a room must carry the same C.
   jsonl: args.jsonl || process.env.MEET_JSONL || '', // append a JSON snapshot line every --every s, in ANY mode ('%d' in the path becomes YYYY-MM-DD)
   // --ensure-pass <pw>: the room-lock KEEPER mode (the monitor's). Join with
   // NO password first; seated in an OPEN room ⇒ SET this password (the page's
@@ -517,6 +518,7 @@ async function join(room, opts) {
   await ctx.addInitScript({ content: batteryInitScript() });
   await ctx.addInitScript({ content: radioInitScript() });
   await ctx.addInitScript({ content: camInitScript() });
+  if (cfg.meshC) await ctx.addInitScript({ content: 'window.GIFOS_SCALE = Object.assign(window.GIFOS_SCALE || {}, { C: ' + cfg.meshC + ' });' });
   if (cfg.adminPw && !cfg.av) {
     // derive the admin verifier in a bootstrap page of THIS context, so the
     // signed-in key stash lands in the localStorage the room page will read

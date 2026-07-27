@@ -120,6 +120,7 @@ class Actor {
     if (this.spec.adminPw) a.push('--admin-pw', this.spec.adminPw);
     if (this.spec.ensurePass) a.push('--ensure-pass', this.spec.ensurePass);
     if (this.spec.seedDesktop) a.push('--seed-desktop');
+    if (this.spec.meshC) a.push('--mesh-c', String(this.spec.meshC));
     if (HEADFUL && !h.ssh) a.push('--headful');
     if (!h.ssh) {
       const env = Object.assign({}, process.env,

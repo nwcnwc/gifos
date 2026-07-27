@@ -1,4 +1,4 @@
-# The behavior battery — 21 use cases, real people, real phones
+# The behavior battery — 23 use cases, real people, real phones
 
 Launch truth: there will be **no monitors in production**. Billions of rooms,
 zero pis, nobody watching. Every problem a meeting can have must be one the
@@ -7,7 +7,7 @@ to *rehearse the actual meetings people will hold* — not protocol fragments,
 but whole stories: who these people are, what devices they hold, what their
 phones do to the call while life happens around it.
 
-This battery is that rehearsal. Twenty-one use cases of 2–5-person meetings, each
+This battery is that rehearsal. Twenty-three use cases of 2–8-person meetings, each
 with named personas and 1–3 **interaction patterns** (a pattern = one runnable
 scenario script). Every role is played by a real `test/swarm/meet.js` instance
 — a full Playwright participant recording debug state — orchestrated by
@@ -412,6 +412,37 @@ silence a first-class battery reality.
   the silence (the starve-edge regression's exact kill shape), the quiet
   pair never blinks, chat lands afterward.
 
+### 22. The choir — seven singers, two rows
+**Cast:** 7 (2 desktops + 5 phones), default C=5.
+**Story:** the first use case past ONE row. H7's row-major law ("the first
+C people are row-mates") finally gets a second row to be true against, and
+the H/Q laws get their first multi-row heal.
+
+- **22a `22a-choir-two-rows.js`** — staggered joins to 7. Asserts: the
+  formation is EXACTLY row-major (front row full 5 + back row 2, one
+  section), a back-row leave/return never disturbs the shape, ONE tree.
+- **22b `22b-choir-front-row-loss.js`** — a FRONT-row phone dies abruptly
+  under a live back row. Asserts: census heals to 6, ONE tree/no dups, and
+  the shape returns to row-major legality (5 + 1 — the hole must not live
+  in the front row; Q2 compaction owns the end shape).
+
+### 23. The beehive — seven people, a real tree (C=2)
+**Cast:** 7-8, every role `meshC: 2` (the `--mesh-c` lever →
+`window.GIFOS_SCALE={C:2}` — the K-sweep doctrine: at C=2 a section is
+2×2, so seven browsers exercise the multi-section structure that needs
+26+ people at C=5; RELAY_DEV's uncapped session makes the relay C-agnostic
+for tests).
+**Story:** the first battery scenarios where the stadium is a TREE — deep
+sections, sponsor forwarding, anchors rooting subtrees.
+
+- **23a `23a-beehive-forms-deep.js`** — 7 join → ≥2 sections form, room
+  converges ACROSS section boundaries, ONE tree; then a late 8th knock
+  seats ≤60s through sponsor forwarding into the deep room.
+- **23b `23b-beehive-anchor-death.js`** — a non-founder Section-1 seat
+  dies abruptly while deep members exist. Asserts: census heals to 6, ONE
+  tree (no orphaned section), every survivor holds a real seat — the
+  E-laws' promotion, first time in the battery with real browsers.
+
 ---
 
 ## Script index → what reality each covers
@@ -431,8 +462,10 @@ silence a first-class battery reality.
 | late join vs settled room | 2b 14a 16a 16b 20a 21b |
 | minutes-long user silence | 21a 21b 21c |
 | shared app (`app run`, --seed-desktop) | 21c |
+| multi-row rooms (6+ people) | 22a 22b |
+| multi-section trees (`--mesh-c 2`) | 23a 23b |
 
-51 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+55 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
 whether the lever machinery or the app broke). The three open bugs this
 battery once carried as expected-RED scenarios are all FIXED and their
