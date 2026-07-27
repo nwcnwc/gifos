@@ -119,6 +119,7 @@ class Actor {
     if (this.spec.observe) a.push('--observe');
     if (this.spec.adminPw) a.push('--admin-pw', this.spec.adminPw);
     if (this.spec.ensurePass) a.push('--ensure-pass', this.spec.ensurePass);
+    if (this.spec.seedDesktop) a.push('--seed-desktop');
     if (HEADFUL && !h.ssh) a.push('--headful');
     if (!h.ssh) {
       const env = Object.assign({}, process.env,
@@ -197,7 +198,10 @@ class Actor {
   }
   async state() { const r = await this.cmd('jstate', 20000); return r.payload || { err: r.err || 'no state' }; }
   async probe(secs) { const r = await this.cmd('probe ' + (secs || 4.5), 30000); return r.payload; }
-  async eval(js) { const r = await this.cmd('eval ' + js, 30000); const l = (r.out.find((x) => x.startsWith('  ')) || '').trim(); try { return JSON.parse(l); } catch (e) { return l; } }
+  // The @@eval sentinel pins the reply line: the old first-indented-line
+  // scrape could grab an async print that landed in the reply window (the
+  // 11b cycle-2 ambiguity, 2026-07-27). Fallback kept for older meet.js.
+  async eval(js) { const r = await this.cmd('eval ' + js, 30000); let l = (r.out.find((x) => x.trim().startsWith('@@eval ')) || '').trim().slice(7); if (!l) l = (r.out.find((x) => x.startsWith('  ')) || '').trim(); try { return JSON.parse(l); } catch (e) { return l; } }
   join(room, opts) {
     opts = opts || {};
     let c = 'join ' + room;

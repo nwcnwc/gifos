@@ -405,10 +405,12 @@ silence a first-class battery reality.
   third knocks INTO the silence. Asserts: a silent door still seats
   ≤45s, the settled pair rides the admission unblinked, chat resumes
   for all three.
-- *(planned)* **21c app-share idle** — the guest-perms drill's exact
-  shape (2-person room, a shared app, minutes of nothing) as a battery
-  scenario; needs a meet.js desktop-seed lever to give the host a store
-  with a shareable app, and lands together with that lever.
+- **21c `21c-quiet-app-idle.js`** — the guest-perms drill's exact shape
+  battery-ized: 2-person room, the host (seeded via the meet.js
+  `--seed-desktop` lever) shares the Bible Browser, then FOUR minutes of
+  total silence. Asserts: the app stays MOUNTED on both sides through
+  the silence (the starve-edge regression's exact kill shape), the quiet
+  pair never blinks, chat lands afterward.
 
 ---
 
@@ -427,9 +429,10 @@ silence a first-class battery reality.
 | locked door / admin | 2b 8b 18a |
 | stage / vote / handq | 5a 5b 7a 12a 12c 19b |
 | late join vs settled room | 2b 14a 16a 16b 20a 21b |
-| minutes-long user silence | 21a 21b |
+| minutes-long user silence | 21a 21b 21c |
+| shared app (`app run`, --seed-desktop) | 21c |
 
-50 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+51 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
 whether the lever machinery or the app broke). The three open bugs this
 battery once carried as expected-RED scenarios are all FIXED and their

@@ -101,6 +101,9 @@
  *   poke          simulate a touch/speech       pulses off|on  halt pulses
  *   reload        full page reload → rejoin     waitseat [s]  block til seated
  *   leave         clean exit (pagehide LEAVE)   die  SIGKILL the browser
+ *   app run [id] | app stop | app state   share a store app into the meeting
+ *                 (the sharer needs --seed-desktop: first-visits index.html so
+ *                 the profile's store holds the sample apps; ~90s, CPU-bound)
  *   jstate        one-line machine JSON (@@state …)   probe [s]  census JSON
  *   name <n>      rename myself
  *   shot [path]   save a screenshot (PNG) of my meeting view
@@ -150,6 +153,7 @@ const cfg = {
   forSecs: args['for'] ? Math.max(1, parseFloat(args['for'])) : Infinity,
   json: !!args.json,
   edge: !!args.edge,     // pin the EDGE channel (?edge) — else gifos.app redirects to the release snapshot
+  seedDesktop: !!args['seed-desktop'], // first-visit index.html before joining: the desktop seed GIF-encodes the sample apps into THIS profile's store (~90s, CPU-bound) so `app run` has something to share
   jsonl: args.jsonl || process.env.MEET_JSONL || '', // append a JSON snapshot line every --every s, in ANY mode ('%d' in the path becomes YYYY-MM-DD)
   // --ensure-pass <pw>: the room-lock KEEPER mode (the monitor's). Join with
   // NO password first; seated in an OPEN room ⇒ SET this password (the page's
@@ -530,6 +534,18 @@ async function join(room, opts) {
     await boot.close();
     console.error('[meet] admin verifier ' + cfg.av);
   }
+  if (cfg.seedDesktop) {
+    // An app share needs a store with apps in it; a fresh profile has none.
+    // First-visit the desktop in a bootstrap page of THIS context (same
+    // origin ⇒ same store) — the seed GIF-encodes the sample apps, which is
+    // CPU-bound and slow on a small box.
+    const seedPg = await ctx.newPage();
+    console.error('[meet] seeding desktop (sample apps → store, ~90s)…');
+    await seedPg.goto(cfg.base + '/index.html' + (cfg.edge ? '?edge' : ''), { waitUntil: 'domcontentloaded' });
+    await seedPg.waitForSelector('.icon', { timeout: 150000 });
+    await seedPg.close();
+    console.error('[meet] desktop seeded');
+  }
   page = await ctx.newPage();
   cdp = null; // stale CDP session dies with the old page
   page.on('load', () => { reapplyLevers(); }); // levers survive reloads (incl. the self-heal reload)
@@ -765,7 +781,31 @@ async function runCmd(line) {
     }
     return true;
   }
-  if (cmd === 'eval') { const v = await page.evaluate((code) => { try { return JSON.stringify(eval(code)); } catch (e) { return 'ERR ' + e; } }, arg).catch((e) => String(e)); console.log('  ' + v); return true; }
+  if (cmd === 'eval') { const v = await page.evaluate((code) => { try { return JSON.stringify(eval(code)); } catch (e) { return 'ERR ' + e; } }, arg).catch((e) => String(e)); console.log('  @@eval ' + v); return true; }
+
+  if (cmd === 'app') {
+    // Share a store app into the meeting (the host needs --seed-desktop).
+    const parts = (arg || '').split(/\s+/).filter(Boolean);
+    const sub = parts[0] || 'state';
+    if (sub === 'run') {
+      const appId = parts[1] || 'bible';
+      const r = await page.evaluate(async (id) => {
+        const fs = await window.GifOS.store.allFiles();
+        const a = fs.find((f) => f.isApp && f.appId === id);
+        if (!a) return null;
+        await window.__gifosVideo.runAppForTest(a.id, (a.name || 'App').replace(/\.gif$/i, ''));
+        return a.id;
+      }, appId).catch((e) => 'ERR ' + String(e).slice(0, 120));
+      console.log('  app → ' + (r || 'NOT in store — this actor needs --seed-desktop'));
+    } else if (sub === 'stop') {
+      await page.evaluate(() => window.__gifosVideo.stopAppForTest()).catch(() => {});
+      console.log('  app stopped');
+    } else {
+      const st = await page.evaluate(() => ({ app: !!window.__gifosVideo.appActive(), ifr: !!document.querySelector('#appmount iframe'), name: window.__gifosVideo.appName(), host: window.__gifosVideo.appIsHost() })).catch(() => null);
+      console.log('  ' + JSON.stringify(st));
+    }
+    return true;
+  }
 
   // ---- phone-reality levers (the behavior battery) ----
   if (lever.frozen && cmd !== 'thaw' && cmd !== 'jstate') { console.log('  ! page is FROZEN — only `thaw [gapSecs]` works'); return true; }
@@ -869,7 +909,7 @@ async function runCmd(line) {
     const s = (page && joined && !lever.frozen) ? await D() : { err: lever.frozen ? 'frozen' : 'no page' };
     const extra = (page && !lever.frozen) ? await page.evaluate(() => {
       const V = window.__gifosVideo; const g = (f, d) => { try { const v = f(); return v === undefined ? d : v; } catch (e) { return d; } };
-      return V ? { pow: g(() => V.powTier(), null), battTier: g(() => V.battTier(), null), visParked: g(() => V.visParked(), []), pid: g(() => V.myPid(), null), stagers: g(() => V.stageIds(), []) } : {};
+      return V ? { pow: g(() => V.powTier(), null), battTier: g(() => V.battTier(), null), visParked: g(() => V.visParked(), []), pid: g(() => V.myPid(), null), stagers: g(() => V.stageIds(), []), app: g(() => !!V.appActive(), false), appIfr: !!document.querySelector('#appmount iframe') } : {};
     }).catch(() => ({})) : {};
     const out = Object.assign({ role: cfg.name, av: cfg.av || undefined, lever: { hidden: lever.hidden, frozen: lever.frozen, radioOff: lever.radioOff, batt: lever.batt } }, extra, {
       coord: s.coord, state: s.state, occ: s.occ, links: s.links, inMeeting: s.inMeeting, participants: s.participants,
