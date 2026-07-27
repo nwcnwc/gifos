@@ -169,6 +169,10 @@ const cfg = {
   // --battery "<lvl>[,charging|drain]": initial fake-battery state. lvl is
   // 0-1 or 0-100. 'drain' = plugged in but LOSING (the overnight-Moto case).
   battery: args.battery || '',
+  // --fork-ask: leave the R5 pick-one modal for a human. DEFAULT is to answer
+  // it automatically — a headless client parked at the modal is
+  // indistinguishable from a dead door (the 2026-07-26 monitor wedge).
+  forkAuto: !args['fork-ask'],
 };
 const MODE = args.drive ? 'drive' : args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
@@ -394,6 +398,7 @@ function snapshotInPage() {
     liveVid: (d.roster || []).filter((r) => r.vid).length,
     relayedN: (d.roster || []).filter((r) => r.relay).length, // friend-relayed peers — a WORKING call liveLinks reads as down
     ghosts: (d.ghosts || []).length, dups: (d.dups || []).length,
+    forkPaused: g(() => !!(window.gifosMeet && window.gifosMeet.forkPaused && window.gifosMeet.forkPaused()), false),
     gridShown: gridVisible.length, gridTotal: grid.length,
     tx, mosaic: d.mosaic, roster: d.roster || [], rows: d.rows || [], me: d.me,
     ghostList: d.ghosts || [], dupList: d.dups || [],
@@ -405,7 +410,7 @@ function snapshotInPage() {
 function streamLine(t, s, level) {
   if (s.err) return `t+${t}s  (${s.err})`;
   const seat = s.coord || (s.state != null ? 'st' + s.state : 'unseated');
-  let line = `t+${pad(t, 4)} seat=${pad(seat, 8)} inMtg=${s.inMeeting} occ=${s.occ} links=${s.links} vid=${s.liveVid}/${s.rosterN}${s.relayedN ? ' via=' + s.relayedN : ''}`;
+  let line = `t+${pad(t, 4)} seat=${pad(seat, 8)} inMtg=${s.inMeeting} occ=${s.occ} links=${s.links} vid=${s.liveVid}/${s.rosterN}${s.relayedN ? ' via=' + s.relayedN : ''}${s.forkPaused ? ' FORK-PAUSED' : ''}`;
   if (LEVELS[level] >= 1) line += ` grid=${s.gridShown}/${s.gridTotal} consent=${s.consent} ghosts=${s.ghosts} dups=${s.dups} net{relay:${s.tx.relaySig || 0} dc:${s.tx.dcSig || 0} fwd:${s.tx.fwdSig || 0}}`;
   if (LEVELS[level] >= 2) {
     const mos = s.mosaic || {};
@@ -418,6 +423,30 @@ function streamLine(t, s, level) {
 
 // ---- browser session ------------------------------------------------------
 let browser = null, ctx = null, page = null, joined = false, lastRoomKey = '';
+let forkAutoTimer = null;
+// R5 pick-one auto-answer: when the page pauses at the fork modal, click its
+// FIRST choice through the page's own UI (the exact click a human would
+// make). Runs in every mode — drive, mon, watch, repl — because ANY headless
+// run can hit the modal and no mode can wait on a human.
+function armForkAuto() {
+  if (forkAutoTimer) clearInterval(forkAutoTimer);
+  if (!cfg.forkAuto) return;
+  forkAutoTimer = setInterval(async () => {
+    if (!page) return;
+    try {
+      const picked = await page.evaluate(() => {
+        const gm = window.gifosMeet;
+        if (!gm || !gm.forkPaused || !gm.forkPaused()) return null;
+        const b = document.querySelector('#fork-choices button');
+        if (!b) return null;
+        const label = (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        b.click();
+        return label;
+      });
+      if (picked) console.error('[fork-auto] pick-one modal answered — chose "' + picked + '" (use --fork-ask to leave it for a human)');
+    } catch (e) {}
+  }, 4000);
+}
 async function ensureBrowser() {
   if (browser) return;
   browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME,
@@ -491,6 +520,7 @@ async function join(room, opts) {
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
   joined = true;
+  armForkAuto();
 }
 const D = () => page.evaluate(snapshotInPage).catch((e) => ({ err: String(e).slice(0, 140) }));
 
