@@ -1284,7 +1284,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (meshGone.has(v)) continue;
         const st = statusOf.get(v);
         const p = peers.get(v);
-        if ((st && now - (st.at || 0) < 30000) || (p && p.connected)
+        // THE TRANSPORT VOUCH NEEDS EVIDENCE (behavior battery task #11,
+        // 2026-07-27): `p.connected` alone let a ZOMBIE pc vouch for a
+        // departed member with no freshness test whatsoever — and because a
+        // ghost enters the count through this occ-union path (never the
+        // roster), nothing else looked at it: the label read N+1 until the
+        // 195s reap. This is the same doctrine the mesh's own liveness gate
+        // already applies (VOUCH_MS: a connection may vouch for a QUIET peer
+        // only while we have actually HEARD something recently), at the
+        // count's own 30s window.
+        const heardAt = Math.max(p ? (p.lastHeard || 0) : 0, p ? (p.meshRxAt || 0) : 0, st ? (st.rx || 0) : 0);
+        if ((st && now - (st.at || 0) < 30000) || (p && p.connected && now - heardAt < 30000)
             || (now - (occFirstSeen.get(v) || 0) < 25000)) ids.add(v);
       }
       for (const id of rosterIds) ids.add(id);
@@ -1352,6 +1362,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const nowHb = Date.now();
         const sv = (window.__starve = window.__starve || { beats: 0, eligible: 0, kicked: 0, why: {} });
         sv.beats++;
+        const occNamed = new Set();
+        { const ms = meshSeat(); if (ms) for (const v of ms.occ.values()) if (v && v !== myId) occNamed.add(v); }
         for (const [pid, p] of peers) {
           const why = (w) => { sv.why[w] = (sv.why[w] || 0) + 1; };
           // eligible: ICE-connected, OR previously heard at mesh level, OR a
@@ -1368,10 +1380,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
           const basePid = Math.max(heardPid, pidFirstSeen.get(pid));
           if (!p.connected && !heardPid && nowHb - basePid < 12000) { why('notconn'); continue; }
-          // ROSTER membership, not mesh naming, gates eligibility: the mesh
-          // never learning this peer IS the failure being healed (a linkTo
-          // gate was circular — the victim pair always read "nolink")
-          if (!rosterIds.includes(pid)) { why('noroster'); continue; }
+          // Eligible if the ROSTER names them (the F1 case: a live member we
+          // are starving toward) OR my own OCC still names them (task #11:
+          // a departed member's zombie pair, roster-absent, which nothing
+          // else was auditing). Mesh NAMING alone was the circular gate.
+          if (!rosterIds.includes(pid) && !occNamed.has(pid)) { why('noroster'); continue; }
           // the STARVED side rebuilds — starvation is first-hand evidence and
           // only one side of an asymmetric pair has it (the dialer-designation
           // gate left pairs where the victim wasn't the designated dialer
@@ -2364,7 +2377,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The COUNT is the room (leaf, or the aggregated total once the tree
     // reports one); the QUALITY rung keys off my live link degree — per-node
     // load is what rows bound, and in a one-session room the two are equal.
-    function leafCount() { return Math.max(1 + peers.size, rosterIds.includes(myId) ? rosterIds.length : 1 + rosterIds.length); }
+    // A PEER OBJECT IS NOT A PERSON (behavior battery task #11): raw
+    // peers.size counted a departed member's zombie pair object straight
+    // into the label, bypassing every liveness gate knownTotal applies. The
+    // same evidence rule holds here: a pair counts while the roster names it
+    // (a live member, however quiet) or while its transport has been heard
+    // from recently. A rebuilt/dialing pair toward a live member is rostered,
+    // so nothing legitimate is lost.
+    function livePeerCount() {
+      const now = Date.now(); let n = 0;
+      for (const [pid, p] of peers) {
+        if (rosterIds.includes(pid)) { n++; continue; }
+        const heard = Math.max(p.lastHeard || 0, p.meshRxAt || 0);
+        if (p.connected && now - heard < 30000) n++;
+      }
+      return n;
+    }
+    function leafCount() { return Math.max(1 + livePeerCount(), rosterIds.includes(myId) ? rosterIds.length : 1 + rosterIds.length); }
     function participantCount() {
       return Math.max(leafCount(), knownTotal() || 0);
     }
