@@ -3944,9 +3944,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // stale-evidence gate: a blob from an identity I have TOMBSTONED
           // (a churned reload's corpse) is not proof of a live room — under
           // a reload mash both sides rescue-looped on each other's stale
-          // blobs (behavior 08a sweep red, 2026-07-27)
-          const live = (Array.isArray(ids) ? ids : []).filter((id) => !meshGone.has(id));
-          if (!live.length) return;
+          // blobs (behavior 08a sweep red, 2026-07-27).
+          // …BUT my own tombstones stop being evidence when they cover the
+          // WHOLE room (F8, behavior 03c, 2026-07-27): a member whose links
+          // all collapse D5-confirms everyone, goes solo, then filters EVERY
+          // rescue blob as stale and sits wedged in the entry machine until
+          // the tombstones age (~200s of participants=1). A solo view against
+          // TWO OR MORE door-known identities means the wrongly-confirmed one
+          // is almost certainly ME — the majority wins, reload (the same move
+          // the human makes). The pairwise 08a mash stays gated: its door
+          // evidence is ONE corpse id.
+          const all = Array.isArray(ids) ? ids : [];
+          const live = all.filter((id) => !meshGone.has(id));
+          if (!live.length && all.length < 2) return;
           const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
           if (Date.now() - last < 90000) return; // once per 90s \u2014 never a reload loop
           try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
