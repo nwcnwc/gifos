@@ -1382,6 +1382,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
           const basePid = Math.max(heardPid, pidFirstSeen.get(pid));
           if (!p.connected && !heardPid && nowHb - basePid < 12000) { why('notconn'); continue; }
+          // THE HALF-OPEN PAIR (pair-probe.js, 2026-07-27): ICE lands but the
+          // DataChannel NEVER opens — ondatachannel never fires on the
+          // answerer, the initiator's channel sticks in 'connecting'. No
+          // clock, no chat, no app state can ride; left alone the link
+          // collapses ~8s in and the two sides then DISAGREE about who is in
+          // the room (one confirms a death the other never saw). A connected
+          // transport that never opened its DC within 5s is DEFECTIVE, not
+          // dead: rebuild it — the redial re-creates the DC, BOTH sides'
+          // watchdogs converge on fresh pcs within a beat of each other, and
+          // perfect negotiation absorbs the glare — and never let a formation
+          // defect reach the death edge: the peer demonstrably answers
+          // signaling (ICE negotiated), and absence of a data path is not
+          // evidence of a person's absence (G1). If the transport is
+          // genuinely dead it goes !connected and the starve edge below still
+          // owns it — no threshold there changes.
+          const dcOpen = p.dc && p.dc.readyState === 'open';
+          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) > 5000) {
+            if (nowHb - (p.meshKickAt || 0) >= 10000) {
+              p.meshKickAt = nowHb;
+              sv.kicked++;
+              if (typeof clog === 'function') clog('dc-watchdog rebuild ' + String(pid).slice(0, 6));
+              newPcFor(p);
+              sendOffer(pid, false);
+            }
+            why('dcwatch'); continue;
+          }
           // Eligible if the ROSTER names them (the F1 case: a live member we
           // are starving toward) OR my own OCC still names them (task #11:
           // a departed member's zombie pair, roster-absent, which nothing
@@ -7956,6 +7982,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     window.__gifosVideo = {
       participants: participantCount,
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
+      // ICE AND an open DataChannel — the gate every data-path assertion must
+      // use: a half-open pair passes liveLinks and carries nothing (pair-probe.js).
+      liveDataLinks: () => Array.from(peers.values()).filter((p) => p.connected && p.dc && p.dc.readyState === 'open').length,
       txStats: () => Object.assign({}, txStats), // heartbeat transport split (relay vs DC vs sponsor hops)
       rxStats: () => Object.assign({}, rxStats), // reception mirror (offers/answers/ice arrived, offers refused)
       relayUp: () => relayUp(), // does my mesh node hold a live relay socket right now?

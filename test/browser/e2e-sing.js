@@ -34,8 +34,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const b = await bCtx.newPage();
   b.on('pageerror', (e) => console.log('  [b] ' + e.message));
   await b.goto(link);
-  await a.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await b.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  // Gate on an OPEN DataChannel, not on ICE: liveLinks() counts p.connected,
+  // and a half-open pair (ICE up, DC never opened — pair-probe.js) makes a
+  // liveLinks gate followed by a DC-dependent assert an unwinnable wait.
+  // Everything below rides the DC; liveDataLinks is the honest precondition.
+  await a.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
+  await b.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
 
   // ---- clocks: wait for the first sync round, then check agreement ----
   await a.waitForFunction(() => { const g = window.__gifosVideo.grid(); return Object.values(g.clocks).some((c) => c.n >= 1); }, null, { timeout: 20000 });
