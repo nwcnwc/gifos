@@ -15,12 +15,14 @@ scenario('01b-household-deadzone', {
   await check.converged(3);
   const seatBefore = (await maya.state()).coord;
 
-  // short dropout — the corner by the Hendersons' hedge
+  // short dropout — the corner by the Hendersons' hedge. The app's soft
+  // window is ~12-18s (the starve edge governs beyond it), so "short" means
+  // the blip law: 12s, never a blink.
   await maya.cmd('radio off');
-  await check.steady('short dropout stays soft: Dana holds 3 the whole 25s', async () => {
+  await check.steady('short dropout stays soft: Dana holds 3 through the 12s blip', async () => {
     const s = await cast.get('dana').state();
     return s.participants === 3;
-  }, { for: 25, allow: 1 });
+  }, { for: 12, every: 2, allow: 1 });
   await maya.cmd('radio on');
   await check.converged(3, { desc: 'family whole again after the short dropout', within: 90 });
   const seatAfterShort = (await maya.state()).coord;
