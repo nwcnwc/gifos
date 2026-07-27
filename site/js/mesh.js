@@ -364,7 +364,20 @@
     // down-child, the VERTICAL rule — the right-neighbour must then DEFER)?
     // Known either directly (I link down(c)) or via childOf learned from PONGs.
     hasDownChild(c) { if (this.occGet(ck(topo.down(c))) != null) return true; const it = this.childOf.get(ck(c)); return it !== undefined && it != null; }
-    pickRoster() { const liveIds = []; for (const e of this.roster) if (e.v !== this.id) liveIds.push(e.v); if (!liveIds.length) return null; return liveIds[(this.rng() * liveIds.length) | 0]; }
+    // Random pick spreads door load (the doctrine) — but never re-pick a
+    // target that has already proven SILENT this join (a dark member's cell
+    // costs a full retry window per void FIND; at N=2+dark that stalled half
+    // of all joins — behavior battery 14a, 2026-07-26). Any answer from a
+    // target lifts the mark; when everyone is marked, fall back to the full
+    // set (an all-dark roster still retries honestly).
+    // TODO(sim parity): port triedSilent to test/sim/mesh.cpp — same rule.
+    pickRoster() {
+      const liveIds = []; const fresh = [];
+      for (const e of this.roster) if (e.v !== this.id) { liveIds.push(e.v); if (!this.triedSilent || !this.triedSilent.has(e.v)) fresh.push(e.v); }
+      const pool = fresh.length ? fresh : liveIds;
+      if (!pool.length) return null;
+      return pool[(this.rng() * pool.length) | 0];
+    }
     s1Roster() { const out = []; if (this.hasCoord && this.coord.pc === 0) out.push({ k: ck(this.coord), v: this.id }); for (const [k, v] of this.occ) if (isS1key(k) && v !== this.id && this.s1Fresh(k)) out.push({ k, v }); return out; }
 
     // ---- S4 identity hook (seam) --------------------------------------------
@@ -388,12 +401,13 @@
     // else I learn the real key via the dance and re-present it once seated.
     join() {
       this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
+      this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
       this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
       this.forkOpts = new Map(); this.forkPending = 0;
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { this.state = 2; this.retryAt = this.TICK; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
+    askSeat(target) { this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
     // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
     static forkFaceList(sample) {
       if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
@@ -1267,6 +1281,7 @@
             if (!pool.length) return;
             if (pool.length === 1) {
               this.gateway = pool[0];
+              (this.triedSilent = this.triedSilent || new Set()).add(pool[0]); // silent until its HOME lands
               this.emit(pool[0], { t: 'WHOHOME', from: this.id, ttl: 60 });
               this.state = 1; this.retryAt = TICK;
               return;
@@ -1278,7 +1293,7 @@
             const fan = order.slice(0, Math.min(5, order.length));
             this.forkPending = fan.length;
             this.state = 1; this.retryAt = TICK + 40;
-            for (const g of fan) this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 });
+            for (const g of fan) { (this.triedSilent = this.triedSilent || new Set()).add(g); this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 }); } // each is silent until its HOME lands — a dark greeter never gets the seat-ask
           }
           // Split-off fragment self-rescue: a seated S1 seat isolated from EVERY
           // rook neighbour for a full strand window, while the pool lists OTHER
@@ -1318,6 +1333,7 @@
           return;
         }
         case 'HOME': {
+          if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); // it answered — not silent
           // R5 multi-greeter probe: collect samples; cluster later.
           if (this.forkProbe && this.state === 1 && !this.forkPaused) {
             this.lastReach = TICK;
@@ -1360,7 +1376,7 @@
             if (trailing) { this.compactMoves++; this.doMove(m.coord, m.owner, m.nbrs); }
           }
           return;
-        case 'NOROOM': if (this.state === 2) { this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
+        case 'NOROOM': if (this.state === 2) { if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.

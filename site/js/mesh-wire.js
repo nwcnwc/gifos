@@ -185,16 +185,20 @@
     // and NOTHING else, ever.
     // ─────────────────────────────────────────────────────────────────────────
     function deliver(to, m) {
-      if (opts.sendDC && opts.sendDC(to, m)) return;   // DataChannel, else sponsor-forward through the mesh
-      // No peer path. The relay is NOT a transport, so the only frames that may
-      // continue from here are the ENTRY HANDSHAKE, and only in its two
-      // directions. Both are decided by the STEP we are at, never by frame type
-      // — FIND and WHOHOME are each sent BOTH by an entrant reaching a greeter
-      // (entry) and by a seated seat routing to another seat (internal), so a
-      // type test cannot tell them apart and a type ALLOWLIST silently let the
-      // internal ones onto the relay.
+      // THE ENTRY HANDSHAKE PREFERS THE DOOR (behavior battery 14a,
+      // 2026-07-26): a knocker definitionally holds a relay socket and
+      // definitionally has no channels — the door is the CORRECT transport
+      // for entry frames by construction. Trying sendDC first handed entry
+      // ANSWERS to the sponsor maze, where a greeter whose only open DC was
+      // a half-open zombie toward a dark third party "handled" its HOME into
+      // the void — the knocker starved at a live door for exactly as long as
+      // the dark member stayed dark (and in production, until a seated
+      // member re-entered and cleared its zombie pairs). Both gates below
+      // are step-decided (never frame-type-decided), so internal frames
+      // still never touch the relay.
       if (AT_THE_DOOR_ASKING_TO_BE_LET_IN(to, m)) return;
       if (ANSWERING_SOMEONE_AT_THE_DOOR(to, m)) return;
+      if (opts.sendDC && opts.sendDC(to, m)) return;   // DataChannel, else sponsor-forward through the mesh
       // Anything else has no path: the peer is NOT REACHABLE. Say nothing and
       // let healing (H1/H2/E2) see the truth — a back channel that lies about
       // reachability is worse than silence.
@@ -265,8 +269,12 @@
           // app signaling, fragments, unopenable — is the app's to handle.
           net.open(roomKey, m.msg).then((o) => {
             if (stopped) return;
-            if (o && o.mw === 1 && o.m) ingest(o.m);
-            else if (opts.onRelayMsg) opts.onRelayMsg(m);
+            if (o && o.mw === 1 && o.m) {
+              // a THROW inside the seat's recv must be LOUD — the old shape
+              // let it fall into the outer catch and masquerade as an
+              // unopenable app frame, silently eating entry handshakes
+              try { ingest(o.m); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
+            } else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
         }
