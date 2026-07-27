@@ -3197,8 +3197,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // negotiated into the wedged old pc and the pair re-wedged. An offer
         // arriving for a pair that never carried a byte and never opened its
         // DC past formation age gets a fresh pc to land on.
-        if (p.pc && !(p.dc && p.dc.readyState === 'open') && !p.meshRxAt && !p.dcRxAt
+        if (p.pc && p.connected && !(p.dc && p.dc.readyState === 'open') && !p.meshRxAt && !p.dcRxAt
             && Date.now() - (p.rebuiltAt || p.bornAt) > 5000) newPcFor(p);
+        // p.connected is LOAD-BEARING in that gate: the wedge signature is
+        // connected-WITHOUT-DC. A pair still in ICE 'connecting' receiving an
+        // offer is ordinary formation glare — under load a healthy formation
+        // takes >5s, and rebuilding on glare tore down in-flight ICE over and
+        // over (cert-sweep-2 03c: a stable member livelocked to p=1).
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
         // Perfect negotiation (glare): both sides may offer when the lower-id
@@ -3462,7 +3467,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         joinVeilEl.innerHTML = '<div class="jv-box"><div class="jv-spin"></div><h3 id="jv-t">Reaching the meeting…</h3><p id="jv-p">Connecting you to the room.</p></div>';
         document.body.appendChild(joinVeilEl);
       }
-      if (now - unseatedSince > 20000) {
+      const waited = now - unseatedSince;
+      // THE SEAT COUNTDOWN (decision A on the dark admitter, 2026-07-27,
+      // docs/design-dark-admitter.md): a knocker held at a dark door must
+      // KNOW they are not out of luck. The ceiling on any seat wait is the
+      // vouch reap of the dark admitter (REAP_MS = 195000 from when IT was
+      // last heard) + seating; counting from OUR OWN wait clock over-
+      // estimates safely (the admitter went dark at or before our first
+      // knock). Promise it ONLY while the relay socket is up — with the
+      // relay down the wait is unbounded and the honest message is the
+      // network one.
+      if (waited > 8000 && relayUp()) {
+        const left = Math.max(0, Math.ceil((210000 - waited) / 1000)); // 195s reap + 15s seat margin
+        if (left > 0) {
+          joinVeilEl.querySelector('#jv-t').textContent = 'Waiting for a seat…';
+          joinVeilEl.querySelector('#jv-p').textContent = 'The room is rearranging — someone may have dropped mid-handoff. You’ll be seated within ' + left + 's, usually much sooner.';
+        } else {
+          joinVeilEl.querySelector('#jv-t').textContent = 'This is taking longer than it ever should.';
+          joinVeilEl.querySelector('#jv-p').textContent = 'Check your connection, or close this tab and reopen the link — a fresh start always works.';
+        }
+      } else if (waited > 20000) {
         joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
         joinVeilEl.querySelector('#jv-p').textContent = 'The meeting door isn’t answering — this can be your network or the room’s relay. Retrying automatically; you’ll join the moment it answers.';
       }
