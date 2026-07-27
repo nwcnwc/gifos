@@ -14,12 +14,13 @@
 #
 # Output: one PASS/FAIL/SKIP line per scenario + a final tally; full logs in
 # /tmp/behavior-battery/<scenario>.log, per-role forensics in /tmp/behavior/.
-# Exit: non-zero if anything failed. KNOWN-RED until their bugs are fixed:
-# 04b/16b (post-deploy WHOHOME stall #1) — a red there is the repro working.
+# Exit: non-zero if anything failed. (The one-time KNOWN-REDs are history:
+# 04b/16b — the post-deploy WHOHOME stall — went green with the fork
+# false-positive fix 95ca143 and stay in as its regression guards.)
 set -u
 cd "$(dirname "$0")/../.."
 
-CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a"
+CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a"
 LOGDIR=/tmp/behavior-battery
 mkdir -p "$LOGDIR"
 
