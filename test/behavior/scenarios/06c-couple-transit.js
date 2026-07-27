@@ -19,9 +19,13 @@ scenario('06c-couple-transit', {
 
   await aki.cmd('hide'); // phone in the pocket, audio riding along
 
-  // tunnel 1 — short (14s): inside the blip-grace window, fully held
+  // tunnel 1 — short: the blip law is 12s (the starve edge legally fires at
+  // 12s of TOTAL radio silence — no DC receives exist to prove transport on
+  // a radio-dark pair), and one violating sample is a lone blip, not a flap
+  // (01b's canonical encoding, d7b07d0). 14s/allow:0 was stricter than the
+  // law on both axes and drew a boundary red in the 2026-07-27 cert sweep.
   await aki.cmd('radio off');
-  await check.steady('tunnel 1 (14s): a blip never drops her', async () => (await ju.state()).participants === 2, { for: 14, every: 2, allow: 0 });
+  await check.steady('tunnel 1: a ≤12s blip never drops her', async () => (await ju.state()).participants === 2, { for: 12, every: 2, allow: 1 });
   await aki.cmd('radio on');
   await check.converged(2, { desc: 'out of tunnel 1', within: 120 });
 
