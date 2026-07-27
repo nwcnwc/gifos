@@ -1340,7 +1340,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // it infinite grace (the bad-draw mode: 18 beats of notconn skips
           // while the door stayed NOROOM-closed). A normal dial connects in
           // seconds; 12s of nothing is dead however the object got here.
-          if (!p.connected && !p.meshRxAt && nowHb - (p.bornAt || 0) < 12000) { why('notconn'); continue; }
+          // PID-LEVEL clocks: a replaced peer object restarts its own bornAt,
+          // which laundered the age gate forever (the never-fires draw). The
+          // pid's silence clock survives object churn.
+          const heardPid = meshRxByPid.get(pid) || 0;
+          if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
+          const basePid = Math.max(heardPid, pidFirstSeen.get(pid));
+          if (!p.connected && !heardPid && nowHb - basePid < 12000) { why('notconn'); continue; }
           // ROSTER membership, not mesh naming, gates eligibility: the mesh
           // never learning this peer IS the failure being healed (a linkTo
           // gate was circular — the victim pair always read "nolink")
@@ -1350,8 +1356,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // gate left pairs where the victim wasn't the designated dialer
           // unhealed forever); the 12s threshold + 30s throttle are the storm
           // guard, and perfect negotiation absorbs a rare double-rebuild
-          const base = Math.max(p.meshRxAt || 0, p.bornAt || 0);
-          if (!base || nowHb - base < 12000) { why('fresh'); continue; }
+          if (nowHb - basePid < 12000) { why('fresh'); continue; }
           if (nowHb - (p.meshKickAt || 0) < 30000) { why('throttled'); continue; }
           sv.kicked++;
           p.meshKickAt = nowHb;
@@ -1365,7 +1370,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // without this a dark member's seat stayed unconfirmed and H7's
           // designated-admitter discipline kept the door constitutionally
           // CLOSED (NOROOM) for every newcomer until the 195s reap.
-          if (!p.tlFired && (p.meshRxAt || nowHb - (p.bornAt || 0) > 12000)) { p.tlFired = true; onTransportDead(pid, 'starve-dead'); }
+          if (!tlFiredPid.has(pid)) { tlFiredPid.add(pid); onTransportDead(pid, 'starve-dead'); }
           if (typeof clog === 'function') clog('mesh-starve rebuild ' + String(pid).slice(0, 6));
           newPcFor(p);
           sendOffer(pid, false);
@@ -2646,6 +2651,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       return false;
     }
+    const meshRxByPid = new Map(); // pid → last mesh-level receive (starve edge; survives peers-object churn)
+    const tlFiredPid = new Set();  // pids whose current silence episode already fired the edge
+    const pidFirstSeen = new Map(); // pid → first time the starve sweep considered it
     const doorLast = new Map(); // per-target door-send throttle (§FWD)
     const sponsorReplyTo = new Set(); // offers that arrived sponsored — answer along the same path (§FWD)
     // fwdOnward: an fsig/fmesh envelope reached me but names someone else —
@@ -4909,6 +4917,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         p.meshRxAt = Date.now(); p.tlFired = false; // the starve detector's proof of a LIVE pair (see the hb beat)
+        meshRxByPid.set(p.id, p.meshRxAt); tlFiredPid.delete(p.id); // pid-level (object churn can't launder silence)
         if (meshNode && m.m) meshNode.recvCtl(m.m);
       } else if (m.k === 'fmesh') {
         // Sponsor-forwarded mesh control (mirrors fsig): mine ⇒ hand to the
