@@ -16,10 +16,13 @@ scenario('11a-telehealth-weak-signal', {
 
   for (const [i, dur] of [[1, 15], [2, 30], [3, 45]].values()) {
     await ren.cmd('radio off');
-    await check.steady('dropout ' + i + ' (' + dur + 's): the doctor never loses the patient', async () => {
+    // since the D5 starve edge: total silence is honestly confirmed ~15-20s
+    // in; the law is the early hold + automatic fast reunion, per dropout
+    await check.steady('dropout ' + i + ' (' + dur + 's): the first 12s never blink', async () => {
       const s = await cast.get('osei').state();
       return s.participants === 2;
-    }, { for: dur, allow: 1 });
+    }, { for: Math.min(dur, 12), every: 2, allow: 1 });
+    if (dur > 12) await cast.sleep(dur - 12, 'the dropout runs on');
     await ren.cmd('radio on');
     await check.converged(2, { desc: 'dropout ' + i + ' heals automatically', within: 120 });
   }
