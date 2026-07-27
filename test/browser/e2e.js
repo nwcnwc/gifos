@@ -30,9 +30,20 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 // Open an app that lives inside a folder: enter the folder, open the app in a
 // new tab, then return to the desktop root. `folder` may be null for root apps.
 async function openApp(page, ctx, folder, label) {
-  if (folder) { await page.locator('.icon', { hasText: folder }).dblclick(); await page.waitForTimeout(200); }
+  if (folder) {
+    await page.locator('.icon', { hasText: folder }).dblclick();
+    // WAIT for the folder's contents, don't sleep at them. The old fixed 200ms
+    // raced the re-render whenever the box was busy: the dblclick below then
+    // landed on an icon that wasn't painted yet, no tab ever opened, and the
+    // suite burned 30s on waitForEvent('page') before dying — a host-speed
+    // failure that reads exactly like a broken app launcher.
+    await page.locator('.icon', { hasText: label }).first().waitFor({ state: 'visible', timeout: 15000 });
+  }
   const [tab] = await Promise.all([ctx.waitForEvent('page'), page.locator('.icon', { hasText: label }).first().dblclick()]);
-  if (folder) { await page.locator('#crumbs a').click(); await page.waitForTimeout(150); }
+  if (folder) {
+    await page.locator('#crumbs a').click();
+    await page.locator('.icon', { hasText: folder }).first().waitFor({ state: 'visible', timeout: 15000 });
+  }
   return tab;
 }
 
@@ -934,20 +945,27 @@ async function openApp(page, ctx, folder, label) {
   // i.e. it asserted the exact opposite of the contract, and had been red ever
   // since the edge channel landed. Test it where it actually applies — an old
   // snapshot — and separately assert the root's silence is intentional.
+  // Use the NEWEST snapshot, not the oldest: snapshots are frozen, so the oldest
+  // one runs code from several releases ago and would be testing history rather
+  // than the build we are about to ship. The newest snapshot is cut from current
+  // code, and faking a 9.9.9 release puts it "behind" — the one arrangement in
+  // which today's update-bar logic is reachable at all (the edge root is
+  // deliberately never nagged, so the bar cannot be exercised there).
+  const newest = shipped[0];
   const fakeLatest = { status: 200, contentType: 'application/json',
-    body: JSON.stringify({ current: '9.9.9', versions: ['9.9.9', oldest] }) };
+    body: JSON.stringify({ current: '9.9.9', versions: ['9.9.9', newest] }) };
 
-  const upCtx = await browser.newContext();
+  const upCtx = await browser.newContext({ serviceWorkers: 'block' }); // else the SW answers version.json and the route never fires
   const upPage = await upCtx.newPage();
   await upPage.route('**/version.json*', (r) => r.fulfill(fakeLatest));
-  await upPage.goto(BASE + '/versions/' + oldest + '/index.html');
+  await upPage.goto(BASE + '/versions/' + newest + '/index.html');
   await upPage.waitForSelector('.icon');
   await upPage.locator('#update-bar').waitFor({ state: 'visible', timeout: 8000 });
   const upMsg = await upPage.locator('#update-msg').textContent();
-  check('a snapshot behind the live release shows the update bar', /9\.9\.9/.test(upMsg));
+  check('a snapshot behind the live release shows the update bar (' + newest + ')', /9\.9\.9/.test(upMsg));
   await upCtx.close();
 
-  const edgeCtx = await browser.newContext();
+  const edgeCtx = await browser.newContext({ serviceWorkers: 'block' });
   const edgePage = await edgeCtx.newPage();
   await edgePage.route('**/version.json*', (r) => r.fulfill(fakeLatest));
   await edgePage.goto(BASE + '/index.html');
@@ -989,6 +1007,11 @@ async function openApp(page, ctx, folder, label) {
     await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'BackTest.gif', parent: null, x: 620, y: 320, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
   });
+  // Same rule as openApp: wait for the icon the seeding just created to be
+  // painted before clicking it. render() resolving is not the same as the icon
+  // being hit-testable, and a dblclick on an unpainted icon opens no tab —
+  // which then shows up 30s later as an unexplained waitForEvent timeout.
+  await backPage.locator('.icon', { hasText: 'BackTest.gif' }).waitFor({ state: 'visible', timeout: 15000 });
   const [backApp] = await Promise.all([
     context.waitForEvent('page'),
     backPage.locator('.icon', { hasText: 'BackTest.gif' }).dblclick(),
