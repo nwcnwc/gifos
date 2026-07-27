@@ -254,11 +254,14 @@ what the mesh/relay/drill suites spawn. `fake-ai.js`, `fake-keyapi.js` and
 
 ## relay/ — the relay protocol surface
 
-`relay-knock`, `relay-origin`, `relay-privacy` (in-process — requires
-`servers/relay-local.js` directly), `relay-device-dedupe`, `relay-owned`
-(the §SIG signed-adminship door), `relay-voteoff` (majority boot, standing
-votes, admin rooms never vote-kick), `relay-adminban` (forged vs signed ban,
-banlist re-seed).
+All self-contained — none of these need the 8790 relay running. `relay-origin`
+is pure logic (imports `originAllowed` straight from `relay/src/relay.js` — no
+server at all); `relay-privacy` runs `relay-local.js` in-process via `require`;
+the rest each spawn their own `relay-local.js` child on a private port:
+`relay-knock`, `relay-device-dedupe` (port 8791 — kill fake-ai first),
+`relay-owned` (the §SIG signed-adminship door; port 8792 — kill fake-keyapi
+first), `relay-voteoff` (majority boot, standing votes, admin rooms never
+vote-kick), `relay-adminban` (forged vs signed ban, banlist re-seed).
 
 ## browser/ — Playwright
 
@@ -272,7 +275,7 @@ Roughly three families in one directory:
   `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`.
 - **meeting** — `e2e-meet-lobby`, `e2e-meet-invite`, `e2e-meet-prettyurl`,
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
-  stage, vote, admin rooms — 44 checks), `e2e-meet-password`, `e2e-video`,
+  stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,
   `e2e-sing`, `e2e-mosaic`, `e2e-media-recovery`, `e2e-handq`,
   `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-app-governance`, `e2e-autoheal`,
   `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`, `e2e-pip`
