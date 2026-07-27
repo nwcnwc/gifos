@@ -465,6 +465,10 @@ async function ensureBrowser() {
     // memory to /tmp just burns disk — ~30GB/day on the Pi's SD card.
     '--no-sandbox', '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
+    // drive-mode browsers carry a MARKER flag (chromium ignores unknown
+    // switches) so fleet cleanup can target ACTOR browsers and never a
+    // resident monitor's (which shares every other launch arg)
+    ...(MODE === 'drive' ? ['--bb-actor'] : []),
     '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests',
     // MEET_INSECURE_ORIGINS (comma list, same idea as SWARM_INSECURE_ORIGINS):
     // lets a plain-http harness on another box (tailnet/LAN, no cert) still

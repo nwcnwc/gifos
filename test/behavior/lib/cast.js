@@ -291,7 +291,7 @@ class Cast {
     // (never a resident monitor's meet.js or a human's browser).
     try { spawn('sh', ['-c', 'pkill -f "meet[.]js [-]-drive" 2>/dev/null; true'], { stdio: 'ignore' }); } catch (e) {}
     for (const [, h] of remotes) {
-      try { spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, 'pkill -f "bb[-]meet" 2>/dev/null; pkill -f "use[-]fake-ui-for-media-stream" 2>/dev/null; true'], { stdio: 'ignore' }); } catch (e) {}
+      try { spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, 'pkill -f "bb[-]meet" 2>/dev/null; pkill -f "bb[-]actor" 2>/dev/null; true'], { stdio: 'ignore' }); } catch (e) {}
     }
     await sleep(1200); // let the reaps land before fresh spawns
     for (const [, h] of remotes) {
