@@ -19,6 +19,44 @@ too, and your clone is a snapshot, not a live view. (A dedicated feature branch
 is fine ONLY for a not-yet-deployable flag-day like the mesh-v2 rewrite — and
 the always-commit-and-push rule still applies there, to the branch.)
 
+## The release gate — GREEN OR WE DO NOT CUT
+
+**Every test is green, or there is no release. No exceptions, no "known red",
+no "that one predates this work", no "it's only the harness".**
+
+This rule exists because it was broken. Release 0.8.4 shipped with red and dead
+suites, and every one of the bugs that killed the 2026-07-26 demo lived exactly
+where a suite was red, dead, or unrunnable:
+
+- `e2e-meet-app-guest-perms.js` — the guard for the EXACT app-in-a-meeting case
+  that failed — was written pointing at a chromium path that does not exist. It
+  had never executed once. All 10 drills, the swarm and the behavior battery
+  shared that dead path.
+- `e2e.js`'s version-pinning assertions call `window.gifosPinTarget`, which was
+  deleted from the site during a loader redesign. They fail as a TypeError, in
+  precisely the area that broke in production.
+- Nobody could tell which of those reds were "expected", so all of them were
+  ignored equally.
+
+A red suite is not information you carry around; it is a release blocker. If a
+test is wrong, FIX THE TEST and say so in the commit. Never soften an assertion
+to make it green, and never cut with a red you plan to explain afterwards.
+
+Two mechanical rules that follow from this:
+
+- **A suite that cannot LAUNCH is red, not absent.** Exit non-zero with no
+  assertions is the most dangerous state there is — it looks like silence. Check
+  that a suite actually ran (`PASS` lines > 0), not merely that you invoked it.
+- **A test that guards nothing is worse than no test.** Every regression guard
+  must be reachable from a battery in `test/batteries/`. If it is in no battery,
+  no gate runs it and it will rot — that is how the two app drills stayed dead.
+
+The ONE sanctioned red is `test/batteries/known-unfixed.sh`: the graveyard of
+behaviours we deliberately decided not to fix. It is expected RED end to end, is
+not a gate, and is not run by CI. It may only ever SHRINK. Moving a failing test
+into it is a deliberate, argued decision recorded in the commit — never a way to
+get a release out.
+
 ## Running the tests
 
 Suites live in `test/<environment>/` — see `test/README.md` for the full index
