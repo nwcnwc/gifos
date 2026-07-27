@@ -31,14 +31,26 @@ scenario('06c-couple-transit', {
 
   // tunnel 2 — long (80s): once the transport dies and every path fails the
   // D5 probe, an honest drop is LEGAL (~15s+); what the law demands is the
-  // RETURN: automatic, fast (the online event kicks the socket), ONE room.
+  // RETURN: automatic, ONE room. The reunion has TWO modes (2026-07-27
+  // validation, 2/3 draws slow): fast — the socket kick, when the far side
+  // still holds the seat; and REAP-BOUND — after an 80s tunnel the far side
+  // has confirmed the death and reaped, it rightly ignores offers from a
+  // reaped pid (strangers re-enter via the door), and the returner is the
+  // frozen half of a partition (she must NOT confirm the sole other member
+  // dead), so she only unwedges at her own 195s-from-silence-start reap and
+  // re-enters fresh: radio-on +(195-80)s + rejoin ≈ up to ~175s. 180s is
+  // the codified multi-stage return budget. This is a ROOM-integrity law —
+  // the human Aki closed the tab long ago; her product path is
+  // close-and-reopen (guarded by the 08a-class reload scenarios), and the
+  // app-side improvement is a page that re-enters BY ITSELF on
+  // radio-restore into a one-sided starve (F2 family).
   await aki.cmd('radio off');
   await cast.sleep(80, 'the tunnel runs long — a D5 drop after transport death is honest');
   await aki.cmd('radio on');
-  await check.until('return: the pair reunites into ONE room automatically (fast — online kick)', async () => {
+  await check.until('return: the pair reunites into ONE room automatically (reap-bound worst case)', async () => {
     const sj = await ju.state(), sa = await aki.state();
     return sj.participants === 2 && sa.participants === 2;
-  }, { within: 150 }); // reunion latency tail (F2): automatic is the law, speed has a distribution
+  }, { within: 180 });
   await check.oneTree(2, { via: 'ju', desc: 'reunion is ONE tree (no lasting fragments)', within: 120 });
 
   // the interchange: a SHORT freeze on the now-healthy pair — under the 150s
