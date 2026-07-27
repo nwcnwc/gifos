@@ -734,8 +734,19 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'chat') {
-    if (arg) { await page.evaluate((msg) => { const i = document.getElementById('chat-input') || document.querySelector('#chat input,[data-chat-input]'); if (i) { i.value = msg; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } }, arg); console.log('  sent: ' + arg); }
-    else { const msgs = await page.evaluate(() => [...document.querySelectorAll('#chat-log .msg,.chat-msg,#chat .msg')].slice(-12).map((m) => m.textContent.trim())); console.log(msgs.length ? '  ' + msgs.join('\n  ') : '  (no chat visible)'); }
+    if (arg) {
+      const ok = await page.evaluate((msg) => {
+        const i = document.getElementById('chat-in'); const f = document.getElementById('chatform');
+        if (!i || !f) return false;
+        i.value = msg; i.dispatchEvent(new Event('input', { bubbles: true }));
+        if (typeof f.requestSubmit === 'function') f.requestSubmit(); else f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        return true;
+      }, arg);
+      console.log(ok ? '  sent: ' + arg : '  ! chat input not found');
+    } else {
+      const msgs = await page.evaluate(() => [...document.querySelectorAll('#chatlog > *')].slice(-15).map((m) => m.textContent.trim()).filter(Boolean));
+      console.log(msgs.length ? '  ' + msgs.join('\n  ') : '  (no chat visible)');
+    }
     return true;
   }
   if (cmd === 'eval') { const v = await page.evaluate((code) => { try { return JSON.stringify(eval(code)); } catch (e) { return 'ERR ' + e; } }, arg).catch((e) => String(e)); console.log('  ' + v); return true; }
