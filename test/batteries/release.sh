@@ -96,8 +96,16 @@ run_one() {
   local log="$LOGDIR/${tier}_${name}.log"
   [ "$tier" = browser ] || [ "$tier" = drills ] && { pkill -f "chrome-linux/chrome" 2>/dev/null; sleep 1; }
   local start; start=$(date +%s)
-  timeout "$to" node "$f" > "$log" 2>&1
+  # -k: escalate to SIGKILL 45s after SIGTERM. Plain `timeout` only sends TERM
+  # and then waits FOREVER if the child ignores it — a Playwright suite holding
+  # five chromiums does exactly that, and one hung suite stalled this gate for
+  # 50 minutes past its own deadline with no output. A gate that cannot
+  # guarantee forward progress is the failure mode it exists to prevent.
+  timeout -k 45 "$to" node "$f" > "$log" 2>&1
   local rc=$? secs=$(( $(date +%s) - start ))
+  # Reap anything the suite leaked, or the next suite inherits its browsers.
+  # Bracket-quoted so pgrep does not match this script's own command line.
+  for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null); do kill -9 "$_p" 2>/dev/null; done
   local pass fail verdict reason
   pass=$(grep -cE '^ *PASS' "$log"); fail=$(grep -cE '^ *FAIL' "$log")
   if [ "$rc" -eq 0 ]; then
@@ -106,7 +114,7 @@ run_one() {
     verdict=DEAD
     reason="exit ${rc}, ZERO assertions — never ran :: $(grep -m1 -oE "[A-Za-z]+Error[^\"]{0,80}|[a-zA-Z._]+ is not a function|executable doesn't exist[^ ]*" "$log" | head -1)"
     dead=$((dead+1))
-  elif [ "$rc" -eq 124 ]; then
+  elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
     verdict=RED; reason="TIMEOUT ${to}s (${pass} passed, ${fail} failed first)"; red=$((red+1))
   else
     verdict=RED; reason="${fail} failed / ${pass} passed :: $(grep -m1 -E '^ *FAIL' "$log" | sed 's/^ *FAIL *— *//' | cut -c1-80)"; red=$((red+1))
@@ -152,8 +160,8 @@ if want browser; then
       # spawns its OWN server on 8791 — fake-ai must be down for it, up after
       e2e-fetch-bridge) pkill -f fake-ai.js; sleep 1; run_one "$f" 600 browser
                         nohup node test/servers/fake-ai.js >/dev/null 2>&1 & sleep 2 ;;
-      e2e|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 1200 browser ;;
-      *) run_one "$f" 900 browser ;;
+      e2e|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
+      *) run_one "$f" 600 browser ;;
     esac
   done
 fi
