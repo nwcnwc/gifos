@@ -1,0 +1,21 @@
+# QUARANTINE — the only reds the release gate is allowed to tolerate.
+#
+# One suite per line: <suite-name>  <reason>. The name is the basename without
+# .js, matched against the tier/name release.sh reports.
+#
+# The rules, and they are strict:
+#   * An entry here is a behaviour we UNDERSTOOD and DELIBERATELY chose not to
+#     fix — the same bar as test/batteries/known-unfixed.sh, which is the prose
+#     version of this list. It is never a way to get a release out.
+#   * This list may only ever SHRINK. Adding to it is a decision, argued in the
+#     commit message, not a convenience.
+#   * If a quarantined suite goes GREEN, the gate FAILS on purpose: somebody
+#     fixed it, so promote it back into the real gate and delete it from here.
+#     A stale quarantine entry silently un-guards working code, which is exactly
+#     how the app-in-a-meeting drills rotted.
+#   * Starvation is NOT a reason. A suite that fails only on a loaded box is a
+#     host problem; re-run it on an idle machine rather than quarantining it.
+
+e2e-meeting-app   late joiners do not adopt an app already running in a meeting: app STATE rides the structural-neighbour sga flood while presence rides meshNode.gossip, so a newcomer learns an app is running but never receives the retained snapshot. Kept failing on purpose as a guard.
+e2e-mymedia-meet  same late-join adoption gap as e2e-meeting-app, via My Media.
+e2e-fluence       the Deepgram pipeline; long-standing known failure kept as a regression guard.

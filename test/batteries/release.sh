@@ -47,7 +47,20 @@ mkdir -p "$LOGDIR"; : > "$RESULTS"
 
 want() { [ -z "$ONLY" ] && return 0; case ",$ONLY," in *",$1,"*) return 0;; esac; return 1; }
 
-green=0; red=0; dead=0; skipped_tiers=""
+green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""
+
+# ---- quarantine ---------------------------------------------------------------
+# The ONLY reds the gate tolerates: behaviours deliberately not fixed, listed in
+# quarantine.txt (the machine-readable half of known-unfixed.sh). A quarantined
+# red is reported and does not block. A quarantined suite that goes GREEN DOES
+# block, on purpose — someone fixed it, so it must be promoted back into the gate
+# and struck from the list. A stale quarantine entry silently un-guards working
+# code, which is how the app-in-a-meeting drills rotted in the first place.
+QFILE="$REPO/test/batteries/quarantine.txt"
+is_quarantined() {
+  [ -f "$QFILE" ] || return 1
+  grep -qE "^[[:space:]]*$1([[:space:]]|$)" "$QFILE"
+}
 
 # ---- servers -----------------------------------------------------------------
 # We only ever tear down servers WE started. An earlier version trapped EXIT
@@ -118,6 +131,17 @@ run_one() {
     verdict=RED; reason="TIMEOUT ${to}s (${pass} passed, ${fail} failed first)"; red=$((red+1))
   else
     verdict=RED; reason="${fail} failed / ${pass} passed :: $(grep -m1 -E '^ *FAIL' "$log" | sed 's/^ *FAIL *— *//' | cut -c1-80)"; red=$((red+1))
+  fi
+  # Reclassify against the quarantine list before recording the verdict.
+  if is_quarantined "$name"; then
+    if [ "$verdict" = GREEN ]; then
+      verdict=ESCAPED; green=$((green-1)); escaped="$escaped $name"
+      reason="QUARANTINED SUITE IS NOW GREEN — fix confirmed; promote it back into the gate and delete it from quarantine.txt"
+    else
+      [ "$verdict" = RED ] && red=$((red-1)) || dead=$((dead-1))
+      verdict=QUAR; quar=$((quar+1))
+      reason="known-unfixed (quarantined) :: $reason"
+    fi
   fi
   printf '%s\t%s\t%s\t%s\n' "$verdict" "$tier/$name" "${secs}s" "$reason" >> "$RESULTS"
   printf '%-5s %-38s %6s  %s\n' "$verdict" "$tier/$name" "${secs}s" "$reason"
@@ -221,11 +245,20 @@ fi
 # ---- verdict -----------------------------------------------------------------
 echo
 echo "=================== RELEASE GATE ==================="
-printf '  GREEN %d   RED %d   DEAD %d\n' "$green" "$red" "$dead"
+printf '  GREEN %d   RED %d   DEAD %d   QUARANTINED %d\n' "$green" "$red" "$dead" "$quar"
 if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ]; then
   echo
   echo "  BLOCKING:"
   awk -F'\t' '$1=="RED"||$1=="DEAD" {printf "    %-5s %-34s %s\n", $1, $2, $4}' "$RESULTS"
+fi
+if [ -n "$escaped" ]; then
+  echo
+  echo "  BLOCKING — quarantined suites that now PASS (promote them, delete from quarantine.txt):$escaped"
+fi
+if [ "$quar" -gt 0 ]; then
+  echo
+  echo "  known-unfixed (not blocking, may only ever shrink):"
+  awk -F'\t' '$1=="QUAR" {printf "    %-34s %s\n", $2, $4}' "$RESULTS"
 fi
 [ -n "$skipped_tiers" ] && echo "  NOT RUN HERE:$skipped_tiers"
 [ -n "$ONLY" ] && echo "  PARTIAL RUN (--only=$ONLY)"
@@ -233,7 +266,7 @@ echo "  full logs: $LOGDIR   machine-readable: $RESULTS"
 echo "===================================================="
 
 if [ "$LIST" = 1 ]; then exit 0; fi
-if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ]; then
+if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ] || [ -n "$escaped" ]; then
   echo "DO NOT CUT — the gate is red."; exit 1
 fi
 if [ -n "$skipped_tiers" ] || [ -n "$ONLY" ]; then

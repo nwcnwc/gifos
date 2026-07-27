@@ -907,12 +907,23 @@ async function openApp(page, ctx, folder, label) {
     /Live release/.test(settingsText) && /Latest edge/.test(settingsText));
   await page.locator('#set-close').click();
 
-  // ---- versioning: archived build under /versions/0.6.0/ serves a working desktop ----
-  // (0.6.0 is the newest OLDER archived build; site/versions/ holds 0.6.0 + 0.7.0)
+  // ---- versioning: the OLDEST archived build still serves a working desktop ----
+  // Discovered from version.json, never hardcoded: this used to name /versions/0.6.0/
+  // explicitly, and cca37e1 dropped the pre-launch snapshots 0.6.0–0.8.0. The suite
+  // then waited 8s for an icon on a 404 and died — after the pin assertions it could
+  // no longer reach, so nothing here was being checked at all. Whichever builds are
+  // shipped, the oldest one has to boot: that is the promise /versions/ makes.
+  const shipped = await page.evaluate(async (b) => {
+    const r = await fetch(b + '/version.json?ts=' + Date.now(), { cache: 'no-store' });
+    return (await r.json()).versions || [];
+  }, BASE);
+  const oldest = shipped[shipped.length - 1];
+  check('version.json ships at least one archived build', !!oldest);
   const archived = await context.newPage();
-  await archived.goto(BASE + '/versions/0.6.0/index.html');
+  await archived.goto(BASE + '/versions/' + oldest + '/index.html');
   await archived.waitForSelector('.icon', { timeout: 8000 });
-  check('archived /versions/0.6.0/ build boots a working desktop', (await archived.$$('.icon')).length >= 5);
+  check('the oldest archived build (' + oldest + ') boots a working desktop',
+    (await archived.$$('.icon')).length >= 5);
   await archived.close();
 
   // ---- versioning: update bar appears when a newer version is deployed ----
