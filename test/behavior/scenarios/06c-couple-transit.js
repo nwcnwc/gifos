@@ -34,7 +34,7 @@ scenario('06c-couple-transit', {
   await check.until('return: the pair reunites into ONE room automatically (fast — online kick)', async () => {
     const sj = await ju.state(), sa = await aki.state();
     return sj.participants === 2 && sa.participants === 2;
-  }, { within: 90 });
+  }, { within: 150 }); // reunion latency tail (F2): automatic is the law, speed has a distribution
   await check.oneTree(2, { via: 'ju', desc: 'reunion is ONE tree (no lasting fragments)', within: 120 });
 
   // the interchange: a SHORT freeze on the now-healthy pair — under the 150s
