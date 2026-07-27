@@ -71,11 +71,18 @@ if [ "$BROWSERS" = 1 ]; then
   export MEET_CHROME="${MEET_CHROME:-/opt/google/chrome/chrome}"
   run_suite(){ timeout 900 node "$1" >/tmp/known-unfixed-$(basename "$1" .js).log 2>&1; }
 
-  hdr "LATE JOINERS DO NOT ADOPT A RUNNING APP  (decided: kept as guards)"
+  hdr "LATE JOINERS ADOPT A RUNNING APP UNRELIABLY  (decided: kept as guards)"
   why "app STATE rides the structural-neighbour sga flood while presence rides
-                 meshNode.gossip, so a newcomer learns an app is running but never gets
-                 the retained snapshot. Unifying the two lanes is a design change."
+                 meshNode.gossip, so whether a newcomer gets the retained snapshot is a
+                 RACE, not a flat no. Unifying the two lanes is a design change."
   cost "one control plane for app state + presence (docs/app-mesh-unification.md)"
+  echo "    MEASURED 2026-07-27 (8-core box, 3 runs each; the pi is too weak to judge):"
+  echo "                 e2e-meeting-app  2/3 GREEN     e2e-mymedia-meet  1/3 GREEN"
+  echo "                 So this is intermittent, and the entry above used to claim a"
+  echo "                 newcomer NEVER adopts. It sometimes does. Whoever picks up"
+  echo "                 app-mesh-unification should know they are closing a race, not"
+  echo "                 building a missing path — and that a single green run here"
+  echo "                 proves nothing."
   for s in test/browser/e2e-meeting-app.js test/browser/e2e-mymedia-meet.js; do
     if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
   done

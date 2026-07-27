@@ -16,5 +16,5 @@
 #   * Starvation is NOT a reason. A suite that fails only on a loaded box is a
 #     host problem; re-run it on an idle machine rather than quarantining it.
 
-e2e-meeting-app   late joiners do not adopt an app already running in a meeting: app STATE rides the structural-neighbour sga flood while presence rides meshNode.gossip, so a newcomer learns an app is running but never receives the retained snapshot. Kept failing on purpose as a guard.
-e2e-mymedia-meet  same late-join adoption gap as e2e-meeting-app, via My Media.
+e2e-meeting-app   late joiners adopt a running app UNRELIABLY (not never). App STATE rides the structural-neighbour sga flood while presence rides meshNode.gossip, so whether a newcomer gets the retained snapshot is a race. Measured 2026-07-27 on 8 cores: 2/3 runs green. Kept as a guard.
+e2e-mymedia-meet  same late-join adoption race, via My Media, and the worse half of it: 1/3 green on 8 cores, 0/2 on the pi. Fails on "guest auto-mounted the shared My Media".
