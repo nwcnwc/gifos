@@ -50,7 +50,14 @@ want() { [ -z "$ONLY" ] && return 0; case ",$ONLY," in *",$1,"*) return 0;; esac
 green=0; red=0; dead=0; skipped_tiers=""
 
 # ---- servers -----------------------------------------------------------------
+# We only ever tear down servers WE started. An earlier version trapped EXIT
+# unconditionally and pkill'd the shared ports even on a --list dry run, which
+# silently killed a long browser sweep already running in another shell — every
+# suite after that point reported ERR_CONNECTION_REFUSED and scored DEAD. A gate
+# that invents 16 failures by knifing someone else's stack is worse than no gate.
+OWNED=0
 stop_all() {
+  [ "$OWNED" = 1 ] || return 0
   pkill -f "http.server 8099" 2>/dev/null
   pkill -f relay-local.js 2>/dev/null
   pkill -f fake-ai.js 2>/dev/null
@@ -59,16 +66,24 @@ stop_all() {
   sleep 1
 }
 start_site_relay() {
+  OWNED=1
   nohup python3 -m http.server 8099 -d "$REPO/site" >/dev/null 2>&1 &
   nohup node test/servers/relay-local.js >/dev/null 2>&1 &
   sleep 2
 }
 start_fakes() {
+  OWNED=1
   nohup node test/servers/fake-ai.js >/dev/null 2>&1 &
   nohup node test/servers/fake-keyapi.js >/dev/null 2>&1 &
   nohup node test/servers/fake-cors-proxy.js >/dev/null 2>&1 &
   sleep 2
 }
+# Refuse to run alongside another sweep rather than fight it for the ports.
+if [ "$LIST" != 1 ] && ss -lnt 2>/dev/null | grep -q ':8099 '; then
+  echo "!! something is already serving :8099 — another sweep or a dev stack." >&2
+  echo "   Stop it first; this gate manages its own servers." >&2
+  exit 3
+fi
 trap stop_all EXIT
 
 # ---- one suite ---------------------------------------------------------------
