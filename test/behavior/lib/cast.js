@@ -283,6 +283,17 @@ class Cast {
   async syncFleet() {
     const remotes = new Map();
     for (const a of this.all()) if (a.host && a.host.ssh) remotes.set(a.host.ssh, a.host);
+    // STALE-ACTOR SWEEP: a timeout-killed scenario bypasses down(), and its
+    // orphaned actors+browsers eventually break launches on that box (the
+    // 2026-07-27 cert-sweep selftest red). Scenarios run serially by design,
+    // so anything matching the ACTOR patterns before we start is a leak.
+    // Patterns are bracket-guarded (never self-match) and actor-specific
+    // (never a resident monitor's meet.js or a human's browser).
+    try { spawn('sh', ['-c', 'pkill -f "meet[.]js [-]-drive" 2>/dev/null; true'], { stdio: 'ignore' }); } catch (e) {}
+    for (const [, h] of remotes) {
+      try { spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, 'pkill -f "bb[-]meet" 2>/dev/null; pkill -f "use[-]fake-ui-for-media-stream" 2>/dev/null; true'], { stdio: 'ignore' }); } catch (e) {}
+    }
+    await sleep(1200); // let the reaps land before fresh spawns
     for (const [, h] of remotes) {
       await new Promise((res, rej) => {
         const p = spawn('ssh', ['-o', 'BatchMode=yes', h.ssh, 'mkdir -p ' + shq(h.dir + '/test/swarm') + ' && cat > ' + shq(h.dir + '/test/swarm/.bb-meet.js')], { stdio: ['pipe', 'ignore', 'inherit'] });
