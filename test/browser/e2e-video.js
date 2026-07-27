@@ -307,12 +307,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the hand shows as a chip on the tile', /hand raised/.test(await aPage.locator('.tile', { hasText: 'Cai' }).textContent()));
   await cPage.locator('#hand').click(); await bPage.locator('#hand').click(); // hands down
 
-  // ---------- fullscreen: the tile button follows the normal convention ----------
+  // ---------- fullscreen: the tile button opens the FILMSTRIP view ----------
+  // ⛶ does not fullscreen the tile itself — it opens #fsview, the filmstrip:
+  // the chosen feed big, everyone else as thumbs you can swap to, and
+  // requestFullscreen() is called on the OVERLAY (best-effort, .catch()'d,
+  // since a headless browser has no display to fill). The old assertions —
+  // document.fullscreenElement === tile, and "a second press" on .maxbtn —
+  // described the behaviour before the filmstrip landed. The second press could
+  // never work again either: the tile is behind a full-viewport overlay, so the
+  // click was intercepted by #fsmain and the suite hung retrying it for 30s.
   const bobTile = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
   await bobTile.locator('.maxbtn').click();
-  check('the tile button enters real fullscreen on that tile', await bobTile.evaluate((t) => document.fullscreenElement === t));
-  await bobTile.locator('.maxbtn').click();
-  check('a second press exits fullscreen', await aPage.evaluate(() => document.fullscreenElement === null));
+  await aPage.locator('#fsview.on').waitFor({ timeout: 8000 });
+  check('the tile button opens the fullscreen filmstrip on that feed', true);
+  check('the filmstrip shows a big view plus a thumb strip',
+    (await aPage.locator('#fsmain').count()) === 1 && (await aPage.locator('#fsstrip video').count()) >= 1);
+  await aPage.locator('#fsclose').click();
+  await aPage.waitForFunction(() => !document.getElementById('fsview').classList.contains('on'), null, { timeout: 8000 });
+  check('✕ closes the filmstrip and returns to the grid', true);
+  // Closing must release every borrowed sink, or the decoders keep running
+  // behind a hidden overlay — the reason closeFsView() nulls each srcObject.
+  check('closing the filmstrip tears its video sinks down',
+    await aPage.evaluate(() => {
+      const m = document.getElementById('fsmain');
+      const strip = Array.from(document.querySelectorAll('#fsstrip video'));
+      return !m.srcObject && strip.every((v) => !v.srcObject);
+    }));
 
   // ---------- speaking: live audio lights the tile border ----------
   await bPage.locator('#mic').click(); // unmute — the fake device emits a tone
@@ -348,6 +368,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with a password set, a pinned file replicates to every participant, bytes and all', true);
 
   // ---------- recording: on-device, loudly attributed ----------
+  // Close the chat panel first. It was opened back at the chat/file section and
+  // is a fixed full-height overlay (min(340px,100vw)) pinned to the right, so on
+  // a narrow headless viewport it sits on top of the toolbar: every later
+  // toolbar click was intercepted by #paneltitle and retried until the suite
+  // timed out. Nothing to do with recording — just leftover UI state.
+  await aPage.locator('#chatbtn').click();
+  await aPage.waitForFunction(() => !document.getElementById('chatpanel').classList.contains('open'), null, { timeout: 8000 });
   await aPage.locator('#recbtn').click();
   // Record now opens a scope/quality popup — choose "Everything I see" and start.
   await aPage.locator('#rec-options input[name=rec-scope][value="all"]').check();
