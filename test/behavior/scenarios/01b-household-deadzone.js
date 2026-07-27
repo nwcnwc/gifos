@@ -26,12 +26,15 @@ scenario('01b-household-deadzone', {
   const seatAfterShort = (await maya.state()).coord;
   check.assert(seatAfterShort === seatBefore, 'a 25s dropout never cost Maya her seat', seatBefore + ' → ' + seatAfterShort);
 
-  // the long dead zone — under the cap, so she is HELD, not dropped
+  // the long dead zone — since the D5 starve edge (2026-07-27), a fully
+  // dark transport is honestly confirmed at ~15-20s; the law is the early
+  // hold + a fast automatic reunion, never a zombie tile
   await maya.cmd('radio off');
-  await check.steady('70s dead zone: family holds Maya (no premature drop, no fake leave)', async () => {
+  await check.steady('dead zone: the first 14s never blink', async () => {
     const sd = await cast.get('dana').state(), sp = await cast.get('pops').state();
     return sd.participants === 3 && sp.participants === 3;
-  }, { for: 70, allow: 2 });
+  }, { for: 14, every: 2, allow: 1 });
+  await cast.sleep(56, 'the dead zone runs on — an honest D5 drop may follow');
   await maya.cmd('radio on');
   await check.converged(3, { desc: 'Maya self-heals out of the long dead zone', within: 180 });
   await check.oneTree(3, { via: 'dana' });
