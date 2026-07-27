@@ -21,11 +21,15 @@ scenario('06b-couple-parked-stand', {
   // the pot simmers; silence falls
   await ju.cmd('idlemin 4');
   await check.until('true silence parks the propped phone', async () => (await ju.state()).pow.idle === 3, { within: 30 });
-  await check.steady('parked, the line holds (Aki keeps Ju present)', async () => {
+  await check.steady('parked, PRESENCE never blinks', async () => {
+    const s = await cast.get('aki').state();
+    return s.participants === 2;
+  }, { for: 60, allow: 1 });
+  await check.until('parked, the pair is connected (renegotiation beats settle)', async () => {
     const s = await cast.get('aki').state();
     const r = (s.roster || []).find((x) => x.name === 'Ju');
-    return s.participants === 2 && r && r.conn;
-  }, { for: 60, allow: 1 });
+    return r && r.conn;
+  }, { within: 30 });
 
   await ju.cmd('poke'); // she picks it up
   await check.until('first touch restores', async () => (await ju.state()).pow.idle === 0, { within: 15 });
