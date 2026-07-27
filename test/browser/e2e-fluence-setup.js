@@ -4,6 +4,7 @@
 //
 // Needs: static server on 8099. No providers configured â€” that's the point.
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 const fs = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -13,6 +14,7 @@ function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' â€
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
+  await need({ 8791: 'fake-ai', 8792: 'fake-keyapi' });
   const gifB64 = fs.readFileSync(__dirname + '/../../apps/fluence.gif').toString('base64');
   const browser = await chromium.launch({ executablePath: CHROME, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const context = await browser.newContext({ permissions: ['microphone'] });

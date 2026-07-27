@@ -6,6 +6,7 @@
 //
 // Needs: static server on 8099. No AI configured â€” that's the point.
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 
@@ -14,6 +15,7 @@ function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' â€
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
+  await need({ 8791: 'fake-ai' });
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext(); // no gifos_ai_config
   const page = await context.newPage();

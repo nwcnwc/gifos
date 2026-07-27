@@ -7,6 +7,7 @@
 //
 // Needs: static server on 8099, and test/servers/fake-keyapi.js on 8792.
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const API = 'http://127.0.0.1:8792';
@@ -24,6 +25,7 @@ const API_CFG = JSON.stringify({
 });
 
 (async () => {
+  await need({ 8792: 'fake-keyapi', 8793: 'fake-cors-proxy' });
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
   await context.addInitScript((cfg) => { try { window.localStorage.setItem('gifos_api_config', cfg); } catch (e) {} }, API_CFG);

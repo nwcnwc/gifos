@@ -8,6 +8,7 @@
 // Needs: static server on 8099, fake-keyapi.js on 8792 (Deepgram),
 //        fake-ai.js on 8791 (coach). The GIF is loaded from disk.
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 const fs = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -22,6 +23,7 @@ const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, che
 const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'dg-secret-key' } });
 
 (async () => {
+  await need({ 8791: 'fake-ai', 8792: 'fake-keyapi' });
   const gifBytes = fs.readFileSync(__dirname + '/../../apps/fluence.gif');
   const gifB64 = gifBytes.toString('base64');
 

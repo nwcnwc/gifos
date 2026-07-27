@@ -11,6 +11,7 @@
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 const http = require('http');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -54,6 +55,7 @@ function startProxy() {
 }
 
 (async () => {
+  await need({ 8793: 'fake-cors-proxy' });
   const { srv, port } = await startProxy();
   const b = await chromium.launch({ executablePath: CHROME });
   const ctx = await b.newContext();

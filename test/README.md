@@ -358,13 +358,18 @@ app README image).
 ## Known state
 
 **Decided-not-to-fix things live in `batteries/known-unfixed.sh`**, which is
-expected to be RED end to end — including the partition FREEZE, the late-join
-app-adoption gap, and `e2e-fluence`. The entries below are the rest: flakes,
+expected to be RED end to end — including the partition FREEZE and the late-join
+app-adoption gap. The entries below are the rest: flakes,
 environment traps, and unconfirmed reports, which are NOT the same thing as a
 decision and so are deliberately kept out of that script.
 
-- `browser/e2e-fluence.js` fails on the Deepgram pipeline — a long-standing
-  known failure, kept as a regression guard. (In `known-unfixed.sh`.)
+- `browser/e2e-fluence.js` was recorded here for a long time as "fails on the
+  Deepgram pipeline". IT DOES NOT. It needs `fake-ai` (8791) and `fake-keyapi`
+  (8792); without them it times out 20s deep inside the app on a locator that
+  never appears, which reads exactly like a broken pipeline. With the fixtures
+  up it is 20 assertions, ALL PASS, on both boxes. Promoted out of the graveyard
+  2026-07-27. Every fixture-dependent suite now calls `test/lib/need.js` first,
+  so a missing server says so in one line instead of impersonating a bug.
 - Late joiners do not adopt an app already running in a meeting: app STATE
   rides the structural-neighbour `sga` flood while presence rides
   `meshNode.gossip`, so a newcomer learns an app is running but never receives

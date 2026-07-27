@@ -80,10 +80,6 @@ if [ "$BROWSERS" = 1 ]; then
     if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
   done
 
-  hdr "e2e-fluence — the Deepgram pipeline  (decided: long-standing, kept as guard)"
-  why "third-party pipeline; not worth chasing until the feature is revisited"
-  cost "re-doing the Fluence/Deepgram integration"
-  if run_suite test/browser/e2e-fluence.js; then green "e2e-fluence now passes"; else red "e2e-fluence"; fi
 else
   printf '\n(skipping browser entries — pass --browsers to include them)\n'
 fi

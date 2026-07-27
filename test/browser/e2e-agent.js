@@ -7,6 +7,7 @@
 //
 // Needs: static server on 8099 and fake-ai.js on 8791 (Smartest model).
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');   // fixtures must be up, or say so plainly
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const AI = 'http://127.0.0.1:8791';
@@ -34,6 +35,7 @@ async function install(page, { appId, name, caps, label, x }) {
 }
 
 (async () => {
+  await need({ 8791: 'fake-ai' });
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
   await context.addInitScript((cfg) => { try { localStorage.setItem('gifos_ai_config', cfg); } catch (e) {} }, AI_CFG);
