@@ -891,8 +891,20 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('.ctx button', { hasText: 'Settings…' }).click();
   await page.locator('.modal.wide').waitFor({ timeout: 4000 });
   const settingsText = await page.locator('.modal.wide').textContent();
-  const runningVer = await page.evaluate(() => window.GIFOS_VERSION); // assert the ACTUAL running version, robust across bumps
-  check('Settings shows current version and a version list', /Running/.test(settingsText) && settingsText.includes('v' + runningVer));
+  // The panel names the running build by CHANNEL, not by one version string: the
+  // site ROOT is the unreleased EDGE build, identified by a monotonic build
+  // number — there is deliberately no "vedge" anywhere — while a /versions/
+  // snapshot is named "v<x.y.z>". The old assertion looked for 'v' +
+  // GIFOS_VERSION unconditionally, so it went red the day the edge channel
+  // landed and stayed red: the SAME redesign that stranded window.gifosPinTarget
+  // left this behind too. Assert the real contract for whichever channel runs.
+  const ver = await page.evaluate(() => ({ v: window.GIFOS_VERSION, b: window.GIFOS_BUILD }));
+  const namesRunning = ver.v === 'edge'
+    ? /unreleased edge build/.test(settingsText) && settingsText.includes('build ' + ver.b)
+    : settingsText.includes('v' + ver.v);
+  check('Settings names the running build for its channel', /Running now/.test(settingsText) && namesRunning);
+  check('Settings shows the live release and the snapshot list',
+    /Live release/.test(settingsText) && /Latest edge/.test(settingsText));
   await page.locator('#set-close').click();
 
   // ---- versioning: archived build under /versions/0.6.0/ serves a working desktop ----
