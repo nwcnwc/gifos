@@ -48,10 +48,14 @@ launch)
 #!/bin/bash
 shutdown -h +${MAX_LIFE_MIN}
 apt-get update
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y nodejs git python3
+apt-get install -y git python3
+# node via TARBALL, not apt: the NodeSource setup failed silently on cycle 1
+# and Ubuntu's own nodejs package ships WITHOUT npm — every actor then died
+# at spawn ("playwright not found") in the classic dead-environment shape.
+curl -fsSL https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
 sudo -u ubuntu bash -c 'cd /home/ubuntu && git clone --depth 1 https://github.com/nwcnwc/gifos && cd gifos && npm install playwright && npx playwright install chromium' > /tmp/bootstrap.log 2>&1
 cd /home/ubuntu/gifos && npx playwright install-deps chromium >> /tmp/bootstrap.log 2>&1
+sudo -u ubuntu bash -c 'cd /home/ubuntu/gifos && node -e "require(\"playwright\")"' >> /tmp/bootstrap.log 2>&1 || exit 1
 touch /home/ubuntu/READY
 EOF
   aws ec2 run-instances --region $REGION --image-id "$AMI" --count $N \
