@@ -21,8 +21,15 @@ scenario('11b-telehealth-camera-doc', {
       return r && r.camOff === true;
     }, { within: 30 });
     await cast.sleep(26, 'camera off past the 20s idle-stop');
-    check.assert(await ren.eval('window.__gifosVideo.camTrackLive()') === false,
-      'cycle ' + cycle + ': the idle-stop released the SENSOR itself');
+    // Capture the probe VALUE into the failure note: the 2026-07-27 cert
+    // sweep drew a cycle-2 red here with no note, leaving "sensor genuinely
+    // live" (privacy-class: a pair-rebuild landed ~1s after the idle-stop
+    // fired) indistinguishable from an eval-parse artifact (cast.eval takes
+    // the first indented stdout line). Next red answers it by itself.
+    const probe = await ren.eval('window.__gifosVideo.camTrackLive()');
+    check.assert(probe === false,
+      'cycle ' + cycle + ': the idle-stop released the SENSOR itself',
+      'camTrackLive=' + JSON.stringify(probe));
 
     await ren.cmd('cam on'); // "let me show you"
     await check.until('cycle ' + cycle + ': the regrab works (sensor live again)', async () =>
