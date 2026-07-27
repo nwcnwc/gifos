@@ -1,6 +1,11 @@
 # Design question: the dark designated-admitter closes the door
 
-**Status: OPEN — needs Nathan's decision.** Written 2026-07-27 out of the 14a
+**Status: DECIDED — A (Nathan, 2026-07-27).** The one-admitter law stands;
+the ~12-15s dark-door window is accepted, and the joining veil gains a
+"Waiting for a seat…" countdown from the worst-case bound (195s vouch reap +
+seat margin) so a held knocker knows they are not out of luck — shipping
+with 0.8.6. Option B below stays as the recorded fallback if the pause ever
+matters at product level. Originally written 2026-07-27 out of the 14a
 battery hunt (task: "dark designated-admitter closes the door — acceptable?").
 Everything below is grounded in shipped code (b2d0e1d, d85c6c0, 6a23358) and
 the laws as written (docs/healing-laws.md H7 / H-CHAIN / C3 / D4 / D5).
