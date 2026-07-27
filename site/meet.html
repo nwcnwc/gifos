@@ -2908,7 +2908,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // them) — the sweeper's reconcile re-derives and re-adds them cleanly.
       if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0;
+      p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
       p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
       // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
@@ -3327,7 +3327,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // no channel yet) churning seats during the join must never be
           // fast-dropped mid-handshake; the backstop owns any real death there.
           const dcClosed = p && p.dc && (p.dc.readyState === 'closed' || p.dc.readyState === 'closing');
-          if (!dcClosed) { occVanish.delete(pid); continue; }
+          // A close on a RECENTLY REBUILT transport (<60s) is the fragile
+          // post-heal pair dying again — transport loss, not a goodbye: the
+          // 'left' fast-path here read it as a LEAVE and evicted a mid-
+          // dropout member in ~1s (behavior 11a, sequential dropouts). Let
+          // the probe-gated D5 path own it.
+          const recentRebuild = p && p.rebuiltAt && (Date.now() - p.rebuiltAt < 60000);
+          if (!dcClosed || recentRebuild) { occVanish.delete(pid); continue; }
           if (Date.now() - at >= 900) { occVanish.delete(pid); confirmGone(pid, 'left'); }
         }
       }
