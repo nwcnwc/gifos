@@ -76,8 +76,14 @@ function findChrome() {
   if (process.env.MEET_CHROME) return process.env.MEET_CHROME;
   const home = process.env.HOME || '/root';
   for (const p of [
+    // Playwright renamed the unpacked dir between builds (chrome-linux ->
+    // chrome-linux64), so carry BOTH spellings for each build. Every entry is
+    // existsSync-guarded, so an extra candidate costs nothing and a missing one
+    // is what silently killed the drills (see findChrome in test/drills/*).
     '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    '/opt/pw-browsers/chromium-1228/chrome-linux/chrome',
     '/opt/pw-browsers/chromium-1228/chrome-linux64/chrome',
+    path.join(home, '.cache/ms-playwright/chromium-1228/chrome-linux/chrome'),
     path.join(home, '.cache/ms-playwright/chromium-1228/chrome-linux64/chrome'),
     path.join(home, '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'),
   ]) if (fs.existsSync(p)) return p;

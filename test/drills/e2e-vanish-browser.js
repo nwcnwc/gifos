@@ -19,7 +19,7 @@ try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 catch (e) { ({ chromium } = require('playwright')); }
 
 const CHROME = process.env.MEET_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome';
+  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
 const RELAY_PORT = 8814, SITE_PORT = 8816;
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;
@@ -32,7 +32,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
   '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
   '--autoplay-policy=no-user-gesture-required',
-  '--disable-features=WebRtcHideLocalIpsWithMdns'];
+  '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'];
 
 (async () => {
   const relay = spawn('node', [path.join(__dirname, '..', 'servers', 'relay-local.js')], {

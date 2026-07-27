@@ -34,7 +34,7 @@ for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^
 // not the UI's: useful as a diagnostic, not as a pass/fail gate.
 const BOTS = Math.max(1, parseInt(args.bots || '3', 10));
 const CHROME = process.env.MEET_CHROME || process.env.SWARM_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome';
+  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
 const RELAY_PORT = 8824, SITE_PORT = 8826;
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;

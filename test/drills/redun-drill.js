@@ -27,7 +27,7 @@ try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 catch (e) { ({ chromium } = require('playwright')); }
 
 const CHROME = process.env.MEET_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome';
+  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
 const RELAY_PORT = parseInt(process.env.DRILL_RELAY_PORT || '8871', 10);
 const SITE_PORT = parseInt(process.env.DRILL_SITE_PORT || '8873', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
@@ -55,7 +55,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
-      '--disable-features=WebRtcHideLocalIpsWithMdns'],
+      '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const room = 'redun' + Math.random().toString(36).slice(2, 7);
   const mkPage = async (name) => {

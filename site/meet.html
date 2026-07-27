@@ -22,7 +22,22 @@
   } catch (e) {}
   var pin = null, chan = null, cur = null;
   try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
-  var here = location.pathname + location.hash;
+  // A PRETTY router path (/meet/<room>, /call/<room>, /join/<code>[/…]) is NOT a
+  // file — Pages 404s it and 404.html routes it to a real page. If we ever run at
+  // one (an offline cached shell, or any substitution of index.html), prepending
+  // /versions/<v> would build /versions/<v>/meet/<room>, which exists nowhere, and
+  // bounce the visitor to the desktop with their invite silently dropped. So
+  // translate a pretty path to its real target instead of decorating it. Room case
+  // is PRESERVED: the room id is the capability the key derives from.
+  var pm = location.pathname.match(/^\/(?:join|meet|call)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
+  var here;
+  if (pm) {
+    here = /^\/(?:meet|call)\//.test(location.pathname)
+      ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
+      : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
+  } else {
+    here = location.pathname + location.hash;              // carry the page + invite hash across
+  }
   function go(v) { location.replace('/versions/' + v + here); }
   if (pin) { go(pin); return; }
   if (chan === 'edge') return;
@@ -4414,11 +4429,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const avPart = av ? '&av=' + av : '';
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
       const prettyPath = '/meet/' + room + (av ? '/' + av : '');
+      // A RELEASE/pinned computer runs from /versions/<x.y.z>/, but prettyPath is
+      // rooted at the domain. Rewriting the address bar to it MOVED THE DOCUMENT
+      // BASE off the snapshot — document.baseURI became /meet/<room>, so every
+      // later relative load resolved to /meet/js/… (404) or to the ROOT edge
+      // build, mixing an edge runtime into a pinned page. That is what left a
+      // guest staring at an app header over blank space while the host was fine,
+      // and it could never reproduce locally because local dev never rewrites.
+      // So: only the ROOT (edge) build moves its address bar. A snapshot keeps
+      // its own meet.html#v=… — its base stays put — while still HANDING OUT the
+      // pretty link below, which is what a fresh visitor should follow.
+      const onSnapshot = location.pathname.indexOf('/versions/') !== -1;
       // Keep the address bar as the SAME link we hand out. On prod that's the
       // pretty /meet/<room>[/<verifier>] path — a reload of it 404-routes back
       // through meet.html, so it stays put. Custom relays and local dev have no
       // /meet routing (and need &relay=), so they keep the meet.html#v=… form.
-      const canonical = pretty ? prettyPath
+      const canonical = (pretty && !onSnapshot) ? prettyPath
         : MEET_PATH + '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.pathname + location.hash !== canonical) history.replaceState(null, '', canonical);
       shareUrl.value = pretty ? location.origin + prettyPath
@@ -4527,11 +4553,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       if (!room) {
         const m = s.match(/^([a-z0-9-]{1,64})(?:[\/.]([a-f0-9]{16,64}))?$/i);
-        if (m) { room = m[1].toLowerCase(); av = (m[2] || '').toLowerCase(); }
+        if (m) { room = m[1]; av = (m[2] || '').toLowerCase(); }
       }
       if (!room || !/^[a-z0-9-]{1,64}$/i.test(room)) return null;
       if (av && !/^[a-f0-9]{16,64}$/.test(av)) av = '';
-      return { room: room.toLowerCase(), av, relay };
+      // NEVER normalise the room id. It is the whole capability: the relay
+      // session, token and end-to-end key are all DERIVED from this exact string
+      // ("derive, don't send", gifos-net.js). joinRoom() reads it from the link
+      // verbatim, so lowercasing it here made the SAME invite resolve to two
+      // different rooms depending on whether you opened the link or pasted it —
+      // /meet/BibleReading and biblereading are different meetings, and the two
+      // people never saw each other. Only `av` is case-folded: it is a hex digest.
+      return { room, av, relay };
     }
     function enterMeeting(hashOrUrl) {
       // Accept a '#…' hash (minted here) or a full URL (a saved entry). A
@@ -7378,8 +7411,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // free: encourage any name. Sanitize to a URL-safe, dot-free label (a dot
     // marks the verifier) and keep the SAME string for the salt and the URL so
     // sign-in re-derives the same room later.
+    // Case is PRESERVED: the name you type is the name you get, and it is also
+    // the salt deriveAdminKey() uses — silently folding "BibleReading" to
+    // "biblereading" both surprised the person naming the room and threw away
+    // keyspace. Existing rooms are unaffected: every name minted before this
+    // was already lowercase, so re-typing it still derives the same room.
     function slugRoom(s, fallback) {
-      const out = String(s || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+      const out = String(s || '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
       return out || fallback || 'room';
     }
 

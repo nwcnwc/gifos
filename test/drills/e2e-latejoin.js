@@ -63,7 +63,7 @@ const pfx = (id) => String(id || '').slice(0, 12);
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
-      '--disable-features=WebRtcHideLocalIpsWithMdns'],
+      '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const setup = (name) => ({ content: 'window.GIFOS_SCALE={C:2};'
     + "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });

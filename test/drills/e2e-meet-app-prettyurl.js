@@ -33,7 +33,7 @@ catch (e) { ({ chromium } = require('playwright')); }
 
 const CHROME = process.env.MEET_CHROME
   || (require('fs').existsSync('/opt/google/chrome/chrome') ? '/opt/google/chrome/chrome'
-      : '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome');
+      : '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome');
 const RELAY_PORT = parseInt(process.env.MAPRETTY_RELAY_PORT || '8845', 10);
 const SITE_PORT = parseInt(process.env.MAPRETTY_SITE_PORT || '8847', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
@@ -64,7 +64,7 @@ const check = (n, c, d) => {
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
-      '--disable-features=WebRtcHideLocalIpsWithMdns'],
+      '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
 
   // serviceWorkers:'block' — the dev SW would serve meet.html from its own

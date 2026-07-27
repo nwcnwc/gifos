@@ -41,7 +41,7 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v6';
+var SHELL_VERSION = 'v7';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
@@ -139,7 +139,15 @@ function raceNetwork(req, cache, ms) {
 // back in the cache for offline. Resolves null on non-OK, error, or timeout so
 // the caller falls back to the cache — a stalled socket must never hang a parser-
 // blocking <script>, and a transient 5xx should serve the last good build.
-function revalidate(req, cache, ms) {
+// `pass404` — a NAVIGATION whose server answer is 404 must be delivered as-is,
+// never papered over. On GitHub Pages the 404 body IS 404.html: the pretty-link
+// router that turns /meet/<room>, /call/<room> and /join/<code> into a real
+// page. Resolving null for it sent the caller to the cached shell instead, whose
+// channel loader then rewrote the pretty path to /versions/<v>/meet/<room> —
+// a path that exists nowhere — and every invite link landed on the desktop with
+// the meeting silently dropped. Only 404 passes through, so a transient 5xx
+// still falls back to the last good build as intended.
+function revalidate(req, cache, ms, pass404) {
   return new Promise(function (resolve) {
     var settled = false;
     var t = setTimeout(function () { if (!settled) { settled = true; resolve(null); } }, ms);
@@ -148,7 +156,8 @@ function revalidate(req, cache, ms) {
     fetch(rr).then(function (res) {
       var ok = res && res.ok && (res.type === 'basic' || res.type === 'default');
       if (ok) cache.put(req, res.clone()).catch(function () {});
-      if (!settled) { settled = true; clearTimeout(t); resolve(ok ? res : null); }
+      var routed = !ok && pass404 && res && res.status === 404;
+      if (!settled) { settled = true; clearTimeout(t); resolve(ok || routed ? res : null); }
     }, function () { if (!settled) { settled = true; clearTimeout(t); resolve(null); } });
   });
 }
@@ -231,7 +240,9 @@ self.addEventListener('fetch', function (e) {
   // still boots and airplane mode still works.
   e.respondWith((async function () {
     var cache = await caches.open(CACHE);
-    var fresh = await revalidate(req, cache, 4000);
+    // Navigations let a 404 through: on Pages that body is 404.html, the
+    // pretty-link router. See revalidate()'s note.
+    var fresh = await revalidate(req, cache, 4000, req.mode === 'navigate');
     if (fresh) return fresh;
     var cached = await cache.match(req, { ignoreSearch: true });
     if (cached) return cached;                      // offline / stalled → last good build
