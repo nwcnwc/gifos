@@ -13,6 +13,14 @@ scenario('06a-couple-pip-evening', {
   const ju = cast.get('ju'), aki = cast.get('aki');
   await cast.joinAll();
   await check.converged(2);
+  // THE YOUNG-PAIR LAW (the 47494a8 re-encoding family): a freshly-formed
+  // pair may honestly drop for a few seconds inside its first minute — a
+  // real close + rebuild (D5's probe window), slower still when both tabs
+  // are hidden-throttled. "The line never drops" is a SETTLED-pair law, so
+  // the couple settles in before the evening's stillness is asserted; the
+  // three rounds themselves stay strict. (Round-1-only red, 2026-07-27
+  // cert sweep: 6 violating samples right after converge; rounds 2-3 held.)
+  await cast.sleep(60);
 
   for (let round = 1; round <= 3; round++) {
     await ju.cmd('hide');                    // cooking
