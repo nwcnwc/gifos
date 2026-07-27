@@ -91,11 +91,24 @@ start_fakes() {
   nohup node test/servers/fake-cors-proxy.js >/dev/null 2>&1 &
   sleep 2
 }
-# Refuse to run alongside another sweep rather than fight it for the ports.
-if [ "$LIST" != 1 ] && ss -lnt 2>/dev/null | grep -q ':8099 '; then
-  echo "!! something is already serving :8099 — another sweep or a dev stack." >&2
-  echo "   Stop it first; this gate manages its own servers." >&2
-  exit 3
+# Refuse to run alongside anything holding OUR ports, rather than fight for them.
+# All five matter, not just 8099: relay-owned.js hardcodes 8792 and
+# relay-device-dedupe.js hardcodes 8791, the same ports fake-keyapi and fake-ai
+# use. A leftover fake server therefore makes relay-owned fail 7 of 9 checks —
+# including "a wrong secret is rejected", which reads like the signed-adminship
+# door being broken wide open when in truth nothing was listening to the test.
+# We must not kill servers we did not start, so refuse loudly instead.
+if [ "$LIST" != 1 ]; then
+  busy=""
+  for p in 8099 8790 8791 8792 8793; do
+    ss -lnt 2>/dev/null | grep -q ":$p " && busy="$busy $p"
+  done
+  if [ -n "$busy" ]; then
+    echo "!! ports already in use:$busy — another sweep, a dev stack, or leftover fakes." >&2
+    echo "   Stop them first; this gate manages its own servers and a stray one on" >&2
+    echo "   8791/8792 silently corrupts the relay tier." >&2
+    exit 3
+  fi
 fi
 trap stop_all EXIT
 
