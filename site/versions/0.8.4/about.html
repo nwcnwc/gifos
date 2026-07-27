@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0f">
+<!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
+     cascade (js/gifos-themes.js) applies real vars, so the fallback purple never
+     paints first. Reveals the instant --accent is set; a failsafe timeout
+     guarantees we never stay hidden if a theme file 404s or hangs. -->
+<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:#0a0a0f}</style>
+<script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
+function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');}
+function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();else requestAnimationFrame(chk);}
+requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GifOS">
+<script src="/js/sw-register.js" defer></script>
+<title>What is GifOS? — every app is a GIF</title>
+<meta name="description" content="GifOS is a free, open-source web OS where every app is a GIF file. Learn how apps, multiplayer, meetings, AI-built apps, and whole-computer backups work — all in your browser, nothing on servers.">
+<link rel="canonical" href="https://gifos.app/about.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="GifOS">
+<meta property="og:title" content="What is GifOS?">
+<meta property="og:description" content="A free web OS where every app is a GIF file you own.">
+<meta property="og:url" content="https://gifos.app/about.html">
+<meta property="og:image" content="https://gifos.app/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 17px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+         background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 2rem 1.2rem 4rem; }
+  h1 { font-size: 2rem; margin: 1rem 0 .4rem; }
+  h1 .brand, .topbar .brand { font-weight: 800; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; color: var(--text, #cfcfe8); }
+  p, li { color: var(--muted, #a9a9c5); }
+  b { color: var(--text, #e0e0f0); }
+  a { color: var(--accent, #7b5cff); }
+  .cta { display: inline-block; margin: 1.2rem 0; padding: .8rem 1.6rem; border-radius: .7rem;
+         background: var(--accent, #7b5cff); color: var(--onaccent, #fff); text-decoration: none; font-weight: 700; }
+  ul { padding-left: 1.2rem; }
+  li { margin-bottom: .45rem; }
+  .topbar { display: flex; align-items: center; gap: .5rem; padding: .8rem 1.2rem;
+            border-bottom: 1px solid var(--border, #2a2a3f); background: var(--surface, #14141f); }
+  .topbar a { text-decoration: none; font-size: 1.05rem; }
+  .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border, #2a2a3f); font-size: .85rem; color: var(--muted, #667); }
+</style>
+<script src="js/gifos-themes.js"></script>
+</head>
+<body>
+  <div class="topbar"><a href="/"><span class="brand">GifOS</span></a></div>
+  <div class="wrap">
+    <h1>What is <span class="brand">GifOS</span>?</h1>
+    <p>GifOS is a free, open-source <b>web operating system where every app is a
+    GIF</b>. Open <a href="/">gifos.app</a> and you get a persistent Home Screen
+    that lives in your browser — no account, no installs, and nothing stored on
+    anyone's servers. Every file you own is just that: a file.</p>
+    <a class="cta" href="/">Open your computer →</a>
+
+    <h2>Apps are GIF files you own</h2>
+    <p>A GifOS app is a real, animated GIF image carrying a tiny filesystem
+    inside. Double-click it and it runs in a hardened sandbox. Whatever you do
+    in the app — notes, game moves, drawings — is <b>saved inside its icon</b>.
+    Send the GIF to a friend and they get your app <i>with your stuff in it</i>.
+    It looks like an image because it is one.</p>
+
+    <h2>Multiplayer with one link</h2>
+    <p>Press <b>Invite</b> in any app and send the link
+    (<span style="font-family:ui-monospace,monospace">gifos.app/join/…</span>).
+    Friends tap it and they're in — same game, same notes, live. Your browser is
+    the server; traffic goes peer-to-peer when networks allow, with a tiny
+    stateless relay as fallback.</p>
+    <p>The link is a <b>capability</b>: anyone who has it joins live <i>and</i>
+    can save a full copy of that app's data — your browser syncs the whole
+    dataset to theirs, so there's no un-sharing what they've seen. Invite gives
+    you two independent dials. <b>How long the link lets new people in</b> —
+    while the app is open (default), 1 hour, 24 hours, or forever; a timed link
+    just stops admitting newcomers, it never kicks the people already there. And
+    <b>what happens if you drop off</b> — it ends for everyone (default, safest
+    for private data), or a still-connected friend keeps it going from their
+    copy (best for games, so a dead battery doesn't end game night). <b>New
+    link</b> revokes the old one instantly.</p>
+
+    <h2>Meetings, strictly peer-to-peer</h2>
+    <p>The built-in Meeting connects everyone directly, browser to browser.
+    The relay only performs introductions — it physically refuses to carry
+    audio or video. Quality adapts automatically as more people join. A meeting is
+    a <b>permanent room</b>: the link works forever, no matter who created it or
+    who left. Everyone joins muted with the camera off, you can fully
+    <b>blur</b> your video, anyone can mute or blur a misbehaving participant
+    for the whole room (always attributed), and any participant can lock the
+    room with a <b>password</b> that only the people in the meeting hold. Audio-only
+    is fine — the camera is always optional.</p>
+
+    <h2>Run an app inside the meeting</h2>
+    <p>A meeting isn't just faces in boxes. Press <b>Run app</b> and pick one of
+    your apps — it opens on the shared stage and <b>everyone in the meeting uses
+    it together</b>, the same live state, exactly like joining an app by link,
+    only now with voice, video and recording wrapped around it. Play a board
+    game, sketch together, run a quiz. There are two doors to the same room: start
+    a meeting and load an app into it, or open an app and hit <b>Meeting</b> in
+    its tab to turn it into one. Both land you in the identical place.</p>
+
+    <h2>Game night, on everyone's phones</h2>
+    <p>The <b>IRL Games</b> folder is for people in the same room: one person
+    opens a game and taps Invite, everyone joins from their own phone, and
+    secret roles, hidden votes, and sneaky lies appear on each screen while the
+    laughing and accusing happens face to face — social-deduction, bluffing,
+    and mind-meld games included. Only one phone in the room? There's a
+    pass-the-phone folder too.</p>
+
+    <h2>Let your AI build your apps</h2>
+    <p>Tell Claude (or any AI) what you want — any AI learns the GifOS format from
+    <a href="/llms.txt">gifos.app/llms.txt</a>. Two ways to land it on your Home
+    Screen: paste the code it writes into <b>＋ Add</b> and GifOS packs it into a
+    finished App GIF for you; or, if the AI can run code and attach files, it
+    follows the recipe in <a href="/llms.txt">llms.txt</a> and hands you a
+    finished <b>.gif file</b> directly — animated icon and all. The Easter egg
+    move: give the AI your favorite GIF from your camera roll and it hides the app
+    <i>inside that exact GIF</i> — it still looks and plays like the original
+    everywhere, but on a GifOS Home Screen it secretly runs.</p>
+
+    <h2>Remix anyone's app</h2>
+    <p>Apps are files, and files get modded — GifOS celebrates it. Hand any app
+    GIF to your AI and ask for changes (<i>"add a dark mode"</i>, <i>"make the
+    buttons bigger"</i>): it opens the GIF, edits what's inside, and hands you
+    back the <b>same GIF</b> — animation untouched, your saved stuff intact.
+    Spot an app you like in a friend's session? <b>Steal&nbsp;App</b> drops a
+    fresh copy into your <b>Stolen&nbsp;Apps</b> treasure chest to make your
+    own. Remixes ship unsigned — a mod is a new work, yours to sign.</p>
+
+    <h2>Your whole computer is one GIF</h2>
+    <p>Back up your entire Home Screen — every file, icon, and app's data — as a
+    single GIF. Double-click a backup anywhere and <b>boot it as a computer
+    inside your computer</b>, without touching what's already there. Yes,
+    recursively.</p>
+
+    <h2>Private by architecture</h2>
+    <ul>
+      <li>Everything lives in <b>your browser</b> (IndexedDB). No accounts, no sync, no tracking.</li>
+      <li>Apps run in a sandbox with <b>no network access</b> — a strict CSP blocks every request.</li>
+      <li>The multiplayer relay is a stateless message pipe: it stores nothing, ever.</li>
+      <li>Each digit subdomain (<b>0.gifos.app</b> … <b>9.gifos.app</b>) is a fully separate computer, isolated by the browser itself.</li>
+    </ul>
+
+    <h2>Free and open source</h2>
+    <p>The whole system — desktop, codec, relay — is on
+    <a href="https://github.com/nwcnwc/gifos">GitHub</a>. What gifos.app serves
+    is byte-for-byte what's in the repo, so anyone can audit it.</p>
+
+    <a class="cta" href="/">Try GifOS now →</a>
+    <div class="foot">
+      <p style="margin-bottom:.7rem">Found a bug or have a feature request?
+      <a href="https://github.com/nwcnwc/gifos/issues/new">Open an issue on GitHub</a> —
+      describe what happened (or what you'd like), include the digit subdomain and steps to
+      reproduce if it's a bug, and we'll take a look. No account with us needed, just a
+      free GitHub login.</p>
+      GifOS — apps are GIFs, data is GIFs, everything is just files. ·
+      <a href="/">gifos.app</a> · <a href="/llms.txt">llms.txt</a> ·
+      <a href="https://github.com/nwcnwc/gifos">source</a> ·
+      <a href="https://github.com/nwcnwc/gifos/issues">issues</a></div>
+  </div>
+</body>
+</html>
