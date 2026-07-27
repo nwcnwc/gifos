@@ -20,7 +20,19 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
   // Set a name but NOT gifos_relay → the page keeps its default relay, so
   // custom=false and the pretty branch is taken (hostname gifos.app matches).
-  await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_name','Pat')}catch(e){}" });
+  //
+  // gifos_channel='edge' PINS US TO THE ROOT BUILD, which is what this suite is
+  // actually about. Because the hostname resolves as gifos.app, the channel
+  // loader treats us as a real visitor and follows version.json to
+  // /versions/<current>/ — so without this the suite silently tested the frozen
+  // RELEASE SNAPSHOT instead of the edge build it loaded, and nobody could tell
+  // from a green run. It only stayed green because snapshots used to rewrite
+  // their address bar too; they deliberately no longer do (a snapshot that
+  // rewrites to a root path moves its document base off /versions/<v>/ and its
+  // relative loads start resolving against the edge build — the bug that left a
+  // meeting guest staring at blank space). The pretty SHARE LINK is unaffected
+  // and still asserted below.
+  await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_name','Pat');localStorage.setItem('gifos_channel','edge')}catch(e){}" });
   const base = 'http://gifos.app:' + PORT;
 
   // ---- a plain room's address bar becomes /meet/<room> -------------------------
