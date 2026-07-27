@@ -185,6 +185,7 @@
     // and NOTHING else, ever.
     // ─────────────────────────────────────────────────────────────────────────
     function deliver(to, m) {
+      try { if (typeof window !== 'undefined') { const t = (window.__mwTx = window.__mwTx || {}); t[m.t] = (t[m.t] || 0) + 1; } } catch (e) {} // DEBUG-TREE: per-type deliver counter
       // THE ENTRY HANDSHAKE PREFERS THE DOOR (behavior battery 14a,
       // 2026-07-26): a knocker definitionally holds a relay socket and
       // definitionally has no channels — the door is the CORRECT transport
@@ -239,6 +240,7 @@
     // S4-off nodes pass straight through — the structural path is untouched.
     function ingest(m) {
       if (stopped || !seat || !m) return;
+      try { if (typeof window !== 'undefined') { const t = (window.__mwRx = window.__mwRx || {}); t[m.t] = (t[m.t] || 0) + 1; } } catch (e) {} // DEBUG-TREE: per-type ingest counter
       if (s4on && SIGNED.has(m.t)) {
         verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
           if (stopped) return;
@@ -382,6 +384,7 @@
       // excluded and must travel the mesh like everything else internal.
       const isEntryAnswer = m.t === 'HOME' || m.t === 'NOROOM' || (m.t === 'PLACE' && !m.tag);
       if (!isEntryAnswer) return false;
+      try { if (typeof window !== 'undefined') { const t = (window.__mwTx = window.__mwTx || {}); t['door:' + m.t] = (t['door:' + m.t] || 0) + 1; } } catch (e) {} // DEBUG-TREE
       net.seal(roomKey, { mw: 1, m }).then((b) => sendRaw({ t: 'peer', to, msg: b })).catch(() => {});
       return true;
     }

@@ -1333,10 +1333,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         sv.beats++;
         for (const [pid, p] of peers) {
           const why = (w) => { sv.why[w] = (sv.why[w] || 0) + 1; };
-          // connected at ICE level is enough to be a zombie CANDIDATE — the
-          // classic half-open pair has p.dc NULL on the victim side (its
-          // ondatachannel never fired), which is exactly what must heal
-          if (!p.connected) { why('notconn'); continue; }
+          // eligible: ICE-connected, OR previously heard at mesh level, OR a
+          // pair OBJECT older than 12s that never connected at all — a
+          // replaced object toward a dark peer idles unconnected with
+          // meshRxAt=0 forever, and treating it as "never established" gave
+          // it infinite grace (the bad-draw mode: 18 beats of notconn skips
+          // while the door stayed NOROOM-closed). A normal dial connects in
+          // seconds; 12s of nothing is dead however the object got here.
+          if (!p.connected && !p.meshRxAt && nowHb - (p.bornAt || 0) < 12000) { why('notconn'); continue; }
           // ROSTER membership, not mesh naming, gates eligibility: the mesh
           // never learning this peer IS the failure being healed (a linkTo
           // gate was circular — the victim pair always read "nolink")
@@ -1351,6 +1355,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (nowHb - (p.meshKickAt || 0) < 30000) { why('throttled'); continue; }
           sv.kicked++;
           p.meshKickAt = nowHb;
+          // D5's missing edge (behavior battery 14a, 2026-07-26): a starving
+          // pair that WAS established (meshRxAt > 0) is a dead transport in
+          // every honest sense — an unanswered rebuild toward a dark peer
+          // idles in 'connecting' forever, so no failed/closed event will
+          // ever come. Fire the first-hand transport-death edge with the
+          // kick; the D5 probe gate still protects any live-but-slow peer
+          // (a merely-throttled phone keeps beating and never starves), and
+          // without this a dark member's seat stayed unconfirmed and H7's
+          // designated-admitter discipline kept the door constitutionally
+          // CLOSED (NOROOM) for every newcomer until the 195s reap.
+          if (!p.tlFired && (p.meshRxAt || nowHb - (p.bornAt || 0) > 12000)) { p.tlFired = true; onTransportDead(pid, 'starve-dead'); }
           if (typeof clog === 'function') clog('mesh-starve rebuild ' + String(pid).slice(0, 6));
           newPcFor(p);
           sendOffer(pid, false);
@@ -2899,7 +2914,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // persistence gate for the rebuild-on-offer path (transients recover
         // via ICE restart and must never trigger a teardown)
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { if (!p.deadSince) p.deadSince = Date.now(); }
-        else if (p.connected) p.deadSince = 0;
+        else if (p.connected) { p.deadSince = 0; p.tlFired = false; }
         updateStatus();
         if (p.connected) { p.altPath = false; p.tlAt = 0; adapt(); } // rotation ends when the pair lands; D5 edge re-arms
         // D5: 'closed' out of nowhere (we didn't rebuild it and the peer is
@@ -4893,7 +4908,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         confirmGone(p.id, 'bye');
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
-        p.meshRxAt = Date.now(); // the starve detector's proof of a LIVE pair (see the hb beat)
+        p.meshRxAt = Date.now(); p.tlFired = false; // the starve detector's proof of a LIVE pair (see the hb beat)
         if (meshNode && m.m) meshNode.recvCtl(m.m);
       } else if (m.k === 'fmesh') {
         // Sponsor-forwarded mesh control (mirrors fsig): mine ⇒ hand to the
