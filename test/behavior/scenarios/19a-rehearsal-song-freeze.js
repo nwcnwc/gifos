@@ -26,6 +26,6 @@ scenario('19a-rehearsal-song-freeze', {
     const s = await cast.get('cy').state();
     return !s.err && !!s.coord && s.participants === 3;
   }, { within: 180 }); // multi-stage heal budget (cf. 08c)
-  await check.converged(3, { desc: 'the trio plays on' });
+  await check.converged(3, { desc: 'the trio plays on', within: 240 }); // rejoin-ghost lifetime (F5 family): the corpse identity may be counted up to cap-scale before the reap clears it
   await check.oneTree(3, { via: 'ash', within: 240 });
 });
