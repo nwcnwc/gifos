@@ -47,6 +47,32 @@ if ! git -C "$ROOT" cat-file -e "${ANCHOR_SHA}^{commit}" 2>/dev/null; then
   exit 1
 fi
 BUILD=$(( ANCHOR_BUILD + $(git -C "$ROOT" rev-list --count ${ANCHOR_SHA}..HEAD -- site) ))
+# PIN THE DOCUMENT BASE to this snapshot. A meeting rewrites its address bar to
+# the pretty /meet/<room> link it hands out — a root path — and without a <base>
+# that drags document.baseURI off /versions/<V>/, after which every relative load
+# resolves against the EDGE build instead of this frozen one. That is what left a
+# meeting guest looking at an app header over blank space. With the base pinned,
+# the address bar can stay the short shareable link while the page keeps loading
+# its OWN code. Inserted immediately after <head> so it precedes every relative
+# reference; the channel loader beneath it uses absolute paths and is unaffected.
+for f in "$DEST"/*.html; do
+  [ -e "$f" ] || continue
+  # Match a REAL injected base, not any mention of one. A loose '<base ' grep
+  # matched prose inside meet.html's own comments and silently skipped the file
+  # — producing a snapshot with no pin and no warning, the exact failure this
+  # whole change exists to prevent.
+  grep -q '<base href="/versions/' "$f" && continue
+  perl -0pi -e "s|<head>|<head>\n<base href=\"/versions/$V/\">|i" "$f"
+done
+# Injection is load-bearing: a snapshot without it moves its base the moment a
+# meeting rewrites the address bar. Fail the cut rather than ship one.
+for f in "$DEST"/*.html; do
+  [ -e "$f" ] || continue
+  grep -q "<base href=\"/versions/$V/\">" "$f" || {
+    echo "archive-version.sh: FAILED to stamp the document base into $(basename "$f") — refusing to cut." >&2
+    exit 1
+  }
+done
 sed -i -E "s/window\.GIFOS_VERSION = '[^']*';/window.GIFOS_VERSION = '$V';/" "$DEST/index.html" "$DEST/boot.html"
 printf '/* frozen at release cut by archive-version.sh */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > "$DEST/js/build.js"
 

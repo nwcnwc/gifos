@@ -17,7 +17,8 @@ function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();el
 requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GifOS">
-<script src="/js/sw-register.js" defer></script>
+<script src="js/sw-register.js" defer></script>
+<script src="js/build-badge.js" defer></script>
 <script>/* Global UI text size (Settings → Text size). Scales rem-based chrome everywhere; applied early to avoid a flash, and live across tabs via the storage event. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>GifOS — Your GIF-Powered Computer, in the Browser</title>
 <meta name="description" content="GifOS is a free web OS where every app is a GIF. A persistent Home Screen in your browser — no account, no installs. Build apps with AI, play multiplayer games with one invite link, hold peer-to-peer meetings, and back up your whole computer as a single GIF.">
@@ -133,6 +134,7 @@ window.GIFOS_VERSION = 'edge';
     <span class="spacer"></span>
     <button id="history-btn" title="Invite links you've visited">Invites</button>
     <button id="add-btn">＋ Add</button>
+    <span id="build-badge" class="buildtag" aria-hidden="true"></span>
   </div>
   <div id="desktop"></div>
   <noscript>

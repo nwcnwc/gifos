@@ -83,7 +83,9 @@ function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();el
 requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GifOS">
-<script src="/js/sw-register.js" defer></script>
+<script src="js/sw-register.js" defer></script>
+<script src="js/build.js" defer></script>
+<script src="js/build-badge.js" defer></script>
 <script>/* Global UI text size (Settings → Text size). Scales the meeting chrome; applied early, live across tabs. */(function(){function ap(){try{var s=parseFloat(localStorage.getItem('gifos_ui_scale'))||1;s=Math.max(0.2,Math.min(3,s));document.documentElement.style.fontSize=(s===1?'':(16*s).toFixed(2)+'px');}catch(e){}}ap();try{window.addEventListener('storage',function(e){if(!e||e.key==='gifos_ui_scale')ap();});}catch(e){}})();</script>
 <title>Meeting — GifOS</title>
 <!-- Link-preview card for texted / posted invites. og:url is deliberately OMITTED
@@ -4542,12 +4544,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // So: only the ROOT (edge) build moves its address bar. A snapshot keeps
       // its own meet.html#v=… — its base stays put — while still HANDING OUT the
       // pretty link below, which is what a fresh visitor should follow.
-      const onSnapshot = location.pathname.indexOf('/versions/') !== -1;
       // Keep the address bar as the SAME link we hand out. On prod that's the
       // pretty /meet/<room>[/<verifier>] path — a reload of it 404-routes back
       // through meet.html, so it stays put. Custom relays and local dev have no
       // /meet routing (and need &relay=), so they keep the meet.html#v=… form.
-      const canonical = (pretty && !onSnapshot) ? prettyPath
+      //
+      // A SNAPSHOT may do this too, because archive-version.sh stamps a document
+      // base element pointing at /versions/<x.y.z>/ into every archived page.
+      // Without that base, moving the address to a root path dragged
+      // document.baseURI off the
+      // snapshot and relative loads started resolving against the EDGE build —
+      // which is what left a meeting guest staring at blank space where a shared
+      // app should be. With it, the base is pinned to the build the page came
+      // from no matter what the address bar says, so the URL can stay the short
+      // link people actually share. Which build you are on is shown in the page
+      // itself (js/build-badge.js), where that fact belongs.
+      const canonical = pretty ? prettyPath
         : MEET_PATH + '#v=' + room + avPart + (custom ? '&relay=' + encodeURIComponent(relay) : '');
       if (location.pathname + location.hash !== canonical) history.replaceState(null, '', canonical);
       shareUrl.value = pretty ? location.origin + prettyPath
