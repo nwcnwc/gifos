@@ -400,6 +400,20 @@
       // the password. A seated seat ignores the list's content anyway (E3
       // keeps it in the pool; it never seats off it), so just drop the reply.
       let action;
+      // FRAGMENT SELF-RESCUE (behavior battery 08a tail, 2026-07-26): I am
+      // SEATED in a room of ONE, yet the door's greeter list opens to OTHER
+      // live members — my entry collapsed into a fragment (the reload-mash /
+      // glare tail: seat-wander, requeue, solo). The DOOR is ground truth
+      // for who is reachable; a solo seat is its own greeter and re-knocks
+      // every ~55s anyway, so this costs nothing new. Hand the evidence to
+      // the app for a clean re-entry.
+      if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (env.TICK - (seat.seatedAt || 0)) > 90) {
+        greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
+          listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue' });
+        if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
+        if (opts.onFragment) { try { opts.onFragment(ids.length); } catch (e) {} }
+        return;
+      }
       if (list.length && !ids.length) {
         action = preState !== 3 ? 'locked' : 'drop-seated-sealed';
         if (preState !== 3) fireLocked(); // R6: sealed list I can't read — wrong password (joiners only)
@@ -493,6 +507,13 @@
             // idle keepalive: re-register before any middlebox forgets the
             // pipe; the greeters reply doubles as proof the socket is alive.
             reregister('keepalive');
+          } else if (seat.state === 3 && seat.occ.size <= 1 && (env.TICK - (seat.seatedAt || 0)) > 90 && nowMs - lastRegAt > 30000) {
+            // SOLO-ROOM DOOR PROBE (fragment self-rescue's trigger): a seated
+            // room-of-one asks the door every 30s whether it is truly alone —
+            // the idle keepalive above never fires while stray relay traffic
+            // keeps the socket "busy", which is exactly a fragment's state.
+            // The greeters reply lands in onGreeters' fragment-rescue branch.
+            reregister('solo-probe');
           }
         }
         if (opts.onUpdate) opts.onUpdate(node);

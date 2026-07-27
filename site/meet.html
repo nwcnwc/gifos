@@ -3746,6 +3746,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         },
         onLocked: () => { pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
         onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
+        // FRAGMENT SELF-RESCUE: the wire proved the door knows members my
+        // solo room view doesn't. Same clean lever as the freeze self-heal \u2014
+        // a full re-entry \u2014 throttled, and only while the app agrees we look
+        // alone (a healthy room never qualifies).
+        onFragment: (n) => {
+          if (participantCount() > 1) return;
+          const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
+          if (Date.now() - last < 90000) return; // once per 90s \u2014 never a reload loop
+          try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
+          location.reload();
+        },
         // R5 / E5§2: two door clusters (multi-genesis or same-key torn halves).
         onFork: (opts) => showForkPick(opts),
         // Greeter HOME carries Stage (preferred) / Stadium faces for pick-one.

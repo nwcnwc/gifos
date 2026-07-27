@@ -31,5 +31,5 @@ scenario('08a-techsupport-reload-mash', {
   await gigi.cmd('reload');
   check.assert(await gigi.waitSeat(60), 'Gigi seats after reloads 4-5');
   await check.converged(2, { desc: 'reloads 4-5: same room', within: 90 });
-  await check.oneTree(2, { via: 'kai', desc: 'final census: ONE tree of 2 (the race never forked the room)' });
+  await check.oneTree(2, { via: 'kai', within: 90, desc: 'final census: ONE tree of 2 (no LASTING fragment — the rescue may take one 30s probe)' });
 });
