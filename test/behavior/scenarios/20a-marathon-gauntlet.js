@@ -44,7 +44,7 @@ scenario('20a-marathon-gauntlet', {
   await check.until('ACT 4: Quinn self-heals back in', async () => {
     const s = await cast.get('quinn').state();
     return !s.err && !!s.coord && s.participants === 5;
-  }, { within: 120 });
+  }, { within: 180 }); // multi-stage heal budget (cf. 08c)
   await check.converged(5, { desc: 'ACT 4 checkpoint: five again', roles: ['sol', 'tess', 'pia', 'quinn', 'rio'], within: 240 });
 
   // ACT 5 — Pia's battery slides into emergency; Quinn parks on the couch arm

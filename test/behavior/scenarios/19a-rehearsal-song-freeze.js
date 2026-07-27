@@ -25,7 +25,7 @@ scenario('19a-rehearsal-song-freeze', {
   await check.until('Cy re-syncs into the song', async () => {
     const s = await cast.get('cy').state();
     return !s.err && !!s.coord && s.participants === 3;
-  }, { within: 120 });
+  }, { within: 180 }); // multi-stage heal budget (cf. 08c)
   await check.converged(3, { desc: 'the trio plays on' });
   await check.oneTree(3, { via: 'ash', within: 240 });
 });

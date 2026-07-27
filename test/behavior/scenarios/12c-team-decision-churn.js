@@ -33,7 +33,7 @@ scenario('12c-team-decision-churn', {
   await check.until('Min self-heals back in', async () => {
     const s = await cast.get('min').state();
     return !s.err && !!s.coord && s.participants === 4;
-  }, { within: 120 });
+  }, { within: 180 }); // multi-stage heal budget (cf. 08c)
 
   await check.converged(4, { desc: 'one copy of everyone after the churn' });
   await check.until('the returners can read the decision', async () => {

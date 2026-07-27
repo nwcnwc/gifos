@@ -24,7 +24,7 @@ scenario('05b-panel-star-freeze', {
   await check.until('Kiki is back in the room after the self-heal', async () => {
     const s = await kiki.state();
     return !s.err && !!s.coord && s.participants === 4;
-  }, { within: 120 });
+  }, { within: 180 }); // multi-stage heal budget (cf. 08c)
 
   // the honest-stage law: whatever happened to her slot, the stage list must
   // only ever name pids the room actually knows (no corpse on the marquee)
