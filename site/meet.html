@@ -1399,7 +1399,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // owns it — no threshold there changes.
           const dcOpen = p.dc && p.dc.readyState === 'open';
           if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) > 5000) {
-            if (nowHb - (p.meshKickAt || 0) >= 10000) {
+            // The DIALER side rebuilds (house doctrine, same as the starve
+            // edge): only its pc CREATES the DataChannel, so an answerer-side
+            // rebuild+offer would negotiate a session with no data m-line at
+            // all. The answerer's half heals on receipt of the dialer's fresh
+            // offer — the rebuild-on-offer path recognizes a never-opened
+            // pair and rebuilds FIRST (a fresh offer negotiated into the old
+            // wedged pc re-wedges: probe-observed, 2026-07-27).
+            if (iInitiate(pid) && nowHb - (p.meshKickAt || 0) >= 10000) {
               p.meshKickAt = nowHb;
               sv.kicked++;
               if (typeof clog === 'function') clog('dc-watchdog rebuild ' + String(pid).slice(0, 6));
@@ -1432,7 +1439,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // without this a dark member's seat stayed unconfirmed and H7's
           // designated-admitter discipline kept the door constitutionally
           // CLOSED (NOROOM) for every newcomer until the 195s reap.
-          if (!tlFiredPid.has(pid)) { tlFiredPid.add(pid); onTransportDead(pid, 'starve-dead'); }
+          // …EXCEPT a pair still FORMING whose signaling is live (pair-probe,
+          // 2026-07-27): a half-open pair's victim flaps in and out of ICE
+          // while the far side's offers/answers keep arriving — a peer we
+          // heard from over the relay seconds ago is demonstrably a PERSON
+          // (G1 transport-vouch), and death-firing on it forked the roster
+          // (one side dropped, the other held). Rebuild still runs below;
+          // only the death edge waits. A DARK peer signals nothing, so 14a's
+          // fix is untouched — heardPid>0 pairs (once-established) keep the
+          // full edge too.
+          const formingAlive = !heardPid && nowHb - (p.lastHeard || 0) < 12000;
+          if (!tlFiredPid.has(pid) && !formingAlive) { tlFiredPid.add(pid); onTransportDead(pid, 'starve-dead'); }
           if (typeof clog === 'function') clog('mesh-starve rebuild ' + String(pid).slice(0, 6));
           newPcFor(p);
           sendOffer(pid, false);
@@ -3174,6 +3191,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // 'failed' tore down recovering pairs in a loop the moment both tabs
         // were hidden/throttled (the 06a regression this line first caused).
         if (p.pc && p.deadSince && Date.now() - p.deadSince > 12000) newPcFor(p);
+        // A NEVER-OPENED pair is the other corpse class (pair-probe.js): ICE
+        // says connected, the DC never opened, and this side reads healthy
+        // (deadSince=0) — so the dialer's dc-watchdog rebuild offer was
+        // negotiated into the wedged old pc and the pair re-wedged. An offer
+        // arriving for a pair that never carried a byte and never opened its
+        // DC past formation age gets a fresh pc to land on.
+        if (p.pc && !(p.dc && p.dc.readyState === 'open') && !p.meshRxAt && !p.dcRxAt
+            && Date.now() - (p.rebuiltAt || p.bornAt) > 5000) newPcFor(p);
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
         // Perfect negotiation (glare): both sides may offer when the lower-id
