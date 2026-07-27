@@ -68,6 +68,16 @@ from seats that share no first-hand view). The duplicate-absorption
 machinery would be carrying steady-state load instead of rare transients.
 Not recommended; listed for completeness.
 
+## The human overlay (Nathan, 2026-07-27) — applies to EVERY option
+
+A phone user facing an ambiguous state closes the tab: a knocker staring
+at silence for 12-15s is a bailed knocker, whatever the mesh eventually
+does. So whichever option wins, the DOOR UX must look deliberate within
+a couple of seconds — an honest "getting you in…" state on the knock
+path — and the close-and-reopen path must stay instant and ghost-free,
+because that is the retry a human will actually perform. The law options
+below buy mesh-side truth; only the UI buys patience.
+
 ## Recommendation
 
 A now, B if the door pause ever matters at product level. Concretely: fix
