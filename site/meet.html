@@ -1378,7 +1378,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // PID-LEVEL clocks: a replaced peer object restarts its own bornAt,
           // which laundered the age gate forever (the never-fires draw). The
           // pid's silence clock survives object churn.
-          const heardPid = meshRxByPid.get(pid) || 0;
+          const heardPid = Math.max(meshRxByPid.get(pid) || 0, p.dcRxAt || 0);
           if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
           const basePid = Math.max(heardPid, pidFirstSeen.get(pid));
           if (!p.connected && !heardPid && nowHb - basePid < 12000) { why('notconn'); continue; }
@@ -4854,6 +4854,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
     }
     function onDc(p, dc, m) {
+      // ANY DataChannel receive is FIRST-HAND transport proof (peer-instance
+      // regression report, 2026-07-27): the starve edge keyed on MESH
+      // receives alone, so a healthy-but-quiet pair (a 2-person room with a
+      // shared app and nothing to say) read as starving at 12s and was
+      // declared transport-dead mid-sga-flood — the guest got the app header
+      // over blank space, the exact demo-killer class. Statuses ride the DCs
+      // every <=12s in any healthy pair; a zombie pair receives NOTHING —
+      // silence alone was never the evidence, this is.
+      p.dcRxAt = Date.now();
+      if (p.id) { meshRxByPid.set(p.id, p.dcRxAt); tlFiredPid.delete(p.id); }
       if (m.k === 'hi') {
         // Union-merge — and GOSSIP ONWARD whatever was news: a delegate
         // learning a missed line over the bridge hands it down its own leaf.
