@@ -74,4 +74,4 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
 
   await b.close();
   console.log(fail?('\n'+fail+' FAIL'):'\nALL PASS'); process.exit(fail?1:0);
-})().catch(e=>{console.error('FATAL',e.message||e);process.exit(2);});
+})().catch((e) => { console.error('FATAL', (e && e.stack) || (e && e.message) || e); process.exit(2); });

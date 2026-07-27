@@ -109,4 +109,4 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
-})().catch((e) => { console.error('FATAL', e && e.message || e); process.exit(2); });
+})().catch((e) => { console.error('FATAL', (e && e.stack) || (e && e.message) || e); process.exit(2); });
