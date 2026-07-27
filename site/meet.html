@@ -1396,6 +1396,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           newPcFor(p);
           sendOffer(pid, false);
         }
+        // THE FORMATION GAP (behavior battery 14a residual): a pair whose
+        // OBJECT never formed at all (join glare ate the first offer both
+        // ways) is invisible to the sweep above — and to every healer. In a
+        // SMALL room (everyone row-linked, ≤C+1 people) a roster-fresh
+        // member with no peers entry and no direct mesh receive for 12s is a
+        // dead-or-never-formed pair either way: fire the D5 edge so the mesh
+        // probe settles the truth. NEVER at scale — cross-row members
+        // legitimately hold no direct channel, so this is gated to rooms
+        // small enough that everyone should.
+        if (participantCount() <= 6) {
+          for (const pid of rosterIds) {
+            if (pid === myId || peers.has(pid)) continue;
+            const heard = meshRxByPid.get(pid) || 0;
+            if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
+            if (nowHb - Math.max(heard, pidFirstSeen.get(pid)) < 12000) continue;
+            if (!tlFiredPid.has(pid)) { tlFiredPid.add(pid); onTransportDead(pid, 'starve-noobj'); }
+          }
+        }
       } catch (e) {}
       if (typeof reconcileApp === 'function') reconcileApp();
       pipReaim(); // keep Safari's auto-PiP flag on the current best candidate

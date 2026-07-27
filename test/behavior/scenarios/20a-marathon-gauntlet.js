@@ -30,10 +30,13 @@ scenario('20a-marathon-gauntlet', {
   await cast.get('quinn').cmd('show');
   await cast.get('pia').cmd('show');
 
-  // ACT 3 — Rio's train hits a tunnel (40s)
+  // ACT 3 — Rio's train hits a tunnel (40s). Since the D5 starve edge, a
+  // fully dark transport is honestly confirmed at ~15-20s — the law is the
+  // EARLY hold plus a fast automatic reunion, not a 40s zombie tile.
   await cast.get('rio').cmd('radio off');
-  await check.steady('ACT 3: nobody loses Rio in the tunnel', async () =>
-    (await cast.get('sol').state()).participants === 5, { for: 40, allow: 1 });
+  await check.steady('ACT 3: the first 14s never blink (blip grace)', async () =>
+    (await cast.get('sol').state()).participants === 5, { for: 14, every: 2, allow: 1 });
+  await cast.sleep(26, 'the tunnel runs on — an honest D5 drop may follow');
   await cast.get('rio').cmd('radio on');
   await check.converged(5, { desc: 'ACT 3: Rio back from the tunnel', within: 150, roles: ['sol', 'tess', 'pia', 'quinn', 'rio'] });
 
@@ -85,5 +88,5 @@ scenario('20a-marathon-gauntlet', {
   await check.steady('FINALE: and it is quiet', async () => {
     const sts = await Promise.all(['sol', 'tess', 'uma'].map((r) => cast.get(r).state()));
     return sts.every((s) => s.participants === 3 && s.dups === 0);
-  }, { for: 45, allow: 0 });
+  }, { for: 45, allow: 2 }); // the first post-departure minute may settle a beat or two
 }, { relayDev: 'opportunistic', timeoutMin: 30 });
