@@ -45,14 +45,18 @@ const snap = () => {
   const v = window.__gifosVideo;
   const g = v.grid();
   const clocks = Object.entries(g.clocks || {}).map(([pid, c]) => pid.slice(0, 8) + ':n=' + c.n);
+  const sv = window.__starve || {};
   return {
     live: v.liveLinks(),
+    dl: (v.liveDataLinks ? v.liveDataLinks() : -1),
     roster: (v.rosterIdsNow ? v.rosterIdsNow().length : -1),
     pairs: (v.pairs ? v.pairs().length : -1),
     clocks: clocks.length ? clocks.join(',') : 'NONE',
+    kicked: sv.kicked || 0,
+    dcwatch: (sv.why && sv.why.dcwatch) || 0,
   };
 };
-const fmt = (s) => 'live=' + s.live + ' roster=' + s.roster + ' pairs=' + s.pairs + ' clk=' + s.clocks;
+const fmt = (s) => 'live=' + s.live + ' dl=' + s.dl + ' roster=' + s.roster + ' pairs=' + s.pairs + ' clk=' + s.clocks + ' kick=' + s.kicked + ' dcw=' + s.dcwatch;
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME,
