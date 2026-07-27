@@ -452,6 +452,7 @@ function armForkAuto() {
     } catch (e) {}
   }, 4000);
 }
+let intentionalKill = false; // die/quit set this — an EXPECTED browser death
 async function ensureBrowser() {
   if (browser) return;
   browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME,
@@ -471,6 +472,17 @@ async function ensureBrowser() {
     ...((process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS)
       ? ['--unsafely-treat-insecure-origin-as-secure=' + (process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS)] : []),
   ] });
+  // A dead browser with a live REPL is a monitor that silently stopped
+  // monitoring (the pi, 2026-07-27: chromium died minutes after joining and
+  // meet.js sat there while run.sh's respawn loop had nothing to respawn).
+  // Outside drive mode (where the orchestrator owns actor lifecycles and
+  // `die` is a lever), an unexpected browser death is fatal ON PURPOSE — the
+  // supervisor loop is the recovery.
+  browser.on('disconnected', () => {
+    if (MODE === 'drive' || intentionalKill) return;
+    console.error('[meet] browser died unexpectedly — exiting so the supervisor respawns');
+    process.exit(1);
+  });
 }
 async function join(room, opts) {
   opts = opts || {};
@@ -830,6 +842,7 @@ async function runCmd(line) {
     return true;
   }
   if (cmd === 'die') { // the battery hit 0% / the OS killed the app: SIGKILL, no goodbyes
+    intentionalKill = true;
     const pids = browserTreePids();
     for (const p of pids) { try { process.kill(p, 'SIGKILL'); } catch (e) {} }
     if (!pids.length) { try { await browser.close(); } catch (e) {} } // last resort: graceful (shouldn't happen on Linux)
@@ -1166,7 +1179,7 @@ function startEnsurePass() {
 
 // ---- main -----------------------------------------------------------------
 (async () => {
-  process.on('SIGINT', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
+  process.on('SIGINT', async () => { intentionalKill = true; try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
   startJsonl();
   startEnsurePass();
 
