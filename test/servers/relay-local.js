@@ -296,6 +296,7 @@ server.on('upgrade', (req, socket, head) => {
     // no stamp — authority is a signature (docs/meet-security.md §SIG)
     const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
     const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
+    if (process.env.RELAY_DEBUG) console.log('[route]', new Date().toISOString().slice(11, 23), 'peer', String(from).slice(0, 10), '->', String(m.to).slice(0, 10), dest ? 'DELIVERED' : 'NOSOCK');
     if (dest) { dest.send(wrapped); return; }
     // Explicit no-socket bounce (docs/meet-security.md §FWD): the target holds
     // no socket here (a seated deep seat — R2 greeting scope), so tell the

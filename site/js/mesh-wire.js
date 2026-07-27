@@ -101,7 +101,7 @@
     const dropDeep = opts.dropDeepSocket !== false;
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false;
-    let sock = null, deepSince = -1;
+    let sock = null, deepSince = -1, wasNetDark = false;
     // Wire-level greeter registration health (production only — the sim has no
     // sockets, so none of this is mesh law). The relay's greeter pool is pure
     // socket-attachment state: an entry dies WITH its socket, and the E3
@@ -440,8 +440,25 @@
       // Worker-less context keep the plain interval.
       const tick = () => {
         if (stopped) return;
-        env.TICK++;
-        seat.tick();
+        // SELF-PARTITION HOLD (behavior battery 06c, 2026-07-26): when the OS
+        // says this device has NO network, every silence in the room is OUR
+        // silence — running the mesh would confirm every neighbour dead (a
+        // solo ring confirms alone), free their seats, and HEAL ourselves
+        // into 0/0.0: a seated self-mint fragment, the exact tear the veil
+        // law forbids at the door. D3's own law is the model: "a severed-but-
+        // alive seat simply re-announces itself when it recovers". So hold
+        // the mesh perfectly still (a frozen tab does the same and recovers
+        // cleanly); the socket-maintenance below keeps running so the return
+        // reconnects on the spot.
+        const netDark = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (netDark !== wasNetDark) {
+          wasNetDark = netDark;
+          try { if (seat.netHold) seat.netHold(); } catch (e) {} // dark-era silence is not evidence (both edges)
+        }
+        if (!netDark) {
+          env.TICK++;
+          seat.tick();
+        }
         if (seat.stranded && !strandedFired) { strandedFired = true; if (opts.onStranded) opts.onStranded(); }
         // Socket lifecycle: deep-seated ⇒ the relay is done with me; drop after a
         // grace (Section-1 seats and joiners keep theirs — knock traffic). An

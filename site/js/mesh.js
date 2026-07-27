@@ -307,6 +307,16 @@
     }
     tlForget(k) { this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
     tlClear() { this.translost.clear(); this.tlProbeAt.clear(); this.probeAck.clear(); }
+    // WIRE-ONLY (no sim counterpart — the sim has no device-local network).
+    // Called at BOTH edges of the device's own network dying/returning:
+    // silence observed while WE were dark is not evidence about anyone
+    // (D5's "unreachable on every path" presumes the paths were ours to
+    // try). Drop every silence-derived observation and hole timer; fresh
+    // reality re-derives real ones within a beat. Without this, the latched
+    // dark-era observations fired on resume and a lone survivor CONFIRMED
+    // its whole row dead and healed itself into 0/0.0 — a seated self-mint
+    // fragment (behavior battery 06c, 2026-07-26).
+    netHold() { this.tlClear(); this.holeSince.clear(); this.lastAck = this.TICK; }
     // tlSweep — D5 cleanup at EVERY observer (D3's "a corpse stops riding
     // rosters", started early): once my own observation CONFIRMS (probe
     // unanswered on every path past the early window), the corpse leaves MY

@@ -1300,6 +1300,47 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // socket no longer silences the room's pulse).
       const audible = relayUp() || Array.from(peers.values()).some((p) => p.dc && p.dc.readyState === 'open');
       if (peers.size && audible && !throttled) broadcastStatus();
+      // HALF-OPEN PAIR SELF-HEAL (behavior battery F1, 2026-07-26): a join
+      // glare can leave an ASYMMETRIC DataChannel pair — both ends read
+      // 'connected', but one side's frames pour into an object the far side
+      // has already replaced. Mesh control has no relay fallback past entry
+      // (by design), so the victim's HELLO and every 4s PHONE re-claim
+      // vanish forever: the founder never records the joiner (occ=1, the
+      // N=2 coin flip), and nothing notices because nothing measures RECEIVE
+      // silence. So measure it: a mesh-named, connected, open pair that has
+      // delivered NOTHING mesh-level inbound for 12s is a zombie — the
+      // deterministic dialer side rebuilds the transport (full newPcFor +
+      // re-offer; renegotiate() on the same broken pc heals nothing). PHONE
+      // re-claims then repair occupancy within a beat or two.
+      try {
+        const nowHb = Date.now();
+        const sv = (window.__starve = window.__starve || { beats: 0, eligible: 0, kicked: 0, why: {} });
+        sv.beats++;
+        for (const [pid, p] of peers) {
+          const why = (w) => { sv.why[w] = (sv.why[w] || 0) + 1; };
+          // connected at ICE level is enough to be a zombie CANDIDATE — the
+          // classic half-open pair has p.dc NULL on the victim side (its
+          // ondatachannel never fired), which is exactly what must heal
+          if (!p.connected) { why('notconn'); continue; }
+          // ROSTER membership, not mesh naming, gates eligibility: the mesh
+          // never learning this peer IS the failure being healed (a linkTo
+          // gate was circular — the victim pair always read "nolink")
+          if (!rosterIds.includes(pid)) { why('noroster'); continue; }
+          // the STARVED side rebuilds — starvation is first-hand evidence and
+          // only one side of an asymmetric pair has it (the dialer-designation
+          // gate left pairs where the victim wasn't the designated dialer
+          // unhealed forever); the 12s threshold + 30s throttle are the storm
+          // guard, and perfect negotiation absorbs a rare double-rebuild
+          const base = Math.max(p.meshRxAt || 0, p.bornAt || 0);
+          if (!base || nowHb - base < 12000) { why('fresh'); continue; }
+          if (nowHb - (p.meshKickAt || 0) < 30000) { why('throttled'); continue; }
+          sv.kicked++;
+          p.meshKickAt = nowHb;
+          if (typeof clog === 'function') clog('mesh-starve rebuild ' + String(pid).slice(0, 6));
+          newPcFor(p);
+          sendOffer(pid, false);
+        }
+      } catch (e) {}
       if (typeof reconcileApp === 'function') reconcileApp();
       pipReaim(); // keep Safari's auto-PiP flag on the current best candidate
     })) hbVia = 'worker';
@@ -2790,7 +2831,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // them) — the sweeper's reconcile re-derives and re-adds them cleanly.
       if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = [];
+      p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0;
       p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
       // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
@@ -2839,6 +2880,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pc.onconnectionstatechange = () => {
         if (p.pc !== pc) return; // a replaced transport's tail events — not this pair's truth
         p.connected = pc.connectionState === 'connected';
+        // deadSince: how long this transport has been in a HARD state — the
+        // persistence gate for the rebuild-on-offer path (transients recover
+        // via ICE restart and must never trigger a teardown)
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { if (!p.deadSince) p.deadSince = Date.now(); }
+        else if (p.connected) p.deadSince = 0;
         updateStatus();
         if (p.connected) { p.altPath = false; p.tlAt = 0; adapt(); } // rotation ends when the pair lands; D5 edge re-arms
         // D5: 'closed' out of nowhere (we didn't rebuild it and the peer is
@@ -2855,7 +2901,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (peers.has(peerId)) return peers.get(peerId);
       const t = makeTile(peerId, name, false, headless);
       const p = { id: peerId, pc: null, tile: t.tile, video: t.video, label: t.label, avatar: t.avatar, chips: t.chips, cap: t.cap, modbar: t.modbar, voteBtn: t.voteBtn,
-        name, headless: !!headless, connected: false, pendingIce: [], absentSince: 0, lastKick: 0, lastHeard: Date.now(), incoming: [] };
+        name, headless: !!headless, connected: false, pendingIce: [], absentSince: 0, lastKick: 0, lastHeard: Date.now(), bornAt: Date.now(), incoming: [] };
       peers.set(peerId, p);
       newPcFor(p);
       adapt();
@@ -2986,6 +3032,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // the sweeper retires any link the arithmetic ends up not wanting.
         if (!linkTo(from) && meshKnows(from)) { rxStats.offerRejected++; return; }
         const p = makePeer(from, msg.name);
+        // A fresh offer onto a LONG-DEAD local pc negotiates into a corpse:
+        // the tunnel-return stall (behavior battery 06c, 2026-07-26) — the
+        // evicted side's zombie ate the returning offers until the vouch
+        // reap cleared it minutes later. Rebuild first — but ONLY when the
+        // death has PERSISTED (deadSince > 12s): rebuilding on any transient
+        // 'failed' tore down recovering pairs in a loop the moment both tabs
+        // were hidden/throttled (the 06a regression this line first caused).
+        if (p.pc && p.deadSince && Date.now() - p.deadSince > 12000) newPcFor(p);
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
         // Perfect negotiation (glare): both sides may offer when the lower-id
@@ -4795,6 +4849,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         confirmGone(p.id, 'bye');
       } else if (m.k === 'mesh') {
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
+        p.meshRxAt = Date.now(); // the starve detector's proof of a LIVE pair (see the hb beat)
         if (meshNode && m.m) meshNode.recvCtl(m.m);
       } else if (m.k === 'fmesh') {
         // Sponsor-forwarded mesh control (mirrors fsig): mine ⇒ hand to the

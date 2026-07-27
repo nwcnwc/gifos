@@ -299,13 +299,18 @@ function batteryInitScript() {
 function radioInitScript() {
   return `(() => {
     window.__bbRadio = { off: false };
+    window.__bbRx = {}; // passive WS receive tally by frame type (diagnostics)
+    window.__bbDcRx = {}; // passive DC receive tally by k-field (diagnostics)
+    const tally = (e) => { try { const t = JSON.parse(e.data).t; if (t) window.__bbRx[t] = (window.__bbRx[t] || 0) + 1; } catch (x) {} };
+    const dcTally = (e) => { try { const k = JSON.parse(e.data).k; if (k) window.__bbDcRx[k] = (window.__bbDcRx[k] || 0) + 1; } catch (x) {} };
     const gate = (proto) => {
+      const isWs = proto === RealWS.prototype;
       const send = proto.send;
       proto.send = function () { if (window.__bbRadio.off) return; return send.apply(this, arguments); };
       const om = Object.getOwnPropertyDescriptor(proto, 'onmessage');
       if (om && om.set) Object.defineProperty(proto, 'onmessage', { configurable: true,
         get() { return this.__bbOm || null; },
-        set(fn) { this.__bbOm = fn; om.set.call(this, fn ? ((e) => { if (!window.__bbRadio.off) fn.call(this, e); }) : null); } });
+        set(fn) { this.__bbOm = fn; om.set.call(this, fn ? ((e) => { if (window.__bbRadio.off) return; if (isWs) tally(e); else dcTally(e); fn.call(this, e); }) : null); } });
       const add = proto.addEventListener;
       proto.addEventListener = function (t, f, o) {
         if (t === 'message' && typeof f === 'function') { const w = (e) => { if (!window.__bbRadio.off) f.call(this, e); }; return add.call(this, t, w, o); }
@@ -777,8 +782,17 @@ async function runCmd(line) {
   }
   if (cmd === 'radio') {
     lever.radioOff = (arg || '').trim() !== 'on';
-    await page.evaluate((off) => { if (window.__bbRadio) window.__bbRadio.off = off; }, lever.radioOff);
-    console.log('  radio → ' + (lever.radioOff ? 'OFF (coverage dropout: WS+DC silent both ways, no close events)' : 'on'));
+    // the FULL phone reality: silence the channels AND flip the OS-level
+    // signals — a real radio drop/return fires navigator.onLine + the
+    // offline/online events, and the app's socket wake machinery rides them
+    // (without 'online', a lab return pays the full hidden-tab backoff and
+    // reads minutes-slow when a real phone reconnects in seconds)
+    await page.evaluate((off) => {
+      if (window.__bbRadio) window.__bbRadio.off = off;
+      try { Object.defineProperty(navigator, 'onLine', { get: () => !off, configurable: true }); } catch (e) {}
+      window.dispatchEvent(new Event(off ? 'offline' : 'online'));
+    }, lever.radioOff);
+    console.log('  radio → ' + (lever.radioOff ? 'OFF (coverage dropout: WS+DC+onLine dark, no close events)' : 'on (online event fired)'));
     return true;
   }
   if (cmd === 'battery') {
