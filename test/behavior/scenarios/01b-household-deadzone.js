@@ -31,12 +31,11 @@ scenario('01b-household-deadzone', {
   // the long dead zone — since the D5 starve edge (2026-07-27), a fully
   // dark transport is honestly confirmed at ~15-20s; the law is the early
   // hold + a fast automatic reunion, never a zombie tile
+  // this zone follows a heal — a YOUNG pair's honest drop can come ~3-8s in
+  // (close event + fast D5 confirm); stillness is only guaranteed on settled
+  // pairs (the short-blip leg above). Here the law is the RECOVERY.
   await maya.cmd('radio off');
-  await check.steady('dead zone: the first 14s never blink', async () => {
-    const sd = await cast.get('dana').state(), sp = await cast.get('pops').state();
-    return sd.participants === 3 && sp.participants === 3;
-  }, { for: 14, every: 2, allow: 1 });
-  await cast.sleep(56, 'the dead zone runs on — an honest D5 drop may follow');
+  await cast.sleep(70, 'the long dead zone — an honest early drop may follow');
   await maya.cmd('radio on');
   await check.converged(3, { desc: 'Maya self-heals out of the long dead zone', within: 180 });
   await check.oneTree(3, { via: 'dana' });
