@@ -10,44 +10,65 @@
      code so a meeting link opens on the right build. Identical across entry pages. -->
 <script>
 (function () {
-  if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
-  var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
-  // Flags may arrive IN THE HASH: the 404 pretty-URL router folds the query
-  // into the hash it builds (/meet/<room>?edge -> /meet.html#v=<room>&edge),
-  // so a channel flag must be honored from either place.
-  function has(k) { return !!(q && q.has(k)) || new RegExp('[#&]' + k + '(&|=|$)').test(location.hash || ''); }
-  try {
-    if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
-    if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); }
-  } catch (e) {}
-  var pin = null, chan = null, cur = null;
-  try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
-  // A PRETTY router path (/meet/<room>, /call/<room>, /join/<code>[/…]) is NOT a
-  // file — Pages 404s it and 404.html routes it to a real page. If we ever run at
-  // one (an offline cached shell, or any substitution of index.html), prepending
-  // /versions/<v> would build /versions/<v>/meet/<room>, which exists nowhere, and
-  // bounce the visitor to the desktop with their invite silently dropped. So
-  // translate a pretty path to its real target instead of decorating it. Room case
-  // is PRESERVED: the room id is the capability the key derives from.
-  var pm = location.pathname.match(/^\/(?:join|meet|call)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
-  var here;
-  if (pm) {
-    here = /^\/(?:meet|call)\//.test(location.pathname)
-      ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
-      : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
-  } else {
-    here = location.pathname + location.hash;              // carry the page + invite hash across
+  // THE CHANNEL DECISION, exposed as a callable so it can be tested directly
+  // (test/browser/e2e.js). Returns null to stay on this build, {redirect:<url>}
+  // to move, or {clear:true} when ?stable/?unpin/?latest just cleared a pin and
+  // there is nowhere to go. The three lines at the bottom are the ONLY caller in
+  // the page, so a test of this function is a test of what actually ships —
+  // when this hook was dropped during a loader redesign, e2e.js's five pinning
+  // assertions died as a TypeError and version pinning silently lost its guard.
+  function pinTarget(pathname, search, hash) {
+    pathname = pathname || '/'; search = search || ''; hash = hash || '';
+    if (pathname.indexOf('/versions/') !== -1) return null;   // immutable build — never redirect
+    var q; try { q = new URLSearchParams(search); } catch (e) { q = null; }
+    // Flags may arrive IN THE HASH: the 404 pretty-URL router folds the query
+    // into the hash it builds (/meet/<room>?edge -> /meet.html#v=<room>&edge),
+    // so a channel flag must be honored from either place.
+    function has(k) { return !!(q && q.has(k)) || new RegExp('[#&]' + k + '(&|=|$)').test(hash); }
+    var cleared = false;
+    try {
+      if (has('edge')) { localStorage.setItem('gifos_channel', 'edge'); localStorage.removeItem('gifos_pin'); }
+      if (has('stable') || has('unpin') || has('latest')) { localStorage.removeItem('gifos_channel'); localStorage.removeItem('gifos_pin'); cleared = true; }
+    } catch (e) {}
+    var pin = null, chan = null, cur = null;
+    try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
+    var stay = cleared ? { clear: true } : null;
+    // A PRETTY router path (/meet/<room>, /call/<room>, /join/<code>[/…]) is NOT a
+    // file — Pages 404s it and 404.html routes it to a real page. If we ever run at
+    // one (an offline cached shell, or any substitution of index.html), prepending
+    // /versions/<v> would build /versions/<v>/meet/<room>, which exists nowhere, and
+    // bounce the visitor to the desktop with their invite silently dropped. So
+    // translate a pretty path to its real target instead of decorating it. Room case
+    // is PRESERVED: the room id is the capability the key derives from.
+    var pm = pathname.match(/^\/(?:join|meet|call)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
+    var here;
+    if (pm) {
+      here = /^\/(?:meet|call)\//.test(pathname)
+        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
+        : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
+    } else {
+      here = pathname + hash;                                 // carry the page + invite hash across
+    }
+    function to(v) { return { redirect: '/versions/' + v + here }; }
+    if (pin && pin !== window.GIFOS_VERSION) return to(pin);  // pinned to a DIFFERENT snapshot
+    if (pin) return stay;                                     // already running what we're pinned to
+    if (chan === 'edge') return stay;                         // opted into the edge build → run this root
+    // Default channel follows the live release — but only on the real domain. On
+    // localhost / preview hosts the root IS what you're developing, so stay edge.
+    if (!/(^|\.)gifos\.app$/.test(location.hostname)) return stay;
+    if (cur) return to(cur);                                  // default, fast path (last-known release)
+    // Default, first visit: resolve the release pointer, then redirect. On failure
+    // (offline, no cache) fall through and run this edge build.
+    try {
+      var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
+      var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
+      if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} return to(v); }
+    } catch (e) {}
+    return stay;
   }
-  function go(v) { location.replace('/versions/' + v + here); }
-  if (pin) { go(pin); return; }
-  if (chan === 'edge') return;
-  if (!/(^|\.)gifos\.app$/.test(location.hostname)) return;     // non-prod (localhost/preview) → edge
-  if (cur) { go(cur); return; }
-  try {
-    var x = new XMLHttpRequest(); x.open('GET', '/version.json?ts=' + Date.now(), false); x.send();
-    var v = ''; try { v = (JSON.parse(x.responseText) || {}).current || ''; } catch (e) {}
-    if (v) { try { localStorage.setItem('gifos_current', v); } catch (e) {} go(v); }
-  } catch (e) {}
+  window.gifosPinTarget = pinTarget;
+  var decision = pinTarget(location.pathname, location.search, location.hash);
+  if (decision && decision.redirect) location.replace(decision.redirect);
 })();
 </script>
 <!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
