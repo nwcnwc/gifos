@@ -36,15 +36,35 @@ jobs:
       #
       # ANCHORED: this branch's history was squashed/re-imported, so a raw
       # `rev-list --count` under-counts (the pre-0.8.0 history is collapsed into one
-      # commit). We instead count site commits SINCE the v0.8.0 cut and add the real
-      # commit count v0.8.0 had in the original history — so the number lines up with
-      # the actual project history (0.6.0=31, 0.7.0=268, 0.8.0=280) and keeps
-      # climbing. Bump ANCHOR_* when you re-anchor at a future release.
+      # commit). We instead count site commits SINCE a known release and add the
+      # build number that release was cut from, so the number lines up with the
+      # actual project history (0.6.0=31, 0.7.0=268, 0.8.0=280, 0.8.4=825) and keeps
+      # climbing.
+      #
+      # Two rules, both learned the hard way — see the note in the step below:
+      #   1. Anchor ONLY to a commit that is pushed to main. The anchor must resolve
+      #      in a fresh CI checkout, not just in someone's local clone.
+      #   2. Keep this in step with scripts/archive-version.sh, which stamps the
+      #      same number into a release snapshot. If the two anchors disagree, the
+      #      release and the edge build it was cut from disagree.
+      # Bump ANCHOR_* (in BOTH files) when you re-anchor at a future release.
       - name: Stamp edge build number
         run: |
-          ANCHOR_SHA=3d84267            # the "release: cut v0.8.0" commit
-          ANCHOR_BUILD=280              # v0.8.0's real commit count in the original history
-          SINCE=$(git rev-list --count ${ANCHOR_SHA}..HEAD -- site 2>/dev/null || echo 0)
+          set -euo pipefail
+          ANCHOR_SHA=b4ada94            # the "release: cut v0.8.4" commit
+          ANCHOR_BUILD=825              # the edge build 0.8.4 was cut from
+          # The anchor MUST exist in CI's checkout. The previous anchor (3d84267)
+          # was a dangling object that lived only in one local clone — it resolved
+          # on that machine and was absent here, so `rev-list` failed, the old
+          # `|| echo 0` swallowed it, and every deploy silently stamped the anchor
+          # itself: the build number went BACKWARD 825 -> 280 and froze there,
+          # which broke the Version panel and killed edge update notifications.
+          # Never reintroduce a fallback that turns a missing anchor into a number.
+          if ! git cat-file -e "${ANCHOR_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::ANCHOR_SHA ${ANCHOR_SHA} is not in this checkout — re-anchor pages.yml to a commit that is pushed to main."
+            exit 1
+          fi
+          SINCE=$(git rev-list --count ${ANCHOR_SHA}..HEAD -- site)
           BUILD=$((ANCHOR_BUILD + SINCE))
           echo "edge build = $BUILD (anchor $ANCHOR_BUILD + $SINCE since $ANCHOR_SHA)"
           printf '/* baked at deploy by pages.yml — see site/js/build.js */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > site/js/build.js
