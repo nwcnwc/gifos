@@ -3827,8 +3827,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // solo room view doesn't. Same clean lever as the freeze self-heal \u2014
         // a full re-entry \u2014 throttled, and only while the app agrees we look
         // alone (a healthy room never qualifies).
-        onFragment: (n) => {
+        onFragment: (ids) => {
           if (participantCount() > 1) return;
+          // stale-evidence gate: a blob from an identity I have TOMBSTONED
+          // (a churned reload's corpse) is not proof of a live room — under
+          // a reload mash both sides rescue-looped on each other's stale
+          // blobs (behavior 08a sweep red, 2026-07-27)
+          const live = (Array.isArray(ids) ? ids : []).filter((id) => !meshGone.has(id));
+          if (!live.length) return;
           const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
           if (Date.now() - last < 90000) return; // once per 90s \u2014 never a reload loop
           try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}

@@ -422,7 +422,7 @@
         greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
           listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue' });
         if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
-        if (opts.onFragment) { try { opts.onFragment(ids.length); } catch (e) {} }
+        if (opts.onFragment) { try { opts.onFragment(ids.slice()); } catch (e) {} } // the ID LIST — the app filters stale/tombstoned evidence
         return;
       }
       if (list.length && !ids.length) {
