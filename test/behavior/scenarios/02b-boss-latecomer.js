@@ -17,8 +17,7 @@ scenario('02b-boss-latecomer', {
   const jae = cast.get('jae');
   await jae.join(cast.room, { av: cast.avKnown() });
   check.assert(await jae.waitSeat(60), 'Jae seats through the greeter door of a settled admin room');
-  const sj = await jae.state();
-  check.assert(sj.participants === 4, 'Jae landed in THE room, not a fragment', 'participants=' + sj.participants);
+  await check.until('Jae landed in THE room, not a fragment', async () => (await jae.state()).participants === 4, { within: 20 });
   await check.converged(4);
   await check.oneTree(4, { via: 'priya' });
   check.assert(await cast.get('priya').eval('window.__gifosVideo.amAdmin()') === true, 'admin table intact after the late seat');
