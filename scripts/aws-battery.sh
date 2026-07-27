@@ -37,9 +37,12 @@ ips() { aws ec2 describe-instances --region $REGION \
 case "${1:-cycle}" in
 
 launch)
-  AMI=$(aws ssm get-parameter --region $REGION \
-    --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
-    --query Parameter.Value --output text)
+  # Canonical's owner id + name filter — NOT the SSM parameter: the
+  # gifos-swarm IAM user has ec2:* but no ssm:GetParameter (learned live).
+  AMI=$(aws ec2 describe-images --region $REGION --owners 099720109477 \
+    --filters "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*" "Name=state,Values=available" \
+    --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+  [ -n "$AMI" ] && [ "$AMI" != "None" ] || { echo "AMI resolution failed" >&2; exit 1; }
   echo "AMI $AMI, $N x $TYPE, dead-man ${MAX_LIFE_MIN}min"
   cat > "$OUT/userdata.sh" <<EOF
 #!/bin/bash
