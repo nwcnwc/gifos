@@ -1,4 +1,4 @@
-# The behavior battery — 20 use cases, real people, real phones
+# The behavior battery — 21 use cases, real people, real phones
 
 Launch truth: there will be **no monitors in production**. Billions of rooms,
 zero pis, nobody watching. Every problem a meeting can have must be one the
@@ -7,7 +7,7 @@ to *rehearse the actual meetings people will hold* — not protocol fragments,
 but whole stories: who these people are, what devices they hold, what their
 phones do to the call while life happens around it.
 
-This battery is that rehearsal. Twenty use cases of 2–5-person meetings, each
+This battery is that rehearsal. Twenty-one use cases of 2–5-person meetings, each
 with named personas and 1–3 **interaction patterns** (a pattern = one runnable
 scenario script). Every role is played by a real `test/swarm/meet.js` instance
 — a full Playwright participant recording debug state — orchestrated by
@@ -387,6 +387,29 @@ somebody. This is the closing gauntlet and the launch dress rehearsal.
   ≤ its law's deadline; final: the last two standing hold a clean 2-person
   room. *(~12 min compressed.)*
 
+### 21. The quiet room — silence is not absence
+**Cast:** a co-working study hall (2 desktops + 2 phones); a late-night
+sit-up pair plus one late knock.
+**Story:** rooms where nobody SAYS anything for minutes — co-working,
+silent company, an app filling the screen. Every other use case keeps
+traffic flowing, which is exactly why the starve-edge regression (fixed
+in 6a23358) was invisible to all of them and was caught by the quiet
+guest-perms drill instead. These scenarios make minutes-long user
+silence a first-class battery reality.
+
+- **21a `21a-quiet-study-hall.js`** — 4 join, one line of chat, then FOUR
+  minutes of total user silence. Asserts: a settled quiet room never
+  blinks (240s steady at 4), the first message after the silence lands
+  everywhere ≤20s, clean census.
+- **21b `21b-quiet-door-knock.js`** — a settled pair sits in silence; a
+  third knocks INTO the silence. Asserts: a silent door still seats
+  ≤45s, the settled pair rides the admission unblinked, chat resumes
+  for all three.
+- *(planned)* **21c app-share idle** — the guest-perms drill's exact
+  shape (2-person room, a shared app, minutes of nothing) as a battery
+  scenario; needs a meet.js desktop-seed lever to give the host a store
+  with a shareable app, and lands together with that lever.
+
 ---
 
 ## Script index → what reality each covers
@@ -403,17 +426,19 @@ somebody. This is the closing gauntlet and the launch dress rehearsal.
 | relay deploy [relay-dev] | 4b 16b (20a opportunistic) |
 | locked door / admin | 2b 8b 18a |
 | stage / vote / handq | 5a 5b 7a 12a 12c 19b |
-| late join vs settled room | 2b 14a 16a 16b 20a |
+| late join vs settled room | 2b 14a 16a 16b 20a 21b |
+| minutes-long user silence | 21a 21b |
 
-48 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+50 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
-whether the lever machinery or the app broke). Open bugs are load-bearing
-scenarios: **4b/16b** are the
-post-deploy WHOHOME stall (#1, expected RED until fixed), **8a** is the
-fast-rejoin race (#2), **12b** measures the corpse-echo occ flap (#3).
-A red run of those is the battery doing its job — they stay red until the
-fix ships, exactly like `batteries/known-unfixed.sh` but with the opposite
-intent: these MUST go green before launch.
+whether the lever machinery or the app broke). The three open bugs this
+battery once carried as expected-RED scenarios are all FIXED and their
+scenarios green (2026-07-27 confirmation sweep): **4b/16b** post-deploy
+WHOHOME stall — root cause was the fork false-positive on stale door
+evidence, fixed 95ca143; **8a** fast-rejoin race — the resume-race latch;
+**12b** corpse-echo occ flap — the ghost-echo fixes (d49dae6, "a peer
+object is not a person"). They stay in the battery as the regression
+guards for exactly those fixes.
 
 ## Running
 
