@@ -2,9 +2,9 @@
 // Apps, and runs it (same-tab redirect to run.html).
 //
 // Needs: static server on 8099 (serves both the site AND the test gif copy).
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const fs = require('fs');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 
 let failures = 0;

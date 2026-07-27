@@ -10,9 +10,9 @@
 // responses look heuristically cacheable (stale Last-Modified, no Cache-Control)
 // and serves DIFFERENT html per target; the test navigates book A -> B and
 // asserts B's unique verse shows, not A's.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const http = require('http');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let fail = 0;

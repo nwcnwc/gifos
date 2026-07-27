@@ -17,13 +17,9 @@
 // Self-contained: own relay + site for this checkout. Safe from a worktree.
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
-const CHROME = process.env.MEET_CHROME
-  || (require('fs').existsSync('/opt/google/chrome/chrome') ? '/opt/google/chrome/chrome'
-      : '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome');
+
 const RELAY_PORT = parseInt(process.env.REUNION_RELAY_PORT || '8831', 10);
 const SITE_PORT = parseInt(process.env.REUNION_SITE_PORT || '8833', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;

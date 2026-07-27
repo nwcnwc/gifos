@@ -1,7 +1,7 @@
 // Screenshot the Fluence app after one take, for a visual check.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const fs = require('fs');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = 'http://127.0.0.1:8099', DG = 'http://127.0.0.1:8792', AI = 'http://127.0.0.1:8791';
 const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, cheapest: { url: AI, key: 'k', model: 'x' }, image: { url: AI, key: 'k', model: 'x' } });
 const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'dg-secret-key' } });

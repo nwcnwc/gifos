@@ -13,8 +13,8 @@
 //   3. audio never parks — the asked mate still carries audio toward C
 //   4. C returns → parks lift everywhere, main video tracks restored
 //   5. zero page errors throughout
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

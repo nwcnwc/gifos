@@ -4,8 +4,8 @@
 // after rotating, dragging an icon collapsed it onto the last visible column —
 // "snaps to random spots". Now columns are unbounded (like rows), so an icon
 // snaps to the cell where you actually drop it.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 
 let failures = 0;

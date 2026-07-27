@@ -8,8 +8,8 @@
 //   B. Opening the same room in a second tab on the SAME device evicts the
 //      first ONCE (close 4000) — the evicted tab stays down, no reconnect war.
 // Needs RELAY + BASE.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

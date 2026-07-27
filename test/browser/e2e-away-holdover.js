@@ -19,8 +19,8 @@
 //   6. the holdover EXPIRES: a phone silent past 60s (Eve) stops consenting —
 //      the privacy backstop for hard-frozen phones — and re-consents on return
 //   7. the heartbeat clock runs on a Worker (hbVia) and no page errors ever
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

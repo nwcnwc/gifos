@@ -4,8 +4,8 @@
 //   * Start a meeting (open, random id)   * Start a room you run (name+password)
 //   * Join a link (paste a URL or id)     * Recent & saved (history + bookmarks)
 // The camera starts only once you pick something. A real link (#v=) skips it.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

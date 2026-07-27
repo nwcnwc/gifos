@@ -10,9 +10,9 @@
 // links navigate inside the app (a second proxied fetch), and Back works.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const http = require('http');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let fail = 0;

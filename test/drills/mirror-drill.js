@@ -33,12 +33,9 @@
 // drill after the transport fix lands.
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
-const CHROME = process.env.MEET_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
+
 const RELAY_PORT = parseInt(process.env.MIRROR_RELAY_PORT || '8875', 10);
 const SITE_PORT = parseInt(process.env.MIRROR_SITE_PORT || '8877', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;

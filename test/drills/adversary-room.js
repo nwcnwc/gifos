@@ -31,13 +31,9 @@
 // site/, so it is safe from a worktree and never touches production.
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
-const CHROME = process.env.MEET_CHROME
-  || (require('fs').existsSync('/opt/google/chrome/chrome') ? '/opt/google/chrome/chrome'
-      : '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome');
+
 const RELAY_PORT = parseInt(process.env.ADV_RELAY_PORT || '8821', 10);
 const SITE_PORT = parseInt(process.env.ADV_SITE_PORT || '8823', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;

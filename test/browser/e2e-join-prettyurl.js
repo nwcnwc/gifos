@@ -5,8 +5,8 @@
 // fake prod by resolving gifos.app to localhost and not setting a custom relay,
 // so the pretty branch is taken. No live host is needed: the address-bar rewrite
 // happens as the client boots, before it connects.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const PORT = (process.env.BASE || 'http://127.0.0.1:8099').split(':').pop();
 
 let failures = 0;

@@ -19,17 +19,13 @@
 // server for THIS checkout's site/ (port 8813) — safe to run from a worktree.
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
 // Fall back to the bundled Playwright build. This used to name
 // /opt/google/chrome/chrome with NO alternative, so on any box without Google
 // Chrome installed the drill died at launch having asserted nothing — the same
 // silent death that kept the app-in-a-meeting drills from ever running once.
-const CHROME = process.env.MEET_CHROME
-  || (require('fs').existsSync('/opt/google/chrome/chrome') ? '/opt/google/chrome/chrome'
-      : '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome');
+
 const RELAY_PORT = parseInt(process.env.LATEJOIN_RELAY_PORT || '8811', 10);
 const SITE_PORT = parseInt(process.env.LATEJOIN_SITE_PORT || '8813', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;

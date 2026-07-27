@@ -22,12 +22,9 @@
 // Run: node test/drills/redun-drill.js          (ports/chrome overridable via env)
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
-const CHROME = process.env.MEET_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
+
 const RELAY_PORT = parseInt(process.env.DRILL_RELAY_PORT || '8871', 10);
 const SITE_PORT = parseInt(process.env.DRILL_SITE_PORT || '8873', 10);
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;

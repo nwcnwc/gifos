@@ -3,8 +3,8 @@
 // client B keeps playing against the new host. Also checks:
 //  - client Save to Desktop captures a full copy with live state
 //  - reopening the original host's icon resumes the SAME share link (lock/unlock)
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

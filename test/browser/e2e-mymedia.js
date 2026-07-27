@@ -3,8 +3,8 @@
 // and audio, round-trips the raw bytes through gifos.db (Uint8Array survives),
 // bakes grid thumbnails, opens each format in the right built-in player, and
 // supports categorize / filter / delete. Needs a static server (BASE); no relay.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = 'http://127.0.0.1:8099';
 let fail=0; const ok=(n,c,d)=>{console.log((c?'PASS':'FAIL')+' — '+n+(d?'  ('+d+')':''));if(!c)fail++;};
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEUlEQVR42mP8z8Dwn4EIwDiqEAAm9gQ9Ax1z8wAAAABJRU5ErkJggg==','base64');

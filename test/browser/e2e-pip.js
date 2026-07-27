@@ -13,8 +13,8 @@
 //   5. a synthetic hide → show round-trip runs the enter/exit paths without a
 //      single page error (headless Chromium may refuse to actually open the
 //      overlay — no user gesture — so pip().active is reported, not required)
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

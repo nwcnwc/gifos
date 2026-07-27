@@ -2,8 +2,7 @@
 // Run node test/unit/node-roundtrip.js first to produce test/sample.gif.
 const path = require('path');
 const fs = require('fs');
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });

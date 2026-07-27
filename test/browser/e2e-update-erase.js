@@ -10,8 +10,8 @@
 //       SAME archived build even after the file changes on disk (no silent update).
 //    A proactive 'gifos-refresh-shell' still re-pulls the whole shell on demand.
 // Needs the static server on 8099 (SW needs a secure context — 127.0.0.1 counts).
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const fs = require('fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

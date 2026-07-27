@@ -7,10 +7,10 @@
 //  - winner-stays rotation reseats both players into a fresh game.
 //
 // Needs: static server on 8099 and the local relay on 8790 (test/servers/relay-local.js).
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const { readFileSync } = require('fs');
 const path = require('path');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

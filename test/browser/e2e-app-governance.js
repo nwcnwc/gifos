@@ -6,8 +6,8 @@
 // Plus the LED-RECORDS fence: an app's manifest-declared record ids are
 // writable only by the sharer while they lead — enforced in the sharer's own
 // runtime, so no remote client can route around it.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

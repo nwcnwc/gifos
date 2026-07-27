@@ -6,8 +6,8 @@
 // on-dark smear, and white button labels vanish on the bright-accent computers
 // (Terminal green, Stadium gold, Toybox pink). This walks all 11 themes and
 // asserts the real composited contrast ratio of the load-bearing labels.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 
 let failures = 0;

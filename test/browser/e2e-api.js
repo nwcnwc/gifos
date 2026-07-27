@@ -6,8 +6,8 @@
 //   returns the parsed JSON, and REFUSES to send the key to any other host.
 //
 // Needs: static server on 8099, and test/servers/fake-keyapi.js on 8792.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const API = 'http://127.0.0.1:8792';
 const PROXY = 'http://127.0.0.1:8793';

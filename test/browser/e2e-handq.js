@@ -8,8 +8,7 @@
 // the Stage by itself and its hand lowers; a non-admin's tap does nothing and
 // a FORGED grant is refused by every receiver (only the signed table merges);
 // a grant that predates the raise is standing rights, never a call-up.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = process.env.MEET_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 // PHASE=open|admin|all (default all) — lets a starved box run the halves

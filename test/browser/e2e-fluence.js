@@ -7,9 +7,9 @@
 //
 // Needs: static server on 8099, fake-keyapi.js on 8792 (Deepgram),
 //        fake-ai.js on 8791 (coach). The GIF is loaded from disk.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, CHROME } = require('../lib/pw');
 const fs = require('fs');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const DG = 'http://127.0.0.1:8792';
 const AI = 'http://127.0.0.1:8791';

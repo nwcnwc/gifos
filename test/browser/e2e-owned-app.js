@@ -2,8 +2,8 @@
 // OWNED: sid = "<room>.<verifier>", host slot gated by a secret held only by
 // the app. 'resilient' opts out into an anyone-owns, self-healing, dotless
 // link. Room = app short-name for signed apps, +"-anon" for unsigned.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 let fail = 0; const check = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n); if (!c) fail++; };

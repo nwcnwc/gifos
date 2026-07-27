@@ -6,8 +6,8 @@
 //    the OLD room's chat so nobody is stranded (the footgun this fixes),
 //  * an admin room's Invite just shares the (safe) link and shows the Admin
 //    button for sign-in / bans.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 

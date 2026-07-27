@@ -11,8 +11,8 @@
 // the re-seed happens on the SAME build instead of silently falling back to
 // the live release.
 // Needs only the static server (BASE) — version.json is served from site/.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;

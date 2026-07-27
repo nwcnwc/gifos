@@ -21,9 +21,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
@@ -33,8 +31,6 @@ for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^
 // under-wired pairs (see e2e-latejoin), which measures mesh healing latency,
 // not the UI's: useful as a diagnostic, not as a pass/fail gate.
 const BOTS = Math.max(1, parseInt(args.bots || '3', 10));
-const CHROME = process.env.MEET_CHROME || process.env.SWARM_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
 const RELAY_PORT = 8824, SITE_PORT = 8826;
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;

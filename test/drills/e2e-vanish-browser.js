@@ -14,12 +14,9 @@
 // site/ (8816) — safe to run from a worktree.
 const { spawn } = require('child_process');
 const path = require('path');
-let chromium;
-try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-catch (e) { ({ chromium } = require('playwright')); }
+const { chromium, CHROME } = require('../lib/pw');
 
-const CHROME = process.env.MEET_CHROME
-  || '/home/nathan/.cache/ms-playwright/chromium-1228/chrome-linux/chrome';
+
 const RELAY_PORT = 8814, SITE_PORT = 8816;
 const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;

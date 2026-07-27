@@ -5,8 +5,8 @@
 // pretty branch is taken). The relay socket won't actually connect (its real host
 // is unreachable here), but the address-bar rewrite happens before that and is
 // what we're checking.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const PORT = (process.env.BASE || 'http://127.0.0.1:8099').split(':').pop();
 
 let failures = 0;

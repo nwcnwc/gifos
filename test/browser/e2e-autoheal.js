@@ -4,8 +4,8 @@
 // SAME session (epoch+1), the other keeps playing, a brand-new joiner walks in
 // on the original share URL, and the ORIGINAL host reopening its icon is
 // bounced (host-stale) into guest mode instead of clobbering the newer state.
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const { chromium, CHROME } = require('../lib/pw');
+
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 
