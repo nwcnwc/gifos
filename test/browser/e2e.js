@@ -927,18 +927,35 @@ async function openApp(page, ctx, folder, label) {
   await archived.close();
 
   // ---- versioning: update bar appears when a newer version is deployed ----
+  // The bar is a SNAPSHOT concern. applyUpdateBar() computes
+  // `behind = !runningEdge() && latest > VERSION`, so the edge root is never
+  // nagged — deliberately: "the edge build is AHEAD of the release, never
+  // behind". This used to load /index.html (the edge root) and demand the bar,
+  // i.e. it asserted the exact opposite of the contract, and had been red ever
+  // since the edge channel landed. Test it where it actually applies — an old
+  // snapshot — and separately assert the root's silence is intentional.
+  const fakeLatest = { status: 200, contentType: 'application/json',
+    body: JSON.stringify({ current: '9.9.9', versions: ['9.9.9', oldest] }) };
+
   const upCtx = await browser.newContext();
   const upPage = await upCtx.newPage();
-  await upPage.route('**/version.json*', (r) => r.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ current: '9.9.9', versions: ['9.9.9', '0.5.0'] }),
-  }));
-  await upPage.goto(BASE + '/index.html');
+  await upPage.route('**/version.json*', (r) => r.fulfill(fakeLatest));
+  await upPage.goto(BASE + '/versions/' + oldest + '/index.html');
   await upPage.waitForSelector('.icon');
-  await upPage.locator('#update-bar').waitFor({ state: 'visible', timeout: 6000 });
+  await upPage.locator('#update-bar').waitFor({ state: 'visible', timeout: 8000 });
   const upMsg = await upPage.locator('#update-msg').textContent();
-  check('update bar shows when a newer version is available', /9\.9\.9/.test(upMsg));
+  check('a snapshot behind the live release shows the update bar', /9\.9\.9/.test(upMsg));
   await upCtx.close();
+
+  const edgeCtx = await browser.newContext();
+  const edgePage = await edgeCtx.newPage();
+  await edgePage.route('**/version.json*', (r) => r.fulfill(fakeLatest));
+  await edgePage.goto(BASE + '/index.html');
+  await edgePage.waitForSelector('.icon');
+  await sleep(1500);
+  check('the edge root is NOT nagged — it is ahead of the release, not behind',
+    !(await edgePage.locator('#update-bar').isVisible()));
+  await edgeCtx.close();
 
   // ---- the Back button is part of the OS ----
   // Inside a folder, Back climbs one level; at the Home Screen root it's
