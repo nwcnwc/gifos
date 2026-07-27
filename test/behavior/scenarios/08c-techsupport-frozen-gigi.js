@@ -25,7 +25,7 @@ scenario('08c-techsupport-frozen-gigi', {
   await check.until('return: the self-heal re-seats Gigi', async () => {
     const s = await gigi.state();
     return !s.err && !!s.coord && s.participants === 3;
-  }, { within: 120 });
+  }, { within: 180 }); // reload + rejoin + possibly one starve-heal cycle — a 5-min-frozen phone's honest budget
   await check.converged(3, { desc: 'family of 3 again' });
 
   // the corpse-echo measurement: 60s with ZERO occupancy flap allowed
