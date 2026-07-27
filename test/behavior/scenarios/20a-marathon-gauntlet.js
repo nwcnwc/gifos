@@ -85,6 +85,7 @@ scenario('20a-marathon-gauntlet', {
       !(s.roster || []).some((r) => ['Pia', 'Rio', 'Quinn'].includes(r.name)));
   }, { within: 240 });
   await check.oneTree(3, { via: 'sol', desc: 'FINALE: the last three hold a clean room', within: 120 });
+  await cast.sleep(30, 'goodnights settle (reap + tombstones finish their beat)');
   await check.steady('FINALE: and it is quiet', async () => {
     const sts = await Promise.all(['sol', 'tess', 'uma'].map((r) => cast.get(r).state()));
     return sts.every((s) => s.participants === 3 && s.dups === 0);
