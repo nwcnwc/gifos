@@ -405,29 +405,61 @@
       for (const p of a) if (b.has(p)) return true;
       return false;
     }
-    // Cluster HOME samples: different gkey always split; same gkey splits when
-    // rosters are disjoint (the real split-room door case).
+    // Same room seen through two doors, or two real rooms? Different gkey is
+    // ALWAYS two rooms (the crypto key IS the room). Same gkey splits ONLY on
+    // POSITIVE disjointness evidence — because two doors of ONE healthy room
+    // can look disjoint when instance ids churned (both phones reloaded: each
+    // roster still carries the other's dead old id) or when S1 freshness
+    // lapsed (roster = just me). A false fork throws the pick-one modal at a
+    // healthy room, and a headless client parked there is indistinguishable
+    // from a dead door (the 2026-07-26 monitor wedge). So, same gkey:
+    //   · any shared roster id            ⇒ same room (the classic rule)
+    //   · any shared Stage/Stadium FACE   ⇒ same room (app-layer display
+    //     identities survive instance-id churn; a real torn half can't hold
+    //     the same live person as the other half)
+    //   · a BLIND door (roster names nobody beyond its own greeter) ⇒ merge —
+    //     "I can't vouch for my row right now" is ignorance, not evidence of
+    //     a separate room. A genuinely lone torn seat self-rescues via the
+    //     fragment requeue path; it never needs a newcomer's pick to survive.
+    static forkSameRoom(a, b) {
+      if (a.gkey !== b.gkey) return false;
+      if (Seat.rostersOverlap(a.peers, b.peers)) return true;
+      for (const f of a.facesAll) if (b.facesAll.has(f)) return true;
+      const blind = (c) => { for (const p of c.peers) if (!c.gws.has(p)) return false; return true; };
+      return blind(a) || blind(b);
+    }
+    // Cluster HOME samples: different gkey always split; same gkey splits only
+    // on positive disjointness evidence (forkSameRoom). Fixpoint merge — a
+    // later sample may bridge two earlier clusters.
     clusterForkSamples(samples) {
-      const clusters = []; // each: { gkey, gateway, roster, stage, stadium, faces, peers }
+      const clusters = []; // each: { gkey, gateway, roster, stage, stadium, peers, gws, facesAll }
+      const absorb = (c, s) => {
+        for (const p of s.peers) c.peers.add(p);
+        for (const g of s.gws) c.gws.add(g);
+        for (const f of s.facesAll) c.facesAll.add(f);
+        if ((s.stage || []).length > (c.stage || []).length) c.stage = s.stage;
+        if ((s.stadium || []).length > (c.stadium || []).length) c.stadium = s.stadium;
+        if ((s.roster || []).length > (c.roster || []).length) { c.roster = s.roster; c.gateway = s.gateway; }
+      };
       for (const s of samples) {
-        const peers = Seat.rosterPeers(s.roster);
-        let placed = false;
-        for (const c of clusters) {
-          if (c.gkey !== s.gkey) continue;
-          if (Seat.rostersOverlap(c.peers, peers)) {
-            // merge into existing same-key cluster (union faces / prefer richer stage)
-            for (const p of peers) c.peers.add(p);
-            if ((s.stage || []).length > (c.stage || []).length) c.stage = s.stage;
-            if ((s.stadium || []).length > (c.stadium || []).length) c.stadium = s.stadium;
-            if ((s.roster || []).length > (c.roster || []).length) { c.roster = s.roster; c.gateway = s.gateway; }
-            placed = true; break;
+        const proto = {
+          gkey: s.gkey, gateway: s.gateway, roster: s.roster,
+          stage: s.stage || [], stadium: s.stadium || [],
+          peers: Seat.rosterPeers(s.roster),
+          gws: new Set(s.gateway != null ? [String(s.gateway)] : []),
+          facesAll: new Set([...(s.stage || []), ...(s.stadium || [])].map(String)),
+        };
+        const hit = clusters.find((c) => Seat.forkSameRoom(c, proto));
+        if (hit) absorb(hit, proto); else clusters.push(proto);
+      }
+      for (let again = true; again;) {
+        again = false;
+        for (let i = 0; i < clusters.length && !again; i++) {
+          for (let j = i + 1; j < clusters.length; j++) {
+            if (Seat.forkSameRoom(clusters[i], clusters[j])) {
+              absorb(clusters[i], clusters[j]); clusters.splice(j, 1); again = true; break;
+            }
           }
-        }
-        if (!placed) {
-          clusters.push({
-            gkey: s.gkey, gateway: s.gateway, roster: s.roster,
-            stage: s.stage || [], stadium: s.stadium || [], peers,
-          });
         }
       }
       return clusters.map((c, i) => {
