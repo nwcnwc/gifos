@@ -2,6 +2,18 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.8.5",
+      "date": "2026-07-26",
+      "critical": true,
+      "headline": "Invite links work again — and a room name is finally the name you typed",
+      "notes": [
+        "Shared links (gifos.app/meet/…, /call/… and /join/…) opened the Home Screen instead of the meeting for anyone who had visited the site before. The offline layer was discarding the very response that routes those links, and the channel loader then rewrote them into an address that does not exist. Both are fixed: an invite link goes straight into the meeting.",
+        "Room names keep their capital letters. Opening gifos.app/meet/BibleReading and pasting that same link into \"Join a link\" used to land you in two DIFFERENT meetings — one lowercased, one not — so two people with the identical link never saw each other. A room id is the secret your meeting's encryption key is derived from, and it is no longer altered in any way.",
+        "Sharing an app into a meeting could leave guests staring at an app header over blank space. A pinned computer's meeting was rewriting its address to a site-wide path, which moved the page's base and made it load pieces of the wrong build. Pinned computers now stay on their own build and still hand out the short link.",
+        "The build number shown in Settings → Advanced → Version was stuck, and went backwards (825 → 280), so the edge channel could never tell you a newer build existed. It counts correctly again."
+      ]
+    },
+    {
       "version": "0.8.3",
       "date": "2026-07-25",
       "critical": false,

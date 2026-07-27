@@ -33,12 +33,20 @@ cp -r "$SITE/themes" "$DEST/"
 # boot.html, and bake its build number into the snapshot's build.js so the frozen
 # release reports the build it was cut from. The channel loader in these copies is
 # inert under /versions/ (it returns early), so the snapshot just runs directly.
-# Anchored build number — must match .github/workflows/pages.yml (this branch's
-# history is squashed, so a raw count under-counts). Bump ANCHOR_* when you
-# re-anchor at a future release.
-ANCHOR_SHA=3d84267            # the "release: cut v0.8.0" commit
-ANCHOR_BUILD=280             # v0.8.0's real commit count in the original history
-BUILD=$(( ANCHOR_BUILD + $(git -C "$ROOT" rev-list --count ${ANCHOR_SHA}..HEAD -- site 2>/dev/null || echo 0) ))
+# Anchored build number — MUST match .github/workflows/pages.yml, or the release
+# and the edge build it was cut from disagree. The old anchor (3d84267) was a
+# dangling object that existed only in one local clone: here it resolved and
+# stamped 825, while CI could not resolve it, swallowed the error via `|| echo 0`
+# and stamped the bare anchor 280 — so the live edge build went BACKWARD and the
+# Version panel offered an "upgrade" to a lower number. Anchor only ever to a
+# commit that is PUSHED, and never let a failed count fall back to a number.
+ANCHOR_SHA=b4ada94            # the "release: cut v0.8.4" commit
+ANCHOR_BUILD=825              # the edge build 0.8.4 was cut from
+if ! git -C "$ROOT" cat-file -e "${ANCHOR_SHA}^{commit}" 2>/dev/null; then
+  echo "ANCHOR_SHA ${ANCHOR_SHA} is not in this repo — re-anchor archive-version.sh (and pages.yml) to a pushed commit." >&2
+  exit 1
+fi
+BUILD=$(( ANCHOR_BUILD + $(git -C "$ROOT" rev-list --count ${ANCHOR_SHA}..HEAD -- site) ))
 sed -i -E "s/window\.GIFOS_VERSION = '[^']*';/window.GIFOS_VERSION = '$V';/" "$DEST/index.html" "$DEST/boot.html"
 printf '/* frozen at release cut by archive-version.sh */\nwindow.GIFOS_BUILD = %s;\n' "$BUILD" > "$DEST/js/build.js"
 
