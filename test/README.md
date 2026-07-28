@@ -137,10 +137,14 @@ node test/servers/fake-keyapi.js          # 8792 — e2e-api, e2e-fluence
 node test/servers/fake-cors-proxy.js      # 8793 — e2e-api, e2e-cors-proxy
 ```
 
-`relay-local.js` mirrors the PRODUCTION caps by default — 8 sockets per IP,
-30 per session. That is what you want for the suites (they test the real
-gate), and exactly what you don't want for a local swarm, where every bot
-shares one IP. Set `RELAY_DEV=1` to run it unguarded.
+`relay-local.js` runs UNGUARDED by default (DEV mode): every test box drives
+its whole fleet from one IP, so the production per-IP cap of 8 is precisely
+wrong locally — it silently starved the swarm once and the release gate's
+browser tier a second time (e2e-handq meshed exactly 8/10, forever). Set
+`RELAY_PROD=1` to mirror the production abuse guards (8 sockets/IP,
+30/session, frame meter) — e2e-relay does this on its own private relay to
+assert them. Ban/eviction/owned-slot semantics are core session logic and
+are active in BOTH modes.
 
 **node 22 or newer, always.** `gifos-net.js` opens the relay socket with the
 global `new WebSocket` a browser supplies; node only has that global from v22.

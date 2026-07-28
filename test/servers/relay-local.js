@@ -160,17 +160,25 @@ server.on('upgrade', (req, socket, head) => {
   // Abuse guards — mirror the Worker's caps so tests exercise them.
   // C mirrors GIFOS_SCALE.C: a session is one SECTION (C² seats) plus C so
   // the stage can double-home into a full level-1 space. Never client-set.
-  // RELAY_DEV=1 — DEV MODE: no abuse guards at all. The per-IP socket cap, the
-  // join-rate cap and the session cap are PRODUCTION concerns (they exist to
-  // blunt abuse of a shared, billed relay); a checkout on a workstation has no
-  // abuser to blunt, and every dev box drives its whole bot fleet from ONE
-  // address, so the per-IP cap of 8 is precisely wrong here. Leaving it on cost
-  // real time: a swarm silently lost its bots to "too many connections from
-  // your network" and the missing seats read as a mesh bug.
-  // TRUSTED_IPS still works, but it is the brittle form — it fails the moment a
-  // bot box's address isn't in the list. Prefer RELAY_DEV=1 locally.
+  // DEV MODE IS THE DEFAULT — no abuse guards. The per-IP socket cap, the
+  // join-rate cap, the session cap and the frame meter are PRODUCTION
+  // concerns (they exist to blunt abuse of a shared, billed relay); a
+  // checkout on a workstation has no abuser to blunt, and every dev box
+  // drives its whole fleet from ONE address, so the per-IP cap of 8 is
+  // precisely wrong here. This bit us REPEATEDLY because guards-on used to
+  // be the default and every NEW harness re-learned it the hard way: first
+  // the swarm silently lost bots to "too many connections from your
+  // network", then release.sh (born after that lesson) ran the whole
+  // browser tier against a bare relay and e2e-handq meshed exactly 8/10
+  // forever. A tool that lives in test/servers/ defaults to TEST semantics.
+  //
+  // RELAY_PROD=1 opts back into the production-mirroring guards — for the
+  // suites that ASSERT them (e2e-relay spawns its own on a private port).
+  // Ban / eviction / owned-slot semantics are CORE session logic, not abuse
+  // guards, and are always active in both modes.
+  // RELAY_DEV=1 is accepted for compatibility (it is now the default).
   // RELAY_MAX_SOCKETS overrides the per-session cap on its own.
-  const DEV = process.env.RELAY_DEV === '1';
+  const DEV = process.env.RELAY_PROD !== '1';
   const C = 5;
   const MAX_SOCKETS_PER_SESSION = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10)
     || (DEV ? Infinity : C * C + C); // 30 in prod-mirroring mode
@@ -516,6 +524,6 @@ server.listen(PORT, HOST, () => {
   console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT);
   // Say which mode is in force — "why did my bots vanish?" should never again
   // require reading this file.
-  if (process.env.RELAY_DEV === '1') console.log('  RELAY_DEV=1 — abuse guards OFF (no per-IP, join-rate or session cap)');
-  else console.log('  prod-mirroring caps ON (8 sockets/IP, 30/session). Set RELAY_DEV=1 for unguarded local testing.');
+  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, 30/session, frame meter)');
+  else console.log('  DEV mode (default) — abuse guards OFF. Set RELAY_PROD=1 to mirror the production caps.');
 });

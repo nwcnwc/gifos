@@ -162,7 +162,7 @@ async function invite(page, lifetime, resilient) {
   const path = require('path');
   const CAP_PORT = 8829;
   const capRelay = spawn('node', [path.join(__dirname, '..', 'servers', 'relay-local.js')], {
-    env: { ...process.env, RELAY_PORT: String(CAP_PORT), RELAY_DEV: '', TRUSTED_IPS: '' },
+    env: { ...process.env, RELAY_PORT: String(CAP_PORT), RELAY_PROD: '1', RELAY_DEV: '', TRUSTED_IPS: '' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   await new Promise((r) => setTimeout(r, 800));
