@@ -47,7 +47,7 @@ mkdir -p "$LOGDIR"; : > "$RESULTS"
 
 want() { [ -z "$ONLY" ] && return 0; case ",$ONLY," in *",$1,"*) return 0;; esac; return 1; }
 
-green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""
+green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""; flaky=0; flakes=""
 
 # ---- quarantine ---------------------------------------------------------------
 # The ONLY reds the gate tolerates: behaviours deliberately not fixed, listed in
@@ -136,23 +136,46 @@ run_one() {
   # Reap anything the suite leaked, or the next suite inherits its browsers.
   # Bracket-quoted so pgrep does not match this script's own command line.
   for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null); do kill -9 "$_p" 2>/dev/null; done
-  local pass fail verdict reason
+  local pass fail verdict reason flaked=0
   pass=$(grep -cE '^ *PASS' "$log"); fail=$(grep -cE '^ *FAIL' "$log")
-  if [ "$rc" -eq 0 ]; then
+  # ONE retry for a red/dead browser-class suite (Nathan, 2026-07-28): five
+  # full gates never went green while every red re-validated green standalone
+  # — ~110 suites of timing-sensitive waits on one box make single-shot
+  # all-green a coin-flip stack, which was gating the RELEASE on the weakest
+  # wait in the flakiest suite. A red that goes green on its second run is
+  # recorded loudly as FLAKY — a distinct verdict, listed in the summary —
+  # so a deterministic red still blocks absolutely (it fails twice) and the
+  # flake list is a standing work queue instead of invisible noise.
+  if [ "$rc" -ne 0 ] && ! is_quarantined "$name"; then
+    pkill -f "chrome-linux[/]chrome" 2>/dev/null; sleep 1
+    timeout -k 45 "$to" node "$f" > "$log.retry" 2>&1
+    local rc2=$?
+    for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null); do kill -9 "$_p" 2>/dev/null; done
+    if [ "$rc2" -eq 0 ]; then
+      flaked=1; rc=0
+      pass=$(grep -cE '^ *PASS' "$log.retry"); fail=0
+    fi
+  fi
+  if [ "$rc" -eq 0 ] && [ "$flaked" -eq 1 ]; then
+    verdict=FLAKY; reason="${pass} assertions on RETRY — first run red ($(grep -m1 -E '^ *FAIL|Error' "$log" | cut -c1-60)); fix the wait"; flaky=$((flaky+1)); flakes="$flakes $tier/$name"
+  elif [ "$rc" -eq 0 ]; then
     verdict=GREEN; reason="${pass} assertions"; green=$((green+1))
   elif [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ]; then
     verdict=DEAD
-    reason="exit ${rc}, ZERO assertions — never ran :: $(grep -m1 -oE "[A-Za-z]+Error[^\"]{0,80}|[a-zA-Z._]+ is not a function|executable doesn't exist[^ ]*" "$log" | head -1)"
+    reason="exit ${rc}, ZERO assertions — never ran TWICE :: $(grep -m1 -oE "[A-Za-z]+Error[^\"]{0,80}|[a-zA-Z._]+ is not a function|executable doesn't exist[^ ]*" "$log" | head -1)"
     dead=$((dead+1))
   elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-    verdict=RED; reason="TIMEOUT ${to}s (${pass} passed, ${fail} failed first)"; red=$((red+1))
+    verdict=RED; reason="TIMEOUT ${to}s TWICE (${pass} passed, ${fail} failed first)"; red=$((red+1))
   else
-    verdict=RED; reason="${fail} failed / ${pass} passed :: $(grep -m1 -E '^ *FAIL' "$log" | sed 's/^ *FAIL *— *//' | cut -c1-80)"; red=$((red+1))
+    verdict=RED; reason="RED TWICE: ${fail} failed / ${pass} passed :: $(grep -m1 -E '^ *FAIL' "$log" | sed 's/^ *FAIL *— *//' | cut -c1-80)"; red=$((red+1))
   fi
   # Reclassify against the quarantine list before recording the verdict.
+  # FLAKY counts as passing here: a quarantined suite is expected
+  # DETERMINISTIC-red, so greening on any attempt means promote-or-fix.
   if is_quarantined "$name"; then
-    if [ "$verdict" = GREEN ]; then
-      verdict=ESCAPED; green=$((green-1)); escaped="$escaped $name"
+    if [ "$verdict" = GREEN ] || [ "$verdict" = FLAKY ]; then
+      [ "$verdict" = GREEN ] && green=$((green-1)) || flaky=$((flaky-1))
+      verdict=ESCAPED; escaped="$escaped $name"
       reason="QUARANTINED SUITE IS NOW GREEN — fix confirmed; promote it back into the gate and delete it from quarantine.txt"
     else
       [ "$verdict" = RED ] && red=$((red-1)) || dead=$((dead-1))
@@ -262,7 +285,13 @@ fi
 # ---- verdict -----------------------------------------------------------------
 echo
 echo "=================== RELEASE GATE ==================="
-printf '  GREEN %d   RED %d   DEAD %d   QUARANTINED %d\n' "$green" "$red" "$dead" "$quar"
+printf '  GREEN %d   FLAKY %d   RED %d   DEAD %d   QUARANTINED %d\n' "$green" "$flaky" "$red" "$dead" "$quar"
+if [ "$flaky" -gt 0 ]; then
+  echo
+  echo "  FLAKY — red once, green on the immediate retry (NOT blocking, but each is a"
+  echo "  wait to fix; a growing list here is the gate rotting):"
+  awk -F'\t' '$1=="FLAKY" {printf "    %-34s %s\n", $2, $4}' "$RESULTS"
+fi
 if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ]; then
   echo
   echo "  BLOCKING:"
