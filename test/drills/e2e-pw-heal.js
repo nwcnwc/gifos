@@ -95,8 +95,11 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   // The pair must REFORM before healing can flow (Ben's stale beats need a
   // channel to arrive on) — gate on it, generously; the heal window starts
-  // only once the transports speak again.
-  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  // only once the transports speak again. 90s: the drill's premise only
+  // needs the pair DOWN at save time — how long reform takes is the mesh's
+  // own dial/starve-rebuild backoff budget, which lawfully eats an extra
+  // cycle ~1/5 runs (same tail as the reload-rejoin below).
+  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 90000 });
   check('the rebuilt pair reformed (DCs open again)', true);
 
   // The heal: Ben's stale frames (previous key) are recognized by Ada, who
@@ -146,9 +149,20 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await ada.locator('#pw-save').click();
   // rekeyAt > 0: the reloaded page's first derive is its JOIN key (no bump);
   // only the pw-three rotation bumps it — same installed-not-announced gate.
-  await ben.waitForFunction(() => { const st = window.__gifosVideo.pwState(); return st.pw === 'pw-three' && st.rekeyAt > 0; }, null, { timeout: 30000 });
-  const st3 = await ben.evaluate(() => window.__gifosVideo.pwState());
-  check('RELOAD: the next rotation still adopts (epoch advances past the persisted one)', !!(st3 && st3.epoch > reSt.epoch), { epoch: st3 && st3.epoch, was: reSt.epoch });
+  // 60s poll, not a bare waitForFunction: the flood can miss a young rebuilt
+  // pair (that is the drill's own premise) and the GRANT HEAL then carries
+  // the rotation — heartbeat cadence + 5s heal throttle + derive is beats,
+  // not milliseconds. A miss must fail the CHECK with both sides' state, not
+  // die as a raw TimeoutError.
+  let adopted3 = false, st3 = null;
+  const t4 = Date.now();
+  while (Date.now() - t4 < 60000) {
+    st3 = await ben.evaluate(() => window.__gifosVideo.pwState()).catch(() => null);
+    if (st3 && st3.pw === 'pw-three' && st3.rekeyAt > 0) { adopted3 = true; break; }
+    await sleep(500);
+  }
+  const ada3 = await ada.evaluate(() => window.__gifosVideo.pwState()).catch(() => null);
+  check('RELOAD: the next rotation still adopts (epoch advances past the persisted one)', !!(adopted3 && st3 && st3.epoch > reSt.epoch), { ben: st3, ada: ada3, was: reSt.epoch });
 
   await browser.close();
   console.log(failures === 0 ? '\nALL PASS' : '\n' + failures + ' FAILED');
