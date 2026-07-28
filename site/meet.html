@@ -5344,6 +5344,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           t.relayed = r.via;
           t.noRoute = false; t.downSince = 0;
           t.video.srcObject = r.stream;
+          // A relayed tile's element has usually NEVER played (the direct pair
+          // was down, srcObject was null) and a bare srcObject swap does not
+          // reliably start it — the drill caught it label-on, frames-paused.
+          // Same kick idiom as every other srcObject swap in this file.
+          const pr = t.video.play(); if (pr && pr.catch) pr.catch(() => {});
           meterFor(target, r.stream);
           updateTile(target);
         }
@@ -5356,7 +5361,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const t = peers.get(target);
       if (t) {
         t.relayed = null;
-        if (t.video.srcObject === r.stream) t.video.srcObject = t.stream || null;
+        if (t.video.srcObject === r.stream) {
+          t.video.srcObject = t.stream || null;
+          if (t.video.srcObject) { const pr = t.video.play(); if (pr && pr.catch) pr.catch(() => {}); } // same paused hazard on the swap back
+        }
         updateTile(target);
       }
       const viaP = peers.get(r.via);
