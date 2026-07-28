@@ -103,6 +103,47 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ada.locator('#inv-done').click();
   check('the Admin button IS visible inside an admin room (sign-in + bans)', await ada.locator('#admbtn').isVisible());
 
+  // ---- Act 2: the RELAY-ENVELOPE COPY — the link survives a pair DOWN at post
+  // time. The recorded sharp edge this guards: the mover leaves 600ms after ONE
+  // chat frame, and a pair rebuilding at that instant used to lose the link
+  // FOREVER (chat is an event — nothing re-mints it, and its minter is gone).
+  // The mover now also sends every rostered member a sealed targeted copy over
+  // the relay ({t:'peer'} → onRemote), which needs no pair. Manufacture the
+  // window deterministically: rebuild from the NON-initiator side (no fresh
+  // offer flows, so the pair stays down across the derive + post — the same
+  // hook as e2e-pw-heal, aimed the other way), then move immediately.
+  const room2 = 'inv' + Math.floor(Math.random() * 1e6).toString(36);
+  const hash2 = 'v=' + room2 + '&DEBUG=on';
+  const dee = await open(await newUser('Dee'), 'dee', hash2);
+  const eli = await open(await newUser('Eli'), 'eli', hash2);
+  await dee.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await eli.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await sleep(9000); // young-pair settle (e011881) — the down-window must be OURS
+  await dee.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
+  const deeId = await dee.evaluate(() => window.__gifosVideo.debugDump().me.peer);
+  const eliId = await eli.evaluate(() => window.__gifosVideo.debugDump().me.peer);
+  const reb2 = deeId < eliId ? await dee.evaluate((pid) => window.__gifosVideo.rebuildPair(pid), eliId)
+    : await eli.evaluate((pid) => window.__gifosVideo.rebuildPair(pid), deeId);
+  check('act 2: pair force-rebuilt from the non-initiator (down across the post window)', !!(reb2 && reb2.ok));
+  const adminName2 = 'club' + Math.floor(Math.random() * 1e6).toString(36);
+  await dee.locator('#invite').click();
+  await dee.locator('#inv-mkadm').click();
+  await dee.locator('#inv-adm-room').fill(adminName2);
+  await dee.locator('#inv-adm-pass').fill('backstage-two');
+  await dee.locator('#inv-adm-go').click();
+  await dee.waitForURL(new RegExp('v=' + adminName2 + '&av=[a-f0-9]{24}'), { timeout: 30000 });
+  // Poll, don't die raw: a miss here is the REGRESSION this act exists to
+  // catch (verified red without the relay copy) — it must land as a FAIL
+  // with the state visible, not a TimeoutError stack.
+  let eliLink = '';
+  const tRC = Date.now();
+  while (Date.now() - tRC < 20000 && !eliLink) {
+    eliLink = (await eli.evaluate(() => window.__gifosVideo.chatLinks()).catch(() => []))[0] || '';
+    if (!eliLink) await sleep(500);
+  }
+  check('RELAY COPY: the follow-me link lands though the pair was DOWN at post time',
+    eliLink.includes(adminName2) && /[a-f0-9]{24}/.test(eliLink));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

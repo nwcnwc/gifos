@@ -7751,7 +7751,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (postToChat && peers.size > 0) {
         const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: 'I moved this meeting to a room I run — follow me:', link: newLink };
         chat.set(m.id, m); sendAll({ k: 'chat', m }); renderChat();
-        await new Promise((r) => setTimeout(r, 600)); // let the P2P chat flush before we leave
+        // RELAY-ENVELOPE COPY: the fan-out above rides DC pairs + gossip, and
+        // this page LEAVES in 600ms — a member whose pair is young/rebuilding
+        // at this exact instant loses the link FOREVER (chat is an event;
+        // nothing re-mints it, and the minter is gone). So every rostered
+        // member also gets a sealed targeted copy over the relay ({t:'peer'}
+        // → onRemote), which needs no pair at all. The id-dedup absorbs the
+        // double delivery on healthy pairs.
+        try {
+          const env = await net.seal(roomE2E, { k: 'chat', m });
+          for (const pid of gossipIds()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+        } catch (e) {}
+        await new Promise((r) => setTimeout(r, 600)); // let the P2P chat + relay copies flush before we leave
       }
       location.replace(MEET_PATH + '#v=' + chosen + '&av=' + V);
       location.reload(); // load the new admin room fresh — I arrive as its admin
