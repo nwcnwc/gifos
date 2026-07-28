@@ -154,6 +154,7 @@
       this.lastChurn = 0;        // Q2 hysteresis: last tick my neighbourhood churned (LEAVE/heal/move nearby) — compaction waits for local quiescence
       this.compactMoves = 0;     // Q2 observability: how many times I have compacted upward (surfaced via __gifosVideo.debugDump for the swarm live test)
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
+      this.findNc = null;        // 03c: seeker of the serveFind scan in progress (knock-is-evidence phantom scope)
       // per-seat PRNG (splitmix-ish), seeded from id — matches the sim's per-seat rng role
       let h = 2166136261 >>> 0; const b = 'p' + id;
       for (let k = 0; k < b.length; k++) { h ^= b.charCodeAt(k); h = Math.imul(h, 16777619); }
@@ -212,6 +213,19 @@
     occIsPhantom(k) {
       const x = this.occGet(k); if (x == null) return false;
       if (this.firstHandLive(k)) return false;
+      // 03c LOCAL-EVIDENCE PHANTOMS — production has no env.peek, so the
+      // requeued/moved phantom detection below this block was SIM-ONLY and a
+      // radio-churned member's stale occ at a row head made every greeter
+      // NOROOM every seeker forever (the 03c livelock). These two rules are
+      // the peek's requeued/moved semantics rebuilt from what one seat can
+      // see FIRST-HAND, and agree with the peek in every honest case:
+      //  (1) knock-is-evidence: the seeker of the serveFind scan in progress
+      //      is AT THE DOOR by construction — an occ entry naming it is stale.
+      if (this.findNc != null && x === this.findNc) return true;
+      //  (2) moved-elsewhere: x is first-hand-live at a DIFFERENT cell, so
+      //      the entry at k is its pre-move/pre-requeue echo. First-hand
+      //      only — gossip never evicts (E2).
+      for (const [k2, v2] of this.occ) if (v2 === x && k2 !== k && this.firstHandLive(k2)) return true;
       const st = this.env.peek ? this.env.peek(x) : null;
       if (!st) return false; // unknown: keep reserved
       if (!st.alive) return false; // dead without LEAVE: ring-hold reserved
@@ -1358,7 +1372,7 @@
           else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
-        case 'FIND': if (m.tag === 1) this.serveCompact(m); else this.serveFind(m); return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission
+        case 'FIND': if (m.tag === 1) this.serveCompact(m); else { this.findNc = m.nc; try { this.serveFind(m); } finally { this.findNc = null; } } return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
         case 'FINDLEAF': if (!this.verifyFill(m)) return; this.findLeaf(m.hole, m.nbrs, m.ttl); return; // S4 identity hook gates fill authorship
         case 'PLACE':
           if (this.state === 2 && this.verifyFill(m)) { this.take(m.coord, m.owner, m.nbrs); return; } // S4 identity hook

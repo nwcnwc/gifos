@@ -252,6 +252,19 @@ struct Seat {
   inline bool occIsPhantom(uint64_t k){
     int x=occGet(k); if(x<0) return false;
     if(firstHandLive(k)) return false;
+    // 03c LOCAL-EVIDENCE PHANTOMS — the two rules production can also apply
+    // (mesh-wire has no global peek; without these, a radio-churned member's
+    // stale occ at a row head made every greeter NOROOM every seeker forever:
+    // the 03c livelock). Both agree with the registry peek in honest cases;
+    // they are that peek's requeued/moved semantics rebuilt from what one
+    // seat can SEE first-hand:
+    //  (1) knock-is-evidence: the seeker of the serveFind scan in progress is
+    //      AT THE DOOR by construction — an occ entry naming it is stale.
+    if(findNc>=0 && x==findNc) return true;
+    //  (2) moved-elsewhere: x is first-hand-live at a DIFFERENT cell, so the
+    //      entry at k is its pre-move/pre-requeue echo. First-hand only —
+    //      gossip never evicts (E2).
+    for(auto& kv:occ) if(kv.second==x && kv.first!=k && firstHandLive(kv.first)) return true;
     if(x>=(int)alive.size()) return true;
     if(!alive[x]) return false; // dead without LEAVE: still reserved for ring-hold
     Seat* s=(x<(int)seats.size())?seats[x]:nullptr;
@@ -355,6 +368,7 @@ struct Seat {
   bool nextHopCoord(Coord t, Coord& out);
   int nextHopToward(Coord target,int exclude);
   int gateway=-1;                       // the greeter this (unseated) newcomer routes through
+  int findNc=-1;                        // 03c: seeker of the serveFind scan in progress (knock-is-evidence phantom scope)
   // A seat HOLDS a relay socket while joining (state!=3), while seated in
   // Section 1 (the greeter pool), or while re-seating with its old seat kept
   // (E1 keep-old: production re-opens the socket on demand, mesh-wire's

@@ -799,7 +799,7 @@ void Seat::recv(Msg& m){
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
-    case FIND: if(m.tag==1) serveCompact(m); else serveFind(m); return;   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission
+    case FIND: if(m.tag==1) serveCompact(m); else { findNc=m.nc; serveFind(m); findNc=-1; } return;   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
     case PLACE:
       if(state==2){ take(m.coord,m.owner,m.nbrs); return; }
