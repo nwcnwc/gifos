@@ -29,6 +29,26 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 
 // Open an app that lives inside a folder: enter the folder, open the app in a
 // new tab, then return to the desktop root. `folder` may be null for root apps.
+// Double-click an icon until its tab actually opens. The visible-wait below
+// narrows but does not close the re-render race: the icon node can be SWAPPED
+// between paint and dispatch, the dblclick lands on a corpse node, no tab
+// opens, and a single 30s waitForEvent eats the suite (both 2026-07-28 gate
+// runs died in this family, at different icons on different boxes). A human
+// just double-clicks again — so does the harness: bounded attempts, bounded
+// wait each.
+async function dblclickForTab(ctx, page, label) {
+  let tab = null;
+  for (let att = 0; att < 3 && !tab; att++) {
+    try {
+      [tab] = await Promise.all([
+        ctx.waitForEvent('page', { timeout: 10000 }),
+        page.locator('.icon', { hasText: label }).first().dblclick(),
+      ]);
+    } catch (e) { if (att === 2) throw e; }
+  }
+  return tab;
+}
+
 async function openApp(page, ctx, folder, label) {
   if (folder) {
     await page.locator('.icon', { hasText: folder }).dblclick();
@@ -39,7 +59,7 @@ async function openApp(page, ctx, folder, label) {
     // failure that reads exactly like a broken app launcher.
     await page.locator('.icon', { hasText: label }).first().waitFor({ state: 'visible', timeout: 15000 });
   }
-  const [tab] = await Promise.all([ctx.waitForEvent('page'), page.locator('.icon', { hasText: label }).first().dblclick()]);
+  const tab = await dblclickForTab(ctx, page, label);
   if (folder) {
     await page.locator('#crumbs a').click();
     await page.locator('.icon', { hasText: folder }).first().waitFor({ state: 'visible', timeout: 15000 });
@@ -1012,10 +1032,7 @@ async function openApp(page, ctx, folder, label) {
   // being hit-testable, and a dblclick on an unpainted icon opens no tab —
   // which then shows up 30s later as an unexplained waitForEvent timeout.
   await backPage.locator('.icon', { hasText: 'BackTest.gif' }).waitFor({ state: 'visible', timeout: 15000 });
-  const [backApp] = await Promise.all([
-    context.waitForEvent('page'),
-    backPage.locator('.icon', { hasText: 'BackTest.gif' }).dblclick(),
-  ]);
+  const backApp = await dblclickForTab(context, backPage, 'BackTest.gif');
   await backApp.waitForSelector('iframe');
   await sleep(600);
   // A real gesture inside the app arms the Back trap (Android Chrome ignores a
