@@ -8285,7 +8285,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         standbyVia: [...mosStandby.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         // wake/failback forensics: per-slot wake-in-progress + settle stamps
-        fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch })),
+        fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch, dark: !!f.dark, lastAdvanceAt: f.lastAdvanceAt || 0 })),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
