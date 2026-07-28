@@ -21,16 +21,20 @@
 // after healing refills 0/0.1 the direct path returns and E fails back
 // make-before-break, the mirror re-parking. Run: node test/drills/mirror-drill.js
 //
-// KNOWN BLOCKER (2026-07-18): the forceSeat teleports require POST-SEATING
-// link formation (offers to socketless seats via the sponsor path), which is
-// the exact pre-existing failure e2e-latejoin documents (fails identically on
-// the baseline commit). Until that intake fix lands, phases (2)/(3) cannot
-// complete: pairs for the child section stick in 'new'/'connecting' and the
-// chain's streams never negotiate. What HAS been observed live despite it:
-// producers ship 'sdnm:<dst>' born-parked ('·' in jobsActive) to the correct
-// first hop of the computed route (both the r=0 and r=1 cases), and Section-1
-// one-pipe behavior (primary 'w' + carrier copy parked '·'). Re-run this
-// drill after the transport fix lands.
+// KNOWN BLOCKER (revised 2026-07-28; original 07-18 note is OBSOLETE): the
+// old blockers are FIXED — post-seat link formation works (03c + occ-driven
+// dial + starve rebuilds: section-2 pairs connect in seconds) and the
+// contested-teleport topology collapse is gone (conflict-free ordering
+// below; "drill topology in place" PASSES). What the drill honestly shows
+// NOW: the mirror never BUILDS. The producer ships 'sdnm:<dst>' only when
+// its OWN occ names EVERY hop of the computed route (meet.html, the
+// rt.every(occPid) gate), but S1 heads never converge deep-section row-1
+// occupancy — post-03c occ hygiene prunes unevidenced entries, so A (and
+// even B, the destination head's direct up-link) never learn G/H and no
+// sdnm job ever ships. The 07-18 "observed live" sdnm ships predate 03c's
+// stricter occ. Fix is design work (per-hop chain build — the sdnmr
+// forwarding already exists — or wider occ gossip); until it lands, phases
+// (1)-(3) fail at "E holds sdn PRIMARY + mirror STANDBY".
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');
