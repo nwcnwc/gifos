@@ -6160,7 +6160,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // the heir only fills the hole it can honestly fill.
           const heirOf = (cell) => { const s = meshSeat(); if (!s || !s.childOf) return null; const v = s.childOf.get(net.topo.ckey(cell)); return v == null ? null : v; };
           for (let i = 0; i < C; i++) {
-            const childPid = occPid(T.down({ pc: c.pc, r: c.r, i })) || heirOf({ pc: c.pc, r: c.r, i });
+            // Heir fills ROW-MATES' columns ONLY (i !== c.i): a mate's own
+            // PONGs refresh its childOf entry every beat, so the fact is
+            // first-hand and current. My OWN column never needs it — a real
+            // own-child is directly linked and occ-known — and trusting it
+            // there let a STALE row-gossip heir (teleport transient, never
+            // expired) mint a phantom sdn producer: E claimed the phantom as
+            // PRIMARY (zero bytes) while the real direct feed idled
+            // (mirror-heir-1 dossier).
+            const childPid = occPid(T.down({ pc: c.pc, r: c.r, i })) || (i !== c.i ? heirOf({ pc: c.pc, r: c.r, i }) : null);
             if (!childPid) { const old = sdnPacks.get(i); if (old) { old.stop(); sdnPacks.delete(i); } continue; }
             let pk = sdnPacks.get(i);
             if (!pk) { pk = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start(); sdnPacks.set(i, pk); }
