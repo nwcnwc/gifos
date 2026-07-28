@@ -98,20 +98,28 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // (the re-pair wedge is a live product hunt — reds must be dossiers).
   const pairDiag = (pg, otherId) => pg.evaluate((pid) => {
     const v = window.__gifosVideo; const d = v.debugDump(); const c = v.meshCoord();
-    return { coord: c ? c.pc + '/' + c.r + '.' + c.i : null, links: v.liveDataLinks(),
+    return { me: d.me && String(d.me.peer).slice(0, 6), coord: c ? c.pc + '/' + c.r + '.' + c.i : null, links: v.liveDataLinks(),
       other: (v.pcState(pid) || { conn: 'NOPC' }).conn,
       roster: (d.roster || []).map((r) => (r.name || '?') + '@' + (r.coord || '?')).join(' ') };
   }, otherId).catch((e) => String(e).slice(0, 80));
-  const mutualUp = async (a, aOther, b, bOther, ms) => {
+  // CURRENT ids each tick — a churny rejoin REQUEUES and re-mints the mesh
+  // peer id (observed: 4 ids across 2 pages in one reload window), so a gate
+  // keyed to a captured id reads NOPC forever while the pair thrives under
+  // the fresh ids. The condition is "the two PAGES hold a mutual pair",
+  // whatever ids they currently wear.
+  const curId = (pg) => pg.evaluate(() => { try { return window.__gifosVideo.debugDump().me.peer; } catch (e) { return null; } }).catch(() => null);
+  const mutualUp = async (a, b, ms) => {
     const t = Date.now();
+    let ia = null, ib = null;
     while (Date.now() - t < ms) {
-      const sa = await a.evaluate((pid) => { const st = window.__gifosVideo.pcState(pid); return !!(st && st.conn === 'connected'); }, aOther).catch(() => false);
-      const sb = await b.evaluate((pid) => { const st = window.__gifosVideo.pcState(pid); return !!(st && st.conn === 'connected'); }, bOther).catch(() => false);
+      ia = await curId(a); ib = await curId(b);
+      const sa = ib && await a.evaluate((pid) => { const st = window.__gifosVideo.pcState(pid); return !!(st && st.conn === 'connected'); }, ib).catch(() => false);
+      const sb = ia && await b.evaluate((pid) => { const st = window.__gifosVideo.pcState(pid); return !!(st && st.conn === 'connected'); }, ia).catch(() => false);
       if (sa && sb) return true;
       await sleep(700);
     }
-    console.log('  [pair-diag A] ' + JSON.stringify(await pairDiag(a, aOther)));
-    console.log('  [pair-diag B] ' + JSON.stringify(await pairDiag(b, bOther)));
+    console.log('  [pair-diag A] ' + JSON.stringify(await pairDiag(a, ib)));
+    console.log('  [pair-diag B] ' + JSON.stringify(await pairDiag(b, ia)));
     return false;
   };
   const rebuilder = benId > adaId ? ben : ada;
@@ -133,7 +141,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // liveDataLinks: a zombie 'connected' pair the far side already dropped
   // counts as a link and lies for tens of seconds (the 2662 audit class) —
   // the condition must be THIS pair, seen alive from BOTH ends.
-  check('the rebuilt pair reformed (DCs open again)', await mutualUp(ada, benId, ben, adaId, 90000));
+  check('the rebuilt pair reformed (DCs open again)', await mutualUp(ada, ben, 90000));
 
   // The heal: Ben's stale frames (previous key) are recognized by Ada, who
   // replays the retained grant one hop. Ben must converge WITHOUT any reload.
@@ -156,7 +164,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // idempotent retries); the chat below is ONE frame with no re-mint and
   // must not be asked to. Mutual pcState again — not liveDataLinks.
   await sleep(9000);
-  await mutualUp(ada, benId, ben, adaId, 40000);
+  await mutualUp(ada, ben, 40000);
 
   // The pair speaks the new key: a chat line crosses it.
   await ada.evaluate(() => { document.getElementById('chatbtn').click(); });
@@ -190,7 +198,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // (observed: Ada rotated to pw-three against the zombie while new-Ben,
   // linkless in truth, never received flood OR heal for 60s).
   const benId2 = await ben.evaluate(() => window.__gifosVideo.debugDump().me.peer);
-  check('RELOAD: the rejoined pair formed (mutual, new incarnation)', await mutualUp(ada, benId2, ben, adaId, 90000));
+  check('RELOAD: the rejoined pair formed (mutual, new incarnation)', await mutualUp(ada, ben, 90000));
   await sleep(9000);
   await ada.locator('#pwbtn').click();
   await ada.locator('#pw-new').fill('pw-three');
