@@ -3043,6 +3043,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // 'failed' waits for the sweeper (must persist past the ICE-restart
         // kick); 'disconnected' is a blip and never lands here.
         if (pc.connectionState === 'closed' && peers.has(p.id)) onTransportDead(p.id, 'pc-closed');
+        // PIPE-DARK: a transport that just left 'connected' may be carrying a
+        // redundant slot's PRIMARY — re-claim now so the parked standby is
+        // demand-woken within a beat, not at the next 2s sweep (one-pipe law:
+        // wake target ≤2s, inside the 5s grace).
+        if (!p.connected) { try { claimMos(); } catch (e) {} }
         clearTimeout(connBcastT); // my connectivity map changed → tell the room
         connBcastT = setTimeout(broadcastStatus, 300);
       };
@@ -4940,7 +4945,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // that starts the mesh's probe-gated confirm early. Guards: only the
       // CURRENT channel (a renegotiation replaces p.dc first), only while the
       // peer is still in the room, never during our own teardown.
-      dc.onclose = () => { if (!leaving && p.dc === dc && peers.has(p.id)) onTransportDead(p.id, 'dc-close'); };
+      dc.onclose = () => {
+        if (!leaving && p.dc === dc && peers.has(p.id)) onTransportDead(p.id, 'dc-close');
+        // PIPE-DARK: same fast re-claim as the pc handler — the DC often
+        // closes seconds before ICE reports anything on an ungraceful death.
+        if (!leaving && p.dc === dc) { try { claimMos(); } catch (e) {} }
+      };
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
@@ -5773,11 +5783,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function claimRedun(rk, arr) {
       const now = Date.now();
       // Resolve every announcer to its (possibly parked) incoming stream.
+      // PIPE-DARK (2026-07-28): a stream only counts as LIVE while its
+      // announcer's TRANSPORT is up (ICE connected, or an open DC still
+      // delivering). p.incoming is bookkeeping — it holds the dead peer's
+      // streams until the peer object is torn down, so a killed supplier's
+      // primary read as live until announce-ageing (12s) reaped it and the
+      // failover wake measured 3-13s (whichever of ICE-failed / ageing came
+      // first) instead of the ≤2s target. Transport truth is per-pair and
+      // lands in ~1-5s; a false alarm (ICE blip) merely demand-wakes the
+      // standby alongside — the sanctioned make-before-break overlap — and
+      // re-parks when the primary proves live again.
       const cand = [];
       for (const a of arr) {
         const p = peers.get(a.from);
+        const up = !!(p && (p.connected || (p.dc && p.dc.readyState === 'open')));
         const st = (p && p.incoming) ? p.incoming.find((s) => s.id === a.ann.streamId && s.id !== p.ownSid) : null;
-        cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
+        cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st && up });
       }
       const inCand = (e) => e && cand.some((x) => x.from === e.via && x.sid === e.streamId && x.live);
       const mkEnt = (pick) => ({ via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
