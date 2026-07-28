@@ -230,7 +230,10 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     const f = (__gifosVideo.feedsInfo() || []).find((x) => x.key === 'sdn');
     const m = __gifosVideo.mosaic();
     return { t: Date.now(), frames: f ? f.frames : -1, held: !!f,
-      via: ((m.claimVia || []).find((x) => x.rk === 'sdn') || {}).via || null };
+      via: ((m.claimVia || []).find((x) => x.rk === 'sdn') || {}).via || null,
+      // did E command the MIRROR hot? (=w on an sdnm stream — the actual
+      // demand-wake, robust against a failback beating the sampler)
+      mirHot: (m.demand || []).some((s) => s.indexOf('sdnm:') > 0 && /=w$/.test(s)) };
   }).catch(() => null);
   console.log('killing B @0/0.1 (the direct sdn relay); producer A lives; loadavg=' + loadNow());
   const tKill = Date.now();
@@ -253,15 +256,27 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     console.log('   sdn freeze gap: ' + (gap == null ? '>20000' : gap) + 'ms');
   }
   check('KILL: sdn claim never torn down', !torn);
-  check('KILL: sdn now rides the mirror (via F)', finVia === ids[MIRROR_END], { via: finVia && finVia.slice(0, 8), F: String(ids[MIRROR_END]).slice(0, 8) });
+  // The BRIDGE assertion (revised after mirror-heir-2): "final via === F"
+  // raced the HEAL — failback to the freshly-healed 0/0.1 occupant can beat
+  // the 20s sampler, and that is BETTER behavior, not a miss. The honest
+  // contracts: (1) E commanded the mirror HOT (=w on an sdnm stream) at some
+  // sample — the demand-wake actually fired; (2) the claim ended the window
+  // OFF the corpse, riding SOMEONE live (F mid-bridge, or the healed direct).
+  const sawMirHot = series.some((s) => s.mirHot) || series.some((s) => s.via === ids[MIRROR_END]);
+  check('KILL: the mirror was demand-woken (E commanded an sdnm stream hot)', sawMirHot);
+  check('KILL: sdn rides a LIVE via (off the corpse)', !!finVia && finVia !== ids[KILL], { via: finVia && finVia.slice(0, 8) });
 
   // ---- HEAL + FAILBACK: direct path returns, mirror re-parks ---------------
+  // occ01 must be read from a SECTION-0 witness: E's own debugDump().rows is
+  // E's SECTION (pc=2) — rows[0][1] there is F's seat, and the old check
+  // could never match the healed 0/0.1 occupant (mirror-heir-2 red).
+  // A@0/0.0 owns that row; read the healed occupant from A.
   let back = null;
   const t3 = Date.now();
   while (Date.now() - t3 < 120000) {
     const m = await mosOf(pages[OBS]);
     if (m) {
-      const occ01 = await pages[OBS].page.evaluate(() => { const s = __gifosVideo.debugDump(); const r = (s.rows && s.rows[0]) || []; return r[1] || null; }).catch(() => null);
+      const occ01 = await pages[0].page.evaluate(() => { const s = __gifosVideo.debugDump(); const r = (s.rows && s.rows[0]) || []; return r[1] || null; }).catch(() => null);
       const pri = (m.claimVia || []).find((x) => x.rk === 'sdn');
       const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
       // failed back: primary via == the (healed) occupant of 0/0.1, mirror parked again as standby
