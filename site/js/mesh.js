@@ -321,6 +321,26 @@
     }
     tlForget(k) { this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
     tlClear() { this.translost.clear(); this.tlProbeAt.clear(); this.probeAck.clear(); }
+    // heardFrom(pid) — PRODUCTION EXTENSION (Nathan-blessed 2026-07-28; no
+    // sim counterpart — the sim's transports never half-die). ANY sealed
+    // end-to-end frame from a peer is liveness evidence, whatever path
+    // carried it: WebRTC signaling mid-rebuild is the load-bearing case. A
+    // 2-person pair whose reform lost the race against the D5 confirm used
+    // to FORK the room — both sides compacted to lone roots, and forks only
+    // heal by a human pick no standing member ever sees. The peer's own
+    // authored frames were streaming past the death clock the whole time.
+    // Same evidence class as a probe answer (the frame may TRANSIT the
+    // relay, but the relay authors nothing — this is not a relay vouch);
+    // clears any standing translost and feeds the silence horizon.
+    heardFrom(pid) {
+      if (!this.hasCoord || pid == null || pid === this.id) return;
+      for (const olc of topo.ownedLinks(this.coord)) {
+        const k = ck(olc);
+        if (this.occGet(k) !== pid) continue;
+        this.probeAck.set(k, this.TICK);
+        this.live.set(k, this.TICK);
+      }
+    }
     // WIRE-ONLY (no sim counterpart — the sim has no device-local network).
     // Called at BOTH edges of the device's own network dying/returning:
     // silence observed while WE were dark is not evidence about anyone

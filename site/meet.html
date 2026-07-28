@@ -3199,6 +3199,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       msg = sigSansIce(from, msg); // fault injection: a blocked pair yields nothing
       if (!msg) return;
       if (rxStats[msg.kind] !== undefined) rxStats[msg.kind]++;
+      // §HEARD (Nathan, 2026-07-28): a sealed signaling frame IS the peer,
+      // alive, right now — feed the mesh's evidence intake so a pair
+      // mid-reform can never lose the race against the D5 confirm (the
+      // 2-person FORK). The frame may have transited the relay; the
+      // evidence is end-to-end.
+      try { const s = meshSeat(); if (s && s.heardFrom) s.heardFrom(from); } catch (e) {}
       if (msg.kind === 'offer') {
         // Accept if my arithmetic already claims this peer, OR if I do not know
         // it yet. The link relation is SYMMETRIC (S1 ownedLinks = row + column,
@@ -4551,6 +4557,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
           const grant = { k: 'pwinfo', pw: v, by: myName(), w: wPeers, ep };
           sendAll(grant);
+          // RELAY-ENVELOPE COPY (same law as the follow-me link): the flood
+          // above rides DC pairs + gossip, and a member whose pair is
+          // down/rebuilding at THIS instant needs the grant more than anyone
+          // — grant healing covers them only once their stale beats flow,
+          // and a DC-less deep member's beats are occ-gated and may not.
+          // Each rostered member also gets a sealed targeted copy over the
+          // relay ({t:'peer'} → onRemote), under the SAME old key as the
+          // flood; the epoch guard absorbs doubles.
+          try {
+            const env = await net.seal(roomE2E, grant);
+            for (const pid of gossipIds()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+          } catch (e) {}
           storePwEpoch(ep); retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
@@ -5029,6 +5047,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // silence alone was never the evidence, this is.
       p.dcRxAt = Date.now();
       if (p.id) { meshRxByPid.set(p.id, p.dcRxAt); tlFiredPid.delete(p.id); }
+      // §HEARD: app frames over the DC are the same end-to-end liveness
+      // evidence as signaling — feed the mesh intake (see onSignal).
+      try { const s = meshSeat(); if (s && s.heardFrom && p.id) s.heardFrom(p.id); } catch (e) {}
       if (m.k === 'hi') {
         // Union-merge — and GOSSIP ONWARD whatever was news: a delegate
         // learning a missed line over the bridge hands it down its own leaf.
