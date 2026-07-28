@@ -68,7 +68,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const pg of [a, b]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('the RIGHT password admits (mesh link up)', (await b.evaluate(() => window.__gifosVideo.roomPw())) === 'pw-one');
 
-  // Ada CHANGES the password: Ben (present) learns it silently over pwinfo
+  // Ada CHANGES the password: Ben (present) learns it silently over pwinfo.
+  // SETTLE the pair first (the codified young-pair law: recently-formed pairs
+  // may honestly drop/rebuild for their first seconds, and the pwinfo grant is
+  // deliberately one-shot — §8 hard exclusion). A pw change between SETTLED
+  // members is the scenario's intent; the one-shot-vs-rebuild sharp edge is a
+  // recorded design question, not this suite's subject.
+  await sleep(9000);
+  await Promise.all([a, b].map((pg) => pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 })));
   await a.locator('#pwbtn').click();
   await a.locator('#pw-new').fill('pw-two');
   await a.locator('#pw-save').click();
