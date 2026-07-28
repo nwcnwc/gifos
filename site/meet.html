@@ -6170,10 +6170,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // a sweep. A child section with only one occupied row head has
             // no disjoint entry — no mirror then (documented).
             {
+              // PER-HOP CHAIN BUILD (Nathan, 2026-07-28 — the mirror never
+              // shipped in practice): the old gate required the producer's OWN
+              // occ to name EVERY hop, but bounded-degree knowledge means an
+              // S1 head never converges a child section's row-1 occupancy —
+              // post-03c occ hygiene prunes exactly what the check read, so no
+              // sdnm ever left the producer (mirror-drill, quarantine dossier).
+              // Pass 1 keeps today's preference: a route the producer can
+              // fully verify wins. Pass 2 verifies only what an S1 seat KNOWS
+              // first-hand — the route's S1 segment — and ships optimistically:
+              // each sdnmr hop below forwards from its own occ (per-hop
+              // knowledge, re-derived every sweep), and a chain that stalls at
+              // an empty deep seat is born parked — zero media, self-completing
+              // when occupancy appears.
               let rt = null, mt = -1;
-              for (let tt = 0; tt < C && !rt; tt++) {
-                const r2 = MM.sdnMirrorRoute(T, C, c.pc, c.r, i, tt);
-                if (r2 && r2.every((co, qi) => qi === 0 || !!occPid(co))) { rt = r2; mt = tt; }
+              for (let pass = 0; pass < 2 && !rt; pass++) {
+                for (let tt = 0; tt < C && !rt; tt++) {
+                  const r2 = MM.sdnMirrorRoute(T, C, c.pc, c.r, i, tt);
+                  if (!r2 || !occPid(r2[1])) continue;
+                  const known = pass === 0 ? r2.slice(1) : r2.slice(1).filter((co) => co.pc === c.pc);
+                  if (known.every((co) => !!occPid(co))) { rt = r2; mt = tt; }
+                }
               }
               if (rt) {
                 const jm = shipMos('sdnm:' + T.ckey(T.down({ pc: c.pc, r: c.r, i })), occPid(rt[1]), pk.stream, Object.assign({ mt }, m));
