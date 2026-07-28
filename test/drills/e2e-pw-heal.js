@@ -114,6 +114,30 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await ben.waitForFunction(() => window.__gifosVideo.chatTexts().includes('healed room says hi'), null, { timeout: 15000 });
   check('chat flows on the new key after healing', true);
 
+  // ---- RELOAD: the epoch must SURVIVE (persisted beside the password) ------
+  // The recorded post-reload hole: pwEpoch lived only in memory, so a fresh
+  // page's replay guard sat at 0 and accepted ANY old grant — a replayed
+  // ep-1 pwinfo could roll a reloaded member back to a dead password. The
+  // epoch now rides localStorage beside the stored password. Two directions
+  // to prove: the reloaded page comes back ARMED (epoch restored, not 0),
+  // and a legitimate NEXT rotation still lands (persistence never wedges
+  // adoption).
+  await ben.reload({ waitUntil: 'domcontentloaded' });
+  await ben.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
+  await ben.waitForFunction(() => window.__gifosVideo.pwState && window.__gifosVideo.pwState().pw === 'pw-two', null, { timeout: 20000 });
+  const reSt = await ben.evaluate(() => window.__gifosVideo.pwState());
+  check('RELOAD: Ben comes back armed — epoch persisted, not 0', !!(reSt && reSt.epoch === adaSt.epoch), { ben: reSt && reSt.epoch, ada: adaSt.epoch });
+  // Young-pair settle before the next rotation (same discipline as the first
+  // save): the adoption below must ride the flood or the heal, not luck.
+  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await sleep(9000);
+  await ada.locator('#pwbtn').click();
+  await ada.locator('#pw-new').fill('pw-three');
+  await ada.locator('#pw-save').click();
+  await ben.waitForFunction(() => window.__gifosVideo.pwState().pw === 'pw-three', null, { timeout: 30000 });
+  const st3 = await ben.evaluate(() => window.__gifosVideo.pwState());
+  check('RELOAD: the next rotation still adopts (epoch advances past the persisted one)', !!(st3 && st3.epoch > reSt.epoch), { epoch: st3 && st3.epoch, was: reSt.epoch });
+
   await browser.close();
   console.log(failures === 0 ? '\nALL PASS' : '\n' + failures + ' FAILED');
   process.exit(failures === 0 ? 0 : 1);

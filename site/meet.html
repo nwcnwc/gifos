@@ -3693,7 +3693,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // verbatim so ANY neighbour can replay it to heal them — pairwise, one
     // hop, bounded-degree; nobody ever needs a roster. The signed epoch stops
     // replay: a grant at or below your own epoch is dead on arrival, so
-    // nobody can roll a member backwards.
+    // nobody can roll a member backwards. The epoch is PERSISTED beside the
+    // stored password (loadPw/storePwEpoch), so a reload cannot disarm it.
     let prevRoomE2E = null;   // exactly ONE previous generation, for stale-neighbour recognition + healing
     let pwEpoch = 0;          // generation counter, carried inside the signed grant
     let retainedGrant = null; // the admin's pwinfo, verbatim — replayable by any member
@@ -3893,7 +3894,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
 
     const pwKey = () => 'gifos_vpw_' + roomKey();
-    function loadPw() { try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; } }
+    // §LOCK epoch PERSISTENCE: the replay guard is only as durable as the
+    // counter it compares against. pwEpoch used to live in memory alone, so
+    // a reload re-armed every old grant (a guard at epoch 0 accepts
+    // anything) — a replayed ep-1 pwinfo could roll a fresh page back to a
+    // dead password. The epoch rides localStorage beside the password it
+    // versions: same room scoping, restored in loadPw, advanced only
+    // through storePwEpoch. It survives a password CLEAR on purpose —
+    // generations are monotonic for the room's whole life, or clearing
+    // would re-arm every grant that preceded it.
+    const pwEpochKey = () => 'gifos_vpwep_' + roomKey();
+    function storePwEpoch(ep) { pwEpoch = ep; try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
+    function loadPw() {
+      try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; }
+      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); } catch (e) {}
+    }
     function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // THE PASSWORD IS THE KEY (docs/meet-security.md §LOCK): adopting a password means
     // deriving the room key that contains it. Every caller that changes
@@ -4529,7 +4544,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
           const grant = { k: 'pwinfo', pw: v, by: myName(), w: wPeers, ep };
           sendAll(grant);
-          pwEpoch = ep; retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
+          storePwEpoch(ep); retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
           // after those seals have left the queue do I move to the new key
@@ -5189,9 +5204,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // is a replay — dead on arrival. Nobody can roll a member backwards;
         // an ep-less grant is a legacy client's, treated as next-generation.
         if (m.ep != null && pwEpoch && m.ep <= pwEpoch) return;
-        if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) pwEpoch = m.ep; return; } // already adopted
+        if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) storePwEpoch(m.ep); return; } // already adopted
         const cleared = !m.pw && roomPw;
-        pwEpoch = m.ep != null ? m.ep : pwEpoch + 1;
+        storePwEpoch(m.ep != null ? m.ep : pwEpoch + 1);
         retainedGrant = { k: 'pwinfo', pw: m.pw, by: m.by, w: m.w, ep: pwEpoch }; // retained VERBATIM — any member can heal a stale neighbour with the admin's own signature
         storePw(m.pw || '');
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
