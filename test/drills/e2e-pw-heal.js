@@ -59,8 +59,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   const ada = await mk('Ada');
   const ben = await mk('Ben');
-  ada.on('console', (m) => { const t = String(m.text()); if (/grant-heal|rekey|pwinfo/.test(t)) console.log('  [ada]', t.slice(0, 120)); });
-  ben.on('console', (m) => { const t = String(m.text()); if (/grant-heal|rekey|pwinfo/.test(t)) console.log('  [ben]', t.slice(0, 120)); });
+  // [clog] is the whole transport-forensic channel (dc-watchdog, starve,
+  // translost, grant-heal, rekey) — tap it all; wedge reds need the timeline.
+  ada.on('console', (m) => { const t = String(m.text()); if (/\[clog\]|pwinfo/.test(t)) console.log('  [ada]', t.slice(0, 120)); });
+  ben.on('console', (m) => { const t = String(m.text()); if (/\[clog\]|pwinfo/.test(t)) console.log('  [ben]', t.slice(0, 120)); });
   for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('Ada and Ben meshed (open DCs)', true);
   // Young-pair settle: the orphan below must come from OUR forced rebuild,
