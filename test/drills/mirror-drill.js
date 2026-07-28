@@ -94,19 +94,67 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   check('all 8 joined + seated somewhere', coords.every(Boolean), coords);
 
   // ---- forceSeat everyone into the exact drill topology --------------------
+  // CONFLICT-FREE ORDER (2026-07-28): a take() of an OCCUPIED seat is a
+  // CONTESTED move under law T — the sitting occupant's claim contradicts the
+  // mover, someone gets bounced into a fresh FIND and lands at the lawful
+  // empty cell (section 1's head), dissolving the drill shape. The old code
+  // teleported in launch order, which routinely dialed seats their current
+  // holders had not vacated yet (the natural seats are a permutation of the
+  // targets). So: move in PASSES, only ever dialing a currently-EMPTY seat;
+  // park one member on a scratch seat to break permutation cycles; confirm
+  // each move (coord landed, transit over) before the next.
   const ids = await Promise.all(pages.map(idOf));
   const seed = {}; for (let k = 0; k < SEATS.length; k++) if (ids[k]) seed[SEATS[k]] = ids[k];
-  // Every page gets a seeded (re)take — including the ones already on their
-  // target seat: the seed teaches each occ the WHOLE drill topology at once,
-  // because post-teleport occ gossip alone converges too slowly for a drill.
-  for (let k = 0; k < SEATS.length; k++) {
-    const m = /^(\d+)\/(\d+)\.(\d+)$/.exec(SEATS[k]);
+  const doSeat = async (k, seatStr) => {
+    const m = /^(\d+)\/(\d+)\.(\d+)$/.exec(seatStr);
     const res = await pages[k].page.evaluate((a) => __gifosVideo.forceSeat(a[0], a[1], a[2], a[3]), [m[1], m[2], m[3], seed]).catch((e) => String(e).slice(0, 60));
-    console.log('  ' + NAMES[k] + ' → ' + SEATS[k] + ' ' + JSON.stringify(res));
-    await sleep(700);
+    console.log('  ' + NAMES[k] + ' → ' + seatStr + ' ' + JSON.stringify(res));
+    const tm = Date.now(); // confirm the coord landed (the dual-hold vacate then follows within a beat)
+    while (Date.now() - tm < 8000) {
+      const c = await pages[k].page.evaluate(() => { const cc = __gifosVideo.meshCoord(); return cc ? cc.pc + '/' + cc.r + '.' + cc.i : null; }).catch(() => null);
+      if (c === seatStr) break;
+      await sleep(400);
+    }
+    await sleep(400);
+  };
+  const teleportAll = async () => {
+    const cur = await Promise.all(pages.map(coordOf));
+    const SCRATCHES = ['1/1.1', '1/1.0', '1/0.1']; // outside the target set
+    for (let pass = 0; pass < 24; pass++) {
+      const occupied = new Set(cur.filter(Boolean));
+      const pending = [];
+      for (let k = 0; k < SEATS.length; k++) if (cur[k] !== SEATS[k]) pending.push(k);
+      if (!pending.length) break;
+      let moved = false;
+      for (const k of pending) {
+        if (occupied.has(SEATS[k])) continue;
+        occupied.delete(cur[k]); occupied.add(SEATS[k]);
+        await doSeat(k, SEATS[k]); cur[k] = SEATS[k]; moved = true;
+      }
+      if (!moved) { // pure permutation cycle — park the first pending member aside
+        const k = pending[0];
+        const scratch = SCRATCHES.find((s) => !occupied.has(s));
+        if (!scratch) break;
+        occupied.delete(cur[k]); occupied.add(scratch);
+        await doSeat(k, scratch); cur[k] = scratch;
+      }
+    }
+  };
+  await teleportAll();
+  // The on-seat pages still get the seed: teach each occ the WHOLE drill
+  // topology at once — post-teleport gossip alone converges too slowly.
+  for (let k = 0; k < SEATS.length; k++) {
+    const c = await coordOf(pages[k]);
+    if (c === SEATS[k]) await doSeat(k, SEATS[k]);
   }
   await sleep(6000);
   coords = await Promise.all(pages.map(coordOf));
+  if (!coords.every((c, k) => c === SEATS[k])) { // one repair pass absorbs a stray bounce
+    console.log('  topology drifted (' + coords.map((c, k) => NAMES[k] + '@' + c).join(' ') + ') — repair pass');
+    await teleportAll();
+    await sleep(6000);
+    coords = await Promise.all(pages.map(coordOf));
+  }
   check('drill topology in place', coords.every((c, k) => c === SEATS[k]), coords.map((c, k) => NAMES[k] + '@' + c).join(' '));
 
   // ---- the mirror BUILDS dormant end-to-end --------------------------------
