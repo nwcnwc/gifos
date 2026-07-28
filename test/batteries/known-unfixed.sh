@@ -87,6 +87,20 @@ if [ "$BROWSERS" = 1 ]; then
     if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
   done
 
+  hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28 — cut 0.8.6, fix by design)"
+  why "the wake is DETECTION-bound, not wake-bound: Chrome reports a killed
+                 peer's transport down in ~5-9s (DC close never fires on a context
+                 kill; ICE 'failed' is Chrome's mood), and the standby then flows ~1s
+                 later. Measured 2.9-13.3s across 7 runs; the PIPE-DARK fix (5e577e9)
+                 removed the 12s announce-ageing tail but cannot beat ICE."
+  cost "a receiver-side RTP-silence watchdog (inbound bytes flat >700ms on a
+                 claimed primary => speculative demand-wake; make-before-break makes a
+                 false alarm harmless). Design task filed 2026-07-28. The GATE keeps
+                 asserting wake CORRECTNESS (completes, claim survives, via switches,
+                 re-parks) via redun-drill's default mode — only the latency BOUND
+                 lives here."
+  if REDUN_STRICT=1 run_suite test/drills/redun-drill.js; then green "redun-drill strict wake bound now passes"; else red "redun-drill REDUN_STRICT=1 (wake > 5s grace)"; fi
+
 else
   printf '\n(skipping browser entries — pass --browsers to include them)\n'
 fi

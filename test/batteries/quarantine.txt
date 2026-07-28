@@ -16,7 +16,9 @@
 #   * Starvation is NOT a reason. A suite that fails only on a loaded box is a
 #     host problem; re-run it on an idle machine rather than quarantining it.
 
-# (empty — the late-join adoption pair was promoted back 2026-07-28: both ran
-# 3/3 green on the 8-core box after the 03c local-evidence-phantom fix, which
+# (the late-join adoption pair was promoted back 2026-07-28: both ran 3/3
+# green on the 8-core box after the 03c local-evidence-phantom fix, which
 # removed the NOROOM-cycling that widened the adoption race window. If they
 # flake again, that is a REGRESSION to hunt, not a reason to re-add them.)
+
+mirror-drill  the sdn dormant mirror (Phase 2) never BUILDS: the producer ships sdnm only when its own occ names EVERY route hop, and S1 heads never converge deep-section row-1 occupancy under post-03c occ hygiene — so no sdnm job ever ships and the drill fails deterministically at "E holds sdn PRIMARY + mirror STANDBY". Understood end-to-end (2026-07-28: drill harness fixed first — conflict-free teleports, topology now HOLDS — so this red is the FEATURE, not the harness). Fix is design work: per-hop chain build (sdnmr forwarding exists) or wider occ gossip; design task filed. Decided with Nathan 2026-07-28 (cut 0.8.6; the mirror is dormant-redundancy for deep rooms, not a demo path).
