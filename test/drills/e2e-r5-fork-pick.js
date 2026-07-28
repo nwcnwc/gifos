@@ -5,12 +5,14 @@
 // halves with DISJOINT S1 rosters, newcomer sees the fork modal, picks ONE,
 // and seats only into that half (never auto-bridges).
 //
-// How the same-key tear is forced (no new product surface):
-//   1. LeftIsle founds; RightIsle joins the same room (one genesis).
-//   2. Symmetric __gifosBlockIce so they cannot re-learn each other over DC.
-//   3. forceSeat each to a DIFFERENT S1 cell with empty occSeed — doMove
-//      clears occ, so s1Roster() is self-only. Both stay Section-1 greeters
-//      under the same genKey (the real torn-home door case).
+// How the same-key tear is built (re-encoded 2026-07-28 for fork law 95ca143
+// — blind doors merge; a TRUE fork needs third-party evidence per half):
+//   1. L1 founds; L2 joins and wires — the Left half is a real 2-member pair.
+//   2. R1+R2 join through the door with the whole Left half ICE-blocked from
+//      birth (and reverse-blocked): one genesis, but the cross pairs starve,
+//      D5 confirms, and the room tears into two wired 2-member islands.
+//   3. Each half's greeters answer HOME with an evidenced 2-member roster and
+//      half-local faces — the law's real pick-one door.
 //
 // Self-contained: own relay + site for THIS checkout. Safe from a worktree.
 // Run: node test/drills/e2e-r5-fork-pick.js
@@ -94,73 +96,80 @@ const pfx = (id) => String(id || '').slice(0, 12);
     return await dump(u);
   };
 
-  // ── Phase 1: one room, two greeters, same genesis ─────────────────────────
-  // Pre-baked #v=…&DEBUG=on like adversary-room / mirror-drill — lob-open
-  // rewrites the hash and would drop DEBUG=on, which gates forceSeat.
+  // ── Phase 1: one room, TWO WIRED HALVES, same genesis ─────────────────────
+  // RE-ENCODED 2026-07-28 per the fork law 95ca143 ("same-key split needs
+  // POSITIVE disjointness evidence"): the old forgery — forceSeat two lone
+  // greeters into self-only rosters — produces exactly the BLIND DOORS the
+  // false-fork fix now merges on purpose (mesh-fork.js FALSE-FORK 1), and
+  // their surviving DataChannel re-merged occ anyway. The law's TRUE FORK
+  // needs each half to carry THIRD-PARTY roster evidence with no shared
+  // faces (TRUE FORK 2) — so the drill now builds the real thing: a 4-member
+  // room torn into two wired pairs that can never cross-connect. Each half's
+  // greeters answer HOME with an evidenced 2-member roster; the halves'
+  // faces are disjoint once the cross pair-objects drop. That is the door a
+  // newcomer must be ASKED about.
   const room = 'r5f' + Math.random().toString(36).slice(2, 10);
   const link = BASE + '/meet.html#v=' + room + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
   console.log('room: ' + link);
 
-  const left = await newUser('LeftIsle');
+  const left = await newUser('LeftIsle');           // L1
   await left.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
   const leftDump = await waitSeat(left, 45000);
-  check('LeftIsle founded and seated (Section-1 greeter)', !!(leftDump && leftDump.coord && leftDump.state === 3), leftDump && leftDump.coord);
+  check('L1 founded and seated (Section-1 greeter)', !!(leftDump && leftDump.coord && leftDump.state === 3), leftDump && leftDump.coord);
   left.id = leftDump && leftDump.peer;
 
-  // RightIsle joins the same room (learns the same genKey via the dance).
-  // ICE to Left is blocked from the start so media never wires — control plane
-  // still seats via the greeter door (same as e2e-peer-relay-reunion).
-  const right = await newUser('RightIsle', left.id ? [left.id] : ['*']);
+  const left2 = await newUser('LeftMate');          // L2 — wires with L1 freely
+  await left2.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const left2Dump = await waitSeat(left2, 45000);
+  check('L2 seated and wired into the Left half', !!(left2Dump && left2Dump.coord && left2Dump.state === 3), left2Dump && left2Dump.coord);
+  left2.id = left2Dump && left2Dump.peer;
+
+  // The Right half joins with the ENTIRE Left half ICE-blocked from birth —
+  // control plane still seats via the greeter door (reunion's pattern), but
+  // no cross transport ever forms, so the cross pair-objects starve, D5
+  // confirms, and the room TEARS along the block: two wired islands, one
+  // genesis key. Reverse blocks land on the Left pages as each R id is known.
+  const lIds = [left.id, left2.id].filter(Boolean);
+  const right = await newUser('RightIsle', lIds);   // R1
   await right.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  const rightDump = await waitSeat(right, 45000);
-  check('RightIsle seated in the same room', !!(rightDump && rightDump.coord && rightDump.state === 3), rightDump && rightDump.coord);
+  const rightDump = await waitSeat(right, 60000);
+  check('R1 seated in the same room (through the door)', !!(rightDump && rightDump.coord && rightDump.state === 3), rightDump && rightDump.coord);
   right.id = rightDump && rightDump.peer;
+  for (const u of [left, left2]) if (right.id) await u.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, right.id).catch(() => {});
 
-  // Symmetric ICE blackhole so the tear cannot re-merge over DataChannels.
-  if (right.id) await left.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, right.id);
-  if (left.id) await right.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, left.id);
+  const right2 = await newUser('RightMate', lIds);  // R2 — wires with R1 only
+  await right2.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const right2Dump = await waitSeat(right2, 60000);
+  check('R2 seated and wired into the Right half', !!(right2Dump && right2Dump.coord && right2Dump.state === 3), right2Dump && right2Dump.coord);
+  right2.id = right2Dump && right2Dump.peer;
+  for (const u of [left, left2]) await u.page.evaluate((ids) => { window.__gifosBlockIce = ids; }, [right.id, right2.id].filter(Boolean)).catch(() => {});
 
-  // ── Phase 2: force same-key dual greeter halves (disjoint S1 rosters) ─────
-  // forceSeat to a *different* S1 cell with empty occSeed: doMove refuses a
-  // same-coord teleport, and empty nbrs leave s1Roster() = {self} only.
-  // Both remain pc=0 greeters; genKey is unchanged (not re-minted).
-  const tearLeft = await left.page.evaluate(() => {
-    const V = window.__gifosVideo, c = V.meshCoord();
-    if (!c) return { err: 'no coord' };
-    // Prefer a different row so we always move (0/0.0 → 0/1.0).
-    const r = c.r === 0 ? 1 : 0;
-    return V.forceSeat(0, r, 0, {});
-  }).catch((e) => ({ err: String(e).slice(0, 80) }));
-  const tearRight = await right.page.evaluate(() => {
-    const V = window.__gifosVideo, c = V.meshCoord();
-    if (!c) return { err: 'no coord' };
-    const r = c.r === 0 ? 1 : 0;
-    const i = 1; // avoid colliding with Left's 0/r.0
-    return V.forceSeat(0, r, i, {});
-  }).catch((e) => ({ err: String(e).slice(0, 80) }));
-  check('LeftIsle forceSeat tear (self-only occ)', !!(tearLeft && tearLeft.seated), tearLeft);
-  check('RightIsle forceSeat tear (self-only occ)', !!(tearRight && tearRight.seated), tearRight);
-  console.log('  tear left→' + (tearLeft && tearLeft.seated) + ' right→' + (tearRight && tearRight.seated));
+  // ── Phase 2: let the tear SETTLE — each half converges to its own pair ────
+  // The cross pairs starve (no transport, D5/starve-edge confirms), occ frees,
+  // and each page's world shrinks to its half: participants()==2 everywhere.
+  // Faces separate as the dropped cross pair-objects purge statusOf. Budget
+  // honors the codified law: reap-bound settling gets the long window.
+  const halves = [left, left2, right, right2];
+  let settled = false;
+  const tSettle = Date.now();
+  while (Date.now() - tSettle < 200000 && !settled) {
+    const ps = await Promise.all(halves.map((u) => u.page.evaluate(() => {
+      try { return { p: window.__gifosVideo.participants(), s: window.__gifosVideo.meshState().state }; } catch (e) { return null; }
+    }).catch(() => null)));
+    settled = ps.every((x) => x && x.p === 2 && x.s === 3);
+    if (!settled) await sleep(2000);
+  }
+  const halfSnap = await Promise.all(halves.map(async (u) => ({ name: u.name, d: await dump(u) })));
+  check('the tear settled: each half is a 2-member island (participants==2 all four)',
+    settled, halfSnap.map((h) => h.name + ':' + (h.d && h.d.occ) + '/' + (h.d && h.d.state)));
 
-  // Brief settle so greeter re-knocks land after the move.
-  await sleep(2500);
-  const leftAfter = await dump(left);
-  const rightAfter = await dump(right);
-  check('both greeters still seated after tear',
-    !!(leftAfter && leftAfter.coord && rightAfter && rightAfter.coord),
-    { left: leftAfter && leftAfter.coord, right: rightAfter && rightAfter.coord });
-  // occ should be small (self-only after empty seed; may hold 1).
-  check('LeftIsle occ is island-small after tear', !!(leftAfter && leftAfter.occ <= 2), leftAfter && leftAfter.occ);
-  check('RightIsle occ is island-small after tear', !!(rightAfter && rightAfter.occ <= 2), rightAfter && rightAfter.occ);
-
-  // Stage LeftIsle so pick-one faces distinguish the halves (Stage > Stadium).
-  // Without this, homeFaces() stadium still lists both names from the pre-tear
-  // UI roster, so both buttons show the same peer prefixes.
+  // Stage L1 so pick-one faces distinguish the halves (Stage > Stadium): the
+  // Left option shows the Stage face, the Right option its Stadium names.
   const staged = await left.page.evaluate(() => {
     try { return window.__gifosVideo.stageForTest(true); } catch (e) { return false; }
   }).catch(() => false);
-  check('LeftIsle stepped onto Stage (face label for Meeting A)', !!staged, staged);
-  await sleep(500);
+  check('L1 stepped onto Stage (face label for Meeting A)', !!staged, staged);
+  await sleep(1500);
 
   // ── Phase 3: newcomer at the door sees TWO clusters → pick-one modal ─────
   const neo = await newUser('Newcomer');
@@ -245,13 +254,13 @@ const pfx = (id) => String(id || '').slice(0, 12);
   const neoFinal = await dump(neo);
   const names = (neoFinal && neoFinal.roster || []).map((r) => r.name).filter(Boolean);
   const peers = (neoFinal && neoFinal.roster || []).map((r) => pfx(r.peer));
-  const leftP = pfx(left.id), rightP = pfx(right.id);
-  const knowsLeft = names.includes('LeftIsle')
-    || peers.some((p) => leftP && (p === leftP || p.startsWith(leftP.slice(0, 8))));
-  const knowsRight = names.includes('RightIsle')
-    || peers.some((p) => rightP && (p === rightP || p.startsWith(rightP.slice(0, 8))));
-  const connLeft = !!(neoFinal && neoFinal.roster || []).find((r) => r.conn && r.name === 'LeftIsle');
-  const connRight = !!(neoFinal && neoFinal.roster || []).find((r) => r.conn && r.name === 'RightIsle');
+  const halfIds = (us) => us.map((u) => pfx(u.id)).filter(Boolean);
+  const knowsHalf = (halfNames, ids) => halfNames.some((n) => names.includes(n))
+    || peers.some((p) => ids.some((hp) => p === hp || p.startsWith(hp.slice(0, 8))));
+  const knowsLeft = knowsHalf(['LeftIsle', 'LeftMate'], halfIds([left, left2]));
+  const knowsRight = knowsHalf(['RightIsle', 'RightMate'], halfIds([right, right2]));
+  const connLeft = !!(neoFinal && neoFinal.roster || []).find((r) => r.conn && /^Left/.test(r.name || ''));
+  const connRight = !!(neoFinal && neoFinal.roster || []).find((r) => r.conn && /^Right/.test(r.name || ''));
   check('Newcomer does not bridge both halves',
     !(knowsLeft && knowsRight) && !(connLeft && connRight),
     { knowsLeft, knowsRight, connLeft, connRight, roster: neoFinal && neoFinal.roster, picked });
