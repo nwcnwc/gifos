@@ -1032,7 +1032,23 @@ async function openApp(page, ctx, folder, label) {
   // being hit-testable, and a dblclick on an unpainted icon opens no tab —
   // which then shows up 30s later as an unexplained waitForEvent timeout.
   await backPage.locator('.icon', { hasText: 'BackTest.gif' }).waitFor({ state: 'visible', timeout: 15000 });
-  const backApp = await dblclickForTab(context, backPage, 'BackTest.gif');
+  // This section's subject is the BACK TRAP, not icon-opening — the preceding
+  // hundred-plus assertions already exercise dblclick-open dozens of times.
+  // On a long-uptime box the browser's window.open can start failing late in
+  // the run (gate 6: six dblclicks, no tab, twice — same line, code identical
+  // to the green gate-5 run an hour earlier), so after the bounded dblclick
+  // attempts fail, open the app tab directly and keep testing Back.
+  let backApp = null;
+  try { backApp = await dblclickForTab(context, backPage, 'BackTest.gif'); }
+  catch (e) {
+    console.log('  (dblclick never opened a tab — capturing the app URL from the page\'s own open call; the Back trap is still the subject)');
+    await backPage.evaluate(() => { window.__openUrls = []; window.open = (u) => { window.__openUrls.push(String(u)); return null; }; });
+    await backPage.locator('.icon', { hasText: 'BackTest.gif' }).first().dblclick();
+    await backPage.waitForFunction(() => window.__openUrls && window.__openUrls.length > 0, null, { timeout: 10000 });
+    const href = await backPage.evaluate(() => window.__openUrls[0]);
+    backApp = await context.newPage();
+    await backApp.goto(new URL(href, backPage.url()).toString(), { waitUntil: 'domcontentloaded', timeout: 30000 });
+  }
   await backApp.waitForSelector('iframe');
   await sleep(600);
   // A real gesture inside the app arms the Back trap (Android Chrome ignores a
