@@ -21,30 +21,23 @@
 // after healing refills 0/0.1 the direct path returns and E fails back
 // make-before-break, the mirror re-parking. Run: node test/drills/mirror-drill.js
 //
-// KNOWN BLOCKER (revised 2026-07-28 PM, batch-1 verdict at ed9c1ce; the AM
-// note's rt.every(occPid) diagnosis is FIXED and OBSOLETE): the per-hop
-// chain build (ed9c1ce) WORKS mechanically — batch 1's [A]-[H] dump shows
-// sdnm chains building hop-by-hop and parking exactly as designed (A→C→F
-// and C→A→H, sdnmr claims at every hop, jobs '·'). But those chains serve
-// PHANTOM section-1 children, and the drill's real target (sdnm:2_0_0 for
-// E) is never PRODUCED: the sweep bails one gate earlier, at the down-plane
-// childPid = occPid(T.down(...)) check (meet.html ~6131) — head A never
-// learns E@2/0.0 because occ gossip is S1-only by design (mesh.js
-// s1Roster/isS1key; deep occ is first-hand-only, and the drill's seeded
-// entries are pruned by 03c hygiene as unevidenced). Three distinct findings
-// from batch 1: (1) childPid starvation above — NOTE the control plane
-// already learns exactly this via PONG m.child → childOf[cell]=heir
-// (mesh.js ~1119, H-CHAIN); candidate fix is childPid = occPid(down(cell))
-// || childOf(cell), exposed through the seat API — design call pending;
-// (2) STALE occ + vestigial links after teleport: A holds H@1/0.0 and C
-// holds F@1/1.0 (pre-teleport seats, live leftover links as "evidence"),
-// driving real sdn+parked-sdnm jobs into empty section 1 — and H/F CLAIM
-// those seat-addressed feeds at their NEW seats (no seat-validation on
-// claim); (3) section-2 intra links (E–F, G–H pairs) never formed in the
-// batch-1 run — every deep member held ONLY its stale up-link, so the AM
-// note's "pairs connect in seconds" did not reproduce (occ-driven dial
-// starves on the same pruned knowledge — chicken-and-egg). Until (1) lands,
-// phases (1)-(3) fail at "E holds sdn PRIMARY + mirror STANDBY".
+// KNOWN BLOCKER (revised 2026-07-28 EVE — the childPid starvation is FIXED
+// and the mirror BUILDS): Nathan's option (a) landed as 0eb0d74+77f3ff5 —
+// childPid = occPid(down) || heirOf(cell) from Seat.childOf (PONG m.child,
+// H-CHAIN), heir restricted to row-mates' columns (own-column heir minted a
+// phantom producer from stale row-gossip, mirror-heir-1). Since then the
+// whole BUILD phase is consistently green (mirror-heir-2/3): E holds sdn
+// PRIMARY (real bytes) + a parked sdnm:2_0_0 STANDBY at zero, demand idle,
+// chain head parked at A. WHAT REMAINS RED is the multi-hop DEMAND-WAKE
+// reliability: the wake command fires every time (E flips the sdnm stream
+// =w — asserted green), but the woken chain delivers frames only sometimes
+// (heir-2 bridged in 921ms, well under the 2s target; heir-3 delivered
+// nothing in 20s — a hop's parked pipe can be a zombie, the same class the
+// PIPE WATCHDOG bench exists for). This is now the redundancy-wake problem
+// (task #3, /tmp/redun-diag.js bench + REDUN_STRICT in known-unfixed.sh),
+// not a mirror-specific one. Batch-1's other findings remain live hunts:
+// stale occ post-teleport misdirecting jobs + stale seat-addressed claims,
+// tracked with the wedge family (§HEARD landed for the fork half).
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');
