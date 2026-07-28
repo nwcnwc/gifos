@@ -332,13 +332,20 @@
     // Same evidence class as a probe answer (the frame may TRANSIT the
     // relay, but the relay authors nothing — this is not a relay vouch);
     // clears any standing translost and feeds the silence horizon.
+    // NARROW ON PURPOSE (redun-drill bisect, 2026-07-28 eve): the first cut
+    // stamped live+probeAck on EVERY frame, which made ordinary app traffic
+    // count as full first-hand SEAT evidence — and that perturbed decisions
+    // far beyond the fork fix (stage redundancy lost its stg spares:
+    // stdPipes 2/2 → 0/0 deterministic; green again with this gate). The
+    // fork-killer needs exactly one thing: evidence SINCE A STANDING LOSS
+    // clears the confirm — translostConfirmed's own rule. A healthy pair's
+    // mesh frames already keep `live` fresh through the normal intake.
     heardFrom(pid) {
       if (!this.hasCoord || pid == null || pid === this.id) return;
       for (const olc of topo.ownedLinks(this.coord)) {
         const k = ck(olc);
-        if (this.occGet(k) !== pid) continue;
+        if (this.occGet(k) !== pid || !this.translost.has(k)) continue;
         this.probeAck.set(k, this.TICK);
-        this.live.set(k, this.TICK);
       }
     }
     // WIRE-ONLY (no sim counterpart — the sim has no device-local network).
