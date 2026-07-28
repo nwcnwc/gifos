@@ -60,7 +60,12 @@ echo 'kernel.apparmor_restrict_unprivileged_userns=0' > /etc/sysctl.d/60-chromiu
 curl -fsSL https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
 sudo -u ubuntu bash -c 'cd /home/ubuntu && git clone --depth 1 https://github.com/nwcnwc/gifos && cd gifos && npm install playwright && npx playwright install chromium' > /tmp/bootstrap.log 2>&1
 cd /home/ubuntu/gifos && npx playwright install-deps chromium >> /tmp/bootstrap.log 2>&1
-sudo -u ubuntu bash -c 'cd /home/ubuntu/gifos && node -e "require(\"playwright\")"' >> /tmp/bootstrap.log 2>&1 || exit 1
+# READY means AN ACTOR CAN RUN, not "npm finished": require('playwright')
+# passes on a box whose chromium download or system deps half-failed, and
+# that box then shard-fails EVERYTHING it was dealt (cycle-1 shape). The
+# probe is a real sandboxed LAUNCH + page, exactly what an actor does —
+# including the userns/AppArmor path the sysctl above exists for.
+sudo -u ubuntu bash -c 'cd /home/ubuntu/gifos && node -e "const {chromium}=require(\"playwright\");(async()=>{const b=await chromium.launch();const p=await b.newPage();await p.goto(\"about:blank\");await b.close()})().catch(e=>{console.error(e);process.exit(1)})"' >> /tmp/bootstrap.log 2>&1 || exit 1
 touch /home/ubuntu/READY
 EOF
   aws ec2 run-instances --region $REGION --image-id "$AMI" --count $N \
