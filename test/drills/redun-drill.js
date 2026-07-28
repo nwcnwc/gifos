@@ -149,13 +149,23 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   const ids = await Promise.all(pages.map(idOf));
   const ms3 = await Promise.all(pages.map(mosOf));
   let P = -1, B = -1, slotRk = null;
-  for (let i = 0; i < N && P < 0; i++) {
-    const m = ms3[i]; if (!m || !m.claimVia) continue;
-    for (const cv of m.claimVia) {
-      if (cv.rk.indexOf('stg:') !== 0) continue;
-      const bi = ids.indexOf(cv.via);
-      if (bi >= 0 && bi !== i && bi !== stagerIdx
-          && (m.standbyVia || []).some((sv) => sv.rk === cv.rk)) { P = i; B = bi; slotRk = cv.rk; break; }
+  // Prefer a receiver OUTSIDE the kill target's row (pass 0; pass 1 falls
+  // back to any). Killing a row-mate triggers the H-CHAIN heal that can MOVE
+  // the receiver itself, and a receiver mid-seat-move lawfully re-derives its
+  // whole mosaic — a transient claim drop that is that scenario's law, not
+  // the supplier-death claim-survival this phase asserts (the intermittent
+  // 'torn' flag always coincided with a drafted row-mate receiver).
+  const sameRow = (x, y) => x && y && x.slice(0, x.lastIndexOf('.')) === y.slice(0, y.lastIndexOf('.'));
+  for (let pass = 0; pass < 2 && P < 0; pass++) {
+    for (let i = 0; i < N && P < 0; i++) {
+      const m = ms3[i]; if (!m || !m.claimVia) continue;
+      for (const cv of m.claimVia) {
+        if (cv.rk.indexOf('stg:') !== 0) continue;
+        const bi = ids.indexOf(cv.via);
+        if (bi >= 0 && bi !== i && bi !== stagerIdx
+            && (pass === 1 || !sameRow(coords[i], coords[bi]))
+            && (m.standbyVia || []).some((sv) => sv.rk === cv.rk)) { P = i; B = bi; slotRk = cv.rk; break; }
+      }
     }
   }
   check('found a wake target: receiver holding a relayed stg primary + standby', P >= 0, P >= 0 ? pages[P].name + ' ' + slotRk + ' via ' + pages[B].name : ms3.map((m, i) => pages[i].name + ':' + JSON.stringify(m && m.claimVia)).join(' '));
