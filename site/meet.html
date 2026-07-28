@@ -8209,7 +8209,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (iInitiate(pid)) sendOffer(pid, false);
         return { ok: true, rebuilt: String(pid).slice(0, 8) };
       },
-      pwState: () => ({ pw: roomPw || '', epoch: pwEpoch, havePrevKey: !!prevRoomE2E, haveGrant: !!retainedGrant }),
+      // rekeyAt: when the CURRENT key actually took over (0 = never rotated
+      // this page-life). storePw flips .pw BEFORE the async derive completes,
+      // so ".pw changed" alone is a race — a frame sealed under the new key
+      // in that window drops silently (events aren't re-minted). Tests that
+      // speak after a rotation must gate on rekeyAt advancing, not on .pw.
+      pwState: () => ({ pw: roomPw || '', epoch: pwEpoch, havePrevKey: !!prevRoomE2E, haveGrant: !!retainedGrant, rekeyAt }),
       // Stager upload collapse: my MAIN senders (v/a) per peer — 'parked'
       // while I'm staged — plus each peer tile's visibility.
       mainSenders: () => Array.from(peers.values()).map((p) => ({

@@ -67,6 +67,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await ben.waitForFunction(() => window.__gifosVideo.pwState && window.__gifosVideo.pwState().pw === 'pw-one', null, { timeout: 20000 });
   const ep1 = await ben.evaluate(() => window.__gifosVideo.pwState().epoch);
   check('first password reaches Ben (grant flood, epoch advanced)', ep1 >= 1, { ep1 });
+  // Baseline for the heal wait below: .pw flips at storePw, BEFORE the async
+  // derive installs the new key (rekeyAt bumps only then). Speaking into that
+  // window loses the frame (sealed-across-a-rotation frames drop; events are
+  // not re-minted) — so every "adopted, now speak" gate waits on rekeyAt too.
+  await ben.waitForFunction(() => window.__gifosVideo.pwState().rekeyAt > 0, null, { timeout: 10000 });
+  const rekey1 = await ben.evaluate(() => window.__gifosVideo.pwState().rekeyAt);
 
   // ---- MANUFACTURE THE ORPHAN: rebuild the pair, save pw-two into the window.
   // The rebuild runs on whichever side is the pair's designated INITIATOR
@@ -99,7 +105,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const t0 = Date.now();
   while (Date.now() - t0 < 30000) {
     const st = await ben.evaluate(() => window.__gifosVideo.pwState()).catch(() => null);
-    if (st && st.pw === 'pw-two') { healed = true; break; }
+    if (st && st.pw === 'pw-two' && st.rekeyAt > rekey1) { healed = true; break; } // rekeyAt: the NEW key is installed, not merely announced
     await sleep(500);
   }
   const benSt = await ben.evaluate(() => window.__gifosVideo.pwState()).catch(() => null);
@@ -129,12 +135,18 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('RELOAD: Ben comes back armed — epoch persisted, not 0', !!(reSt && reSt.epoch === adaSt.epoch), { ben: reSt && reSt.epoch, ada: adaSt.epoch });
   // Young-pair settle before the next rotation (same discipline as the first
   // save): the adoption below must ride the flood or the heal, not luck.
-  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  // 90s, not 40: a reload-rejoin can lawfully eat a dial-backoff cycle before
+  // the fresh incarnation pairs (probe-measured 2s typical, 24s+ tail — the
+  // reopened tab seats immediately at a NEW cell and the pair dial rides the
+  // next occ-driven cycle). Close-and-reopen must converge; it need not race.
+  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 90000 });
   await sleep(9000);
   await ada.locator('#pwbtn').click();
   await ada.locator('#pw-new').fill('pw-three');
   await ada.locator('#pw-save').click();
-  await ben.waitForFunction(() => window.__gifosVideo.pwState().pw === 'pw-three', null, { timeout: 30000 });
+  // rekeyAt > 0: the reloaded page's first derive is its JOIN key (no bump);
+  // only the pw-three rotation bumps it — same installed-not-announced gate.
+  await ben.waitForFunction(() => { const st = window.__gifosVideo.pwState(); return st.pw === 'pw-three' && st.rekeyAt > 0; }, null, { timeout: 30000 });
   const st3 = await ben.evaluate(() => window.__gifosVideo.pwState());
   check('RELOAD: the next rotation still adopts (epoch advances past the persisted one)', !!(st3 && st3.epoch > reSt.epoch), { epoch: st3 && st3.epoch, was: reSt.epoch });
 
