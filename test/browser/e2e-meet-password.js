@@ -89,8 +89,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await enterPw(c, 'pw-two');
   await c.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('the NEW password admits the late joiner', (await c.evaluate(() => window.__gifosVideo.roomPw())) === 'pw-two');
-  check('all three converge in the re-keyed room',
-    (await a.evaluate(() => window.__gifosVideo.participants())) >= 3);
+  // Converge = EVENTUALLY: Cyd's arrival reaches Ada over gossip in beats,
+  // and the old instant read raced it under gate-tier load (g7: RED TWICE
+  // in-gate, 2/2 green standalone on the same box/commit). The assertion is
+  // unchanged; only the wait is honest now.
+  let three = false;
+  const tCv = Date.now();
+  while (Date.now() - tCv < 20000 && !three) {
+    three = (await a.evaluate(() => window.__gifosVideo.participants())) >= 3;
+    if (!three) await sleep(500);
+  }
+  check('all three converge in the re-keyed room', three);
   await a.close(); await b.close(); await c.close();
 
   // ============================ ADMIN ROOM ============================
