@@ -6169,8 +6169,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // PER-CHILD DOWN INGREDIENTS ('sdx' -> 'sdn'): outside + MY row's
           // faces + every OTHER child's block. The one piece left out is the
           // receiving branch itself — built by adding, never subtracting.
+          // childPid: occ first, then the HEIR (Nathan, 2026-07-28 — "every
+          // node should use every bit of info they possess"): a head's occ
+          // never converges its ROW-MATES' down-children (occ gossip is
+          // S1-only by design; post-03c hygiene prunes the rest), so the
+          // whole down plane for other columns starved — no sdx, no sdn, no
+          // mirror (mirror-drill dossier). The mesh ALREADY knows: every
+          // PONG carries m.child, and cousins-in-PONG spreads row-mates'
+          // heirs (Seat.childOf, the H-CHAIN machinery). Heir serves
+          // ROW-MATES' columns ONLY (i !== c.i): a mate's own PONGs refresh
+          // its entry every beat, first-hand and current; my OWN column
+          // never needs it — a real own-child is directly linked — and
+          // trusting it there let a STALE row-gossip heir mint a phantom
+          // sdn producer (mirror-heir-1 dossier). RE-LANDED after the
+          // redun-drill bisect exonerated it — the stage-redundancy
+          // displacement was §HEARD's broad stamping (fixed in 6bd3727),
+          // not this.
+          const heirOf = (cell) => { const s = meshSeat(); if (!s || !s.childOf) return null; const v = s.childOf.get(net.topo.ckey(cell)); return v == null ? null : v; };
           for (let i = 0; i < C; i++) {
-            const childPid = occPid(T.down({ pc: c.pc, r: c.r, i }));
+            const childPid = occPid(T.down({ pc: c.pc, r: c.r, i })) || (i !== c.i ? heirOf({ pc: c.pc, r: c.r, i }) : null);
             if (!childPid) { const old = sdnPacks.get(i); if (old) { old.stop(); sdnPacks.delete(i); } continue; }
             let pk = sdnPacks.get(i);
             if (!pk) { pk = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start(); sdnPacks.set(i, pk); }
