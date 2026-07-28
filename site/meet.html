@@ -3645,6 +3645,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { if (on) sessionStorage.setItem('gifos_debug', '1'); } catch (e) {}
       try { return on || sessionStorage.getItem('gifos_debug') === '1'; } catch (e) { return on; }
     })();
+    // clog: the transport-forensics channel every rebuild/heal site already
+    // writes to under a `typeof clog === 'function'` guard — but it was never
+    // DEFINED, so dc-watchdog/starve/grant-heal lines were dead code and the
+    // re-pair wedge hunt was flying blind. DEBUG pages log them now (drills
+    // tap the console); production stays exactly as silent as before (null →
+    // typeof 'object' → every guard stays false).
+    const clog = DEBUG_ON ? function () { try { console.log.apply(console, ['[clog]'].concat(Array.from(arguments))); } catch (e) {} } : null;
     function meshSelfReport() { // DEBUG-TREE
       const c = meshCoord(), s = meshSeat();
       // `from` is the FULL peer id — the census doubles as an occ seed for the
