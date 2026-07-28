@@ -312,7 +312,15 @@
     // ═══════════════════════════════════════════════════════════════════════
     function sendRaw(obj) {   // PRIVATE — the four functions below only
       if (stopped) return;
-      if (!sock || sock.rejected) makeSock(); // recreate on demand (deep seats run socketless)
+      if (!sock) makeSock(); // recreate on demand (deep seats run socketless)
+      // A POLICY-REJECTED socket (4000 replaced / banned / voted off) stays
+      // DOWN — steadySocket already refuses to reconnect it, but replacing
+      // the OBJECT minted a fresh connect every knock retry and re-ignited
+      // the same-device eviction war (the July 12 billing incident,
+      // e2e-meet-quiet part B: ~2 fresh sockets/s on the evicted tab).
+      // Another tab owns this seat; we have no right to keep knocking.
+      // The one sanctioned re-arm is an app credential change (setKey).
+      if (sock.rejected) return;
       sock.send(obj);
     }
     const iAmInsideTheRoom = () => !!(seat && seat.hasCoord && seat.state === 3);
@@ -498,7 +506,7 @@
         if (needsRelay) deepSince = -1;
         else if (deepSince < 0) deepSince = env.TICK;
         if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
-        if (needsRelay && (!sock || sock.rejected)) makeSock(); // re-arm reachability
+        if (needsRelay && !sock) makeSock(); // re-arm reachability (a policy-REJECTED socket stays down — see sendRaw)
         // Greeter socket health (wire-level, not mesh law — the sim has no
         // sockets). A NAT/middlebox drops a silent websocket without telling
         // either end; the socket then reads OPEN while every send vanishes (a
@@ -587,7 +595,7 @@
       // holding the new password can't decrypt any greeter blob (R6 reads as
       // "wrong password") until every greeter's E3 re-knock… which would also
       // have used the stale key, locking them out until a reload.
-      setKey(k) { if (k) { roomKey = k; try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
+      setKey(k) { if (k) { roomKey = k; try { if (sock && sock.rejected) sock.kick(); } catch (e) {} /* credential change: the ONE sanctioned re-arm of a policy-rejected socket */ try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
       stats() { return { peer, state: seat ? seat.state : 0, coord: (seat && seat.hasCoord) ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: !!(seat && seat.stranded), tick: env.TICK }; },
       // Greeter-list forensics: ring of recent onGreeters outcomes (listLen /
       // open / founded / action). See greeterTrace push in onGreeters.
