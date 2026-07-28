@@ -249,6 +249,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await d.waitForFunction(() => window.__gifosVideo.peerIds().length === 1, null, { timeout: 60000 });
   const eId2 = await otherId(d);
 
+  // YOUNG-PAIR SETTLE (the codified law — e011881): Eve's pair is brand new
+  // after the unban rejoin (a reload mints a fresh identity and transport),
+  // and the pwinfo grant below is ONE-SHOT (the recorded §LOCK sharp edge). A
+  // pw change between SETTLED members is the scenario's intent; gate run 3
+  // lost exactly this wait when the grant raced a young-pair rebuild.
+  await sleep(9000);
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
+
   // ---- the BLURRED WAITING ROOM: no admin present ⇒ nothing clears ----
   // The admin locks the room (the key to clear video) and everyone consents.
   await d.locator('#pwbtn').click();

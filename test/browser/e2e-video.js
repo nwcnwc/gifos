@@ -469,6 +469,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 40000 });
   check('room survives its creator — a new joiner still connects (no host)', true);
 
+  // YOUNG-PAIR SETTLE (the codified law — e011881): Dee's pairs are seconds
+  // old and may honestly drop/rebuild once in their first moments, while the
+  // tombstone, pin-replicate and pwinfo frames below are each ONE-SHOT over
+  // these very pairs (the recorded §LOCK sharp edge). Settle first — the
+  // scenario's intent is state changes between SETTLED members; the
+  // one-shot-vs-young-pair edge is a design question, not this suite's
+  // subject. (Gate runs 3+4 each lost a different one of these waits.)
+  await sleep(9000);
+  for (const pg of [bPage, dPage]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
+
   // The late joiner MERGES the room's chat + files from whoever is still
   // there (Ada wrote them and left; Bob carried them; Dee gets them).
   await dPage.waitForFunction(() => window.__gifosVideo.chatTexts().includes('hello room')
