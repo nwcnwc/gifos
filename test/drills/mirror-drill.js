@@ -21,20 +21,30 @@
 // after healing refills 0/0.1 the direct path returns and E fails back
 // make-before-break, the mirror re-parking. Run: node test/drills/mirror-drill.js
 //
-// KNOWN BLOCKER (revised 2026-07-28; original 07-18 note is OBSOLETE): the
-// old blockers are FIXED — post-seat link formation works (03c + occ-driven
-// dial + starve rebuilds: section-2 pairs connect in seconds) and the
-// contested-teleport topology collapse is gone (conflict-free ordering
-// below; "drill topology in place" PASSES). What the drill honestly shows
-// NOW: the mirror never BUILDS. The producer ships 'sdnm:<dst>' only when
-// its OWN occ names EVERY hop of the computed route (meet.html, the
-// rt.every(occPid) gate), but S1 heads never converge deep-section row-1
-// occupancy — post-03c occ hygiene prunes unevidenced entries, so A (and
-// even B, the destination head's direct up-link) never learn G/H and no
-// sdnm job ever ships. The 07-18 "observed live" sdnm ships predate 03c's
-// stricter occ. Fix is design work (per-hop chain build — the sdnmr
-// forwarding already exists — or wider occ gossip); until it lands, phases
-// (1)-(3) fail at "E holds sdn PRIMARY + mirror STANDBY".
+// KNOWN BLOCKER (revised 2026-07-28 PM, batch-1 verdict at ed9c1ce; the AM
+// note's rt.every(occPid) diagnosis is FIXED and OBSOLETE): the per-hop
+// chain build (ed9c1ce) WORKS mechanically — batch 1's [A]-[H] dump shows
+// sdnm chains building hop-by-hop and parking exactly as designed (A→C→F
+// and C→A→H, sdnmr claims at every hop, jobs '·'). But those chains serve
+// PHANTOM section-1 children, and the drill's real target (sdnm:2_0_0 for
+// E) is never PRODUCED: the sweep bails one gate earlier, at the down-plane
+// childPid = occPid(T.down(...)) check (meet.html ~6131) — head A never
+// learns E@2/0.0 because occ gossip is S1-only by design (mesh.js
+// s1Roster/isS1key; deep occ is first-hand-only, and the drill's seeded
+// entries are pruned by 03c hygiene as unevidenced). Three distinct findings
+// from batch 1: (1) childPid starvation above — NOTE the control plane
+// already learns exactly this via PONG m.child → childOf[cell]=heir
+// (mesh.js ~1119, H-CHAIN); candidate fix is childPid = occPid(down(cell))
+// || childOf(cell), exposed through the seat API — design call pending;
+// (2) STALE occ + vestigial links after teleport: A holds H@1/0.0 and C
+// holds F@1/1.0 (pre-teleport seats, live leftover links as "evidence"),
+// driving real sdn+parked-sdnm jobs into empty section 1 — and H/F CLAIM
+// those seat-addressed feeds at their NEW seats (no seat-validation on
+// claim); (3) section-2 intra links (E–F, G–H pairs) never formed in the
+// batch-1 run — every deep member held ONLY its stale up-link, so the AM
+// note's "pairs connect in seconds" did not reproduce (occ-driven dial
+// starves on the same pruned knowledge — chicken-and-egg). Until (1) lands,
+// phases (1)-(3) fail at "E holds sdn PRIMARY + mirror STANDBY".
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');
