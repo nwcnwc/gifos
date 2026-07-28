@@ -8402,28 +8402,42 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // energy) + per-sender outbound frames, each labeled with the mosaic
       // slot / job / tile it feeds, so a stall is attributable to ONE pipe.
       avStats: async () => {
-        const label = new Map(); // trackId -> slot label
-        const tag = (stream, lbl) => { if (!stream) return; for (const t of stream.getTracks()) label.set(t.id, lbl); };
+        // Labels are keyed by track/sender OBJECT and resolved per-m-line via
+        // the stats row's mid — never by trackIdentifier alone. A forwarded
+        // track keeps its id through every re-ship (msid rides the relay
+        // chain), so the sdrow direct pipe and its x1→x2 relay copy — and even
+        // two containers from the SAME peer (stg direct + '^x' copy) — all
+        // carry the SAME track id. An id-keyed map let the 'std:' tag clobber
+        // the 'in:' tag and reported the flowing PRIMARY as a hot standby
+        // (the redun-drill's phantom one-pipe violation).
+        const trkLbl = new Map(); // MediaStreamTrack OBJECT -> slot label
+        const idLbl = new Map();  // trackId -> label (fallback when a stats row has no mid)
+        const tag = (stream, lbl) => { if (!stream) return; for (const t of stream.getTracks()) { trkLbl.set(t, lbl); idLbl.set(t.id, lbl); } };
         for (const [rk, f] of mosIn) tag(f.stream, 'in:' + rk);
         for (const [rk, f] of mosStandby) tag(f.stream, 'std:' + rk);
-        for (const [jk, j] of mosJobs) for (const t of j.trackList || []) label.set(t.id, 'out:' + j.key + '>' + String(j.to).slice(0, 6));
+        const sndLbl = new Map(); // RTCRtpSender -> out label (a local track ships in MANY jobs)
+        for (const [jk, j] of mosJobs) for (const sd of j.senders || []) sndLbl.set(sd, 'out:' + j.key + '>' + String(j.to).slice(0, 6));
         const out = [];
         for (const [pid, p] of peers) {
           if (!p.pc) continue;
           tag(p.video && p.video.srcObject, 'tile:' + String(pid).slice(0, 6));
           let rep; try { rep = await p.pc.getStats(); } catch (e) { continue; }
-          const midLbl = new Map(); // mid -> outbound slot label (via the sender's track)
-          try { for (const t of p.pc.getTransceivers()) if (t.mid != null && t.sender && t.sender.track) midLbl.set(String(t.mid), label.get(t.sender.track.id) || null); } catch (e) {}
+          const midIn = new Map(), midOut = new Map(); // mid -> slot label (per-m-line, object-precise)
+          try { for (const t of p.pc.getTransceivers()) if (t.mid != null) {
+            if (t.receiver && t.receiver.track) midIn.set(String(t.mid), trkLbl.get(t.receiver.track) || null);
+            if (t.sender) midOut.set(String(t.mid), sndLbl.get(t.sender) || (t.sender.track ? trkLbl.get(t.sender.track) : null) || null);
+          } } catch (e) {}
           rep.forEach((s) => {
             if (s.type === 'inbound-rtp' && (s.kind === 'video' || s.kind === 'audio')) {
               out.push({ pid: String(pid).slice(0, 6), dir: 'in', kind: s.kind, trk: s.trackIdentifier || null,
-                slot: label.get(s.trackIdentifier) || null, fps: s.framesPerSecond || 0,
+                slot: (s.mid != null ? midIn.get(String(s.mid)) : null) || idLbl.get(s.trackIdentifier) || null,
+                fps: s.framesPerSecond || 0,
                 fdec: s.framesDecoded || 0, pkts: s.packetsReceived || 0, bytes: s.bytesReceived || 0,
                 alvl: s.audioLevel != null ? Math.round(s.audioLevel * 1000) / 1000 : null,
                 ae: s.totalAudioEnergy != null ? Math.round(s.totalAudioEnergy * 1000) / 1000 : null });
             } else if (s.type === 'outbound-rtp' && s.kind === 'video') {
               out.push({ pid: String(pid).slice(0, 6), dir: 'out', kind: s.kind, trk: null,
-                slot: s.mid != null ? (midLbl.get(String(s.mid)) || null) : null,
+                slot: s.mid != null ? (midOut.get(String(s.mid)) || null) : null,
                 fenc: s.framesEncoded || 0, fps: s.framesPerSecond || 0, bytes: s.bytesSent || 0, mid: s.mid != null ? s.mid : null });
             }
           });
