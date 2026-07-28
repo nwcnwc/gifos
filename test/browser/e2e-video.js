@@ -16,6 +16,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const browser = await chromium.launch({
     executablePath: CHROME,
     args: [
+      '--disable-gpu', // frames-decode determinism on long-uptime boxes: without it a wedged GL context renders ZERO remote frames (4-pass runs, 2026-07-28); the drills standardized this flag for the same reason
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--use-fake-ui-for-media-stream',
       '--use-fake-device-for-media-stream',
@@ -487,19 +488,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // …and an unpin propagates as a tombstone
   await dPage.locator('#chatbtn').click();
   await dPage.locator('.cfile button[data-del]').click();
-  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0, null, { timeout: 15000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0, null, { timeout: 40000 }); // audited budget (a456ba6): covers one dc-watchdog rebuild
   check('unpinning a file removes it for everyone (tombstone wins the merge)', true);
 
   // Clearing the room password DELETES shared files — with a warning first.
   await dPage.setInputFiles('#cfile-in', { name: 'secret.txt', mimeType: 'text/plain', buffer: Buffer.from('for members only') });
-  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().some((f) => f.name === 'secret.txt' && f.have), null, { timeout: 15000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().some((f) => f.name === 'secret.txt' && f.have), null, { timeout: 40000 });
   let clearWarned = false;
   bPage.once('dialog', (d) => { clearWarned = /delete/i.test(d.message()) && /1 file/.test(d.message()); d.accept(); });
   await bPage.locator('#pwbtn').click();
   await bPage.locator('#pw-new').fill('');
   await bPage.locator('#pw-save').click();
   check('clearing the password warns it will delete the shared files first', clearWarned);
-  await dPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0 && !window.__gifosVideo.roomPw(), null, { timeout: 15000 });
+  await dPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0 && !window.__gifosVideo.roomPw(), null, { timeout: 40000 });
   check('clearing the password deletes the shared files for everyone', true);
 
   // ---------- everyone leaves; the same URL still works later ----------
