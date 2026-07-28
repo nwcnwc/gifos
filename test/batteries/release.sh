@@ -81,7 +81,11 @@ stop_all() {
 start_site_relay() {
   OWNED=1
   nohup python3 -m http.server 8099 -d "$REPO/site" >/dev/null 2>&1 &
-  nohup node test/servers/relay-local.js >/dev/null 2>&1 &
+  # RELAY_DEV=1: the shared gate relay serves EVERY browser suite from ONE
+  # address — the production per-IP cap of 8 silently starved every ≥9-client
+  # suite (e2e-handq meshed exactly 8/10, forever). The caps themselves are
+  # still asserted: e2e-relay spawns its OWN bare relay for that section.
+  RELAY_DEV=1 nohup node test/servers/relay-local.js >/dev/null 2>&1 &
   sleep 2
 }
 start_fakes() {

@@ -153,6 +153,20 @@ async function invite(page, lifetime, resilient) {
   check('a ~300KB record also syncs over the pure relay path', relayBigPut === true && hostBig2 === 300 * 1024);
 
   // ---------- abuse guards: the 9th socket from one IP is turned away ----------
+  // The caps are PRODUCTION-mirroring guards, so this section runs against its
+  // OWN bare relay on a private port: the shared gate relay runs RELAY_DEV=1
+  // (a dev box drives whole fleets from one address — the per-IP cap of 8 is
+  // precisely wrong there, and it silently starved every ≥9-client suite:
+  // e2e-handq meshed exactly 8/10 under the old bare shared relay).
+  const { spawn } = require('child_process');
+  const path = require('path');
+  const CAP_PORT = 8829;
+  const capRelay = spawn('node', [path.join(__dirname, '..', 'servers', 'relay-local.js')], {
+    env: { ...process.env, RELAY_PORT: String(CAP_PORT), RELAY_DEV: '', TRUSTED_IPS: '' },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  await new Promise((r) => setTimeout(r, 800));
+  const CAP_RELAY = 'ws://127.0.0.1:' + CAP_PORT;
   const capResult = await clientRun.evaluate((RELAY) => new Promise((resolve) => {
     const errors = [];
     let opened = 0;
@@ -162,9 +176,10 @@ async function invite(page, lifetime, resilient) {
       w.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.t === 'error') errors.push(m.error); } catch (e) {} };
     }
     setTimeout(() => resolve({ opened, errors }), 1800);
-  }), RELAY);
+  }), CAP_RELAY);
   check('per-IP connection cap rejects the 9th socket from one address',
     capResult.errors.some((e) => /too many connections/.test(e)));
+  try { capRelay.kill(); } catch (e) {}
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

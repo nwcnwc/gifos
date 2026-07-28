@@ -35,9 +35,14 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const b = await bCtx.newPage();
   b.on('pageerror', (e) => console.log('  [b] ' + e.message));
   await b.goto(link);
-  await a.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await b.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await sleep(2500); // DCs open + first beats settle
+  // Gate on OPEN DataChannels, not ICE-only liveLinks (the 2026-07-27 audit):
+  // beats ride the DC, and an ICE-up/DC-closed forming pair (the half-open
+  // shape the dc-watchdog rebuilds at ~12s) counted as "linked" here while
+  // zero beats could flow — the 13s beat window then measured a pair that
+  // was still wiring, not a quiet relay. Budget covers one watchdog rebuild.
+  await a.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await b.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await sleep(2500); // first beats settle
 
   const t0a = await a.evaluate(() => window.__gifosVideo.txStats());
   const t0b = await b.evaluate(() => window.__gifosVideo.txStats());
