@@ -49,6 +49,11 @@ launch)
 shutdown -h +${MAX_LIFE_MIN}
 apt-get update
 apt-get install -y git python3
+# Ubuntu 24.04 clamps unprivileged user namespaces via AppArmor — chromium's
+# sandbox then dies INTERMITTENTLY (~7% of actor spawns in cycle 1: four
+# "actor not running" reds that looked like app bugs). Standard fix:
+sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+echo 'kernel.apparmor_restrict_unprivileged_userns=0' > /etc/sysctl.d/60-chromium-userns.conf
 # node via TARBALL, not apt: the NodeSource setup failed silently on cycle 1
 # and Ubuntu's own nodejs package ships WITHOUT npm — every actor then died
 # at spawn ("playwright not found") in the classic dead-environment shape.
@@ -82,6 +87,7 @@ run)
   mapfile -t IPS < "$OUT/ips.txt"
   cd "$(dirname "$0")/.."
   SCN=$(ls test/behavior/scenarios/*.js | xargs -n1 basename | sed 's/\.js$//')
+  rm -f "$OUT"/shard-*.txt # a re-run must not APPEND onto the old shards (cycle-1 lesson: doubled lists)
   i=0
   for name in $SCN; do
     echo "$name" >> "$OUT/shard-$((i % ${#IPS[@]})).txt"; i=$((i+1))
