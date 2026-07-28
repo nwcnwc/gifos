@@ -50,6 +50,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- 3: a camera-off peer never steals the aim ------------------------------
   const B = await mk('Ben');
+  // Gate on OPEN DataChannels (the 2026-07-27 ICE-vs-DC audit): the aim
+  // assertions below need Ben's status/stream actually ARRIVING, and an
+  // ICE-up/DC-closed forming pair delivers neither for its first ~12s.
+  for (const pg of [A, B]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   for (let i = 0; i < 30; i++) {
     const st = [];
     for (const [n, pg] of [['A', A], ['B', B]]) st.push(n + '=' + await pg.evaluate(() => { try { return window.__gifosVideo.participants(); } catch (e) { return '?'; } }));

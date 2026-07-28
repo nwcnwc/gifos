@@ -48,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const room = 'mod' + Math.floor(Math.random() * 1e9).toString(36);
   const A = await newUser('Ada'); const a = await open(A, 'a', 'v=' + room);
   const B = await newUser('Ben'); const b = await open(B, 'b', 'v=' + room);
-  for (const pg of [a, b]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  for (const pg of [a, b]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   const aId = await otherId(b); // Ada's peer id, as Ben sees it
   check('open room: two peers meshed', !!aId);
   check('everyone joins Max-blurred, muted, camera off',
@@ -165,7 +165,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('admin room up; creator arrives as its signed-in admin', true);
 
   const E = await newUser('Eve'); const e = await open(E, 'e', 'v=' + admRoom + '&av=' + av);
-  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   await d.waitForFunction(() => window.__gifosVideo.adminsHere().length >= 1, null, { timeout: 20000 });
   const eId = await otherId(d); // Eve as Dana sees her
   const dId = await otherId(e); // Dana as Eve sees her
@@ -242,7 +242,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // frees after ring-confirmed death (RING_HOLD) — the rejoin link forms, just
   // slowly. Gate on the roster first, then the mesh link, generously.
   await d.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 90000 });
-  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 120000 });
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 120000 });
   check('UNBAN readmits the device (undo path, end to end)', true);
   // her peer id is fresh after the rejoin — wait for the ban-ghost tile to
   // drop and re-learn who she is on Dana's page

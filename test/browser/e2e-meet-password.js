@@ -65,7 +65,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await waitModal(b, false, 5000); // the modal hides while it tries…
   check('…a WRONG password bounces back to the prompt', await waitModal(b, true, 25000));
   await enterPw(b, 'pw-one');
-  for (const pg of [a, b]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  for (const pg of [a, b]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('the RIGHT password admits (mesh link up)', (await b.evaluate(() => window.__gifosVideo.roomPw())) === 'pw-one');
 
   // Ada CHANGES the password: Ben (present) learns it silently over pwinfo
@@ -80,7 +80,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const c = await open(C, 'c', 'v=' + room);
   check('the OLD password stops working at the door (stale holder re-prompted)', await waitModal(c, true, 30000));
   await enterPw(c, 'pw-two');
-  await c.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  await c.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('the NEW password admits the late joiner', (await c.evaluate(() => window.__gifosVideo.roomPw())) === 'pw-two');
   check('all three converge in the re-keyed room',
     (await a.evaluate(() => window.__gifosVideo.participants())) >= 3);
@@ -114,7 +114,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const E = await newUser('Eve'); const e = await open(E, 'e', 'v=' + admRoom + '&av=' + av);
   check('admin room: a guest without the password is prompted', await waitModal(e, true, 25000));
   await enterPw(e, 'adm-room-key');
-  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
+  for (const pg of [d, e]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('admin room: the password admits the guest', (await e.evaluate(() => window.__gifosVideo.roomPw())) === 'adm-room-key');
   check('admin room: the guest\'s Password button is disabled (admin-managed lock)',
     await e.evaluate(() => document.getElementById('pwbtn').disabled));
