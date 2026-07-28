@@ -3656,6 +3656,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // one-way hashes of the room code (+ password); roomE2E seals every
     // content frame and exists only in occupants' browsers.
     let sessId = null, sessTok = null, roomE2E = null, pwProof = '';
+    // §LOCK GRANT HEALING (Nathan-blessed, 2026-07-28): the password is
+    // STATE, not a message. One generation of the previous room key is
+    // retained so a neighbour still sealing under it is RECOGNIZED (the
+    // failed-decrypt-then-try-previous fallback IS the staleness detector —
+    // no beat format change), and the admin's signed grant is retained
+    // verbatim so ANY neighbour can replay it to heal them — pairwise, one
+    // hop, bounded-degree; nobody ever needs a roster. The signed epoch stops
+    // replay: a grant at or below your own epoch is dead on arrival, so
+    // nobody can roll a member backwards.
+    let prevRoomE2E = null;   // exactly ONE previous generation, for stale-neighbour recognition + healing
+    let pwEpoch = 0;          // generation counter, carried inside the signed grant
+    let retainedGrant = null; // the admin's pwinfo, verbatim — replayable by any member
+    let rekeyAt = 0;          // when the current key took over (heal eligibility: peers from before it)
     // THE MESH NODE (mesh.js + mesh-wire.js): the ported sim brain that owns
     // my SEAT — entry (knock/greeters/newcomer dance), healing, and the one
     // relay socket. There is no walk and no per-section session anymore: one
@@ -3860,6 +3873,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // same eventual consistency every other room state already rides.
     function rekeyRoom() {
       return net.deriveMeetKey(room, av, roomPw).then((k) => {
+        if (k && roomE2E && k !== roomE2E) { prevRoomE2E = roomE2E; rekeyAt = Date.now(); } // keep ONE generation for stale-neighbour healing (§LOCK)
         if (k) roomE2E = k;
         // The WIRE seals with its own captured key (greeter registry blobs,
         // sealed relay fallback) — hand it the new one, or a Section-1 greeter
@@ -4480,25 +4494,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // plaintext SEALED ({k:'pwinfo'}), so each can store it and derive
           // their own proof for reconnects. In an admin room both orders are
           // SIGNED (§9): the relay verifies the setpw, peers verify the pwinfo.
+          const ep = pwEpoch + 1; // the signed epoch: replaying an older grant can never roll anyone backwards
           const wRelay = hasAdminRoom() ? await admSigned('setpw', { pw: pr }) : undefined;
-          const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v }) : undefined;
+          const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v, ep }) : undefined;
           relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
-          sendAll({ k: 'pwinfo', pw: v, by: myName(), w: wPeers });
+          const grant = { k: 'pwinfo', pw: v, by: myName(), w: wPeers, ep };
+          sendAll(grant);
+          pwEpoch = ep; retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
           // after those seals have left the queue do I move to the new key
           // (txm is a chain; a queued no-op resolves after every earlier seal).
           // Whoever doesn't learn the new password falls out of the ciphertext
           // — which upgrades vote-off to a hard exclusion in locked rooms.
-          // KNOWN SHARP EDGE (design question, 2026-07-28): this grant is
-          // ONE-SHOT. A present member whose DC is mid-rebuild at this exact
-          // moment misses it and is orphaned from the ciphertext — the hard
-          // exclusion aimed at a person standing in the room. A delayed
-          // rotation with retries was tried and REVERTED: stretching the
-          // cutover lets a stale-password knocker open old-key greeter blobs
-          // during the window (it broke the R6 stale-pw bounce). The robust
-          // fix needs a setter-side targeted re-grant after rotation, which
-          // touches §8's exclusion semantics — Nathan's call, not a 7am edit.
+          // The old ONE-SHOT sharp edge (a present member whose DC was
+          // mid-rebuild at this instant was orphaned; a delayed rotation was
+          // tried and REVERTED — it broke the R6 stale-pw bounce) is closed
+          // by GRANT HEALING now: rotation stays PROMPT, and a member who
+          // missed the flood keeps sealing under the previous key, which any
+          // neighbour recognizes and answers by replaying the retained signed
+          // grant one hop over their pair — see the §LOCK GRANT HEALING note
+          // at the state block. Exclusion is untouched: the excluded are
+          // disconnected/tombstoned before the change and no one heals them.
           txm(() => Promise.resolve()).then(() => rekeyRoom());
         });
         renderFiles(); // reflect the new password state (files allowed / the lock note)
@@ -4944,7 +4961,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
-        rxm(() => net.open(roomE2E, m).then((inner) => { if (inner && inner.k) onDc(p, dc, inner); }));
+        rxm(() => net.open(roomE2E, m).then((inner) => {
+          if (inner && inner.k) { onDc(p, dc, inner); return; }
+          // §LOCK GRANT HEALING: a frame that opens only under the PREVIOUS
+          // key is a present member who missed the rotation's grant flood —
+          // the staleness signal itself. Heal them by replaying the retained
+          // SIGNED grant, sealed under the key they still speak, one hop over
+          // this pair. Eligibility is neighbour-local: the pair predates the
+          // rotation and the peer is not tombstoned — the excluded were
+          // disconnected before the change and never make it here. The stale
+          // frame itself is NOT processed (their state re-converges through
+          // the normal channels the moment they adopt the new key).
+          if (!prevRoomE2E || !retainedGrant) return;
+          return net.open(prevRoomE2E, m).then((old) => {
+            if (!old || !old.k) return;
+            const now = Date.now();
+            if (now - (p.staleHealAt || 0) < 5000) return;
+            if (!(p.bornAt && p.bornAt <= rekeyAt) || !notTomb(p.id)) return;
+            p.staleHealAt = now;
+            if (typeof clog === 'function') clog('grant-heal ' + String(p.id).slice(0, 6) + ' (prev-key frame)');
+            txm(() => net.seal(prevRoomE2E, retainedGrant).then((env) =>
+              net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
+          });
+        }));
       };
     }
     function onDc(p, dc, m) {
@@ -5133,11 +5172,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // only a SIGNED order re-keys the room (§9) — verify, then re-enter
         // this handler with the proof already checked.
         if (hasAdminRoom() && !m.__admOk) {
-          admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '')) onDc(p, null, Object.assign({}, m, { __admOk: 1 })); });
+          admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '') && (o.ep == null || o.ep === m.ep)) onDc(p, null, Object.assign({}, m, { __admOk: 1 })); });
           return;
         }
-        if (String(m.pw || '') === String(roomPw || '')) return; // already adopted — the grant is re-sent ~3x against DC-rebuild loss
+        // EPOCH GUARD (§LOCK healing): a grant at or below my own generation
+        // is a replay — dead on arrival. Nobody can roll a member backwards;
+        // an ep-less grant is a legacy client's, treated as next-generation.
+        if (m.ep != null && pwEpoch && m.ep <= pwEpoch) return;
+        if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) pwEpoch = m.ep; return; } // already adopted
         const cleared = !m.pw && roomPw;
+        pwEpoch = m.ep != null ? m.ep : pwEpoch + 1;
+        retainedGrant = { k: 'pwinfo', pw: m.pw, by: m.by, w: m.w, ep: pwEpoch }; // retained VERBATIM — any member can heal a stale neighbour with the admin's own signature
         storePw(m.pw || '');
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
         // under the old key; from here on the room speaks the new one.
