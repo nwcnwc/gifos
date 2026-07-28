@@ -52,9 +52,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ---- Ben joins the same plain room -------------------------------------------
   const benCtx = await newUser('Ben');
   const ben = await open(benCtx, 'ben', plainHash);
-  await ada.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
-  await ben.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  // OPEN DataChannels, not ICE-only liveLinks (the 21cb24f audit class this
+  // suite missed) — the follow-me chat below is ONE frame over this very
+  // pair, and Ada leaves 600ms after posting it. Then the young-pair settle
+  // (codified law, e011881): a pair in its first seconds may honestly
+  // drop/rebuild once, and a frame posted into the rebuild window is lost
+  // with its author gone — the recorded sharp edge, not this suite's
+  // subject (warm-box runs landed in that window 7/7; any perturbation
+  // moved it out).
+  await ada.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await ben.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('Ada and Ben are meshed in the plain room', true);
+  await sleep(9000);
+  await ada.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
 
   // ---- Ada turns it into an admin room WITH people present ----------------------
   // An admin room is ALWAYS a different room (its verifier is a password
