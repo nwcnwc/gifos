@@ -5775,46 +5775,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (reconT) return;
       reconT = setTimeout(() => { reconT = 0; try { reconcileMosaic(); } catch (e) {} }, 60);
     }
-    // The pipe watchdog's fast loop (~300ms; see the MOS_DARK_MS comment): a
-    // handful of map reads and one frame-counter read per redundant slot —
-    // cheap enough to run continuously while any redundant claim is held.
-    let dogT = 0;
-    function mosWatchdog() {
-      const now = Date.now();
-      // A HIDDEN tab stops rendering — frame counters freeze on every healthy
-      // pipe. Re-baseline continuously while hidden so a pocketed phone never
-      // reads its whole mosaic as dark (and never false-fires on unhide).
-      if (document.hidden) {
-        for (const fb of mosFb.values()) { fb.lastAdvanceAt = now; if (fb.dark) fb.dark = false; }
-        dogT = setTimeout(mosWatchdog, 1000);
-        return;
-      }
-      for (const [rk, pri] of mosIn) {
-        if (!isRedun(rk) || !pri.el || !pri.el.getVideoPlaybackQuality) continue;
-        let fb = mosFb.get(rk);
-        if (!fb) { fb = { wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastFrames: -1, lastAdvanceAt: 0 }; mosFb.set(rk, fb); }
-        const f = pri.el.getVideoPlaybackQuality().totalVideoFrames;
-        if (fb.lastFrames === -1 || f > fb.lastFrames) {
-          fb.lastFrames = f; fb.lastAdvanceAt = now;
-          if (fb.dark) { fb.dark = false; schedReconcile(); } // primary recovered — the sweep re-parks the woken standby
-          continue;
-        }
-        if (fb.dark) continue; // already woken; the sweep owns the rest
-        const std = mosStandby.get(rk);
-        // Fire only on a pipe that WAS flowing moments ago and has a parked
-        // alternate ready — never on a never-flowed slot (still forming,
-        // camOff from the start, audio-only: lastAdvanceAt stays 0).
-        if (std && std.key && fb.lastAdvanceAt
-            && now - fb.lastAdvanceAt > MOS_DARK_MS
-            && now - fb.lastAdvanceAt < MOS_FLOWED_RECENT) {
-          fb.dark = true;
-          demand(std.via, std.key, std.streamId, true); // wake NOW — don't wait for the sweep
-          schedReconcile();
-        }
-      }
-      dogT = setTimeout(mosWatchdog, 300);
-    }
-    dogT = setTimeout(mosWatchdog, 300);
     // ONE-PIPE multi-subscribe for one redundant slot (docs/media-plane.md):
     // one pipe moves bits (the PRIMARY); ONE alternate announcer is kept
     // SELECTED as a parked STANDBY (claimed + negotiated + <video> ready, but
@@ -5839,20 +5799,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // destruction, never recovery.
     const MOS_GRACE = 5000;
     const MOS_SETTLE = 5000; // failback hysteresis: preferred must be back this long
-    // THE PIPE WATCHDOG (task: sub-2s wake, 2026-07-28): the receiver measures
-    // its own hot pipes instead of waiting for the transport stack's mood. A
-    // claimed PRIMARY that was demonstrably FLOWING and then advances no
-    // decoded frame for MOS_DARK_MS — while a parked standby is available —
-    // is DARK: demand-wake the standby alongside it (the sanctioned
-    // make-before-break overlap) and let the normal swap take over the moment
-    // the standby flows. Frame-darkness alone NEVER tears a claim down (a
-    // camOff stager's feed goes frame-flat lawfully — its standby wakes, never
-    // flows either, and both re-park when frames return); only transport
-    // death starts the grace clock, exactly as before. This is what turns the
-    // 3-13s ICE-detection lottery into a ~1s wake.
-    const MOS_DARK_MS = 700;   // no frame advance on a previously-flowing hot pipe = dark
-    const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
-    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastFrames, lastAdvanceAt } (wake/failback/watchdog state)
+    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch } (wake/failback state)
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
@@ -5878,7 +5825,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
       }
       const inCand = (e) => e && cand.some((x) => x.from === e.via && x.sid === e.streamId && x.live);
-      const mkEnt = (pick) => ({ via: pick.from, key: pick.key, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
+      const mkEnt = (pick) => ({ via: pick.from, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
       // "FLOWING" = the standby's decoder has produced frames. A parked pipe
       // shows zero progress; only a woken, actually-delivering pipe advances.
       const frames = (el) => (el && el.getVideoPlaybackQuality) ? el.getVideoPlaybackQuality().totalVideoFrames : (el && el.videoWidth > 0 ? 1 : 0);
@@ -5909,7 +5856,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         : cand.find((x) => x.live && !(pri && x.from === pri.via && x.sid === pri.streamId));
       if (pri && wantStd && (!std || std.via !== wantStd.from || std.streamId !== wantStd.sid)) {
         if (std) dropStandby(rk);
-        std = { via: wantStd.from, key: wantStd.key, streamId: wantStd.sid, stream: wantStd.st, el: mosVideo(wantStd.st), meta: annMeta(wantStd.ann) };
+        std = { via: wantStd.from, streamId: wantStd.sid, stream: wantStd.st, el: mosVideo(wantStd.st), meta: annMeta(wantStd.ann) };
         mosStandby.set(rk, std); fb.wakeAt = 0;
       }
       // FAILOVER / FAILBACK — make-before-break. The old primary stays painted
@@ -5917,24 +5864,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // ⇒ still flowing) while the standby is demand-woken; the swap happens
       // only once the standby demonstrably FLOWS.
       const stdIsPref = !!(std && pref && std.via === pref.from && std.streamId === pref.sid);
-      // fb.dark: the pipe watchdog observed the primary frame-flat while
-      // previously flowing — treat like a dead primary for WAKE and SWAP
-      // purposes (never for teardown; see the watchdog comment above).
-      const wantSwap = !!(pri && std && (!priLive || fb.dark || (stdIsPref && !priIsPref)));
+      const wantSwap = !!(pri && std && (!priLive || (stdIsPref && !priIsPref)));
       if (wantSwap) {
         if (!fb.wakeAt) { fb.wakeAt = now; fb.f0 = frames(std.el); }
         if (stdIsPref && !fb.prefSince) fb.prefSince = now;
         const flowing = frames(std.el) > fb.f0 || (std.el && std.el.videoWidth > 0 && now - fb.wakeAt > 1500);
-        // A dead-or-dark primary swaps the moment the standby flows; a live one
-        // (pure failback) additionally waits out the settle window — hysteresis.
-        const settled = !priLive || fb.dark || ((now - fb.prefSince >= MOS_SETTLE) && (now - fb.lastSwitch >= MOS_SETTLE));
+        // A dead primary swaps the moment the standby flows; a live one (pure
+        // failback) additionally waits out the settle window — hysteresis.
+        const settled = !priLive || ((now - fb.prefSince >= MOS_SETTLE) && (now - fb.lastSwitch >= MOS_SETTLE));
         if (flowing && settled) {
           const old = pri;
           mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
           pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
-          fb.dark = false; fb.lastFrames = -1; fb.lastAdvanceAt = 0; // fresh primary — the watchdog re-baselines
           repaintRedun(rk, pri.stream);
-          if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
+          if (inCand(old)) { std = { via: old.via, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
           else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
         }
       } else { fb.wakeAt = 0; if (!stdIsPref) fb.prefSince = 0; }
@@ -5946,7 +5889,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // a wake/failback overlap is in progress; every other announcer idles.
       const hot = new Set();
       if (pri && inCand(pri)) hot.add(pri.via + '|' + pri.streamId);
-      if (std && (fb.wakeAt || fb.dark)) hot.add(std.via + '|' + std.streamId);
+      if (std && fb.wakeAt) hot.add(std.via + '|' + std.streamId);
       for (const x of cand) demand(x.from, x.key, x.sid, hot.has(x.from + '|' + x.sid));
     }
     function claimMos() {
