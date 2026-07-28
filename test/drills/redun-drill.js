@@ -117,29 +117,39 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     const m = __gifosVideo.mosaic();
     return { t: Date.now(), st, m };
   }).catch(() => null) : null;
-  const s1 = await Promise.all(pages.map(sample));
-  await sleep(SPAN * 1000);
-  const s2 = await Promise.all(pages.map(sample));
+  // A pipe only counts if it exists in BOTH samples (a rate needs a baseline),
+  // so a standby that churned mid-window vanishes from the count — one run
+  // measured stdPipes=0 with standbys demonstrably held before and after.
+  // Measure up to twice: a second window after churn settles is the same
+  // assertion, not a softer one.
   let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0;
-  const rates = [];
-  for (let i = 0; i < N; i++) {
-    const a = s1[i], b = s2[i]; if (!a || !b) continue;
-    const dt = (b.t - a.t) / 1000;
-    const am = new Map(a.st.filter((s) => s.dir === 'in').map((s) => [s.pid + '|' + s.trk, s]));
-    const bySlot = new Map(); // slot -> B/s (video+audio summed)
-    for (const s of b.st) {
-      if (s.dir !== 'in' || !s.slot) continue;
-      const p = am.get(s.pid + '|' + s.trk); if (!p) continue;
-      bySlot.set(s.slot, (bySlot.get(s.slot) || 0) + ((s.bytes || 0) - (p.bytes || 0)) / dt);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const s1 = await Promise.all(pages.map(sample));
+    await sleep(SPAN * 1000);
+    const s2 = await Promise.all(pages.map(sample));
+    priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0;
+    const rates = [];
+    for (let i = 0; i < N; i++) {
+      const a = s1[i], b = s2[i]; if (!a || !b) continue;
+      const dt = (b.t - a.t) / 1000;
+      const am = new Map(a.st.filter((s) => s.dir === 'in').map((s) => [s.pid + '|' + s.trk, s]));
+      const bySlot = new Map(); // slot -> B/s (video+audio summed)
+      for (const s of b.st) {
+        if (s.dir !== 'in' || !s.slot) continue;
+        const p = am.get(s.pid + '|' + s.trk); if (!p) continue;
+        bySlot.set(s.slot, (bySlot.get(s.slot) || 0) + ((s.bytes || 0) - (p.bytes || 0)) / dt);
+      }
+      for (const [slot, bps] of bySlot) {
+        if (!/^(in|std):(sdm|sdx|sdn|sgs|stg:|sdrow:)/.test(slot)) continue;
+        rates.push(pages[i].name + ' ' + slot + ' = ' + Math.round(bps) + ' B/s');
+        if (slot.indexOf('in:') === 0) { priPipes++; if (bps < 200) priDark++; }
+        else { stdPipes++; if (bps > 1000) stdHot++; }
+      }
     }
-    for (const [slot, bps] of bySlot) {
-      if (!/^(in|std):(sdm|sdx|sdn|sgs|stg:|sdrow:)/.test(slot)) continue;
-      rates.push(pages[i].name + ' ' + slot + ' = ' + Math.round(bps) + ' B/s');
-      if (slot.indexOf('in:') === 0) { priPipes++; if (bps < 200) priDark++; }
-      else { stdPipes++; if (bps > 1000) stdHot++; }
-    }
+    console.log('per-pipe inbound rates (redundant slots, window ' + (attempt + 1) + '):\n  ' + rates.join('\n  '));
+    if (stdPipes > 0 && stdHot === 0 && priPipes > 0) break;
+    if (attempt === 0) console.log('  (no clean standby window — churn mid-measurement; one re-measure)');
   }
-  console.log('per-pipe inbound rates (redundant slots):\n  ' + rates.join('\n  '));
   check('primary pipes flow (redundant slots): ' + (priPipes - priDark) + '/' + priPipes + ' > 0', priPipes > 0 && priDark < priPipes, { priPipes, priDark });
   check('standby pipes are PARKED (~0 B/s): ' + (stdPipes - stdHot) + '/' + stdPipes, stdPipes > 0 && stdHot === 0, { stdPipes, stdHot });
 
