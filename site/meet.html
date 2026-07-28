@@ -2893,6 +2893,35 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       txm(() => net.seal(roomE2E, msg).then((env) =>
         net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to, msg: piece }))));
     };
+    // §LOCK GRANT HEALING (shared by the DC and relay receive paths): a frame
+    // that opens only under the PREVIOUS key is a present member who missed
+    // the rotation's grant flood — the recorded orphan. Reply with the
+    // retained SIGNED grant sealed under the key they still speak, over their
+    // pair's DC if open, else the targeted relay path (whatever carried their
+    // stale frame can carry the cure). Eligibility is neighbour-local: a pair
+    // that predates the rotation, or a roster-present member — and never a
+    // tombstoned one. The excluded were disconnected before the change; no
+    // one heals them, and the stale frame itself is never processed.
+    const staleHealAt = new Map(); // pid -> last heal attempt (throttle)
+    function healStaleFrom(pid, envPiece) {
+      if (!prevRoomE2E || !retainedGrant || !pid) return;
+      return net.open(prevRoomE2E, envPiece).then((old) => {
+        if (!old || (!old.k && !old.kind)) return; // not a previous-generation frame — just noise
+        const now = Date.now();
+        if (now - (staleHealAt.get(pid) || 0) < 5000) return;
+        const p = peers.get(pid);
+        const knownBefore = !!(p && p.bornAt && p.bornAt <= rekeyAt);
+        if (!knownBefore && !rosterIds.includes(pid)) return;
+        if (!notTomb(pid)) return;
+        staleHealAt.set(pid, now);
+        if (typeof clog === 'function') clog('grant-heal ' + String(pid).slice(0, 6) + ' (prev-key frame)');
+        txm(() => net.seal(prevRoomE2E, retainedGrant).then((env) => {
+          const pd = peers.get(pid);
+          if (pd && pd.dc && pd.dc.readyState === 'open') net.sendChunked(env, (piece, str) => { try { pd.dc.send(str); } catch (e) {} });
+          else net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+        }));
+      });
+    }
     // Sealed frame over this pair's DataChannel (chat, files, relay control).
     const dcSend = (p, msg) => {
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
@@ -4047,7 +4076,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const piece = meshDefrag(m.msg, from);
         if (!piece) return;
         rxm(() => net.open(roomE2E, piece).then((inner) => {
-          if (!inner) return;
+          if (!inner) return healStaleFrom(from, piece); // §LOCK: with the pair down, a stale member's frames arrive HERE — the relay path heals too
           if (inner.kind) onSignal(from, inner, m.adm);
           else if (inner.k) onRemote(from, inner);
         }));
@@ -4963,26 +4992,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
         rxm(() => net.open(roomE2E, m).then((inner) => {
           if (inner && inner.k) { onDc(p, dc, inner); return; }
-          // §LOCK GRANT HEALING: a frame that opens only under the PREVIOUS
-          // key is a present member who missed the rotation's grant flood —
-          // the staleness signal itself. Heal them by replaying the retained
-          // SIGNED grant, sealed under the key they still speak, one hop over
-          // this pair. Eligibility is neighbour-local: the pair predates the
-          // rotation and the peer is not tombstoned — the excluded were
-          // disconnected before the change and never make it here. The stale
-          // frame itself is NOT processed (their state re-converges through
-          // the normal channels the moment they adopt the new key).
-          if (!prevRoomE2E || !retainedGrant) return;
-          return net.open(prevRoomE2E, m).then((old) => {
-            if (!old || !old.k) return;
-            const now = Date.now();
-            if (now - (p.staleHealAt || 0) < 5000) return;
-            if (!(p.bornAt && p.bornAt <= rekeyAt) || !notTomb(p.id)) return;
-            p.staleHealAt = now;
-            if (typeof clog === 'function') clog('grant-heal ' + String(p.id).slice(0, 6) + ' (prev-key frame)');
-            txm(() => net.seal(prevRoomE2E, retainedGrant).then((env) =>
-              net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
-          });
+          return healStaleFrom(p.id, m); // §LOCK: a previous-key frame is the staleness signal — see healStaleFrom
         }));
       };
     }

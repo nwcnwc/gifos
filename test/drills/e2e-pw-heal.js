@@ -51,6 +51,8 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   const ada = await mk('Ada');
   const ben = await mk('Ben');
+  ada.on('console', (m) => { const t = String(m.text()); if (/grant-heal|rekey|pwinfo/.test(t)) console.log('  [ada]', t.slice(0, 120)); });
+  ben.on('console', (m) => { const t = String(m.text()); if (/grant-heal|rekey|pwinfo/.test(t)) console.log('  [ben]', t.slice(0, 120)); });
   for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('Ada and Ben meshed (open DCs)', true);
   // Young-pair settle: the orphan below must come from OUR forced rebuild,
@@ -66,16 +68,30 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const ep1 = await ben.evaluate(() => window.__gifosVideo.pwState().epoch);
   check('first password reaches Ben (grant flood, epoch advanced)', ep1 >= 1, { ep1 });
 
-  // ---- MANUFACTURE THE ORPHAN: rebuild Ben->Ada, save pw-two into the window
+  // ---- MANUFACTURE THE ORPHAN: rebuild the pair, save pw-two into the window.
+  // The rebuild runs on whichever side is the pair's designated INITIATOR
+  // (higher peer id) so the fresh offer flows immediately and the pair
+  // reforms deterministically — the orphan only needs the SHARED pair to be
+  // down at save time, and Ben (the grant misser) misses the flood either
+  // way because sendAll skips a closed DC and gossip rides the same pair.
   const adaId = await ada.evaluate(() => window.__gifosVideo.debugDump().me.peer);
-  const reb = await ben.evaluate((pid) => window.__gifosVideo.rebuildPair(pid), adaId);
-  check('Ben force-rebuilt his pair to Ada (orphan window open)', !!(reb && reb.ok), reb);
-  // Ada saves IMMEDIATELY — the grant flood happens while Ben's transport is down.
+  const benId = await ben.evaluate(() => window.__gifosVideo.debugDump().me.peer);
+  const rebuilder = benId > adaId ? ben : ada;
+  const target = benId > adaId ? adaId : benId;
+  const reb = await rebuilder.evaluate((pid) => window.__gifosVideo.rebuildPair(pid), target);
+  check('pair force-rebuilt from the initiator side (orphan window open)', !!(reb && reb.ok), reb);
+  // Ada saves IMMEDIATELY — the grant flood happens while the pair is down.
   await ada.locator('#pwbtn').click();
   await ada.locator('#pw-new').fill('pw-two');
   await ada.locator('#pw-save').click();
   await ada.waitForFunction(() => window.__gifosVideo.pwState().pw === 'pw-two', null, { timeout: 10000 });
   check('Ada is on pw-two', true);
+
+  // The pair must REFORM before healing can flow (Ben's stale beats need a
+  // channel to arrive on) — gate on it, generously; the heal window starts
+  // only once the transports speak again.
+  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  check('the rebuilt pair reformed (DCs open again)', true);
 
   // The heal: Ben's stale frames (previous key) are recognized by Ada, who
   // replays the retained grant one hop. Ben must converge WITHOUT any reload.
