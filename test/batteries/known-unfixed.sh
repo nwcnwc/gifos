@@ -96,9 +96,12 @@ if [ "$BROWSERS" = 1 ]; then
   cost "a receiver-side RTP-silence watchdog (inbound bytes flat >700ms on a
                  claimed primary => speculative demand-wake; make-before-break makes a
                  false alarm harmless). Design task filed 2026-07-28. The GATE keeps
-                 asserting wake CORRECTNESS (completes, claim survives, via switches,
-                 re-parks) via redun-drill's default mode — only the latency BOUND
-                 lives here."
+                 asserting wake CORRECTNESS (completes, via switches, re-parks) via
+                 redun-drill's default mode — the latency BOUND and its twin, claim
+                 continuity at 120ms granularity, live here: the grace linger tears a
+                 dead primary at deadAt+5s, so claim survival IS the wake-vs-grace
+                 race (a 4.5s wake lost it by a hair, 2026-07-28). Both promote back
+                 together with the watchdog."
   if REDUN_STRICT=1 run_suite test/drills/redun-drill.js; then green "redun-drill strict wake bound now passes"; else red "redun-drill REDUN_STRICT=1 (wake > 5s grace)"; fi
 
 else
