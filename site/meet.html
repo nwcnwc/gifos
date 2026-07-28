@@ -5749,7 +5749,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         let fb = mosFb.get(rk);
         if (!fb) { fb = { wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastFrames: -1, lastAdvanceAt: 0 }; mosFb.set(rk, fb); }
         const f = pri.el.getVideoPlaybackQuality().totalVideoFrames;
-        if (fb.lastFrames === -1 || f > fb.lastFrames) {
+        if (!(fb.lastFrames >= 0) || f > fb.lastFrames) { // robust to an fb minted before the watchdog fields existed
           fb.lastFrames = f; fb.lastAdvanceAt = now;
           if (fb.dark) { fb.dark = false; schedReconcile(); } // primary recovered — the sweep re-parks the woken standby
           continue;
@@ -5838,7 +5838,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // shows zero progress; only a woken, actually-delivering pipe advances.
       const frames = (el) => (el && el.getVideoPlaybackQuality) ? el.getVideoPlaybackQuality().totalVideoFrames : (el && el.videoWidth > 0 ? 1 : 0);
       let fb = mosFb.get(rk);
-      if (!fb) { fb = { wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0 }; mosFb.set(rk, fb); }
+      if (!fb) { fb = { wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastFrames: -1, lastAdvanceAt: 0 }; mosFb.set(rk, fb); }
       let pri = mosIn.get(rk), std = mosStandby.get(rk);
       if (std && !inCand(std)) { dropStandby(rk); std = null; fb.wakeAt = 0; } // standby is invisible — no linger needed
       const priLive = !!(pri && inCand(pri));
