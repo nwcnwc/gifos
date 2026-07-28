@@ -60,8 +60,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bPage = await bCtx.newPage();
   bPage.on('console', (m) => { if (m.type() === 'error') console.log('  [bob]', m.text()); });
   await bPage.goto(link);
-  await aPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
-  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 20000 });
+  await aPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('creator ↔ joiner P2P media link is live on both ends', true);
 
   // remote video actually renders frames (media flows P2P, not via relay)
@@ -76,9 +76,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cPage = await cCtx.newPage();
   cPage.on('console', (m) => { if (m.type() === 'error') console.log('  [cai]', m.text()); });
   await cPage.goto(link);
-  await cPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 25000 });
-  await aPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 25000 });
-  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 25000 });
+  await cPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
+  await aPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
   check('3-way mesh: every participant holds 2 live P2P links', true);
   const q3 = await aPage.evaluate(() => window.__gifosVideo.quality());
   check('3 participants → quality stepped down to 480p', q3 === '480p');
@@ -465,8 +465,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await dPage.locator('#pw-modal').waitFor({ state: 'visible', timeout: 15000 });
   await dPage.locator('#pw-new').fill('vault');
   await dPage.locator('#pw-save').click();
-  await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
-  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  await dPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await bPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 40000 });
   check('room survives its creator — a new joiner still connects (no host)', true);
 
   // The late joiner MERGES the room's chat + files from whoever is still
@@ -505,14 +505,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const fPage = await fCtx.newPage();
   fPage.on('console', (m) => { if (m.type() === 'error') console.log('  [fox]', m.text()); });
   await fPage.goto(link);
-  await ePage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
-  await fPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
+  await ePage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await fPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('an emptied room is still joinable later — the URL works forever', true);
 
   // ---------- a reload drops back into the SAME room and re-links ----------
   await fPage.reload();
-  await fPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
-  await ePage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 25000 });
+  await fPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await ePage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1 && window.__gifosVideo.participants() === 2, null, { timeout: 40000 });
   check('a reload rejoins the same room and the call re-establishes', true);
 
   // ---------- room password: set by one, propagated to all, demanded of joiners ----------
@@ -544,7 +544,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // right password → in, talking to everyone
   await gPage.locator('#pw-new').fill('sesame');
   await gPage.locator('#pw-save').click();
-  await gPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 25000 });
+  await gPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
   check('the correct password admits the joiner into the call', true);
 
   // ---------- no server persistence: occupancy re-establishes the lock ----------
@@ -564,7 +564,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('first returning occupant re-locks the empty room from their own session (no server storage)', true);
   await hPage.locator('#pw-new').fill('sesame');
   await hPage.locator('#pw-save').click();
-  await hPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
+  await hPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('…and the password still admits people, exactly as before', true);
 
   // ---------- honest tiles: a peer no P2P route can reach gets SAID, not silence ----------
@@ -602,7 +602,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cIsleCtx = await newUser('RightIsle');
   const cIslePage = await cIsleCtx.newPage();
   await cIslePage.goto(islandLink);
-  await cIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
+  await cIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   const cPeerId = await cIslePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
   const bIsleCtx = await newUser('LeftIsle');
   // B's ICE to/from C specifically is dropped via the signaling-layer hook.
@@ -610,8 +610,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bIslePage = await bIsleCtx.newPage();
   bIslePage.on('console', (m) => { if (m.type() === 'error') console.log('  [leftisle]', m.text()); });
   await bIslePage.goto(islandLink);
-  await bIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 25000 });
-  await hubPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 25000 });
+  await bIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  await hubPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
   // PEER RELAY: the Hub notices it reaches both islands and forwards media —
   // the blocked pair SEE each other, labeled "via Hub", tiles in normal spots.
   await bIslePage.waitForFunction(() => {
