@@ -116,6 +116,15 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const adaSt = await ada.evaluate(() => window.__gifosVideo.pwState());
   check('epochs agree after healing', !!(benSt && benSt.epoch === adaSt.epoch), { ben: benSt && benSt.epoch, ada: adaSt.epoch });
 
+  // YOUNG-PAIR SETTLE before the one-shot chat (e011881, the codified law —
+  // applied to the REFORMED pair too, which this drill previously skipped):
+  // a rebuilt pair is young again and may honestly drop/rebuild once in its
+  // first seconds. The heal above tolerates that window (beat-driven,
+  // idempotent retries); the chat below is ONE frame with no re-mint and
+  // must not be asked to.
+  await sleep(9000);
+  for (const pg of [ada, ben]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+
   // The pair speaks the new key: a chat line crosses it.
   await ada.evaluate(() => { document.getElementById('chatbtn').click(); });
   await ada.locator('#chat-in').fill('healed room says hi');
