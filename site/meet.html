@@ -4483,14 +4483,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const wRelay = hasAdminRoom() ? await admSigned('setpw', { pw: pr }) : undefined;
           const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v }) : undefined;
           relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
-          sendAll({ k: 'pwinfo', pw: v, by: myName(), w: wPeers });
+          // The pwinfo grant goes out THREE times over ~5s before the key
+          // rotates. It used to be one-shot, and one lost DC frame (a
+          // dc-watchdog rebuild mid-save) cryptographically orphaned a
+          // PRESENT member: they missed the only grant, then couldn't open
+          // anything sealed under the new key — a hard exclusion aimed at a
+          // person standing in the room (e2e-meet-password flaked exactly
+          // there). The retries change no trust boundary: every copy is
+          // sealed under the OLD key, whose holders are precisely the
+          // current members — the intended audience of the grant. The
+          // cutover moves ~5s later, immaterial against hours on the old key.
+          const grant = { k: 'pwinfo', pw: v, by: myName(), w: wPeers };
+          sendAll(grant);
+          setTimeout(() => sendAll(grant), 2500);
+          setTimeout(() => sendAll(grant), 5000);
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
           // that is exactly how current occupants learn the new password. Only
           // after those seals have left the queue do I move to the new key
           // (txm is a chain; a queued no-op resolves after every earlier seal).
           // Whoever doesn't learn the new password falls out of the ciphertext
           // — which upgrades vote-off to a hard exclusion in locked rooms.
-          txm(() => Promise.resolve()).then(() => rekeyRoom());
+          setTimeout(() => { txm(() => Promise.resolve()).then(() => rekeyRoom()); }, 5200);
         });
         renderFiles(); // reflect the new password state (files allowed / the lock note)
         reactRoomState(); // the password is the key to clear video — re-derive MY tiles now, not on the next heartbeat
@@ -5127,6 +5140,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '')) onDc(p, null, Object.assign({}, m, { __admOk: 1 })); });
           return;
         }
+        if (String(m.pw || '') === String(roomPw || '')) return; // already adopted — the grant is re-sent ~3x against DC-rebuild loss
         const cleared = !m.pw && roomPw;
         storePw(m.pw || '');
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
