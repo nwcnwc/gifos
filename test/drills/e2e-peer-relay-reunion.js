@@ -113,6 +113,13 @@ const check = (n, c, d) => {
   await left.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, rightId);
   check('RightIsle seated (control plane can still meet via greeters)', !!rightId, rightId);
 
+  // Cameras ON for everyone (meet starts cam-off; same idiom as e2e-latejoin).
+  // Without a VIDEO track there is nothing for Hub to forward and the via-Hub
+  // frame assertions are unpassable by construction — this drill shipped with
+  // that hole and was red from birth.
+  const camOn = (u) => u.page.evaluate(() => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); }).catch(() => {});
+  await camOn(left); await camOn(right);
+
   // Wait past the noRoute grace (~15s) so the split is visible, not a slow offer.
   await sleep(18000);
   const splitLeft = await left.page.evaluate(tileNoDirectMedia('RightIsle')).catch(() => false);
@@ -138,6 +145,7 @@ const check = (n, c, d) => {
     try { return window.__gifosVideo.liveLinks(); } catch (e) { return -1; }
   });
   check('Hub (bridge peer) has live links to both islands', hubLinks >= 2, hubLinks);
+  await camOn(hub); // Hub's camera on too (its own feed rides beside the forwards)
 
   // Peer-relay asks after ~10s of downSince; allow wall-clock room for
   // connsOf gossip + relay-req + renegotiation + first frames.
