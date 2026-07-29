@@ -5862,11 +5862,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (bytes < 0) continue; // no video receiver on this pipe right now — nothing to judge
           if (fb.lastBytes === -1 || bytes.b > fb.lastBytes) {
             fb.lastBytes = bytes.b; fb.lastAdvanceAt = now;
-            if (fb.dark) { fb.dark = false; schedReconcile(); } // primary recovered — the sweep re-parks the woken standby
-          } else if (!fb.dark) {
+            fb.q = Math.min(64, (fb.q || 0) + 1);
+            if (fb.dark) {
+              // Primary recovered — the freeze was a FALSE fire, not a death.
+              // The sweep re-parks the woken standby; the pipe pays a penalty:
+              // it must re-earn the watchdog from zero, at a doubled bar. A
+              // chronically freeze-cycling pipe goes inert in two rounds; a
+              // killed pipe never recovers, so real failovers never pay.
+              fb.dark = false; fb.q = 0; fb.fp = Math.min(4, (fb.fp || 0) + 1);
+              schedReconcile();
+            }
+          } else if (!fb.dark && (fb.q || 0) >= (MOS_QUALIFY << (fb.fp || 0))) {
+            // QUALIFICATION (v2b — the gate-box bench conviction): some healthy
+            // pipes freeze bytes for SECONDS while alive (a throttled
+            // producer's canvas repack, a carrier copy, low-fps shares) —
+            // byte-freeze is only death evidence on a pipe that was flowing
+            // CONTINUOUSLY (MOS_QUALIFY consecutive advancing samples).
+            // Without this the watchdog itself woke standbys in steady state —
+            // a chronic one-pipe violation (redun-drill stdHot 2/2, v2 bench).
             const std = mosStandby.get(rk);
-            // Fire only on a pipe that WAS flowing moments ago and has a parked
-            // alternate ready — never on a never-flowed slot.
             if (std && std.key && fb.lastAdvanceAt
                 && now - fb.lastAdvanceAt > MOS_DARK_MS
                 && now - fb.lastAdvanceAt < MOS_FLOWED_RECENT) {
@@ -5874,6 +5888,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               demand(std.via, std.key, std.streamId, true); // wake NOW — don't wait for the sweep
               schedReconcile();
             }
+          } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && fb.q) {
+            fb.q = 0; // frozen past the horizon without a fire — re-earn from zero
           }
           // While a wake/failback overlap runs, sample the STANDBY too: its
           // framesDecoded (decode path — render throttling can't touch it) is
@@ -5884,7 +5900,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             const std = mosStandby.get(rk);
             const s = std ? await pipeBytes(std) : -1;
             if (s !== -1 && s.d >= 0) {
-              if (fb.d0 === -1) { fb.d0 = s.d; fb.b0 = s.b; } // first post-wake sample IS the baseline
+              // First post-wake sample IS the baseline; a sample BELOW the
+              // baseline means the standby's receiver was renegotiated and its
+              // counters restarted — re-baseline, or the advance test can
+              // never pass and the dark swap wedges (seen live: d0=16, fdec=13).
+              if (fb.d0 === -1 || s.d < fb.d0) { fb.d0 = s.d; fb.b0 = s.b; }
               fb.stdFdec = s.d;
             }
           } else if (fb.d0 !== -1 || fb.stdFdec !== -1) { fb.d0 = -1; fb.stdFdec = -1; }
@@ -5938,8 +5958,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the 3-13s ICE-detection lottery into a sub-second wake.
     const MOS_DARK_MS = 700;   // no byte advance on a previously-flowing hot pipe = dark
     const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
-    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, b0, d0, stdFdec } (wake/failback/watchdog state)
-    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, b0: -1, d0: -1, stdFdec: -1 });
+    const MOS_QUALIFY = 8;     // consecutive advancing ~300ms samples (~2.4s of continuous flow) before a pipe earns the watchdog
+    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec } (wake/failback/watchdog state)
+    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1 });
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
@@ -6031,7 +6052,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const old = pri;
           mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
           pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
-          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; // fresh primary — the watchdog re-baselines
+          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; // fresh primary — the watchdog re-baselines and the penalty clears
           repaintRedun(rk, pri.stream);
           if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
           else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
