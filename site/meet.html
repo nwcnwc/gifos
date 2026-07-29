@@ -4955,7 +4955,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const gum = (md && md.getUserMedia)
             ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
             : Promise.reject(new Error('no media devices'));
-          return gum.then((stream) => { localStream = stream; maybeShowFlip(); }, () => { localStream = null; });
+          return gum.then((stream) => { localStream = stream; maybeShowFlip(); }, (e) => {
+            localStream = null;
+            // Breadcrumb for the harness: WHY did boot capture fail? (A failed
+            // boot gUM is silent by design — view-only join — which made the
+            // per-launch no-video flake unattributable from the outside.)
+            try { window.__gumBootErr = (e && e.name ? e.name + ': ' : '') + String(e && e.message || e); } catch (e2) {}
+          });
         })
         .then(() => {
           // Join QUIET by default: mic and camera acquired (permission granted,
