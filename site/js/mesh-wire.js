@@ -123,6 +123,7 @@
     // 90-tick founder-grace). The shrink event bypasses that grace in BOTH
     // gates and fires one immediate door probe; the door's greeter list is
     // ground truth, and a genuinely-emptied room costs one no-op probe.
+    let sealedSoloRuns = 0; // consecutive sealed-only door replies while a fragment suspect (key-divergence evidence)
     let lastOccSize = 0;   // seat.occ.size last tick (state 3 only)
     let everPopulated = false; // this PAGE-LIFE saw a room of >=2 — a reseat/requeue cannot launder it
     let shrankSolo = false; // armed while everPopulated && solo; disarmed by a door reply proving we are truly alone, or by repopulation
@@ -460,6 +461,16 @@
       // (no blobs at all) is not a fragment — everyone really left. Disarm;
       // repopulation re-arms via the tick tracker.
       if (preState === 3 && seat.hasCoord && seat.occ.size <= 1 && shrankSolo && !list.length) shrankSolo = false;
+      // SEALED-ONLY DOOR while a fragment suspect (the key-divergence fork):
+      // the door serves blobs but NONE decrypt — the other half is alive and
+      // registering under a DIFFERENT room key (caught live: each half's
+      // fresh blob unreadable at the other, churning fingerprints). No dial
+      // can cross a key divide; count the consecutive sightings and hand the
+      // evidence to the app (whose persisted-credential reload re-converges).
+      if (preState === 3 && seat.hasCoord && seat.occ.size <= 1 && shrankSolo && list.length && !ids.length) {
+        sealedSoloRuns++;
+        if (opts.onFragment) { try { opts.onFragment([], { shrank: true, sealedOnly: true, runs: sealedSoloRuns }); } catch (e) {} }
+      } else if (ids.length || !list.length) sealedSoloRuns = 0;
       if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)) {
         greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
           listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue', sealed: sealedFps });

@@ -4045,8 +4045,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // a full re-entry \u2014 throttled, and only while the app agrees we look
         // alone (a healthy room never qualifies).
         onFragment: (ids, finfo) => {
-          // (fragPing/pong: the one-corpse liveness oracle \u2014 see below + onDc)
           if (participantCount() > 1) return;
+          // KEY-DIVERGENCE FALLBACK (caught live 2026-07-29): a fragment
+          // suspect whose door serves ONLY unreadable blobs, repeatedly, is
+          // split from a live other half by a KEY DIVIDE (one side lost or
+          // rotated the password mid-churn) \u2014 no dial can cross it. The
+          // persisted credential (pwEpoch persistence) makes a reload
+          // re-derive the right key and re-converge: after ~4 consecutive
+          // sealed-only replies (~30s of provable divergence), take the
+          // capped reload (once per 90s, like every rescue).
+          if (finfo && finfo.sealedOnly) {
+            if (finfo.runs >= 4) {
+              const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
+              if (Date.now() - last >= 90000) {
+                try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
+                if (typeof clog === 'function') clog('frag key-divergence reload (runs=' + finfo.runs + ')');
+                location.reload();
+              }
+            }
+            return;
+          }
           // stale-evidence gate: a blob from an identity I have TOMBSTONED
           // (a churned reload's corpse) is not proof of a live room — under
           // a reload mash both sides rescue-looped on each other's stale
@@ -8727,6 +8745,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Fork-heal forensics: app-level rescue state + the WIRE's fragment
         // suspicion and recent door replies (which link of the chain broke).
         frag: { pinged: fragPingId ? String(fragPingId).slice(0, 8) : null, agoMs: fragPingAt ? Date.now() - fragPingAt : null,
+          pwEpoch: (typeof pwEpoch !== 'undefined') ? pwEpoch : null, pw: roomPw ? 'set' : '',
           wire: (meshNode && meshNode.fragState) ? meshNode.fragState() : null },
       }),
       hasAdmin: () => hasAdminRoom(),
