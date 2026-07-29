@@ -63,9 +63,17 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   const idOf = async (u) => u.page.evaluate(() => { const V = window.__gifosVideo; try { return V.debugDump().me.peer; } catch (e) { return null; } });
   const seated = async (u) => u.page.evaluate(() => { const V = window.__gifosVideo; const s = V.meshState(); return !!(s && s.state === 3); }).catch(() => false);
   // does this survivor still hold peer PREFIX anywhere in its C×C home grid?
+  // TWO signals (the mesh e2e-vanish lesson, browser edition): FIRST-HAND
+  // (rowsFh — the enforcing signal, what tenure and fills obey) vs FULL occ
+  // (rows — includes non-first-hand hint echoes that expire on their own;
+  // post-confirm compaction churn re-adds them for 30-110s and they enforce
+  // nothing). The D5 bound binds the enforcing signal; full occ is a backstop.
   const seesPrefix = (u, prefix) => u.page.evaluate((pfx) => {
     try { const rows = window.__gifosVideo.debugDump().rows; return rows.some((r) => r.some((v) => v === pfx)); } catch (e) { return null; }
   }, prefix).catch(() => null); // null = watcher unreadable this poll (ignored), never a poisoned "sees it forever"
+  const seesPrefixFh = (u, prefix) => u.page.evaluate((pfx) => {
+    try { const rows = window.__gifosVideo.debugDump().rowsFh; return rows.some((r) => r.some((v) => v === pfx)); } catch (e) { return null; }
+  }, prefix).catch(() => null);
 
   // ---- join 4 survivors + 1 victim (its own OS process) ----------------------
   for (let i = 0; i < 4; i++) { await join(mainBrowser, 'surv' + i); await sleep(700); }
@@ -92,15 +100,19 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   {
     const vPfx = String(victim.id).slice(0, 8);
     const watchers = users.filter((u) => u !== victim);
-    // clog timeline from survivor 0, victim-related lines only; printed only
-    // when the measure misses its budget (quiet on green runs).
+    // clog timeline from EVERY survivor, victim-related lines only, tagged by
+    // watcher index; printed only when a budget is missed (quiet on green
+    // runs). The laggard tells its own story or its silence convicts a path.
     const clogLines = [];
     const clogT0 = Date.now();
-    const onClog = (m) => {
-      const t = m.text();
-      if (t.indexOf('[clog]') === 0 && t.indexOf(vPfx.slice(0, 6)) >= 0) clogLines.push('t+' + ((Date.now() - clogT0) / 1000).toFixed(1) + 's ' + t);
-    };
-    watchers[0].page.on('console', onClog);
+    const clogHandlers = watchers.map((u, wi) => {
+      const h = (m) => {
+        const t = m.text();
+        if (t.indexOf('[clog]') === 0 && t.indexOf(vPfx.slice(0, 6)) >= 0) clogLines.push('t+' + ((Date.now() - clogT0) / 1000).toFixed(1) + 's [surv' + wi + '] ' + t);
+      };
+      u.page.on('console', h);
+      return h;
+    });
     // find the victim chrome's OS pids via the unique mark, then SIGKILL its
     // WHOLE process tree. The mark only rides the browser LAUNCHER's cmdline —
     // renderers don't inherit custom switches, and the renderer is where
@@ -118,32 +130,44 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
     for (let grew = true; grew;) { grew = false; for (const [pid, ppid] of ptab) if (doomed.has(ppid) && !doomed.has(pid)) { doomed.add(pid); grew = true; } }
     const t0 = Date.now();
     for (const pid of doomed) { try { process.kill(pid, 'SIGKILL'); } catch (e) {} } // ungraceful: no unload handlers, no LEAVE
-    let freedMs = -1, tileMs = -1;
+    let freedMs = -1, fhFreedMs = -1, tileMs = -1, d5Dumped = false;
     while (Date.now() - t0 < 120000) {
+      if (fhFreedMs < 0) { const sees = await Promise.all(watchers.map((u) => seesPrefixFh(u, vPfx))); if (sees.every((s) => s === false)) fhFreedMs = Date.now() - t0; }
+      // A confirm past its window is a STALL — dump every survivor's D5 state
+      // once (standing translosts + probe-ack stamps, ticks-ago) at t+10s.
+      if (fhFreedMs < 0 && !d5Dumped && Date.now() - t0 > 10000) {
+        d5Dumped = true;
+        for (let wi = 0; wi < watchers.length; wi++) {
+          const d5 = await watchers[wi].page.evaluate(() => { const d = window.__gifosVideo.debugDump(); return { d5: d.d5, coord: d.me.coord }; }).catch((e) => String(e).slice(0, 80));
+          console.log('  [d5 t+10s surv' + wi + '] ' + JSON.stringify(d5));
+        }
+      }
       if (freedMs < 0) { const sees = await Promise.all(watchers.map((u) => seesPrefix(u, vPfx))); if (sees.every((s) => s === false)) freedMs = Date.now() - t0; }
       if (tileMs < 0) { const gone = await Promise.all(watchers.map((u) => tileGone(u, victim.id))); if (gone.every((g) => g === true)) tileMs = Date.now() - t0; }
-      if (freedMs >= 0 && tileMs >= 0) break;
+      if (freedMs >= 0 && fhFreedMs >= 0 && tileMs >= 0) break;
       await sleep(400);
     }
     // Honest target: <=15s wall for the SEAT. The fast signal is the relay
     // watching the victim's TCP socket die (~0.5s) -> D5 probe -> EARLY_HOLD
     // 6s -> confirm; desktop chromium's own pc state needs ~30s to reach
     // 'failed', which is why the pre-D5 path took the 30-40s+ horizon.
-    watchers[0].page.off('console', onClog);
-    if (freedMs < 0 || freedMs > 15000 || tileMs < 0 || tileMs > 12000) {
-      console.log('  [crash clog timeline, survivor 0, victim ' + vPfx.slice(0, 6) + ']');
-      for (const l of clogLines.slice(0, 30)) console.log('    ' + l);
-      if (!clogLines.length) console.log('    (no victim-related clog lines — translost/gone never logged at survivor 0)');
+    watchers.forEach((u, wi) => u.page.off('console', clogHandlers[wi]));
+    if (fhFreedMs < 0 || fhFreedMs > 15000 || tileMs < 0 || tileMs > 12000) {
+      console.log('  [crash clog timeline, all survivors, victim ' + vPfx.slice(0, 6) + ']');
+      for (const l of clogLines.slice(0, 40)) console.log('    ' + l);
+      if (!clogLines.length) console.log('    (no victim-related clog lines at any survivor)');
     }
     const secs = (ms) => ms < 0 ? 'NEVER (>120s)' : (ms / 1000).toFixed(1) + 's'; // -1 is the unmeasured sentinel — never report it as '-0.0s'
-    check('CRASH (SIGKILLed browser tree) -> mesh seat freed across survivors in ' + secs(freedMs) + ' (target <=15s; pre-D5 30s+)',
-      freedMs >= 0 && freedMs <= 15000, { freedMs });
+    check('CRASH (SIGKILLed browser tree) -> corpse out of every survivor FIRST-HAND in ' + secs(fhFreedMs) + ' (target <=15s; pre-D5 30s+)',
+      fhFreedMs >= 0 && fhFreedMs <= 15000, { fhFreedMs });
+    check('CRASH -> full occ freed (hint echoes expired) in ' + secs(freedMs) + ' (backstop <=110s)',
+      freedMs >= 0 && freedMs <= 110000, { freedMs });
     // The HUMAN-visible vanish must FOLLOW the mesh within a beat now (the
     // event-driven D2/D5 removal): pre-rewire this rode ABSENT_GRACE and
     // measured ~20s; the D5 confirm lands ~7s, so <=12s is honest headroom.
     check('CRASH -> tile gone at every survivor in ' + secs(tileMs) + ' (target <=12s; pre-rewire ~20s)',
       tileMs >= 0 && tileMs <= 12000, { tileMs });
-    console.log('  MEASURE crash(browser): vanish->seat-freed = ' + secs(freedMs) + '; vanish->tile-gone = ' + secs(tileMs));
+    console.log('  MEASURE crash(browser): vanish->fh-freed = ' + secs(fhFreedMs) + '; full-occ-freed = ' + secs(freedMs) + '; vanish->tile-gone = ' + secs(tileMs));
   }
 
   // ---- 2. GRACEFUL: a page navigates away (pagehide -> LEAVE flushes) --------

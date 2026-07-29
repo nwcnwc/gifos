@@ -4132,6 +4132,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // deep socket on purpose (socket lifecycle) answers the probe over the
         // mesh and keeps its seat — worst case, a spurious probe.
         onTransportDead(m.peer, 'relay-leave');
+        // D5 HINT (Nathan, 2026-07-28): peer-leave is broadcast-once — a member
+        // whose relay socket is down at that moment misses it and detects a
+        // crashed peer only via starve+probe (~18-24s vs ~7s). So the news
+        // rides my EXISTING open DataChannels, ONE hop, never re-forwarded
+        // (only the relay's first-hand broadcast fans out — no amplification,
+        // no new links, no extra beats). Receivers treat it as a PROBE TRIGGER
+        // and nothing more: a live peer answers its probe and keeps its seat,
+        // so a lying node can cause at most one spurious probe per peer per
+        // tlAt window — never an eviction.
+        for (const p of peers.values()) if (p.id !== m.peer && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'tlhint', peer: m.peer });
       }
       else if (m.t === 'error') {
         // Password gate is handled by the wire (onLocked / R6 sealing); bans
@@ -5074,6 +5084,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = 'Chat (' + unread + ')'; }
           sendAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
         }
+      } else if (m.k === 'tlhint') {
+        // D5 HINT (see the peer-leave sender): a neighbour with a live relay
+        // socket heard the relay watch m.peer's socket die. PROBE TRIGGER
+        // ONLY — never re-forwarded, never about myself, only for a peer I
+        // actually hold a link to (no probing strangers on hearsay).
+        if (typeof clog === 'function') clog('tlhint ' + String(m.peer || '?').slice(0, 6) + ' from ' + String(p.id || '?').slice(0, 6) + (peers.has(m.peer) ? '' : ' (no link — ignored)'));
+        if (m.peer && m.peer !== myId && peers.has(m.peer)) onTransportDead(m.peer, 'relay-leave-hint');
       } else if (m.k === 'fmeta') {
         if (takeMeta(m.f, p)) { renderFiles(); sendAll({ k: 'fmeta', f: m.f }); }
       } else if (m.k === 'want') {
@@ -8497,7 +8514,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             state: (meshSeat() || {}).state, links: s ? [...s.linkPeers()].length : 0, occ: s ? s.occ.size : 0 },
           participants: participantCount(), inMeeting: rosterIds.length + 1,
           rows: (() => { if (!c) return []; const g = []; for (let r = 0; r < SCALE.C; r++) { const row = []; for (let i = 0; i < SCALE.C; i++) { const pid = meshOccAt({ pc: c.pc, r, i }); row.push(pid ? String(pid).slice(0, 8) : null); } g.push(row); } return g; })(), // real C×C section grid
+          // rowsFh: the same grid FILTERED to first-hand-live seats (the seat's
+          // own `live` map, direct-contact evidence only, 60-tick freshness —
+          // the ENFORCING signal). `rows` includes non-first-hand occ hints,
+          // which expire on their own and enforce nothing — a vanish measure
+          // on `rows` reads hint-echo tails as "still seated" (the mesh
+          // e2e-vanish lesson, browser edition).
+          rowsFh: (() => { if (!c || !s) return []; const g = []; for (let r = 0; r < SCALE.C; r++) { const row = []; for (let i = 0; i < SCALE.C; i++) { const co = { pc: c.pc, r, i }; const pid = meshOccAt(co); let fh = false; try { const at = s.live.get(net.topo.ckey(co)); fh = at !== undefined && (s.env.TICK - at) <= 60; } catch (e) {} row.push(pid && fh ? String(pid).slice(0, 8) : null); } g.push(row); } return g; })(),
           ghosts: ghosts.map((p) => String(p).slice(0, 12)), dups,
+          // D5 confirm forensics: standing translosts + probe-answer stamps by
+          // coord, in ticks-ago — a stalled confirm shows here as a translost
+          // aging far past EARLY_HOLD with no gone.
+          d5: s ? { tl: [...s.translost.entries()].map(([k, at]) => [k, s.env.TICK - at]), pa: [...s.probeAck.entries()].map(([k, at]) => [k, s.env.TICK - at]) } : null,
           consent: (typeof allConsent === 'function' ? allConsent() : null), hbVia,
           mosaic: mos, roster: rosterIds.map(info),
         };
