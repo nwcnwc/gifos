@@ -3411,6 +3411,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       meshGone.set(pid, Date.now());
       occVanish.delete(pid);
       statusOf.delete(pid); connsOf.delete(pid); delete rosterNames[pid];
+      // A probe-confirmed departure is ABSENCE EVIDENCE (2026-07-29): without
+      // this, a departed admin stayed "present" until the 30s admSeen decay,
+      // so the host-absence grace could not even START for half a minute — a
+      // room full of guests stared at a dead stage for 40s before the
+      // countdown appeared. D5 confirms in ~7s; a wrong verdict costs one
+      // countdown flash after the 10s grace, and the admin's next verified
+      // frame re-proves presence and clears it.
+      admSeen.delete(pid);
       rosterIds = rosterIds.filter((x) => x !== pid); // the roster view drops them NOW, not next tick
       if (peers.has(pid)) dropPeer(pid);              // tile + meters + consent react inside
       else reactRoomState();                          // far peer: count/consent still re-derive
@@ -4045,6 +4053,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           else if (g.msg.k) onRemote(src, g.msg);
         },
         onLocked: () => { try { window.__pwLog && window.__pwLog.push(Date.now() + ' R6-LOCKED → pw modal'); } catch (e) {} pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
+        // THE DOOR SAID NO, IN A CLOSE CODE (2026-07-29): a policy-cut socket
+        // is the ONLY way a re-seeded ban reaches a squatter who was already
+        // inside when the admin returned — the {t:'ban'} broadcast died with
+        // the socket, so the client sat 'reconnecting' forever, banned in
+        // fact but never told. Map the two verdict codes to the same honest
+        // state the in-band ban sets; every other policy code (replaced,
+        // stale host, bad token) keeps its own path.
+        onRejected: (code) => {
+          if (code !== 4004 && code !== 4007) return;
+          bannedOut = true;
+          for (const pid of Array.from(peers.keys())) dropPeer(pid);
+          try { meshNode && meshNode.stop(); } catch (e) {}
+          setStatus(code === 4007 ? '⛔ The people on this meeting voted you off.' : '⛔ You were banned from this room.');
+        },
         onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
         // FRAGMENT SELF-RESCUE: the wire proved the door knows members my
         // solo room view doesn't. Same clean lever as the freeze self-heal \u2014

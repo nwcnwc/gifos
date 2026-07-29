@@ -1193,6 +1193,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // the legit member, carrying the REAL password, is NOT locked out
   const dan = await openWithPw(memCtx, 'dan', lockHash, vpwKey, 'psalm23');
   const danIn = await dan.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 2, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  if (!danIn) {
+    // WHICH HALF? Dan carries 'psalm23' into a room the ROGUE re-seeded OPEN
+    // (his rogue pw was refused), so Dan's pw-derived key and the rogue's
+    // open key are DIFFERENT crypto generations — a challenge, a solo seat,
+    // and a count wedge read completely differently here. Name the state.
+    for (const [nm, pg] of [['dan', dan], ['rogue', rogue]]) {
+      const st = await pg.evaluate(() => {
+        const g = window.__gifosVideo;
+        const m = document.getElementById('pw-modal');
+        return { parts: g.participants(), pw: g.roomPw(), links: g.liveDataLinks(),
+          pwModal: (m && getComputedStyle(m).display !== 'none') ? m.dataset.mode : null,
+          banned: g.bannedOut(), status: (document.getElementById('status') || {}).textContent,
+          pwLog: (window.__pwLog || []).slice(-6) };
+      }).catch((err) => String(err).slice(0, 120));
+      console.log('  [rogue-lock forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+  }
   check('the legit member with the real password is not locked out by the rogue', danIn);
   // the admin returns and re-asserts the real lock — now a passwordless stray is refused
   const cara2 = await openRoom(lockCtx, 'cara2', lockHash);

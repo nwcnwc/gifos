@@ -100,7 +100,7 @@
     const myKey = net.mintGenesisKey();
     const dropDeep = opts.dropDeepSocket !== false;
     const ident = GifOS.meshIdentity || null;
-    let stopped = false, lockedFired = false, strandedFired = false;
+    let stopped = false, lockedFired = false, strandedFired = false, rejFired = false;
     let sock = null, deepSince = -1, wasNetDark = false;
     // Wire-level greeter registration health (production only — the sim has no
     // sockets, so none of this is mesh law). The relay's greeter pool is pure
@@ -568,7 +568,7 @@
         else if (deepSince < 0) deepSince = env.TICK;
         if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
         if (needsRelay && !sock) makeSock(); // re-arm reachability (a policy-REJECTED socket stays down — see sendRaw)
-        if (sock && sock.rejected && !window.__sockRejLogged) { window.__sockRejLogged = 1; try { window.__pwLog && window.__pwLog.push(Date.now() + ' relay-socket REJECTED (policy) — door unreachable'); } catch (e) {} }
+        if (sock && sock.rejected && !rejFired) { rejFired = true; try { window.__pwLog && window.__pwLog.push(Date.now() + ' relay-socket REJECTED code=' + sock.rejected + ' — door unreachable'); } catch (e) {} if (opts.onRejected) { try { opts.onRejected(sock.rejected); } catch (e) {} } }
         // Greeter socket health (wire-level, not mesh law — the sim has no
         // sockets). A NAT/middlebox drops a silent websocket without telling
         // either end; the socket then reads OPEN while every send vanishes (a
