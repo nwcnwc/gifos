@@ -43,7 +43,11 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
 
   const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
   const GOTO = { timeout: 120000, waitUntil: 'domcontentloaded' };
-  const roomUrl = BASE + '/meet.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY);
+  // DEBUG=on lights meet.html's clog transport-forensics channel — survivor 0's
+  // console then carries 'translost <pid> <why>' / 'gone <pid> <why>' lines, the
+  // timeline that says WHY a D5 confirm took 2-3 probe-hold rounds instead of 1
+  // (the 6.5/12.2/18.7s quantized crash measures, 2026-07-28).
+  const roomUrl = BASE + '/meet.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
 
   const mainBrowser = await chromium.launch({ executablePath: CHROME, headless: true, args: LAUNCH_ARGS });
   const users = [];
@@ -88,6 +92,15 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   {
     const vPfx = String(victim.id).slice(0, 8);
     const watchers = users.filter((u) => u !== victim);
+    // clog timeline from survivor 0, victim-related lines only; printed only
+    // when the measure misses its budget (quiet on green runs).
+    const clogLines = [];
+    const clogT0 = Date.now();
+    const onClog = (m) => {
+      const t = m.text();
+      if (t.indexOf('[clog]') === 0 && t.indexOf(vPfx.slice(0, 6)) >= 0) clogLines.push('t+' + ((Date.now() - clogT0) / 1000).toFixed(1) + 's ' + t);
+    };
+    watchers[0].page.on('console', onClog);
     // find the victim chrome's OS pids via the unique mark, then SIGKILL its
     // WHOLE process tree. The mark only rides the browser LAUNCHER's cmdline —
     // renderers don't inherit custom switches, and the renderer is where
@@ -116,6 +129,12 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
     // watching the victim's TCP socket die (~0.5s) -> D5 probe -> EARLY_HOLD
     // 6s -> confirm; desktop chromium's own pc state needs ~30s to reach
     // 'failed', which is why the pre-D5 path took the 30-40s+ horizon.
+    watchers[0].page.off('console', onClog);
+    if (freedMs < 0 || freedMs > 15000 || tileMs < 0 || tileMs > 12000) {
+      console.log('  [crash clog timeline, survivor 0, victim ' + vPfx.slice(0, 6) + ']');
+      for (const l of clogLines.slice(0, 30)) console.log('    ' + l);
+      if (!clogLines.length) console.log('    (no victim-related clog lines — translost/gone never logged at survivor 0)');
+    }
     const secs = (ms) => ms < 0 ? 'NEVER (>120s)' : (ms / 1000).toFixed(1) + 's'; // -1 is the unmeasured sentinel — never report it as '-0.0s'
     check('CRASH (SIGKILLed browser tree) -> mesh seat freed across survivors in ' + secs(freedMs) + ' (target <=15s; pre-D5 30s+)',
       freedMs >= 0 && freedMs <= 15000, { freedMs });
