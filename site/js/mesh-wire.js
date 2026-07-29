@@ -361,11 +361,16 @@
     // (2) REGISTER — I am a seated Section-1 seat, so I AM a door; E3 keeps my
     // sealed address in the pool so newcomers can still find one. The address is
     // Seal(K,{peerId,coord}) under the room key the relay never holds (R2).
+    // blobFp: a stable 12-char fingerprint of a sealed blob string — lets the
+    // greeterTrace say WHOSE blob the door served without opening it (fork
+    // forensics: is the unopenable blob my own earlier registration, the
+    // other half's, or a third ghost?).
+    function blobFp(s) { let h = 5381; const str = String(s); for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + ':' + str.length; }
     function REGISTER_MYSELF_AS_A_GREETER(gk) {
       const k = gk || myKey;
       if (!iAmAGreeter()) { KNOCK_FOR_THE_GREETER_LIST(k); return; }
       net.seal(roomKey, { p: peer, c: seat.coord })
-        .then((b) => sendRaw({ t: 'knock', gk: k, gblob: JSON.stringify(b) }))
+        .then((b) => { const s = JSON.stringify(b); greeterTrace.push({ t: Date.now(), tick: env.TICK, state: seat.state, post: seat.state, listLen: -1, open: -1, founded: false, action: 'register-blob:' + blobFp(s) }); if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift(); sendRaw({ t: 'knock', gk: k, gblob: s }); })
         .catch(() => sendRaw({ t: 'knock', gk: k }));
     }
     // (2b) RE-REGISTER on a wire event — same door function as (2), fired when
@@ -425,9 +430,9 @@
 
     async function onGreeters(m) {
       const list = m.list || [];
-      const ids = [];
+      const ids = [], sealedFps = [];
       for (const s of list) {
-        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); } catch (e) { /* not mine to read */ }
+        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); else if (o && o.p === peer) sealedFps.push('SELF'); } catch (e) { sealedFps.push(blobFp(s)); }
       }
       if (stopped || !seat) return;
       regPendingAt = 0; // the relay answered — the socket is provably alive
@@ -457,7 +462,7 @@
       if (preState === 3 && seat.hasCoord && seat.occ.size <= 1 && shrankSolo && !list.length) shrankSolo = false;
       if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)) {
         greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
-          listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue' });
+          listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue', sealed: sealedFps });
         if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
         if (opts.onFragment) { try { opts.onFragment(ids.slice(), { shrank: shrankSolo }); } catch (e) {} } // the ID LIST — the app filters stale/tombstoned evidence; shrank says THIS page watched the room collapse (fork suspect, not a reload-mash newborn)
         return;
@@ -477,7 +482,7 @@
       }
       greeterTrace.push({
         t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
-        listLen: list.length, open: ids.length, founded: !!m.founded, action,
+        listLen: list.length, open: ids.length, founded: !!m.founded, action, sealed: sealedFps,
       });
       if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
       // A seated Section-1 greeter looking at an EMPTY pool is looking at a
