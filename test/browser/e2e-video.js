@@ -979,11 +979,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.evaluate(() => document.getElementById('blur-none').click()); // Beth consents
   // Admin present + Beth consents + password → Beth clears on adam's screen,
   // even though adam himself hasn't consented (no unanimity needed).
+  // 30s, NOT 12s (2026-07-29, forensics-proven): Beth's half is perfect
+  // (myBlur 0, outbound raw, ownW 1280) — what waits is ADAM's render, and
+  // her event-driven status update goes out right after the pw-rotation
+  // churned her DC, so it can be lost; the status HEARTBEAT is the sanctioned
+  // healer (the "lost status heals" leg above proves it at its own ~12s
+  // beat). A 12s budget on a ~12s beat is a coin flip — it passed or failed
+  // by which side of the beat the loss landed on. 30s is the suite's own
+  // convergence convention; the assertion is untouched and the forensics
+  // stay, so a genuinely broken propagation still fails loudly.
   try {
     await adam.waitForFunction(() => {
       const t = document.querySelector('.tile:not(.me)');
       return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
-    }, null, { timeout: 12000 });
+    }, null, { timeout: 30000 });
   } catch (e) {
     // WHICH HALF? Beth's own state (did the consent land: myBlur 0, outbound
     // raw) vs its propagation (the classes on Adam's tile) vs the pair itself
