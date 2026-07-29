@@ -26,6 +26,14 @@ class Conn {
     this.onmessage = null;
     this.onclose = null;
     socket.on('data', (chunk) => { this.buf = Buffer.concat([this.buf, chunk]); this.drain(); });
+    // A hard-killed peer's kernel sends FIN; without ending our side the socket
+    // sits half-open and 'close' never fires until the NEXT WRITE hits the dead
+    // peer and RSTs — which is the room's ≤12s status beat. That made every
+    // SIGKILL vanish measure read "0-12s (beat phase) + confirm" instead of the
+    // relay's actual instant observation, and it is a parity bug: the Worker's
+    // edge closes on FIN. End our side on FIN → 'close' fires promptly →
+    // peer-leave broadcasts the moment the socket dies.
+    socket.on('end', () => { try { socket.end(); } catch (e) {} });
     socket.on('close', () => this.onclose && this.onclose());
     socket.on('error', () => {});
   }
