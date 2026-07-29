@@ -514,9 +514,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const t0 = Date.now();
     let healed = false;
     let lastLog = 0;
+    // A HUMAN AT THE KEYBOARD (2026-07-29). This room's password rotates
+    // (clubhouse → cleared → vault), and a page that reloads inside the
+    // cleared window re-enters from persisted credentials a key generation
+    // behind — sealed away from everyone. The app's answer is the R6
+    // challenge: it puts up the password prompt, exactly as for a wrong
+    // password. A real user types the current password and is back in
+    // seconds; this suite's actors have no fingers, so a prompt would sit
+    // there forever and read as a product hang. Type it, like a person.
+    const answerPwPrompt = async (pg) => {
+      const shown = await pg.evaluate(() => {
+        const m = document.getElementById('pw-modal');
+        return !!(m && m.style.display === 'flex' && m.dataset.mode === 'join');
+      }).catch(() => false);
+      if (!shown) return false;
+      await pg.locator('#pw-new').fill('vault').catch(() => {});
+      await pg.locator('#pw-save').click().catch(() => {});
+      console.log('  [pw prompt answered — stale-key member re-entering]');
+      return true;
+    };
     while (Date.now() - t0 < 40000) {
       healed = await bPage.evaluate(() => window.__gifosVideo.pinnedFiles().length === 0).catch(() => false);
       if (healed) break;
+      for (const pg of [bPage, dPage]) await answerPwPrompt(pg);
       if (Date.now() - lastLog >= 10000) {
         lastLog = Date.now();
         for (const [nm, pg] of [['dee', dPage], ['bob', bPage]]) {
