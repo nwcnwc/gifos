@@ -924,7 +924,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ADMIN ROOMS: with an admin PRESENT, each tile is clear iff its OWN owner
   // consents (camera on + None) — no unanimity, no room-wide guest blur.
-  await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 10000 });
+  // Beth is demonstrably paired by now (she rendered Adam's tile above), so
+  // this is Adam's COUNT converging, not the pair forming — and it follows
+  // Beth's wrong-admin-password dance plus a refused setpw, both of which
+  // churn her socket. 10s was the tightest budget in this suite; 30s matches
+  // what every other convergence wait here allows. Forensics on failure so a
+  // genuinely absent participant can never hide behind the wider window.
+  try {
+    await adam.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 30000 });
+  } catch (e) {
+    for (const [nm, pg] of [['adam', adam], ['beth', beth]]) {
+      const st = await pg.evaluate(() => {
+        const d = window.__gifosVideo.debugDump();
+        return { parts: d.participants, inMeeting: d.inMeeting, coord: d.me.coord, links: d.me.links,
+          tiles: document.querySelectorAll('.tile:not(.me)').length, roster: (d.roster || []).map((r) => r.name) };
+      }).catch((err) => String(err).slice(0, 100));
+      console.log('  [admin-room forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+    throw e;
+  }
   // Clear video needs a password even in an admin room — the admin sets it.
   await adam.locator('#pwbtn').click();
   await adam.locator('#pw-new').fill('vip');
