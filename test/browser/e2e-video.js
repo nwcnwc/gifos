@@ -531,6 +531,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await sleep(500);
     }
     check('unpinning a file removes it for everyone (tombstone wins the merge)', healed);
+    // Post-failure observation (fork-heal tuning, 2026-07-29): the 40s budget
+    // stands, but a red keeps watching to t+120s and reports IF and WHEN the
+    // fork heal lands — 'healed late at Xs' is the number that decides
+    // between tuning the heal and arguing the budget; silence past 120s is a
+    // heal that never fired.
+    if (!healed) {
+      const tExt = Date.now();
+      let lateAt = -1;
+      while (Date.now() - t0 < 120000) {
+        const ok = await bPage.evaluate(() => window.__gifosVideo.pinnedFiles().length === 0).catch(() => false);
+        if (ok) { lateAt = Date.now() - t0; break; }
+        if ((Date.now() - tExt) % 15000 < 600) {
+          for (const [nm, pg] of [['dee', dPage], ['bob', bPage]]) {
+            const st = await pg.evaluate(() => { const f = window.__gifosVideo.fileState(); const d = window.__gifosVideo.debugDump(); return { frag: f.frag, parts: d.participants, coord: d.me.coord }; }).catch((err) => String(err).slice(0, 80));
+            console.log('  [late t+' + Math.round((Date.now() - t0) / 1000) + 's] ' + nm + ': ' + JSON.stringify(st));
+          }
+        }
+        await sleep(600);
+      }
+      console.log(lateAt >= 0 ? '  MEASURE fork-heal: healed LATE at ' + (lateAt / 1000).toFixed(1) + 's (budget 40s)' : '  MEASURE fork-heal: NEVER healed within 120s');
+    }
   }
 
   // Clearing the room password DELETES shared files — with a warning first.

@@ -8703,6 +8703,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         tombs: Object.keys(tombObj()),
         peers: Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8), dc: p.dc ? p.dc.readyState : null, connected: !!p.connected })),
         gossip: (typeof gossipIds === 'function' ? gossipIds() : []).map((x) => String(x).slice(0, 8)),
+        // Fork-heal forensics: did fragPing fire, at whom, and did a rescue
+        // reload already burn the 90s cap this session?
+        frag: { pinged: fragPingId ? String(fragPingId).slice(0, 8) : null, agoMs: fragPingAt ? Date.now() - fragPingAt : null,
+          rescuedAgoMs: (() => { try { const v = +sessionStorage.getItem('gifos_fragrescue') || 0; return v ? Date.now() - v : null; } catch (e) { return null; } })() },
       }),
       hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,
