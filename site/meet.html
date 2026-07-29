@@ -3955,6 +3955,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // handlers via the onRelayMsg passthrough below.
     let myIdentity = null; // S4: one per-participant Ed25519 key, minted once, reused across reconnects
     function ensureIdentity() { return myIdentity ? Promise.resolve(myIdentity) : GifOS.meshIdentity.mint().then((id) => (myIdentity = id)); }
+    // FRAG-PING (the 2-person fork's liveness oracle — see onFragment's
+    // one-corpse gate): ask a door-listed-but-tombstoned id over the RELAY
+    // whether it is alive. The relay routes targeted envelopes only to
+    // CONNECTED sockets, so silence = lingering corpse blob (stay put),
+    // a pong = live fork half (reload — the F8 move, same 90s cap).
+    let fragPingId = null, fragPingAt = 0;
+    function fragPing(id) {
+      if (Date.now() - fragPingAt < 15000) return; // one outstanding ask at a time
+      fragPingId = id; fragPingAt = Date.now();
+      sendSig(id, { k: 'frag-ping' });
+    }
     function startMesh() {
       const relay = relayUrl();
       if (!relay) { setStatus('No relay configured \u2014 cannot exchange invitations.'); return; }
@@ -4010,7 +4021,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // solo room view doesn't. Same clean lever as the freeze self-heal \u2014
         // a full re-entry \u2014 throttled, and only while the app agrees we look
         // alone (a healthy room never qualifies).
-        onFragment: (ids) => {
+        onFragment: (ids, finfo) => {
+          // (fragPing/pong: the one-corpse liveness oracle \u2014 see below + onDc)
           if (participantCount() > 1) return;
           // stale-evidence gate: a blob from an identity I have TOMBSTONED
           // (a churned reload's corpse) is not proof of a live room — under
@@ -4027,7 +4039,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // evidence is ONE corpse id.
           const all = Array.isArray(ids) ? ids : [];
           const live = all.filter((id) => !meshGone.has(id));
-          if (!live.length && all.length < 2) return;
+          if (!live.length && all.length < 2) {
+            // THE 2-PERSON FORK GAP (2026-07-29): this gate's one-corpse case
+            // is ALSO exactly a fork's other half \u2014 creator leaves, the
+            // survivors' pair dies, each confirms (tombstones) the other, one
+            // compacts onto the other's seat: two solo rooms forever, and the
+            // door evidence is one tombstoned id, indistinguishable from the
+            // 08a corpse BY THE BLOB ALONE. Two facts break the tie without
+            // any relay protocol change: (1) finfo.shrank \u2014 THIS page watched
+            // a populated room collapse (a reload-mash newborn never did);
+            // (2) the relay routes targeted envelopes only to CONNECTED
+            // sockets, so a sealed ping to the id is a liveness oracle \u2014 a
+            // lingering corpse blob is silence, a live fork half answers.
+            // Only a room-keyed member can forge the pong, and the worst a
+            // malicious one buys is the same capped once-per-90s reload.
+            if (finfo && finfo.shrank && all.length === 1) fragPing(all[0]);
+            return;
+          }
           const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
           if (Date.now() - last < 90000) return; // once per 90s \u2014 never a reload loop
           try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
@@ -5091,6 +5119,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // actually hold a link to (no probing strangers on hearsay).
         if (typeof clog === 'function') clog('tlhint ' + String(m.peer || '?').slice(0, 6) + ' from ' + String(p.id || '?').slice(0, 6) + (peers.has(m.peer) ? '' : ' (no link — ignored)'));
         if (m.peer && m.peer !== myId && peers.has(m.peer)) onTransportDead(m.peer, 'relay-leave-hint');
+      } else if (m.k === 'frag-ping') {
+        // The other half of a suspected 2-person fork asks if I'm alive (see
+        // fragPing). Answer over the same relay path — the pair has no
+        // channel; that is the point.
+        if (typeof clog === 'function') clog('frag-ping from ' + String(p.id || '?').slice(0, 6));
+        sendSig(p.id, { k: 'frag-pong' });
+      } else if (m.k === 'frag-pong') {
+        // The tombstoned door identity ANSWERED: it is a live fork half, not
+        // a corpse blob. Reload (the F8 move) — capped once per 90s.
+        if (typeof clog === 'function') clog('frag-pong from ' + String(p.id || '?').slice(0, 6) + ' (pinged ' + String(fragPingId || '-').slice(0, 6) + ')');
+        if (p.id === fragPingId && Date.now() - fragPingAt < 8000 && participantCount() <= 1) {
+          fragPingId = null;
+          const doReload = () => {
+            const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
+            if (Date.now() - last >= 90000) {
+              try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
+              location.reload();
+            }
+          };
+          // Tie-break (both halves ping each other): the HIGHER id reloads —
+          // the lower stays anchored and keeps the room state (chat, files);
+          // the reloader re-enters through the door and pairs with it. The
+          // anchor still reloads after 20s if it is somehow STILL alone
+          // (the other half's reload never arrived) — capped like all rescues.
+          if (myId > p.id) doReload();
+          else setTimeout(() => { if (participantCount() <= 1) doReload(); }, 20000);
+        }
       } else if (m.k === 'fmeta') {
         if (takeMeta(m.f, p)) { renderFiles(); sendAll({ k: 'fmeta', f: m.f }); }
       } else if (m.k === 'want') {

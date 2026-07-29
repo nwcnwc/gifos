@@ -112,6 +112,19 @@
     let lastRelayRx = 0;   // last frame heard from the relay on the live socket
     let lastRegAt = 0;     // last time we sent a greeter registration
     let regPendingAt = 0;  // a registration awaiting its greeters reply (zombie detector)
+    // SHRANK-TO-SOLO (the 2-person fork fix, 2026-07-29): a room that WAS
+    // populated and collapsed to one is a fragment SUSPECT the moment it
+    // happens — a fresh founder is legitimately alone, but nobody legitimately
+    // BECOMES alone without either a LEAVE or a confirm, and the confirm case
+    // is exactly where two survivors fork (caught live: creator left, the
+    // survivors' young pair died, each confirmed the other, one compacted
+    // onto the other's seat — two solo rooms at the same coord, no heal for
+    // 40s+ because the solo-probe and fragment-rescue both sat behind the
+    // 90-tick founder-grace). The shrink event bypasses that grace in BOTH
+    // gates and fires one immediate door probe; the door's greeter list is
+    // ground truth, and a genuinely-emptied room costs one no-op probe.
+    let lastOccSize = 0;   // seat.occ.size last tick (state 3 only)
+    let shrankSolo = false; // armed on >=2 -> 1; cleared when occ >= 2 again
     // Greeter-list forensics (fragment founding): every greeters reply we
     // handle is stamped here — list length, how many blobs opened under our
     // room key, the relay's founded flag, and which branch we took. R3/R6
@@ -426,11 +439,11 @@
       // for who is reachable; a solo seat is its own greeter and re-knocks
       // every ~55s anyway, so this costs nothing new. Hand the evidence to
       // the app for a clean re-entry.
-      if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (env.TICK - (seat.seatedAt || 0)) > 90) {
+      if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)) {
         greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
           listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue' });
         if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
-        if (opts.onFragment) { try { opts.onFragment(ids.slice()); } catch (e) {} } // the ID LIST — the app filters stale/tombstoned evidence
+        if (opts.onFragment) { try { opts.onFragment(ids.slice(), { shrank: shrankSolo }); } catch (e) {} } // the ID LIST — the app filters stale/tombstoned evidence; shrank says THIS page watched the room collapse (fork suspect, not a reload-mash newborn)
         return;
       }
       if (list.length && !ids.length) {
@@ -514,6 +527,14 @@
         // a zombied greeter silently falls out of the pool — the door goes
         // unmanned while the greeter believes it is still on duty (the
         // production monitor spent hours in exactly this state).
+        // Shrink detection (see the shrankSolo declaration): occ >=2 -> 1
+        // arms the fragment suspicion; recovering to >=2 clears it.
+        {
+          const osz = (seat && seat.state === 3 && seat.hasCoord) ? seat.occ.size : 0;
+          if (osz >= 2) shrankSolo = false;
+          else if (osz === 1 && lastOccSize >= 2) shrankSolo = true;
+          lastOccSize = osz;
+        }
         if (iAmAGreeter() && sock && !sock.rejected) {
           const nowMs = Date.now();
           if (regPendingAt && nowMs - regPendingAt > 12000) {
@@ -526,13 +547,18 @@
             // idle keepalive: re-register before any middlebox forgets the
             // pipe; the greeters reply doubles as proof the socket is alive.
             reregister('keepalive');
-          } else if (seat.state === 3 && seat.occ.size <= 1 && (env.TICK - (seat.seatedAt || 0)) > 90 && nowMs - lastRegAt > 30000) {
+          } else if (seat.state === 3 && seat.occ.size <= 1
+              && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)
+              && nowMs - lastRegAt > (shrankSolo ? 3000 : 30000)) {
             // SOLO-ROOM DOOR PROBE (fragment self-rescue's trigger): a seated
             // room-of-one asks the door every 30s whether it is truly alone —
             // the idle keepalive above never fires while stray relay traffic
             // keeps the socket "busy", which is exactly a fragment's state.
             // The greeters reply lands in onGreeters' fragment-rescue branch.
-            reregister('solo-probe');
+            // A room that SHRANK to one skips the 90-tick founder-grace and
+            // probes within ~3s — the 2-person fork's heal window (see
+            // shrankSolo) must beat human patience, not a cadence.
+            reregister(shrankSolo ? 'shrank-solo' : 'solo-probe');
           }
         }
         if (opts.onUpdate) opts.onUpdate(node);
