@@ -893,12 +893,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the room link carries only the verifier — never the password',
     /^[a-f0-9]{24}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
   // The whole point: (name, password) reconstruct the SAME room from scratch.
+  // Independent reimplementation of the CURRENT scheme (§SIG, meet.html
+  // deriveAdminKey → net.edKeysFromSeedHex): V commits to the Ed25519 PUBLIC
+  // key that K seeds — V = SHA-256(base64(pub)).slice(0,24). The old
+  // V = SHA-256(K-hex) died with the relay adm stamp; this leg still computed
+  // it, so it failed against every current room. Third stale lever found by
+  // getting the suite this deep.
   const rederived = await adam.evaluate(async ({ r, p }) => {
     const enc = new TextEncoder();
     const km = await crypto.subtle.importKey('raw', enc.encode(p), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('gifos-admin:' + r), iterations: 310000 }, km, 256);
-    const K = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    const vb = await crypto.subtle.digest('SHA-256', enc.encode(K));
+    const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...new Uint8Array(bits)]);
+    const priv = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
+    const jwk = await crypto.subtle.exportKey('jwk', priv);
+    const xb = jwk.x.replace(/-/g, '+').replace(/_/g, '/');
+    const pubRaw = Uint8Array.from(atob(xb + '='.repeat((4 - xb.length % 4) % 4)), (c) => c.charCodeAt(0));
+    const pubB64 = btoa(String.fromCharCode(...pubRaw));
+    const vb = await crypto.subtle.digest('SHA-256', enc.encode(pubB64));
     return Array.from(new Uint8Array(vb)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24); // 24-hex truncated verifier
   }, { r: chosenRoom, p: 'sesame-topsecret' });
   check('the same name + password re-derive the same room, from nothing', rederived === admV);
