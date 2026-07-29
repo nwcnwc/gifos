@@ -8525,7 +8525,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // D5 confirm forensics: standing translosts + probe-answer stamps by
           // coord, in ticks-ago — a stalled confirm shows here as a translost
           // aging far past EARLY_HOLD with no gone.
-          d5: s ? { tl: [...s.translost.entries()].map(([k, at]) => [k, s.env.TICK - at]), pa: [...s.probeAck.entries()].map(([k, at]) => [k, s.env.TICK - at]) } : null,
+          d5: s ? { tl: [...s.translost.entries()].map(([k, at]) => [k, s.env.TICK - at]), pa: [...s.probeAck.entries()].map(([k, at]) => [k, s.env.TICK - at]), log: (s.tlLog || []).map(([k, tk, why]) => k + '@-' + (s.env.TICK - tk) + ':' + why) } : null,
           consent: (typeof allConsent === 'function' ? allConsent() : null), hbVia,
           mosaic: mos, roster: rosterIds.map(info),
         };

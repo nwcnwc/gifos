@@ -123,7 +123,7 @@
       //              with a live id). Deliberately NOT `live` (E2 untouched):
       //              a probe answer travels the mesh, so it can only ever
       //              PREVENT an early eviction, never evict or resurrect.
-      this.translost = new Map(); this.tlProbeAt = new Map(); this.probeAck = new Map();
+      this.translost = new Map(); this.tlProbeAt = new Map(); this.probeAck = new Map(); this.tlLog = []; // [k, tick, why] — last 24 forgotten observations (forensics)
       this.retryAt = -1; this.seatTries = 0; this.lastPhone = -99; this.lastAck = 0;
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
@@ -197,7 +197,7 @@
     occGet(k) { const v = this.occ.get(k); return v === undefined ? null : v; }
     // a seat can be in exactly ONE place: never store MYSELF at a coord I do not
     // hold (stale self-claims circulating back made invisible zombies)
-    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) this.tlForget(k); this.occ.set(k, v); }
+    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.occ.set(k, v); }
     noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
     // A three-state helpers (empty / sitting-down / seated)
@@ -273,7 +273,7 @@
           del.push(k);
           if (this.occGet(k) === s.joiner && !this.firstHandLive(k)) {
             this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k);
-            this.kidful.delete(k); this.tlForget(k);
+            this.kidful.delete(k); this.tlForget(k, 'sit-ttl');
           }
         }
       }
@@ -298,7 +298,27 @@
       if (!this.hasCoord || this.state !== 3 || pid == null || pid === this.id) return;
       for (const olc of topo.ownedLinks(this.coord)) {
         const k = ck(olc);
-        if (this.occGet(k) !== pid || this.translost.has(k)) continue;
+        if (this.occGet(k) !== pid) continue;
+        // STALE-EDGE REVALIDATION — PRODUCTION EXTENSION (same class as
+        // heardFrom below; the sim's transports never flap, so mesh.cpp can't
+        // express this). A translost registered during an earlier link blip
+        // can STAND while the occupant lives on: the confirm verdict is only
+        // polled once the occupant stops looking alive, so nothing ever
+        // forgets the stale entry — and its edge-guard then EATS the next
+        // real death observation (caught live 2026-07-28: victim killed,
+        // survivor's translost stood from a setup-era blip, kill-time call
+        // skipped here, first poll forgot the stale entry via pre-kill
+        // contact, and the seat freed only via the 12s starve re-arm). A
+        // standing entry already DISPROVEN by contact since it was set is not
+        // an armed edge — it is garbage; clear it and let the fresh
+        // observation register. Real standing edges still suppress re-fires:
+        // no probe storms.
+        if (this.translost.has(k)) {
+          const old = this.translost.get(k);
+          const lv = this.live.get(k), pa = this.probeAck.get(k);
+          if ((lv !== undefined && lv >= old) || (pa !== undefined && pa >= old)) this.tlForget(k, 'stale-reval');
+          else continue;
+        }
         this.translost.set(k, this.TICK); this.tlProbeAt.set(k, this.TICK);
         this.routeToProbe(olc); // probe NOW — across the mesh, not the dead link
       }
@@ -314,12 +334,24 @@
     translostConfirmed(k) {
       const at = this.translost.get(k); if (at === undefined) return false;
       const lv = this.live.get(k), pa = this.probeAck.get(k);
-      if ((lv !== undefined && lv >= at) || (pa !== undefined && pa >= at)) { this.tlForget(k); return false; }
+      // BOTH evidence channels are STRICT (>) — PRODUCTION EXTENSION
+      // (tick-boundary causality; the sim's harness reports a loss ticks
+      // after the last frame, so mesh.cpp never faces this). "Evidence since
+      // the loss" must mean a STRICTLY LATER tick: a 500ms tick routinely
+      // holds the victim's death, the relay's socket-death broadcast, AND the
+      // victim's in-flight frame tail (frames authored before death, still
+      // crossing the relay after it — §HEARD's heardFrom stamps probeAck for
+      // those; caught live 2026-07-28: 'pa:heardFrom' at the registration
+      // tick forgot the observation one tick later — the vanish stall
+      // lottery: same-tick → starve fallback ~20-25s; next-tick → 7s). A
+      // genuinely alive peer produces evidence EVERY tick — one strict tick
+      // costs it nothing; a dead one's tail can never span two.
+      if ((lv !== undefined && lv > at) || (pa !== undefined && pa > at)) { this.tlForget(k, 'evidence lv=' + lv + ' pa=' + pa + ' at=' + at); return false; }
       const pAt = this.tlProbeAt.get(k);
       if (pAt === undefined || this.TICK - pAt >= 6) { this.tlProbeAt.set(k, this.TICK); this.routeToProbe(unck(k)); }
       return this.TICK - at > EARLY_HOLD;
     }
-    tlForget(k) { this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
+    tlForget(k, why) { if (this.translost.has(k)) { this.tlLog.push([k, this.TICK, why || '?']); if (this.tlLog.length > 24) this.tlLog.shift(); } this.translost.delete(k); this.tlProbeAt.delete(k); this.probeAck.delete(k); }
     tlClear() { this.translost.clear(); this.tlProbeAt.clear(); this.probeAck.clear(); }
     // heardFrom(pid) — PRODUCTION EXTENSION (Nathan-blessed 2026-07-28; no
     // sim counterpart — the sim's transports never half-die). ANY sealed
@@ -345,7 +377,7 @@
       for (const olc of topo.ownedLinks(this.coord)) {
         const k = ck(olc);
         if (this.occGet(k) !== pid || !this.translost.has(k)) continue;
-        this.probeAck.set(k, this.TICK);
+        this.probeAck.set(k, this.TICK); this.tlLog.push([k, this.TICK, 'pa:heardFrom']); if (this.tlLog.length > 24) this.tlLog.shift();
       }
     }
     // WIRE-ONLY (no sim counterpart — the sim has no device-local network).
@@ -616,7 +648,7 @@
     admit(c, f) {
       const nc = f.nc;
       const k = ck(c);
-      this.tlForget(k); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
+      this.tlForget(k, 'refill'); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
       const nbrs = []; const ol = topo.ownedLinks(c);
       for (const olc of ol) { const x = this.occGet(ck(olc)); if (x != null && x !== nc) nbrs.push({ k: ck(olc), v: x }); }
       let selfNb = false; for (const olc of ol) if (ck(olc) === ck(this.coord)) selfNb = true;
@@ -759,7 +791,7 @@
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) {
                 this.healTry.set(k, TICK);
                 if (this.occIsPhantom(k)) {
-                  this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k); this.kidful.delete(k); this.tlForget(k);
+                  this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k); this.kidful.delete(k); this.tlForget(k, 'phantom-heal');
                 }
                 this.admit(cell, mm); return;
               }
@@ -1201,7 +1233,7 @@
       const TICK = this.TICK;
       if (this.coord.i !== 0) return; const del = [];
       for (const [k, at] of this.live) { if (TICK - at <= 50) continue; const c = unck(k); if (c.pc === this.coord.pc && c.r === this.coord.r && c.i > 0) del.push(k); }
-      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k); }
+      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k, 'row-age'); }
       // (D5's early corpse-forget lives in tlSweep — every observer, not just
       // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
     }
@@ -1443,7 +1475,7 @@
           return;
         case 'LEAVE': {
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck); }
+          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); }
           this.clearSoft(m.ck); // A: LEAVE clears soft sitting-down
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // H-CHAIN vertical: vacated down-child clears childOf on its owner
@@ -1532,7 +1564,7 @@
         case 'ROUTE': {
           if (!this.hasCoord) return;
           if (ck(this.coord) === ck(m.target)) {
-            if (m.tag === 3) { this.probeAck.set(m.ack, TICK); return; } // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
+            if (m.tag === 3) { this.probeAck.set(m.ack, TICK); this.tlLog.push([m.ack, TICK, 'pa:tag3-answer from ' + String(m.id || m.via || '?').slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); return; } // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
             if (m.tag === 2 && m.acoord) {
               // D5 translost probe reached me: I am alive — answer AROUND the
               // dead link (first hop excludes the asker; my direct link to it
@@ -1548,7 +1580,7 @@
           const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id }); return; }
           this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return;
         }
-        case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
+        case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.tlLog.push([ck(m.target), TICK, 'pa:routed-tag' + m.tag + ' id=' + String(m.id).slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
         default: return;
       }
     }
