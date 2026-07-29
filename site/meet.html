@@ -8607,6 +8607,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       recQuality: () => recQuality,
       recSourceCount: () => { const g = recSources(); return { stage: g.stage.length, row: g.row.length, stadium: g.stadium.length }; },
       pinnedFiles: () => Array.from(files.values()).map((f) => ({ name: f.name, size: f.size, have: !!f.bytes })),
+      // File-plane forensics: the tombstone map + per-peer channel truth, so a
+      // lost one-shot fdel is attributable to ONE hop from the test harness.
+      fileState: () => ({
+        files: Array.from(files.keys()),
+        tombs: Object.keys(tombObj()),
+        peers: Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8), dc: p.dc ? p.dc.readyState : null, connected: !!p.connected })),
+        gossip: (typeof gossipIds === 'function' ? gossipIds() : []).map((x) => String(x).slice(0, 8)),
+      }),
       hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,
       banList: () => roomBan,

@@ -488,8 +488,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // …and an unpin propagates as a tombstone
   await dPage.locator('#chatbtn').click();
   await dPage.locator('.cfile button[data-del]').click();
-  await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().length === 0, null, { timeout: 40000 }); // audited budget (a456ba6): covers one dc-watchdog rebuild
-  check('unpinning a file removes it for everyone (tombstone wins the merge)', true);
+  {
+    // Audited budget (a456ba6): covers one dc-watchdog rebuild. Instrumented
+    // as a poll (2026-07-28): a red here has twice been a DEAD PAIR — both
+    // peers maps empty, no rebuild — so on each beat log both ends' file +
+    // mesh state; the timeline says whether the pair ever came back.
+    const t0 = Date.now();
+    let healed = false;
+    let lastLog = 0;
+    while (Date.now() - t0 < 40000) {
+      healed = await bPage.evaluate(() => window.__gifosVideo.pinnedFiles().length === 0).catch(() => false);
+      if (healed) break;
+      if (Date.now() - lastLog >= 10000) {
+        lastLog = Date.now();
+        for (const [nm, pg] of [['dee', dPage], ['bob', bPage]]) {
+          const st = await pg.evaluate(() => {
+            const fs = window.__gifosVideo.fileState ? window.__gifosVideo.fileState() : null;
+            const d = window.__gifosVideo.debugDump();
+            return { fs, coord: d.me.coord, state: d.me.state, links: d.me.links, occ: d.me.occ, parts: d.participants };
+          }).catch((err) => String(err).slice(0, 120));
+          console.log('  [tombstone t+' + Math.round((Date.now() - t0) / 1000) + 's] ' + nm + ': ' + JSON.stringify(st));
+        }
+      }
+      await sleep(500);
+    }
+    check('unpinning a file removes it for everyone (tombstone wins the merge)', healed);
+  }
 
   // Clearing the room password DELETES shared files — with a warning first.
   await dPage.setInputFiles('#cfile-in', { name: 'secret.txt', mimeType: 'text/plain', buffer: Buffer.from('for members only') });
