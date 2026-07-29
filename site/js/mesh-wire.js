@@ -552,6 +552,7 @@
         else if (deepSince < 0) deepSince = env.TICK;
         if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
         if (needsRelay && !sock) makeSock(); // re-arm reachability (a policy-REJECTED socket stays down — see sendRaw)
+        if (sock && sock.rejected && !window.__sockRejLogged) { window.__sockRejLogged = 1; try { window.__pwLog && window.__pwLog.push(Date.now() + ' relay-socket REJECTED (policy) — door unreachable'); } catch (e) {} }
         // Greeter socket health (wire-level, not mesh law — the sim has no
         // sockets). A NAT/middlebox drops a silent websocket without telling
         // either end; the socket then reads OPEN while every send vanishes (a
