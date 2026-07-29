@@ -5825,6 +5825,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const subWant = new Map();    // from + '|' + key + '|' + sid -> 'w'|'i' (last demand sent — debounce)
     const mosJobs = new Map();  // key + '>' + to -> { senders, trackList, active, sig, to, key, meta } (outbound ships)
     let prodPack = null, sdPack = null, stripPack = null; // GAPLESS packers (approach A)
+    let dbgRowFaces = []; // test observability: {i, pid8} the head drew this sweep (stale-seat dup guard)
     let mosBeyondAt = 0; // last time beyondRow was RAW-true (teardown hysteresis)
     let sdEmptyAt = 0;   // since when a head's sdPack has been EMPTY (blank-tile grace)
     const sdnPacks = new Map(); // col -> packer: per-child DOWN ingredients (mix-minus)
@@ -5997,11 +5998,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (key.indexOf('stg:') === 0) { const q = key.indexOf('^'); return q < 0 ? key : key.slice(0, q); }
       return null;
     }
-    // Is a claimed source still LIVE? (its announcer still connected and still
-    // offering that stream.) The basis for STICKINESS below.
+    // Is a claimed source still LIVE? (its announcer still connected, still
+    // offering that stream, AND the stream still carries a live media track.)
+    // The basis for STICKINESS below.
+    // A STREAM ID IS NOT LIVENESS (2026-07-29, the black stage): when a
+    // producer's track changes (blur-pipe swap, mic re-grab — constant on
+    // phones) the sender re-ships under a NEW container id, and the OLD
+    // container lingers in p.incoming as a HUSK — zero tracks, or one muted,
+    // ended track — until the >24 prune finally evicts it (~minutes). A
+    // sticky claim pinned to a husk is a permanently black tile that every
+    // health flag calls healthy.
+    function trackLive(st) { return !!(st && st.getTracks().some((t) => t.readyState === 'live')); }
     function mosLive(via, sid) {
       const p = peers.get(via);
-      return !!(p && p.incoming && p.incoming.find((s) => s.id === sid && s.id !== p.ownSid));
+      const st = p && p.incoming && p.incoming.find((s) => s.id === sid && s.id !== p.ownSid);
+      return trackLive(st);
     }
     // A resolved slot is REDUNDANT (multi-subscribe) if several independent paths
     // fan the same logical feed to me: the Stadium, the Stage strip, each
@@ -6108,6 +6119,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               demand(std.via, std.key, std.streamId, true); // wake NOW — don't wait for the sweep
               schedReconcile();
             }
+          } else if (!fb.dark && fb.q < (MOS_QUALIFY << (fb.fp || 0)) && fb.lastAdvanceAt
+                     && now - fb.lastAdvanceAt > MOS_BORN_DARK_MS
+                     && now - (fb.claimAt || 0) > MOS_BORN_DARK_MS) {
+            // BORN DARK (2026-07-29, the black stage): a hot primary that
+            // NEVER earned the watchdog — a few frames at birth, then silence
+            // (a husk pipe, a sender whose encoder stalled at the source).
+            // The qualification rail above exists so byte-freeze on a
+            // once-flowing pipe isn't misread — but a pipe that never flowed
+            // continuously is exactly the pipe qualification can never judge,
+            // and it wedged black FOREVER. Wake the standby: make-before-break
+            // means a false fire costs a brief sanctioned overlap, and the
+            // fp penalty (paid on recovery) damps a chronic cycler.
+            const std = mosStandby.get(rk);
+            if (std && std.key) {
+              fb.dark = true;
+              demand(std.via, std.key, std.streamId, true);
+              schedReconcile();
+            }
           } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && fb.q) {
             fb.q = 0; // frozen past the horizon without a fire — re-earn from zero
           }
@@ -6179,8 +6208,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const MOS_DARK_MS = 700;   // no byte advance on a previously-flowing hot pipe = dark
     const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
     const MOS_QUALIFY = 8;     // consecutive advancing ~300ms samples (~2.4s of continuous flow) before a pipe earns the watchdog
-    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec } (wake/failback/watchdog state)
-    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1 });
+    const MOS_BORN_DARK_MS = 4000; // a hot primary that never qualified AND froze this long since claim/last advance = born dead, wake the standby
+    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec, claimAt } (wake/failback/watchdog state)
+    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1, claimAt: 0 });
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
@@ -6203,7 +6233,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const a of arr) {
         const p = peers.get(a.from);
         const st = (p && p.incoming) ? p.incoming.find((s) => s.id === a.ann.streamId && s.id !== p.ownSid) : null;
-        cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: !!st });
+        cand.push({ from: a.from, key: a.key, sid: a.ann.streamId, ann: a.ann, st, live: trackLive(st) });
       }
       const inCand = (e) => e && cand.some((x) => x.from === e.via && x.sid === e.streamId && x.live);
       const mkEnt = (pick) => ({ via: pick.from, key: pick.key, streamId: pick.sid, stream: pick.st, el: mosVideo(pick.st), meta: annMeta(pick.ann), deadAt: 0 });
@@ -6225,6 +6255,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const pick = pref || cand.find((x) => x.live);
         if (pick) {
           pri = mkEnt(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream);
+          fb.claimAt = now; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; // fresh primary — born-dark clock restarts
           if (std && std.via === pri.via && std.streamId === pri.streamId) { dropStandby(rk); std = null; }
         }
       }
@@ -6272,7 +6303,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const old = pri;
           mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
           pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
-          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; // fresh primary — the watchdog re-baselines and the penalty clears
+          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
           repaintRedun(rk, pri.stream);
           if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
           else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
@@ -6321,7 +6352,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const p = peers.get(from);
         if (!p || !p.incoming) continue;
         const st = p.incoming.find((s) => s.id === ann.streamId && s.id !== p.ownSid);
-        if (!st) continue;
+        if (!trackLive(st)) continue; // a husk (id present, tracks gone) is not claimable
         if (cur) dropMosIn(rk);
         mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: annMeta(ann) });
       }
@@ -6436,10 +6467,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // PRODUCT = my row's live faces + my row's sub-blocks, PACKED near-square
         // (no fixed C+1 slots — the tall-product blowup is gone).
         if (!prodPack) prodPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
+        dbgRowFaces = []; // test observability: which pid the packer drew at each row seat
         for (let j = 0; j < C; j++) {
-          const pid0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          let pid0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
+          // A SEAT'S FACE BELONGS TO ITS SELF-REPORTED OWNER (2026-07-29: a
+          // moved bot rendered TWICE in the stadium all session). occ gossip
+          // never evicts (E2) and tlSweep can't kill an entry whose pid still
+          // ANSWERS (alive, just seated elsewhere) — so wherever the LEAVE was
+          // missed, the old entry lingers and its face gets composed at both
+          // seats. The peer's own heartbeat carries its seat (myStatus.seat);
+          // a FRESH self-report that disowns this seat vetoes the draw. An
+          // absent or stale report changes nothing — occ stands (E2 intact:
+          // this evicts nothing, it only declines to PAINT a disowned seat).
+          if (pid0 && pid0 !== myId && stHold(pid0)) {
+            const ss = (statusOf.get(pid0) || {}).seat;
+            if (ss && !(ss.pc === c.pc && ss.r === c.r && ss.i === j)) pid0 = null;
+          }
           const pid = pid0 && stagers.includes(pid0) ? null : pid0; // stagers live on the Stage ONLY (docs/media-plane.md)
           const sc = pid ? srcFor(pid) : null;
+          if (sc && sc.el) dbgRowFaces.push({ i: j, pid: String(pid).slice(0, 8) });
           if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(pid) });
           else prodPack.delTile('r' + j);
           const sub = mosIn.get('sub:' + j);
@@ -8599,6 +8645,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         vState: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].readyState : null,
       })),
       stageForTest: (on) => { if (!!on === !!myStatus.stg) return stageIds().includes(myId); if (on && (!canStage(myId) || stageIds().length >= SCALE.C)) return false; setStage(!!on); return true; },
+      // TEST: what the stage EAR actually PLAYS — peak level over `ms` of the
+      // folded per-stager audio. -1 = no ear/no stream. The 2026-07-29 bar:
+      // a room must HEAR its stage, not merely hold the feed (held keys and
+      // "active" fan jobs stayed green through a fully silent stage).
+      stageEarLevel: (ms) => new Promise((resolve) => {
+        if (!stageEar || !stageEar.el.srcObject || !ac) return resolve(-1);
+        if (ac.state !== 'running') { try { ac.resume(); } catch (e) {} }
+        let src, an;
+        try { an = ac.createAnalyser(); an.fftSize = 2048; src = ac.createMediaStreamSource(stageEar.el.srcObject); src.connect(an); }
+        catch (e) { return resolve(-1); }
+        const buf = new Float32Array(an.fftSize); let peak = 0; const t0 = Date.now();
+        const tick = () => {
+          an.getFloatTimeDomainData(buf);
+          for (let i = 0; i < buf.length; i++) { const a = Math.abs(buf[i]); if (a > peak) peak = a; }
+          if (Date.now() - t0 < (ms || 600)) return setTimeout(tick, 60);
+          try { src.disconnect(); } catch (e) {}
+          resolve(peak);
+        };
+        tick();
+      }),
       // DEBUG: force a pair's transport rebuild — the deterministic ORPHAN
       // WINDOW for the §LOCK grant-healing drill (a pw save mid-rebuild used
       // to cryptographically orphan the far side; healing must recover it).
@@ -8614,6 +8680,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // severing blocks the pair completely). The deterministic manufacture
       // of the 2-PERSON FORK: sever long enough for confirm + compaction,
       // lift, and the fork-heal machinery must reunite the halves in seconds.
+      // DEBUG: sever by TRUNCATED id prefix — feedsInfo()/pairs() expose 8-char
+      // ids; the starve drills sever "whoever is feeding me" without knowing
+      // the full pid.
+      severByPrefixForTest: (prefix, ms) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        for (const pid of peers.keys()) {
+          if (String(pid).indexOf(prefix) === 0) return window.__gifosVideo.severPair(pid, ms);
+        }
+        return { err: 'no peer with prefix ' + prefix };
+      },
       severPair: (pid, ms) => {
         if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
         window.__severed = window.__severed || new Map();
@@ -8757,6 +8833,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // wake/failback forensics: per-slot wake-in-progress + settle stamps
         fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch, dark: !!f.dark, lastAdvanceAt: f.lastAdvanceAt || 0, lastBytes: f.lastBytes != null ? f.lastBytes : -1, d0: f.d0 != null ? f.d0 : -1, stdFdec: f.stdFdec != null ? f.stdFdec : -1 })),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
+        rowFaces: dbgRowFaces.slice(), // which pid the packer drew at each of my row's seats (test observability, 2026-07-29 stale-seat dup)
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
         strip: (() => { const v = stagefeedEl.querySelector('[data-row="sgs"] video'); return v ? { live: v.videoWidth > 0 } : null; })(), stagers: stageIds().length }; },
       relayUpNow: () => relayUp(),

@@ -85,6 +85,44 @@ while its up-fan of the same feed sat stalled at 0 bytes.
   battery `current_now` with a flat charge counter is the charger SURPLUS,
   not the system load — the earlier recipe note has it backwards under load.
 
+## ROOT CAUSE (found 2026-07-29 via local repro — e2e-mosaic stage legs)
+
+Reproduced locally at C=2 with fake devices on the FIRST run: every receiver's
+stage was dark/frozen. Two stacked mechanisms, both now fixed in meet.html:
+
+1. **A stream id is not liveness (the husk claim).** When a producer's track
+   changes — blur-pipe swap, mic re-grab, the rung adapter: constant on
+   phones, and triggered BY stepping onto the stage — the sender re-ships the
+   feed under a NEW container id. The OLD container lingers in `p.incoming`
+   (only pruned past 24 streams — the prod stadium's magic ~5-minute heal was
+   exactly that prune finally firing) as a HUSK: zero tracks, or one muted,
+   ended track. `mosLive()` judged liveness by *stream-id presence alone*, so
+   the sticky claim stayed pinned to the husk forever while the healthy
+   re-shipped container sat unclaimed beside it. Fix: `trackLive()` — a
+   candidate/claim must hold a track with `readyState === 'live'`; a husk is
+   not claimable and not sticky.
+2. **Born-dark blindness (the watchdog's qualification rail).** The pipe
+   watchdog only declared darkness on a pipe that had ALREADY flowed
+   continuously (`MOS_QUALIFY`), so a pipe that delivered one frame and
+   stalled — the unmute renegotiation case, measured live: 9,445 bytes /
+   1 frame — could never be judged. Fix: `MOS_BORN_DARK_MS` — a hot primary
+   that never earned qualification and has frozen ≥4 s since claim wakes the
+   standby (make-before-break; the fp penalty damps chronic cyclers). The
+   sender's own re-shipped container qualifies as that standby, so the loop
+   closes even with a single provider.
+
+Measured after the fix (e2e-mosaic): all Section-1 receivers show live bright
+stage pixels; severing a receiver's provider mid-stage recovers in **~3 s**
+(budget 22 s; prod was: never).
+
+BUG 3 fix (same session): the head's packer now VETOES a face at any seat the
+peer's own fresh heartbeat disowns (`myStatus.seat` already rides the pulse) —
+occ is untouched (E2 stands), the packer just declines to paint a stale seat.
+Guard: test/browser/e2e-stadium-dup.js (sever + forceSeat manufacture).
+Mesh-side follow-up (LAW change, sim-first, NOT done): occ merge should let a
+peer's own report evict its own stale entries — tlSweep can never kill an
+entry whose pid answers probes from a different seat.
+
 ## Fix pointers
 
 1. `fb` starve tracking must arm for `stg:*` exactly as for `sdm` — and a fan
