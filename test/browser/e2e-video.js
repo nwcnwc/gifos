@@ -726,11 +726,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await camOn(hubPage); await camOn(cIslePage); await camOn(bIslePage);
   // PEER RELAY: the Hub notices it reaches both islands and forwards media —
   // the blocked pair SEE each other, labeled "via Hub", tiles in normal spots.
-  await bIslePage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
-    const v = t && t.querySelector('video');
-    return t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute') && v && v.srcObject && v.videoWidth > 0;
-  }, null, { timeout: 45000 });
+  try {
+    await bIslePage.waitForFunction(() => {
+      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
+      const v = t && t.querySelector('video');
+      return t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute') && v && v.srcObject && v.videoWidth > 0;
+    }, null, { timeout: 45000 });
+  } catch (e) {
+    // WHICH HALF FAILED? tile present / labeled 'via Hub' / not noroute /
+    // stream attached / frames flowing — plus each side's own camera state,
+    // so a dark sender is never mistaken for a broken relay.
+    for (const [nm, pg] of [['leftisle', bIslePage], ['rightisle', cIslePage], ['hub', hubPage]]) {
+      const st = await pg.evaluate(() => {
+        const tiles = Array.from(document.querySelectorAll('.tile:not(.me)')).map((x) => {
+          const v = x.querySelector('video');
+          return { who: (x.textContent || '').slice(0, 40).replace(/\s+/g, ' '), cls: x.className,
+            src: !!(v && v.srcObject), w: v ? v.videoWidth : null };
+        });
+        const me = document.querySelector('.tile.me video');
+        return { camOff: window.__gifosVideo.camOff ? window.__gifosVideo.camOff() : null,
+          ownW: me ? me.videoWidth : null, links: window.__gifosVideo.liveDataLinks(), tiles };
+      }).catch((err) => String(err).slice(0, 120));
+      console.log('  [island forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+    throw e;
+  }
   check('a mutual friend relays live media between a blocked pair (video frames flow)', true);
   await cIslePage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('LeftIsle'));
