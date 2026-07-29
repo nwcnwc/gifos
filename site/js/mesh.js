@@ -124,6 +124,14 @@
       //              a probe answer travels the mesh, so it can only ever
       //              PREVENT an early eviction, never evict or resurrect.
       this.translost = new Map(); this.tlProbeAt = new Map(); this.probeAck = new Map(); this.tlLog = []; // [k, tick, why] — last 24 forgotten observations (forensics)
+      // PRODUCTION EXTENSION (no sim counterpart — the sim's harness reads occ
+      // directly every tick; the app samples it). d5Deaths: each probe-
+      // confirmed death tlSweep evicts, as a FACT the app drains — a same-tick
+      // heal (the sole survivor promoting into the freed head seat) rebuilds
+      // occ wholesale, so the app's diff-based departure intake is blind to
+      // exactly the deaths that trigger a heal. A ledger changes no mesh
+      // decision; it only makes the verdict deliverable.
+      this.d5Deaths = []; // [k, pid, tick]
       this.retryAt = -1; this.seatTries = 0; this.lastPhone = -99; this.lastAck = 0;
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
@@ -401,9 +409,14 @@
       if (!this.translost.size) return;
       for (const k of Array.from(this.translost.keys())) {
         if (!this.translostConfirmed(k)) continue;
-        if (this.occ.has(k)) { this.occ.delete(k); this.live.delete(k); this.kidful.delete(k); this.s1seen.delete(k); }
+        if (this.occ.has(k)) {
+          const pid = this.occ.get(k);
+          if (pid != null && pid !== this.id) { this.d5Deaths.push([k, pid, this.TICK]); if (this.d5Deaths.length > 24) this.d5Deaths.shift(); }
+          this.occ.delete(k); this.live.delete(k); this.kidful.delete(k); this.s1seen.delete(k);
+        }
       }
     }
+    drainD5() { const out = this.d5Deaths; this.d5Deaths = []; return out; } // consume-once: a stale verdict must not re-kill a returned peer
     ownedRowHead() { return { pc: topo.childPath(this.coord.pc, this.coord.i), r: this.coord.r, i: 0 }; }
     rosterCells() { const h = this.ownedRowHead(); const out = []; for (let c = 0; c < C(); c++) out.push({ pc: h.pc, r: h.r, i: c }); return out; }
     // Do I hear ANY rook neighbour (row/col/down) first-hand? An S1 seat that

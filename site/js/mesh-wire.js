@@ -684,6 +684,10 @@
       // Fork-heal wire state (forensics): is the fragment suspicion armed,
       // how stale is the last registration, and the recent door replies.
       fragState() { return { shrank: shrankSolo, everPop: everPopulated, occ: seat ? seat.occ.size : -1, lastRegAgoMs: lastRegAt ? Date.now() - lastRegAt : null, trace: greeterTrace.slice(-4) }; },
+      // Probe-confirmed deaths since the last drain (consume-once). The app's
+      // departure intake reads these as facts — diffing occ misses a death
+      // whose heal rebuilt the view in the same tick (sole-survivor promotion).
+      drainDeaths() { return (seat && seat.drainD5) ? seat.drainD5() : []; },
       // D5-observation forensics: the seat's standing translosts, its recent
       // forgotten ones (tlLog carries WHY each was dropped), and the occ view —
       // so a stalled departure confirm is attributable to ONE law from a test.

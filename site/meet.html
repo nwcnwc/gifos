@@ -3438,6 +3438,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return false;
     };
     function departSweep(s) {
+      // D5 verdicts as FACTS first (drained consume-once from the mesh): the
+      // occ diff below is blind to a death whose heal rebuilt the view in the
+      // same tick — the sole survivor promotes into the freed head seat, the
+      // "my seat changed" rule rightly suppresses every diff, and the corpse
+      // evaporates without ever confirming. The ledger delivers the verdict
+      // regardless of what the heal did to the view.
+      if (meshNode && meshNode.drainDeaths) {
+        for (const [, pid] of meshNode.drainDeaths()) if (pid && pid !== myId) confirmGone(pid, 'd5');
+      }
       const occNow = new Map();
       for (const [k, v] of s.occ) if (v && v !== myId) occNow.set(v, k);
       const nowMs = Date.now();
