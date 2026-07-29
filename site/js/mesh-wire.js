@@ -469,6 +469,22 @@
       // evidence to the app (whose persisted-credential reload re-converges).
       if (preState === 3 && seat.hasCoord && seat.occ.size <= 1 && shrankSolo && list.length && !ids.length) {
         sealedSoloRuns++;
+        // STALE-KEY MEMBER = A DOOR CHALLENGE (Nathan's law, 2026-07-29). Root
+        // cause of the terminal fork: a member who RELOADS while the room's
+        // password is mid-rotation (the relay's courtesy gate is briefly OPEN
+        // between a clear and the next set) re-enters from persisted
+        // credentials a KEY GENERATION BEHIND — seated, alone, sealed away
+        // from everyone, and never challenged. Proven: the stranded half
+        // carries pwEpoch=1 with an EMPTY page-life pw ledger (a reload) and
+        // no relay rejection anywhere in the run. She is not a stranger and
+        // not a crash victim: she is a member holding a stale key, and the
+        // honest UI for that has existed all along — the R6 password prompt.
+        // A human types the current password, the key re-derives, the door
+        // opens. Narrowly gated (SOLO + shrank + repeated sealed-only
+        // replies), so the transient post-rotation case that must NOT prompt
+        // the setter — a seated member whose neighbours' re-knocks are still
+        // in flight — never reaches it.
+        if (sealedSoloRuns >= 4) fireLocked();
         if (opts.onFragment) { try { opts.onFragment([], { shrank: true, sealedOnly: true, runs: sealedSoloRuns }); } catch (e) {} }
       } else if (ids.length || !list.length) sealedSoloRuns = 0;
       if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)) {
