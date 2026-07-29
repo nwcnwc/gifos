@@ -856,7 +856,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pg = await ctx.newPage();
     pg.on('console', (m) => { if (m.type() === 'error') console.log('  [' + label + ']', m.text()); });
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html#' + hash);
+    // DEBUG=on: the admin scenario needs the raw relay-send hook to prove the
+    // SERVER's gate independently of the client's (see the setpw legs below).
+    await pg.goto(BASE + '/meet.html#' + hash + '&DEBUG=on');
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
   };
@@ -920,7 +922,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.locator('#pw-new').fill('hax');
   await beth.locator('#pw-save').click();
   await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
-  check('relay refuses a non-admin setpw (admins only)', true);
+  check('a non-admin setpw is refused (admins only)', true);
+  // …and the refusal must not have re-keyed HER: a client that adopts a
+  // password the room rejected seals itself out of its own room (the fork
+  // this leg caught, 2026-07-29). She keeps the room's password and her pair.
+  check('…and the refused attempt leaves her key untouched',
+    (await beth.evaluate(() => window.__gifosVideo.roomPw())) !== 'hax');
+  // The RELAY's own gate is proven independently of the client's — a raw
+  // setpw with no admin signature is refused at the door (this is what the
+  // client guard above now prevents the UI from ever sending).
+  await beth.evaluate(() => window.__gifosVideo.relaySend({ t: 'setpw', pw: 'raw-hax', by: 'beth' }));
+  await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  check('the relay itself refuses an unsigned setpw (server-side gate intact)', true);
 
   // ADMIN ROOMS: with an admin PRESENT, each tile is clear iff its OWN owner
   // consents (camera on + None) — no unanimity, no room-wide guest blur.

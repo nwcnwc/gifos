@@ -4624,6 +4624,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!confirm('Clearing the password opens this room to anyone — and DELETES the ' + n + ' file' + (n > 1 ? 's' : '') + ' shared here, for everyone. Continue?')) return;
           purgeAllFiles(true);
         }
+        // A ROOM I CANNOT RE-KEY MUST NOT RE-KEY *ME* (2026-07-29). In an
+        // admin room the relay refuses a non-admin's setpw — correctly — but
+        // this handler used to store the new password and rotate the local
+        // key REGARDLESS, so the refused member sealed everything under a
+        // password nobody else had: unreadable to the room, the room
+        // unreadable to her, her pair dead, and both sides compacted to
+        // their own solo seat. A self-inflicted fork on a REJECTED order.
+        // (Reachable only past the disabled button — the e2e admin suite
+        // does exactly that to prove the relay refuses — but a client must
+        // never eject itself on an order it knows it cannot issue.)
+        if (hasAdminRoom() && !amAdmin) {
+          setStatus('⛔ admins only: this room’s password is managed by its admin'); // same words the relay refuses with — one message for one rule
+          pwModal.style.display = 'none';
+          return;
+        }
         storePw(v);
         net.meetPwProof(room, av, roomPw).then(async (pr) => {
           pwProof = pr;
@@ -8724,6 +8739,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       mainAudioSending: (pid) => { const p = peers.get(pid); return !!(p && p.mainA && p.mainA.track); },
       room: () => room,
       roomPw: () => roomPw,
+      // DEBUG: put a raw object on the relay socket. The client refuses to
+      // SEND orders it knows it cannot issue (a non-admin setpw), so proving
+      // the RELAY's own gate needs a path around the client's — this is it.
+      relaySend: (o) => { if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' }; relaySendObj(o); return { ok: true }; },
       micEnabled: () => !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
       chatTexts: () => Array.from(chat.values()).sort((a, b) => a.at - b.at).map((m) => m.text),
       chatLinks: () => Array.from(chat.values()).map((m) => m.link).filter(Boolean),
