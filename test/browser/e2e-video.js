@@ -81,6 +81,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const rem = document.querySelector('.tile:not(.me) video');
         const av = window.__gifosVideo.avStats ? await window.__gifosVideo.avStats() : [];
         return { ownW: me ? me.videoWidth : null, remW: rem ? rem.videoWidth : null,
+          gumErr: window.__gumBootErr || null,
           video: av.filter((s) => s.kind === 'video').map((s) => s.dir + ' bytes=' + s.bytes + ' ' + (s.fdec != null ? 'fdec=' + s.fdec : 'fenc=' + s.fenc)) };
       }).catch((err) => String(err).slice(0, 120));
       console.log('  [video:69 forensics] ' + nm + ': ' + JSON.stringify(st));
