@@ -979,10 +979,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.evaluate(() => document.getElementById('blur-none').click()); // Beth consents
   // Admin present + Beth consents + password → Beth clears on adam's screen,
   // even though adam himself hasn't consented (no unanimity needed).
-  await adam.waitForFunction(() => {
-    const t = document.querySelector('.tile:not(.me)');
-    return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
-  }, null, { timeout: 12000 });
+  try {
+    await adam.waitForFunction(() => {
+      const t = document.querySelector('.tile:not(.me)');
+      return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
+    }, null, { timeout: 12000 });
+  } catch (e) {
+    // WHICH HALF? Beth's own state (did the consent land: myBlur 0, outbound
+    // raw) vs its propagation (the classes on Adam's tile) vs the pair itself
+    // — plus both pw ledgers, so a door-challenge re-entry racing the consent
+    // is visible, never guessed at.
+    for (const [nm, pg] of [['adam', adam], ['beth', beth]]) {
+      const st = await pg.evaluate(() => {
+        const g = window.__gifosVideo;
+        const tiles = Array.from(document.querySelectorAll('.tile:not(.me) video')).map((v) => v.className);
+        const me = document.querySelector('.tile.me video');
+        return { myBlur: g.myBlur ? g.myBlur() : null, out: g.outboundKind ? g.outboundKind() : null,
+          pw: g.roomPw(), parts: g.participants(), ownW: me ? me.videoWidth : null, tiles,
+          admins: g.adminsHere ? g.adminsHere().length : null, pwLog: (window.__pwLog || []).slice(-6) };
+      }).catch((err) => String(err).slice(0, 120));
+      console.log('  [consent forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+    throw e;
+  }
   check('with an admin present, a consenting guest goes clear on her own — no unanimity', true);
   await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
   check('…and she broadcasts raw', true);
