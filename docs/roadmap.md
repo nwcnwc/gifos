@@ -1111,11 +1111,39 @@ Current formats, unchanged (router: `site/404.html:55–74`, mirrored in
 | Entry | Public URL | Boots | Components ON at start |
 |---|---|---|---|
 | App | `/join/<code>` | `run.html#j=<code>` | app; A/V off, chat off |
-| App (owned) | `/join/<room>/<verifier>/<code>` | `run.html#s=<room>.<verifier>&k=<code>` | app, owner-authoritative; A/V off |
+| App (owned) | `/join/<app-shortname>/<verifier>/<code>` | `run.html#s=<shortname>.<verifier>&k=<code>` | app, owner-authoritative; A/V off |
 | App (own desktop) | — | `run.html#id=<fileId>` | app, solo — no room until Invite |
 | Meeting | `/meet/<room>` | `meet.html#v=<room>` | A/V + chat; no app until "Run app" |
 | Meeting (admin) | `/meet/<room>/<verifier>` | `meet.html#v=<room>&av=<verifier>` | A/V + chat + admin authority |
 | Meeting (fresh) | `/meet` (bare) | `meet.html` — mints a room | A/V + chat |
+
+**DO NOT LOSE: the app's shortname IS the room segment.** An owned app link reads
+`gifos.app/join/chess/<verifier>/<code>` — the room is `slug(manifest.shortName)`
+(`runtime.js:1892–1893`, `slug()` at `:88`), so an invite is *self-describing*:
+you can see what you're being invited to before you tap it. That is app-side
+flavor a meeting has no equivalent of (a meeting room id is user-chosen or
+minted), and the unification must carry it over verbatim rather than replace it
+with an opaque mesh room id. Three parts of it are load-bearing:
+
+- **`-anon` on unsigned apps is a SECURITY rule, not cosmetics.** The room is
+  `slug(signed ? shortName : shortName + '-anon')` — an unsigned GIF could claim
+  any name, so it can never mint a clean branded URL. `/join/chess/…` means the
+  bytes are signed; an unsigned app claiming "Chess" gets `/join/chess-anon/…`.
+  Same doctrine as the identity pill, which is only shown when signed
+  (`desktop.js:584`). Keep the suffix, keep it tied to signature state.
+- **`slug()`'s invariants are router invariants.** Lowercase, non-alnum → hyphen,
+  ≤40 chars, and guaranteed to contain a letter/digit so it is "never empty or
+  all-hyphens" and a room can never be mistaken for a bare verifier segment
+  (`runtime.js:86–91`) — the `404.html:55` path regex distinguishes segments by
+  shape. Any new room-minting path must reproduce these or the router silently
+  mis-parses links.
+- **The self-healing shape has no shortname by design** — `/join/<code>` is the
+  whole capability (`runtime.js:94`), nothing to brand. Don't "fix" this into a
+  named room; the anonymity is the point.
+
+The clean end state is that a room id may be *derived from an app* (shortname +
+verifier) or *chosen/minted by a person* (meeting), and the runtime does not care
+which — same object, two naming conventions, both readable in the URL.
 
 `/call/…` remains a permanent alias for `/meet/…` (`404.html:33`). The link is a
 **secret capability** either way — the client derives the session id, token, and
