@@ -4052,25 +4052,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // alone (a healthy room never qualifies).
         onFragment: (ids, finfo) => {
           if (participantCount() > 1) return;
-          // KEY-DIVERGENCE FALLBACK (caught live 2026-07-29): a fragment
-          // suspect whose door serves ONLY unreadable blobs, repeatedly, is
-          // split from a live other half by a KEY DIVIDE (one side lost or
-          // rotated the password mid-churn) \u2014 no dial can cross it. The
-          // persisted credential (pwEpoch persistence) makes a reload
-          // re-derive the right key and re-converge: after ~4 consecutive
-          // sealed-only replies (~30s of provable divergence), take the
-          // capped reload (once per 90s, like every rescue).
-          if (finfo && finfo.sealedOnly) {
-            if (finfo.runs >= 4) {
-              const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
-              if (Date.now() - last >= 90000) {
-                try { sessionStorage.setItem('gifos_fragrescue', String(Date.now())); } catch (e) {}
-                if (typeof clog === 'function') clog('frag key-divergence reload (runs=' + finfo.runs + ')');
-                location.reload();
-              }
-            }
-            return;
-          }
+          // KEY DIVERGENCE \u2014 the wire owns this one now: repeated sealed-only
+          // door replies while solo mean I hold a STALE KEY GENERATION, and
+          // the wire fires the R6 password challenge (mesh-wire, Nathan's law
+          // 2026-07-29). A reload was the first answer here and it was WORSE
+          // than the disease: it re-derives the right key, yes, but it also
+          // DESTROYS this page's unsent state \u2014 the run that proved the
+          // challenge works also showed the racing reload wiping a tombstone
+          // the user had just made, so the room kept a file she had deleted.
+          // Typing the password re-enters through startMesh with chat, files
+          // and tombstones intact. Nothing to do here but stand down.
+          if (finfo && finfo.sealedOnly) return;
           // stale-evidence gate: a blob from an identity I have TOMBSTONED
           // (a churned reload's corpse) is not proof of a live room — under
           // a reload mash both sides rescue-looped on each other's stale
