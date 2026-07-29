@@ -451,7 +451,13 @@
       if (!pool.length) return null;
       return pool[(this.rng() * pool.length) | 0];
     }
-    s1Roster() { const out = []; if (this.hasCoord && this.coord.pc === 0) out.push({ k: ck(this.coord), v: this.id }); for (const [k, v] of this.occ) if (isS1key(k) && v !== this.id && this.s1Fresh(k)) out.push({ k, v }); return out; }
+    // A standing-translost occupant is UNREACHABLE-PENDING-PROBE: handing it to
+    // a newcomer as a gateway/FIND target wastes their whole retry window (the
+    // honest answer is silence, not a corpse). Root cause of the unban-rejoin
+    // wedge (2026-07-29): a banned member's seat sat in the survivor's HOME
+    // roster between translost and the D5 confirm, the newcomer coin-flipped
+    // onto the corpse, and the void FIND cost the full state-2 window.
+    s1Roster() { const out = []; if (this.hasCoord && this.coord.pc === 0) out.push({ k: ck(this.coord), v: this.id }); for (const [k, v] of this.occ) if (isS1key(k) && v !== this.id && this.s1Fresh(k) && !this.translost.has(k)) out.push({ k, v }); return out; }
 
     // ---- S4 identity hook (seam) --------------------------------------------
     // verifyFill(msg): is this occupancy-changing frame (PLACE / CLAIM /
@@ -1601,7 +1607,15 @@
         if (this.forkProbe) this.maybeResolveFork(); // R5: settle multi-greeter HOME collection
         if (this.forkPaused) { this.wake(); return; } // waiting on human pick-one
         if ((this.state === 0 || this.state === 1) && TICK - this.retryAt > 20) this.join();
-        else if (this.state === 2 && TICK - this.retryAt > 60) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
+        // Graded state-2 retry, SOLE-CANDIDATE ONLY: with exactly one live
+        // greeter to ask there is no second admission chain to race, so a void
+        // FIND may re-ask after 12 ticks instead of 60 — before this, one
+        // swallowed FIND cost a human 30 seconds of "Just you" in a 2-person
+        // room (the unban-rejoin wedge, 2026-07-29). With MULTIPLE candidates
+        // the full window stands: a fast re-pick abandons a merely-SLOW
+        // admitter hand-off chain mid-walk and the twin PLACE races leave
+        // shape holes (sim join-patterns N=9-11 serial caught exactly that).
+        else if (this.state === 2 && TICK - this.retryAt > ((this.seatTries === 0 && this.roster.filter((e) => e.v !== this.id).length === 1) ? 12 : 60)) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
         this.wake(); return;
       }
       if (this.evil) this.attack();

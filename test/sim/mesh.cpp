@@ -209,6 +209,7 @@ struct Seat {
   long long compactAt=0;                       // Q2: next tick this leaf may probe for a shallower seat
   int lastChurn=0;                             // Q2 hysteresis: last tick my neighbourhood churned (a LEAVE/heal/move nearby) — compaction waits for local quiescence
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
+  unordered_set<int> triedSilent;             // per-join-attempt silent-target marks (pickRoster) — sim parity with mesh.js
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
     uint64_t z=((uint64_t)i+1)*0x9e3779b97f4a7c15ull; z=(z^(z>>30))*0xbf58476d1ce4e5b9ull; z=(z^(z>>27))*0x94d049bb133111ebull; myKey=(z^(z>>31))|1ull; }   // per-seat throwaway genesis key (nonzero)
@@ -338,10 +339,14 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
-  void askSeat(int target){ state=2; retryAt=(int)TICK; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
-  int pickRoster(){ vector<int> live_; for(auto&e:roster) if(e.v!=id) live_.push_back(e.v); if(live_.empty()) return -1; return live_[(int)(rng()*live_.size())]; }
-  vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first)) out.push_back({e.first,e.second}); } return out; }
+  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void askSeat(int target){ state=2; retryAt=(int)TICK; triedSilent.insert(target); Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
+  // Random pick spreads door load — but never re-pick a target that has already
+  // proven SILENT this join (a dark member's cell costs a full retry window per
+  // void FIND). Any answer lifts the mark; all-marked falls back to the full set.
+  // (Ported from mesh.js pickRoster — this closed the sim-parity TODO.)
+  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
+  vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first) && !translost.count(e.first)) out.push_back({e.first,e.second}); } return out; }  // a standing-translost occupant is UNREACHABLE-PENDING-PROBE: handing it to a newcomer as a gateway wastes their whole retry window (the honest answer is silence, not a corpse)
 
   void take(Coord c,int owner,vector<KV>&nbrs);
   void announce();

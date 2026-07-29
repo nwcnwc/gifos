@@ -66,7 +66,7 @@ void Seat::admit(Coord c,Msg& f){
   }
 }
 void Seat::serveFind(Msg& mm){
-  if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
+  if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   if(coord.pc==0){
     // H7 ROW-FILL seating (replaces the old column backfill): Section 1 fills
     // ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first C people
@@ -220,7 +220,7 @@ void Seat::serveFind(Msg& mm){
     // path when home's free cells look unservable FAST-TRACKS SILENT DEATH past
     // the H1-S1 ring-hold (headless-row leg C), and it buys nothing: the
     // partitioned half recovers on the reachable-forward fix below alone.
-    if(s1admFree>0){ Msg m;m.t=NOROOM; emit(mm.nc,m); return; }
+    if(s1admFree>0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){ admit(f,mm); return; }
   // Descend — but NEVER into the void. The S1 hand-off above is careful to pick
@@ -244,7 +244,7 @@ void Seat::serveFind(Msg& mm){
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
       if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
-  Msg m;m.t=NOROOM; emit(mm.nc,m);
+  Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
 }
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
 // the seeker's OWN up-chain — every hop an ALIVE link (row → head → owner) — and
@@ -814,7 +814,7 @@ void Seat::recv(Msg& m){
         bool trailing=true; for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0){ trailing=false; break; }   // re-validate clean departure (a row-mate may have arrived while the PLACE routed)
         if(trailing){ COMPACT_MOVES++; doMove(m.coord,m.owner,m.nbrs); } }   // a contested destination is caught by E2 → rollbackMove (law T: never homeless)
       return;
-    case NOROOM: if(state==2){ retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
+    case NOROOM: if(state==2){ triedSilent.erase(m.id); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;  // an answer (even a refusal) lifts the silent mark
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
@@ -936,7 +936,7 @@ void Seat::leave(){ alive[id]=0; active.erase(id); moving=false; leaseCk=0; leas
 void Seat::tick(){
   if(!alive[id]){ return; }
   if(state!=3){ if(stranded){ if(TICK-strandedAt>STRAND_TTL){ stranded=false; lastReach=-1; joinStart=-1; join(); } wake(id); return; }   // R6: stranded shows "network settings won't let you connect", but the client RETRIES after a backoff — if a greeter is now reachable (e.g. my side's pool stabilised after a partition) I re-seat; a genuinely cut-off seat just strands again.
-    if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2&&TICK-retryAt>60){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } wake(id); return; }
+    if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>((seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } } wake(id); return; }
   if(evil) attack();
   // T: transit bookkeeping — a claim window that closes with NO contradiction
   // CONFIRMS (a wiped region has nobody to answer; a contradiction would have
