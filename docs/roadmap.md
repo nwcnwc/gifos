@@ -1169,6 +1169,41 @@ permission or a mode toggle: the app is the room (pinned) or the room hosts apps
 `if (entryPoint === 'join')` sprinkled through the UI — the runtime should read
 one flag and hide or show the whole mount/unmount surface accordingly.
 
+**The same rule runs the other way: each entry pins its OWN defining component.**
+Symmetric with the app slot above —
+
+- **Meeting entry (`/meet/…`) — A/V + chat are PINNED.** The media plane cannot
+  be torn down; a `/meet/…` link must always land in something that is a meeting.
+  The app slot is free (above).
+- **App entry (`/join/…`) — A/V + chat are FREE.** Mount and unmount them at
+  will: an app-share is silent by default and can light up a call, then drop back
+  to silence, without ever ceasing to be that app's room. The app slot is pinned
+  (above).
+
+So each entry point pins exactly the component its URL promises and leaves the
+other fully swappable. Neat, and it means the runtime needs just two traits at
+mint time — `appPinned` and `mediaPinned` — rather than a set of per-entry
+special cases.
+
+**CRITICAL carve-out: "pinned" is a ROOM-level affordance, never a per-person
+obligation.** Pinning A/V must mean *the media plane stays available* — tiles,
+Stage, the ability to turn a camera on — and must NEVER mean a participant has to
+transmit. Per-person mute, camera-off, and blur stay freely controllable on every
+entry point, always. That is a privacy invariant, not a component toggle:
+participants **arrive blurred by default** (`meet.html:2293` — "blurred-by-default
+is the privacy"; `:7800` — "they arrive blurred"), and a camera nobody chose to
+enable is the normal resting state of a meeting. A rule that read "cannot unmount
+A/V" as "cannot stop transmitting" would invert the consent doctrine outright, so
+the trait must be defined at the plane, not the participant. Note this also makes
+"pinned A/V" a genuinely weaker claim than "pinned app": a meeting where everyone
+is muted and dark is still a meeting, whereas an app-room with no app is nothing.
+
+Consequence worth stating: a `/meet/…` room whose participants are all silent and
+dark, running an app, is *functionally* an app-share — and that is fine. The
+difference that survives is identity, not appearance: it keeps its meeting URL,
+its app stays swappable, and it never adopts the app's `/join/<shortname>/…`
+address.
+
 Two follow-ons this creates:
 - **Owner-leaves on a pinned room** has no "fall back to a plain meeting" escape
   the way a meeting-app does — the room cannot outlive its app. Whatever the
