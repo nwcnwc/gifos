@@ -1043,7 +1043,24 @@ async function openApp(page, ctx, folder, label) {
   catch (e) {
     console.log('  (dblclick never opened a tab — capturing the app URL from the page\'s own open call; the Back trap is still the subject)');
     await backPage.evaluate(() => { window.__openUrls = []; window.open = (u) => { window.__openUrls.push(String(u)); return null; }; });
-    await backPage.locator('.icon', { hasText: 'BackTest.gif' }).first().dblclick();
+    try {
+      await backPage.locator('.icon', { hasText: 'BackTest.gif' }).first().dblclick();
+    } catch (e2) {
+      // The FALLBACK dblclick retrying forever = actionability failing = the
+      // icon is COVERED. Name the coverer (gate-box red, e2e.js:1046 family).
+      const cover = await backPage.evaluate(() => {
+        const ic = Array.from(document.querySelectorAll('.icon')).find((el) => el.textContent.includes('BackTest.gif'));
+        if (!ic) return { icon: 'GONE' };
+        const r = ic.getBoundingClientRect();
+        const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        const path = []; let el = top;
+        while (el && path.length < 5) { path.push(el.tagName + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').slice(0, 2).join('.') : '')); el = el.parentElement; }
+        return { rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }, elementAtCenter: path };
+      }).catch((err) => String(err).slice(0, 150));
+      console.log('  [backtrap forensics] icon coverage: ' + JSON.stringify(cover));
+      try { await backPage.screenshot({ path: '/tmp/backtrap-fail.png' }); console.log('  [backtrap forensics] screenshot: /tmp/backtrap-fail.png'); } catch (e3) {}
+      throw e2;
+    }
     await backPage.waitForFunction(() => window.__openUrls && window.__openUrls.length > 0, null, { timeout: 10000 });
     const href = await backPage.evaluate(() => window.__openUrls[0]);
     backApp = await context.newPage();

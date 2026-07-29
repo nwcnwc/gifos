@@ -66,10 +66,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('creator ↔ joiner P2P media link is live on both ends', true);
 
   // remote video actually renders frames (media flows P2P, not via relay)
-  await bPage.waitForFunction(() => {
-    const v = document.querySelector('.tile:not(.me) video');
-    return v && v.videoWidth > 0 && !v.paused;
-  }, null, { timeout: 15000 });
+  try {
+    await bPage.waitForFunction(() => {
+      const v = document.querySelector('.tile:not(.me) video');
+      return v && v.videoWidth > 0 && !v.paused;
+    }, null, { timeout: 15000 });
+  } catch (e) {
+    // Forensics (red on both boxes 2026-07-28): is it CAPTURE (own tile dead —
+    // the box's fake-video transient), TRANSMIT (no video m-line / no bytes
+    // sent), or RECEIVE (bytes arrive, nothing renders)?
+    for (const [nm, pg] of [['ada', aPage], ['bob', bPage]]) {
+      const st = await pg.evaluate(async () => {
+        const me = document.querySelector('.tile.me video');
+        const rem = document.querySelector('.tile:not(.me) video');
+        const av = window.__gifosVideo.avStats ? await window.__gifosVideo.avStats() : [];
+        return { ownW: me ? me.videoWidth : null, remW: rem ? rem.videoWidth : null,
+          video: av.filter((s) => s.kind === 'video').map((s) => s.dir + ' bytes=' + s.bytes + ' ' + (s.fdec != null ? 'fdec=' + s.fdec : 'fenc=' + s.fenc)) };
+      }).catch((err) => String(err).slice(0, 120));
+      console.log('  [video:69 forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+    throw e;
+  }
   check('joiner renders live remote video frames', true);
 
   // ---------- third participant → mesh grows, quality steps down ----------
