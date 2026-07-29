@@ -122,6 +122,9 @@ run "browser — E5 friend-relay reunion after ICE split" \
 run "browser — R5 fork pick-one (real modal)" \
     node test/drills/e2e-r5-fork-pick.js
 
+run "browser — 2-person fork heal (sever, dial-first reunion in seconds)" \
+    node test/drills/e2e-fork-heal.js
+
 run "browser — redundant path failover (redun-drill)" \
     node test/drills/redun-drill.js
 

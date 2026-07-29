@@ -2824,7 +2824,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (alts.length) handoff(peers.get(alts[0]));
       }
     }
+    // DEBUG sever (see severPair): while a pid is severed, every frame to or
+    // from it is dropped — a partition in miniature for the fork drill.
+    const isSevered = (pid) => DEBUG_ON && window.__severed && (window.__severed.get(pid) || 0) > Date.now();
     const sendSig = (to, msg) => {
+      if (isSevered(to)) return;
       // STATUS gossip — the every-few-seconds pulse that is nearly all of a
       // quiet meeting's traffic — prefers the pair's own DataChannel: the relay
       // is a hibernated Durable Object that is WOKEN AND BILLED for every frame
@@ -3195,6 +3199,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
 
     function onSignal(from, msg, adm) {
+      if (isSevered(from)) return; // DEBUG sever — see severPair
       if (!msg || !msg.kind) return;
       msg = sigSansIce(from, msg); // fault injection: a blocked pair yields nothing
       if (!msg) return;
@@ -4048,6 +4053,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // evidence is ONE corpse id.
           const all = Array.isArray(ids) ? ids : [];
           const live = all.filter((id) => !meshGone.has(id));
+          // SHRANK + exactly ONE door id = the 2-person fork shape, whatever
+          // the local tombstone says (the confirm may or may not have landed
+          // yet) — and the DIAL beats the reload every time it can work: it
+          // is non-destructive (no state reset), seconds not tens of seconds,
+          // and silence from a corpse costs one no-op offer. The reload stays
+          // below for the F8 multi-id majority rescue.
+          if (finfo && finfo.shrank && all.length === 1) { fragRescue(all[0]); return; }
           if (!live.length && all.length < 2) {
             // THE 2-PERSON FORK GAP (2026-07-29): this gate's one-corpse case
             // is ALSO exactly a fork's other half \u2014 creator leaves, the
@@ -4055,14 +4067,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // compacts onto the other's seat: two solo rooms forever, and the
             // door evidence is one tombstoned id, indistinguishable from the
             // 08a corpse BY THE BLOB ALONE. Two facts break the tie without
-            // any relay protocol change: (1) finfo.shrank \u2014 THIS page watched
-            // a populated room collapse (a reload-mash newborn never did);
-            // (2) the relay routes targeted envelopes only to CONNECTED
-            // sockets, so DIALING the id is a liveness oracle \u2014 a lingering
-            // corpse blob never answers the offer, a live fork half pairs
-            // and the heal IS the pairing (see fragRescue). The worst a
-            // malicious room-keyed member buys is one no-op dial per 15s.
-            if (finfo && finfo.shrank && all.length === 1) fragRescue(all[0]);
+            // any relay protocol change: the shrank single-id case is handled
+            // ABOVE (dial-first); what remains here is the non-shrank
+            // one-corpse evidence \u2014 the 08a reload-mash corpse \u2014 which stays
+            // gated exactly as before.
             return;
           }
           const last = +sessionStorage.getItem('gifos_fragrescue') || 0;
@@ -5090,6 +5098,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
     }
     function onDc(p, dc, m) {
+      if (p && p.id && isSevered(p.id)) return; // DEBUG sever — see severPair
       // ANY DataChannel receive is FIRST-HAND transport proof (peer-instance
       // regression report, 2026-07-27): the starve edge keyed on MESH
       // receives alone, so a healthy-but-quiet pair (a 2-person room with a
@@ -8456,6 +8465,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         newPcFor(p);
         if (iInitiate(pid)) sendOffer(pid, false);
         return { ok: true, rebuilt: String(pid).slice(0, 8) };
+      },
+      // DEBUG: SEVER a pair — kill the transport AND drop every frame to/from
+      // that peer for `ms` (a one-sided partition in miniature; one side
+      // severing blocks the pair completely). The deterministic manufacture
+      // of the 2-PERSON FORK: sever long enough for confirm + compaction,
+      // lift, and the fork-heal machinery must reunite the halves in seconds.
+      severPair: (pid, ms) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        window.__severed = window.__severed || new Map();
+        window.__severed.set(pid, Date.now() + (ms || 20000));
+        const p = peers.get(pid);
+        if (p) { try { p.dc && p.dc.close(); } catch (e) {} try { p.pc && p.pc.close(); } catch (e) {} }
+        return { ok: true, severed: String(pid).slice(0, 8), ms: ms || 20000 };
       },
       // rekeyAt: when the CURRENT key actually took over (0 = never rotated
       // this page-life). storePw flips .pw BEFORE the async derive completes,

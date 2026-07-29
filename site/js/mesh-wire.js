@@ -254,6 +254,17 @@
     // S4-off nodes pass straight through — the structural path is untouched.
     function ingest(m) {
       if (stopped || !seat || !m) return;
+      // DEBUG sever (drill lever, mirrors the app's severPair): drop MESH
+      // frames whose sender fields name a severed pid — without this, seat
+      // liveness rides the wire's own relay fallback beneath the app-level
+      // drops and a manufactured partition leaks (the pair never starves).
+      try {
+        const sv = (typeof window !== 'undefined') && window.__severed;
+        if (sv && sv.size) {
+          const now = Date.now();
+          for (const f of [m.id, m.from, m.asker, m.via, m.rvia]) if (f != null && (sv.get(f) || 0) > now) return;
+        }
+      } catch (e) {}
       try { if (typeof window !== 'undefined') { const t = (window.__mwRx = window.__mwRx || {}); t[m.t] = (t[m.t] || 0) + 1; } } catch (e) {} // DEBUG-TREE: per-type ingest counter
       if (s4on && SIGNED.has(m.t)) {
         verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
