@@ -8753,7 +8753,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // suspicion and recent door replies (which link of the chain broke).
         frag: { pinged: fragPingId ? String(fragPingId).slice(0, 8) : null, agoMs: fragPingAt ? Date.now() - fragPingAt : null,
           pwEpoch: (typeof pwEpoch !== 'undefined') ? pwEpoch : null, pw: roomPw ? 'set' : '',
-          pwLog: (window.__pwLog || []).slice(-8),
+          pwLog: (window.__pwLog || []).slice(),
           wire: (meshNode && meshNode.fragState) ? meshNode.fragState() : null },
       }),
       hasAdmin: () => hasAdminRoom(),
