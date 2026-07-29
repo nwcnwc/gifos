@@ -814,7 +814,17 @@ void Seat::recv(Msg& m){
         bool trailing=true; for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0){ trailing=false; break; }   // re-validate clean departure (a row-mate may have arrived while the PLACE routed)
         if(trailing){ COMPACT_MOVES++; doMove(m.coord,m.owner,m.nbrs); } }   // a contested destination is caught by E2 → rollbackMove (law T: never homeless)
       return;
-    case NOROOM: if(state==2){ triedSilent.erase(m.id); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;  // an answer (even a refusal) lifts the silent mark
+    // An answer (even a refusal) lifts the silent mark — for the chain-tail
+    // that AUTHORED it (m.id) and for the target I ASKED (lastAsked): a FIND
+    // that descends is answered by a descendant, and erasing only the author
+    // left every successfully-FORWARDING admitter permanently marked. Under a
+    // join storm the retries then scattered AWAY from the funnel admitters and
+    // deep sections filled row 1 before row 0 (H7 dense-fill broken — hchain E
+    // + c-sweep, 2026-07-29). A corpse still answers NOTHING, so its mark
+    // stands — the corpse-avoid win is untouched. (A late NOROOM from a
+    // superseded ask can lift the CURRENT target's mark early; that errs
+    // toward the old behavior — one wasted re-pick — never toward a wedge.)
+    case NOROOM: if(state==2){ triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.

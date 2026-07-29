@@ -499,7 +499,7 @@
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
+    askSeat(target) { this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
     // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
     static forkFaceList(sample) {
       if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
@@ -1468,7 +1468,14 @@
             if (trailing) { this.compactMoves++; this.doMove(m.coord, m.owner, m.nbrs); }
           }
           return;
-        case 'NOROOM': if (this.state === 2) { if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
+        // The refusal lifts the silent mark for its AUTHOR (m.id) and for the
+        // target I ASKED (lastAsked): a descending FIND is answered by a
+        // descendant, and erasing only the author left every successfully-
+        // FORWARDING admitter permanently marked — join-storm retries then
+        // scattered away from the funnel and deep sections filled row 1 before
+        // row 0 (H7 dense-fill broken; sim hchain E + c-sweep, 2026-07-29). A
+        // corpse answers NOTHING, so its mark stands — corpse-avoid untouched.
+        case 'NOROOM': if (this.state === 2) { if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); if (this.triedSilent && this.lastAsked != null) this.triedSilent.delete(this.lastAsked); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.

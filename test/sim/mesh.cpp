@@ -210,6 +210,7 @@ struct Seat {
   int lastChurn=0;                             // Q2 hysteresis: last tick my neighbourhood churned (a LEAVE/heal/move nearby) — compaction waits for local quiescence
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   unordered_set<int> triedSilent;             // per-join-attempt silent-target marks (pickRoster) — sim parity with mesh.js
+  int lastAsked=-1;                            // the target of my outstanding FIND — ANY answer to the ask proves ITS chain alive, not just the chain-tail that authored the reply
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
     uint64_t z=((uint64_t)i+1)*0x9e3779b97f4a7c15ull; z=(z^(z>>30))*0xbf58476d1ce4e5b9ull; z=(z^(z>>27))*0x94d049bb133111ebull; myKey=(z^(z>>31))|1ull; }   // per-seat throwaway genesis key (nonzero)
@@ -340,7 +341,7 @@ struct Seat {
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
   void join(){ state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
-  void askSeat(int target){ state=2; retryAt=(int)TICK; triedSilent.insert(target); Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
+  void askSeat(int target){ state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.
