@@ -1099,6 +1099,36 @@ app-shares on the same footing. That doc's §6 notes the relay app-broadcast is
   (`runtime.js:1288,2049`) and the owned-app host gate / epoch race
   (`relay.js:390–422`) give way to mesh seat healing + owner-key authority.
 
+**Two entry points, ONE runtime.** Unifying the runtime does NOT mean collapsing
+the URLs. `/join/…` and `/meet/…` both stay, both keep their current formats, and
+both boot the same object — **the entry point only decides which components are
+ON at start.** After boot they are the same runtime and can converge: a
+`/join/…` room can light up A/V, a `/meet/…` room can mount an app on the Stage.
+
+Current formats, unchanged (router: `site/404.html:55–74`, mirrored in
+`site/index.html:96`):
+
+| Entry | Public URL | Boots | Components ON at start |
+|---|---|---|---|
+| App | `/join/<code>` | `run.html#j=<code>` | app; A/V off, chat off |
+| App (owned) | `/join/<room>/<verifier>/<code>` | `run.html#s=<room>.<verifier>&k=<code>` | app, owner-authoritative; A/V off |
+| App (own desktop) | — | `run.html#id=<fileId>` | app, solo — no room until Invite |
+| Meeting | `/meet/<room>` | `meet.html#v=<room>` | A/V + chat; no app until "Run app" |
+| Meeting (admin) | `/meet/<room>/<verifier>` | `meet.html#v=<room>&av=<verifier>` | A/V + chat + admin authority |
+| Meeting (fresh) | `/meet` (bare) | `meet.html` — mints a room | A/V + chat |
+
+`/call/…` remains a permanent alias for `/meet/…` (`404.html:33`). The link is a
+**secret capability** either way — the client derives the session id, token, and
+E2E key from the code and the relay never sees it ("derive, don't send"). The one
+real difference to reconcile is the **derivation**: app links use `deriveJoin`,
+meetings use `deriveMeet` (`gifos-net.js:299,321`), so moving `/join/…` onto a
+mesh room is a `DS`-tagged **flag day** — old and new clients land in different
+relay sessions. Sequence it as one, do not straddle.
+
+Longer term `run.html` and `meet.html` collapse into one page that reads its
+starting component set from the hash; until then, keep both files thin wrappers
+over the shared `mesh-app.js` node so the divergence stays cosmetic.
+
 **Ordering (each step shippable).**
 1. Delete the dead relay `gossip` handler. No behavior change.
 2. `mesh-app.js` — extract the headless node; `meet.html` consumes it unchanged.
