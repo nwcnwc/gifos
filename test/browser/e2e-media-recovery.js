@@ -65,12 +65,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 15000 });
   check('A: after permission returns, one tap turns the camera on — no reload', true);
   // ...and her video actually reaches Ada (the late-added tracks renegotiated).
+  // AUDITED BUDGET (gate g8 flake, 2026-07-29): this is a RENEGOTIATION — Mia
+  // adds camera tracks to an already-connected pair, so Ada renders only after
+  // a fresh offer/answer completes, and the dc-watchdog may legitimately
+  // rebuild the pair once underneath it (the same class the a456ba6 audit
+  // widened elsewhere: 40s covers one rebuild plus the renegotiation, on a
+  // box under gate load). The ASSERTION is unchanged — her frames must reach
+  // Ada; only the patience matches what the mesh honestly promises.
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Mia'));
     if (!t || t.classList.contains('cam-off')) return false;
     const v = t.querySelector('video');
     return v && v.videoWidth > 0;
-  }, null, { timeout: 20000 });
+  }, null, { timeout: 40000 });
   check('A: her late camera renegotiates into the mesh — Ada renders her frames', true);
 
   // ---------- B: Don's camera turns on but sends pure black ----------

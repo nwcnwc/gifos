@@ -40,9 +40,17 @@ async function dblclickForTab(ctx, page, label) {
   let tab = null;
   for (let att = 0; att < 3 && !tab; att++) {
     try {
+      // WAIT FOR PAINT BEFORE EVERY ATTEMPT (gate g8 flake, 2026-07-29): the
+      // retry above re-clicked immediately, so all three attempts could land
+      // inside the same unpainted window on a loaded box — 3 × 10s of
+      // waitForEvent and a red that reads like a broken launcher. This is the
+      // very cause the comment above names; openApp's folder path already
+      // waits this way, the direct path did not.
+      const icon = page.locator('.icon', { hasText: label }).first();
+      await icon.waitFor({ state: 'visible', timeout: 15000 });
       [tab] = await Promise.all([
         ctx.waitForEvent('page', { timeout: 10000 }),
-        page.locator('.icon', { hasText: label }).first().dblclick(),
+        icon.dblclick(),
       ]);
     } catch (e) { if (att === 2) throw e; }
   }
