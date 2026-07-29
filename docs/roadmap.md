@@ -1145,6 +1145,41 @@ The clean end state is that a room id may be *derived from an app* (shortname +
 verifier) or *chosen/minted by a person* (meeting), and the runtime does not care
 which — same object, two naming conventions, both readable in the URL.
 
+**The app slot is PINNED or SWAPPABLE, decided by the entry point.** This is the
+other thing the entry point settles, and it follows directly from the naming
+rule above:
+
+- **App entry (`/join/…`) — the app is PINNED.** It cannot be unmounted, stopped,
+  or swapped for a different app. The room's whole identity is that app: its
+  shortname is in the URL, its owner key is the app-state authority, and guests
+  followed a link that named it. Unmounting would leave a room that no longer
+  matches its own address — an invite to `/join/chess/…` must always land in
+  chess. So no "stop sharing" affordance on this entry, and no app picker. A/V
+  and chat may still be switched on freely; only the app slot is fixed.
+- **Meeting entry (`/meet/…`) — the app slot is FREE.** Mount, unmount, and swap
+  apps at will over the life of the room, exactly as today (`runApp` /
+  `clearAppView` / `mountClientApp`, `meet.html:8136,8152,8205`). The room's
+  identity is the *meeting*; an app is a component passing through it, so
+  successive apps over one call is the normal case. Stopping a share returns to
+  a plain meeting rather than ending the room.
+
+So "can this app be unmounted?" is a **property of the room's identity**, not a
+permission or a mode toggle: the app is the room (pinned) or the room hosts apps
+(free). Worth encoding as an explicit room trait at mint time rather than an
+`if (entryPoint === 'join')` sprinkled through the UI — the runtime should read
+one flag and hide or show the whole mount/unmount surface accordingly.
+
+Two follow-ons this creates:
+- **Owner-leaves on a pinned room** has no "fall back to a plain meeting" escape
+  the way a meeting-app does — the room cannot outlive its app. Whatever the
+  host-heal answer is (S4/W7-gated, below), a pinned room needs one; a meeting
+  can always just drop the app and continue.
+- **A meeting mounting an app does NOT adopt that app's room identity** — the URL
+  stays `/meet/<room>`, the app rides the Stage lane as a component, and the
+  app's own owner key governs only its state. Mounting must never rewrite the
+  room's address to `/join/<shortname>/…`, or a swap would silently move
+  everyone.
+
 `/call/…` remains a permanent alias for `/meet/…` (`404.html:33`). The link is a
 **secret capability** either way — the client derives the session id, token, and
 E2E key from the code and the relay never sees it ("derive, don't send"). The one
