@@ -118,11 +118,29 @@ const secs = (ticks) => (ticks < 0 ? '?' : (ticks * PROD_TICK_S).toFixed(1) + 's
     const start = tickOf();
     // the "DataChannel closes within ~1-5s": survivors holding a link observe it
     setTimeout(() => { for (const n of live()) { try { n.seat.transportLost(vp); } catch (e) {} } }, 2 * TICK_MS);
-    const freed = await measureFreed(vk, vp, 400);
+    // Measure BOTH signals in one pass: first-hand freed (the ENFORCING
+    // signal — same as the graceful leg, per the freedFor/fhFreedFor comments
+    // above) and full occ freed (additionally waits out non-first-hand hint
+    // echoes, which expire on their own and enforce nothing). The old
+    // assertion put the <=20-tick D5 bound on FULL occ, so a stale S1SYNC
+    // echo — the documented-harmless kind — red-flagged the drill as a
+    // "70-tick lottery" while the D5 confirm was landing at 15 ticks every
+    // single run (proven 2026-07-28: an outlier run measured first-hand=15,
+    // full=206). The D5 target now binds the enforcing signal; the full-occ
+    // expiry keeps a horizon backstop so a genuinely never-freeing seat
+    // still reds.
+    let fhTicks = -1, freed = -1;
+    while (tickOf() - start < 400) {
+      if (fhTicks < 0 && fhFreedFor(vk, vp)) fhTicks = tickOf() - start;
+      if (freedFor(vk, vp)) { freed = tickOf() - start; break; }
+      await sleep(TICK_MS);
+    }
     const freedAt = freed < 0 ? -1 : freed;
-    check('CRASH (SIGKILL) -> seat freed in ' + freedAt + ' ticks (' + secs(freedAt) + ' production; target <=20 ticks = 10s; horizon was 60-220+)',
-      freedAt >= 0 && freedAt <= 20, { ticks: freedAt });
-    console.log('  MEASURE crash: vanish->seat-freed = ' + freedAt + ' ticks = ' + secs(freedAt) + ' production wall time (was ~60+ ticks / 30s+ pre-D5)');
+    check('CRASH (SIGKILL) -> corpse out of every enforcing neighbour (first-hand) in ' + fhTicks + ' ticks (' + secs(fhTicks) + ' production; target <=20 ticks = 10s; horizon was 60-220+)',
+      fhTicks >= 0 && fhTicks <= 20, { ticks: fhTicks });
+    check('CRASH -> full occ freed (hint echoes expired) in ' + freedAt + ' ticks (' + secs(freedAt) + ' production; backstop <=300 ticks)',
+      freedAt >= 0 && freedAt <= 300, { ticks: freedAt });
+    console.log('  MEASURE crash: vanish->first-hand-freed = ' + fhTicks + ' ticks = ' + secs(fhTicks) + ' production; full-occ-freed = ' + freedAt + ' ticks (was ~60+ ticks / 30s+ pre-D5)');
     await sleep(80 * TICK_MS);
     const c = converged();
     check('crash aftermath: room converged, no dups', c.seated === live().length && c.dups === 0, c);

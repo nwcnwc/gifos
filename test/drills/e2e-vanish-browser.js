@@ -88,11 +88,23 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   {
     const vPfx = String(victim.id).slice(0, 8);
     const watchers = users.filter((u) => u !== victim);
-    // find the victim chrome's OS pids via the unique mark, then SIGKILL them
-    const pids = require('child_process').execSync("pgrep -f -- '" + MARK + "' || true").toString().trim().split('\n').filter(Boolean).map(Number);
-    check('crash: found victim chrome pids via mark', pids.length > 0, { pids: pids.length });
+    // find the victim chrome's OS pids via the unique mark, then SIGKILL its
+    // WHOLE process tree. The mark only rides the browser LAUNCHER's cmdline —
+    // renderers don't inherit custom switches, and the renderer is where
+    // SCTP/WebRTC actually runs. Killing just the marked pids left an ORPHANED
+    // renderer whose DataChannels stayed up and kept ACKING PROBES: capture
+    // died with the browser process (tile went), but §HEARD rightfully read
+    // the probe-answering peer as alive and survivors held the seat until the
+    // orphan noticed its parent was gone — 23s on a good day, minutes on a
+    // loaded one (the g7 '-0.0s' red). The true ungraceful death is the tree.
+    const marked = require('child_process').execSync("pgrep -f -- '" + MARK + "' || true").toString().trim().split('\n').filter(Boolean).map(Number);
+    check('crash: found victim chrome pids via mark', marked.length > 0, { marked: marked.length });
+    const ptab = require('child_process').execSync('ps -eo pid=,ppid=').toString().trim().split('\n')
+      .map((l) => l.trim().split(/\s+/).map(Number));
+    const doomed = new Set(marked);
+    for (let grew = true; grew;) { grew = false; for (const [pid, ppid] of ptab) if (doomed.has(ppid) && !doomed.has(pid)) { doomed.add(pid); grew = true; } }
     const t0 = Date.now();
-    for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch (e) {} } // ungraceful: no unload handlers, no LEAVE
+    for (const pid of doomed) { try { process.kill(pid, 'SIGKILL'); } catch (e) {} } // ungraceful: no unload handlers, no LEAVE
     let freedMs = -1, tileMs = -1;
     while (Date.now() - t0 < 120000) {
       if (freedMs < 0) { const sees = await Promise.all(watchers.map((u) => seesPrefix(u, vPfx))); if (sees.every((s) => s === false)) freedMs = Date.now() - t0; }
@@ -104,14 +116,15 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
     // watching the victim's TCP socket die (~0.5s) -> D5 probe -> EARLY_HOLD
     // 6s -> confirm; desktop chromium's own pc state needs ~30s to reach
     // 'failed', which is why the pre-D5 path took the 30-40s+ horizon.
-    check('CRASH (SIGKILLed browser) -> mesh seat freed across survivors in ' + (freedMs / 1000).toFixed(1) + 's (target <=15s; pre-D5 30s+)',
+    const secs = (ms) => ms < 0 ? 'NEVER (>120s)' : (ms / 1000).toFixed(1) + 's'; // -1 is the unmeasured sentinel — never report it as '-0.0s'
+    check('CRASH (SIGKILLed browser tree) -> mesh seat freed across survivors in ' + secs(freedMs) + ' (target <=15s; pre-D5 30s+)',
       freedMs >= 0 && freedMs <= 15000, { freedMs });
     // The HUMAN-visible vanish must FOLLOW the mesh within a beat now (the
     // event-driven D2/D5 removal): pre-rewire this rode ABSENT_GRACE and
     // measured ~20s; the D5 confirm lands ~7s, so <=12s is honest headroom.
-    check('CRASH -> tile gone at every survivor in ' + (tileMs / 1000).toFixed(1) + 's (target <=12s; pre-rewire ~20s)',
+    check('CRASH -> tile gone at every survivor in ' + secs(tileMs) + ' (target <=12s; pre-rewire ~20s)',
       tileMs >= 0 && tileMs <= 12000, { tileMs });
-    console.log('  MEASURE crash(browser): vanish->seat-freed = ' + (freedMs / 1000).toFixed(1) + 's; vanish->tile-gone = ' + (tileMs / 1000).toFixed(1) + 's');
+    console.log('  MEASURE crash(browser): vanish->seat-freed = ' + secs(freedMs) + '; vanish->tile-gone = ' + secs(tileMs));
   }
 
   // ---- 2. GRACEFUL: a page navigates away (pagehide -> LEAVE flushes) --------
