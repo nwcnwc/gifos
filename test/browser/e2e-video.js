@@ -706,7 +706,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cIslePage = await cIsleCtx.newPage();
   await cIslePage.goto(islandLink);
   await cIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
-  const cPeerId = await cIslePage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
+  // THE ID THE BLOCK ACTUALLY USES (2026-07-29). sigSansIce keys off the MESH
+  // peer id (S4: H(pubkey), minted by the wire); 'gifos_vpeer_*' is a legacy
+  // per-tab id from before the mesh rewrite and names nothing in the signaling
+  // path — so this scenario blocked NOTHING, the islands connected directly,
+  // and the leg asserted a relay label that could never appear. Second stale
+  // lever in this same section, found the same way: by getting the suite far
+  // enough to run it.
+  const cPeerId = await cIslePage.evaluate(() => window.__gifosVideo.debugDump().me.peer);
   const bIsleCtx = await newUser('LeftIsle');
   // B's ICE to/from C specifically is dropped via the signaling-layer hook.
   await bIsleCtx.addInitScript({ content: 'window.__gifosBlockIce = [' + JSON.stringify(cPeerId) + '];' });
@@ -806,8 +813,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 30000 });
   }
   check('three phones fully meshed (before the mid-call failure)', true);
-  const samPid = await samPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
-  const tiaPid = await tiaPage.evaluate(() => sessionStorage.getItem('gifos_vpeer_' + window.__gifosVideo.room()));
+  const samPid = await samPage.evaluate(() => window.__gifosVideo.debugDump().me.peer);
+  const tiaPid = await tiaPage.evaluate(() => window.__gifosVideo.debugDump().me.peer);
   // the network breaks between Sam and Tia, permanently, mid-call
   await samPage.evaluate((pid) => { window.__gifosBlockIce.push(pid); window.__gifosVideo._failPeer(pid); }, tiaPid);
   await tiaPage.evaluate((pid) => { window.__gifosBlockIce.push(pid); window.__gifosVideo._failPeer(pid); }, samPid);
