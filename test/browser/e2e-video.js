@@ -715,6 +715,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bIslePage.goto(islandLink);
   await bIslePage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   await hubPage.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 40000 });
+  // CAMERAS ON — all three (2026-07-29). GifOS joins QUIET: acquired but
+  // disabled. The relay assertion below demands FRAMES (videoWidth > 0), so
+  // with every camera off it could never pass — and it never ran to say so,
+  // because this suite has been dying at an earlier leg for months. This is
+  // the exact bug its sibling drill was fixed for (35ec2c2, "the drill never
+  // turned cameras on"); the fix never reached here. The Hub needs its own
+  // camera too — its feed rides beside the forwards.
+  const camOn = (pg) => pg.evaluate(() => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); }).catch(() => {});
+  await camOn(hubPage); await camOn(cIslePage); await camOn(bIslePage);
   // PEER RELAY: the Hub notices it reaches both islands and forwards media —
   // the blocked pair SEE each other, labeled "via Hub", tiles in normal spots.
   await bIslePage.waitForFunction(() => {
