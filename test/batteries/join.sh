@@ -18,7 +18,7 @@
 #
 # Fastest on the 8-core box; a weak host produces false failures around N>=10
 # purely from its own exhaustion, so prefer:
-#   ssh nvidia-laptop 'cd ~/projects/gifos && test/batteries/join.sh'
+#   ssh <gate-box> 'cd ~/projects/gifos && test/batteries/join.sh'
 set -u
 cd "$(dirname "$0")/../.."
 QUICK=0; [ "${1:-}" = "--quick" ] && QUICK=1

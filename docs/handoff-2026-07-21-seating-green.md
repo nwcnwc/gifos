@@ -19,7 +19,7 @@ The previous session's battery had never been run to completion. Run cold it was
 **RED, 12/14**. Do not trust "it was green when I wrote it" — run the battery.
 
 ```bash
-ssh nvidia-laptop        # 8 cores. Do NOT run batteries on penguin (4 cores).
+ssh <gate-box>        # 8 cores. Do NOT run batteries on penguin (4 cores).
 export PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH"
 cd ~/projects/gifos && git pull
 test/batteries/mesh-churn.sh --quick     # seating/healing changes
@@ -113,13 +113,13 @@ and delete it from the file. Never soften an assertion to make it green.
 
 ## Operating notes earned this session
 
-- **Batteries on nvidia, never penguin.** The quick battery includes an N=800
+- **Batteries on <gate-box>, never penguin.** The quick battery includes an N=800
   sweep.
 - `pkill -f "chrome-linux/chrome"` over ssh **kills your own ssh session** (the
   pattern matches the command line carrying it). Use `"chrome-linu[x]/chrome"`.
 - To gate `site/js/mesh.js` before it hits auto-deploying `main`: push a temp
-  branch, `git reset --hard` nvidia onto it, run batteries, then fast-forward
-  `main`. `git am` onto nvidia failed; the branch route is clean.
+  branch, `git reset --hard` <gate-box> onto it, run batteries, then fast-forward
+  `main`. `git am` onto <gate-box> failed; the branch route is clean.
 - `test/sim/repro-*.sh` honour `BIN=` for the OUTPUT path but always rebuild from
   `test/sim/mesh.cpp` — to test a variant you must swap the source in the checkout,
   not point `BIN` at a prebuilt binary. This silently invalidated one A/B run.

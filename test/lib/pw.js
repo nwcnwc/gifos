@@ -3,7 +3,7 @@
  *
  * Every suite used to hardcode `/opt/node22/lib/node_modules/playwright` and
  * `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Those are true on the
- * pi and false everywhere else: nvidia-laptop keeps playwright in the repo's
+ * pi and false everywhere else: <gate-box> keeps playwright in the repo's
  * node_modules and its browsers in ~/.cache/ms-playwright/chromium-1193|1208.
  * So the entire browser tier was unrunnable on the ONE machine with enough
  * cores to run it honestly — and a hardcoded path that has gone stale does not

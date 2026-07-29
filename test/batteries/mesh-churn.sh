@@ -9,7 +9,7 @@
 # join.sh covers ARRIVAL; this covers DEPARTURE and MALFUNCTION.
 #
 # Prefer the 8-core box for anything with browsers:
-#   ssh nvidia-laptop 'cd ~/projects/gifos && test/batteries/mesh-churn.sh'
+#   ssh <gate-box> 'cd ~/projects/gifos && test/batteries/mesh-churn.sh'
 set -u
 cd "$(dirname "$0")/../.."
 QUICK=0; [ "${1:-}" = "--quick" ] && QUICK=1

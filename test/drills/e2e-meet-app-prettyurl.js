@@ -24,7 +24,7 @@
 //
 // Self-contained: own relay + site for THIS checkout. Safe from a worktree.
 // Run: node test/drills/e2e-meet-app-prettyurl.js
-// Prefer nvidia-laptop (browser). Needs node 22 + MEET_CHROME.
+// Prefer <gate-box> (browser). Needs node 22 + MEET_CHROME.
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');

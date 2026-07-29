@@ -163,10 +163,10 @@ The home-LAN swarm infra (from `memory/swarm-test-plan.md` — that memory
 describes the DEAD deacon/fold mesh, but the INFRA below is reused; verify each
 piece against current code before trusting it):
 
-- **Relay on `pi-16gb`** bound `RELAY_HOST=0.0.0.0` + `TRUSTED_IPS=<tailnet IPs,
+- **Relay on `<relay-pi>`** bound `RELAY_HOST=0.0.0.0` + `TRUSTED_IPS=<tailnet IPs,
   127.0.0.1,::1>`, exposed valid-cert via
   `sudo tailscale serve --bg --https=8443 http://127.0.0.1:8790` →
-  **`wss://pi-16gb.tail58a633.ts.net:8443`**. (Or just use the PRODUCTION relay
+  **`wss://<relay-pi>.<tailnet>.ts.net:8443`**. (Or just use the PRODUCTION relay
   `wss://relay.gifos.app` for a true live-production test — but that's the CF
   Worker with a 100k/day free cap; the pi relay avoids that.)
 - **Bots:** `node test/swarm/swarm.js --room <R> --relay <R> --n N --offset O` on the
@@ -178,7 +178,7 @@ piece against current code before trusting it):
 - **RELAY-HOST box uses `ws://127.0.0.1:8790`** (Tailscale won't hairpin its own
   MagicDNS name); every OTHER box uses the wss tailnet URL.
 - **Nathan / a real device joins:** `https://gifos.app/meet.html#v=<R>&relay=
-  wss://pi-16gb.tail58a633.ts.net:8443`.
+  wss://<relay-pi>.<tailnet>.ts.net:8443`.
 - **SSH to the Pis is FLAKY** (drops 255): scp a runner script, launch with
   `ssh -f box 'bash /tmp/run.sh'`, poll output files with short reads.
 - **What to OBSERVE for Q2:** join/grow/shrink a room; watch seats COMPACT to
@@ -217,9 +217,9 @@ piece against current code before trusting it):
 - **e2e-video** reaches 72 PASS then times out at line 590 (the "via Hub"
   peer-relay leg) — PRE-EXISTING on pristine main, a media-plane issue, NOT a
   control-plane regression. Don't blame a merge for it.
-- **Telegram** target chat id **1511297360** (NOT 9495101132/@nathan — dead).
-  `ssh -o ConnectTimeout=8 raspberrypi 'bash -lc "openclaw message send --channel
-  telegram --target 1511297360 -m \"…\" --json"'`; base64 the body for anything
+- **Telegram** target chat id **<chat-id>** (NOT <old-chat-id>/@nathan — dead).
+  `ssh -o ConnectTimeout=8 <pi> 'bash -lc "openclaw message send --channel
+  telegram --target <chat-id> -m \"…\" --json"'`; base64 the body for anything
   with quotes/newlines (see `.claude/skills/telegram`). SSH to the pi is flaky —
   retry. There is NO active hourly cron this session (recreate if wanted).
 - **Max 2 background agents.** Every agent gets synchronous-execution discipline
@@ -260,7 +260,7 @@ piece against current code before trusting it):
    home-LAN live test. Honor the STANDING GUARD (stop + escalate if a chain has
    no first-hand-confirming designee).
 5. Bring the §7 open decisions to Nathan; don't ship them.
-6. Send Nathan periodic Telegram updates (target 1511297360); recreate an hourly
+6. Send Nathan periodic Telegram updates (target <chat-id>); recreate an hourly
    cron if he wants them while away. Never fabricate agent/test results.
 
 ### Seed prompt for the fresh session (paste this)
@@ -281,4 +281,4 @@ piece against current code before trusting it):
 > discipline, control-plane merge gate = node --check + harness ALL PASS + full
 > sweep. Bring the open decisions (A4 founder-death, D-constants, reunion) back to
 > me. Give me a one-screen status + plan before you start building. Telegram me at
-> 1511297360 for periodic updates.
+> <chat-id> for periodic updates.

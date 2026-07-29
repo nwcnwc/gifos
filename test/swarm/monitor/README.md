@@ -13,7 +13,7 @@ so it is simultaneously:
 - a **debug console you can attach to**:
 
 ```bash
-ssh raspberrypi -t 'tmux attach -t gifos-meet'
+ssh <pi> -t 'tmux attach -t gifos-meet'
 #   ENTER      pause the stream → the meet> prompt
 #   roster / tree / mon / net / links / dups / shot /tmp/x.png ...
 #   watch 5 info   resume the stream

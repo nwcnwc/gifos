@@ -151,7 +151,7 @@ global `new WebSocket` a browser supplies; node only has that global from v22.
 Under 18 or 20 the constructor throws, the connect path catches it and
 reschedules forever, and every suite that talks to a relay from Node — `flood`,
 `e2e-mesh-wire`, the whole `mesh/` and `relay/` families — **hangs with no
-output** instead of failing. nvidia-laptop still defaults to node 18, so:
+output** instead of failing. the gate box still defaults to node 18, so:
 `export NVM_DIR=$HOME/.nvm; . $NVM_DIR/nvm.sh; nvm use 22`. `batteries/join.sh`
 refuses to start without it.
 
@@ -389,7 +389,7 @@ decision and so are deliberately kept out of that script.
 - `drills/e2e-latejoin.js` ARRANGES its own socketless-neighbour scenario
   (`forceSeat` + `learnOcc`) so the deadlock leg is measured every run. Needs
   `RELAY_DEV=1` on its own relay (the frame meter otherwise looks like the
-  deadlock). Prefer nvidia-laptop for the browser drills.
+  deadlock). Prefer the browser-capable gate box for the browser drills.
 - `browser/e2e-relay.js` times out waiting for the desktop `.icon` to render.
   Predates this work — it fails identically at `421ecc5`.
 - `drills/adversary-room.js` has, on at least one run, caught every coord being

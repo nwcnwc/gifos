@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh — install/refresh the gifos-meet-monitor systemd user service on
-# THIS machine (run it on the raspberrypi from the repo checkout). Idempotent.
+# THIS machine (run it on the <pi> from the repo checkout). Idempotent.
 # Retires the old bespoke gifos-monitor.service if present.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"

@@ -38,8 +38,8 @@ export PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH"   # or nvm use 22
 test/batteries/mesh-churn.sh --quick    # sim + harness; ~15–40 min (includes sweep)
 # Join changes:
 test/batteries/join.sh --quick
-# Full (browsers — prefer nvidia):
-ssh nvidia-laptop 'cd ~/projects/gifos && git pull && nvm use 22 && test/batteries/mesh-churn.sh'
+# Full (browsers — prefer <gate-box>):
+ssh <gate-box> 'cd ~/projects/gifos && git pull && nvm use 22 && test/batteries/mesh-churn.sh'
 ```
 
 Logs: `/tmp/mesh-churn-battery/<n>.log`, `/tmp/join-battery/<n>.log`.
@@ -49,7 +49,7 @@ Logs: `/tmp/mesh-churn-battery/<n>.log`, `/tmp/join-battery/<n>.log`.
 ## Known residual product bugs (not closed)
 
 1. **Multi-newcomer after cascade** — after triple front-row LEAVE + settle 9/9, `spawn 3` reliably leaves **2 searching forever** (only 1 of 3 seats). Pin is **spawn 1 → 10/10** in churn-combos B. Follow-up: open **row 2 admission** after row 1 full under residual greeter/FIND churn (not phantom free-seat).
-2. **Browser on nvidia (2026-07-21):** adversary **ALL PASS**; ladder **burst ALL PASS**; **serial N=2** incomplete link; **latejoin** 1 fail (conn ok, vid false). Penguin load false-fails adversary — recheck serial N=2 / latejoin on idle nvidia, not as seating math.
+2. **Browser on <gate-box> (2026-07-21):** adversary **ALL PASS**; ladder **burst ALL PASS**; **serial N=2** incomplete link; **latejoin** 1 fail (conn ok, vid false). Penguin load false-fails adversary — recheck serial N=2 / latejoin on idle <gate-box>, not as seating math.
 3. **Do not** treat non-firstHandLive occ as free (FIND ping-pong greeters). Phantom = alive-but-not-at-cell only.
 
 ---
@@ -65,5 +65,5 @@ Logs: `/tmp/mesh-churn-battery/<n>.log`, `/tmp/join-battery/<n>.log`.
 
 1. `git pull` → `mesh-churn.sh --quick` green end-to-end.
 2. Product: multi-newcomer after cascade (why /2.0 never admits).
-3. Optional: nvidia full `mesh-churn.sh` + fix serial N=2 link completeness if still red.
+3. Optional: <gate-box> full `mesh-churn.sh` + fix serial N=2 link completeness if still red.
 4. Do not invent new test runners — use batteries above.

@@ -21,7 +21,7 @@
 //
 // Self-contained: own relay + site for THIS checkout. Safe from a worktree.
 // Run: node test/drills/e2e-meet-app-guest-perms.js
-// Prefer nvidia-laptop (browser). Needs node 22 + MEET_CHROME.
+// Prefer the browser-capable gate box. Needs node 22 + MEET_CHROME.
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');

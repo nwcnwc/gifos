@@ -133,7 +133,7 @@ Suggested approach (sim-first, as always):
 
 ---
 
-## Battery status (cold, on nvidia, `eba4803`)
+## Battery status (cold, on <gate-box>, `eba4803`)
 
 `test/batteries/mesh-churn.sh --quick` — **13 passed, 1 failed**
 (only `sim — Q2 compaction`).
@@ -150,13 +150,13 @@ Suggested approach (sim-first, as always):
 
 ## Operating notes (earned this session)
 
-- **Run batteries on nvidia, not penguin.** Penguin is 4 cores; the quick battery
+- **Run batteries on <gate-box>, not penguin.** Penguin is 4 cores; the quick battery
   includes the N=800 sweep.
 - `pkill -f "chrome-linux/chrome"` over ssh **kills your own ssh session** — the
   pattern matches the command line carrying it. Use `"chrome-linu[x]/chrome"`.
 - To gate `site/js/mesh.js` before it hits auto-deploying `main`: push a temp
-  branch, `git reset --hard` nvidia to it, run the batteries, then fast-forward
-  `main`. `git am` of a patch onto nvidia failed; the branch route is cleaner.
+  branch, `git reset --hard` <gate-box> to it, run the batteries, then fast-forward
+  `main`. `git am` of a patch onto <gate-box> failed; the branch route is cleaner.
 - The battery **caught a bad fix of mine** (the over-broad healer guard) that all
   the single-purpose repros missed. Trust it; run it cold before believing any
   seating/healing change.
@@ -167,6 +167,6 @@ Suggested approach (sim-first, as always):
 
 1. **Compaction depth regression** (above) — the last red. Sim-first; keep
    atomic-move leg D green.
-2. Optional: full `mesh-churn.sh` (browsers) on an idle nvidia.
+2. Optional: full `mesh-churn.sh` (browsers) on an idle <gate-box>.
 3. Roadmap leftovers: x402, e2e-video "via Hub" flake, sharded greeters, door
    verbs off relay, scale release.
