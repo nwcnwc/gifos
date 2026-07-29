@@ -1072,7 +1072,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await adam.waitForFunction(() => window.__gifosVideo.banList().length === 0, null, { timeout: 8000 });
   await adam.locator('#adm-close').click();
   const bethBack = await openRoom(bethCtx, 'beth3', admHash);
-  await bethBack.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });
+  try {
+    await bethBack.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });
+  } catch (e) {
+    // WHICH HALF? Still refused at the door (bannedOut, or a pw challenge
+    // up) vs seated with the count not converging — and does ADAM's side
+    // agree (his ban list emptied, his count) — plus both pw ledgers: her
+    // stored 'vip' must re-derive a proof the rotated door accepts.
+    for (const [nm, pg] of [['bethBack', bethBack], ['adam', adam]]) {
+      const st = await pg.evaluate(() => {
+        const g = window.__gifosVideo;
+        const m = document.getElementById('pw-modal');
+        return { banned: g.bannedOut(), parts: g.participants(), pw: g.roomPw(),
+          ban: g.banList ? g.banList().length : null,
+          pwModal: (m && getComputedStyle(m).display !== 'none') ? m.dataset.mode : null,
+          links: g.liveDataLinks ? g.liveDataLinks() : null,
+          status: (document.getElementById('status') || {}).textContent,
+          pwLog: (window.__pwLog || []).slice(-6) };
+      }).catch((err) => String(err).slice(0, 120));
+      console.log('  [unban forensics] ' + nm + ': ' + JSON.stringify(st));
+    }
+    throw e;
+  }
   check('unbanned device joins again (mistakes are undoable)', true);
 
   // re-seed: ban again, empty the room, admin returns alone → ban list survives
