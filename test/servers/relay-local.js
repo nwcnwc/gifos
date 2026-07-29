@@ -262,6 +262,12 @@ server.on('upgrade', (req, socket, head) => {
         msg.hasAdmin = true;
         // no admins[] — adminship is a signature peers verify themselves (§9)
         msg.ban = sess.ban || [];
+        // Door-gate state (2026-07-29): in an admin room the gate is set ONLY
+        // by a signed setpw, so `locked` tells a client whether the door it
+        // just passed was VOUCHING for its password proof (gated ⇒ an admin
+        // set this) or open (an unsigned stored password confers nothing).
+        // Zero-knowledge: a boolean the door already enforces behaviorally.
+        msg.locked = !!sess.pw;
       }
     }
     const s = JSON.stringify(msg);

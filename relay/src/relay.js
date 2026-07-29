@@ -220,7 +220,7 @@ export class Session {
     // ban/vote equality) but they are ROOM-SALTED by the client, so they are
     // per-room opaque tokens — not correlatable to a person or across rooms.
     const peers = [], devs = {};
-    let admV = null, ban = null, mesh = false;
+    let admV = null, ban = null, mesh = false, lockedPw = '';
     for (const ws of this.members()) {
       const a = this.att(ws);
       peers.push(a.peer);
@@ -228,6 +228,7 @@ export class Session {
       if (a.dev) devs[a.peer] = a.dev;
       if (!admV && a.av) admV = a.av;
       if (ban === null && a.ban) ban = a.ban;
+      if (!lockedPw && a.pw) lockedPw = a.pw;
     }
     const h = this.hostSock();
     const msg = { t: 'roster', peers };
@@ -237,7 +238,15 @@ export class Session {
       // No admins[] here anymore: adminship is a SIGNATURE peers verify
       // themselves (docs/meet-security.md §SIG) — the relay neither knows nor says
       // who is an admin. It only still carries the door ban list.
-      if (admV) msg.ban = ban || [];
+      if (admV) {
+        msg.ban = ban || [];
+        // Door-gate state (2026-07-29): in an admin room the gate is set ONLY
+        // by a signed setpw, so `locked` tells a client whether the door it
+        // just passed VOUCHED for its password proof (gated ⇒ an admin set
+        // this) or was open (an unsigned stored password confers nothing).
+        // Zero-knowledge: a boolean the door already enforces behaviorally.
+        msg.locked = !!lockedPw;
+      }
     }
     const s = JSON.stringify(msg);
     if (h) this.send(h, s);

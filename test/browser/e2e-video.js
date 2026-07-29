@@ -1192,7 +1192,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a non-admin cannot rogue-lock an evicted admin room (lands in the open waiting room)', true);
   // the legit member, carrying the REAL password, is NOT locked out
   const dan = await openWithPw(memCtx, 'dan', lockHash, vpwKey, 'psalm23');
-  const danIn = await dan.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 2, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  // 30s: this is open-key CONVERGENCE, not a door check — both dan and the
+  // rogue drop their provisional stored pws on the roster verdict, re-key,
+  // re-register, and pair; measured 12.1-12.7s end-to-end (repro, 2026-07-29),
+  // exactly on the old 12s line. Suite convention for convergence waits.
+  const danIn = await dan.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 2, null, { timeout: 30000 }).then(() => true).catch(() => false);
   if (!danIn) {
     // WHICH HALF? Dan carries 'psalm23' into a room the ROGUE re-seeded OPEN
     // (his rogue pw was refused), so Dan's pw-derived key and the rogue's

@@ -3706,7 +3706,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
 
     let room = null;
-    let roomPw = '', pwBlocked = false;
+    let roomPw = '', pwBlocked = false, pwProvisional = false; // provisional: admin-room stored pw awaiting the door's verdict (roster.locked)
     // Derived relay identity + room key — "derive, don't send" (gifos-net.js):
     // the relay routes on sessId and equality-checks sessTok/pwProof, all
     // one-way hashes of the room code (+ password); roomE2E seals every
@@ -3936,7 +3936,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; }
       try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); } catch (e) {}
     }
-    function storePw(v) { roomPw = v || ''; try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
+    function storePw(v) { roomPw = v || ''; pwProvisional = false; /* every explicit adoption (grant, admin set, typed challenge) ends provisionality */ try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // THE PASSWORD IS THE KEY (docs/meet-security.md §LOCK): adopting a password means
     // deriving the room key that contains it. Every caller that changes
     // roomPw re-keys; frames sealed under the other side of a rotation drop
@@ -4160,6 +4160,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         relaySocketed = new Set(m.peers || []); // who the relay can reach right now (socketed peers) \u2014 drives \u00a7FWD sponsor fallback
         roomBan = m.ban || []; // admins[] comes from VERIFIED signatures (adminsNow, \u00a79), never the relay
         Object.assign(devOf, m.devs || {}); // MERGE (absence grace keeps tiles whose Ban button must work)
+        // \u00a7LOCK, ADMIN ROOMS \u2014 A STORED PASSWORD IS PROVISIONAL UNTIL THE DOOR
+        // VOUCHES (2026-07-29). In an admin room only a SIGNED setpw gates the
+        // door, so the roster's `locked` is an admin-rooted verdict on my
+        // boot-time stored password: gated + my socket connected \u21d2 my proof
+        // passed an admin-set gate \u2014 validated, keep the key. Open door \u21d2 an
+        // unsigned stored password confers NOTHING \u2014 sealing under it would
+        // rogue-lock ME away from the actual room (the evicted-room race: a
+        // squatter's garbage stored pw sealed the room's blobs against the
+        // member holding the REAL one; both must land on the open key and let
+        // the returning admin's signed re-assert re-key everyone). The stored
+        // copy stays in localStorage \u2014 a signed grant re-adopts it. An old
+        // relay that doesn't send `locked` gives no verdict: stay as-is.
+        if (pwProvisional && hasAdminRoom() && typeof m.locked === 'boolean') {
+          pwProvisional = false;
+          if (!m.locked && roomPw) {
+            pwLog('stored pw UNVALIDATED (open door) \u2014 entering on the open key');
+            roomPw = ''; // memory only \u2014 NOT storePw; localStorage keeps the candidate
+            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; });
+            rekeyRoom();
+            reactRoomState();
+          } else if (m.locked) pwLog('stored pw validated by the gated door');
+        }
         if (hasAdminRoom() && amAdmin) {
           if (roomBan.length) saveBans(roomBan);
           else if (!banSeeded) {
@@ -4174,6 +4196,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (roomPw && pwProof && !pwReasserted) {
             const proof = pwProof;
             admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, by: myName(), w }); });
+            // \u2026AND RE-GRANT THE KEY (2026-07-29): the door gate alone leaves
+            // the waiting room's occupants sealed apart from me \u2014 an evicted
+            // admin room re-seeds on the OPEN key (provisional-pw rule), so
+            // the \u00a7LOCK grant for a RE-assert seals under the open
+            // generation, not under my own. Signed like every admin pwinfo;
+            // occupants adopt and re-key; the epoch guard absorbs replays.
+            const ep = pwEpoch + 1;
+            admSigned('pwinfo', { pw: roomPw, ep }).then((wPeers) => {
+              if (!wPeers) return;
+              const grant = { k: 'pwinfo', pw: roomPw, by: myName(), w: wPeers, ep };
+              storePwEpoch(ep); retainedGrant = grant;
+              net.deriveMeetKey(room, av, '').then((openKey) => net.seal(openKey, grant)).then((env) => {
+                // relaySocketed, not gossipIds(): the whole point is reaching
+                // occupants I CANNOT yet read — the app roster is empty of
+                // them by construction; the relay's socket list is not.
+                for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); }
+              });
+            });
           }
           pwReasserted = true;
         }
@@ -4827,6 +4867,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // signed heartbeat follows on the next beat.
       if (admKey && av) adoptAdmKey(admKey).then((ok) => { if (ok) { applyAdminUi(); broadcastStatus(); } });
       loadPw();
+      // An admin-room stored pw is PROVISIONAL until the door's verdict (the
+      // roster's `locked` — see the roster handler). An admin's own device
+      // (stored admin key) is exempt: her signed re-assert IS the authority,
+      // and dropping her key first would make her re-assert an empty lock.
+      pwProvisional = !!(av && roomPw && !admKey);
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const avPart = av ? '&av=' + av : '';
