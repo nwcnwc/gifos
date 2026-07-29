@@ -432,7 +432,7 @@
       const list = m.list || [];
       const ids = [], sealedFps = [];
       for (const s of list) {
-        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); else if (o && o.p === peer) sealedFps.push('SELF'); } catch (e) { sealedFps.push(blobFp(s)); }
+        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); else if (o && o.p === peer) sealedFps.push('SELF'); else sealedFps.push('X' + blobFp(s)); /* net.open resolves NULL on wrong key — the sealed-under-a-different-key case */ } catch (e) { sealedFps.push('E' + blobFp(s)); }
       }
       if (stopped || !seat) return;
       regPendingAt = 0; // the relay answered — the socket is provably alive

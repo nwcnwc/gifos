@@ -3972,13 +3972,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // No-glare: only the id-order initiator dials; the other side sends a
     // dial REQUEST (frag-ping) so whichever half's door probe fires first,
     // the same one side ends up dialing.
-    let fragPingId = null, fragPingAt = 0;
+    let fragPingId = null, fragPingAt = 0, fragRetryT = 0;
     function fragRescue(id) {
       if (Date.now() - fragPingAt < 15000) return; // one outstanding rescue at a time
       fragPingId = id; fragPingAt = Date.now();
       if (typeof clog === 'function') clog('frag-rescue ' + String(id).slice(0, 6) + (iInitiate(id) ? ' (dialing)' : ' (requesting dial)'));
       if (iInitiate(id)) { makePeer(id, null); sendOffer(id, false); }
       else sendSig(id, { k: 'frag-ping' });
+      // RETRY while still alone (caught live: one dial fired at the fork's
+      // messiest moment — the target mid-requeue — then the door's evidence
+      // went unreadable and no second dial ever came; 95s of solitude with a
+      // remembered target). As long as I stay solo and remember who the
+      // other half is, re-dial every ~15s; repopulation ends it.
+      if (!fragRetryT) fragRetryT = setInterval(() => {
+        if (participantCount() > 1) { clearInterval(fragRetryT); fragRetryT = 0; fragPingId = null; return; }
+        if (fragPingId) { fragPingAt = 0; fragRescue(fragPingId); }
+      }, 16000);
     }
     function startMesh() {
       const relay = relayUrl();
