@@ -574,6 +574,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
   }
 
+  // YOUNG-PAIR SETTLE, ROUND TWO (2026-07-29). The tombstone leg above can end
+  // with a stale-key member re-entering through the password challenge — which
+  // mints a BRAND NEW pair, seconds old, exactly the state the settle at the
+  // top of this section exists for. Every frame below is one-shot over that
+  // pair (pin-replicate, pwinfo, the clear-purge), so settle again rather than
+  // race it: same law, same reason, new young pair.
+  for (const pg of [bPage, dPage]) await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 30000 });
+  await sleep(9000);
+
   // Clearing the room password DELETES shared files — with a warning first.
   await dPage.setInputFiles('#cfile-in', { name: 'secret.txt', mimeType: 'text/plain', buffer: Buffer.from('for members only') });
   await bPage.waitForFunction(() => window.__gifosVideo.pinnedFiles().some((f) => f.name === 'secret.txt' && f.have), null, { timeout: 40000 });
