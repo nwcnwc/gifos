@@ -1025,3 +1025,106 @@ Curated GitHub repo keeps review in a familiar PR workflow. Store is
 - Abuse: malicious GIFs that phish pays — review, report, delist, wallet block
   on IAP rail.
 - Platform fee bps on IAP; self-hosted store mirrors with fee = 0.
+
+## 7. ONE runtime: kill the app star, strip the relay to meeting-only
+
+**What.** Retire the app-multiplayer **star model** entirely. There is ONE
+runtime — a **meeting** — and audio/video, chat, and a shared app are all
+**optional components layered on it**. An app-share is that runtime with the
+media plane switched off; a meeting is the same room with it switched on; an
+app on the Stage is a component either way. Nothing about "sharing an app"
+should imply a different network object.
+
+Then **strip the relay to meeting-only functions**: the greeter registry plus
+the door. The app-session bus comes out.
+
+**Why it fits.** This is the standing directive ("the relay is greeter-only")
+finally applied to the surface that never got it. Today the SAME Cloudflare
+Worker (`gifos-relay`, routes `relay.gifos.app`) serves three roles, and only
+the meeting side was ever locked down:
+
+1. **Greeter registry** — `knock` (`relay/src/relay.js:564`), answering with the
+   sealed greeter list (R2/R3). This is the part that matches doctrine.
+2. **Meeting door** — sealed first-contact signaling `peer` (`relay.js:563`,
+   last-resort only: own DC → sponsor-forward → relay, `mesh-wire.js:645–652`)
+   and the moderation/lock verbs `setpw` / `ban` / `unban` / `votekick` /
+   `banlist` (`relay.js:575–628`), each an Ed25519-signed order the relay
+   verifies exactly as a peer would (§SIG).
+3. **App-session star bus — a FULL app data transport.** `to` (host→one client),
+   `bcast` (host→all), and the client default that forwards every frame to the
+   host as `from` (`relay.js:559,560,631`). This is standalone app multiplayer
+   (`run.html:455` → `runtime.js` `bootClient`/`becomeHost`), and it carries app
+   DB ops, not greeting.
+
+The relay's own header states the actual (weaker) promise it was built to —
+*"the relay is for CONTROL traffic only (DB ops, WebRTC signaling)"*
+(`relay.js:28`). **"Control-only" means "no audio/video" — enforced by the token
+bucket (`relay.js:111–175`) — NOT "greeter-only."** Those are different
+promises, and the gap between them is this roadmap item. Role 3 is also why the
+apps plane still has a relay *fallback rung* at all (`runtime.js:1350,1451`, the
+paced drip ~1475): direct DC → friend-hop (P1) → **paced relay (P2)**.
+
+Half of this is already built and proves the shape works: **app-in-a-meeting**
+was migrated onto the mesh's Stage DATA lane with owner-signed (Ed25519)
+snap/delta frames and its second relay session **deleted** (`site/js/app-owner.js`,
+`runtime.js attachStageBus` / `bootClientBus`, `meet.html:8184,8212`). What was
+never built is `docs/app-mesh-unification.md` **phase 3** — the headless
+media-less mesh room (`site/js/mesh-app.js`) that would put *standalone*
+app-shares on the same footing. That doc's §6 notes the relay app-broadcast is
+"currently deferred **precisely because apps still need the relay bus**"
+(`app-mesh-unification.md:381`). This item closes that.
+
+**Sketch.**
+- **Basic runtime = a media-less room.** Factor the mesh node bring-up + DC
+  signaling glue out of `meet.html` into a reusable `site/js/mesh-app.js` that
+  BOTH `run.html` and `meet.html` consume. Opens no camera, never loads
+  `mesh-media.js` — control mesh + gossip lane only. Seats, C=5, healing laws,
+  greeter registry all identical to a meeting.
+- **Components are opt-in, not separate products:** A/V (media plane on), chat
+  (already gossip), shared app on the Stage (already the `sga` lane +
+  owner-signed frames). Any combination, including all off (a bare room) and
+  app-with-no-A/V (today's app-share).
+- **Standalone app-share becomes a mesh join.** Link secret derives the room via
+  `deriveMeet` instead of `deriveJoin`; the invite is a room URL. App state rides
+  the Stage DATA lane it already rides inside meetings — reuse `attachStageBus` /
+  `bootClientBus` unchanged. No app bytes and no DB ops on the relay, ever.
+- **Then strip the Worker.** Delete `to` / `bcast` / the client→host `from`
+  forward and the `role:'host'`/`role:'client'` session shapes; keep `knock`,
+  `peer`, and the signed door verbs. Also delete the **already-dead `gossip`
+  handler** (`relay.js:565–574`) — mesh gossip has floated over WebRTC since the
+  chokepoint (`meet.html:2940`: *"relay `{t:'gossip'}` no longer reaches the room
+  and is gone"*; `mesh-wire.js:641` → `mesh.js:1301`). That one is a free
+  cleanup and can land first, independently.
+- **Retire the bespoke host machinery** the star needed: `AUTO_TAKEOVER`
+  (`runtime.js:1288,2049`) and the owned-app host gate / epoch race
+  (`relay.js:390–422`) give way to mesh seat healing + owner-key authority.
+
+**Ordering (each step shippable).**
+1. Delete the dead relay `gossip` handler. No behavior change.
+2. `mesh-app.js` — extract the headless node; `meet.html` consumes it unchanged.
+3. Point `run.html` at it: standalone app-share = media-less room. Retires the
+   app-session bus's only remaining caller.
+4. Strip the Worker to greeter + door; drop host/client roles.
+5. Fold in the components UI (A/V toggle, chat, app-on-Stage) so one surface
+   covers both entry points.
+
+**Open questions.**
+- **Owner-away freezes writes.** The mesh path deliberately dropped
+  `AUTO_TAKEOVER`; host-slot healing over the mesh is the decided replacement
+  but is **S4/W7-gated** (`app-mesh-unification.md` §6 step 5, §7 Q2). Standalone
+  app-shares lean on takeover harder than meeting-apps do — decide whether step 3
+  ships before host-heal, or carries an interim mirror-holder rule.
+- **Session socket cap.** `MAX_SOCKETS_PER_SESSION = C*C+C = 30` (`relay.js:123`)
+  is sized for a greeter pool, not a star's every-client-holds-a-socket shape.
+  Once standalone apps seat deep and drop their sockets this stops mattering —
+  confirm the transition doesn't strand mid-migration clients.
+- **First-frame TOFU** on healing-link sids for the app owner key; the clean
+  close is carrying the owner pubkey in the authenticated ad
+  (`app-mesh-unification.md` "Changes OUTSIDE my files").
+- **Heavy apps** re-send app bytes in each retained snap; a per-record delta
+  stream + separate app-bytes frame is the optimization when a multi-MB app
+  rides the lane.
+- **Docs to re-true once this lands** (they currently describe the star's relay
+  fallback as live): `README.md:54,207`, `site/about.html:77`,
+  `site/changelog.json`, and the relay's own header promise (`relay.js:28`),
+  which should be rewritten from "control traffic only" to greeter+door.
