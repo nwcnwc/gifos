@@ -684,6 +684,18 @@
       // Fork-heal wire state (forensics): is the fragment suspicion armed,
       // how stale is the last registration, and the recent door replies.
       fragState() { return { shrank: shrankSolo, everPop: everPopulated, occ: seat ? seat.occ.size : -1, lastRegAgoMs: lastRegAt ? Date.now() - lastRegAt : null, trace: greeterTrace.slice(-4) }; },
+      // D5-observation forensics: the seat's standing translosts, its recent
+      // forgotten ones (tlLog carries WHY each was dropped), and the occ view —
+      // so a stalled departure confirm is attributable to ONE law from a test.
+      tlState() {
+        return seat ? {
+          tick: env.TICK, st: seat.state,
+          coord: seat.hasCoord ? seat.coord.pc + '/' + seat.coord.r + '.' + seat.coord.i : null,
+          occ: Array.from(seat.occ.entries()).map(([k, v]) => k + ':' + String(v).slice(0, 6)),
+          tl: Array.from(seat.translost.entries()),
+          tlLog: seat.tlLog.slice(-8),
+        } : null;
+      },
       // R5/E5§2: after onFork, the app picks one genesis key; seat joins only that room.
       chooseFork(gkey) { return !!(seat && seat.chooseFork && seat.chooseFork(gkey)); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },

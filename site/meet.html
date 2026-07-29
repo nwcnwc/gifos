@@ -3868,7 +3868,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // beat recomputed `admins` and a still-later status tick re-ran
         // reconcileApp (2-3 heartbeats of an empty stage).
         const newlyAdmin = o.by && !admins.includes(o.by);
-        if (o.by) admSeen.set(o.by, Date.now()); // the SIGNED claim, not the re-gossiper
+        // Credit presence from the SIGNED claim, not the re-gossiper — but a
+        // DEAD signer stays dead: admVerify is async, so a frame already in
+        // flight can resolve AFTER confirmGone's verdict, and crediting it at
+        // Date.now() would resurrect the admin's presence for a full 30s decay
+        // (a guest stares at a hostless room with no countdown). notTomb is
+        // the one proof-of-life law: a post-verdict status or live connection
+        // lifts the tombstone, and only then does presence credit again.
+        if (o.by && notTomb(o.by)) admSeen.set(o.by, Date.now());
         if (o.ts > modWSeenTs) { modWSeen = msg.modw; modWSeenTs = o.ts; }
         mergeMod(o.mod);
         if (newlyAdmin) {
@@ -8863,6 +8870,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       modOn: (pid, field) => { const m = modOf(pid); return !!(m[field] && m[field].on); },
       adminsHere: () => admins.slice(),
       countdownShown: () => { const el = document.getElementById('admcount'); return !!el && el.style.display !== 'none'; },
+      // Absence-chain forensics: every link from a dead admin to the visible
+      // countdown (admSeen age → confirmGone tombstone → grace timer), so a
+      // missing countdown is attributable to ONE link from the test harness.
+      admState: () => ({
+        admins: admins.map((x) => String(x).slice(0, 6)),
+        seen: Array.from(admSeen.entries()).map(([p, t]) => String(p).slice(0, 6) + ':' + (Date.now() - t) + 'ms'),
+        gone: Array.from(meshGone.entries()).map(([p, t]) => String(p).slice(0, 6) + ':' + (Date.now() - t) + 'ms'),
+        grace: !!admGraceT, closing: !!admCloseT,
+        mesh: (meshNode && meshNode.tlState) ? meshNode.tlState() : null,
+      }),
       closedShown: () => { const el = document.getElementById('closed-modal'); return !!el && el.style.display !== 'none'; },
       myBlur: () => blurLevel(myStatus.blur),
       setBlur: (v) => setPersonalBlur(v),        // drive the slider from tests

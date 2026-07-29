@@ -1246,12 +1246,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('with the host present, a guest sees no closing countdown',
     !(await fan.evaluate(() => window.__gifosVideo.countdownShown())));
   await host.close(); // host leaves
-  await fan.waitForFunction(() => window.__gifosVideo.countdownShown(), null, { timeout: 25000 });
-  check('host leaves → after the 10s grace the guest sees a closing countdown', true);
+  // WHICH LINK? The countdown chain is: fan's confirmGone(host) tombstone →
+  // admSeen cleared → the 2s beat re-derives admins=[] → 10s grace → visible
+  // countdown. Sample the whole chain once a second so a timeout names the
+  // broken link: `gone` never listing the host = the mesh half (the sole
+  // survivor's D5 confirm never landed); admins empty + grace armed but no
+  // countdown = the timer half.
+  const cdT0 = Date.now();
+  const cdTrail = [];
+  let cdShown = false;
+  for (let i = 0; i < 25 && !cdShown; i++) {
+    const s = await fan.evaluate(() => {
+      const g = window.__gifosVideo;
+      return Object.assign({ cd: g.countdownShown(), parts: g.participants() }, g.admState ? g.admState() : {});
+    }).catch((err) => ({ err: String(err).slice(0, 80) }));
+    cdTrail.push(Math.round((Date.now() - cdT0) / 1000) + 's ' + JSON.stringify(s));
+    if (s.cd) { cdShown = true; break; }
+    await sleep(1000);
+  }
+  if (!cdShown) console.log('  [countdown forensics] fan trail:\n    ' + cdTrail.join('\n    '));
+  check('host leaves → after the 10s grace the guest sees a closing countdown', cdShown);
   const hostBack = await openRoom(hostCtx, 'hostback', hostHash); // stored key signs him back in
   await hostBack.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   await fan.waitForFunction(() => !window.__gifosVideo.countdownShown(), null, { timeout: 15000 });
-  check('host returns → the countdown vanishes and the room lives on', true);
+  // vacuously true if the countdown never appeared — cdShown keeps it honest
+  check('host returns → the countdown vanishes and the room lives on', cdShown);
   await hostBack.close(); await fan.close();
 
   // ================= vote off the island (personal, GLOBAL vote-offs) =========
