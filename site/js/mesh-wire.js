@@ -124,7 +124,8 @@
     // gates and fires one immediate door probe; the door's greeter list is
     // ground truth, and a genuinely-emptied room costs one no-op probe.
     let lastOccSize = 0;   // seat.occ.size last tick (state 3 only)
-    let shrankSolo = false; // armed on >=2 -> 1; cleared when occ >= 2 again
+    let everPopulated = false; // this PAGE-LIFE saw a room of >=2 — a reseat/requeue cannot launder it
+    let shrankSolo = false; // armed while everPopulated && solo; disarmed by a door reply proving we are truly alone, or by repopulation
     // Greeter-list forensics (fragment founding): every greeters reply we
     // handle is stamped here — list length, how many blobs opened under our
     // room key, the relay's founded flag, and which branch we took. R3/R6
@@ -439,6 +440,10 @@
       // for who is reachable; a solo seat is its own greeter and re-knocks
       // every ~55s anyway, so this costs nothing new. Hand the evidence to
       // the app for a clean re-entry.
+      // Verified truly alone: a seated-solo suspect whose door reply is EMPTY
+      // (no blobs at all) is not a fragment — everyone really left. Disarm;
+      // repopulation re-arms via the tick tracker.
+      if (preState === 3 && seat.hasCoord && seat.occ.size <= 1 && shrankSolo && !list.length) shrankSolo = false;
       if (preState === 3 && ids.length && seat.hasCoord && seat.occ.size <= 1 && (shrankSolo || (env.TICK - (seat.seatedAt || 0)) > 90)) {
         greeterTrace.push({ t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
           listLen: list.length, open: ids.length, founded: !!m.founded, action: 'fragment-rescue' });
@@ -527,12 +532,18 @@
         // a zombied greeter silently falls out of the pool — the door goes
         // unmanned while the greeter believes it is still on duty (the
         // production monitor spent hours in exactly this state).
-        // Shrink detection (see the shrankSolo declaration): occ >=2 -> 1
-        // arms the fragment suspicion; recovering to >=2 clears it.
+        // Shrink detection (see the shrankSolo declaration). The first cut
+        // tracked only the last-tick transition >=2 -> 1 and a fork LAUNDERED
+        // it: the compacting half REQUEUES (state leaves 3, the counter reads
+        // 0) and re-seats already-solo — no transition ever seen. Page-life
+        // memory can't be laundered: once this page has BEEN in a populated
+        // room, any seated-solo state is a fragment suspect until the door
+        // itself says we are truly alone (onGreeters disarms) or the room
+        // repopulates.
         {
           const osz = (seat && seat.state === 3 && seat.hasCoord) ? seat.occ.size : 0;
-          if (osz >= 2) shrankSolo = false;
-          else if (osz === 1 && lastOccSize >= 2) shrankSolo = true;
+          if (osz >= 2) { everPopulated = true; shrankSolo = false; }
+          else if (osz === 1 && everPopulated) shrankSolo = true;
           lastOccSize = osz;
         }
         if (iAmAGreeter() && sock && !sock.rejected) {
@@ -626,6 +637,9 @@
       // Greeter-list forensics: ring of recent onGreeters outcomes (listLen /
       // open / founded / action). See greeterTrace push in onGreeters.
       greeterTrace() { return greeterTrace.slice(); },
+      // Fork-heal wire state (forensics): is the fragment suspicion armed,
+      // how stale is the last registration, and the recent door replies.
+      fragState() { return { shrank: shrankSolo, everPop: everPopulated, occ: seat ? seat.occ.size : -1, lastRegAgoMs: lastRegAt ? Date.now() - lastRegAt : null, trace: greeterTrace.slice(-4) }; },
       // R5/E5§2: after onFork, the app picks one genesis key; seat joins only that room.
       chooseFork(gkey) { return !!(seat && seat.chooseFork && seat.chooseFork(gkey)); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
