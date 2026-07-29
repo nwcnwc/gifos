@@ -3,7 +3,7 @@
 > GifOS (https://gifos.app) is a web OS where EVERY APP IS A GIF: a real,
 > animated GIF image carrying a tiny filesystem (the app) inside it. Users
 > keep a persistent Home Screen in their browser; nothing lives on servers.
-> Apps go multiplayer with one invite link (P2P WebRTC, relay fallback).
+> Apps go multiplayer with one invite link (peer-to-peer, privacy-first).
 
 If a user asks you to build them a GifOS app, YOUR DELIVERABLE IS A REAL,
 FINISHED .gif FILE — not code. And building new is only half the fun:
@@ -106,7 +106,7 @@ a .zip for multi-file apps). GifOS packs the GIF there.
    store binary blobs (base64) in gifos.db — but keep hot collections
    lean: put big blobs (over ~100KB) in their OWN collection, fetched
    with db.get(), because subscribers re-download a whole collection on
-   every change, and relay-fallback bandwidth is strictly throttled —
+   every change, and the slowest participant's link is bandwidth-throttled —
    bloated hot collections make an app slow for everyone.
 5c. BROKERED CAPABILITIES (opt-in, declared in the manifest): the app can't
    hold the live device or a secret key, so it asks the GifOS computer to do
