@@ -676,7 +676,7 @@
       // holding the new password can't decrypt any greeter blob (R6 reads as
       // "wrong password") until every greeter's E3 re-knock… which would also
       // have used the stale key, locking them out until a reload.
-      setKey(k) { if (k) { roomKey = k; try { if (sock && sock.rejected) sock.kick(); } catch (e) {} /* credential change: the ONE sanctioned re-arm of a policy-rejected socket */ try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
+      setKey(k) { if (k) { roomKey = k; sealedSoloRuns = 0; /* the counter means "sealed replies under MY CURRENT key" — evidence gathered under the old key must not fire a challenge past a re-key */ try { if (sock && sock.rejected) sock.kick(); } catch (e) {} /* credential change: the ONE sanctioned re-arm of a policy-rejected socket */ try { if (seat && seat.hasCoord && seat.state === 3 && seat.coord.pc === 0) env.knock(peer, seat.genKey || myKey); } catch (e) {} } },
       stats() { return { peer, state: seat ? seat.state : 0, coord: (seat && seat.hasCoord) ? { pc: seat.coord.pc, r: seat.coord.r, i: seat.coord.i } : null, stranded: !!(seat && seat.stranded), tick: env.TICK }; },
       // Greeter-list forensics: ring of recent onGreeters outcomes (listLen /
       // open / founded / action). See greeterTrace push in onGreeters.

@@ -5356,10 +5356,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         storePwEpoch(m.ep != null ? m.ep : pwEpoch + 1);
         retainedGrant = { k: 'pwinfo', pw: m.pw, by: m.by, w: m.w, ep: pwEpoch }; // retained VERBATIM — any member can heal a stale neighbour with the admin's own signature
         storePw(m.pw || '');
+        // A GRANT ANSWERS THE DOOR CHALLENGE (2026-07-29). A member whose
+        // churned socket re-knocked mid-rotation gets the R6 "This room is
+        // locked" prompt — while the admin's sealed grant is already crossing
+        // her still-live pair. The grant IS the password entry: close the
+        // challenge and re-enter exactly as the human-typed path does
+        // (pw-save join branch). Without this she sits behind a modal
+        // demanding a password the room already handed her. Gated on the
+        // challenge having actually fired — an ordinary rotation must not
+        // churn every member's socket.
+        const wasBlocked = pwBlocked;
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
         // under the old key; from here on the room speaks the new one.
-        net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; });
-        rekeyRoom();
+        const rk = rekeyRoom();
+        net.meetPwProof(room, av, roomPw).then(async (pr) => {
+          pwProof = pr;
+          if (wasBlocked) {
+            await rk;
+            pwBlocked = false;
+            if (pwModal.dataset.mode === 'join') pwModal.style.display = 'none';
+            startMesh(); // same re-entry as typing it — state intact
+          }
+        });
         const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
         renderFiles();
         setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
