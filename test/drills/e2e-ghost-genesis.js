@@ -45,7 +45,20 @@
 // the next knocker — a member with the real key, or a fresh joiner — founds it
 // for real.
 //
-// Protocol-level on purpose: the registry is relay state, the failure is a
+// MEASURED, with real browsers (nvidia-laptop, 8 cpu, load < 2). Three clients;
+// two reach the relay through test/servers/pause-forwarder.js, one direct.
+// Park the third at mesh state 1 by SIGUSR1'ing the forwarder (its greeter
+// list stays non-empty but nothing in it can answer), then drop the forwarder
+// and bounce the relay so its socket reconnects into an empty registry:
+//
+//   relay WITHOUT the mint grace : 4 / 4 rounds bricked — every session ends
+//                                  with the genesis held and NO live blob, and
+//                                  all three clients knocking to list=0
+//   relay WITH the mint grace    : 3 / 3 rounds healthy — every session ends
+//                                  with a live greeter registered, and the two
+//                                  stale-key members are handed list=1
+//
+// Protocol-level here on purpose: the registry is relay state, the failure is a
 // relay state machine, and speaking the knock protocol directly makes the
 // absorbing state reproducible in seconds and exactly, with no browser timing
 // in the loop. Spawns its OWN relay, so it is safe from a worktree.

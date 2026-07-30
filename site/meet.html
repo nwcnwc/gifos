@@ -2317,7 +2317,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const capW = level >= 2 ? 320 : 480;
       const paint = () => {
         const now = performance.now();
-        if (now - paintLast < Math.max(66, paintCost * 3)) return; // drop the frame
+        // PAINT NO FASTER THAN WE SEND (2026-07-30 power work). The floor was a
+        // flat 66ms (15fps) regardless of what the encoder was actually
+        // allowed to emit — but adapt() caps the sender at the rung's fps, now
+        // as low as 10 (144p) or 12 (180p), so on a phone we were running an
+        // expensive canvas FILTER on frames that were then dropped before they
+        // ever reached the wire. Blur is the DEFAULT on phones, so this is the
+        // camera path, not an edge case. Track the live rung; never go faster
+        // than 15fps, never slower than 8 (a visibly stuttery self-view is its
+        // own bug), and the cost-based governor below still rules on a weak
+        // device.
+        const rf = (lastQ && lastQ.fps) || 15;
+        const budget = Math.max(66, 1000 / Math.min(15, Math.max(8, rf)));
+        if (now - paintLast < Math.max(budget, paintCost * 3)) return; // drop the frame
         const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
         const w = Math.min(capW, sw), h = Math.max(2, Math.round(w * sh / Math.max(1, sw)));
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -2538,6 +2550,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (tier) {
         q = LADDER[Math.min(LADDER.indexOf(q) + tier, LADDER.length - 1)];
         if (tier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
+      }
+      // BLUR IS ALREADY A BLUR — DON'T PAY FOR FRAMES (Nathan, 2026-07-30).
+      // A blurred feed has deliberately destroyed its spatial detail, so
+      // spending 15-30 fps preserving TEMPORAL detail is paying to transmit
+      // information the user chose to hide. Low frame rate is itself a kind of
+      // blur, and it is the honest one: it costs less on the encoder, the
+      // radio, and every receiver's decoder. This also makes the privacy model
+      // coherent — "No blur" stops being only a consent to reveal your face
+      // and becomes, visibly, a choice to spend more power.
+      // Applies to what we SEND; the blur pipe's own paint budget follows the
+      // rung's fps, so the expensive canvas filter slows down with it.
+      const myBlurLvl = (() => { try { return myStatus.camOff ? 0 : (blurLevelFor('me') | 0); } catch (e) { return 0; } })();
+      if (myBlurLvl > 0) {
+        const cap = myBlurLvl >= 2 ? 8 : 12;   // Max blur ⇒ 8fps, Min blur ⇒ 12fps
+        if (q.fps > cap) q = Object.assign({}, q, { fps: cap });
       }
       if (tune) {
         if (tune.shift) q = LADDER[Math.min(LADDER.indexOf(q) + (+tune.shift || 0), LADDER.length - 1)];
