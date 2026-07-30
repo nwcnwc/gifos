@@ -79,18 +79,22 @@ here, and reds differently — `e2e.js` (tab never opens for a folder app) and
 
 ## Open product questions (not blockers, worth real answers)
 
-- **Stage failover is ~22s** since born-dark's removal (was ~3s with it), and
-  under GATE LOAD redun-drill leg B reported `freeze gap = NEVER RESUMED` —
-  i.e. the standby did not take over at all. Standalone on the same 8-core
-  host the drill passes 9/9, so this is load-dependent, but "works when the
-  box is idle" is the wrong guarantee: **a phone is always the loaded case.**
-  This is the honest cost of removing born-dark, and it should NOT be paid
-  by re-adding it (it violated ONE-PIPE by waking a second pipe on a merely
-  STARVED primary, which makes a loaded device worse). What is needed is a
-  rail that distinguishes a pipe that NEVER flowed from one that is merely
-  slow — probably sender-side evidence (is the producer still encoding?)
-  rather than receiver-side byte silence, which cannot tell the two apart.
-  Design it deliberately, sim-first; do not tune thresholds by gate colour.
+- **CORRECTED: the failover gap was `trackLive`, not born-dark's removal.**
+  redun-drill leg B reported `NEVER RESUMED` on BOTH hosts, and 0.8.6 was
+  green — but 0.8.6 had no born-dark either, so that could not be the cause.
+  It was my own `trackLive` guard: a PARKED STANDBY is indistinguishable from
+  a husk by track state (a negotiated transceiver carrying no media
+  legitimately holds zero live tracks), so the guard discarded the ONE-PIPE
+  standby as debris and the slot had nothing to fail over to. Proven by
+  experiment: relax it and leg B resumes in 6.4s. REMOVED (c9070c6); both
+  Stage suites re-verified ALL PASS without it, because the echo fix was
+  always the real cure. Liveness of a CLAIM is announcer-presence; liveness
+  of a PIPE is bytes, which the watchdog already measures.
+- **Stage failover is ~6s** and redun-drill is back to its PRE-EXISTING
+  flaky-green-on-retry state (recorded in the 0.8.6 cut-week notes): 1 of 2
+  runs green on an idle 8-core host. Worth fixing the wait someday; not a
+  regression.
+
 - **The 240p floor**: on a phone in any 3+ person meeting the power tier is
   SATURATED, so battery state changes nothing at all. There is no headroom
   below 240p and no fps/bitrate lever that keeps working past it. The tuning
