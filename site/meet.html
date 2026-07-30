@@ -2597,7 +2597,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (Date.now() < statusHoldUntil) return;   // an explicit message is showing
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
-      const q = rung(n);
+      // THE LABEL MUST NAME WHAT WE ACTUALLY SEND (2026-07-29, Nathan: "it says
+      // 480p, I unplugged, it still says 480p"). rung(n) is only the HEADCOUNT
+      // baseline; adapt() then pushes it down by the power tier (a phone is
+      // never at the baseline — floor 2 — and a losing charger or a parked
+      // phone cuts further). Reporting the baseline meant the status lied by
+      // up to three rungs and never moved when the battery state did.
+      const q = lastQ || rung(n);
       const link = (relayUp() || (meshSeat() && meshSeat().state === 3 && meshCoord() && meshCoord().pc !== 0)) ? '' : ' · reconnecting to the room…';
       let extra = '';
       if (n > 1) {
