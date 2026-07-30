@@ -1,4 +1,4 @@
-# 2026-07-30 — the Stage is fixed; the gate is not green. Read this first.
+# 2026-07-30 — v0.8.7 CUT AND LIVE. The Stage works. Read this first.
 
 ## What is DONE and LIVE (edge, verified in the prod room)
 
@@ -38,12 +38,16 @@ scaffolding I added before I understood the cause, and all of it did harm.
 - **two tests of my own** that waited on mesh departure convergence and so
   never exercised the fix they guarded.
 
-## THE GATE IS RED. DO NOT CUT until it is green.
+## OUTCOME: GATE GREEN, 0.8.7 CUT (build 909, live as edge build 910)
 
-Every red has been root-caused. None is a product regression. But the rule is
-green-or-no-cut, and "a red you plan to explain afterwards" is exactly what
-the rule forbids — so the cut is NOT taken. The cut is one command when the
-gate is green: `scripts/archive-version.sh 0.8.7`, then commit + push.
+Final gate on the 8-core host with the browser pinned:
+**GREEN 107 / FLAKY 3 / RED 0 / DEAD 0** — "GATE GREEN — clear to cut."
+Cut with `scripts/archive-version.sh 0.8.7`; gifos.app/version.json now reads
+`current: 0.8.7` and the snapshot serves with the echo guard in it.
+
+It took FIVE full gate runs to get there, and the first four were red for
+reasons that had nothing to do with the product. That story is below, because
+the next person will hit the same walls.
 
 ### Fixed this session (test/harness defects, all pre-existing)
 
@@ -82,11 +86,14 @@ question at handoff time.
 
 ## Next steps, in order
 
-1. Read `/tmp/nvgate4.status` + `/tmp/nvgate4.log` on the 8-core box — the
-   first run in a VALID environment (8 idle cores, Chromium pinned to 1193).
-2. Anything still red there is worth believing. Everything else tonight was
-   CPU starvation, browser-build drift, or the gate's own tier order.
-3. Green gate -> `scripts/archive-version.sh 0.8.7` -> commit + push.
+1. DONE — 0.8.7 is live. To cut the next one, run the gate on the 8-core host
+   with `MEET_CHROME=$HOME/.cache/ms-playwright/chromium-1193/chrome-linux/chrome`.
+   Do NOT trust a gate verdict from the 4-core box.
+2. The 3 FLAKY entries (e2e-media-recovery, e2e-meeting-app, e2e-video) are
+   "fix the wait" debt — non-blocking, but the gate rots as that list grows.
+3. When a suite red is ambiguous, build the topology ACROSS DEVICES with
+   meet.js (1-2 clients per box) instead of arguing about it. That is what
+   settled the last blocker in ten minutes.
 
 ## Open product questions (not blockers, worth real answers)
 
