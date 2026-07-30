@@ -85,7 +85,15 @@ start_site_relay() {
   # address — the production per-IP cap of 8 silently starved every ≥9-client
   # suite (e2e-handq meshed exactly 8/10, forever). The caps themselves are
   # still asserted: e2e-relay spawns its OWN bare relay for that section.
-  RELAY_DEV=1 nohup node test/servers/relay-local.js >/dev/null 2>&1 &
+  # RELAY_HOST=0.0.0.0: the behavior battery runs in FLEET mode — remote hosts
+  # dial THIS box at its tailnet address, and fleet mode never spawns a stack
+  # of its own. relay-local binds loopback by default (deliberate), so the
+  # whole battery died before its first scenario with "stack unreachable",
+  # taking all 8 scenarios AND the self-test with it. The site server already
+  # binds every interface; the relay must match or the gate can never run
+  # behavior. (This is the "gate relay config" red from the 0.8.6 triage,
+  # recurring — hence a comment rather than a silent flag.)
+  RELAY_DEV=1 RELAY_HOST=0.0.0.0 nohup node test/servers/relay-local.js >/dev/null 2>&1 &
   sleep 2
 }
 start_fakes() {

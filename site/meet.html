@@ -6147,14 +6147,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (fb.lastBytes === -1 || bytes.b > fb.lastBytes) {
             fb.lastBytes = bytes.b; fb.lastAdvanceAt = now;
             fb.q = Math.min(64, (fb.q || 0) + 1);
-            fb.bornSpent = false; // real bytes end the stall episode — born-dark re-arms
             if (fb.dark) {
               // Primary recovered — the freeze was a FALSE fire, not a death.
               // The sweep re-parks the woken standby; the pipe pays a penalty:
               // it must re-earn the watchdog from zero, at a doubled bar. A
               // chronically freeze-cycling pipe goes inert in two rounds; a
               // killed pipe never recovers, so real failovers never pay.
-              fb.dark = false; fb.darkAt = 0; fb.q = 0; fb.fp = Math.min(4, (fb.fp || 0) + 1);
+              fb.dark = false; fb.q = 0; fb.fp = Math.min(4, (fb.fp || 0) + 1);
               schedReconcile();
             }
           } else if (!fb.dark && (fb.q || 0) >= (MOS_QUALIFY << (fb.fp || 0))) {
@@ -6173,29 +6172,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               demand(std.via, std.key, std.streamId, true); // wake NOW — don't wait for the sweep
               schedReconcile();
             }
-          } else if (!fb.dark && fb.q < (MOS_QUALIFY << (fb.fp || 0)) && fb.lastAdvanceAt
-                     && now - fb.lastAdvanceAt > MOS_BORN_DARK_MS
-                     && now - (fb.claimAt || 0) > MOS_BORN_DARK_MS) {
-            // BORN DARK (2026-07-29, the black stage): a hot primary that
-            // NEVER earned the watchdog — a few frames at birth, then silence
-            // (a husk pipe, a sender whose encoder stalled at the source).
-            // The qualification rail above exists so byte-freeze on a
-            // once-flowing pipe isn't misread — but a pipe that never flowed
-            // continuously is exactly the pipe qualification can never judge,
-            // and it wedged black FOREVER. Wake the standby: make-before-break
-            // means a false fire costs a brief sanctioned overlap, and the
-            // fp penalty (paid on recovery) damps a chronic cycler.
-            const std = mosStandby.get(rk);
-            if (std && std.key && !fb.bornSpent) {
-              // ONE SHOT per stall episode (bornSpent): if the woken standby
-              // doesn't flow either (a throttled/hidden PRODUCER freezes every
-              // path to the same content), the wake is re-parked below and NOT
-              // re-fired until real bytes prove the episode over — the ONE-PIPE
-              // law's steady state is a ≤6s overlap, never a chronic second pipe.
-              fb.dark = true; fb.darkAt = now; fb.bornSpent = true;
-              demand(std.via, std.key, std.streamId, true);
-              schedReconcile();
-            }
+          // (A "born dark" rail lived here for one night — 2026-07-29 — on the
+          // theory that the black stage was pipes stalling after a frame or
+          // two. That diagnosis was WRONG: the cause was a stager claiming an
+          // ECHO of its own feed, which re-shipped the job every 2s sweep (see
+          // mosResolve/floodOne). The heuristic outlived its premise and cost
+          // real damage — under load a merely-STARVED primary reads as dead,
+          // so a second pipe wakes, which adds load, which starves more pipes.
+          // redun-drill caught it as a hot standby (ONE-PIPE violation) at
+          // loadavg 22. A slow pipe is not a dead pipe; only qualification-
+          // backed darkness or a dead transport may move a claim.)
           } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && fb.q) {
             fb.q = 0; // frozen past the horizon without a fire — re-earn from zero
           }
@@ -6206,15 +6192,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // fallback read a camOff standby's STALE last frame as flowing.
           if (fb.dark || fb.wakeAt) {
             const std = mosStandby.get(rk);
-            // A born-dark wake whose standby ALSO never flows (same throttled
-            // producer behind both paths) is re-parked after grace — the
-            // overlap is bounded, and bornSpent keeps it from re-firing until
-            // the primary delivers real bytes again.
-            if (fb.dark && fb.darkAt && fb.bornSpent && now - fb.darkAt > 6000
-                && std && std.key && !(fb.stdFdec > fb.d0 && fb.d0 !== -1)) {
-              demand(std.via, std.key, std.streamId, false);
-              fb.dark = false; fb.darkAt = 0;
-            }
             const s = std ? await pipeBytes(std) : -1;
             if (s !== -1 && s.d >= 0) {
               // First post-wake sample IS the baseline; a sample BELOW the
@@ -6276,9 +6253,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const MOS_DARK_MS = 700;   // no byte advance on a previously-flowing hot pipe = dark
     const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
     const MOS_QUALIFY = 8;     // consecutive advancing ~300ms samples (~2.4s of continuous flow) before a pipe earns the watchdog
-    const MOS_BORN_DARK_MS = 8000; // a hot primary that never qualified AND froze this long since claim/last advance = born dead, wake the standby (8s: a FORMING pipe legitimately takes seconds to first bytes — 4s false-fired during join churn, redun-drill 2/3 — while the real budget is 22s)
     const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec, claimAt } (wake/failback/watchdog state)
-    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, darkAt: 0, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1, claimAt: 0, bornSpent: false });
+    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1, claimAt: 0 });
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
@@ -6323,7 +6299,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const pick = pref || cand.find((x) => x.live);
         if (pick) {
           pri = mkEnt(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream);
-          fb.claimAt = now; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.bornSpent = false; fb.darkAt = 0; // fresh primary — born-dark clock restarts
+          fb.claimAt = now; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; // fresh primary — the watchdog re-baselines
           if (std && std.via === pri.via && std.streamId === pri.streamId) { dropStandby(rk); std = null; }
         }
       }
@@ -6371,7 +6347,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const old = pri;
           mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
           pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
-          fb.dark = false; fb.darkAt = 0; fb.bornSpent = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
+          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
           repaintRedun(rk, pri.stream);
           if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
           else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
@@ -6843,15 +6819,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const s1peers = [...T.rowMates(c), ...T.colMates(c)].map((m) => occPid(m)).filter(Boolean);
         const flooded = new Set(); // PER-SWEEP dedup (one feed may resolve via two keys). The old
         // persistent stgSpread let the sweep-end reaper kill flood jobs after one sweep.
-        // NEVER FLOOD A FEED BACK TO ITS OWNER OR ITS SENDER: the owner is the
-        // one seat in the room that already has the original (and re-shipping
-        // its own face to it thrashed the whole lane — see mosResolve), and
-        // the sender just handed it to me. Both are pure waste on every other
-        // feed too: a stager among C S1 seats got C-1 pointless inbound copies.
+        // NEVER FLOOD A FEED BACK TO ITS OWNER. The owner already has the
+        // original, and re-shipping its own face to it is what thrashed the
+        // whole lane (see mosResolve).
+        // The SENDER is deliberately NOT skipped: when a mate re-floods to the
+        // peer that handed it over, that is a second ANNOUNCER for the slot —
+        // the parked standby the ONE-PIPE law wants, not a wasted copy.
+        // Skipping it silently deleted the stage lane's redundancy, and
+        // redun-drill caught it as "no receiver holding a relayed stg primary
+        // + standby".
         const floodOne = (key, stream, via) => {
           if (!stream || flooded.has(stream.id)) return; flooded.add(stream.id);
           const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
-          const skip = (t) => !t || t === via || (owner && t === owner);
+          const skip = (t) => !t || (owner && t === owner);
           for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); }
           const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
           if (!skip(dnP)) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }

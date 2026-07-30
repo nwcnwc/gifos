@@ -105,6 +105,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('decoded frames advance steadily across the window (>10 in 30 s)',
     advanced, { first: firstF && firstF.frames, last: lastF && lastF.frames });
 
+  // ---- TEARDOWN LEAVES NO PAINTED RESIDUE ---------------------------------
+  // In a ONE-ROW room beyondRow is false, so the Stage alone keeps the mosaic
+  // alive: stepping down drives exactly the teardown branch that stranded a
+  // permanent black "The stadium" square in prod (collections empty, tile
+  // still painted, so the sweep skipped stopMosaic forever). No departures,
+  // no mesh timing — just the branch, deterministically.
+  await pages[stagerIdx].evaluate(() => window.__gifosVideo.stageForTest(false));
+  let cleared = 0;
+  for (let i = 0; i < N; i++) {
+    const ok = await pages[i].waitForFunction(
+      () => window.__gifosVideo.stageIds().length === 0
+        && !document.querySelector('#stagefeed video')
+        && !document.querySelector('[data-row="sd"]'),
+      null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (ok) cleared++;
+  }
+  check('step-down clears BOTH painted surfaces everywhere (no residue)', cleared === N, { cleared, of: N });
+
   // ---- THE UNIVERSAL INVARIANT: NOBODY CLAIMS WHAT THEY PRODUCED -----------
   // Both 2026-07-29 echo bugs (the stage flood, and x2/sdrow after a move) are
   // one class: a seat claims a feed it originated, then re-ships it under the
