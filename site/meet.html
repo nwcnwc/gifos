@@ -2494,15 +2494,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         setStatus('😴 Phone looks parked — letting the screen rest. Tap for full quality.');
       } else keepAwake();
     }, 10000);
+    // TUNE overrides (the phone power-tuning sweep, 2026-07-29): knob sets the
+    // harness applies per run — localStorage gifos_tune = '{"shift":1,
+    // "fps":15,"aux":500,"kbps":300}' (or window.GIFOS_TUNE). Absent = exactly
+    // the shipped behavior. A measurement surface, not product policy:
+    // findings graduate into LADDER/tier law with power JSONL attached.
+    function tuneCfg() {
+      try { const t = window.GIFOS_TUNE || JSON.parse(localStorage.getItem('gifos_tune') || 'null'); return t && typeof t === 'object' ? t : null; } catch (e) { return null; }
+    }
     function adapt() {
       const n = Math.max(2, 1 + peers.size);
       let q = rung(n);
+      const tune = tuneCfg();
       // Effective power tier: the deepest cut wins — battery level, a losing
-      // charger, being a phone at all (≥1), or a parked phone (floor).
-      const tier = Math.max(battTier, drainTier, IS_MOBILE ? 1 : 0, idleNow ? 3 : 0);
+      // charger, being a phone at all, or a parked phone (floor).
+      // PHONES ARE FLOOR 2 IN EVERY STATE (Nathan 2026-07-29, after his phone
+      // drained 41%→33% in 30min PLUGGED IN at 6 seats): the g24 measurements
+      // (docs/phone-power-scaling-2026-07-29.md) put a phone's meeting load at
+      // ~2.2W against a 2.5W USB budget — full-rung video loses to real-world
+      // chargers in BOTH states, so both states cut deeper.
+      const tier = Math.max(battTier, drainTier, IS_MOBILE ? 2 : 0, idleNow ? 3 : 0);
       if (tier) {
         q = LADDER[Math.min(LADDER.indexOf(q) + tier, LADDER.length - 1)];
         if (tier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
+      }
+      if (tune) {
+        if (tune.shift) q = LADDER[Math.min(LADDER.indexOf(q) + (+tune.shift || 0), LADDER.length - 1)];
+        if (tune.fps && q.fps > +tune.fps) q = Object.assign({}, q, { fps: +tune.fps });
+        if (tune.kbps && q.kbps > +tune.kbps) q = Object.assign({}, q, { kbps: +tune.kbps });
       }
       const track = localStream && localStream.getVideoTracks()[0];
       if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
@@ -2527,15 +2546,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // (keyed on the sender IDENTITY, not sender.track — replaceTrack is
           // async, so the track pointer lags the toggle by a beat)
           const blurred = !!blurPipe && sender === p.mainV;
-          const want = auxSenders.has(sender) ? 900000 : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
+          const auxBudget = (tune && tune.aux ? +tune.aux * 1000 : 900000);
+          const want = auxSenders.has(sender) ? auxBudget : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
           if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
           prm.encodings[0].maxBitrate = want;
           sender.setParameters(prm).catch(() => {});
         }
       }
       updateStatus();
+      lastQ = q;
       return q;
     }
+    let lastQ = null; // the rung adapt() last applied — harness verification surface
     // ---- power forensics -----------------------------------------------
     // The Moto died ON THE CHARGER in a 3-person room — power work needs
     // ground truth from the field, not lab guesses. Every 10s, cache each
@@ -3701,7 +3723,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // worker-vs-DOM heartbeat clock, and each sender's negotiated codec +
         // encoder implementation (SoC hardware name vs libvpx/OpenH264).
         hidden: !!document.hidden, hbVia,
-        pow: { batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 1 : 0, idle: idleNow ? 3 : 0 },
+        pow: { batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 2 : 0, idle: idleNow ? 3 : 0 },
         parkAsked: Array.from(visParkSent.entries()).filter(([, v]) => v).map(([id]) => String(id).slice(0, 8)),
         parked: Array.from(peers.entries()).filter(([, p]) => p.remoteParkMain).map(([id]) => String(id).slice(0, 8)),
         pipAim: (() => { try { const v = pipSource(); if (!v) return null; const t = v.closest('[data-peer]'); return t ? 'peer:' + String(t.dataset.peer).slice(0, 8) : 'comp'; } catch (e) { return 'err'; } })(),
@@ -8933,7 +8955,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       quality: () => rung(participantCount()).label,
       power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
       battTier: () => battTier, // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
-      powTier: () => ({ batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 1 : 0, idle: idleNow ? 3 : 0 }),
+      powTier: () => ({ batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 2 : 0, idle: idleNow ? 3 : 0, rung: lastQ && { label: lastQ.label, fps: lastQ.fps, kbps: lastQ.kbps }, tune: tuneCfg() }),
       pokeForTest: () => poke(),
       idleForTest: (ms) => { lastActive = Date.now() - (ms | 0); },
       camTrackLive: () => !!(localStream && localStream.getVideoTracks()[0] && localStream.getVideoTracks()[0].readyState === 'live'),
