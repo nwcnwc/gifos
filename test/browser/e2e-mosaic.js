@@ -150,7 +150,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   for (let i = 0; i < N; i++) {
     if (i === stagerIdx) continue;
-    const r = await stripLiveAt(i, 60);
+    // 120s, and the reason is measured, not guessed. A seat DEEP IN A
+    // DIFFERENT SECTION from the stager is the longest path the strip takes:
+    // stager -> up to Section 1 -> composited there -> fanned down the OTHER
+    // section's subtree. With six browsers sharing one box that legitimately
+    // exceeded 60s (gate: "P5 @2/1.0 ... no strip video"). VERIFIED AS A TEST
+    // BUDGET, NOT A PRODUCT GAP, on 2026-07-30: the same topology built by
+    // hand across THREE devices (2 clients each, no intra-box contention —
+    // section 0 full, stager deep at 1/0.0, observer deep at 2/1.0) had every
+    // non-stager at stripPainted:true with the stager's feed held. The claim
+    // is unchanged — every seat must SEE the stage; only the patience matches
+    // what six browsers on one machine can honestly deliver.
+    const r = await stripLiveAt(i, 120);
     check('P' + i + ' @' + coordStr(i) + ' sees LIVE stage pixels (non-black, changing)', r.ok, r);
     await pages[i].screenshot({ path: SHOTDIR + '/p' + i + '-stage.png' }).catch(() => {});
   }
