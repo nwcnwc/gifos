@@ -6017,7 +6017,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // an individual stager feed (per-stager slot); '^x' marks a REDUNDANT copy
       // arriving over a cross-link — it resolves to the SAME slot so it just backs
       // up the primary up-path (sticky claimMos keeps one, fails over if it dies).
-      if (key.indexOf('stg:') === 0) { const q = key.indexOf('^'); return q < 0 ? key : key.slice(0, q); }
+      if (key.indexOf('stg:') === 0) {
+        const q = key.indexOf('^'); const base = q < 0 ? key : key.slice(0, q);
+        // NEVER CLAIM AN ECHO OF MYSELF (2026-07-29, the stage nobody could
+        // ever see). The S1 flood spreads each stager feed across the whole
+        // rook fabric, so a copy comes BACK to the stager. Claiming it put
+        // 'stg:<me>' in my own mosIn, and the flood loop below then re-shipped
+        // that echo under the SAME job key as my own feed — a different stream
+        // id, so shipMos tore the job down and rebuilt it EVERY 2s sweep,
+        // yanking the tracks out from under every receiver in the room and
+        // killing every relayed copy with them. Nothing needs the echo: the
+        // strip compositor draws me from my own meTile (srcFor short-circuits
+        // on myId) and the stage ear explicitly skips my own feed.
+        if (base === 'stg:' + myId) return null;
+        return base;
+      }
       return null;
     }
     // Is a claimed source still LIVE? (its announcer still connected, still
@@ -6801,14 +6815,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const s1peers = [...T.rowMates(c), ...T.colMates(c)].map((m) => occPid(m)).filter(Boolean);
         const flooded = new Set(); // PER-SWEEP dedup (one feed may resolve via two keys). The old
         // persistent stgSpread let the sweep-end reaper kill flood jobs after one sweep.
-        const floodOne = (key, stream) => {
+        // NEVER FLOOD A FEED BACK TO ITS OWNER OR ITS SENDER: the owner is the
+        // one seat in the room that already has the original (and re-shipping
+        // its own face to it thrashed the whole lane — see mosResolve), and
+        // the sender just handed it to me. Both are pure waste on every other
+        // feed too: a stager among C S1 seats got C-1 pointless inbound copies.
+        const floodOne = (key, stream, via) => {
           if (!stream || flooded.has(stream.id)) return; flooded.add(stream.id);
-          for (const t of s1peers) { const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); }
+          const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
+          const skip = (t) => !t || t === via || (owner && t === owner);
+          for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); }
           const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
-          if (dnP) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
+          if (!skip(dnP)) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
         };
-        if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st); }
-        for (const k of heldStg) floodOne(k, mosIn.get(k).stream);
+        if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st, null); }
+        for (const k of heldStg) { const hf = mosIn.get(k); floodOne(k, hf.stream, hf.via); }
         // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
@@ -8875,6 +8896,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // state, and the last want/idle demand I sent per announcer.
         standby: [...mosStandby.keys()],
         jobsActive: [...mosJobs.entries()].map(([k, j]) => k + (j.active ? '+' : '·')),
+        // per-job IDENTITY: sig = the SOURCE stream this job ships, streamId =
+        // the container minted for it. A changing sig means the producer
+        // handed us a new stream; a changing container with a STABLE sig means
+        // the job was reaped and re-created. (2026-07-29 stage re-ship churn.)
+        jobSig: [...mosJobs.entries()].map(([k, j]) => k.slice(0, 18) + '|s' + String(j.sig).slice(0, 6) + '|c' + String(j.streamId).slice(0, 6)),
         demand: [...subWant.entries()].map(([k, v]) => k + '=' + v.st),
         // per-slot primary/standby VIA (peer id) — lets a probe kill the exact
         // feeding peer and watch the hot standby promote with no black-out.
