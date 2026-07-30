@@ -25,7 +25,7 @@ Encoder cost tracks pixels x fps: 240p -> 144p is ~2.8x fewer pixels at 2/3
 the frame rate. VERIFIED reachable on the moto (`powTier().rung` read back
 `180p` then `144p` live). NOT yet isolated as a power number — see §4.
 
-## 2. Loops we did not need — MEASURED, -21% CPU
+## 2. Loops we did not need — the -21% figure is RETRACTED, see §4c
 
 Two loops burned cycles regardless of whether anything could use the result.
 CPU cycles are watts on a phone.
@@ -50,8 +50,12 @@ CPU cycles are watts on a phone.
 | 910 (before) | **56%** | 1766 MHz | 35.0C |
 | 911 (after)  | **44%** | 1423 MHz | 34.0C |
 
--21% CPU and -19% clock for the same work. The governor clocking down is the
-honest signal: less demand, not just less measured busy-time.
+**RETRACTED.** A later CONTROLLED A/B (§4c) put the same phone in the same
+room against 0.8.7 vs edge and measured only ~1.5 points. MonitorBot agreed
+on participants and liveVid across the two windows above, but those are not
+sufficient controls — the moto was fragmenting in and out of the room that
+evening, so its actual stream count almost certainly differed. Treat the
+910/911 numbers as uncontrolled.
 
 ## 3. Measuring power on this phone: a trap
 
@@ -94,6 +98,36 @@ after a read.
 fixed camera states, one client per box) rather than riding the prod room
 whose composition drifts. Every confound so far has come from measuring in a
 room I did not control.
+
+## 4c. The CONTROLLED A/B — what the loop work is actually worth
+
+Method that finally removed the confounds: a PRIVATE room, two camera bots
+pinned one-per-box on the fleet (so no device thrashes), the moto moved
+between builds via gifos.app's VERSIONED SNAPSHOTS — 0.8.7 (Stage fix, no
+power work) vs edge — with the room state verified identical in both windows
+(3 participants, video 2/2) by an independent client.
+
+| build | cpu mean | cpu median | big cluster |
+|---|---|---|---|
+| 0.8.7 (before) | 44.0% | 44% | 1494 MHz |
+| edge (after)   | **42.5%** | **42%** | 1517 MHz |
+
+**~1.5 points (~3% relative).** Real, repeatable, and much smaller than the
+uncontrolled 910/911 reading.
+
+**Why so small: this room exercises almost none of the changes.** Probed the
+moto mid-run: `camOff:true` (no blur pipe ⇒ the blur fps cap and paint-rate
+change do NOTHING), `mosaicMulti:false, claims:0, tile:null` (no composites ⇒
+the still-frame skip does NOTHING, and the watchdog has no slots to iterate).
+What remained engaged was only the TIMER CADENCES — watchdog 300ms→3s, the
+all-muted meter beat, forensics demand-gating — and ~1.5 points is a fair
+price for those alone.
+
+**So the batch is neither validated nor refuted; it is UNEXERCISED.** To
+measure the rest the room must engage the paths: moto camera ON (blur pipe
+live) and >=5 participants spanning rows (mosaic + composites live). That is
+the next experiment, and it is the one that matters, because those paths are
+where the heavy work actually is.
 
 ## 5. Next candidates (design, not thresholds)
 
