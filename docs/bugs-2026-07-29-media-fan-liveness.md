@@ -123,6 +123,49 @@ Mesh-side follow-up (LAW change, sim-first, NOT done): occ merge should let a
 peer's own report evict its own stale entries — tlSweep can never kill an
 entry whose pid answers probes from a different seat.
 
+## THE ACTUAL ROOT CAUSE (found later the same night — the echo)
+
+The husk/born-dark fixes above were real, but they were treating symptoms.
+BUG 1's true cause, found by testing the shape real meetings have:
+
+**A seat was claiming an echo of its own feed.** The Section-1 rook flood
+spreads every stager feed across the whole S1 fabric, so a copy comes BACK to
+the stager. The stager CLAIMED it (`stg:<self>` in its own mosIn), and the
+flood loop then re-shipped that echo under the SAME job key as its own feed:
+
+```js
+if (amStager) floodOne('stg:' + myId, mySelfStream());    // ships MY stream
+for (const k of heldStg) floodOne(k, mosIn.get(k).stream); // k === 'stg:'+myId → the ECHO
+```
+
+Two different stream ids on one job key ⇒ `shipMos` unships and rebuilds the
+job every 2 s sweep, ripping the tracks out from under every receiver (that
+IS the husk above) and killing every relayed copy in the room at the same
+instant. Measured on the stager: a NEW container id every sweep with a stable
+source (`jobSig` s500434 constant, containers all-new). Measured at receivers:
+claimed sid changing every ~5 s, vTracks 1→0, ~2 frames per cycle. Each extra
+stager multiplies the thrash — one stager looked marginal, two flickered on a
+~2 s cycle (observed live in prod, 03:07–03:15).
+
+Fixes: never claim `stg:<self>` (mosResolve); never ship a feed to its OWNER
+or back to its SENDER (floodOne + relayStg). Verified in prod: two stagers,
+stable stream ids, no churn.
+
+**Why it hid for so long:** every stage test built a 6-page multi-section tree
+with a DEEP stager. Real meetings are 3–5 people in ONE row at Section 1,
+where `beyondRow` is false and the Stage alone keeps the mosaic alive — a
+path no test ever entered, so a bug that broke the Stage 100% of the time for
+every real meeting sat behind a green suite. Guard:
+`test/browser/e2e-stage-onerow.js`.
+
+**The class, not the instance:** `x1`/`sdm`/`sdn`/`sdx` all already refuse to
+claim what their own role produces; `stg`, `sdrow` and `x2` did not. sdrow/x2
+are latent (a static full grid never routes a row its own product, and the
+packer skips `q === c.r`) but reachable after a MOVE, costing a hot pipe
+carrying a mix nobody draws. All three now guarded, and both suites assert the
+invariant directly: no seat may claim `stg:<self>`, `sdrow:<own row>`, or
+`x2:<own row>`.
+
 ## Fix pointers
 
 1. `fb` starve tracking must arm for `stg:*` exactly as for `sdm` — and a fan
