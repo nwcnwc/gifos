@@ -385,7 +385,7 @@ server.on('upgrade', (req, socket, head) => {
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
     const list = greeterList(c);
-    if (GREETDEBUG) greetLog(sess, sid, c, { gk, gblob, have, founded, admitted, listLen: list.length });
+    if (GREETDEBUG) greetLog(sess, parts[1], c, { gk, gblob, have, founded, admitted, listLen: list.length });
     c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
   };
 

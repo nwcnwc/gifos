@@ -251,6 +251,31 @@
         ctx.fillText('✋', dx + cell - r * 1.6, dy + r * 0.3);
       }
     }
+    // STILL-FRAME SKIP (2026-07-30 power work). The governor below bounds how
+    // OFTEN we paint; nothing asked whether painting would change anything.
+    // A composite whose sources have not advanced redraws an IDENTICAL frame —
+    // and because the canvas is captureStream'd, that identical frame is then
+    // ENCODED and SHIPPED to everyone downstream. A room where cameras are off
+    // or a phone is parked is exactly that case, and it is the common one
+    // (join-quiet is the default). Skipping costs nothing: captureStream simply
+    // emits no new frame, WebRTC is happy with variable frame rate, and every
+    // receiver's decoder idles too — the saving compounds down the tree.
+    // Sources that cannot report progress (a nested composite's <canvas>) are
+    // treated as always-advancing, and a forced repaint every STILL_MAX_MS
+    // guarantees no wedge can outlive a second.
+    const STILL_MAX_MS = 1000;
+    let lastSig = '', lastRealPaint = 0, still = 0;
+    function frameSig() {
+      let s = '';
+      for (const [id, t] of tiles) {
+        const el = t.el;
+        // videos report currentTime; canvases cannot, so force a redraw
+        if (el && typeof el.currentTime === 'number') s += id + ':' + el.currentTime.toFixed(3) + ';';
+        else return null;
+        if (t.lbl) s += (t.lbl.talking ? 'T' : '') + (t.lbl.hand ? 'H' : '') + (t.lbl.name || '') + '|';
+      }
+      return s;
+    }
     function paint() {
       if (!ctx || active === false) return;                                    // demand-gated: a composite nobody ships or shows isn't painted (static canvas ⇒ ~0 encode too)
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -266,6 +291,10 @@
         if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; // long-empty packer — don't paint a grid of nothing
       }
       lastNonEmpty = now;
+      // Nothing moved and nothing was relabelled ⇒ the frame would be byte-identical.
+      const sig = frameSig();
+      if (sig !== null && sig === lastSig && now - lastRealPaint < STILL_MAX_MS) { still++; last = now; return; }
+      lastSig = sig === null ? '' : sig; lastRealPaint = now;
       const g = packGrid(T, shape); G = g.cols; R = g.rows;
       // STADIUM: size the square against a FIXED footprint width (STAD_COLS·cellPref)
       // so ≤STAD_COLS columns render at full cellPref and a denser grid shrinks the
@@ -340,7 +369,7 @@
         if (pk.track) { try { pk.track.stop(); } catch (e) {} }
         pk.stream = null; pk.track = null;
       },
-      stats() { return { drawn, dropped, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R }; },
+      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R }; },
     };
     return pk;
   }
