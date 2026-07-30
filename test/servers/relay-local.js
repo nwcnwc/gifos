@@ -17,6 +17,10 @@ const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('h
 // this TTL and the E3 re-knock is what a suite wants to exercise, and waiting
 // 250s per assertion is not a test. Default is the production value.
 const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
+// A mint must become a real greeter within this, or the claim lapses (the
+// ghost-genesis rule — see relay/src/relay.js). RELAY_MINT_GRACE_MS shortens it
+// for tests only; the default is the production value.
+const MINT_GRACE_MS = parseInt(process.env.RELAY_MINT_GRACE_MS || String(60 * 1000), 10);
 
 // RELAY_GREETDEBUG=1 — narrate the greeter registry (R2/R3) on every knock.
 // The registry is the door: when a live room hands a knocker an EMPTY list the
@@ -362,10 +366,15 @@ server.on('upgrade', (req, socket, head) => {
     // Mirrors relay.js: the genesis lives only on connections provably ALIVE
     // at the door (unexpired greeter blob, or a knock within one TTL) — a
     // zombie socket must not hold a greeterless room founded forever (E3's
-    // reopening clause).
+    // reopening clause) — AND, per the ghost-genesis rule, only on a
+    // connection that has actually BECOME a greeter, or is a founder still
+    // inside its mint grace. See relay/src/relay.js for the full statement.
     const now = Date.now();
     for (const c of sess.clients.values()) {
-      if (c.gkh && ((c.gblob && (c.gexp || 0) > now) || (c.gseen || 0) + GREETER_TTL_MS > now)) return c.gkh;
+      if (!c.gkh) continue;
+      if (c.gblob && (c.gexp || 0) > now) return c.gkh;                    // a registered greeter, live
+      if (c.gblob && (c.gseen || 0) + GREETER_TTL_MS > now) return c.gkh;  // registered before, still knocking
+      if (!c.gblob && (c.gmint || 0) + MINT_GRACE_MS > now) return c.gkh;  // a founder still taking its seat
     }
     return null;
   };
@@ -380,7 +389,7 @@ server.on('upgrade', (req, socket, head) => {
   const knock = (c, gk, gblob) => {
     const have = genesisHash();
     let founded = false, admitted = false;
-    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; } // empty ⇒ found (R3)
+    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) c.gmint = Date.now(); } // empty ⇒ found (R3)
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }

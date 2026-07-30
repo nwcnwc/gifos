@@ -107,6 +107,9 @@ if ! { listening 8099 && listening 8790; }; then
 fi
 trap '[ -n "$DEV_PID" ] && kill $DEV_PID 2>/dev/null' EXIT
 
+run "door — ghost genesis cannot brick a live room" \
+    node test/drills/e2e-ghost-genesis.js
+
 run "browser — vanish / transport-loss (pagehide + dc close)" \
     node test/drills/e2e-vanish-browser.js
 

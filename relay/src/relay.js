@@ -138,6 +138,12 @@ const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT s
 // = 200s), or live greeters would expire off the list between re-knocks.
 const GREETER_TTL_MS = 250 * 1000;
 const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphertext
+// A mint is a PROMISE to greet. A socket that founds the room but never
+// registers a greeter blob holds it only this long — see genesisHash's
+// ghost-genesis note. Comfortably above a real founder's seat-and-register
+// (~1s; 8s worst case behind mesh-wire's reregister throttle) and far below
+// the forever the old rule granted.
+const MINT_GRACE_MS = 60 * 1000;
 
 // Admin-room ban lists ride in socket attachments (2KB serialized cap) —
 // keep entries tiny. Plain rooms have NO ban list at all: exclusion there is
@@ -274,10 +280,39 @@ export class Session {
     // the room founded-but-greeterless, every knocker holding on the mint gap,
     // the meeting unjoinable by anyone until the socket happened to be reaped
     // (observed live 2026-07-25, room "test", a sleeping phone).
+    //
+    // THE GHOST GENESIS (observed live 2026-07-29, room "test", a reloading
+    // phone alone for ~15 minutes beside two live clients). Proof of life is
+    // NOT proof of greeting, and the rule above conflated them. The connect
+    // knock is fired for EVERY socket that attaches, carrying `seat.genKey ||
+    // myKey` — the client's THROWAWAY key while it is still joining. A client
+    // at mesh state 1 or 2 whose socket reconnects into a momentarily-empty
+    // registry is therefore handed the mint, but mesh.js:1361 gates taking
+    // 0/0.0 on state===0, so it seats nothing and registers no blob
+    // (mesh-wire calls this 'empty-founded-noop'). The room's genesis was then
+    // H(a key nobody will ever present): no later knock matches, so knock()'s
+    // `if (admitted && gblob)` silently dropped every Section-1 seat's E3
+    // registration, the surviving blobs expired one TTL later, and the pool
+    // stayed EMPTY while `founded` was false for everyone — nobody could even
+    // R3/R6 take over. It was ABSORBING, because the one line below
+    // ("gseen within a TTL") renewed the claim on every knock the ghost made.
+    //
+    // So a claim must be CONVERTED. A socket that has never registered a
+    // greeter blob holds the room only for MINT_GRACE_MS — long enough for a
+    // real founder to take 0/0.0 and register (mesh-wire re-registers on
+    // sock.onopen, ~1s, worst case its 8s throttle), far short of forever.
+    // Once it lapses the room reopens: the ghost's own next knock re-mints and
+    // it finally gets a `founded:true` it can act on, and any member holding
+    // the real genesis can found for real. A socket that HAS registered keeps
+    // the old TTL rule untouched — that is the E3 re-knock window, and
+    // shortening it would re-open the 2026-07-26 room tear.
     const now = Date.now();
     for (const ws of this.members()) {
       const a = this.att(ws);
-      if (a.gkh && ((a.gblob && (a.gexp || 0) > now) || (a.gseen || 0) + GREETER_TTL_MS > now)) return a.gkh;
+      if (!a.gkh) continue;
+      if (a.gblob && (a.gexp || 0) > now) return a.gkh;                    // a registered greeter, live
+      if (a.gblob && (a.gseen || 0) + GREETER_TTL_MS > now) return a.gkh;  // registered before, still knocking
+      if (!a.gblob && (a.gmint || 0) + MINT_GRACE_MS > now) return a.gkh;  // a founder still taking its seat
     }
     return null;
   }
@@ -309,6 +344,7 @@ export class Session {
     if (!have) {
       a.gkh = gk ? await sha256hex(gk) : null;   // empty registry ⇒ found (R3)
       founded = admitted = !!a.gkh;
+      if (founded) a.gmint = Date.now();         // the clock the mint must beat (see genesisHash)
     } else if (gk && (await sha256hex(gk)) === have) {
       a.gkh = have; admitted = true;             // matching key ⇒ join the pool
     }
