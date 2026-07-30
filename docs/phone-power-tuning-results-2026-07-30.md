@@ -129,6 +129,35 @@ live) and >=5 participants spanning rows (mosaic + composites live). That is
 the next experiment, and it is the one that matters, because those paths are
 where the heavy work actually is.
 
+## 4d. THE REAL NUMBER — controlled, with the paths ENGAGED
+
+The §4c run measured almost nothing because the room engaged almost nothing.
+Re-ran with conditions that exercise the changed code:
+
+- **5 camera bots**, pinned 1-2 per box across the fleet (no device thrashes)
+- **moto as the 6th** ⇒ seat 0/1.0, a SECOND ROW ⇒ mosaic on (claims:1)
+- **moto camera ON** ⇒ blur pipe live (Max blur is the default)
+- same room, same seat, same bots in both windows; only the moto's build
+  changed, via gifos.app's versioned snapshots
+
+| build | cpu mean | med | p90 | big cluster |
+|---|---|---|---|---|
+| 0.8.7 (before) | 58.2% | 58% | 59% | 1759 MHz |
+| edge (after)   | **54.4%** | **54%** | **55%** | **1666 MHz** |
+
+**-3.9 points, -6.7% relative, clock -93MHz** — in a realistic 6-person
+meeting with the camera on. That is the honest headline for this batch.
+
+Confirmed engaged during the run (probed live, not assumed): `camOff:false`,
+`claims:1`, and the rung reading `{label:'360p', fps:8}` — the blur fps cap
+doing exactly what it should.
+
+Note the trend across the three measurements: the more the room resembles a
+REAL meeting, the more the work pays. Trivial room (3 people, camera off, no
+mosaic) 1.5 points; realistic room (6 people, camera on, mosaic) 3.9 points.
+That is the expected shape — these changes remove work from the paths that
+only exist when there IS work.
+
 ## 5. Next candidates (design, not thresholds)
 
 - **Decode-side parking.** The demand machinery (`mx-want`/`mx-idle`) already
