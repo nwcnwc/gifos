@@ -79,7 +79,12 @@ Note: e2e-fetch-bridge spawns its OWN server on 8791 — kill fake-ai first.
 
 Playwright + Chromium paths are hardcoded in the tests (already installed).
 If suites start timing out on page-opens for no reason, kill leftover
-Chromium processes first: `pkill -f "chrome-linux/chrome"`.
+Chromium processes first: `pkill -f "headless_shel[l]"` (Playwright launches
+`chrome-linux/headless_shell`, NOT `chrome-linux/chrome` — the old pattern
+here never matched anything, so leftovers piled up invisibly and the box sat
+at loadavg 18 while suites "flaked"; bracket the pattern or pgrep matches its
+own command line). Check `nproc` and `/proc/loadavg` BEFORE believing any red:
+this box is 4 cores and a browser suite spawns 6-10 of these.
 
 Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
 

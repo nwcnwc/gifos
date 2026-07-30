@@ -2615,7 +2615,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // 'cpu'). Read on a live phone via debugDump().power — the monitor's eval
     // path reaches it remotely.
     let powerStats = { at: 0, senders: [] };
+    // DEMAND-GATED FORENSICS (2026-07-30 power work). This sweep calls
+    // getStats() on EVERY video sender every 10s, forever, on every device —
+    // and nothing but diagnostics ever reads the result (debugDump().power and
+    // __gifosVideo.power()). On a phone carrying six senders that is six of
+    // the most expensive calls a WebRTC page can make, every 10s, for data no
+    // user will ever see. Gating on DEBUG would have been simpler but would
+    // have blinded the forensics on a REAL phone (the ones we actually need to
+    // measure — a prod tab has no DEBUG flag). So: refresh only while someone
+    // is actually reading. A reader gets a stale answer once, then live data;
+    // a normal user pays nothing.
+    let powerReadAt = 0;
+    const POWER_READ_WINDOW = 60000;
+    const notePowerRead = () => { powerReadAt = Date.now(); };
     setInterval(() => {
+      if (Date.now() - powerReadAt > POWER_READ_WINDOW) return; // nobody is looking — don't pay
       if (!peers.size) { powerStats = { at: Date.now(), senders: [] }; return; }
       const out = [], jobs = [];
       for (const [pid, p] of peers) {
@@ -3781,7 +3795,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         parkAsked: Array.from(visParkSent.entries()).filter(([, v]) => v).map(([id]) => String(id).slice(0, 8)),
         parked: Array.from(peers.entries()).filter(([, p]) => p.remoteParkMain).map(([id]) => String(id).slice(0, 8)),
         pipAim: (() => { try { const v = pipSource(); if (!v) return null; const t = v.closest('[data-peer]'); return t ? 'peer:' + String(t.dataset.peer).slice(0, 8) : 'comp'; } catch (e) { return 'err'; } })(),
-        power: (powerStats.senders || []).map((s) => ({ to: s.to, codec: s.codec, impl: s.impl, limit: s.limit })) };
+        power: (notePowerRead(), (powerStats.senders || []).map((s) => ({ to: s.to, codec: s.codec, impl: s.impl, limit: s.limit }))) };
     }
 
     // ---- the room: a reconnecting relay socket (signaling only) ---------------
@@ -9062,7 +9076,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
       stopRoomAppForTest: () => { const w = findSharedApp(); if (w) stopRoomApp(w); },
       quality: () => rung(participantCount()).label,
-      power: () => powerStats, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache)
+      power: () => { notePowerRead(); return powerStats; }, // per-sender codec/encoderImplementation/qualityLimitationReason (10s cache, demand-gated)
       battTier: () => battTier, // 0 charging/unknown · 1 on battery · 2 <50% · 3 <25%
       powTier: () => ({ batt: battTier, drain: drainTier, mobile: IS_MOBILE ? 2 : 0, idle: idleNow ? 3 : 0, rung: lastQ && { label: lastQ.label, fps: lastQ.fps, kbps: lastQ.kbps }, tune: tuneCfg() }),
       pokeForTest: () => poke(),
