@@ -596,6 +596,26 @@ confirmation rides frames the seating already produces.)*
   Section 1, re-knocks with it to join the greeter pool. One key per
   URL-instance ⇒ no founding storms; the key is the member-held INSTANCE
   IDENTITY of this particular meeting (a different key = a different meeting).
+  - **R3a. A mint is a PROMISE TO GREET, and an unkept promise LAPSES.**
+    Proof of life is not proof of greeting. The relay fires the connect knock
+    for every socket that attaches, carrying `seat.genKey || myKey` — the
+    client's THROWAWAY key while it is still joining — so a client at mesh
+    state 1 or 2 whose socket reconnects into a momentarily-empty registry is
+    handed the mint, yet takes no seat (the mint is gated on state 0) and
+    registers no address. The genesis then belongs to a key nobody will ever
+    present: no knock is admitted, every Section-1 seat's re-registration is
+    silently dropped, the pool empties one TTL later, and `founded` is false
+    for everyone — so nobody can even take over. Live members, live sockets,
+    a dead door, forever (prod room "test", 2026-07-29, a reloading phone
+    alone for ~15 minutes). Therefore: **a socket that has never registered a
+    greeter address holds the genesis only for a bounded mint grace** (60s,
+    never above the greeter TTL — a blobless claim must be weaker than a
+    registered greeter's, never stronger). When it lapses the room reopens:
+    the would-be founder's own next knock re-mints and it finally gets a
+    `founded` it can act on, and any member holding the real genesis can
+    found for real. A socket that HAS registered keeps the full TTL — that
+    is the E3 re-knock window, and shortening it re-opens the room tear.
+    Guard: `test/drills/e2e-ghost-genesis.js`.
 - **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
   descend its tree, dense-before-deep, to a definitive vacancy — with the home
   itself filled row-major first (H7): while Section 1 has an admissible cell,
