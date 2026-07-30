@@ -24,7 +24,11 @@ scenario('00-levers-selftest', {
 
   // profile: ann IS a phone to the app (policy: a phone is never tier 0)
   const st0 = await ann.state();
-  check.assert(st0.pow && st0.pow.mobile === 1, 'phone profile: IS_MOBILE seen by the app', JSON.stringify(st0.pow));
+  // >= 1, not === 1: the claim is "the app SEES a phone", not the exact rung
+  // penalty, which is power policy and moved to 2 on 2026-07-30 (phones cut
+  // deeper in EVERY state — docs/phone-power-tuning.md). Pinning the constant
+  // made a deliberate policy change look like a lever regression.
+  check.assert(st0.pow && st0.pow.mobile >= 1, 'phone profile: IS_MOBILE seen by the app', JSON.stringify(st0.pow));
   check.assert(st0.battTier === 1, 'fake battery: 90% on-battery reads tier 1', 'battTier=' + st0.battTier);
 
   // battery lever drives the real tier machine
