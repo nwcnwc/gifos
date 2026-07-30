@@ -507,9 +507,16 @@
         else action = 'deliver';
         seat.recv({ t: 'GREETERS', list: ids });
       }
+      // `adm` is the relay's `admitted`: does my genesis key match the room's?
+      // Nothing ACTS on it — but its absence from this trace is why the
+      // ghost-genesis brick (healing-laws R3a) took a relay-side instrumented
+      // rebuild to see. A seated Section-1 greeter whose E3 registration is
+      // being silently dropped (`knock()` stores a blob only when admitted)
+      // looks, from the client, exactly like a room where nobody else is
+      // registering. Record the one bit that tells those two apart.
       greeterTrace.push({
         t: Date.now(), tick: env.TICK, state: preState, post: seat.state,
-        listLen: list.length, open: ids.length, founded: !!m.founded, action, sealed: sealedFps,
+        listLen: list.length, open: ids.length, founded: !!m.founded, adm: !!m.admitted, action, sealed: sealedFps,
       });
       if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
       // A seated Section-1 greeter looking at an EMPTY pool is looking at a
