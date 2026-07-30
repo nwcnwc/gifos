@@ -12,18 +12,25 @@ down and rebuilt it every 2s sweep, ripping the tracks out from under every
 receiver and killing every relayed copy at the same instant. Two guards fix
 it: never claim `stg:<self>`, never flood a feed to its owner.
 
-Also shipped and verified: the echo-class guards for `sdrow`/`x2`, husk-claim
-liveness (`trackLive`), the stale-seat face veto, the honest quality label
+Also shipped and verified: the echo-class guards for `sdrow`/`x2`, the
+stale-seat face veto, the honest quality label
 (it reported the headcount baseline, not what was actually sent), phones at
 power-tier floor 2, and the relay redeploy.
 
 ## What I got WRONG (all removed/reverted — stated so nobody re-adds them)
 
-- **born-dark**: a watchdog rail added on the theory that pipes stalled after
-  a frame or two. The real cause was the echo. It violated the ONE-PIPE law
-  under load (redun-drill caught a hot standby at loadavg 22) and its removal
-  turned e2e-latejoin green. Cost of removal: stage failover ~3s -> ~22s
-  (ordinary transport-death failover, inside the documented starve budget).
+Three pieces of machinery, all built on theories that turned out wrong. The
+actual Stage fix is the two-line echo guard above; everything below was
+scaffolding I added before I understood the cause, and all of it did harm.
+
+- **born-dark**: a watchdog rail on the theory that pipes stalled after a
+  frame or two. It violated the ONE-PIPE law under load (redun-drill caught a
+  hot standby at loadavg 22); removing it turned e2e-latejoin green.
+- **trackLive**: required a claimed stream to carry a live track, on the
+  theory that claims were pinned to track-dead "husks". A PARKED STANDBY is
+  indistinguishable from a husk by track state, so this discarded the
+  ONE-PIPE standby and FAILOVER NEVER COMPLETED (leg B, both hosts). Removed
+  c9070c6 — failover resumes in ~6s and the Stage suites still ALL PASS.
 - **flood sender-skip**: I skipped shipping a feed back to its sender as
   "obvious waste". It is the second announcer that becomes the parked
   standby; skipping it deleted the stage lane's failover path. Reverted.
@@ -64,17 +71,21 @@ Check `/proc/loadavg` and `nproc` BEFORE trusting any gate verdict on this
 box. Most of a night was spent chasing product theories (a "lone-head
 topology" bug, the per-IP socket cap) for failures that were CPU starvation.
 
-**The 8-core box is not clean either**: it runs Chromium **1208** vs 1194
-here, and reds differently — `e2e.js` (tab never opens for a folder app) and
-`e2e-media-recovery` (renegotiation budget, a flake already widened once on
-07-29). Its remaining reds are unproven either way.
+**The 8-core box needed its browser pinned.** pw.js picks the NEWEST build
+installed; nvidia had 1208/1228 while this box uses 1194 (an older standalone
+install under /opt/pw-browsers that its resolver prefers). `e2e.js` and
+`e2e-media-recovery` red ONLY there, and red standalone too — i.e. build
+sensitivity, not load. Gate 4 runs with
+`MEET_CHROME=~/.cache/ms-playwright/chromium-1193/chrome-linux/chrome`
+(1193 ~= the 1194 this box uses). Whether that clears them is the open
+question at handoff time.
 
 ## Next steps, in order
 
-1. Run the gate on a host with >=8 cores AND the Chromium the suites target,
-   or install matching Chromium on the 8-core box. Neither host is that yet.
-2. Re-verify the still-unexplained reds standalone there: `e2e.js`,
-   `e2e-media-recovery`, `redun-drill` leg B/C.
+1. Read `/tmp/nvgate4.status` + `/tmp/nvgate4.log` on the 8-core box — the
+   first run in a VALID environment (8 idle cores, Chromium pinned to 1193).
+2. Anything still red there is worth believing. Everything else tonight was
+   CPU starvation, browser-build drift, or the gate's own tier order.
 3. Green gate -> `scripts/archive-version.sh 0.8.7` -> commit + push.
 
 ## Open product questions (not blockers, worth real answers)
