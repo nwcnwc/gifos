@@ -66,11 +66,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('creator ↔ joiner P2P media link is live on both ends', true);
 
   // remote video actually renders frames (media flows P2P, not via relay)
+  //
+  // ADA'S CAMERA GOES ON FOR THIS LEG. Join-quiet means both cameras start
+  // OFF, and the CAMERA IDLE-STOP (power work, 2026-07-26) stops the hardware
+  // track and removes it from localStream after 20s of camOff — measured
+  // precisely: ownW 1280 at t+18s, 0 at t+24s. So a camera-off peer sends
+  // nothing at all once that timer fires, and this leg was really asserting
+  // "the mesh connected in under 20 seconds". That is a race against a
+  // SHIPPED FEATURE, not a media-plane claim: it went red on the 4-core gate
+  // box AND the 8-core one, and passed only when the handshake happened to
+  // beat the clock. The claim worth making is that media flows P2P — so turn
+  // a camera on, prove frames, then restore join-quiet for the legs below
+  // (which assert Bob's quiet join state, untouched by Ada's toggle).
+  await aPage.locator('#cam').click();
   try {
     await bPage.waitForFunction(() => {
       const v = document.querySelector('.tile:not(.me) video');
       return v && v.videoWidth > 0 && !v.paused;
-    }, null, { timeout: 15000 });
+    }, null, { timeout: 20000 });
+    await aPage.locator('#cam').click();          // back to camera-off
+    await aPage.waitForFunction(() => window.__gifosVideo.camOff(), null, { timeout: 10000 }).catch(() => {});
   } catch (e) {
     // Forensics (red on both boxes 2026-07-28): is it CAPTURE (own tile dead —
     // the box's fake-video transient), TRANSMIT (no video m-line / no bytes
