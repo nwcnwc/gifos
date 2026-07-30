@@ -73,6 +73,28 @@ counter identical (5,049,000) in both, i.e. no charge actually moved.
   charger ride 144p? The rungs exist now; the tier mapping still stops at
   240p for tier 2. Decide with numbers from the re-run.
 
+## 4b. Round 2 — shipped, only partly measured
+
+Four more changes landed (edge build 914):
+
+| change | what it stops doing |
+|---|---|
+| blur fps cap (Nathan's idea) | Max blur sends 8fps, Min 12 — a blurred feed has no spatial detail to preserve, so paying for temporal detail transmits what the user chose to hide. Makes "No blur" visibly a choice to spend power. |
+| blur paint follows the rung | the canvas FILTER ran at a flat 15fps while the encoder was capped as low as 10 — filtering frames that were dropped before the wire |
+| still-frame skip (packers) | a composite whose sources have not advanced redrew an identical frame, which was then ENCODED and SHIPPED downstream |
+| forensics demand-gating | getStats() on every sender every 10s, forever, for data only diagnostics read |
+
+**Not cleanly measured.** The 914 window read CPU 49% / 1651MHz, but the room
+had liveVid **2** where the 910/911 windows had **1** — strictly more decode
+work, so it is not comparable to the -21% result above. Verified live:
+Max blur -> 8fps, No blur -> 12fps; forensics 0 senders unread, populated
+after a read.
+
+**To measure this batch properly**, build a CONTROLLED room (fleet bots with
+fixed camera states, one client per box) rather than riding the prod room
+whose composition drifts. Every confound so far has come from measuring in a
+room I did not control.
+
 ## 5. Next candidates (design, not thresholds)
 
 - **Decode-side parking.** The demand machinery (`mx-want`/`mx-idle`) already
