@@ -120,11 +120,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // decoded frames must ADVANCE for the stage feed (sgs at deep seats,
   // stg:* at Section-1) — the flag-proof decode-liveness bar.
   const framesAdvance = async (idx) => {
+    // frames rides the RENDER path (getVideoPlaybackQuality), which Chrome
+    // throttles for tiny/offscreen elements — the watchdog-v1 lesson. One
+    // frozen 2s window is not evidence; retry for up to 20s.
     const grab = () => pages[idx].evaluate(() => (window.__gifosVideo.feedsInfo() || [])
       .filter((f) => f.key === 'sgs' || f.key.indexOf('stg:') === 0)
       .map((f) => ({ key: f.key.slice(0, 14), frames: f.frames, vw: f.vw }))).catch(() => []);
-    const f1 = await grab(); await sleep(2000); const f2 = await grab();
-    for (const b2 of f2) { const a2 = f1.find((x) => x.key === b2.key); if (a2 && b2.frames > a2.frames && b2.frames > 0) return { ok: true, key: b2.key, frames: b2.frames }; }
+    const tF = Date.now(); let f1 = await grab(), f2 = f1;
+    while (Date.now() - tF < 20000) {
+      await sleep(2000); f2 = await grab();
+      for (const b2 of f2) { const a2 = f1.find((x) => x.key === b2.key); if (a2 && b2.frames > a2.frames && b2.frames > 0) return { ok: true, key: b2.key, frames: b2.frames }; }
+      f1 = f2;
+    }
     return { ok: false, before: f1, after: f2 };
   };
 
@@ -150,8 +157,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log('  stage screenshots → ' + SHOTDIR);
   const fDeep = await framesAdvance(s1Idx === stagerIdx ? (stagerIdx + 1) % N : s1Idx);
   check('stage feed DECODED FRAMES advance at a Section-1 seat', fDeep.ok, fDeep);
-  const ear = await pages[s1Idx === stagerIdx ? (stagerIdx + 1) % N : s1Idx]
-    .evaluate(() => window.__gifosVideo.stageEarLevel(900)).catch(() => -2);
+  const earAt = async (idx, secs) => { // poll: the fold takes a beat to attach a fresh stg feed
+    const tE = Date.now(); let lvl = -2;
+    while (Date.now() - tE < secs * 1000) {
+      lvl = await pages[idx].evaluate(() => window.__gifosVideo.stageEarLevel(900)).catch(() => -2);
+      if (lvl > 0.01) return lvl;
+      await sleep(1500);
+    }
+    return lvl;
+  };
+  const ear = await earAt(s1Idx === stagerIdx ? (stagerIdx + 1) % N : s1Idx, 25);
   check('the stage EAR hears the stager (peak level > 0.01)', ear > 0.01, { ear });
 
   // The prod correlate: the stager toggles the mic — the feed must SURVIVE.
@@ -163,7 +178,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ?? (stagerIdx + 1) % N;
   const rTog = await stripLiveAt(rxIdx, 30);
   check('stage pixels SURVIVE the stager mic toggle at P' + rxIdx + ' @' + coordStr(rxIdx), rTog.ok, rTog);
-  const earTog = await pages[rxIdx].evaluate(() => window.__gifosVideo.stageEarLevel(900)).catch(() => -2);
+  const earTog = await earAt(rxIdx, 25);
   check('stage SOUND survives the mic toggle', earTog > 0.01, { ear: earTog });
   await pages[rxIdx].screenshot({ path: SHOTDIR + '/p' + rxIdx + '-after-mic-toggle.png' }).catch(() => {});
 
@@ -204,6 +219,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(6000);
   const mSolo = await sp.evaluate(() => __gifosVideo.mosaic()).catch(() => null);
   check('single-section room keeps the mosaic OFF', !!(mSolo && !mSolo.multi && !mSolo.jobs.length), mSolo);
+
+  // SHRINK-TO-ONE-ROW dismantles the mosaic COMPLETELY — including the painted
+  // tile. (2026-07-29, prod: a room that fell back to a single row kept a
+  // permanent black "The stadium" square — the claim had been dropped through
+  // another path, the teardown guard saw empty collections and never ran
+  // stopMosaic, and the tile froze on its last dead frame.)
+  // clean LEAVEs (pagehide), not silent deaths — a silent death is confirmed
+  // on the mesh's E-timers (minutes) and would stall this leg legitimately
+  for (let i = 2; i < N; i++) { try { await pages[i].evaluate(() => window.dispatchEvent(new Event('pagehide'))); } catch (e) {} }
+  await sleep(500);
+  for (let i = 2; i < N; i++) { try { await pages[i].context().close(); } catch (e) {} }
+  let tileGone = 0;
+  for (const idx of [0, 1]) {
+    // 180s: the tile clears once the LEAVEs propagate (with margin for gossip
+    // races) — the wedge this guards against never cleared at all.
+    const ok = await pages[idx].waitForFunction(
+      () => !document.querySelector('[data-row="sd"]') && !document.querySelector('#stagefeed video'),
+      null, { timeout: 180000 }).then(() => true).catch(() => false);
+    if (ok) tileGone++;
+    else {
+      const dbg = await pages[idx].evaluate(() => {
+        const d = window.__gifosVideo.debugDump(); const m = d.mosaic || {};
+        return { occ: (d.me || {}).occ, rows: d.rows, jobs: m.jobsActive, claims: m.claims,
+          tile: m.tile, sdEl: !!document.querySelector('[data-row="sd"]'), sgsV: !!document.querySelector('#stagefeed video'), stagers: m.stagers };
+      }).catch((e) => String(e).slice(0, 200));
+      console.log('  [shrink-dbg P' + idx + '] ' + JSON.stringify(dbg));
+    }
+  }
+  check('shrink to one row REMOVES the stadium tile (no permanent black square)', tileGone === 2, { tileGone });
 
   await browser.close();
   console.log(failures === 0 ? '\nALL PASS' : '\n' + failures + ' FAILED');
