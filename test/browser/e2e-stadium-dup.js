@@ -85,14 +85,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     hf.length > 0 && !hf.some((f) => f.pid === m8), { rowFaces: hf, tookMs: Date.now() - t1 });
 
   // …and the mover's face lives at its NEW row's product.
+  // TWO CLAIMS, not one (same lesson as e2e-mosaic's shrink leg): the deep
+  // seat must first SEE the mover as its row-mate — a mesh fact whose timing
+  // varies with the host — and only then can its packer be judged. Folded
+  // together, a slow mesh reported as `rowFaces: []` and read like a paint
+  // bug (red on the 8-core host, green here).
   const t2 = Date.now();
-  let df = [];
-  while (Date.now() - t2 < 30000) {
-    df = await rowFacesAt(deepIdx);
-    if (df.some((f) => f.pid === m8)) break;
+  let seated = false;
+  while (Date.now() - t2 < 60000) {
+    seated = await pages[deepIdx].evaluate((p) => {
+      const c = window.__gifosVideo.meshCoord(); if (!c) return false;
+      const rows = window.__gifosVideo.debugDump().rows || [];
+      return (rows[c.r] || []).some((x) => x && p.indexOf(x) === 0);
+    }, m8).catch(() => false);
+    if (seated) break;
     await sleep(2000);
   }
-  check('the moved face is composed at its NEW row', df.some((f) => f.pid === m8), { rowFaces: df });
+  check('the deep row SEES the mover as its row-mate (mesh precondition)', seated, { waitedMs: Date.now() - t2 });
+
+  let df = [];
+  if (seated) {
+    const t3 = Date.now();
+    while (Date.now() - t3 < 30000) {
+      df = await rowFacesAt(deepIdx);
+      if (df.some((f) => f.pid === m8)) break;
+      await sleep(2000);
+    }
+  }
+  check('the moved face is composed at its NEW row', seated && df.some((f) => f.pid === m8), { rowFaces: df });
 
   const fs = require('fs');
   const SHOTDIR = process.env.SHOTDIR || '/tmp/e2e-stadium-dup';
