@@ -18,6 +18,30 @@ const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('h
 // 250s per assertion is not a test. Default is the production value.
 const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
 
+// RELAY_GREETDEBUG=1 — narrate the greeter registry (R2/R3) on every knock.
+// The registry is the door: when a live room hands a knocker an EMPTY list the
+// only way to see WHY is from in here, because the client is told `list` and
+// `founded` but never WHO holds the genesis or WHY it was not admitted. One
+// line per knock (who knocked, with which key, what the room's genesis is,
+// admitted/founded, list length) plus a dump of every connection's registry
+// state. Off by default; costs nothing when unset.
+const GREETDEBUG = process.env.RELAY_GREETDEBUG === '1';
+const kfp = (h) => (h ? String(h).slice(0, 8) : '-');
+function greetLog(sess, sid, c, o) {
+  const now = Date.now();
+  const rows = [];
+  for (const [p, k] of sess.clients.entries()) {
+    const liveBlob = !!(k.gblob && (k.gexp || 0) > now);
+    const seenAge = k.gseen ? ((now - k.gseen) / 1000).toFixed(0) + 's' : '-';
+    rows.push(p.slice(0, 8) + '{gkh=' + kfp(k.gkh) + ' blob=' + (k.gblob ? (liveBlob ? 'live' : 'EXPIRED') : '-')
+      + ' seen=' + seenAge + (k === c ? ' *' : '') + '}');
+  }
+  console.log('[greet] sid=' + String(sid).slice(0, 16) + ' knock by=' + String(c.peer || '?').slice(0, 8)
+    + ' gk=' + kfp(o.gk && sha256hex(o.gk)) + ' blob=' + (o.gblob ? 'yes' : 'no')
+    + ' | have=' + kfp(o.have) + ' founded=' + o.founded + ' admitted=' + o.admitted + ' list=' + o.listLen
+    + ' || ' + rows.join(' '));
+}
+
 // ---- minimal RFC6455 connection ----
 class Conn {
   constructor(socket) {
@@ -360,7 +384,9 @@ server.on('upgrade', (req, socket, head) => {
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
-    c.send(JSON.stringify({ t: 'greeters', list: greeterList(c), founded, admitted }));
+    const list = greeterList(c);
+    if (GREETDEBUG) greetLog(sess, sid, c, { gk, gblob, have, founded, admitted, listLen: list.length });
+    c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
   };
 
   if (role === 'host') {
@@ -443,7 +469,7 @@ server.on('upgrade', (req, socket, head) => {
         if (p !== peer) { const s = JSON.stringify({ t: 'peer-leave', peer: p }); for (const cc of sess.clients.values()) cc.send(s); }
       }
     }
-    sess.clients.set(peer, conn);
+    conn.peer = peer; sess.clients.set(peer, conn);
     conn.onmessage = async (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
