@@ -932,6 +932,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       { max: 4, w: 854,  h: 480, fps: 24, kbps: 800,  label: '480p' },
       { max: 6, w: 640,  h: 360, fps: 20, kbps: 450,  label: '360p' },
       { max: 99, w: 426, h: 240, fps: 15, kbps: 250,  label: '240p' },
+      // BELOW THE OLD FLOOR (2026-07-30). 240p was never a technical limit —
+      // it was simply the last entry, so on a phone in any 3+ person meeting
+      // the power tier SATURATED: battery state changed nothing, because
+      // LADDER[index+tier] clamped to the last rung and 240p is already
+      // 15fps. These two rungs give the tier somewhere to go. Encoder cost
+      // tracks pixels x fps, so 240p -> 144p is ~2.8x fewer pixels and 2/3
+      // the frames — the deepest cut available without killing the picture.
+      // rung(n) still floors at 240p for room SIZE (find() takes the first
+      // max>=n), so these are reachable ONLY by power tier / tune — nobody
+      // lands here just for being in a big room.
+      { max: 99, w: 320, h: 180, fps: 12, kbps: 150,  label: '180p' },
+      { max: 99, w: 256, h: 144, fps: 10, kbps: 100,  label: '144p' },
     ];
     // Never undefined: above the last rung's max (a stadium can carry a
     // million) every node just sits on the lowest per-link tier. Returning
@@ -2112,12 +2124,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         meters.set(id, { an, src, data: new Uint8Array(an.fftSize) });
       } catch (e) {}
     }
-    let meterHiddenTick = 0;
+    let meterHiddenTick = 0, meterQuietTick = 0, meterAnyLive = false;
     setInterval(() => {
       // Hidden tab: sample at 900ms, not 180ms — the only hidden consumer is
       // the PiP re-aim (worker heartbeat, 4s), and five WebAudio reads/sec
       // per participant is real power on a pocketed phone.
       if (document.hidden && ++meterHiddenTick % 5) return;
+      // ALL-MUTED ROOM: 720ms, not 180ms (2026-07-30 power work). The read is
+      // already skipped per-muted-participant below, but the WAKEUP was not —
+      // and a room where nobody has unmuted (the default: join-quiet) spun
+      // this timer 5.5x/sec to decide there was nothing to measure. One
+      // unmuted mic anywhere restores the fast beat on the very next tick, so
+      // the speaking dot never lags a real talker.
+      if (!meterAnyLive && ++meterQuietTick % 4) return;
+      meterAnyLive = false;
       for (const [id, m] of meters) {
         const t = id === 'me' ? meTile : peers.get(id);
         if (!t) { meters.delete(id); continue; }
@@ -2125,6 +2145,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const gm = modOf(id).mute && modOf(id).mute.on;
         let speaking = false;
         if (!st.muted && !gm) {
+          meterAnyLive = true; // a live mic exists ⇒ keep the fast beat
           m.an.getByteTimeDomainData(m.data);
           let dev = 0;
           for (let i = 0; i < m.data.length; i++) { const d = m.data[i] - 128; dev += d * d; }
@@ -6207,10 +6228,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             }
           } else if (fb.d0 !== -1 || fb.stdFdec !== -1) { fb.d0 = -1; fb.stdFdec = -1; }
         }
+        // ADAPTIVE CADENCE (2026-07-30 power work). This loop was a flat
+        // 300ms getStats() sweep, forever, on every device — 3.3 wakeups/sec
+        // even in a 2-person room with no mosaic at all, and getStats() is one
+        // of the more expensive things a WebRTC page can do. CPU cycles are
+        // watts on a phone, so pay 300ms ONLY where it buys something:
+        //   - a slot is dark, or a wake/failback overlap is running → the
+        //     moment speed matters, keep the fast beat
+        //   - a claim exists WITH a standby that could take over → 900ms is
+        //     still far inside MOS_GRACE (5s), so detection is unaffected
+        //   - nothing watchable (no redundant claim, or no standby to fail
+        //     over TO — the watchdog's only action is waking one) → 3s, which
+        //     is really just "notice when that changes"
+        // The guarantee is unchanged: darkness is still declared on byte
+        // silence, and the fast path still exists exactly when it can act.
+        let urgent = false, watchable = false;
+        for (const [rk] of mosIn) {
+          if (!isRedun(rk)) continue;
+          const fb = mosFb.get(rk); if (!fb) continue;
+          if (fb.dark || fb.wakeAt) { urgent = true; break; }
+          if (mosStandby.get(rk)) watchable = true;
+        }
+        dogEvery = urgent ? 300 : (watchable ? 900 : 3000);
       } catch (e) {}
       dogBusy = false;
-      dogT = setTimeout(mosWatchdog, 300);
+      dogT = setTimeout(mosWatchdog, dogEvery);
     }
+    let dogEvery = 300;
     // One pipe's inbound video counters, by receiver-track OBJECT identity.
     // Returns -1 when the pipe has no video receiver (audio-only, forming, or
     // a rebuilt transport whose receivers no longer carry this track).
