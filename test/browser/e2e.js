@@ -48,6 +48,17 @@ async function dblclickForTab(ctx, page, label) {
       // waits this way, the direct path did not.
       const icon = page.locator('.icon', { hasText: label }).first();
       await icon.waitFor({ state: 'visible', timeout: 15000 });
+      // …AND WAIT FOR THE THUMBNAILS TO SETTLE (2026-07-30, 8-core gate box):
+      // desktop icons decode their GIF thumbnails lazily, and each one that
+      // lands reflows the grid. On a FAST box several decode in the window
+      // between "icon is visible" and the dblclick, so a neighbour's <img>
+      // ends up over this icon's centre and eats the gesture — playwright
+      // retries the dblclick forever and the suite reds with the launcher
+      // looking broken. (Slow boxes pass by accident: the images are still
+      // pending when the click lands.) Settle on the images, not on a sleep.
+      await page.waitForFunction(
+        () => Array.from(document.querySelectorAll('.icon img')).every((im) => im.complete),
+        null, { timeout: 15000 }).catch(() => {});
       [tab] = await Promise.all([
         ctx.waitForEvent('page', { timeout: 10000 }),
         icon.dblclick(),
@@ -1052,6 +1063,11 @@ async function openApp(page, ctx, folder, label) {
     console.log('  (dblclick never opened a tab — capturing the app URL from the page\'s own open call; the Back trap is still the subject)');
     await backPage.evaluate(() => { window.__openUrls = []; window.open = (u) => { window.__openUrls.push(String(u)); return null; }; });
     try {
+      // same thumbnail-settle rule as dblclickForTab — this fallback re-clicks
+      // the very icon a neighbour's lazily-decoded <img> was covering
+      await backPage.waitForFunction(
+        () => Array.from(document.querySelectorAll('.icon img')).every((im) => im.complete),
+        null, { timeout: 15000 }).catch(() => {});
       await backPage.locator('.icon', { hasText: 'BackTest.gif' }).first().dblclick();
     } catch (e2) {
       // The FALLBACK dblclick retrying forever = actionability failing = the
