@@ -275,6 +275,13 @@ if want behavior; then
   elif [ "$LIST" = 1 ]; then
     echo "  would run  test/batteries/behavior.sh $([ "$BEHAVIOR" = full ] || echo --core)"
   else
+    # THE STACK MUST BE UP HERE. The drills tier runs stop_all ("they bring
+    # their own; keep the ports clear") and nothing restarts it — so behavior,
+    # two tiers later, found NOTHING listening and every scenario AND the
+    # self-test died with "stack unreachable" before running a single
+    # assertion. That is a gate bug, not a product red, and it reported as 8
+    # identical FAILs which reads exactly like a real regression.
+    [ "$(ss -lnt 2>/dev/null | grep -c -E ':(8099|8790) ')" -ge 2 ] || start_site_relay
     # relay-dev.sh (the REAL Worker under wrangler) drives the deploy scenarios;
     # without it 04b/16b SKIP loudly rather than pretending to pass.
     ss -lnt 2>/dev/null | grep -q ':8794 ' || echo "  note: relay-dev not on :8794 — deploy scenarios (04b/16b) will SKIP"
