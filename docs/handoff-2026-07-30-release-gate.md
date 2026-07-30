@@ -79,9 +79,18 @@ here, and reds differently — `e2e.js` (tab never opens for a folder app) and
 
 ## Open product questions (not blockers, worth real answers)
 
-- **Stage failover is ~22s** since born-dark's removal (was ~3s with it).
-  Inside the documented budget, but slow. A law-abiding fast path — one that
-  never wakes a second pipe on a merely-STARVED primary — is worth designing.
+- **Stage failover is ~22s** since born-dark's removal (was ~3s with it), and
+  under GATE LOAD redun-drill leg B reported `freeze gap = NEVER RESUMED` —
+  i.e. the standby did not take over at all. Standalone on the same 8-core
+  host the drill passes 9/9, so this is load-dependent, but "works when the
+  box is idle" is the wrong guarantee: **a phone is always the loaded case.**
+  This is the honest cost of removing born-dark, and it should NOT be paid
+  by re-adding it (it violated ONE-PIPE by waking a second pipe on a merely
+  STARVED primary, which makes a loaded device worse). What is needed is a
+  rail that distinguishes a pipe that NEVER flowed from one that is merely
+  slow — probably sender-side evidence (is the producer still encoding?)
+  rather than receiver-side byte silence, which cannot tell the two apart.
+  Design it deliberately, sim-first; do not tune thresholds by gate colour.
 - **The 240p floor**: on a phone in any 3+ person meeting the power tier is
   SATURATED, so battery state changes nothing at all. There is no headroom
   below 240p and no fps/bitrate lever that keeps working past it. The tuning
