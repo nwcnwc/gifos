@@ -105,6 +105,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('decoded frames advance steadily across the window (>10 in 30 s)',
     advanced, { first: firstF && firstF.frames, last: lastF && lastF.frames });
 
+  // ---- THE UNIVERSAL INVARIANT: NOBODY CLAIMS WHAT THEY PRODUCED -----------
+  // Both 2026-07-29 echo bugs (the stage flood, and x2/sdrow after a move) are
+  // one class: a seat claims a feed it originated, then re-ships it under the
+  // key its OWN production already owns. mosResolve enforces this per-slot
+  // (x1/sdm/sdn/sdx always did; stg/sdrow/x2 didn't). Assert the whole class
+  // at once, on every seat, so the next slot to forget it fails here.
+  const selfClaims = [];
+  for (let i = 0; i < N; i++) {
+    const v = await pages[i].evaluate(() => {
+      const c = window.__gifosVideo.meshCoord(); if (!c) return [];
+      const pid = (window.__gifosVideo.debugDump().me || {}).peer;
+      return (window.__gifosVideo.mosaic().claims || []).filter((k) =>
+        k === 'stg:' + pid || k === 'x2:' + c.r || (c.i === 0 && k === 'sdrow:' + c.r));
+    }).catch(() => []);
+    if (v.length) selfClaims.push({ seat: 'S' + i + '@' + cstr(coords[i]), claims: v });
+  }
+  check('no seat claims a feed it produced itself (stg/sdrow/x2 echo class)', selfClaims.length === 0, selfClaims);
+
   const fs = require('fs');
   const SHOTDIR = process.env.SHOTDIR || '/tmp/e2e-stage-onerow';
   fs.mkdirSync(SHOTDIR, { recursive: true });

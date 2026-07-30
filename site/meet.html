@@ -5987,8 +5987,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (key === 'x1') return iAmHead ? null : 'x1';
       // x2 is per-origin-row now (W7): one carrier delivers several rows'
       // products through the same column, so the slots must not collide.
-      if (key === 'x2') return !iAmHead && meta && meta.row != null ? 'x2:' + meta.row : null;
-      if (key.indexOf('sdrow') === 0) return iAmHead && meta && meta.row != null ? 'sdrow:' + meta.row : null;
+      // MY OWN ROW'S PRODUCT IS NEVER MINE TO CLAIM (2026-07-29, the sibling of
+      // the stage echo). In a static full grid the routing arithmetic already
+      // guarantees a row product never comes home — but a seat that MOVES
+      // (compaction, heal) keeps carrying an x2 stamped with its old row, and
+      // after the move that row can be its own. Then it relays my-row-product
+      // to its head as sdrow:<head's own row>. The stadium packer skips q ===
+      // c.r so nothing is mispainted (mix-minus holds), which is exactly why
+      // this stayed invisible: the cost is a HOT PIPE carrying a mix nobody
+      // ever draws — wasted radio and watts on a phone, plus a claim slot the
+      // watchdog will dutifully failover forever. Same rule as x1/sdm/sdn:
+      // never claim what you produced.
+      if (key === 'x2') return !iAmHead && meta && meta.row != null && meta.row !== c.r ? 'x2:' + meta.row : null;
+      if (key.indexOf('sdrow') === 0) return iAmHead && meta && meta.row != null && meta.row !== c.r ? 'sdrow:' + meta.row : null;
       // MIX-MINUS streams (docs/media-plane.md): per-branch, single-producer.
       if (key === 'sdm') return iAmHead ? null : 'sdm'; // my head's finished row view — my Stadium
       // sdx: my column's child-branch ingredient (direct or the '^x' carrier
@@ -6745,6 +6756,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
         if (c.pc === 0) for (const [mk, xf] of mosIn) {
           if (mk.indexOf('x2:') !== 0 || !xf.meta || xf.meta.row == null) continue;
+          if (xf.meta.row === c.r) continue; // never hand my head its own row back (a pre-move claim outlives the move)
           const jk = shipMos('sdrow:' + xf.meta.row, headPid, xf.stream, Object.assign({ row: xf.meta.row }, blockMeta(xf))); if (jk) wanted.add(jk);
         }
         // MIX-MINUS relay: my column's child-branch ingredient — my head built
@@ -6792,19 +6804,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // copy only backs up a failed up-link — it never double-composites.
         const upTgt = iAmHead ? (T.up(c) ? occPid(T.up(c)) : null) : occPid({ pc: c.pc, r: c.r, i: 0 });
         const xUp = T.crossLink(c); const xUpPid = xUp ? occPid(xUp) : null;
+        // Same owner rule as the S1 flood: a stager already HAS its own face —
+        // shipping it back is waste at best, and (before the mosResolve guard)
+        // the echo that thrashed the whole lane.
         const relayStg = (key, stream, via) => {
-          if (upTgt && upTgt !== via) { const jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk); }
-          if (xUpPid && xUpPid !== upTgt && xUpPid !== via) { const jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
+          const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
+          const skip = (t) => !t || t === via || (owner && t === owner);
+          if (upTgt && !skip(upTgt)) { const jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk); }
+          if (xUpPid && xUpPid !== upTgt && !skip(xUpPid)) { const jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
           // and DOWN: the strip is video-only — the per-stager feeds must
           // reach EVERY subtree so Stage audio can fold at each ear.
           const dnP = occPid(T.down(c));
-          if (dnP && dnP !== via && dnP !== upTgt) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
+          if (dnP && !skip(dnP) && dnP !== upTgt) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
         };
         if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null); }
         for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via); }
         if (iAmHead) for (const k of heldStg) { // my row folds at its ears too
           const f = mosIn.get(k);
-          for (let j = 1; j < C; j++) { if (occPid({ pc: c.pc, r: c.r, i: j }) === f.via) continue; const jm = shipMos(k, occPid({ pc: c.pc, r: c.r, i: j }), f.stream, null); if (jm) wanted.add(jm); }
+          const owner = k.slice(4).split('^')[0];
+          for (let j = 1; j < C; j++) {
+            const mate = occPid({ pc: c.pc, r: c.r, i: j });
+            if (!mate || mate === f.via || mate === owner) continue; // never back to the sender, never to the stager itself
+            const jm = shipMos(k, mate, f.stream, null); if (jm) wanted.add(jm);
+          }
         }
       } else {
         // SECTION 1 (W7 rook): flood each stage feed across the FULL row+column

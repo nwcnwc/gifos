@@ -220,6 +220,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const mSolo = await sp.evaluate(() => __gifosVideo.mosaic()).catch(() => null);
   check('single-section room keeps the mosaic OFF', !!(mSolo && !mSolo.multi && !mSolo.jobs.length), mSolo);
 
+  // NOBODY CLAIMS WHAT THEY PRODUCED (the 2026-07-29 echo class: a seat that
+  // claims its own feed re-ships it under the key its own production owns,
+  // thrashing the job every sweep). mosResolve enforces it per-slot; this
+  // asserts the class across every seat in the multi-section shape too.
+  const selfClaims = [];
+  for (let i = 0; i < N; i++) {
+    const v = await pages[i].evaluate(() => {
+      const c = window.__gifosVideo.meshCoord(); if (!c) return [];
+      const pid = (window.__gifosVideo.debugDump().me || {}).peer;
+      return (window.__gifosVideo.mosaic().claims || []).filter((k) =>
+        k === 'stg:' + pid || k === 'x2:' + c.r || (c.i === 0 && k === 'sdrow:' + c.r));
+    }).catch(() => []);
+    if (v.length) selfClaims.push({ seat: 'P' + i + '@' + coordStr(i), claims: v });
+  }
+  check('no seat claims a feed it produced itself (stg/sdrow/x2 echo class)', selfClaims.length === 0, selfClaims);
+
   // SHRINK-TO-ONE-ROW dismantles the mosaic COMPLETELY — including the painted
   // tile. (2026-07-29, prod: a room that fell back to a single row kept a
   // permanent black "The stadium" square — the claim had been dropped through
