@@ -142,8 +142,9 @@ const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphe
 // registers a greeter blob holds it only this long — see genesisHash's
 // ghost-genesis note. Comfortably above a real founder's seat-and-register
 // (~1s; 8s worst case behind mesh-wire's reregister throttle) and far below
-// the forever the old rule granted.
-const MINT_GRACE_MS = 60 * 1000;
+// the forever the old rule granted. NEVER above GREETER_TTL_MS: a blobless
+// claim must be WEAKER than a registered greeter's, never stronger.
+const MINT_GRACE_MS = Math.min(60 * 1000, GREETER_TTL_MS);
 
 // Admin-room ban lists ride in socket attachments (2KB serialized cap) —
 // keep entries tiny. Plain rooms have NO ban list at all: exclusion there is

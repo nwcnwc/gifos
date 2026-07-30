@@ -18,9 +18,11 @@ const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('h
 // 250s per assertion is not a test. Default is the production value.
 const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
 // A mint must become a real greeter within this, or the claim lapses (the
-// ghost-genesis rule — see relay/src/relay.js). RELAY_MINT_GRACE_MS shortens it
-// for tests only; the default is the production value.
-const MINT_GRACE_MS = parseInt(process.env.RELAY_MINT_GRACE_MS || String(60 * 1000), 10);
+// ghost-genesis rule — see relay/src/relay.js). NEVER above the greeter TTL: a
+// blobless claim must be WEAKER than a registered greeter's, never stronger,
+// and suites that shorten the TTL (zombie-genesis) are asserting exactly when
+// an unconverted claim lets go. RELAY_MINT_GRACE_MS overrides for tests.
+const MINT_GRACE_MS = parseInt(process.env.RELAY_MINT_GRACE_MS || String(Math.min(60 * 1000, GREETER_TTL_MS)), 10);
 
 // RELAY_GREETDEBUG=1 — narrate the greeter registry (R2/R3) on every knock.
 // The registry is the door: when a live room hands a knocker an EMPTY list the
