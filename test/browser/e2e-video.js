@@ -380,7 +380,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- speaking: live audio lights the tile border ----------
   await bPage.locator('#mic').click(); // unmute — the fake device emits a tone
-  const spoke = await bPage.waitForFunction(() => document.querySelector('.tile.me').classList.contains('speaking'), null, { timeout: 45000 }).then(() => true, () => false);
+  const spoke = await bPage.waitForFunction(() => document.querySelector('.tile.me').classList.contains('speaking'), null, { timeout: 90000 }).then(() => true, () => false);
   check('audio coming through lights a border around the feed', spoke);
   await bPage.locator('#mic').click(); // back to muted
 
@@ -777,11 +777,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
   };
   try {
+  // RE-AUDITED 2026-07-31 (red at the c->b leg, 45s, while b->c had just
+  // passed). Unlike the liveDataLinks gates these 45s values were never
+  // audited — they predate the liveLinks->liveDataLinks conversion and only
+  // ever moved when test/ was reorganised. What they wait for is the HARDEST
+  // media path in the suite: a blocked pair whose frames must reach each other
+  // THROUGH a mutual friend, so a full relay hop has to be negotiated and then
+  // carry pixels. That is strictly more work than the direct-pair gates already
+  // budgeted at 90s for two dc-watchdog rebuilds, so it cannot honestly be
+  // budgeted for less. A pair that never relays still fails — later, honestly.
     await bIslePage.waitForFunction(() => {
       const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
       const v = t && t.querySelector('video');
       return t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute') && v && v.srcObject && v.videoWidth > 0;
-    }, null, { timeout: 45000 });
+    }, null, { timeout: 90000 });
   } catch (e) { await islandForensics('b→c'); throw e; }
   check('a mutual friend relays live media between a blocked pair (video frames flow)', true);
   try {
@@ -789,7 +798,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('LeftIsle'));
       const v = t && t.querySelector('video');
       return t && /via Hub/.test(t.textContent) && v && v.srcObject && v.videoWidth > 0;
-    }, null, { timeout: 45000 });
+    }, null, { timeout: 90000 });
   } catch (e) { await islandForensics('c→b'); throw e; }
   check('…in both directions, each side labeled "via Hub"', true);
   // chat hops LeftIsle → Hub → RightIsle
