@@ -12,7 +12,13 @@ scenario('11a-telehealth-weak-signal', {
   const ren = cast.get('ren');
   await cast.joinAll();
   await check.converged(2);
-  check.assert((await ren.state()).battTier === 2, 'Ren starts at tier 2 (35%)');
+  // 35% on battery is tier 3 since 2026-07-31: on-battery tiers 1 and 2 were
+  // swallowed by the IS_MOBILE floor of 2, so "on battery" bought nothing on a
+  // phone above 25% and 144p was unreachable outside an emergency. Unplugged is
+  // now tier 2, half a battery tier 3. This line is this scenario's PRECONDITION
+  // (its subject is the wave-dropout link and audio staying sacred), so it just
+  // records the tier a 35% phone is in — it is not asserting the old mapping.
+  check.assert((await ren.state()).battTier === 3, 'Ren starts at tier 3 (35%, on battery)');
 
   for (const [i, dur] of [[1, 15], [2, 30], [3, 45]].values()) {
     await ren.cmd('radio off');

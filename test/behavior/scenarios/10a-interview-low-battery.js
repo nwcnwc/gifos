@@ -23,9 +23,17 @@ scenario('10a-interview-low-battery', {
     return r && r.conn && r.vid;
   }, { within: 60 });
 
-  // the wobble: 23 ↔ 26 across the boundary — deterministic, room unharmed
-  await devi.cmd('battery 26');
-  await check.until('26% → tier 2', async () => (await devi.state()).battTier === 2, { within: 15 });
+  // The wobble: cross THE boundary and back — deterministic, room unharmed.
+  // The boundary moved (2026-07-31). It used to sit at 25%, so 23 ↔ 26 crossed
+  // it. On-battery tiers 1 and 2 were being swallowed whole by the IS_MOBILE
+  // floor of 2, which made "on battery" mean nothing on a phone between 25% and
+  // 100% and left 144p reachable only in a sub-25% emergency; unplugged is now
+  // tier 2 and half a battery is tier 3, so the only boundary a phone has is at
+  // 50%. 23 ↔ 26 is now entirely inside tier 3 and no longer wobbles anything.
+  // Same assertion, same intent — the tier tracks the level in BOTH directions,
+  // promptly, without disturbing the call — probed at the boundary that exists.
+  await devi.cmd('battery 60');
+  await check.until('60% → tier 2', async () => (await devi.state()).battTier === 2, { within: 15 });
   await devi.cmd('battery 23');
   await check.until('23% → tier 3', async () => (await devi.state()).battTier === 3, { within: 15 });
   await check.steady('the wobble never disturbs the interview', async () => {

@@ -13,11 +13,17 @@ scenario('04c-crew-battery-decay', {
   const kofi = cast.get('kofi'), ines = cast.get('ines');
   await cast.joinAll();
   await check.converged(3);
-  check.assert((await kofi.state()).battTier === 1, 'Kofi at 62% on battery: tier 1 (phone floor)');
+  // The on-battery mapping changed 2026-07-31: tiers 1 and 2 were swallowed by
+  // the IS_MOBILE floor of 2, so "on battery" bought a phone nothing between 25%
+  // and 100% and 144p was unreachable outside a sub-25% emergency. Unplugged is
+  // now tier 2, half a battery tier 3. The scenario's point is unchanged — the
+  // tier DECAYS with the level and the room never notices — so the probes move
+  // with the boundary rather than pinning the old constants.
+  check.assert((await kofi.state()).battTier === 2, 'Kofi at 62% on battery: tier 2 (phone floor)');
 
   await kofi.cmd('battery 45');
-  await check.until('45% → tier 2', async () => (await kofi.state()).battTier === 2, { within: 15 });
-  await check.steady('tier 2 costs the ROOM nothing', async () => (await cast.get('marta').state()).participants === 3, { for: 20, allow: 1 });
+  await check.until('45% → tier 3 (half a battery)', async () => (await kofi.state()).battTier === 3, { within: 15 });
+  await check.steady('the deeper tier costs the ROOM nothing', async () => (await cast.get('marta').state()).participants === 3, { for: 20, allow: 1 });
 
   await kofi.cmd('battery 22');
   await check.until('22% → tier 3 (emergency)', async () => (await kofi.state()).battTier === 3, { within: 15 });

@@ -29,11 +29,23 @@ scenario('00-levers-selftest', {
   // deeper in EVERY state — docs/phone-power-tuning.md). Pinning the constant
   // made a deliberate policy change look like a lever regression.
   check.assert(st0.pow && st0.pow.mobile >= 1, 'phone profile: IS_MOBILE seen by the app', JSON.stringify(st0.pow));
-  check.assert(st0.battTier === 1, 'fake battery: 90% on-battery reads tier 1', 'battTier=' + st0.battTier);
+  // …and the SAME lesson applies one line down. This read `=== 1`, and on
+  // 2026-07-31 on-battery policy changed again: tiers 1 and 2 were being
+  // swallowed whole by the IS_MOBILE floor of 2, so "on battery" meant nothing
+  // on a phone between 25% and 100% and 144p was unreachable outside a sub-25%
+  // emergency. Unplugged is now tier ≥2 and half a battery is tier 3. This
+  // selftest exists to prove the LEVER DRIVES THE TIER MACHINE, not to pin the
+  // mapping — so assert direction and monotonicity, which survive the next
+  // policy change too.
+  check.assert(st0.battTier >= 1, 'fake battery: 90% on-battery reads a real on-battery tier', 'battTier=' + st0.battTier);
+  const t90 = st0.battTier;
 
-  // battery lever drives the real tier machine
+  // battery lever drives the real tier machine: lower level ⇒ never a shallower
+  // tier, and the bottom is reached at the bottom.
   await ann.cmd('battery 40');
-  await check.until('battery 40% → tier 2', async () => (await ann.state()).battTier === 2, { within: 15 });
+  await check.until('battery 40% → tier deepens (≥ the 90% tier, ≥2)', async () => {
+    const t = (await ann.state()).battTier; return t >= 2 && t >= t90;
+  }, { within: 15 });
   await ann.cmd('battery 20');
   await check.until('battery 20% → tier 3', async () => (await ann.state()).battTier === 3, { within: 15 });
   await ann.cmd('battery 90,charging');
