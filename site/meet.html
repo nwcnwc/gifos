@@ -2350,7 +2350,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const budget = Math.max(66, 1000 / Math.min(15, Math.max(8, rf)));
         if (now - paintLast < Math.max(budget, paintCost * 3)) return; // drop the frame
         const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
-        const w = Math.min(capW, sw), h = Math.max(2, Math.round(w * sh / Math.max(1, sw)));
+        // CAP THE LONG SIDE, NOT THE WIDTH (2026-07-31, measured). capW was
+        // applied to width alone, which silently assumed a landscape source.
+        // A phone held upright hands this pipe 320x568, width is already <=
+        // capW, nothing is scaled, and the canvas we blur, captureStream and
+        // ENCODE is 181,760 px — 3.2x the 57,600 the rung budgeted. The
+        // encoder census caught it: res "320x568@6" while sitting on 180p.
+        // Because this canvas IS the outbound track whenever blur is on — and
+        // blur is the privacy steady state on phones — adapt()'s camera
+        // constraints never reach the encoder at all; THIS is the size that
+        // ships. Scaling by the long side gives 180x320: same pixel budget the
+        // rung always meant, ~3.2x less to blur, paint, encode and send.
+        const long = Math.max(sw, sh), sc = Math.min(1, capW / Math.max(1, long));
+        const w = Math.max(2, Math.round(sw * sc)), h = Math.max(2, Math.round(sh * sc));
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         try { blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(px * w / Math.max(1, sw))), level); } catch (e) {}
         paintLast = now; paintCost = performance.now() - now;
