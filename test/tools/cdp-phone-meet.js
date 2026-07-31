@@ -7,7 +7,7 @@ for (const m of ['/opt/node22/lib/node_modules/playwright', 'playwright', 'playw
 }
 if (!pw) { console.error('no playwright'); process.exit(1); }
 (async () => {
-  const browser = await pw.chromium.connectOverCDP('http://127.0.0.1:9222');
+  const browser = await pw.chromium.connectOverCDP('http://127.0.0.1:' + (process.env.CDP_PORT || 9222));
   for (const ctx of browser.contexts()) for (const page of ctx.pages()) {
     if (!/meet/.test(page.url())) continue;
     const out = await page.evaluate(async () => {

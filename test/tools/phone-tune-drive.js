@@ -25,7 +25,10 @@ const BASE = process.env.TUNE_BASE || 'https://gifos.app';
 if (!cmd || !room) { console.error('usage: phone-tune-drive.js open|state|close <room> [tuneJson] [--edge]'); process.exit(2); }
 
 (async () => {
-  const browser = await pw.chromium.connectOverCDP('http://127.0.0.1:9222');
+  // CDP_PORT picks WHICH phone. Two phones are two instruments: the only A/B
+  // that cancels time-varying conditions is both in ONE room at ONE time, one
+  // per port (9222/9223), so nothing here may assume a single device.
+  const browser = await pw.chromium.connectOverCDP('http://127.0.0.1:' + (process.env.CDP_PORT || 9222));
   const ctx = browser.contexts()[0];
   const findTab = () => ctx.pages().find((p) => p.url().indexOf('#v=' + room) >= 0 || p.url().indexOf('/meet/' + room) >= 0);
 
