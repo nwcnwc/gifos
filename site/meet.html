@@ -1612,14 +1612,58 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // frozen feed must never be baked into a recording). Old clients ignore
     // the 'vis' frame — opportunistic savings, no flag day.
     const visParkSent = new Map(); // pid -> last park bool actually sent
+    // Ships OFF so this commit changes nothing until the phones say it wins;
+    // `gifos_tune={"dpark":1}` turns it on per-device for the A/B.
+    const DPARK_DEFAULT = false;
+    // OFFSCREEN-MAIN DORMANCY (2026-07-31 power work). Hidden-viewer dormancy
+    // above only fires for a hidden TAB. But a VISIBLE tab already refuses to
+    // paint most of the mains it receives: reconcileGrid() puts display:none on
+    // every peer that is not a row-mate, because a non-row-mate is a structural
+    // link — a FEED for the Stadium/Stage composites, which read the aux
+    // 'sd'/'sgs' streams and NEVER these tiles. So that main video is decoded
+    // and then thrown away, every frame, on both sides of the link: the far end
+    // runs a camera encoder at me and my phone runs a decoder for pixels that
+    // reach no canvas and no screen. On a phone seated alone in row 1 that is
+    // EVERY peer it has.
+    // WHAT MAY NEVER BE PARKED — the three main-reading composite paths, each
+    // checked in the source (srcFor's three call sites):
+    //   * row-mates      — prodPack/sdnPacks compose my row's faces from mains.
+    //                      Their tiles are SHOWN, so "tile hidden" already
+    //                      excludes them; the coord test below is the explicit
+    //                      form so a seating change can never race the DOM.
+    //   * stagers        — the Stage strip prefers the 'stg:' aux feed but falls
+    //                      back to the main. Their mains are parked by their own
+    //                      step-up anyway, so parking buys nothing here, and the
+    //                      Stage is too freshly repaired to take the risk.
+    //   * unknown coord  — never park what I cannot positively classify (the
+    //                      same law reconcileGrid follows for hiding).
+    // Recording keeps everything live, exactly as the hidden-tab rule does.
+    function offscreenMain(pid) {
+      try {
+        const c = meshCoord(), s = meshSeat();
+        if (!c || !s) return false;                       // pre-seat: classify nothing
+        if (stageIds().indexOf(pid) >= 0) return false;   // stagers: leave alone
+        let key = null;
+        for (const [k, v] of s.occ) if (v === pid) { key = k; break; }
+        if (!key) return false;                           // unknown coord ⇒ never park
+        const cc = net.topo.unck(key);
+        return !(cc.pc === c.pc && cc.r === c.r);         // park iff NOT a row-mate
+      } catch (e) { return false; }
+    }
     function sendVisPark() {
       for (const k of [...visParkSent.keys()]) if (!peers.has(k)) visParkSent.delete(k);
       const recording = !!(typeof recRec !== 'undefined' && recRec && recRec.state !== 'inactive');
       const hidden = document.hidden && !recording;
+      // Knob so one phone can run the new policy while another runs the shipped
+      // one IN THE SAME ROOM — the only A/B that cancels time-varying conditions.
+      // tune.dpark: 1 = on, 0 = off. Default below is the shipped policy.
+      const tn = tuneCfg();
+      const dpark = tn && tn.dpark != null ? !!(+tn.dpark) : DPARK_DEFAULT;
       let floatPid = null;
       if (hidden) { const v = pipSource(); for (const [pid, p] of peers) if (p.video === v) { floatPid = pid; break; } }
       for (const [pid, p] of peers) {
-        const park = hidden && pid !== floatPid;
+        let park = hidden && pid !== floatPid;
+        if (!park && dpark && !recording) park = offscreenMain(pid);
         if (visParkSent.get(pid) === park) continue;
         if (p.dc && p.dc.readyState === 'open') { dcSend(p, { k: 'vis', park }); visParkSent.set(pid, park); }
         else visParkSent.delete(pid); // never mark unsent state as delivered
@@ -3742,6 +3786,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const rowMate = cc.pc === c.pc && cc.r === c.r; // same section + row (≠ me)
         p.tile.style.display = rowMate ? '' : 'none';
       }
+      // Offscreen-main dormancy follows the grid: the set of peers I refuse to
+      // paint is decided HERE, so re-evaluate parking the moment it changes
+      // (a re-seat that makes a stranger my row-mate must un-park it promptly,
+      // not wait for the next heartbeat).
+      sendVisPark();
     }
 
     // ┌─────────────────────────────────────────────────────────────────────┐
