@@ -38,7 +38,7 @@ const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 // wait each.
 async function dblclickForTab(ctx, page, label) {
   let tab = null;
-  for (let att = 0; att < 5 && !tab; att++) {
+  for (let att = 0; att < 3 && !tab; att++) {
     try {
       // WAIT FOR PAINT BEFORE EVERY ATTEMPT (gate g8 flake, 2026-07-29): the
       // retry above re-clicked immediately, so all three attempts could land
@@ -59,20 +59,11 @@ async function dblclickForTab(ctx, page, label) {
       await page.waitForFunction(
         () => Array.from(document.querySelectorAll('.icon img')).every((im) => im.complete),
         null, { timeout: 15000 }).catch(() => {});
-      // DO NOT LENGTHEN THIS WAIT. I tried (2026-07-31, 10s → 30s, chasing a
-      // gate red) and it made the suite fail DETERMINISTICALLY where 10s had
-      // passed. The comment at the top of this function already says why: when
-      // the icon node is swapped between paint and dispatch the click lands on
-      // a corpse and NO TAB WILL EVER OPEN. Waiting longer cannot fix a click
-      // that already missed — only clicking again can. A longer wait strictly
-      // reduces how many re-clicks fit before the suite budget runs out, which
-      // is exactly the "a single 30s waitForEvent eats the suite" failure this
-      // design was built to escape. Bounded wait, MORE attempts.
       [tab] = await Promise.all([
         ctx.waitForEvent('page', { timeout: 10000 }),
         icon.dblclick(),
       ]);
-    } catch (e) { if (att === 4) throw e; }
+    } catch (e) { if (att === 2) throw e; }
   }
   return tab;
 }
