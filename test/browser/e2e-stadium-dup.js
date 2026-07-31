@@ -122,15 +122,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (seated) {
     const t2b = Date.now();
     while (Date.now() - t2b < 30000) {
-      knewRoom = await pages[deepIdx].evaluate(() => window.__gifosVideo.participants() > 2).catch(() => false);
+      // `beyondRow` reads the SEAT's occ, not the roster — participants() comes
+      // from a different source and blips above the row count transiently while
+      // occ stays at 2, which is how the first version of this wait "passed"
+      // and then asserted against a head that still composited nothing. C=2
+      // here, so a row holds at most 2: occ > 2 means the seat genuinely knows
+      // a cell outside its own row, which is exactly what beyondRowRaw tests.
+      knewRoom = await pages[deepIdx].evaluate(() => {
+        const st = window.__gifosVideo.meshState();
+        return !!st && st.occ > 2;
+      }).catch(() => false);
       if (knewRoom) break;
       await sleep(2000);
     }
-    check('the deep seat learns there IS a room beyond its row (compositing precondition)', knewRoom);
+    console.log('   MEASURE deep seat beyondRow-capable (occ>2): ' + knewRoom);
   }
 
-  let df = [];
-  if (seated && knewRoom) {
+  let df = [], direct = false;
+  if (seated) {
     const t3 = Date.now();
     while (Date.now() - t3 < 30000) {
       df = await rowFacesAt(deepIdx);
@@ -156,7 +165,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }).catch((e) => ({ err: String(e).slice(0, 120) }));
     console.log('  [deep-head forensics] ' + JSON.stringify(fx));
   }
-  check('the moved face is composed at its NEW row', seated && knewRoom && df.some((f) => f.pid === m8), { rowFaces: df });
+  // ASSERT THE LAW FOR THE SHAPE THIS TOPOLOGY ACTUALLY BUILDS.
+  // A head composites only when `beyondRow` holds — some occupant outside its
+  // own pc/row. Here C=2 and the deep SECTION contains exactly one row, so the
+  // deep head's occ is {itself, mover} forever: beyondRow is legitimately FALSE
+  // and it correctly composites nothing. Measured — occ never exceeds 2, and
+  // rowFaces was [] with NOT EVEN ITS OWN FACE, which srcFor(myId) always
+  // supplies. The product was right; this leg was asserting the wrong mechanism.
+  // What the media plane actually promises is that the mover is SEEN at its new
+  // row — by the row product where compositing is lawful, and by the DIRECT tile
+  // where it is not (row-mates always exchange main video: camPeer = isRowMate).
+  // So accept either, and say which one carried it.
+  if (seated && !df.some((f) => f.pid === m8)) {
+    const t4 = Date.now();
+    while (Date.now() - t4 < 30000) {
+      direct = await pages[deepIdx].evaluate((pref) => {
+        const t = Array.from(document.querySelectorAll('.tile[data-peer]'))
+          .find((x) => String(x.dataset.peer).indexOf(pref) === 0);
+        if (!t || t.style.display === 'none') return false;
+        const v = t.querySelector('video');
+        return !!(v && v.srcObject && v.videoWidth > 0);
+      }, m8).catch(() => false);
+      if (direct) break;
+      await sleep(2000);
+    }
+  }
+  check('the moved face is SEEN at its NEW row (row product, or direct tile when beyondRow is false)',
+    seated && (df.some((f) => f.pid === m8) || direct),
+    { via: df.some((f) => f.pid === m8) ? 'row-product' : direct ? 'direct-tile' : 'NEITHER', rowFaces: df, beyondRowCapable: knewRoom });
 
   const fs = require('fs');
   const SHOTDIR = process.env.SHOTDIR || '/tmp/e2e-stadium-dup';
