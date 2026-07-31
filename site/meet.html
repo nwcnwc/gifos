@@ -2138,9 +2138,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // the speaking dot never lags a real talker.
       if (!meterAnyLive && ++meterQuietTick % 4) return;
       meterAnyLive = false;
+      // NOBODY READS THIS PEER'S LEVEL (2026-07-31 power work). A `speaking`
+      // verdict has exactly two consumers: the tile's green ring, and
+      // speakingOf → the packer overlay that frames talking faces on a
+      // composite I SHIP. reconcileGrid() hides every non-row-mate's tile, and
+      // the only mains a composite draws are row-mates' and stagers' — so for a
+      // hidden non-stager BOTH consumers are dead, and the FFT + 256-sample
+      // loop underneath it is pure waste, 5.5x/sec per such peer. In a stadium
+      // most of the room is exactly that. Stagers keep their meter (their tile
+      // hides but the Stage strip frames them); anything I cannot classify
+      // keeps its meter too — never go quiet on a face that might be painted.
+      const stgSet = (() => { try { return new Set(stageIds()); } catch (e) { return null; } })();
       for (const [id, m] of meters) {
         const t = id === 'me' ? meTile : peers.get(id);
         if (!t) { meters.delete(id); continue; }
+        const unpainted = id !== 'me' && stgSet && !stgSet.has(id)
+          && !!(t.tile && t.tile.style.display === 'none');
+        if (unpainted) {
+          // Don't measure, but don't lie either: a peer nobody paints is not
+          // "speaking", and the stale ring must not survive the tile going dark.
+          if (speakingOf.get(id)) { t.tile.classList.remove('speaking'); speakingOf.set(id, false); }
+          continue;
+        }
         const st = (id === 'me' ? myStatus : statusOf.get(id)) || {};
         const gm = modOf(id).mute && modOf(id).mute.on;
         let speaking = false;
@@ -2357,12 +2376,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // visibility flip is its own churn) and make the callback cheap instead.
       // Where rVFC is absent (older WebKit) the metronome is the ONLY driver
       // and must keep painting unconditionally.
+      // …and UNSUBSCRIBE, not just return early. metroSub's own teardown
+      // terminates the Worker once the last subscriber leaves, precisely
+      // because "a subscriber-less 15Hz tick would otherwise spin forever,
+      // denying the SoC its deep-idle states". Staying subscribed and
+      // returning early keeps that Worker alive and ticking 15x/s — it saves
+      // the paint but not the WAKEUP, and the wakeup is the part that blocks
+      // deep idle. While visible with rVFC driving we drop the subscription
+      // entirely, so with blur on and no recording the Worker is GONE. It
+      // comes back on the visibility flip, which is a human action — rare
+      // enough that the churn is free.
       const rvfcDrives = !!src.requestVideoFrameCallback;
-      pipe.unsub = metroSub(() => {
+      const tick = () => { if (blurPipe === pipe) paint(); };
+      let metroOff = null;
+      const syncMetro = () => {
         if (blurPipe !== pipe) return;
-        if (rvfcDrives && !document.hidden) return; // rVFC has it; this tick is redundant
-        paint();
-      });
+        if (!rvfcDrives || document.hidden) { if (!metroOff) metroOff = metroSub(tick); }
+        else if (metroOff) { metroOff(); metroOff = null; }
+      };
+      syncMetro();
+      document.addEventListener('visibilitychange', syncMetro);
+      pipe.unsub = () => {
+        document.removeEventListener('visibilitychange', syncMetro);
+        if (metroOff) { metroOff(); metroOff = null; }
+      };
       paint();
       return pipe.track;
     }
@@ -2631,6 +2668,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return q;
     }
     let lastQ = null; // the rung adapt() last applied — harness verification surface
+    // COMPOSITES FOLLOW THE TIER TOO (2026-07-31 power work). Every packer took
+    // the flat SCALE.COMP_FPS (8) — no call site has ever passed `fps` — so a
+    // phone that has cut its OWN camera to the bottom of the ladder still
+    // painted, encoded and shipped the room's mosaic at the full rate. A head
+    // runs two of these (prodPack + sdPack) on top of its camera. Composites are
+    // secondary tiles by the same argument that took COMP_FPS from 12 to 8, and
+    // a device deep enough in the tier to be at 144p has already decided that
+    // frames are what it is spending. Every stage wins: fewer paints, fewer
+    // encodes, fewer packets, fewer radio wakeups.
+    function compFps() {
+      const base = (net.SCALE && net.SCALE.COMP_FPS) || 8;
+      if (!IS_MOBILE) return base;
+      const deep = battTier >= 3 || drainTier >= 3 || idleNow;
+      return deep ? Math.max(4, Math.round(base * 0.6)) : base;
+    }
     // ---- power forensics -----------------------------------------------
     // The Moto died ON THE CHARGER in a 3-person room — power work needs
     // ground truth from the field, not lab guesses. Every 10s, cache each
@@ -6637,7 +6689,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (iAmHead) {
         // PRODUCT = my row's live faces + my row's sub-blocks, PACKED near-square
         // (no fixed C+1 slots — the tall-product blowup is gone).
-        if (!prodPack) prodPack = MM.createPacker({ shape: 'grid', ac: (ensureAc(), ac) }).start();
+        if (!prodPack) prodPack = MM.createPacker({ shape: 'grid', fps: compFps(), ac: (ensureAc(), ac) }).start();
         dbgRowFaces = []; // test observability: which pid the packer drew at each row seat
         for (let j = 0; j < C; j++) {
           let pid0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
@@ -6708,7 +6760,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // MY ROW'S VIEW ('sdm'): outside + my child blocks. My own row's
           // faces are ABSENT — they are the Channel R tiles on the same
           // screen. Every face on screen exactly once; audio matches video.
-          if (!sdPack) sdPack = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start();
+          if (!sdPack) sdPack = MM.createPacker({ shape: 'stad', fps: compFps(), ac: (ensureAc(), ac) }).start();
           setOutside(sdPack);
           for (let j = 0; j < C; j++) { const sub = mosIn.get('sub:' + j); if (sub) setBlock(sdPack, 's' + j, 20 + j, sub); else sdPack.delTile('s' + j); }
           // An EMPTY view (fragmented mesh, nothing claimable beyond the row
@@ -6751,7 +6803,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             const childPid = occPid(T.down({ pc: c.pc, r: c.r, i })) || (i !== c.i ? heirOf({ pc: c.pc, r: c.r, i }) : null);
             if (!childPid) { const old = sdnPacks.get(i); if (old) { old.stop(); sdnPacks.delete(i); } continue; }
             let pk = sdnPacks.get(i);
-            if (!pk) { pk = MM.createPacker({ shape: 'stad', ac: (ensureAc(), ac) }).start(); sdnPacks.set(i, pk); }
+            if (!pk) { pk = MM.createPacker({ shape: 'stad', fps: compFps(), ac: (ensureAc(), ac) }).start(); sdnPacks.set(i, pk); }
             setOutside(pk);
             for (let j = 0; j < C; j++) {
               const fp0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
@@ -6955,7 +7007,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar' }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus)
+        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', fps: compFps() }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus)
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
