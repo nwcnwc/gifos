@@ -72,12 +72,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // widened elsewhere: 40s covers one rebuild plus the renegotiation, on a
   // box under gate load). The ASSERTION is unchanged — her frames must reach
   // Ada; only the patience matches what the mesh honestly promises.
+  // RE-AUDITED 2026-07-31 (gate10, red twice at exactly this line, 0 assertions
+  // failed — a pure timeout). 40s covered ONE rebuild; under a full gate the
+  // dc-watchdog can legitimately rebuild the pair more than once before the
+  // renegotiated tracks land, and Mia's own tile had already gone live, so the
+  // media plane was working and only this budget was not. Same assertion, more
+  // patience.
   await aPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Mia'));
     if (!t || t.classList.contains('cam-off')) return false;
     const v = t.querySelector('video');
     return v && v.videoWidth > 0;
-  }, null, { timeout: 40000 });
+  }, null, { timeout: 90000 });
   check('A: her late camera renegotiates into the mesh — Ada renders her frames', true);
 
   // ---------- B: Don's camera turns on but sends pure black ----------

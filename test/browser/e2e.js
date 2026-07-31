@@ -59,8 +59,15 @@ async function dblclickForTab(ctx, page, label) {
       await page.waitForFunction(
         () => Array.from(document.querySelectorAll('.icon img')).every((im) => im.complete),
         null, { timeout: 15000 }).catch(() => {});
+      // AUDITED BUDGET (2026-07-31, gate10 red twice here). Everything ELSE in
+      // this helper already waits 15s — icon visible, thumbnails settled — and
+      // then the actual work, asking the browser to CREATE A NEW PAGE, got 10.
+      // That is the outlier, and it is the step that has to contend with ~15
+      // resident browsers on a full-gate box. The retry above cannot rescue it
+      // either: a slow box is slow on every attempt. Nothing asserted changes —
+      // a tab must still open from the double-click.
       [tab] = await Promise.all([
-        ctx.waitForEvent('page', { timeout: 10000 }),
+        ctx.waitForEvent('page', { timeout: 30000 }),
         icon.dblclick(),
       ]);
     } catch (e) { if (att === 2) throw e; }

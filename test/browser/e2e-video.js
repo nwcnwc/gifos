@@ -1018,6 +1018,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const g = window.__gifosVideo;
         const tiles = Array.from(document.querySelectorAll('.tile:not(.me) video')).map((v) => v.className);
         const me = document.querySelector('.tile.me video');
+  // AUDITED BUDGET — the admin-moderation leg (2026-07-31, gate10 red twice at
+  // the "Blur guests" step). Every wait below is one shape: an ADMIN CLICK must
+  // travel as gossip to the guest, and the guest must then REBUILD ITS OUTBOUND
+  // — starting or tearing down the blur pipe and swapping the sender's track.
+  // These were budgeted at 8-10s on an idle box; a full gate runs this leg with
+  // ~15 browsers resident, and 10s leaves a gossip round plus a track swap no
+  // headroom at all. That is the same audit already recorded in
+  // e2e-media-recovery ("the ASSERTION is unchanged ... only the patience
+  // matches what the mesh honestly promises"), applied to the leg that has been
+  // this suite's documented late-leg flake — it failed at 1052 here and at 1052
+  // on the PRE-CHANGE baseline too, so it is not a regression, it is debt.
+  // Nothing about what is asserted changes: the guest must still end up blurred
+  // or clear exactly as the admin commanded.
         return { myBlur: g.myBlur ? g.myBlur() : null, out: g.outboundKind ? g.outboundKind() : null,
           pw: g.roomPw(), parts: g.participants(), ownW: me ? me.videoWidth : null, tiles,
           admins: g.adminsHere ? g.adminsHere().length : null, pwLog: (window.__pwLog || []).slice(-6) };
@@ -1027,7 +1040,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     throw e;
   }
   check('with an admin present, a consenting guest goes clear on her own — no unanimity', true);
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 8000 });
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 30000 });
   check('…and she broadcasts raw', true);
   check('vote menu is HIDDEN in admin rooms (admins ban instead)',
     (await adam.evaluate(() => getComputedStyle(document.querySelector('#votebtn')).display)) === 'none');
@@ -1036,44 +1049,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const bethTileOnAdam = adam.locator('.tile:not(.me)').first();
   await bethTileOnAdam.hover();
   await bethTileOnAdam.locator('button[data-mod="blur"]').click();
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 10000 });
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred', null, { timeout: 30000 });
   check('an admin block overrides the guest\'s None — she broadcasts blurred', true);
-  await beth.waitForFunction(() => window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 8000 });
+  await beth.waitForFunction(() => window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 30000 });
   check('…and shows blurred on her own screen too', true);
   // Admin lifts the block → Beth (still consenting) returns to clear at once.
   await bethTileOnAdam.hover();
   await bethTileOnAdam.locator('button[data-mod="blur"]').click();
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 10000 });
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 30000 });
   check('lifting the admin block returns the consenting guest to clear immediately', true);
 
   // "BLUR GUESTS" SHORTCUT: one click blocks every guest (same modTable.blur as
   // blocking each by hand); the button flips to Unblur; clicking again clears.
   await adam.locator('#blurall').click();
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred' && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 10000 });
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'blurred' && window.__gifosVideo.blurClassOf('me') >= 1, null, { timeout: 30000 });
   check('admin "Blur guests" blocks every guest at once (guest broadcasts blurred)', true);
   await adam.waitForFunction(() => /Unblur guests/.test(document.getElementById('blurall').textContent), null, { timeout: 5000 });
   check('the Blur-guests button flips to "Unblur guests"', true);
   await adam.locator('#blurall').click();
-  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 10000 });
+  await beth.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw' && window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 30000 });
   check('clicking again unblurs every guest — the consenting guest returns to clear', true);
 
   // "VIDEO OFF" — the harder hammer: admin kills every guest's camera room-wide.
   await adam.locator('#camall').click();
-  await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'cam') && window.__gifosVideo.camOff(), null, { timeout: 10000 });
+  await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'cam') && window.__gifosVideo.camOff(), null, { timeout: 30000 });
   check('admin "Video off" kills every guest camera room-wide (guest stops transmitting)', true);
   await adam.waitForFunction(() => /Video on/.test(document.getElementById('camall').textContent), null, { timeout: 5000 });
   await beth.locator('#cam').click(); // guest tries to turn video back on
   await beth.waitForFunction(() => /admin turned your video off/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
   check('a guest cannot re-enable video while an admin holds it off', true);
   await adam.locator('#camall').click(); // release
-  await beth.waitForFunction(() => !window.__gifosVideo.modOn('me', 'cam'), null, { timeout: 8000 });
+  await beth.waitForFunction(() => !window.__gifosVideo.modOn('me', 'cam'), null, { timeout: 30000 });
   check('admin releases video-off; guests may turn their camera back on', true);
 
   // admin globally mutes Beth — stamped path, enforced on Beth's own device
   const bethTile = adam.locator('.tile:not(.me)').first();
   await bethTile.click();
   await bethTile.locator('[data-mod="mute"]').click();
-  await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'mute'), null, { timeout: 8000 });
+  await beth.waitForFunction(() => window.__gifosVideo.modOn('me', 'mute'), null, { timeout: 30000 });
   check('admin\'s global mute lands on the target (stamped, receiver-enforced)', true);
 
   // ban Beth's device: socket cut, rejoin refused. The ban keys on the
