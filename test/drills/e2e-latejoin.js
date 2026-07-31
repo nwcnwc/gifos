@@ -301,17 +301,43 @@ const pfx = (id) => String(id || '').slice(0, 12);
   const mr = lateResults.find((r) => r.socketlessTargets.length && r.connected && r.lu);
   if (mr) {
     await mr.lu.page.evaluate(() => { const c = document.getElementById('cam'); if (c && c.classList.contains('off')) c.click(); }).catch(() => {});
-    let media = null;
+    // MEASURE MEDIA, NOT A MAIN TILE. `r.vid` is videoWidth>0 on the peer's
+    // MAIN tile — and `camPeer = isRowMate`, so raw camera is sent ONLY to
+    // row-mates. A healed socketless link is very often a STRUCTURAL one (the
+    // ARRANGED leg deliberately places the joiner adjacent to a socketless seat
+    // in another section — 7/0.0 targeting 1/0.0), and across a structural link
+    // the main is never sent by design; its media arrives inside the Stadium
+    // composites. So this assertion was unsatisfiable on the ARRANGED leg and
+    // only passed when the other leg happened to hand it a row-mate — which is
+    // why it went green in one gate and RED TWICE in the next with byte-
+    // identical product code.
+    //
+    // What the leg is actually for is "live media crosses a healed socketless
+    // link", so measure exactly that: inbound RTP from the target GROWING.
+    // Bytes must ADVANCE, not merely be non-zero — a stale total proves the link
+    // once worked, not that it works now. Strictly stronger than videoWidth>0,
+    // which a single stale frame satisfies forever.
+    let media = null, base = null;
     const t2 = Date.now();
+    const probe = () => mr.lu.page.evaluate(async (targets) => {
+      const d = window.__gifosVideo.debugDump();
+      let st = []; try { st = await window.__gifosVideo.avStats(); } catch (e) {}
+      return (d.roster || []).filter((r) => targets.includes(r.peer)).map((r) => ({
+        p: r.peer.slice(0, 6), conn: r.conn, vid: r.vid,
+        inBytes: st.filter((s) => s.dir === 'in' && s.pid && r.peer.indexOf(s.pid) === 0)
+          .reduce((a, s) => a + (s.bytes || 0), 0),
+      }));
+    }, mr.socketlessTargets).catch(() => null);
+    base = await probe();
+    const baseOf = (p) => { const b = (base || []).find((x) => x.p === p); return b ? b.inBytes : 0; };
     while (Date.now() - t2 < 30000) {
-      media = await mr.lu.page.evaluate((targets) => {
-        const d = window.__gifosVideo.debugDump();
-        return (d.roster || []).filter((r) => targets.includes(r.peer)).map((r) => ({ p: r.peer.slice(0, 6), conn: r.conn, vid: r.vid }));
-      }, mr.socketlessTargets);
-      if (media.some((m) => m.vid)) break;
+      media = await probe();
+      if (media && media.some((m) => m.vid || m.inBytes > baseOf(m.p))) break;
       await sleep(1000);
     }
-    check('live media flows from a socketless-seat peer to the late joiner', !!(media && media.some((m) => m.vid)), media);
+    const flowing = !!(media && media.some((m) => m.vid || m.inBytes > baseOf(m.p)));
+    check('live media flows from a socketless-seat peer to the late joiner', flowing,
+      { observed: media, baseline: base });
   } else {
     check('live media flows from a socketless-seat peer to the late joiner', false, 'no healed socketless link to measure');
   }
