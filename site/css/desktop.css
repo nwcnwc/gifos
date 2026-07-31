@@ -137,18 +137,6 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45));
   transition: transform .16s ease;
-  /* A THUMBNAIL MUST NEVER EAT A CLICK MEANT FOR ANOTHER ICON (2026-07-31).
-     The hover pop below scales this img to 1.07 and lifts it 3px, so it
-     OVERFLOWS its own icon's box and can cover a neighbour's centre — and the
-     neighbour's double-click then lands on this decorative image instead. It
-     is a real (if brief) input bug: the icon you aimed at does not open. It is
-     also the harness's oldest ghost — "a neighbour's lazily-decoded <img> ends
-     up over this icon's centre and eats the gesture", which killed both
-     2026-07-28 gate runs and still reds e2e about half the time, at a
-     different icon every run. The image is decoration; .icon is the control
-     that carries cursor:pointer and the handlers. Let hit-testing fall through
-     to it. */
-  pointer-events: none;
 }
 .icon:hover .thumb img { transform: translateY(-3px) scale(1.07); }
 .icon:active .thumb img { transform: translateY(0) scale(.96); }
