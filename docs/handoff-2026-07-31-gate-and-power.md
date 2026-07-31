@@ -36,9 +36,49 @@ a wake is a promise to carry, and an unkept promise must lapse. `dark` is
 deliberately left unbounded — a dark primary is still announced and is the thing
 being failed away from.
 
+## FOUND AND FIXED: a late-added track could be stranded forever
+
+The dominant gate blocker was a REAL bug, not test fragility. Forensics at the
+moment of failure, both sides:
+
+```
+mia  tx ["0:audio:sendrecv:sendrecv", "?:video:sendrecv:?"]  sig stable
+ada  tx ["0:audio:sendrecv:sendrecv"]
+```
+
+mid null, currentDirection null, nothing in flight, far side never saw a video
+m-line. Adding a sender mid-call (lateMedia — camera granted after a denied join)
+asks for a re-offer; renegotiate() defers via p.renegAgain, and renegAgain is only
+consumed when a later roffer/ranswer arrives. After a settling glare none does, so
+the ask is lost and the pc rests in an impossible state forever.
+
+**For a user: you fix your camera permission, your own preview says "Camera on.",
+and nobody in the meeting ever sees you.** ~60% of the time, invisibly.
+
+Introduced 2026-07-13 in e5bf642 — the same commit that added lateMedia AND this
+test. Two days earlier 0e11313 had fixed the identical failure for the fold/aux
+path ("transceivers sat mid-less forever"); lateMedia reached for compKick and
+inherited that remedy, but the remedy is EVENT-DRIVEN and lateMedia's pair is
+otherwise settled, so nothing ever fires it. One hop short of general.
+
+Healed in the existing 5s per-peer sweep: stable + hasPendingTx is an impossible
+resting state, so re-offer. e2e-media-recovery went 1/5 -> 3/3.
+
+It hid for three weeks because it is invisible to the person it happens to, it is
+a GLARE race so it reads as a flaky box (green in gates 7-9, red later, byte-
+identical site/), and the gate's retry launders it into "FLAKY — fix the wait".
+I raised that budget TWICE before stopping to print the transceiver state.
+
 ## What is left red, and what is NOT the cause
 
-`e2e-media-recovery`, `e2e-stadium-dup`, `e2e-video`'s friend-relay island leg.
+**`e2e-stadium-dup` only** (as of gate14; media-recovery and e2e-video are fixed).
+
+Its remaining failure has a precise fingerprint worth starting from: the deep
+head at 2/0.0, having just gained the teleported mover as a row-mate, reports
+`rowFaces: []` — it composed NOTHING, not even its OWN face. `srcFor(myId)`
+always returns meTile.video, so an empty list cannot mean "the mover was missed";
+it means the packer block never ran for that seat at all. Look at the `iAmHead` /
+`beyondRow` gate for a freshly-populated deep row, not at the face selection.
 
 **They are not caused by the power work.** Measured: gate7 (before any of it) had
 `media-recovery` GREEN in 19s; gates 8 and 9, carrying every power change, had it
