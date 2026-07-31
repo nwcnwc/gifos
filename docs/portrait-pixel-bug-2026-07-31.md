@@ -75,12 +75,46 @@ rung said 180p, `powTier()` agreed, `quality()` agreed, every client-side
 surface agreed — and the encoder was doing something 3.2x bigger. No amount of
 reading the ladder would have shown it.
 
-## Still open from the same census
+## And the encoder-fan question, now CLOSED — do not collapse it
 
-`impl: "libvpx"`, `codec: "video/VP8"` — SOFTWARE encode, three to four sessions
-at once. So lever 3's premise ("the g24 has a real MediaCodec ceiling") is not
-what is happening: the phone never *reaches* MediaCodec, because it never gets
-hardware H264. That may be an artifact of headless-Chromium bots lacking H264 in
-the negotiation rather than a real-world result. **Confirm with a real-browser
-peer before touching codec preference or collapsing the encoder fan** — a
-software-VP8 fan and a hardware-H264 fan are completely different problems.
+The first census read `impl: "libvpx"`, `codec: "video/VP8"` — software encode,
+three sessions at once — which looked like hard evidence for the "one-encoder
+fan" lever. **It was a measurement artifact.** Headless Chromium ships without
+H264, so the bots forced the negotiation down to VP8 and the phone dutifully ran
+software encoders. Nothing about the phone.
+
+Re-run against REAL browsers, two ways.
+
+**Two phones as row-mates** (no bots at all):
+
+```
+impl NdkVideoEncodeAccelerator(c2.mtk.avc.encoder)  codec video/H264
+softwareFallbacks 0   CEILING_HIT false
+```
+
+**The full fan** — phone force-seated into row 0 beside four bots launched with
+`MEET_CHROME=/usr/bin/google-chrome` (real Chrome 143, which has H264), all four
+senders live:
+
+```
+4x NdkVideoEncodeAccelerator(c2.mtk.avc.encoder)  video/H264  180x320@8  limit none
+senderCount 4   softwareFallbacks 0   cpuLimited 0   CEILING_HIT false
+```
+
+**A g24 runs the whole C-1 = 4 fan in hardware, with no fallback and no CPU
+limitation.** The premise — "the g24 has a real MediaCodec ceiling" — is false at
+the width the mesh actually uses. Collapsing the fan would mean architectural
+surgery on the media plane (row-mates render DIRECT tiles; a phone that stops
+sending to them shows black, and there is no automatic fall-back to the head's
+composite) in exchange for no measured gain. **Do not do it.**
+
+Note also what the same run confirms: all four senders sit at `180x320` — the
+portrait fix holding across a full fan, 57,600 px each instead of 181,760.
+
+### The methodological trap, worth more than the answer
+
+Bot fleets are not neutral instruments. `MEET_CHROME` pointed at Playwright's
+Chromium silently changes the CODEC the system under test negotiates, and every
+downstream number — encoder implementation, CPU, power — changes with it. A
+whole architectural lever was nearly justified on it. **When measuring anything
+codec- or hardware-adjacent, launch bots with real Chrome, or use real devices.**
