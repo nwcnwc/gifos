@@ -103,8 +103,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('the deep row SEES the mover as its row-mate (mesh precondition)', seated, { waitedMs: Date.now() - t2 });
 
-  let df = [];
+  // WAIT FOR COMPOSITING TO BE LAWFUL BEFORE ASSERTING IT (2026-08-01).
+  // A head only composites when `beyondRow` holds — some occupant sits outside
+  // its own pc/row. A deep seat that has not yet learned the rest of the tree
+  // sees a room that IS just its row and, BY DESIGN, "renders everyone directly
+  // on Channel R and pays nothing here". Forensics from the failing run, the
+  // deep head itself:
+  //   coord {pc:2,r:0,i:0}  mosaicHead true  occ 2  parts 2
+  //   rows ["k_7b90b9,k_b37432", "-,-"]
+  // — it knew ONLY its own row, so it correctly composited nothing, and
+  // rowFaces was [] with not even its own face in it. The product was right and
+  // this leg was racing occ propagation: when the deep seat happened to have
+  // learned the wider room first, the same code passed.
+  // So wait for the precondition the law actually requires. If it never
+  // arrives that is a REAL failure worth reporting — occ never reached a deep
+  // seat — and it fails with that message instead of a bare empty list.
+  let knewRoom = false;
   if (seated) {
+    const t2b = Date.now();
+    while (Date.now() - t2b < 30000) {
+      knewRoom = await pages[deepIdx].evaluate(() => window.__gifosVideo.participants() > 2).catch(() => false);
+      if (knewRoom) break;
+      await sleep(2000);
+    }
+    check('the deep seat learns there IS a room beyond its row (compositing precondition)', knewRoom);
+  }
+
+  let df = [];
+  if (seated && knewRoom) {
     const t3 = Date.now();
     while (Date.now() - t3 < 30000) {
       df = await rowFacesAt(deepIdx);
@@ -112,7 +138,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await sleep(2000);
     }
   }
-  check('the moved face is composed at its NEW row', seated && df.some((f) => f.pid === m8), { rowFaces: df });
+  // FORENSICS (2026-08-01): `rowFaces: []` means the deep head composed NOT EVEN
+  // ITS OWN face, and srcFor(myId) always returns meTile.video — so an empty
+  // list cannot be a face-selection miss, the packer block did not run at all.
+  // The suspect is beyondRow: it is true only if some occupant sits in a
+  // different pc/row, so a deep seat whose occ holds only its own row pays
+  // nothing here BY DESIGN. Print occ/rows/coord so the next reader can tell
+  // "correctly skipped, test expectation wrong" from "occ never learned the
+  // rest of the room".
+  if (!(seated && df.some((f) => f.pid === m8))) {
+    const fx = await pages[deepIdx].evaluate(() => {
+      const V = window.__gifosVideo, d = V.debugDump() || {};
+      return { coord: V.meshCoord(), mesh: V.meshState ? V.meshState() : null,
+        rows: (d.rows || []).map((r) => r.map((x) => x || '-').join(',')),
+        mosaicHead: (d.mosaic || {}).head, claims: (d.mosaic || {}).claims,
+        parts: V.participants() };
+    }).catch((e) => ({ err: String(e).slice(0, 120) }));
+    console.log('  [deep-head forensics] ' + JSON.stringify(fx));
+  }
+  check('the moved face is composed at its NEW row', seated && knewRoom && df.some((f) => f.pid === m8), { rowFaces: df });
 
   const fs = require('fs');
   const SHOTDIR = process.env.SHOTDIR || '/tmp/e2e-stadium-dup';
