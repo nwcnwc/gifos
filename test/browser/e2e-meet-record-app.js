@@ -64,6 +64,17 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await m.waitForSelector('#appmount iframe', { timeout: 15000 });
   await m.waitForSelector('#rec-warn', { timeout: 8000 });
   check('sharing an app during a canvas recording warns you to restart', true);
+  // THE SHARED APP'S OWN MODAL IS FULL-SCREEN AND LANDS ON TOP (2026-07-31).
+  // `.perm-modal` is `position: fixed; inset: 0; z-index: 50`, and mounting the
+  // app above can raise one (runtime.js's gifos-setup-modal). While it is up it
+  // covers the ENTIRE meeting chrome, `#rw-keep` included — Playwright reports
+  // exactly that ("<p class='foot'> from <div class='perm-modal'> subtree
+  // intercepts pointer events") and then retries a real click forever against an
+  // overlay that will not move for it. It is transient, so WAIT IT OUT rather
+  // than click through it: clicking through would hide a genuine z-order problem
+  // (the meeting's own dialog should not sit under an app's modal), and this way
+  // the click still has to be one a user could actually make.
+  await m.locator('.perm-modal').waitFor({ state: 'detached', timeout: 20000 }).catch(() => {});
   await m.locator('#rw-keep').click(); // keep the tiles recording
   await m.locator('#recbtn').click(); // stop
   await m.waitForFunction(() => !window.__gifosVideo.recording(), null, { timeout: 8000 });
