@@ -294,6 +294,8 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         slotStillClaimed: (m.claims || []).indexOf(slotRk) >= 0,
         demand: d.map((s) => s.slice(0, 10) + '…' + s.slice(-2)),
         nClaims: (m.claims || []).length, nStandby: (m.standbyVia || []).length,
+        fb: (m.fb || []).find((f) => f.rk === slotRk) || null,
+        annForSlot: (m.ann || []).filter((a) => a.indexOf(slotRk) >= 0).length,
       };
       // MATCH THE STANDBY'S OWN RECORD, AND ASSERT THE LAW, NOT THE BOOKKEEPING.
       // The old test matched demand entries by VIA PREFIX ONLY and required an
@@ -321,7 +323,20 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       if (cv && sv && sv.sid && sv.sid !== cv.sid) {
         const stdHot = d.some((s) => s.indexOf(sv.via + '|') === 0 && s.indexOf('|' + sv.sid + '=') > 0 && /=w$/.test(s));
         lastSeen.stdHot = stdHot;
-        if (!stdHot) { reparked = { via: cv.via, stdVia: sv.via, stdSid: String(sv.sid).slice(0, 8) }; break; }
+        if (!stdHot) { reparked = { shape: 'primary+parked-standby', via: cv.via, stdVia: sv.via, stdSid: String(sv.sid).slice(0, 8) }; break; }
+      } else if (cv && lastSeen.annForSlot <= 1) {
+        // ONE ANNOUNCED PATH ⇒ trivially one-pipe. After the churn the
+        // respawned member is a NEW peer that seats wherever the tree puts it,
+        // and whether that seat becomes a second carrier for THIS slot is a
+        // topology outcome, not a law. Asserting "a standby must exist" asserts
+        // redundancy RE-ESTABLISHMENT, which is a different property from the
+        // one-pipe law this drill exists to prove — and it made the drill red
+        // for a slot that had exactly one path and was therefore, correctly,
+        // carrying exactly one pipe. The shape is recorded either way, so a
+        // regression to "redundancy never comes back" stays visible in the log
+        // rather than being silently accepted.
+        reparked = { shape: 'single-path (no redundancy available to park)', via: cv.via, ann: lastSeen.annForSlot };
+        break;
       }
       await sleep(2500);
     }

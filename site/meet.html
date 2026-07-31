@@ -6569,9 +6569,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // DEMAND — the ONE-PIPE law: only the primary moves bits. The standby is
       // parked (mx-idle ⇒ sender replaceTrack(null), zero media) EXCEPT while
       // a wake/failback overlap is in progress; every other announcer idles.
+      // A WAKE IS A PROMISE, AND AN UNKEPT PROMISE MUST LAPSE (2026-07-31 —
+      // the redun-drill leg C red, healing-laws R3a applied to the media plane).
+      // `fb.wakeAt` held the standby HOT for as long as a wake was in flight,
+      // with no bound. The swap that ends a wake requires the standby to
+      // demonstrably FLOW, so a woken standby that never produces a frame
+      // (announcer camOff, husk container, a path that will never carry) armed
+      // the wake once and then kept a SECOND pipe demanded hot forever. That is
+      // the ONE-PIPE law broken by the very machinery meant to serve it, and it
+      // is what the drill caught:
+      //
+      //   claim/standby same via, distinct streams, annForSlot 1,
+      //   fb.wakeAt set, stdFdec -1, lastBytes 0, stdHot TRUE, for 300s.
+      //
+      // Bound it. Past WAKE_MAX a wake that has produced nothing stops being
+      // paid for: the standby re-parks and the slot is one-pipe again. This
+      // does NOT strand the slot — a primary whose announcement has lapsed is
+      // still torn down by the GRACE teardown above, and the next sweep
+      // re-claims the live candidate as a fresh ACTIVE primary, which is the
+      // recovery path that was being starved while the husk was held hot.
+      // `dark` is deliberately NOT bounded here: a dark primary is still
+      // announced and still the thing we are failing away from, and that case
+      // is bounded by its own swap.
+      const WAKE_MAX = MOS_GRACE * 3;
+      const wakeStale = !!(fb.wakeAt && now - fb.wakeAt > WAKE_MAX);
       const hot = new Set();
       if (pri && inCand(pri)) hot.add(pri.via + '|' + pri.streamId);
-      if (std && (fb.wakeAt || fb.dark)) hot.add(std.via + '|' + std.streamId);
+      if (std && ((fb.wakeAt && !wakeStale) || fb.dark)) hot.add(std.via + '|' + std.streamId);
       for (const x of cand) demand(x.from, x.key, x.sid, hot.has(x.from + '|' + x.sid));
     }
     function claimMos() {
