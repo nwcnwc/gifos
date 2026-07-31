@@ -2634,7 +2634,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (tune.kbps && q.kbps > +tune.kbps) q = Object.assign({}, q, { kbps: +tune.kbps });
       }
       const track = localStream && localStream.getVideoTracks()[0];
-      if (track) track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => {});
+      // SKIP-IF-UNCHANGED, and this one is not a micro-optimisation: re-applying
+      // constraints can make the browser RECONFIGURE THE CAPTURE PIPELINE —
+      // sensor mode, ISP scaler, buffer pool — and the sender-side maxBitrate
+      // below has skipped no-ops for exactly this kind of reason since the
+      // renderer-killing CHECK. adapt() runs on every connect, every sweep,
+      // every battery/visibility/idle event, and in a settled room asks for the
+      // rung it is already on every single time. Only touch the camera when the
+      // numbers actually move; `trackQ` follows the TRACK, so a regrab (flip
+      // camera, revive) clears it and the next adapt() re-applies in full.
+      const cw = q.w + 'x' + q.h + '@' + q.fps;
+      if (track && (trackQ.t !== track || trackQ.k !== cw)) {
+        trackQ.t = track; trackQ.k = cw;
+        track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
+      }
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
@@ -2668,6 +2681,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return q;
     }
     let lastQ = null; // the rung adapt() last applied — harness verification surface
+    const trackQ = { t: null, k: '' }; // the camera track adapt() last constrained, and to what
     // COMPOSITES FOLLOW THE TIER TOO (2026-07-31 power work). Every packer took
     // the flat SCALE.COMP_FPS (8) — no call site has ever passed `fps` — so a
     // phone that has cut its OWN camera to the bottom of the ladder still
@@ -7435,7 +7449,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       clk.set(pid, c);
     }
     setInterval(() => {
-      for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'ck', t0: performance.now() });
+      // ONLY CLOCK-SYNC THE PEERS WHOSE DELAY WE ACTUALLY SET (2026-07-31).
+      // applyGrid gives the stadium bus D = 0 ⇒ jbt = 0 while people TALK, so a
+      // structural peer's RTT changes nothing — we were waking the radio for
+      // every peer every CK_EVERY to compute a number that multiplied by zero.
+      // Radio wakeups are their own power cost, separate from the bytes. SINGING
+      // is the exception and it is a real one: the song tiers give the far bank
+      // SONG_FAR, so every peer's clock matters again — the sing state flips
+      // this back on within one tick, and the grid re-converges on the next.
+      const ckSing = roomSingOn();
+      const ckNear = ckSing ? null : new Set([].concat(stageIds(), rowMates()));
+      for (const p of peers.values()) {
+        if (ckNear && !ckNear.has(p.id)) continue;
+        if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'ck', t0: performance.now() });
+      }
     }, GRID.CK_EVERY);
 
     // Sing state is DERIVED, not commanded: the leader carries `sing` in their
