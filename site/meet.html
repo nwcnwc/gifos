@@ -2643,10 +2643,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // rung it is already on every single time. Only touch the camera when the
       // numbers actually move; `trackQ` follows the TRACK, so a regrab (flip
       // camera, revive) clears it and the next adapt() re-applies in full.
-      const cw = q.w + 'x' + q.h + '@' + q.fps;
-      if (track && (trackQ.t !== track || trackQ.k !== cw)) {
-        trackQ.t = track; trackQ.k = cw;
-        track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
+      // THE LADDER IS LANDSCAPE; A PHONE'S CAMERA IS NOT (2026-07-31, measured).
+      // Every rung is written 16:9 — "180p" is 320x180 — and we asked for it
+      // literally. A phone held upright captures 9:16, so `height:{ideal:180}`
+      // is unsatisfiable and the camera honours the WIDTH and returns
+      // 320x568. The encoder census caught it on a g24 at the 180p rung:
+      //   res "320x568@6"  =  181,760 px/frame against a nominal 57,600
+      // — 3.2x the budget the rung thought it was spending. Every resolution
+      // cut this ladder has ever made has landed at a THIRD of its intended
+      // effect on exactly the devices the ladder exists for.
+      // Fix: on a portrait camera, ask for the rung TRANSPOSED (180x320). Same
+      // pixel count, same aspect the sensor wants, ~3.2x fewer pixels to
+      // scale, blur, encode and ship. Orientation is read from the track's own
+      // settings, so a rotation is picked up on the next adapt().
+      let cw = q.w, ch = q.h;
+      try {
+        const st = track && track.getSettings ? track.getSettings() : null;
+        if (st && st.width && st.height && st.height > st.width && cw > ch) { cw = q.h; ch = q.w; }
+      } catch (e) {}
+      const ckey = cw + 'x' + ch + '@' + q.fps;
+      if (track && (trackQ.t !== track || trackQ.k !== ckey)) {
+        trackQ.t = track; trackQ.k = ckey;
+        track.applyConstraints({ width: { ideal: cw }, height: { ideal: ch }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
       }
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
