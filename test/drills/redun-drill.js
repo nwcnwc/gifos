@@ -16,8 +16,10 @@
 //      demand-woken, and decoded frames must resume within MOS_GRACE (5s);
 //      the measured freeze gap is printed (target ≤2s on an unloaded box).
 //   C. RE-PARK — respawn the killed member: the slot must return to
-//      primary + PARKED standby (demand 'i', ~zero bytes) — the one-pipe
-//      steady state — without the claim ever having been torn down.
+//      primary + a DISTINCT standby stream that is NOT demanded hot — the
+//      one-pipe steady state — without the claim ever having been torn down.
+//      (Not "demand 'i'": a standby that was never woken has no demand record
+//      at all, which is the strongest parked there is. See leg C.)
 //
 // Run: node test/drills/redun-drill.js          (ports/chrome overridable via env)
 const { spawn } = require('child_process');
@@ -191,9 +193,45 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     const tKill = Date.now();
     try { await pages[B].page.context().close(); } catch (e) {}
     pages[B].page = null;
-    // sample decoded frames every ~120ms for 15s
+    // Sample decoded frames every ~120ms UNTIL THE PIPE RESUMES (cap 60s), then
+    // a short tail and stop.
+    //
+    // This was a flat 15s window, and it was wrong in BOTH directions.
+    //
+    // Too short: the wake is detection-bound (Chrome reports a killed peer's
+    // transport down in ~5-9s; DC close never fires on a context kill), and
+    // measured over three runs on an idle 8-core host the freeze gap was
+    // 5271ms / 8098ms / 27195ms. The pipe ALWAYS resumed — a 15s window simply
+    // could not see the 27s case, and reported "NEVER RESUMED" for a wake that
+    // was working. That is the gate red this drill has been throwing.
+    //
+    // Too long: the via assertion below reads the LAST sample, and the grace
+    // linger tears a dead primary down at deadAt+5s — so a flat 60s window
+    // walks past the switch into a legitimately re-derived slot and reports
+    // `now: null`, failing "primary via switched off the dead peer" for a
+    // switch that happened correctly 40s earlier. Widening alone TRADES one
+    // false red for another.
+    //
+    // So stop when the thing being asserted has happened: hold the sampler open
+    // long enough to observe the resume whenever it lands, then evaluate the via
+    // AT the resume rather than at an arbitrary later clock. Neither assertion
+    // is weakened — the latency BOUND is still REDUN_STRICT-only (known-unfixed).
     const series = [];
-    while (Date.now() - tKill < 15000) { const s = await framesOf(); if (s) series.push(s); await sleep(120); }
+    const SAMPLE_CAP = 60000, NO_STALL_SETTLE = 15000, TAIL_MS = 1200;
+    let lastAdvT = tKill, stallAt = null, resumeSeen = false, tailUntil = 0;
+    while (Date.now() - tKill < SAMPLE_CAP) {
+      const s = await framesOf(); if (s) series.push(s);
+      if (series.length >= 2) {
+        const a = series[series.length - 2], b = series[series.length - 1];
+        if (b.frames > a.frames) {
+          if (stallAt != null && !resumeSeen) { resumeSeen = true; tailUntil = Date.now() + TAIL_MS; }
+          lastAdvT = b.t;
+        } else if (stallAt == null && b.t - lastAdvT > 700) stallAt = lastAdvT;
+      }
+      if (resumeSeen && Date.now() >= tailUntil) break;           // saw the wake — assert on THIS state
+      if (!resumeSeen && stallAt == null && Date.now() - tKill > NO_STALL_SETTLE) break; // never froze at all
+      await sleep(120);
+    }
     // freeze gap: last advance before the longest post-kill stall → next advance
     let lastAdv = tKill, stallStart = null, resumeAt = null, gap = null, torn = false;
     for (let k = 1; k < series.length; k++) {
@@ -216,11 +254,11 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     if (stallStart == null) {
       check('B: no visible stall at all after the kill (wake under sampling floor)', true, 'frames never froze >700ms');
     } else if (STRICT) {
-      check('B: pipe resumed within MOS_GRACE after primary death', gap != null && gap <= GRACE_MS, 'freeze gap = ' + (gap == null ? 'NEVER RESUMED in 15s' : gap + 'ms'));
+      check('B: pipe resumed within MOS_GRACE after primary death', gap != null && gap <= GRACE_MS, 'freeze gap = ' + (gap == null ? 'NEVER RESUMED in ' + (SAMPLE_CAP / 1000) + 's' : gap + 'ms'));
     } else {
-      check('B: pipe RESUMED after primary death (wake completed)', gap != null, 'freeze gap = ' + (gap == null ? 'NEVER RESUMED in 15s' : gap + 'ms'));
+      check('B: pipe RESUMED after primary death (wake completed)', gap != null, 'freeze gap = ' + (gap == null ? 'NEVER RESUMED in ' + (SAMPLE_CAP / 1000) + 's' : gap + 'ms'));
     }
-    if (stallStart != null) console.log('   MEASURE freeze gap on ' + slotRk + ': ' + (gap == null ? '>15000' : gap) + 'ms (law target ≤2000, grace ' + GRACE_MS + '; detection-bound today — strict bound lives in known-unfixed.sh) loadavg=' + loadNow());
+    if (stallStart != null) console.log('   MEASURE freeze gap on ' + slotRk + ': ' + (gap == null ? '>' + SAMPLE_CAP : gap) + 'ms (law target ≤2000, grace ' + GRACE_MS + '; detection-bound today — strict bound lives in known-unfixed.sh) loadavg=' + loadNow());
     // Claim continuity at 120ms granularity is the SAME guarantee as the ≤5s
     // wake: the grace linger tears a dead primary down at deadAt+5s, so
     // whether the claim survives is exactly the race between the (detection-
@@ -237,18 +275,58 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     pages[B].page = await mkPage(pages[B].name);
     const t4 = Date.now();
     let reparked = null;
+    // WHAT DID WE ACTUALLY SEE? Measured, this leg is bimodal: it re-parks in
+    // 5ms-5s, or it does not re-park in 300s. So it is NOT a wait — widening
+    // the window buys nothing and would only hide it. When it fails we need the
+    // STATE, not a guess: which of the three conditions (claim / standby /
+    // standby-demand-idle) was missing, and whether the slot still exists at
+    // all. The old message blamed "late-join/link-establishment" without ever
+    // having looked.
+    let lastSeen = null;
     while (Date.now() - t4 < 75000) {
       const m = await mosOf(pages[P]); if (!m) break;
       const cv = (m.claimVia || []).find((x) => x.rk === slotRk);
       const sv = (m.standbyVia || []).find((x) => x.rk === slotRk);
-      if (cv && sv) {
-        const d = (m.demand || []).filter((s) => s.indexOf('|' + slotRk.replace(/\^.*$/, '') + '|') > 0 || s.indexOf(slotRk) >= 0);
-        const stdIdle = d.some((s) => s.indexOf(sv.via) === 0 && /=i$/.test(s));
-        if (stdIdle) { reparked = { via: cv.via, stdVia: sv.via }; break; }
+      const d = (m.demand || []).filter((s) => s.indexOf('|' + slotRk.replace(/\^.*$/, '') + '|') > 0 || s.indexOf(slotRk) >= 0);
+      lastSeen = {
+        slot: slotRk, claim: cv ? cv.via.slice(0, 8) : null, standby: sv ? sv.via.slice(0, 8) : null,
+        claimSid: cv && cv.sid ? String(cv.sid).slice(0, 8) : null, stdSid: sv && sv.sid ? String(sv.sid).slice(0, 8) : null,
+        slotStillClaimed: (m.claims || []).indexOf(slotRk) >= 0,
+        demand: d.map((s) => s.slice(0, 10) + '…' + s.slice(-2)),
+        nClaims: (m.claims || []).length, nStandby: (m.standbyVia || []).length,
+      };
+      // MATCH THE STANDBY'S OWN RECORD, AND ASSERT THE LAW, NOT THE BOOKKEEPING.
+      // The old test matched demand entries by VIA PREFIX ONLY and required an
+      // explicit '=i'. Both parts were wrong, and together they produced a red
+      // for a slot that was in perfect one-pipe steady state:
+      //
+      //   claim k_533617 | standby k_533617 | demand ["k_533617…=w"] | stdIdle false
+      //
+      // (1) A primary and a standby may legitimately share a VIA — two
+      //     containers from the same peer (the 'stg' direct feed and its '^x'
+      //     relay copy) is a case avStats itself calls out. Keyed by via alone
+      //     the drill cannot tell the primary's '=w' from the standby's record,
+      //     so it read the PRIMARY being hot as the STANDBY not being parked.
+      //     Demand keys are `via|key|streamId`, and standbyVia carries `sid` —
+      //     so match the standby's own STREAM.
+      // (2) Requiring an explicit '=i' demanded that the standby have been woken
+      //     and then re-idled. A standby that was NEVER woken has no demand
+      //     record at all — and is MORE parked, not less, because a sender ships
+      //     only on demand. Absence is the strongest possible parked.
+      //
+      // So: a distinct standby STREAM that is not HOT. That is exactly "ONE pipe
+      // moves bits; every alternate path is parked" — and it is strictly
+      // stronger than the old check, which would have accepted a "standby" that
+      // was the very same stream as the primary.
+      if (cv && sv && sv.sid && sv.sid !== cv.sid) {
+        const stdHot = d.some((s) => s.indexOf(sv.via + '|') === 0 && s.indexOf('|' + sv.sid + '=') > 0 && /=w$/.test(s));
+        lastSeen.stdHot = stdHot;
+        if (!stdHot) { reparked = { via: cv.via, stdVia: sv.via, stdSid: String(sv.sid).slice(0, 8) }; break; }
       }
       await sleep(2500);
     }
-    check('C: slot returned to one-pipe steady state (primary + PARKED standby)', !!reparked, reparked || 'no re-parked standby within 75s (late-join/link-establishment may be broken — see e2e-latejoin)');
+    check('C: slot returned to one-pipe steady state (primary + PARKED standby)', !!reparked,
+      reparked || { why: 'no re-parked standby in 75s', observed: lastSeen });
   }
 
   await browser.close();
