@@ -59,6 +59,14 @@ async function dblclickForTab(ctx, page, label) {
       await page.waitForFunction(
         () => Array.from(document.querySelectorAll('.icon img')).every((im) => im.complete),
         null, { timeout: 15000 }).catch(() => {});
+      // THIRD ATTEMPT AT THIS SAME GHOST — read the other two before touching it:
+      //   6f90efd  retry the dblclick until a tab opens   (the re-render race)
+      //   136b0fb  settle every .icon img first           (the lazy-decode race)
+      // Both are still above and both are right; neither is sufficient. Measured
+      // here, e2e.js otherwise untouched, this suite is still ~50% — and
+      // 136b0fb's own note explains why it cannot close: images keep arriving
+      // AFTER the settle check and reflow the grid, so a neighbour's thumb can
+      // still be over this icon's centre at dispatch time.
       // ATTEMPT 0 is a REAL double-click — it must stay, because it is the only
       // thing here that proves a user can actually hit this icon.
       // ATTEMPTS 1-2 dispatch the event straight at the icon, because the thing

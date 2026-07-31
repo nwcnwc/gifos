@@ -64,17 +64,24 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await m.waitForSelector('#appmount iframe', { timeout: 15000 });
   await m.waitForSelector('#rec-warn', { timeout: 8000 });
   check('sharing an app during a canvas recording warns you to restart', true);
-  // THE SHARED APP'S OWN MODAL IS FULL-SCREEN AND LANDS ON TOP (2026-07-31).
+  // DISMISS THE APP'S ACKNOWLEDGEMENT FIRST, AS A REAL USER WOULD (2026-07-31).
   // `.perm-modal` is `position: fixed; inset: 0; z-index: 50`, and mounting the
-  // app above can raise one (runtime.js's gifos-setup-modal). While it is up it
-  // covers the ENTIRE meeting chrome, `#rw-keep` included — Playwright reports
-  // exactly that ("<p class='foot'> from <div class='perm-modal'> subtree
-  // intercepts pointer events") and then retries a real click forever against an
-  // overlay that will not move for it. It is transient, so WAIT IT OUT rather
-  // than click through it: clicking through would hide a genuine z-order problem
-  // (the meeting's own dialog should not sit under an app's modal), and this way
-  // the click still has to be one a user could actually make.
-  await m.locator('.perm-modal').waitFor({ state: 'detached', timeout: 20000 }).catch(() => {});
+  // shared app above can auto-pop one (runtime.js's gifos-setup-modal). While it
+  // is up it covers the ENTIRE meeting chrome, `#rw-keep` included, and
+  // Playwright says so precisely: "<p class='foot'> from <div class='perm-modal'>
+  // subtree intercepts pointer events", then retries forever.
+  // This is the same pre-existing pop 6070f77 already hit and already solved —
+  // "dismiss it first, as a real user would" — so use that, not a wait: it is an
+  // ACKNOWLEDGEMENT, it waits for a click and never detaches on its own, so
+  // waiting for it to disappear would burn the budget and still fail. (I tried
+  // that first; checking the history is what corrected it.) Both spellings of
+  // the dismiss button are covered — run.html's `.done` and runtime.js's
+  // `#gifos-setup-ok`.
+  await m.waitForTimeout(500);
+  for (const sel of ['.perm-modal .done', '#gifos-setup-ok']) {
+    const b = m.locator(sel);
+    if (await b.count()) await b.first().click().catch(() => {});
+  }
   await m.locator('#rw-keep').click(); // keep the tiles recording
   await m.locator('#recbtn').click(); // stop
   await m.waitForFunction(() => !window.__gifosVideo.recording(), null, { timeout: 8000 });
