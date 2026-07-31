@@ -23,17 +23,23 @@ if (!pw) { console.error('no playwright'); process.exit(1); }
 const WIN = Math.max(5, +(process.argv[2] || 30));
 const PORT = process.env.CDP_PORT || 9222;
 
+// Only verified accessors — see docs/phone-instrument-interface.md. In
+// particular debugDump() carries NO camOff, and parkAsked/parked are on
+// meshSelfReport(), not on the dump; reading them off the dump silently yields
+// undefined and reports a camera-off phone as camera-on.
 const snap = (page) => page.evaluate(async () => {
   const V = window.__gifosVideo;
-  const d = V.debugDump() || {};
   return {
     t: Date.now(),
     av: await V.avStats(),
     main: V.mainSenders(),
-    coord: V.meshCoord ? V.meshCoord() : null,
-    parkAsked: d.parkAsked || [], parked: d.parked || [],
-    participants: d.participants, liveVid: d.liveVid, mosaic: d.mosaic || null,
-    camOff: !!(d.me && d.me.camOff),
+    coord: V.meshCoord(),
+    parkAsked: V.visParkAsked().map((x) => String(x).slice(0, 8)),
+    parked: V.visParked().map((x) => String(x).slice(0, 8)),
+    participants: V.participants(),
+    camOff: V.camOff(), camTrackLive: V.camTrackLive(),
+    rung: V.powTier ? V.powTier() : null,
+    mosaicClaims: (() => { try { return (V.mosaic() || {}).claims || []; } catch (e) { return null; } })(),
   };
 });
 
@@ -78,8 +84,10 @@ const snap = (page) => page.evaluate(async () => {
   }
   console.log(JSON.stringify({
     port: +PORT, windowSec: +dt.toFixed(1),
-    coord: b.coord, participants: b.participants, liveVid: b.liveVid,
-    camOff: b.camOff, mosaic: b.mosaic,
+    coord: b.coord, participants: b.participants,
+    // ENGAGED? a camera-off phone with no mosaic exercises none of this work.
+    camOff: b.camOff, camTrackLive: b.camTrackLive, rung: b.rung,
+    mosaicClaims: b.mosaicClaims,
     parkAsked: b.parkAsked, parked: b.parked,
     inboundMainVideo: {
       paintedKbps: +paintedK.toFixed(1), paintedFps: +paintedF.toFixed(1),
