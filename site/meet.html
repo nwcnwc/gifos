@@ -7514,6 +7514,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const ckSing = roomSingOn();
       const ckNear = ckSing ? null : new Set([].concat(stageIds(), rowMates()));
       for (const p of peers.values()) {
+        // A TRACK THAT NEVER NEGOTIATED MUST NOT BE STRANDED (2026-07-31).
+        // Adding a sender mid-call — lateMedia(), the camera granted after a
+        // denied join — creates a transceiver and asks for a re-offer. That ask
+        // can be LOST: renegotiate() defers while the pc is mid-negotiation by
+        // setting p.renegAgain, and renegAgain is only ever consumed when a
+        // subsequent roffer/ranswer arrives for that pair. If none does, the pc
+        // settles back to `stable` holding a sender whose m-line was never
+        // negotiated, and it stays that way forever. Measured, e2e-media-recovery
+        // ~60% of runs:
+        //   mia  tx ["0:audio:sendrecv:sendrecv", "?:video:sendrecv:?"]  sig stable
+        //   ada  tx ["0:audio:sendrecv:sendrecv"]
+        // — mid null, currentDirection null, nothing in flight, and the far side
+        // never saw a video m-line at all. For a real user that is: you fix your
+        // camera permission, your own preview lights up, and NOBODY EVER SEES YOU.
+        // `hasPendingTx` is exactly the detector; it was only ever consulted at
+        // the moment of the kick. Consult it here too — stable + pending is an
+        // impossible resting state, so re-offer. Idempotent: it is a no-op the
+        // instant the m-line negotiates.
+        if (p.pc && p.pc.signalingState === 'stable' && hasPendingTx(p)) {
+          p.renegAgain = false;
+          if (typeof clog === 'function') clog('stranded-tx heal → ' + String(p.id).slice(0, 6));
+          renegotiate(p);
+        }
         if (ckNear && !ckNear.has(p.id)) continue;
         if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'ck', t0: performance.now() });
       }

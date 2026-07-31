@@ -78,12 +78,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // renegotiated tracks land, and Mia's own tile had already gone live, so the
   // media plane was working and only this budget was not. Same assertion, more
   // patience.
-  await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Mia'));
-    if (!t || t.classList.contains('cam-off')) return false;
-    const v = t.querySelector('video');
-    return v && v.videoWidth > 0;
-  }, null, { timeout: 90000 });
+  // FORENSICS ON FAILURE (2026-07-31). This leg fails ~60% of runs and a bare
+  // TimeoutError says nothing about WHY — whether the offer never went out,
+  // went out and was rolled back in glare, negotiated but carried no track, or
+  // negotiated fine and the frames never came. Name it instead of guessing.
+  const negForensics = async (tag) => {
+    const dump = (pg, who) => pg.evaluate((w) => {
+      const V = window.__gifosVideo;
+      const out = { who: w, tiles: [] };
+      // pcState is per-peer: signalingState, connectionState, and every
+      // transceiver as mid:kind:direction:currentDirection — which is exactly
+      // the four-way distinction we need (never offered / rolled back / no
+      // track / negotiated-but-silent).
+      try {
+        out.pcs = (V.peerIds() || []).map((id) => Object.assign({ id: String(id).slice(0, 6) }, V.pcState(id) || {}));
+      } catch (e) { out.pcs = 'err ' + String(e).slice(0, 60); }
+      try { out.camOff = V.camOff(); out.camLive = V.camTrackLive ? V.camTrackLive() : null; } catch (e) {}
+      try {
+        out.tiles = Array.from(document.querySelectorAll('.tile:not(.me)')).map((t) => ({
+          who: (t.textContent || '').slice(0, 18), camOff: t.classList.contains('cam-off'),
+          w: (t.querySelector('video') || {}).videoWidth || 0,
+          src: !!((t.querySelector('video') || {}).srcObject),
+        }));
+      } catch (e) {}
+      return out;
+    }, who).catch((e) => ({ who, err: String(e).slice(0, 120) }));
+    console.log('  [reneg forensics ' + tag + '] mia:', JSON.stringify(await dump(mPage, 'mia')));
+    console.log('  [reneg forensics ' + tag + '] ada:', JSON.stringify(await dump(aPage, 'ada')));
+  };
+  try {
+    await aPage.waitForFunction(() => {
+      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Mia'));
+      if (!t || t.classList.contains('cam-off')) return false;
+      const v = t.querySelector('video');
+      return v && v.videoWidth > 0;
+    }, null, { timeout: 90000 });
+  } catch (e) { await negForensics('late-cam'); throw e; }
   check('A: her late camera renegotiates into the mesh — Ada renders her frames', true);
 
   // ---------- B: Don's camera turns on but sends pure black ----------
