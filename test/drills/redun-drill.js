@@ -174,9 +174,17 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       for (const cv of m.claimVia) {
         if (cv.rk.indexOf('stg:') !== 0) continue;
         const bi = ids.indexOf(cv.via);
+        // THE STANDBY MUST SURVIVE THE KILL. The old condition only required
+        // that a standby EXIST — never that it arrive via a different peer than
+        // the one about to be killed. A slot whose primary AND standby both
+        // route through B loses both when B dies: `annForSlot: 0`, nothing to
+        // wake, and leg B reports "NEVER RESUMED" for a failover that was never
+        // possible. That is not a product failure, it is the drill destroying
+        // its own precondition — and it was the last residual red here.
+        // A failover test needs something to fail over TO.
         if (bi >= 0 && bi !== i && bi !== stagerIdx
             && (pass === 1 || !sameRow(coords[i], coords[bi]))
-            && (m.standbyVia || []).some((sv) => sv.rk === cv.rk)) { P = i; B = bi; slotRk = cv.rk; break; }
+            && (m.standbyVia || []).some((sv) => sv.rk === cv.rk && sv.via !== cv.via)) { P = i; B = bi; slotRk = cv.rk; break; }
       }
     }
   }
