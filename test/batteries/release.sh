@@ -122,6 +122,31 @@ if [ "$LIST" != 1 ]; then
     exit 3
   fi
 fi
+# ---- the toolchain must be able to RUN the suites ----------------------------
+# A `node` without a global WebCrypto turns every crypto-touching suite into the
+# DEAD state this gate exists to make loud — and it does it from the ENVIRONMENT,
+# so the tree is clean, the diff is empty, and nothing points at the cause.
+# Measured 2026-08-01: node 18.20.4 leaves `globalThis.crypto` undefined in FILE
+# context (it is present under `node -e`, which is how it fools a quick check),
+# so unit/meet-seal — the pin on the whole greeter-registry seal, healing-laws
+# R2/R3/R6 — died with "Cannot read properties of undefined (reading
+# 'getRandomValues')" while the identical code passed under node 22. Refuse to
+# run rather than report an environment as a product red.
+if [ "$LIST" != 1 ]; then
+  # The probe MUST run from a FILE. `node -e` exposes globalThis.crypto on 18
+  # even though a required module does not see it, so an -e probe passes on
+  # exactly the toolchain this is meant to reject.
+  _cryptochk=$(mktemp /tmp/gate-cryptochk-XXXXXX.js)
+  printf 'process.exit(globalThis.crypto && globalThis.crypto.subtle ? 0 : 1)\n' > "$_cryptochk"
+  if ! node "$_cryptochk" 2>/dev/null; then
+    rm -f "$_cryptochk"
+    echo "!! this node ($(node -v 2>/dev/null)) has no global WebCrypto in file context." >&2
+    echo "   Every seal/sign suite would score DEAD from the environment alone." >&2
+    echo "   Use node >= 22, e.g.  PATH=\"\$HOME/.nvm/versions/node/v22.23.1/bin:\$PATH\"" >&2
+    exit 3
+  fi
+  rm -f "$_cryptochk"
+fi
 trap stop_all EXIT
 
 # ---- one suite ---------------------------------------------------------------
