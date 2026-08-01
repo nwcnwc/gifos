@@ -11,10 +11,13 @@
  *   GIFOS_BUILD   — the monotonic edge build number this build was cut from
  *                   (0 in a local dev checkout; baked at deploy by pages.yml)
  *
- * Renders into #build-badge when the page provides one (so it sits inside a real
- * header), otherwise pins a small unobtrusive tag to the bottom-left. Never
- * interactive, never focusable, and it must never cover UI: pointer-events are
- * off so a click always lands on whatever is underneath.
+ * Pins a small muted watermark to the bottom-left corner of every page — a
+ * light-font tag that names the build without crowding the header bar. (It used
+ * to render into a #build-badge host inside the menubar, which cluttered the
+ * nice header; that host was removed, so the float is now the only presentation.
+ * The #build-badge branch stays as a harmless fallback if a page ever supplies
+ * one again.) Never interactive, never focusable, and it must never cover UI:
+ * pointer-events are off so a click always lands on whatever is underneath.
  */
 (function () {
   // Only index.html and boot.html declare GIFOS_VERSION; meet/run/sign/about

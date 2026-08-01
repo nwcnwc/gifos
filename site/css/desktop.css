@@ -366,5 +366,3 @@ button.row-del svg { display: block; pointer-events: none; }
 
 /* The build this page is running — a fact, not a control: muted, non-interactive,
    and never a tab stop. The version belongs in the page, not in the URL. */
-.buildtag { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  opacity: .38; margin-left: .5rem; white-space: nowrap; pointer-events: none; user-select: none; }
