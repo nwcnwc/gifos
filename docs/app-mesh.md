@@ -1,18 +1,11 @@
 # Apps on the mesh (migration design)
 
-Status: **PARTIALLY IMPLEMENTED (2026-07-18).** The IN-MEETING half shipped:
-the runtime's host+client adapters for the mesh Stage DATA lane
-(`runtime.js` `attachStageBus`/`bootClientBus`, used by `meet.html` `runApp`/
-`mountClientApp`) and the signed owner-authority module — an app shared inside
-a meeting rides the meeting's own mesh. The STANDALONE half is still open:
-an app shared outside a meeting still syncs over the relay broadcast bus
-(`runtime.js` `t:'bcast'`, `role=host`) — the bus swap below remains the plan
-of record (see also `roadmap.md` §3). Originally written during the overnight
-run of 2026-07-17 per the directive: *"update the app-run functionality of the
-meeting to ride the meeting infrastructure, and completely update app-run to
-have the exact same mesh even when not running inside a meeting."* Companion:
-`docs/healing-laws.md` (the mesh), `docs/media-plane.md` (media over it),
-`docs/meet-security.md` (R2: the relay is a greeter registry, not a transport).
+Status: **COMPLETE (2026-08-01, the one-runtime flag day — docs/one-runtime.md).**
+Both halves shipped: in-meeting apps ride the Stage DATA lane (2026-07-18), and
+STANDALONE app-shares are now mesh rooms too — run.html and the relay star bus
+(`t:'bcast'`, `role=host`/`client`) are DELETED, the relay is a greeter + door,
+and one derivation (deriveMeet, DS 'gifos-net-2') covers every room. The
+migration plan below is retained as history of how the shape was found.
 
 ## The one idea
 

@@ -1028,6 +1028,13 @@ Curated GitHub repo keeps review in a familiar PR workflow. Store is
 
 ## 7. ONE runtime: kill the app star, strip the relay to meeting-only
 
+**DONE 2026-08-01 — the one-runtime flag day.** The agreed end-state design and
+what shipped live in [`docs/one-runtime.md`](one-runtime.md): one room page
+(run.html deleted), traits (`appPinned`/`mediaPinned`) minted at entry, solo →
+Invite → call-layer lifecycle, owner succession by room class, the relay
+stripped to greeter + door, deriveJoin deleted, DS bumped. The text below is
+the original plan, kept as history.
+
 **What.** Retire the app-multiplayer **star model** entirely. There is ONE
 runtime — a **meeting** — and audio/video, chat, and a shared app are all
 **optional components layered on it**. An app-share is that runtime with the
