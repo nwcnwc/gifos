@@ -1895,11 +1895,11 @@
       '<div class="add-sep"></div>' +
       apiSectionHtml() +
       '<div class="add-sep"></div>' +
-      '<details class="adv"><summary>Advanced settings</summary>' +
+      '<details class="adv" id="set-advanced"><summary>Advanced settings</summary>' +
       '<h4>Storage</h4>' +
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
       (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this Home Screen now</button>') +
-      '<h4>Version</h4>' +
+      '<h4 id="set-version-h">Version</h4>' +
       '<div id="set-version"><p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. Checking gifos.app for the latest…</p></div>' +
       '<h4>Multiplayer relay</h4>' +
       '<p class="add-help">Custom relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
@@ -1927,15 +1927,26 @@
     // (the request is network-first through the SW) so the newest release shows
     // even if the boot-time check missed it. Repaint with the fresh answer.
     const vc = box.querySelector('#set-version');
-    paintVersion(vc);
-    checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline'); });
     // Deep-link from the update nudge: open the Advanced section and bring the
-    // Version panel (with its changelog + Upgrade button) into view.
-    if (opts.focus === 'version') {
-      const adv = box.querySelector('details.adv');
-      if (adv) adv.open = true;
-      setTimeout(() => { const h = box.querySelector('#set-version'); if (h && h.scrollIntoView) h.scrollIntoView({ block: 'center' }); }, 30);
-    }
+    // Version panel into view. The panel repaints once the live check returns
+    // (which changes its height), so we re-reveal AFTER that repaint too —
+    // scrolling only once, before the repaint, left the click landing at the top
+    // of the Settings sheet instead of on the Version section.
+    // Target the Advanced-settings disclosure by id: the AI-models and
+    // Third-party-APIs sections ALSO carry class "adv", so a bare
+    // querySelector('details.adv') opened the wrong one and left the Version
+    // panel hidden — the reason the update nudge appeared to link nowhere.
+    const revealVersion = () => {
+      if (opts.focus !== 'version') return;
+      const adv = box.querySelector('#set-advanced');
+      if (adv && !adv.open) adv.open = true;
+      const h = box.querySelector('#set-version-h') || box.querySelector('#set-version');
+      if (h && h.scrollIntoView) h.scrollIntoView({ block: 'start' });
+    };
+    if (opts.focus === 'version') { const adv = box.querySelector('#set-advanced'); if (adv) adv.open = true; }
+    paintVersion(vc);
+    revealVersion();
+    checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline'); revealVersion(); });
     box.querySelector('#set-bg-color').addEventListener('input', (e) => setBackgroundColor(e.target.value));
     box.querySelector('#set-bg-image').onclick = () => {
       const inp = document.createElement('input');
@@ -2036,86 +2047,107 @@
     const onEdge = runningEdge();
     // Edge builds carry a monotonic build number (build.js), not a release version.
     const newerEdge = onEdge && edgeBuild > BUILD;   // a fresher edge build is out
+
+    // ---- FACTS: three plain-language answers so "which build am I on", "what's
+    // the latest release", and "am I on the edge channel" are never conflated. ----
     const runningFact = onEdge
-      ? 'the <b>unreleased edge build</b> — build ' + BUILD + ' (site root)'
-      : (VERSION === latestVersion ? '<b>v' + escapeHtml(VERSION) + '</b> — the live release'
-                                   : '<b>v' + escapeHtml(VERSION) + '</b> — a pinned snapshot');
+      ? 'the <b>edge build</b> — build ' + BUILD + (newerEdge ? ' <span class="vtag">(update available)</span>' : '')
+      : (VERSION === latestVersion ? '<b>v' + escapeHtml(VERSION) + '</b> — the latest release'
+                                   : '<b>v' + escapeHtml(VERSION) + '</b> — a pinned older snapshot');
+    const latestFact = offline
+      ? '<span class="vtag">unknown — offline</span>'
+      : '<b>v' + escapeHtml(latestVersion) + '</b> — the snapshot a fresh visitor gets'
+        + (!onEdge && VERSION === latestVersion ? ' <span class="vpill run">you’re on it</span>' : '');
     const edgeFact = offline
-      ? (onEdge ? 'build ' + BUILD + ' <span class="vpill run">running</span>' : '<span class="vtag">unknown — offline</span>')
-      : 'the <b>edge build</b> at the site root — build ' + edgeBuild
-        + (onEdge ? (newerEdge ? ' · you’re on ' + BUILD : ' <span class="vpill run">running</span>') : '');
+      ? (onEdge ? 'build ' + BUILD + ' <span class="vpill run">attached</span>' : '<span class="vtag">unknown — offline</span>')
+      : 'build ' + edgeBuild
+        + (onEdge ? ' <span class="vpill run">attached</span>' : ' <span class="vtag">not attached</span>');
 
     const facts =
       '<div class="vfacts">' +
         '<div class="vfact"><span class="vfl">Running now</span>' +
           '<span class="vfv">' + runningFact + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Live release</span>' +
-          '<span class="vfv">' + (offline ? '<span class="vtag">unknown — offline</span>'
-            : '<b>v' + escapeHtml(latestVersion) + '</b> — the snapshot a fresh visitor gets') + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Latest edge</span>' +
+        '<div class="vfact"><span class="vfl">Latest release</span>' +
+          '<span class="vfv">' + latestFact + '</span></div>' +
+        '<div class="vfact"><span class="vfl">Edge channel</span>' +
           '<span class="vfv">' + edgeFact + '</span></div>' +
       '</div>';
 
-    // Load the LATEST edge build (site root). Always available — edge is a single
-    // moving target you can only ever move forward to, never a specific past build.
-    const edgeLabel = !onEdge ? '⬆ Load the latest edge build (build ' + edgeBuild + ')'
-      : (newerEdge ? '⬆ Update to the latest edge build (build ' + edgeBuild + ')'
-                   : 'Re-pull the latest edge build (build ' + edgeBuild + ')');
-    const edgeBtn = '<button class="widebtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>';
+    // ---- EDGE row: the moving unreleased build, kept visually distinct at the
+    // top of the picker so "the edge channel vs a numbered release" is obvious.
+    // Load the LATEST edge build (site root) — a single moving target you can only
+    // move forward to, never a specific past build. Notes fold behind it. ----
+    const edgeLabel = !onEdge ? 'Load edge' : (newerEdge ? 'Update' : 'Re-pull');
+    const edgeRow =
+      '<details class="vrow vedge">' +
+        '<summary class="vhead">' +
+          '<span class="vlabel">Edge build <span class="vbuild">build ' + edgeBuild + '</span>' +
+            (onEdge ? ' <span class="vpill run">running</span>' : '') + '</span>' +
+          '<span class="vspacer"></span>' +
+          '<button class="vbtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>' +
+          '<span class="vcaret" aria-hidden="true">▾</span>' +
+        '</summary>' +
+        '<div class="vnotes"><p class="add-help">The unreleased build at the site root, ahead of every release. It carries a build number that bumps on every change; you can always jump to the latest, but edge builds aren’t archived — you can’t pin or roll back to a specific one.</p></div>' +
+      '</details>';
 
-    // Snapshots, newest first. A row is "running" only when it's the pinned build
-    // (on the edge root you're running the moving root, not a frozen snapshot).
+    // ---- RELEASE rows: newest first, each with its release notes FOLDED behind
+    // it. A row is "running" only when it's the pinned/current build (on the edge
+    // root you're running the moving root, not a frozen snapshot). A critical
+    // release newer than what you run opens on its own so the must-read shows. ----
     const rows = availableVersions.slice().sort(cmpVer).reverse().map((v) => {
       const isLive = v === latestVersion;
       const isRunning = !onEdge && (pinned ? v === pinned : v === VERSION);
-      const tags = (isLive ? '<span class="vpill live">live</span>' : '') +
-                   (isRunning ? '<span class="vpill run">running</span>' : '');
+      const e = notesFor(v);
+      const hasNotes = !!(e && ((Array.isArray(e.notes) && e.notes.length) || e.headline));
+      const critical = !!(e && e.critical && !onEdge && cmpVer(v, VERSION) > 0);
       // The edge build number this release was cut from (releases before build
       // numbering have none — shown without a build).
       const bn = Number(releaseBuilds[v]);
+      const tags = (isLive ? '<span class="vpill live">latest</span>' : '') +
+                   (isRunning ? '<span class="vpill run">running</span>' : '') +
+                   (critical ? '<span class="vpill crit">critical</span>' : '');
       const buildTag = bn ? '<span class="vbuild">build ' + bn + '</span>' : '';
-      const btn = isRunning ? '<span class="vtag">running</span>'
-        : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use the live release' : 'Roll back to this') + '</button>';
-      return '<div class="vrow"><span>v' + escapeHtml(v) + ' ' + tags + buildTag + '</span>' + btn + '</div>';
+      const dateTag = (e && e.date) ? '<span class="cl-date">' + escapeHtml(e.date) + '</span>' : '';
+      const action = isRunning ? '<span class="vtag">running</span>'
+        : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use latest' : 'Roll back') + '</button>';
+      const head =
+        '<span class="vlabel">v' + escapeHtml(v) + ' ' + tags + buildTag + dateTag + '</span>' +
+        '<span class="vspacer"></span>' + action +
+        (hasNotes ? '<span class="vcaret" aria-hidden="true">▾</span>' : '');
+      // No notes on file → a plain, non-expandable row (no fold to open onto empty).
+      if (!hasNotes) return '<div class="vrow vrow-plain"><div class="vhead">' + head + '</div></div>';
+      return '<details class="vrow"' + (critical ? ' open' : '') + '>' +
+        '<summary class="vhead">' + head + '</summary>' +
+        '<div class="vnotes">' + releaseNotesHtml(e) + '</div>' +
+      '</details>';
     }).join('');
 
     container.innerHTML =
       facts +
-      (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the live release — you may be offline. The snapshots below still work.</p>' : '') +
-      changelogHtml() +
-      edgeBtn +
-      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. The <b>live release</b> is the frozen snapshot a fresh visitor to gifos.app gets. The <b>edge build</b> is the site root right now, ahead of the release; it carries a build number that bumps on every change, and you can always jump to the latest — but edge builds aren’t archived, so you can’t go back to a specific one. <b>Snapshots</b> are past releases you can pin to and roll back to freely. Your files and data are shared across all of them (migrations are additive), so switching is safe — it also rebuilds the built-in <b>default apps</b> to the build you switch to, and the data saved inside them carries over.</p>' +
-      '<div class="vlist">' + rows + '</div>';
-    const eb = container.querySelector('#set-edge'); if (eb) eb.onclick = loadEdge;
-    container.querySelectorAll('.vbtn').forEach((b) => {
+      (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the latest release — you may be offline. The snapshots below still work.</p>' : '') +
+      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. Pick a row to switch; open one to read its release notes. Your files and data are shared across all builds (migrations are additive), so switching is safe — it also rebuilds the built-in <b>default apps</b> to the build you land on, and the data saved inside them carries over.</p>' +
+      '<div class="vlist">' + edgeRow + rows + '</div>';
+    const eb = container.querySelector('#set-edge');
+    if (eb) eb.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); loadEdge(); };
+    container.querySelectorAll('.vbtn[data-v]').forEach((b) => {
       const v = b.getAttribute('data-v');
-      b.onclick = () => (v === latestVersion ? useRelease() : pinTo(v));
+      // preventDefault so a click on the button inside a <summary> switches builds
+      // instead of toggling the fold; stopPropagation keeps it off the summary too.
+      b.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); (v === latestVersion ? useRelease() : pinTo(v)); };
     });
   }
 
-  // Release notes for the Version panel. Shows every entry newer than the running
-  // build (the actual update delta); if you're current, the latest entry as a
-  // record. Critical releases are flagged so they stand out before you update.
-  function changelogHtml() {
-    if (!Array.isArray(changelog) || !changelog.length) return '';
-    // The edge build has no release number and is ahead of every release, so
-    // "what's new since <me>" is meaningless there — just show recent notes.
-    const edge = runningEdge();
-    const newer = edge ? [] : changelog.filter((e) => e && cmpVer(e.version, VERSION) > 0).sort((a, b) => cmpVer(a.version, b.version)).reverse();
-    const list = newer.length ? newer : changelog.slice().sort((a, b) => cmpVer(a.version, b.version)).reverse().slice(0, edge ? 3 : 1);
-    const heading = newer.length ? 'What’s new since v' + escapeHtml(VERSION) : (edge ? 'Recent release notes' : 'Latest release notes');
-    const items = list.map((e) => {
-      const critical = !!e.critical && !edge && cmpVer(e.version, VERSION) > 0;
-      const notes = (Array.isArray(e.notes) ? e.notes : []).map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('');
-      return '<div class="cl-entry' + (critical ? ' cl-critical' : '') + '">' +
-        '<div class="cl-head"><b>v' + escapeHtml(e.version) + '</b>' +
-        (e.date ? '<span class="cl-date">' + escapeHtml(e.date) + '</span>' : '') +
-        (critical ? '<span class="cl-badge">Critical</span>' : '') + '</div>' +
-        (e.headline ? '<div class="cl-headline">' + escapeHtml(e.headline) + '</div>' : '') +
-        (notes ? '<ul class="cl-notes">' + notes + '</ul>' : '') +
-        '</div>';
-    }).join('');
-    return '<div class="changelog"><h5 class="cl-title">' + heading + '</h5>' + items + '</div>';
+  // The changelog entry for a specific release version (or null).
+  function notesFor(v) {
+    if (!Array.isArray(changelog)) return null;
+    return changelog.find((e) => e && e.version === v) || null;
+  }
+  // A single release's notes, rendered for the fold behind its picker row.
+  function releaseNotesHtml(e) {
+    if (!e) return '';
+    const notes = (Array.isArray(e.notes) ? e.notes : []).map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('');
+    return (e.headline ? '<div class="cl-headline">' + escapeHtml(e.headline) + '</div>' : '') +
+           (notes ? '<ul class="cl-notes">' + notes + '</ul>' : '');
   }
 
   addBtn.addEventListener('click', showAddDialog);

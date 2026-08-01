@@ -1,7 +1,7 @@
 // Verifies the opt-in update + relocated-erase changes:
 //  - "Erase This Computer" is GONE from the top-level system menu.
 //  - Settings → Advanced holds an "Erase this computer" disclosure + button.
-//  - The Version panel renders the live changelog (critical entries flagged).
+//  - The Version panel lists releases, each with its notes folded behind it.
 //  - The service worker splits its fetch policy by channel:
 //     * EDGE (site root, where this test runs): NETWORK-FIRST with revalidation —
 //       a plain reload REGRABS a root asset that changed on disk (edge tracks the
@@ -44,14 +44,21 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await page.waitForSelector('#set-erase', { state: 'visible', timeout: 4000 });
   check('Erase button lives deep in Advanced settings', await page.locator('#set-erase').isVisible());
 
-  // ---- 3. Version panel shows the live changelog ----
+  // ---- 3. Version panel: releases listed, each with its notes folded behind it
   await page.waitForFunction(() => {
     const v = document.querySelector('#set-version');
     return v && /Running/.test(v.textContent);
   }, null, { timeout: 8000 });
-  await page.waitForSelector('#set-version .changelog', { timeout: 8000 }).catch(() => {});
-  const clText = await page.locator('#set-version .changelog').innerText().catch(() => '');
-  check('Version panel renders the changelog', /v\d+\.\d+\.\d+/.test(clText) && clText.length > 0, clText.slice(0, 80).replace(/\n/g, ' | '));
+  await page.waitForSelector('#set-version .vlist .vrow', { timeout: 8000 }).catch(() => {});
+  const rowCount = await page.locator('#set-version .vlist .vrow').count();
+  check('Version panel lists release rows', rowCount >= 1, 'rows=' + rowCount);
+  // The live changelog now lives folded INSIDE each release row; expand one and
+  // read its notes (this replaced the old wall-of-notes block above the picker).
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.8.5' });
+  await noteRow.locator('summary').click().catch(() => {});
+  await sleep(150);
+  const clText = await noteRow.locator('.vnotes').innerText().catch(() => '');
+  check('a release row unfolds its notes', clText.length > 0, clText.slice(0, 80).replace(/\n/g, ' | '));
   check('Version panel offers a Load/Re-pull edge action', await page.locator('#set-edge').count() === 1);
   await page.locator('#set-close').click();
 

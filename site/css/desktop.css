@@ -32,33 +32,39 @@ body {
 .vfl { flex: 0 0 auto; min-width: 8.5rem; color: var(--muted); font-size: .74rem;
   text-transform: uppercase; letter-spacing: .03em; }
 .vfv { flex: 1 1 auto; }
-.vpill { display: inline-block; margin-left: .35rem; font-size: .66rem; font-weight: 700;
+.vpill { display: inline-block; font-size: .66rem; font-weight: 700;
   letter-spacing: .03em; text-transform: uppercase; border-radius: .3rem; padding: .05rem .35rem; vertical-align: middle; }
 .vpill.live { color: #fff; background: color-mix(in srgb, #34c759 78%, #000); }
 .vpill.run { color: var(--accent); border: 1px solid var(--accent); }
-.vbuild { margin-left: .4rem; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.vpill.crit { color: #fff; background: #d33; }
+.vbuild { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 
-/* version list in Settings */
+/* version list in Settings — each row folds its release notes behind it */
 .vlist { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .3rem; }
-.vrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: .45rem .7rem; border: 1px solid var(--border); border-radius: .5rem; font-size: .85rem; }
+.vrow { border: 1px solid var(--border); border-radius: .5rem; font-size: .85rem; overflow: hidden; }
+.vrow .vhead { display: flex; align-items: center; gap: .45rem; padding: .45rem .7rem; }
+.vrow > summary.vhead { cursor: pointer; list-style: none; }
+.vrow > summary.vhead::-webkit-details-marker { display: none; }
+.vrow > summary.vhead::marker { content: ''; }
+.vrow-plain .vhead { cursor: default; }
+.vlabel { display: flex; align-items: center; flex-wrap: wrap; gap: .1rem .35rem; min-width: 0; }
+.vspacer { flex: 1 1 auto; }
+.vcaret { color: var(--muted); font-size: .7rem; transition: transform .15s ease; }
+.vrow[open] > summary .vcaret { transform: rotate(180deg); }
+.vnotes { padding: .15rem .8rem .7rem; border-top: 1px solid var(--border); }
+.vedge { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.vedge > summary.vhead { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .vbtn { padding: .3rem .7rem; border-radius: .4rem; border: 1px solid var(--accent);
-  background: none; color: var(--accent); cursor: pointer; font-size: .78rem; }
+  background: none; color: var(--accent); cursor: pointer; font-size: .78rem; white-space: nowrap; }
 .vbtn:hover { background: rgba(123,92,255,.15); }
+.vbtn.ghost { border-color: var(--border); color: var(--muted); }
 
 /* update bar: louder when a critical release is waiting */
 .update-bar.critical { background: linear-gradient(135deg, rgba(255,92,92,.28), rgba(255,150,60,.28)); border-bottom-color: #ff6b6b; }
 
-/* changelog in the Version panel */
-.changelog { margin: .2rem 0 .7rem; }
-.cl-title { margin: .2rem 0 .5rem; font-size: .9rem; }
-.cl-entry { border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .7rem; margin-bottom: .5rem; }
-.cl-entry.cl-critical { border-color: #ff6b6b; background: color-mix(in srgb, #ff5c5c 8%, transparent); }
-.cl-head { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+/* release notes, shown inside a row's fold */
 .cl-date { color: var(--muted); font-size: .74rem; }
-.cl-badge { margin-left: auto; font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
-  color: #fff; background: #d33; border-radius: .3rem; padding: .1rem .4rem; }
-.cl-headline { font-size: .82rem; margin: .25rem 0 .1rem; }
+.cl-headline { font-size: .82rem; font-weight: 600; margin: .4rem 0 .1rem; }
 .cl-notes { margin: .2rem 0 0; padding-left: 1.1rem; }
 .cl-notes li { color: var(--muted); font-size: .8rem; line-height: 1.45; margin: .1rem 0; }
 

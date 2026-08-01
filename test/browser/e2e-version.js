@@ -60,6 +60,42 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
   check('Version panel states what is running now', /Running now/.test(vfacts), vfacts.slice(0, 80).replace(/\n/g, ' | '));
   check('Version panel offers an edge/load action', (await page.locator('#set-edge').count()) === 1);
   check('Version panel lists archived snapshots', (await page.locator('.vlist .vbtn').count()) >= 1, 'vbtns=' + (await page.locator('.vlist .vbtn').count()));
+
+  // Regression: the "a newer release is available" nudge deep-links to the
+  // Version panel. The AI-models and Third-party-APIs sections ALSO carry class
+  // "adv", so a bare querySelector('details.adv') opened the WRONG section and
+  // the nudge appeared to link nowhere. The panel must live inside the
+  // id-targeted #set-advanced disclosure, and that disclosure must NOT be the
+  // first .adv — otherwise the deep-link silently opens AI models again.
+  const advStruct = await page.evaluate(() => {
+    const adv = document.querySelector('#set-advanced');
+    const firstAdv = document.querySelector('.modal.wide details.adv');
+    const sv = document.querySelector('#set-version');
+    return {
+      hasId: !!adv,
+      versionInside: !!(adv && sv && adv.contains(sv)),
+      idIsFirst: adv === firstAdv,
+      advCount: document.querySelectorAll('.modal.wide details.adv').length,
+    };
+  });
+  check('Version panel lives inside the id-targeted Advanced disclosure', advStruct.hasId && advStruct.versionInside, JSON.stringify(advStruct));
+  check('deep-link can\'t rely on the first details.adv (AI/API share the class)', !advStruct.idIsFirst && advStruct.advCount >= 2, JSON.stringify(advStruct));
+
+  // Regression: release notes fold behind their release rows, collapsed by
+  // default (the panel used to dump every release's full notes in a wall above
+  // the picker). A release WITH notes is an expandable <details> that reveals
+  // them on click.
+  const foldState = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#set-version details.vrow')];
+    return { total: rows.length, openByDefault: rows.filter((d) => d.open).length };
+  });
+  check('release-note folds are collapsed by default', foldState.total >= 1 && foldState.openByDefault === 0, JSON.stringify(foldState));
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.8.5' });
+  await noteRow.locator('summary').click();
+  await sleep(150);
+  const expanded = await noteRow.evaluate((el) => el.open && !!el.querySelector('.vnotes .cl-notes, .vnotes .cl-headline'));
+  check('clicking a release row unfolds its notes', expanded);
+
   await page.locator('#set-close').click();
 
   // ---- Erase clears IndexedDB AND the shell cache, then re-seeds fresh ----
