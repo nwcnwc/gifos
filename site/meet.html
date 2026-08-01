@@ -452,7 +452,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #trlog { flex: 1; overflow-y: auto; padding: .6rem; }
   #trfoot { padding: .45rem .6rem; border-top: 1px solid var(--border, #2a2a3f); display: flex; gap: .4rem; }
   #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .78rem; }
-  .p2p-note { padding: .35rem .9rem; font-size: .72rem; color: var(--muted, #667); background: var(--surface, #0d0d14); border-top: 1px solid var(--border, #1c1c2b); }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center;
@@ -637,7 +636,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button data-timing="song" title="Lead the room in song — steps you onto the stage with a music-grade mic and lines everyone's sound up to you; tap again to end (earbuds recommended for singers)">🎵 Song</button>
     </div>
   </div>
-  <div class="p2p-note">🔒 Private meeting — your video and audio go straight to the other people, never through a server.</div>
 
   <div class="name-modal" id="app-modal" style="display:none">
     <div class="name-box" style="max-width:420px;text-align:left">
@@ -861,10 +859,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         media controls.</p>
 
         <h4>Your privacy</h4>
-        <p>Video and audio go <b>straight between people</b>, never through a server. Because
-        of that, everyone on a call can see everyone's network address — nobody here is
-        anonymous (tap the status text to see the list). It's the honest trade for having
-        no middleman.</p>
+        <p><b>Everything happens directly between the people in the room — there is no
+        company in the middle.</b> Your video and audio travel <b>peer-to-peer</b>, straight
+        from your device to the others', and <b>never pass through a server</b>: GifOS runs no
+        media servers, and the one small relay that introduces browsers to each other is
+        throttled so audio and video simply can't flow through it — it's peer-to-peer or
+        nothing.</p>
+        <p><b>It's encrypted end to end.</b> Every link between devices is encrypted
+        (the same WebRTC/DTLS-SRTP encryption a bank uses), and that relay is
+        <b>zero-knowledge</b>: it never sees your video, your audio, your name, the room's
+        password, or even <i>which</i> room you're in — your device derives all of that
+        locally and never sends it. The only people who can ever see or hear you are the
+        <b>people in the room with you</b>. (In a big room, to save everyone's data, some of
+        the far-away faces are combined and passed along by <i>other people in the same
+        room</i> — still never a server, and never anyone outside the room.)</p>
+        <p>The one honest trade for having no middleman: because devices connect directly,
+        everyone on a call can see everyone's <b>network address</b> — nobody here is
+        anonymous. Tap the status text to see the list.</p>
       </div>
       <div style="display:flex;justify-content:center;margin-top:1rem">
         <button id="help-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Got it</button>
