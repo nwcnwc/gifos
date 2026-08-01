@@ -264,9 +264,42 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     //    than this the redundancy is not re-arming and that IS the finding.
     let backNow = null;
     const tF2 = Date.now();
+    let fbLog = 0;
     while (Date.now() - tF2 < 60000) {
       const v = await sdnVia();
       if (v && v.pri && v.pri.indexOf(B8) === 0 && v.std) { backNow = v; break; }
+      const el = Math.round((Date.now() - tF2) / 1000);
+      if (el - fbLog >= 10) {
+        fbLog = el;
+        // WHERE does the direct hop fail to come back? pref for rk='sdn' is the
+        // candidate with key==='sdn' AND live (E actually holds the incoming
+        // stream). Three distinct failures look identical from the outside:
+        //   no ann from B      -> B is not re-shipping after the link returned
+        //   ann but not live   -> announce arrived, the stream did not
+        //   live but not pref  -> selection/hysteresis bug
+        // NOTE: incomingIds()/pcState() take a FULL peer id — they do
+        // peers.get(pid). An 8-char PREFIX always misses, so an earlier version
+        // of this probe reported inc=0 unconditionally and "proved" the stream
+        // was missing when it had measured nothing at all. Pass the full id.
+        const eSide = await pages[OBS].page.evaluate((a) => {
+          const d = __gifosVideo.debugDump() || {}, m = d.mosaic || {};
+          const ps = __gifosVideo.pcState ? __gifosVideo.pcState(a.full) : null;
+          return { ann: (m.ann || []).filter((k) => k.indexOf(a.pfx) === 0),
+            allAnn: (m.ann || []).length,
+            pc: ps ? (ps.sig + '/' + ps.conn) : 'NO-PEER-RECORD',
+            inc: __gifosVideo.incomingIds ? (__gifosVideo.incomingIds(a.full) || []).length : -1,
+            incIds: __gifosVideo.incomingIds ? (__gifosVideo.incomingIds(a.full) || []).map((x) => String(x).slice(0, 8)) : null,
+            annSid: (m.annSid || []).filter((x) => x.indexOf(a.pfx.slice(0, 14)) === 0) };
+        }, { pfx: B8, full: ids[KILL] }).catch((e) => ({ err: String(e).slice(0, 60) }));
+        let bSide = 'killed?';
+        if (pages[KILL].page) {
+          bSide = await pages[KILL].page.evaluate(() => {
+            const m = (__gifosVideo.debugDump() || {}).mosaic || {};
+            return (m.jobSig || []).map((x) => x.split('|')[0]).filter((x) => x.indexOf('sdn') === 0).join(',') || 'no-sdn-job';
+          }).catch(() => 'err');
+        }
+        console.log(`   [restore +${el}s] E.annFromB=${JSON.stringify(eSide.ann)} (allAnn=${eSide.allAnn}) E.pc=${eSide.pc} E.incFromB=${eSide.inc} ${JSON.stringify(eSide.incIds || [])} annSid=${JSON.stringify(eSide.annSid || [])} | B.ships=[${bSide}]`);
+      }
       await sleep(1000);
     }
     check('FAILBACK(restore): sdn primary returned to the DIRECT hop with a standby re-parked',

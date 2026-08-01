@@ -3279,7 +3279,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // A rebuilt transport starts with NO senders: forget every composite role
       // this pair carried (folds sent, folds forwarded, folds displayed via
       // them) — the sweeper's reconcile re-derives and re-adds them cleanly.
-      if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
+      //
+      // THIS USED TO BE A LIE (2026-08-01). The line here was
+      //   if (typeof endCompRolesFor === 'function') endCompRolesFor(p.id);
+      // and endCompRolesFor WAS NEVER DEFINED ANYWHERE IN THIS FILE — the
+      // typeof guard made a missing function silently do nothing. So the
+      // cleanup this comment promises has never once run: a rebuilt transport
+      // kept every outbound mosaic job it had, with senders bound to the pc we
+      // just closed, and shipMos's `cur.sig === stream.id` fast path would then
+      // re-announce that job forever — advertising an 'mx' streamId whose
+      // senders live on a dead pc. The mobile case in the comment above is the
+      // one that matters: a phone that changes network rebuilds its pcs and can
+      // then keep advertising composite feeds from the old one.
+      //
+      // SCOPE OF THE CLAIM, honestly: this is a real defect found while chasing
+      // the mirror drill's failback red, but it is NOT proven to be that red's
+      // cause — that turned out to be peer-record flapping under a hard sever
+      // (severPair closes the pc, which the mesh correctly reads as transport
+      // death, so the pair evicts and re-admits and no preferred candidate ever
+      // stays live long enough for MOS_SETTLE). Fixed here on its own merits.
+      //
+      // Drop the jobs so the sweeper genuinely re-ships them on the NEW pc
+      // (fresh senders, fresh container id, an announce the receiver can
+      // resolve). Referenced directly, NOT behind typeof: if these ever leave
+      // scope this must fail loudly rather than quietly stop healing — a silent
+      // typeof guard is what hid this for however long it has been here.
+      try {
+        for (const [jk, job] of [...mosJobs]) if (job.to === p.id) unshipMos(jk, false);
+      } catch (e) { if (typeof clog === 'function') clog('newPcFor: mosaic job cleanup failed ' + String(e).slice(0, 60)); }
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
       p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
@@ -6163,7 +6190,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const p = peers.get(to);
       const jk = key + '>' + to;
       const cur = mosJobs.get(jk);
-      if (cur && cur.sig === stream.id) { // live job — re-announce (idempotent, heals a lost frame)
+      // ORPHANED BY A TRANSPORT SWAP? A job's senders belong to the pc they
+      // were added to. Replace that pc — newPcFor on a hard mobile network
+      // change, a long freeze, an ICE failure — and those senders can never
+      // carry media again, yet the fast path below would happily RE-ANNOUNCE
+      // this job forever, advertising a streamId the receiver can never
+      // resolve. newPcFor now drops these jobs itself, but this is the general
+      // guard: ANY path that swaps a pc is covered, not just the one we found.
+      // Cheap: identity check of one sender against the live pc.
+      const orphaned = !!(cur && cur.senders && cur.senders.length && p && p.pc
+        && typeof p.pc.getSenders === 'function' && !p.pc.getSenders().includes(cur.senders[0]));
+      if (cur && cur.sig === stream.id && !orphaned) { // live job — re-announce (idempotent, heals a lost frame)
         if (meta) cur.meta = meta; // counts change while the stream id doesn't — the fresh {n, cols} must ride each re-announce
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
@@ -9252,6 +9289,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
         prodStream: !!(prodPack && prodPack.stream), sdStream: !!(sdPack && sdPack.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],
+        // An announcer is only a CANDIDATE if its announced streamId resolves
+        // to one of that peer's incoming streams (claimRedun's `live`). The
+        // keys alone cannot show a MISMATCH — an announce whose stream never
+        // arrives, or a stale id re-announced after a transport swap — which
+        // is exactly the state that silently blocks failback, so surface the id.
+        annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)),
         // multi-subscribe forensics: hot standby slots, outbound jobs' active/dormant
         // state, and the last want/idle demand I sent per announcer.
         standby: [...mosStandby.keys()],
