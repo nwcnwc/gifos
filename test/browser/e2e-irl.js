@@ -10,11 +10,13 @@ let failures = 0;
 function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function invite(page, lifetime, resilient) {
-  await page.locator('#host').click();
-  await page.locator('#invite-modal').waitFor({ state: 'visible', timeout: 6000 });
-  await page.locator('#invite-modal input[name=lt][value="' + lifetime + '"]').check();
-  if (resilient) await page.locator('#invite-modal input[name=res][value="keep"]').check();
-  await page.locator('#inv-go').click();
+  // one-runtime: the ROOM invite (owned vs resilient); lifetimes died with the star
+  await page.evaluate(() => document.getElementById('appinvite').click());
+  await page.waitForSelector('input[name="rmcls"]', { timeout: 8000 });
+  await page.evaluate((res) => {
+    document.querySelector('input[name="rmcls"][value="' + (res ? 'heal' : 'owned') + '"]').checked = true;
+    document.getElementById('inv-go').click();
+  }, !!resilient);
 }
 
 (async () => {
@@ -44,9 +46,8 @@ async function invite(page, lifetime, resilient) {
   check('wolves lobby gates start below 4 players', await host.locator('#start').isDisabled());
 
   await invite(hostRun, 'forever', true);
-  await hostRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
-  const shareUrl = await hostRun.locator('#lm-url').inputValue();
-  await hostRun.locator('#lm-close').click().catch(() => {});
+  await hostRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
+  const shareUrl = await hostRun.evaluate(() => document.getElementById('share-url').value);
 
   // ---------- three friends join from their own phones ----------
   const phones = [{ page: hostRun, app: host, name: 'Host' }];
@@ -122,9 +123,8 @@ async function invite(page, lifetime, resilient) {
   const sbHost = sbRun.frameLocator('iframe');
   await sbHost.locator('#start').waitFor({ timeout: 10000 });
   await invite(sbRun, 'forever', true);
-  await sbRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
-  const sbUrl = await sbRun.locator('#lm-url').inputValue();
-  await sbRun.locator('#lm-close').click().catch(() => {});
+  await sbRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
+  const sbUrl = await sbRun.evaluate(() => document.getElementById('share-url').value);
   const sbPhones = [{ app: sbHost, page: sbRun }];
   for (const name of ['Eve', 'Fox']) {
     const ctx = await browser.newContext();

@@ -69,15 +69,15 @@ async function clickMove(frame, orient, uci) {
   await aFrame.locator('#fStatus', { hasText: /Waiting for another/i }).waitFor({ timeout: 5000 }).catch(() => {});
   check('host sees "waiting for another player"', /Waiting for another/i.test(await aFrame.evaluate(() => document.getElementById('fStatus').textContent)));
 
-  // Invite with forever + keep-alive (resilient), grab the link
-  await aRun.locator('#host').click();
-  await aRun.locator('#inv-go, .perm-modal').first().waitFor({ timeout: 6000 });
-  await aRun.locator('input[name=lt][value="forever"]').check().catch(() => {});
-  await aRun.locator('input[name=res][value="keep"]').check().catch(() => {});
-  await aRun.locator('#inv-go').click();
-  await aRun.waitForFunction(() => { const el = document.getElementById('lm-url'); return el && el.value; }, null, { timeout: 8000 });
-  const shareUrl = await aRun.locator('#lm-url').inputValue();
-  await aRun.locator('#lm-close').click().catch(() => {}); // dismiss the link modal so host controls stay clickable
+  // Invite as a RESILIENT room (the succession class), grab the room link
+  await aRun.evaluate(() => document.getElementById('appinvite').click());
+  await aRun.waitForSelector('input[name="rmcls"]', { timeout: 8000 });
+  await aRun.evaluate(() => {
+    document.querySelector('input[name="rmcls"][value="heal"]').checked = true;
+    document.getElementById('inv-go').click();
+  });
+  await aRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
+  const shareUrl = await aRun.evaluate(() => document.getElementById('share-url').value);
 
   // ---- Bob joins from the link ----
   const bCtx = await browser.newContext(); await bCtx.addInitScript(setup('Bob'));

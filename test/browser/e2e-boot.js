@@ -64,7 +64,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ctx.waitForEvent('page'),
     vmPage.locator('.icon', { hasText: 'Welcome' }).first().dblclick(),
   ]);
-  await vmApp.waitForURL(/run\.html/, { timeout: 8000 });
+  await vmApp.waitForURL(/meet\.html#id=/, { timeout: 8000 });
   check('VM apps open with the VM namespace in the URL', vmApp.url().includes('db=' + encodeURIComponent(vmDb)));
   const appDb = await vmApp.evaluate(() => GifOS.store.dbName).catch(() => null);
   check('VM app runtime binds to the VM store', appDb === vmDb);
