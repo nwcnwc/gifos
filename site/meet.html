@@ -452,6 +452,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #trlog { flex: 1; overflow-y: auto; padding: .6rem; }
   #trfoot { padding: .45rem .6rem; border-top: 1px solid var(--border, #2a2a3f); display: flex; gap: .4rem; }
   #trfoot button { padding: .3rem .6rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .78rem; }
+  /* ONE RUNTIME — solo app entry (#id=): an app running on this device with NO
+     room minted yet. Every meeting control hides until Invite mints one; the
+     GifOS home link stays. (docs/one-runtime.md, engineering step 1.) */
+  body.solo-app .bar > *:not(.title) { display: none !important; }
+  body.solo-app #grid { display: none; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center;
@@ -968,6 +973,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the address bar to the pretty path, so location.pathname stops being a
     // reliable base for building meet.html URLs; MEET_PATH always is.
     const MEET_PATH = location.pathname;
+    // ---- ONE RUNTIME: the entry mints the room's TRAITS (docs/one-runtime.md).
+    // The link is the promise — which component is pinned is decided HERE, at
+    // entry, and is immutable for the page's life:
+    //   #v=<room>[&av=]        → meeting entry: media plane PINNED, app slot free
+    //   #id=<fileId>           → an app from MY desktop, SOLO: no room, no relay,
+    //                            no mesh — Invite mints the room later
+    //   #s=<short.ver>&k=<c>   → owned app room: app PINNED (no succession)
+    //   #j=<code>              → anyone-owns app room: app PINNED (succession)
+    const ROOM = (() => {
+      const id = params.get('id'), j = params.get('j'), s = params.get('s'), k = params.get('k');
+      if (id) return { kind: 'app', solo: true, appPinned: true, mediaPinned: false, fileId: id, join: null };
+      if (s && k) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { s: s, k: k, owned: true } };
+      if (j) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { s: null, k: j, owned: false } };
+      return { kind: 'meet', solo: false, appPinned: false, mediaPinned: true, fileId: null, join: null };
+    })();
     const grid = document.getElementById('grid');
     const statusEl = document.getElementById('status');
     const share = document.getElementById('share');
@@ -5426,7 +5446,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           updateStatus();
         });
     }
-    if (!params.get('v') && !params.get('app')) showLobby();
+    // ---- ONE RUNTIME entry dispatch (docs/one-runtime.md) -------------------
+    // An app entry never runs the meeting boot: no lobby, no camera consent
+    // flow, and for SOLO no network object at all. The meeting entry keeps its
+    // exact flow.
+    let soloCtl = null; // the running solo app's runtime control — Invite (step 2) hosts from it
+    function bootSoloApp() {
+      document.body.classList.add('solo-app');
+      GifOS.store.getFile(ROOM.fileId).then((rec) => {
+        if (!rec) throw new Error('file not found on this desktop');
+        const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
+        document.title = nm + ' — GifOS';
+        showAppPane(nm, '· running on this device');
+        return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl).then((ctl) => { soloCtl = ctl; });
+      }).catch((e) => setStatus('Could not open the app: ' + (e && e.message || e)));
+    }
+    if (ROOM.solo) bootSoloApp();
+    else if (ROOM.kind === 'app') setStatus('This app link rides the new mesh rooms — landing with one-runtime step 2.'); // branch scaffold: router still sends /join to run.html
+    else if (!params.get('v') && !params.get('app')) showLobby();
     else bootIntoRoom();
 
     // ---- chat + pinned files: pure P2P over DataChannels ----------------------
