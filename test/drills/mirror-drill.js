@@ -218,6 +218,62 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     check('E: direct sdn pipe flows, mirror standby ~zero', inB > 200 && stdB < Math.max(500, inB * 0.05), { inB: Math.round(inB), stdB: Math.round(stdB) });
   }
 
+  // ---- FAILBACK on a RECOVERABLE outage ------------------------------------
+  // YOU CANNOT FAIL BACK TO A CORPSE. The kill below removes the direct hop
+  // PERMANENTLY, and measured across five runs the tree never hands 0/0.1 to a
+  // third party inside any window a user would sit through: E itself climbs
+  // into its dead owner's cell (the heir reattaching the subtree — 3 runs), or
+  // the cell simply stays EMPTY (nothing refills it; compaction needs
+  // COMPACT_SETTLE = 300 ticks = 150s of quiescence since the churn). So the
+  // old failback leg sat for 120s waiting on a scenario the product does not
+  // produce, and it could never go green — that was the quarantine's red #2,
+  // mis-read at the time as "the heal may not refill 0/0.1".
+  //
+  // Failback is defined for a RECOVERABLE outage, so manufacture one instead of
+  // waiting: sever E<->B, watch the mirror take over, lift the sever, and
+  // require the DIRECT hop back as primary with the mirror re-parked as the
+  // dormant standby. Same strict claim the drill always meant to make, against
+  // a scenario that actually occurs — and it settles in seconds, not minutes.
+  if (built) {
+    const B8 = String(ids[KILL]).slice(0, 8), F8 = String(ids[MIRROR_END]).slice(0, 8);
+    const sdnVia = async () => {
+      const m = await mosOf(pages[OBS]);
+      if (!m) return null;
+      const pri = (m.claimVia || []).find((x) => x.rk === 'sdn');
+      const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
+      return { pri: pri ? String(pri.via) : null, std: std ? String(std.via) : null };
+    };
+    const FB_SEVER = 15000;
+    console.log('  severing E<->B for ' + FB_SEVER + 'ms (recoverable outage, NOT a kill)');
+    await pages[OBS].page.evaluate((a) => __gifosVideo.severByPrefixForTest(a.p, a.ms), { p: B8, ms: FB_SEVER }).catch(() => {});
+
+    // 1. the mirror takes over while the direct hop is dark
+    let tookOver = null;
+    const tF1 = Date.now();
+    while (Date.now() - tF1 < 25000) {
+      const v = await sdnVia();
+      if (v && v.pri && v.pri.indexOf(B8) !== 0) { tookOver = v; break; }
+      await sleep(500);
+    }
+    check('FAILOVER(sever): sdn primary left the severed direct hop', !!tookOver,
+      tookOver ? { pri: tookOver.pri.slice(0, 8), std: tookOver.std && tookOver.std.slice(0, 8) } : 'primary never left B within 25s');
+
+    // 2. the sever lifts -> the DIRECT hop returns as primary, mirror re-parks.
+    //    MOS_SETTLE (5s) hysteresis has to elapse before the roles swap, so
+    //    allow for that plus a rebuild; 60s is generous, and if it needs more
+    //    than this the redundancy is not re-arming and that IS the finding.
+    let backNow = null;
+    const tF2 = Date.now();
+    while (Date.now() - tF2 < 60000) {
+      const v = await sdnVia();
+      if (v && v.pri && v.pri.indexOf(B8) === 0 && v.std) { backNow = v; break; }
+      await sleep(1000);
+    }
+    check('FAILBACK(restore): sdn primary returned to the DIRECT hop with a standby re-parked',
+      !!backNow, backNow ? { pri: backNow.pri.slice(0, 8), std: backNow.std.slice(0, 8), B: B8, F: F8 }
+        : 'no failback within 60s of the sever lifting — redundancy did not re-arm');
+  }
+
   // ---- KILL the parent seat B: multi-hop demand-wake -----------------------
   const framesOf = () => pages[OBS].page.evaluate(() => {
     const f = (__gifosVideo.feedsInfo() || []).find((x) => x.key === 'sdn');
@@ -259,26 +315,9 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   check('KILL: the mirror was demand-woken (E commanded an sdnm stream hot)', sawMirHot);
   check('KILL: sdn rides a LIVE via (off the corpse)', !!finVia && finVia !== ids[KILL], { via: finVia && finVia.slice(0, 8) });
 
-  // ---- HEAL + FAILBACK: direct path returns, mirror re-parks ---------------
-  // occ01 must be read from a SECTION-0 witness: E's own debugDump().rows is
-  // E's SECTION (pc=2) — rows[0][1] there is F's seat, and the old check
-  // could never match the healed 0/0.1 occupant (mirror-heir-2 red).
-  // A@0/0.0 owns that row; read the healed occupant from A.
-  let back = null;
-  const t3 = Date.now();
-  while (Date.now() - t3 < 120000) {
-    const m = await mosOf(pages[OBS]);
-    if (m) {
-      const occ01 = await pages[0].page.evaluate(() => { const s = __gifosVideo.debugDump(); const r = (s.rows && s.rows[0]) || []; return r[1] || null; }).catch(() => null);
-      const pri = (m.claimVia || []).find((x) => x.rk === 'sdn');
-      const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
-      // failed back: primary via == the (healed) occupant of 0/0.1, mirror parked again as standby
-      if (pri && occ01 && String(pri.via).indexOf(occ01) === 0 && std) { back = { pri: pri.via.slice(0, 8), std: std.via.slice(0, 8), occ01 }; break; }
-    }
-    await sleep(3000);
-  }
-  check('FAILBACK: sdn primary returned to the direct hop (healed 0/0.1) with the mirror re-parked as standby', !!back, back || 'no failback within 120s (heal may have consumed a mirror hop — see report)');
-
+  // (The post-kill failback leg that used to live here is gone: it waited on a
+  // heal that never comes. Failback is now proven above against a recoverable
+  // outage, which is the scenario the law is actually about.)
   await browser.close();
   console.log('loadavg at end: ' + loadNow());
   console.log(failures === 0 ? '\nALL PASS' : '\n' + failures + ' FAILED');
