@@ -6368,8 +6368,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // is a pure replaceTrack with NO renegotiation, but it carries ZERO media. So
     // a seat encodes only the feeds someone actually keeps hot (steady state: 2
     // per receiver); every other pre-allocated spare costs nothing until needed.
+    // DEBUG: a job PINNED parked stays at replaceTrack(null) even while the
+    // receiver is demanding it hot. This is the MEDIA-ONLY outage a failback
+    // test needs: the pc, the DataChannel and every m-line stay up, so the mesh
+    // sees no transport death and never evicts the pair — only the bytes stop.
+    // (severPair, the other tool, CLOSES the pc, which the mesh correctly reads
+    // as death (D5) and answers with evict + re-admit; the peer record then
+    // flaps and no preferred candidate ever stays live long enough for
+    // MOS_SETTLE, so failback cannot be observed through it at all.)
+    const jobPinned = (jk) => DEBUG_ON && window.__parkedJobs && (window.__parkedJobs.get(jk) || 0) > Date.now();
     function setJobActive(jk, on) {
       const job = mosJobs.get(jk); if (!job) return;
+      if (on && jobPinned(jk)) return; // pinned parked — ignore the wake
       if (!!job.active === !!on) return;
       job.active = !!on;
       for (let i = 0; i < job.senders.length; i++) {
@@ -9393,6 +9403,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (String(pid).indexOf(prefix) === 0) return window.__gifosVideo.severPair(pid, ms);
         }
         return { err: 'no peer with prefix ' + prefix };
+      },
+      // MEDIA-ONLY OUTAGE on one outbound mosaic job: park its senders and
+      // PIN them parked for ms, ignoring the receiver's mx-want. The transport
+      // is untouched, so this isolates the media plane's failover/failback from
+      // the mesh's death-detection — the thing severPair cannot do.
+      // parkJobForTest('sdn', <full peer id of the receiver>, 15000)
+      parkJobForTest: (key, toPid, ms) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        const jk = key + '>' + toPid;
+        if (!mosJobs.has(jk)) return { err: 'no such job', want: jk, have: [...mosJobs.keys()].map((k) => k.slice(0, 24)) };
+        window.__parkedJobs = window.__parkedJobs || new Map();
+        window.__parkedJobs.set(jk, Date.now() + (ms || 15000));
+        setJobActive(jk, false);
+        return { ok: true, jk: jk.slice(0, 24), ms: ms || 15000, active: !!(mosJobs.get(jk) || {}).active };
+      },
+      unparkJobForTest: (key, toPid) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        const jk = key + '>' + toPid;
+        if (window.__parkedJobs) window.__parkedJobs.delete(jk);
+        setJobActive(jk, true);
+        return { ok: true, active: !!(mosJobs.get(jk) || {}).active };
       },
       severPair: (pid, ms) => {
         if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
