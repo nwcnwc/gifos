@@ -65,6 +65,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aMeet.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('host mounted the app in the meeting stage', await aMeet.evaluate(() => window.__gifosVideo.appActive()));
   check('host is flagged as the app host', await aMeet.evaluate(() => window.__gifosVideo.appIsHost()));
+  // noRelay guard (2026-08-01): a meeting-hosted app rides the mesh Stage DATA
+  // lane and must open NO relay app-session — not even the transient one the
+  // old flow opened and immediately tore down in attachStageBus. Every
+  // steadySocket this page ever opened stays listed in __gifosConns with its
+  // raw URL readable, so a role=host socket (open OR already closed) is
+  // detectable here; the meeting's own role=mesh socket doesn't match.
+  check('sharing opened NO relay app-session (role=host socket never existed)',
+    await aMeet.evaluate(() => (window.__gifosConns || []).every((s) => {
+      try { const w = s._raw && s._raw(); return !(w && /[?&]role=host\b/.test(w.url || '')); } catch (e) { return true; }
+    })));
 
   await bMeet.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the OTHER participant auto-mounted the shared app', await bMeet.evaluate(() => window.__gifosVideo.appActive()));

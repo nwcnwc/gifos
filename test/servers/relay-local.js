@@ -487,12 +487,8 @@ server.on('upgrade', (req, socket, head) => {
       if (process.env.RELAY_DEBUG) typeRate.set(m.t, (typeRate.get(m.t) || 0) + 1); // what is actually flooding the relay?
       if (m.t === 'peer') routePeer(peer, m);
       else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
-      else if (m.t === 'gossip' && m.msg !== undefined) {
-        // One inbound frame fans out to every other member as the ordinary
-        // {t:'peer', from} shape (no stamp — §9) — mirrors relay/src/relay.js.
-        const s = JSON.stringify({ t: 'peer', from: peer, msg: m.msg });
-        for (const [p, c] of sess.clients) if (p !== peer) c.send(s);
-      } else if (m.t === 'setpw' && typeof m.pw === 'string') {
+      // ({t:'gossip'} fan-out deleted 2026-08-01 — dead; mirrors relay/src/relay.js.)
+      else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Signed in admin rooms (§9): the relay verifies the same Ed25519
         // proof any peer would — mirrors relay/src/relay.js.
         if (sess.av && !(await admProven(sess.av, m.w, 'setpw', (o) => o.pw === m.pw))) {

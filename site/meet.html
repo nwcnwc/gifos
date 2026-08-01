@@ -8747,7 +8747,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Admin rooms: the sharer LEADS by default (their runtime fences the
         // app's led records). Open rooms: communal by default — today's warmth.
         const lead = hasAdminRoom();
-        const r = (ctl && ctl.becomeHost) ? await ctl.becomeHost({ lifetime: 'forever', resilient: true, lead }) : null;
+        // noRelay: a meeting-hosted app rides the mesh Stage DATA lane
+        // (attachStageBus below) — never open even a transient relay
+        // app-session for it (docs/app-mesh-unification.md "Changes OUTSIDE").
+        const r = (ctl && ctl.becomeHost) ? await ctl.becomeHost({ lifetime: 'forever', resilient: true, lead, noRelay: true }) : null;
         const sess = await GifOS.store.getState(fileId + '::session');
         if (!sess || !sess.sid) throw new Error('app session did not start');
         appKey = sess.sid;

@@ -561,18 +561,17 @@ code).
 - **Optimistic client writes** to shared collections show locally before the
   owner's signed echo; a refused op reverts on the next owner snap.
 
-### Changes OUTSIDE my files that are needed / recommended (NOT made)
+### Changes OUTSIDE my files — BOTH NOW MADE (2026-08-01)
 
-- **`meet.html` (recommended, would strengthen security):** carry the owner
-  pubkey in the app ad (`myStatus.app.pk = r.attachStageBus(...).pk`) and pass
-  it into `bootClientBus` params, so the client pins the owner key from the
-  **authenticated ad** instead of TOFU — closing the first-frame race for
-  healing-link sids. The runtime already returns `{pk}` from `attachStageBus`
-  for exactly this.
-- **`meet.html` (recommended, avoids a transient relay session):** pass a
-  `mesh:true`/`noRelay` option into `becomeHost` so it skips `openHostSocket`
-  entirely for a meeting-hosted app, rather than opening then immediately tearing
-  it down in `attachStageBus`. Removes even the momentary relay app-session
-  registration.
+- **pk in the ad (DONE):** `meet.html` `runApp` carries the owner pubkey in the
+  app ad (`myStatus.app.pk`) and `mountClientApp` passes it into
+  `bootClientBus` params, so the client pins the owner key from the
+  **authenticated ad** instead of TOFU — the first-frame race for healing-link
+  sids is closed. (`runtime.js` seeds `makeVerifier(sid, params.pk)`.)
+- **`noRelay` (DONE 2026-08-01):** `becomeHost({ noRelay: true })` skips
+  `openHostSocket` entirely; `meet.html` `runApp` passes it, so a
+  meeting-hosted app never registers even a momentary relay app-session.
+  Guarded by `e2e-meeting-app.js` ("sharing opened NO relay app-session" —
+  asserts no `role=host` socket ever existed on the host page).
 - **No mesh/relay/`gifos-net.js` changes were required** — the adapter rides the
   already-merged `sga` lane and `GifOS.meetStageData` API as-is.

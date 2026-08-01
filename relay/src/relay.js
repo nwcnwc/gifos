@@ -40,7 +40,6 @@
  *   host   → relay : { t:'to',   to:<peer>, msg:{} }  → that one client as msg
  *   host   → relay : { t:'bcast', msg:{} }            → every client as msg
  *   any    → relay : { t:'peer', to:<peer>, msg:{} }  → routed peer↔peer (mesh signaling)
- *   mesh   → relay : { t:'gossip', msg:{} }           → every OTHER mesh member as { t:'peer', from, msg }
  *   mesh   → relay : { t:'knock', gk, gblob }         → { t:'greeters', list, founded, admitted } (R2/R3)
  *   relay  → host  : { t:'peer-join'|'peer-leave', peer }
  *   relay  → all   : { t:'roster', peers:[...], names:{...} }
@@ -608,17 +607,10 @@ export class Session {
     } else if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
       else if (m.t === 'knock') this.knock(ws, m.gk, m.gblob); // (re)register a greeter / take-over an empty room (R2/R3/R6)
-      else if (m.t === 'gossip' && m.msg !== undefined) {
-        // Room-wide fan-out of ONE inbound frame, delivered as the ordinary
-        // { t:'peer', from } shape so receivers need no new path. The
-        // client's status heartbeat is the same sealed envelope for every
-        // recipient; per-peer envelopes at section scale (~70 silent roster
-        // members × every 4s) both tripped the frame budget above (sockets
-        // cut with "control messages only") and billed a wake per member per
-        // tick. Fan-out multiplies only OUTBOUND sends, which are unmetered.
-        const s = JSON.stringify({ t: 'peer', from: a.peer, msg: m.msg });
-        for (const ws2 of this.members()) if (this.att(ws2).peer !== a.peer) this.send(ws2, s);
-      } else if (m.t === 'setpw' && typeof m.pw === 'string') {
+      // ({ t:'gossip' } fan-out DELETED 2026-08-01 — dead since mesh gossip
+      // moved onto WebRTC (mesh.js over DataChannels); no client sends it.
+      // Roadmap §7 step 1: the relay shrinks toward greeter + door.)
+      else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Only someone already IN the room can reach this — that's the
         // authorization; in an admin room the order must additionally be
         // SIGNED by the room's admin key (§9) — the relay verifies the same

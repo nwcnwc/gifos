@@ -1228,7 +1228,8 @@ starting component set from the hash; until then, keep both files thin wrappers
 over the shared `mesh-app.js` node so the divergence stays cosmetic.
 
 **Ordering (each step shippable).**
-1. Delete the dead relay `gossip` handler. No behavior change.
+1. ~~Delete the dead relay `gossip` handler.~~ **DONE 2026-08-01** (both
+   `relay/src/relay.js` and `test/servers/relay-local.js`; relay tier green).
 2. `mesh-app.js` — extract the headless node; `meet.html` consumes it unchanged.
 3. Point `run.html` at it: standalone app-share = media-less room. Retires the
    app-session bus's only remaining caller.

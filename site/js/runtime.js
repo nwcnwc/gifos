@@ -1923,24 +1923,35 @@
               .catch(() => { /* socket gone */ });
             setTimeout(() => retire(prior), 200);
           }
-          return openHostSocket(relay, sid, token, epoch, identity().id, sec).then((ws) => {
-            hostApi = attachHost(ws, db, appBytes, (s) => {
-              root.__gifosHostStats = s;
-              announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
-              setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
-            }, { onDisplaced: displaced, heal, exp, keep, key,
-              vis: manifest.data || {}, lead: leadTargetsOf(manifest) });
-            // Expiry only shuts the door to NEW joiners (attachHost enforces exp
-            // per join); a light timer just refreshes the host's own status so
-            // they know the link went read-only.
-            const timer = exp ? setTimeout(() => { if (liveHost) setStatus('Link no longer admits new people (open Invite for a new one). Everyone here stays.'); }, Math.max(0, exp - now)) : null;
-            liveHost = { ws, timer, stop: hostApi.stop, key };
-            announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
-            setStatus('Live — send your invite link so friends can join');
-            // Wake any clients that were locked out while we were away.
-            net.seal(key, { t: 'db-change', collection: '*' })
-              .then((env) => ws.send(JSON.stringify({ t: 'bcast', msg: env })))
-              .catch(() => { /* socket will re-wake them on onopen */ });
+          // noRelay (a meeting-hosted app): the app-state will ride the mesh
+          // Stage DATA lane the moment meet.html calls attachStageBus, so
+          // opening a relay app-session just to tear it down seconds later was
+          // pure churn — and a needless registration of the host slot on the
+          // relay. Skip the socket entirely; everything the mesh lane needs
+          // (db, signer, snap/delta/act) is socket-free.
+          const sockP = opts.noRelay ? Promise.resolve(null) : openHostSocket(relay, sid, token, epoch, identity().id, sec);
+          return sockP.then((ws) => {
+            if (ws) {
+              hostApi = attachHost(ws, db, appBytes, (s) => {
+                root.__gifosHostStats = s;
+                announceConn({ mode: 'host', counts: s.counts, total: s.total, p2p: s.p2p, self: s.self });
+                setStatus('Live · ' + s.total + ' friend(s) here' + (s.p2p ? ' · ' + s.p2p + ' connected directly' : ''));
+              }, { onDisplaced: displaced, heal, exp, keep, key,
+                vis: manifest.data || {}, lead: leadTargetsOf(manifest) });
+              // Expiry only shuts the door to NEW joiners (attachHost enforces exp
+              // per join); a light timer just refreshes the host's own status so
+              // they know the link went read-only.
+              const timer = exp ? setTimeout(() => { if (liveHost) setStatus('Link no longer admits new people (open Invite for a new one). Everyone here stays.'); }, Math.max(0, exp - now)) : null;
+              liveHost = { ws, timer, stop: hostApi.stop, key };
+              announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
+              setStatus('Live — send your invite link so friends can join');
+              // Wake any clients that were locked out while we were away.
+              net.seal(key, { t: 'db-change', collection: '*' })
+                .then((env) => ws.send(JSON.stringify({ t: 'bcast', msg: env })))
+                .catch(() => { /* socket will re-wake them on onopen */ });
+            } else {
+              setStatus('Ready — waiting for the meeting mesh');
+            }
 
             // ---- MESH Stage DATA lane (attachStageBus) ----------------------
             // meet.html calls this after becomeHost when the app is shared INTO
