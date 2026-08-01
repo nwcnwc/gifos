@@ -113,10 +113,32 @@ in `test/servers/relay-local.js`.
 
 ## Deliverables
 
-1. `site/js/mesh-app.js` — the headless media-less mesh node factored OUT of
-   `meet.html` (node bring-up, DC signaling glue, sponsor forwarding), consumed
-   by the one room page for BOTH room kinds. No behavior fork between them.
-2. The one room page + router rewrite; `run.html` / `meet.html` deleted.
+1. **The room page IS the evolved `meet.html`** (reframed 2026-08-01, after
+   tracing the seam). meet.html already runs the whole room core — mesh node,
+   peer/DC machinery, §FWD sponsor forwarding, gossip, the app pane on the
+   Stage lane, invite. Extracting its peer machinery into a separate
+   `mesh-app.js` library for run.html to consume would be motion, not
+   progress: under ONE PAGE, "no duplication" is achieved by having exactly
+   ONE consumer of one mesh core — the room page, with the media plane simply
+   never initialized when the room starts media-off. (A `mesh-app.js` module
+   only appears if a genuinely page-free consumer materializes later, e.g.
+   headless bots; none is needed for this build.)
+
+   **run.html's unique surface migrates INTO the room page's app chrome:**
+   - identity chrome: app GIF favicon/art, `appid` pill, `sig` (signature)
+     pill, `perms` pill;
+   - the Invite mint flow: link modal, lifetime picker, the owned-vs-resilient
+     choice (which now also selects the succession class);
+   - Steal (with the data-ride-along chooser) and Save-snapshot;
+   - the mirror machinery (update-from-original / break-the-mirror);
+   - boot entries: `#id=<fileId>` (solo, desktop store), `#j=<code>`,
+     `#s=<shortname>.<verifier>&k=<code>`;
+   - `tomeet` DIES — meeting mode is the in-room media toggle now;
+   - `become-host`/Take Over DIES — replaced by succession.
+   The runtime pieces these drive (stealApp, mirrors, lifetimeToSpec,
+   sessionInfo, snapshots) already live page-agnostic in `runtime.js`.
+2. The one room page + router rewrite; `run.html` deleted, `meet.html`
+   renamed/kept as the room page (router maps both URL families to it).
 3. Runtime: solo boot with no auto-rehost; Invite = room mint + owner lane
    (reusing `attachStageBus` / `bootClientBus` / `app-owner.js`); star-bus
    host/client code (`becomeHost` sockets, `bootClient`, mirrors of it) deleted.
@@ -133,7 +155,23 @@ in `test/servers/relay-local.js`.
 
 ## Engineering order (internal only — the PRODUCT lands whole)
 
-Extraction before deletion, tests green at every commit on the branch:
-mesh-app.js extraction → one page consuming it for meetings (parity) → app
-rooms onto it (Invite mint, owner lane, succession) → A/V layer + postures →
-delete star bus + strip relay + DS bump → full battery → merge.
+Every commit on the branch green; the product cut only lands on main whole.
+
+1. **Traits + entries on the room page:** meet.html learns
+   `{appPinned, mediaPinned}` and the app-entry hashes (`#id=`, `#j=`,
+   `#s=&k=`). `#id=` boots the app SOLO — no room, no relay, no mesh, no
+   auto-rehost.
+2. **Invite = room mint** in an app-pinned room: mint sid/key via the ONE
+   derivation, boot the (media-off) mesh, owner lane via
+   `attachStageBus`-style binding to the room's own gossip — clients arrive
+   through `bootClientBus` semantics. The lifetime/resilience mint chrome
+   migrates here.
+3. **App chrome migration** (pills, Steal, Save, mirrors) into the app pane;
+   app-pinned layout (app front-and-center, no unmount affordance).
+4. **Media plane off-at-start + the opt-in call layer** (banner, postures in
+   the roster) for app-pinned rooms; media-pinned rooms unchanged.
+5. **Succession** (S4-signed deterministic takeover; owned rooms freeze).
+6. **Delete** run.html + the star bus (`bootClient`, `becomeHost` sockets,
+   `openHostSocket`, AUTO_TAKEOVER) → **strip the relay** to greeter + door
+   (mirror in relay-local) → **DS bump** → router rewrite.
+7. Full battery green → merge to main as the flag day.
