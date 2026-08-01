@@ -69,7 +69,28 @@ is_quarantined() {
 # suite after that point reported ERR_CONNECTION_REFUSED and scored DEAD. A gate
 # that invents 16 failures by knifing someone else's stack is worse than no gate.
 OWNED=0
+RELAYDEV_PID=""
 stop_all() {
+  # relay-dev is torn down ONLY if THIS run started it — someone else's wrangler
+  # on :8794 is theirs to keep (same rule as the ports above: never knife a
+  # stack we did not bring up).
+  if [ -n "$RELAYDEV_PID" ]; then
+    # Signal the whole GROUP (see setsid at the start site). Guarded: never
+    # signal our own group, or the gate would kill itself mid-teardown.
+    _pg=$(ps -o pgid= -p "$RELAYDEV_PID" 2>/dev/null | tr -d ' ')
+    _mypg=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    if [ -n "$_pg" ] && [ "$_pg" != "$_mypg" ]; then
+      kill -TERM "-$_pg" 2>/dev/null; sleep 1; kill -KILL "-$_pg" 2>/dev/null
+    fi
+    kill -9 "$RELAYDEV_PID" 2>/dev/null
+    # Belt and braces: anything still on :8794 is ours by construction, and an
+    # orphaned workerd holds the port hard enough that the NEXT run would see a
+    # relay-dev it did not start and correctly refuse to touch it forever.
+    for _p in $(ss -lntp 2>/dev/null | grep ':8794 ' | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+      kill -9 "$_p" 2>/dev/null
+    done
+    RELAYDEV_PID=""
+  fi
   [ "$OWNED" = 1 ] || return 0
   pkill -f "http.server 8099" 2>/dev/null
   pkill -f relay-local.js 2>/dev/null
@@ -308,8 +329,33 @@ if want behavior; then
     # identical FAILs which reads exactly like a real regression.
     [ "$(ss -lnt 2>/dev/null | grep -c -E ':(8099|8790) ')" -ge 2 ] || start_site_relay
     # relay-dev.sh (the REAL Worker under wrangler) drives the deploy scenarios;
-    # without it 04b/16b SKIP loudly rather than pretending to pass.
-    ss -lnt 2>/dev/null | grep -q ':8794 ' || echo "  note: relay-dev not on :8794 — deploy scenarios (04b/16b) will SKIP"
+    # without it 04b/16b SKIP loudly rather than pretending to pass. And a SKIP
+    # is NOT free here: behavior.sh exits non-zero when anything skipped, so the
+    # tier scores RED and THE GATE CAN NEVER GO GREEN. Every run before
+    # 2026-08-01 hit exactly this — "RED behavior/core 7228s" after two hours,
+    # with a log underneath reading "21 passed, 0 failed, 1 skipped", which
+    # reads like a product regression and is nothing of the kind. So START it
+    # rather than narrate its absence. Booting it makes 04b PASS in ~82s.
+    if ! ss -lnt 2>/dev/null | grep -q ':8794 '; then
+      echo "  relay-dev not on :8794 — starting it (a SKIP here scores the tier RED)"
+      # setsid: `npx wrangler` is a THREE-deep tree (npx shim -> node cli.js ->
+      # workerd) and the middle node re-parents to init, so neither the pid nor
+      # a descendant walk is a reliable handle — measured, the orphaned cli.js
+      # kept respawning workerd after every kill. A session of its own makes the
+      # whole tree one process GROUP we can signal atomically.
+      setsid bash test/servers/relay-dev.sh >"$LOGDIR/relay-dev.log" 2>&1 &
+      RELAYDEV_PID=$!
+      for _i in $(seq 1 40); do ss -lnt 2>/dev/null | grep -q ':8794 ' && break; sleep 2; done
+      if ss -lnt 2>/dev/null | grep -q ':8794 '; then
+        echo "  relay-dev up on :8794"
+      else
+        # Do not spend two hours to report an avoidable SKIP as a product red.
+        echo "!! relay-dev did not come up on :8794 (see $LOGDIR/relay-dev.log)." >&2
+        echo "   wrangler needs node >= 22. The behavior tier would SKIP 04b/16b and" >&2
+        echo "   score RED, which can never satisfy the gate — refusing instead." >&2
+        exit 3
+      fi
+    fi
     start=$(date +%s)
     if [ "$BEHAVIOR" = full ]; then bash test/batteries/behavior.sh > "$LOGDIR/behavior.log" 2>&1
     else bash test/batteries/behavior.sh --core > "$LOGDIR/behavior.log" 2>&1; fi
