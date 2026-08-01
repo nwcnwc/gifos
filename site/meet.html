@@ -457,6 +457,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      GifOS home link stays. (docs/one-runtime.md, engineering step 1.) */
   body.solo-app .bar > *:not(.title) { display: none !important; }
   body.solo-app #grid { display: none; }
+  /* App ROOM (one-runtime steps 2+4): the app is pinned front-and-center; the
+     media plane exists but stays dark until someone opts into the call layer.
+     The grid only appears once this browser joins the call (call-on). */
+  body.app-room:not(.call-on) #grid { display: none !important; }
+  body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
+  #callbanner { display: none; align-items: center; gap: .6rem; padding: .4rem .9rem;
+    background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
+  #callbanner button { padding: .25rem .7rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
+    background: var(--accent, #3b6ef5); color: #fff; cursor: pointer; }
   .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center;
@@ -612,10 +621,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <input id="share-url" readonly>
     <button id="copy">Copy</button>
   </div>
+  <div id="callbanner"><span id="callbanner-txt"></span><button id="callbanner-join">Join the call</button></div>
   <div id="apppane">
     <div id="appbar">
       <span id="appname">App</span>
       <span id="appwho"></span>
+      <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
       <button id="apphide" style="display:none" title="Hide this app on my screen only — the meeting keeps sharing it">Hide</button>
@@ -984,8 +995,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const ROOM = (() => {
       const id = params.get('id'), j = params.get('j'), s = params.get('s'), k = params.get('k');
       if (id) return { kind: 'app', solo: true, appPinned: true, mediaPinned: false, fileId: id, join: null };
-      if (s && k) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { s: s, k: k, owned: true } };
-      if (j) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { s: null, k: j, owned: false } };
+      if (s && k) {
+        const dot = s.lastIndexOf('.');
+        return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null,
+          join: { short: s.slice(0, dot), av: s.slice(dot + 1).toLowerCase(), k: k, owned: true } };
+      }
+      if (j) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { short: null, av: null, k: j, owned: false } };
       return { kind: 'meet', solo: false, appPinned: false, mediaPinned: true, fileId: null, join: null };
     })();
     const grid = document.getElementById('grid');
@@ -5458,11 +5473,120 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         document.title = nm + ' — GifOS';
         showAppPane(nm, '· running on this device');
+        const inv = document.getElementById('appinvite');
+        inv.style.display = ''; inv.onclick = inviteFromSolo;
         return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl).then((ctl) => { soloCtl = ctl; });
       }).catch((e) => setStatus('Could not open the app: ' + (e && e.message || e)));
     }
+
+    // ---- ONE RUNTIME steps 2+4: app rooms (docs/one-runtime.md) --------------
+    // An app room is this same meeting machinery with different TRAITS: no
+    // camera at boot, the grid dark until someone opts into the call layer,
+    // and the app pinned. Same mesh, same gossip, same owner-signed app lane.
+    // The room string carries an 'app~' prefix (outside slug()'s alphabet) so
+    // app rooms and meetings can never collide on a name; an owned room folds
+    // the shortname+verifier into the identity (the brand IS part of the room)
+    // but does NOT arm meeting-admin semantics — the owner's authority is over
+    // app STATE only (the lane's owner key), never the door.
+    const appRoomStr = (j) => 'app~' + (j.owned ? j.short + '~' + j.av + '~' : '') + j.k;
+    function bootAppRoom() {
+      document.body.classList.add('app-room');
+      return ensureName().then(() => {
+        meTile = makeTile('me', myName() + ' (you)', true);
+        tileNote(meTile, 'This is an app room — no camera until you join the call (banner or the camera button).');
+        updateTile('me');
+        const j = ROOM.join;
+        room = appRoomStr(j); av = null;
+        loadPw();
+        const relay = relayUrl();
+        const custom = relay && relay !== window.GIFOS_RELAY;
+        const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
+        const prettyPath = j.owned ? '/join/' + j.short + '/' + j.av + '/' + j.k : '/join/' + j.k;
+        const hashForm = MEET_PATH + (j.owned ? '#s=' + j.short + '.' + j.av + '&k=' + j.k : '#j=' + j.k);
+        shareUrl.value = location.origin + (pretty ? prettyPath : hashForm + (custom ? '&relay=' + encodeURIComponent(relay) : ''));
+        const canonical = pretty ? prettyPath : hashForm + (custom ? '&relay=' + encodeURIComponent(relay) : '');
+        if (location.pathname + location.hash !== canonical) history.replaceState(null, '', canonical);
+        if (!ROOM.founder) recordMeetingInvite(j.owned ? j.short : 'app', shareUrl.value);
+        return Promise.all([
+          net.deriveMeet(room, av, roomPw),
+          net.meetPwProof(room, av, roomPw),
+          sha256hex('gifos-dev|' + room + '|' + (av || '') + '|' + deviceId()),
+        ]).then(([d, pr, dh]) => {
+          sessId = d.sid; sessTok = d.tok; roomE2E = d.key; pwProof = pr;
+          myDevHash = dh.slice(0, 16);
+          startMesh();
+          updateStatus();
+        });
+      });
+    }
+    // Solo → shared: mint the room (stable per file — re-inviting reuses the
+    // same link), flip the page's traits in place, and host the app on the
+    // room's lane. The owned/resilient choice IS the succession class:
+    // owned rooms freeze when the owner leaves; resilient rooms heal.
+    function inviteFromSolo() {
+      GifOS.store.getFile(ROOM.fileId).then((rec) => {
+        const nm = ((rec && rec.name) || 'App').replace(/\.gif$/i, '');
+        const bg = document.createElement('div'); bg.className = 'name-modal';
+        bg.innerHTML = '<div class="name-box" style="max-width:440px;text-align:left"><h3>Share ' + esc(nm) + ' live</h3>' +
+          '<p>Friends join you with one link. If you drop off (close the tab, lose battery)…</p>' +
+          '<label class="perm-row"><input type="radio" name="rmcls" value="owned" checked><span><b>Only I can host it</b> — the app pauses for everyone until I return. Safest for private data.</span></label>' +
+          '<label class="perm-row"><input type="radio" name="rmcls" value="heal"><span><b>Let a friend keep it going</b> — someone still connected takes over hosting. Best for casual shared apps and games.</span></label>' +
+          '<div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem"><button id="inv-cancel">Cancel</button><button id="inv-go">Create link</button></div></div>';
+        document.body.appendChild(bg);
+        bg.querySelector('#inv-cancel').onclick = () => bg.remove();
+        bg.querySelector('#inv-go').onclick = () => {
+          const owned = bg.querySelector('input[name="rmcls"]:checked').value === 'owned';
+          bg.remove();
+          GifOS.store.getState(ROOM.fileId + '::room').then((saved) => {
+            if (saved && saved.owned === owned && saved.k) return saved;
+            const mint = owned
+              ? (() => { const sec = net.randHex(24); return sha256hex(sec).then((h) => {
+                  const signed = !!(GifOS.sign && GifOS.sign.readSig && GifOS.sign.readSig(rec.bytes));
+                  return { owned: true, short: GifOS.runtime.slug(signed ? nm : nm + '-anon'), av: h.slice(0, 24), sec: sec, k: shortCode() };
+                }); })()
+              : Promise.resolve({ owned: false, k: shortCode() });
+            return Promise.resolve(mint).then((m) => GifOS.store.setState(ROOM.fileId + '::room', m).then(() => m));
+          }).then((m) => {
+            ROOM.solo = false; ROOM.founder = true;
+            ROOM.join = m.owned ? { short: m.short, av: m.av, k: m.k, owned: true } : { short: null, av: null, k: m.k, owned: false };
+            document.body.classList.remove('solo-app');
+            document.getElementById('appinvite').style.display = 'none';
+            // startMesh() mints the S4 identity ASYNC — myId lands a beat after
+            // bootAppRoom resolves, and runApp refuses without it (canIRunApp).
+            const waitMyId = () => myId ? Promise.resolve()
+              : new Promise((res) => { const t = setInterval(() => { if (myId) { clearInterval(t); res(); } }, 100); });
+            return bootAppRoom().then(waitMyId).then(() => runApp(ROOM.fileId, nm)).then(() => share.classList.add('show'));
+          }).catch((e) => setStatus('Could not share the app: ' + (e && e.message || e)));
+        };
+      }).catch((e) => setStatus('Could not share the app: ' + (e && e.message || e)));
+    }
+    // The CALL LAYER in an app room is opt-in, always: the plane being
+    // available obligates nobody's camera. A quiet member sees who's live and
+    // chooses; their own mic/cam tap opts them in too. Never silent tiles.
+    setInterval(() => {
+      if (!document.body.classList.contains('app-room')) return;
+      const on = document.body.classList.contains('call-on');
+      if (!myStatus.camOff || !myStatus.muted) { if (!on) document.body.classList.add('call-on'); return; }
+      let live = 0;
+      for (const pid of roomConsentIds()) { const st = statusOf.get(pid); if (st && stHold(pid) && (!st.camOff || !st.muted)) live++; }
+      const b = document.getElementById('callbanner');
+      if (!on && live > 0) {
+        document.getElementById('callbanner-txt').textContent = live + (live === 1 ? ' person is' : ' people are') + ' on the call in this room';
+        b.style.display = 'flex';
+      } else b.style.display = 'none';
+    }, 2000);
+    document.getElementById('callbanner-join').onclick = () => {
+      document.body.classList.add('call-on');
+      document.getElementById('callbanner').style.display = 'none';
+      lateMedia('mic'); // asks for mic+cam permission; joins quiet-camera, live mic
+    };
+
+    // ---- ONE RUNTIME entry dispatch (docs/one-runtime.md) -------------------
+    // An app entry never runs the meeting boot: no lobby, no camera consent
+    // flow, and for SOLO no network object at all. The meeting entry keeps its
+    // exact flow.
     if (ROOM.solo) bootSoloApp();
-    else if (ROOM.kind === 'app') setStatus('This app link rides the new mesh rooms — landing with one-runtime step 2.'); // branch scaffold: router still sends /join to run.html
+    else if (ROOM.kind === 'app') bootAppRoom();
     else if (!params.get('v') && !params.get('app')) showLobby();
     else bootIntoRoom();
 
@@ -8752,6 +8876,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.body.classList.add('has-app');
       document.getElementById('appname').textContent = name || 'App';
       document.getElementById('appwho').textContent = who || '';
+      // ONE RUNTIME: app-PINNED rooms never show unmount affordances — the room
+      // IS the app (belt for updateAppButtons' braces; that runs on beats).
+      if (ROOM.appPinned) { document.getElementById('appstop').style.display = 'none'; document.getElementById('apphide').style.display = 'none'; }
     }
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
     function clearAppView() {
@@ -8940,6 +9067,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stopB.title = isMine ? 'Stop sharing this app with the meeting'
         : (hasAdminRoom() ? 'Admin: stop this app for the whole room'
           : 'Stop this app for the whole room — everyone sees it was you, and the sharer can re-share');
+      // ONE RUNTIME: in an app-PINNED room the app cannot be unmounted, hidden
+      // or swapped — the room's whole identity is this app (docs/one-runtime.md).
+      if (ROOM.appPinned) { stopB.style.display = 'none'; hideB.style.display = 'none'; }
       const leadB = document.getElementById('applead');
       leadB.style.display = (isMine && appLeadable) ? '' : 'none';
       leadB.textContent = appLeadOn ? '👑 Leading' : 'Communal';

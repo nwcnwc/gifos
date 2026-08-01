@@ -2842,5 +2842,5 @@
     });
   }
 
-  GifOS.runtime = { boot, bootClient, bootClientBus, bootMirror, pullMirrorState, breakMirror, buildAppHtml, buildFolderHtml, norm };
+  GifOS.runtime = { boot, bootClient, bootClientBus, bootMirror, pullMirrorState, breakMirror, buildAppHtml, buildFolderHtml, norm, slug };
 })(typeof window !== 'undefined' ? window : globalThis);
