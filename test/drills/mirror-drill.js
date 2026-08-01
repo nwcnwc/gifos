@@ -243,11 +243,22 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
       return { pri: pri ? String(pri.via) : null, std: std ? String(std.via) : null };
     };
-    const FB_SEVER = 15000;
-    console.log('  severing E<->B for ' + FB_SEVER + 'ms (recoverable outage, NOT a kill)');
-    await pages[OBS].page.evaluate((a) => __gifosVideo.severByPrefixForTest(a.p, a.ms), { p: B8, ms: FB_SEVER }).catch(() => {});
+    // MEDIA-ONLY OUTAGE, not a sever. severPair CLOSES the pc, which the mesh
+    // correctly reads as transport death (D5): the pair evicts and re-admits,
+    // E's peer record for B flaps (stable/connected -> NO-PEER-RECORD -> back)
+    // and no preferred candidate ever stays live for the MOS_SETTLE window, so
+    // failback cannot be observed through it AT ALL. Measured — and the earlier
+    // "the stream never arrives" reading of that was wrong, an artifact of
+    // passing an 8-char prefix to incomingIds(), which takes a FULL pid.
+    // parkJobForTest pins B's sdn job at replaceTrack(null) while leaving the
+    // pc, the DataChannel and every m-line up: the bytes stop, the mesh sees
+    // nothing, and the media plane alone has to notice and recover.
+    const FB_PARK = 15000;
+    const parkRes = await pages[KILL].page.evaluate((a) => __gifosVideo.parkJobForTest('sdn', a.to, a.ms), { to: ids[OBS], ms: FB_PARK });
+    console.log('  parked B\'s sdn job (media-only outage): ' + JSON.stringify(parkRes));
+    check('the media-only outage was actually applied (B\'s sdn job parked)', !!(parkRes && parkRes.ok), parkRes);
 
-    // 1. the mirror takes over while the direct hop is dark
+    // 1. the mirror takes over while the direct hop carries no media
     let tookOver = null;
     const tF1 = Date.now();
     while (Date.now() - tF1 < 25000) {
@@ -255,13 +266,12 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       if (v && v.pri && v.pri.indexOf(B8) !== 0) { tookOver = v; break; }
       await sleep(500);
     }
-    check('FAILOVER(sever): sdn primary left the severed direct hop', !!tookOver,
+    check('FAILOVER(media-only): sdn primary left the dark direct hop', !!tookOver,
       tookOver ? { pri: tookOver.pri.slice(0, 8), std: tookOver.std && tookOver.std.slice(0, 8) } : 'primary never left B within 25s');
 
-    // 2. the sever lifts -> the DIRECT hop returns as primary, mirror re-parks.
-    //    MOS_SETTLE (5s) hysteresis has to elapse before the roles swap, so
-    //    allow for that plus a rebuild; 60s is generous, and if it needs more
-    //    than this the redundancy is not re-arming and that IS the finding.
+    // 2. the pin expires -> the direct hop carries media again -> it is the
+    //    PREFERRED path, so it stages as standby, wakes, and after MOS_SETTLE
+    //    (5s) the roles swap make-before-break with the mirror re-parking.
     let backNow = null;
     const tF2 = Date.now();
     let fbLog = 0;
@@ -271,40 +281,65 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       const el = Math.round((Date.now() - tF2) / 1000);
       if (el - fbLog >= 10) {
         fbLog = el;
-        // WHERE does the direct hop fail to come back? pref for rk='sdn' is the
-        // candidate with key==='sdn' AND live (E actually holds the incoming
-        // stream). Three distinct failures look identical from the outside:
-        //   no ann from B      -> B is not re-shipping after the link returned
-        //   ann but not live   -> announce arrived, the stream did not
-        //   live but not pref  -> selection/hysteresis bug
-        // NOTE: incomingIds()/pcState() take a FULL peer id — they do
-        // peers.get(pid). An 8-char PREFIX always misses, so an earlier version
-        // of this probe reported inc=0 unconditionally and "proved" the stream
-        // was missing when it had measured nothing at all. Pass the full id.
         const eSide = await pages[OBS].page.evaluate((a) => {
           const d = __gifosVideo.debugDump() || {}, m = d.mosaic || {};
           const ps = __gifosVideo.pcState ? __gifosVideo.pcState(a.full) : null;
-          return { ann: (m.ann || []).filter((k) => k.indexOf(a.pfx) === 0),
-            allAnn: (m.ann || []).length,
-            pc: ps ? (ps.sig + '/' + ps.conn) : 'NO-PEER-RECORD',
+          return { pc: ps ? (ps.sig + '/' + ps.conn) : 'NO-PEER-RECORD',
             inc: __gifosVideo.incomingIds ? (__gifosVideo.incomingIds(a.full) || []).length : -1,
-            incIds: __gifosVideo.incomingIds ? (__gifosVideo.incomingIds(a.full) || []).map((x) => String(x).slice(0, 8)) : null,
-            annSid: (m.annSid || []).filter((x) => x.indexOf(a.pfx.slice(0, 14)) === 0) };
+            annSid: (m.annSid || []).filter((x) => x.indexOf(a.pfx.slice(0, 14)) === 0),
+            pri: (m.claimVia || []).map((c) => c.rk + '<-' + String(c.via).slice(0, 8)),
+            std: (m.standbyVia || []).map((c) => c.rk + '<-' + String(c.via).slice(0, 8)) };
         }, { pfx: B8, full: ids[KILL] }).catch((e) => ({ err: String(e).slice(0, 60) }));
-        let bSide = 'killed?';
-        if (pages[KILL].page) {
-          bSide = await pages[KILL].page.evaluate(() => {
-            const m = (__gifosVideo.debugDump() || {}).mosaic || {};
-            return (m.jobSig || []).map((x) => x.split('|')[0]).filter((x) => x.indexOf('sdn') === 0).join(',') || 'no-sdn-job';
-          }).catch(() => 'err');
-        }
-        console.log(`   [restore +${el}s] E.annFromB=${JSON.stringify(eSide.ann)} (allAnn=${eSide.allAnn}) E.pc=${eSide.pc} E.incFromB=${eSide.inc} ${JSON.stringify(eSide.incIds || [])} annSid=${JSON.stringify(eSide.annSid || [])} | B.ships=[${bSide}]`);
+        console.log(`   [unpark +${el}s] E.pc=${eSide.pc} inc=${eSide.inc} annSid=${JSON.stringify(eSide.annSid)} pri=${JSON.stringify(eSide.pri)} std=${JSON.stringify(eSide.std)}`);
       }
       await sleep(1000);
     }
-    check('FAILBACK(restore): sdn primary returned to the DIRECT hop with a standby re-parked',
+    check('FAILBACK(media-only): sdn primary returned to the DIRECT hop with the mirror re-parked as standby',
       !!backNow, backNow ? { pri: backNow.pri.slice(0, 8), std: backNow.std.slice(0, 8), B: B8, F: F8 }
-        : 'no failback within 60s of the sever lifting — redundancy did not re-arm');
+        : 'no failback within 60s of the media returning — redundancy did not re-arm');
+
+    // SETTLE BEFORE THE KILL. The kill phase below measures a demand-wake from
+    // a DORMANT chain, so it needs the steady baseline the build phase had —
+    // primary on the direct hop, mirror parked at zero. Firing it while the
+    // failback swap is still re-parking catches the chain mid-reconfiguration
+    // and times the wake against a moving target (measured: wake 6155ms and a
+    // null via when the kill landed straight after the swap, versus a clean
+    // pass once settled). Wait for the mirror to be demanded IDLE again.
+    const tS = Date.now();
+    let reParked = false;
+    while (Date.now() - tS < 20000) {
+      const m = await mosOf(pages[OBS]);
+      const idle = m && (m.demand || []).some((s2) => s2.indexOf('sdnm:') > 0 && /=i$/.test(s2));
+      const priB = m && ((m.claimVia || []).find((x) => x.rk === 'sdn') || {}).via;
+      if (idle && priB && String(priB).indexOf(B8) === 0) { reParked = true; break; }
+      await sleep(1000);
+    }
+    console.log('   MEASURE chain re-parked and steady before the kill: ' + reParked + ' (+' + Math.round((Date.now() - tS) / 1000) + 's)');
+    // ...and wait for the mirror standby to be GENUINELY DORMANT again, by the
+    // same measure the build phase used (std:sdn at ~zero bytes), not by a
+    // sleep. Role flags flip the instant the swap completes, but the standby's
+    // pipe takes longer to settle back to zero, and killing into that window
+    // times a demand-wake against a pipe that is still winding down. A fixed
+    // pad would just be guessing at that interval; this waits for the state.
+    let dormant = false;
+    for (let att = 0; att < 6 && !dormant; att++) {
+      const q1 = await pages[OBS].page.evaluate(async () => ({ t: Date.now(), st: await __gifosVideo.avStats() })).catch(() => null);
+      await sleep(3000);
+      const q2 = await pages[OBS].page.evaluate(async () => ({ t: Date.now(), st: await __gifosVideo.avStats() })).catch(() => null);
+      if (!q1 || !q2) break;
+      const dt = (q2.t - q1.t) / 1000;
+      const prev = new Map(q1.st.filter((x) => x.dir === 'in').map((x) => [x.pid + '|' + x.trk, x]));
+      let inB = 0, stdB = 0;
+      for (const x of q2.st) {
+        if (x.dir !== 'in') continue;
+        const pv = prev.get(x.pid + '|' + x.trk); if (!pv) continue;
+        const bps = ((x.bytes || 0) - (pv.bytes || 0)) / dt;
+        if (x.slot === 'in:sdn') inB += bps; if (x.slot === 'std:sdn') stdB += bps;
+      }
+      dormant = inB > 200 && stdB < Math.max(500, inB * 0.05);
+      if (!dormant) console.log(`   (waiting for the mirror to re-park: in=${Math.round(inB)} std=${Math.round(stdB)} B/s)`);
+    }
+    check('the mirror standby is DORMANT again before the kill (a real baseline, not a pad)', dormant);
   }
 
   // ---- KILL the parent seat B: multi-hop demand-wake -----------------------
