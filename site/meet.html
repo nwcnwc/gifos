@@ -627,6 +627,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <span id="appname">App</span>
       <span id="appwho"></span>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
+      <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
+      <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
       <button id="apphide" style="display:none" title="Hide this app on my screen only — the meeting keeps sharing it">Hide</button>
@@ -5565,6 +5567,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // chooses; their own mic/cam tap opts them in too. Never silent tiles.
     setInterval(() => {
       if (!document.body.classList.contains('app-room')) return;
+      // App rooms may go beat-quiet (a 2-person room whose owner died sends
+      // nothing) — reconcile on the tick so owner-away is TIME-driven, not
+      // only event-driven. Idempotent when nothing changed.
+      try { reconcileApp(); } catch (e) {}
       const on = document.body.classList.contains('call-on');
       if (!myStatus.camOff || !myStatus.muted) { if (!on) document.body.classList.add('call-on'); return; }
       let live = 0;
@@ -8879,10 +8885,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // ONE RUNTIME: app-PINNED rooms never show unmount affordances — the room
       // IS the app (belt for updateAppButtons' braces; that runs on beats).
       if (ROOM.appPinned) { document.getElementById('appstop').style.display = 'none'; document.getElementById('apphide').style.display = 'none'; }
+      // Data-ownership chrome (migrated from run.html): Save for every app
+      // posture in an app context; Steal for guests (your own copy is already
+      // yours when you're the owner).
+      if (ROOM.kind === 'app') document.getElementById('appsave').style.display = '';
+      refreshStealBtn();
     }
+    function refreshStealBtn() {
+      document.getElementById('appsteal').style.display = (ROOM.kind === 'app' && appMode === 'client') ? '' : 'none';
+    }
+    document.getElementById('appsave').onclick = () => {
+      const dl = (p) => p.then((bytes) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+        a.download = (document.getElementById('appname').textContent || 'app') + '-snapshot.gif';
+        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      }).catch((e) => setStatus('Could not save: ' + (e && e.message || e)));
+      if (soloCtl && ROOM.solo) soloCtl.save();
+      else if (appHostCtl) appHostCtl.save();
+      else if (appClientCtl && appClientCtl.snapshot) dl(appClientCtl.snapshot());
+    };
+    document.getElementById('appsteal').onclick = () => {
+      if (!(appClientCtl && appClientCtl.stealToDesktop)) return;
+      appClientCtl.stealToDesktop()
+        .then(() => setStatus('🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.'))
+        .catch((e) => setStatus('Could not steal: ' + (e && e.message || e)));
+    };
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
+    let appClientCtl = null;  // the client mount's control: snapshot() + setFrozen() (one-runtime freeze/succession)
+    let appHostCtl = null;    // the host boot's control: save/steal (one-runtime chrome)
     function clearAppView() {
       if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
+      appClientCtl = null; appHostCtl = null;
+      refreshStealBtn();
       appMountEl.innerHTML = '';
       document.body.classList.remove('has-app');
       const ap = document.getElementById('appperms'); if (ap) ap.style.display = 'none';
@@ -8910,6 +8945,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         appMode = 'host'; appKey = null;
         showAppPane(name, '· you are hosting it for the meeting');
         const ctl = await GifOS.runtime.boot(appMountEl, fileId, null);
+        appHostCtl = ctl; // Save/snapshot chrome (one-runtime)
         // Admin rooms: the sharer LEADS by default (their runtime fences the
         // app's led records). Open rooms: communal by default — today's warmth.
         const lead = hasAdminRoom();
@@ -8972,7 +9008,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // keep the teardown so a later clear/takeover unsubscribes the lane;
             // if this mount was already superseded while booting, stop it now.
             if (!c || typeof c.stop !== 'function') return;
-            if (appMode === 'client' && appKey === sidNow) appClientStop = c.stop;
+            if (appMode === 'client' && appKey === sidNow) { appClientStop = c.stop; appClientCtl = c; }
             else { try { c.stop(); } catch (e) {} }
           }).catch(() => {});
         } else GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {});
@@ -9012,7 +9048,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!best || (ad.ts || 0) > (best.ts || 0) || ((ad.ts || 0) === (best.ts || 0) && String(pid) < bestPid)) { best = ad; bestPid = String(pid); }
       };
       if (myStatus.app && myId) consider(myId, myStatus.app);
-      for (const [pid, st] of statusOf) if (st && st.app) consider(pid, st.app);
+      // A dead owner's ad must not haunt the room: only FRESH-or-held statuses
+      // carry a live ad (stHold = 15s fresh + the away holdover). Without this
+      // a closed tab's ad sat in statusOf forever and owner-away never fired
+      // (found by the one-runtime succession probe, 2026-08-01).
+      // (stHold keeps a pocketed phone's app alive through the away-holdover —
+      // G1 doctrine; a CONFIRMED departure (meshGone) kills the ad instantly.)
+      for (const [pid, st] of statusOf) if (st && st.app && stHold(pid) && !meshGone.has(pid)) consider(pid, st.app);
       return best;
     }
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
@@ -9043,9 +9085,59 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         mountClientApp(want);
         warnRecorderNewApp(); // someone shared an app — a tiles recording won't capture it
       } else if (!want && appKey && appMode === 'client') {
-        clearAppView(); // the sharer stopped or left, or their authority went
+        // ONE RUNTIME (docs/one-runtime.md): in an app-PINNED room the app
+        // never unmounts — the room IS the app. The ad vanishing means the
+        // OWNER is away: freeze writes honestly, and in a resilient room run
+        // deterministic SUCCESSION. Meetings keep today's behavior (the app
+        // was furniture; it clears).
+        if (ROOM.appPinned) ownerAway();
+        else clearAppView(); // the sharer stopped or left, or their authority went
+      } else if (want && ROOM.appPinned && appFrozen) {
+        // the owner (or a successor) is back — thaw
+        appFrozen = false;
+        if (succT) { clearTimeout(succT); succT = null; }
+        if (appClientCtl && appClientCtl.setFrozen) appClientCtl.setFrozen(false);
+        document.getElementById('appwho').textContent = '· shared with the room' + (want.byName ? ' by ' + want.byName : '');
       }
       updateAppButtons(want);
+    }
+    // Owner-away in an app-pinned room. OWNED rooms: freeze until the owner
+    // returns — the brand's trust anchor never silently transfers. RESILIENT
+    // rooms: every member computes the SAME successor (lowest present S4 peer
+    // id — unforgeable, docs/one-runtime.md); the successor adopts the app
+    // from its owner-verified mirror (a snapshot GIF saved to its own
+    // desktop — the copy is genuinely theirs now) and re-hosts. The fresh ad
+    // (newer ts) wins findSharedApp everywhere and the room thaws.
+    let appFrozen = false, succT = null;
+    function ownerAway() {
+      if (!appFrozen) {
+        appFrozen = true;
+        if (appClientCtl && appClientCtl.setFrozen) appClientCtl.setFrozen(true);
+        document.getElementById('appwho').textContent = '⏸ paused — the host is away';
+      }
+      if (ROOM.join && ROOM.join.owned) return; // owned room: freeze is the whole story
+      if (succT || myStatus.app) return;
+      const cands = [String(myId)];
+      for (const pid of roomConsentIds()) if (pid !== myId && stHold(pid)) cands.push(String(pid));
+      cands.sort();
+      if (cands[0] !== String(myId)) return; // someone else is the deterministic successor
+      succT = setTimeout(() => {
+        succT = null;
+        if (findSharedApp() || !appFrozen) return; // the owner made it back — stand down
+        const ctl = appClientCtl;
+        if (!ctl || !ctl.snapshot) return;
+        const nm = document.getElementById('appname').textContent || 'App';
+        ctl.snapshot().then((bytes) => {
+          const fid = GifOS.store.uid('file');
+          return GifOS.store.putFile({ id: fid, name: nm + '.gif', bytes: bytes, kind: 'gif', isApp: true, mime: 'image/gif' })
+            .then(() => {
+              setStatus('🧩 The host left — you are keeping ' + esc(nm) + ' going from your copy.');
+              ROOM.fileId = fid;
+              appFrozen = false;
+              return runApp(fid, nm);
+            });
+        }).catch(() => {});
+      }, 6000); // grace: a blip must not trigger a takeover
     }
     // Keep the app buttons honest about what a tap will do.
     function updateAppButtons(want) {

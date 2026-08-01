@@ -2741,6 +2741,7 @@
       // has no per-op host reply, so the honest refusal must be local. The
       // host's own onAct fence stays authoritative against dishonest clients.
       let leadState = { on: false, keys: new Set() };
+      let frozen = false; // owner away (one-runtime): shared writes refuse honestly
       const takeLead = (b) => { if (b && b.lead) leadState = { on: !!b.lead.on, keys: new Set(Array.isArray(b.lead.keys) ? b.lead.keys.map(String) : []) }; };
       const fenced = (collection, id) => leadState.on && id != null && leadState.keys.has(collection + '::' + id);
 
@@ -2777,6 +2778,7 @@
             // Honest local refusal, mirroring what the host would do to the act
             // anyway (read-only visibility / the signed lead fence) — otherwise
             // the optimistic apply would show a write the room never adopts.
+            if (frozen) return Promise.reject(new Error('the app is paused — its owner is away'));
             const stored = itemsOf(collection)[rec.id];
             const eff = stored ? visOf(dataVis, collection, stored) : collVis(dataVis, collection);
             if (eff !== 'read-write') return Promise.reject(new Error('read-only for guests'));
@@ -2788,6 +2790,7 @@
           }
           if (op === 'delete') {
             if (priv) { localOf(collection).delete(key); notify(collection); return Promise.resolve(true); }
+            if (frozen) return Promise.reject(new Error('the app is paused — its owner is away'));
             const stored0 = itemsOf(collection)[key];
             const eff0 = stored0 ? visOf(dataVis, collection, stored0) : collVis(dataVis, collection);
             if (eff0 !== 'read-write') return Promise.reject(new Error('read-only for guests'));
@@ -2838,7 +2841,24 @@
       });
 
       setStatus('Connected to the shared app · owner-signed over the mesh');
-      return { stop: () => { try { unsub && unsub(); } catch (e) {} } };
+      return {
+        stop: () => { try { unsub && unsub(); } catch (e) {} },
+        // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
+        // survival story. snapshot() packs app bytes + the owner-verified
+        // mirror into a snapshot GIF — the successor adopts it (resilient
+        // rooms) or anyone saves a copy. setFrozen(true) makes shared-
+        // collection writes refuse honestly while the owner is away (an
+        // optimistic apply the room can never adopt is a lie, not a write).
+        snapshot: () => (appBytes && filesRef && manifestRef)
+          ? packSnapshot(appBytes, filesRef, manifestRef, mirror)
+          : Promise.reject(new Error('app not loaded yet')),
+        // Steal from a client mount: app + the owner-verified mirror, filed
+        // into this desktop's Stolen Apps — same folder, same ritual.
+        stealToDesktop: () => (appBytes && manifestRef)
+          ? ensureStolenFolder().then((folder) => saveAppToDesktop(appBytes, manifestRef, mirror, folder))
+          : Promise.reject(new Error('app not loaded yet')),
+        setFrozen: (f) => { frozen = !!f; },
+      };
     });
   }
 

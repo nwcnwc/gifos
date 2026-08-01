@@ -54,9 +54,14 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await h.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('solo app boots', true);
 
-  await h.locator('#appinvite').click();
-  await h.locator('input[name="rmcls"][value="heal"]').check(); // resilient — the succession class
-  await h.locator('#inv-go').click();
+  // drive the invite modal programmatically — a default app's own perm-modal
+  // can overlay the page and intercept pointer events (not what's under test)
+  await h.evaluate(() => document.getElementById('appinvite').click());
+  await h.waitForSelector('input[name="rmcls"]', { timeout: 10000 });
+  await h.evaluate(() => {
+    document.querySelector('input[name="rmcls"][value="heal"]').checked = true; // resilient — the succession class
+    document.getElementById('inv-go').click();
+  });
   await h.waitForFunction(() => document.body.classList.contains('app-room') && window.__gifosVideo.room(), null, { timeout: 20000 });
   check('Invite flips the SAME page into an app room (no navigation)', true);
   await h.waitForFunction(() => window.__gifosVideo.appIsHost && window.__gifosVideo.appIsHost(), null, { timeout: 20000 });
@@ -91,9 +96,62 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await c.waitForFunction(() => document.getElementById('callbanner').style.display !== 'none', null, { timeout: 20000 });
   check('the client sees the call banner (never silent tiles)', true);
   check('the client still has not asked for media', (await c.evaluate(() => window.__gumCount)) === 0);
-  await c.locator('#callbanner-join').click();
+  await c.evaluate(() => document.getElementById('callbanner-join').click());
   await c.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
   check('joining reveals the grid for the client', true);
+
+  // ---- steal: a guest takes a copy, data and all ---------------------------
+  check('the Steal chrome shows for the guest', await c.evaluate(() => document.getElementById('appsteal').style.display !== 'none'));
+  await c.evaluate(() => document.getElementById('appsteal').click());
+  await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  const stolen = await c.evaluate(async () => {
+    const fs = await GifOS.store.allFiles();
+    return fs.some((f) => f.isApp && !f.isDefault);
+  });
+  check('the stolen copy landed on the guest’s desktop', stolen);
+
+  // ---- succession (resilient room): the owner vanishes -----------------------
+  // The sole remaining member is the deterministic successor: the app never
+  // unmounts, freezes briefly, then the client adopts its mirror and re-hosts.
+  await h.close();
+  // owner-away respects the G1 away-holdover (a pocketed phone must not
+  // freeze its app) — budget the full holdover + confirm window
+  await c.waitForFunction(() => /paused — the host is away/.test(document.getElementById('appwho').textContent), null, { timeout: 100000 });
+  check('owner-away freezes the app IN PLACE (never unmounted)', await c.evaluate(() => !!document.querySelector('#appmount iframe')));
+  await c.waitForFunction(() => window.__gifosVideo.appIsHost(), null, { timeout: 30000 });
+  check('the deterministic successor adopts the app and re-hosts (resilient room)', true);
+  check('the room thawed — no longer paused', await c.evaluate(() => !/paused/.test(document.getElementById('appwho').textContent)));
+
+  // ---- owned room: freeze is the whole story (no succession) ---------------
+  const oCtx = await mkCtx('Owna');
+  const od = await oCtx.newPage();
+  await od.goto(BASE + '/index.html');
+  await od.waitForSelector('.icon', { timeout: 30000 });
+  const appId2 = await od.evaluate(async () => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && !/^(meet|video)$/.test(x.appId));
+    return f ? f.id : null;
+  });
+  await od.close();
+  const o = await oCtx.newPage();
+  await o.goto(BASE + '/meet.html#id=' + appId2);
+  await o.waitForSelector('#appmount iframe', { timeout: 30000 });
+  await o.evaluate(() => document.getElementById('appinvite').click());
+  await o.waitForSelector('#inv-go', { timeout: 10000 });
+  await o.evaluate(() => document.getElementById('inv-go').click()); // default = owned ("Only I can host it")
+  await o.waitForFunction(() => window.__gifosVideo.appIsHost && window.__gifosVideo.appIsHost(), null, { timeout: 30000 });
+  const link2 = await o.evaluate(() => document.getElementById('share-url').value);
+  check('an OWNED room link carries the shortname + verifier', /#s=.+\.[a-f0-9]{16,}&k=|\/join\/[a-z0-9-]+\/[a-f0-9]{16,}\//.test(link2), link2);
+  const g2Ctx = await mkCtx('Gus');
+  const g2 = await g2Ctx.newPage();
+  await g2.goto(link2);
+  await g2.waitForSelector('#appmount iframe', { timeout: 40000 });
+  await o.close();
+  await g2.waitForFunction(() => /paused — the host is away/.test(document.getElementById('appwho').textContent), null, { timeout: 100000 });
+  check('owned room: owner-away freezes', true);
+  await g2.waitForTimeout(12000);
+  check('owned room: NO succession — the verifier never silently transfers',
+    await g2.evaluate(() => !window.__gifosVideo.appIsHost() && /paused/.test(document.getElementById('appwho').textContent)));
+  check('…and the frozen app is still mounted (reads keep working)', await g2.evaluate(() => !!document.querySelector('#appmount iframe')));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
