@@ -138,5 +138,15 @@ The frame's shape belongs to the camera.**
 The BLUR-PIPE half of this fix — cap the canvas by the LONG side, not the
 width — is untouched and remains the real budget win: blur is the phone's
 steady state, so the pipe is the encode path that matters, and the long-side
-cap is shape-agnostic. The raw path may again spend up to ~3.2x the rung on a
-portrait phone; that is the accepted price of never fighting the camera.
+cap is shape-agnostic. Note this doc's own record above: **the adapt()
+transpose "changed nothing measurable" on the blurred path** ("with blur on,
+the outbound track is the blur pipe's canvas, not the camera — adapt()'s
+camera constraints never reach the encoder"); the entire measured 3.16x win
+(320x568 → 180x320) came from the canvas cap. So the revert keeps 100% of the
+measured power savings: the g24 still captures 320x568 (literal landscape ask,
+width honoured, its own portrait aspect at full FOV) and the pipe still ships
+180x320 = the exact 57,600 px/frame the rung budgets. The raw path (clear
+video in a consented room) may again spend up to ~3.2x the rung on a portrait
+phone; that is the accepted price of never fighting the camera — if power
+forensics ever show it as real watts, the safe lever is a scale-only cap,
+never an aspect-changing constraint (Chromium answers those by CROPPING).
