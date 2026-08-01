@@ -103,7 +103,12 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   is versioned by its `DS` tag. Changing any derivation is a deliberate flag
   day — old and new clients land in different relay sessions.
 - Sample apps (`site/js/sample-apps.js`) are baked into GIFs at desktop seed
-  time — edits only reach NEWLY seeded desktops, never existing users' files.
+  time — but SEEDED defaults now refresh on existing desktops too: on any
+  explicit build switch AND on the first boot after a silent deploy (build
+  stamp `gifos_reseed_build`, `desktop.js` `reseedDefaultsIfNeeded` /
+  `rebuildDefaultApps` — code+icon swap in place, saved data kept). Stolen /
+  renamed / user-built copies are never touched, and data-format compat across
+  builds is still unguarded (the remedy is erase).
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.

@@ -190,8 +190,10 @@
   // A default app's code is baked into its GIF at seed time, so a desktop seeded
   // on one build keeps that build's Connect Four (etc.) even after you switch to a
   // newer build — there was no way to pull the newer default apps short of a
-  // factory reset. On an explicit build switch (pin / release / edge) we re-bake
-  // each seeded default app from the RUNNING build's sample-apps.js. Only the app
+  // factory reset. On an explicit build switch (pin / release / edge) — and,
+  // via the build stamp in reseedDefaultsIfNeeded, on the first boot after any
+  // SILENT same-channel deploy — we re-bake each seeded default app from the
+  // RUNNING build's sample-apps.js. Only the app
   // CODE (and its icon art) is swapped, IN PLACE: the app keeps its saved data,
   // which lives in the store keyed by fileId, so game scores / notes carry over.
   // (A new build's data format could in theory be incompatible with the old data;
@@ -273,14 +275,29 @@
     return { updated, added };
   }
 
-  // On the FIRST load after a build switch, the switch set gifos_reseed — re-bake
-  // the default apps from this build, once, then clear the flag. Best-effort: a
-  // failed rebuild must never block boot.
-  async function reseedDefaultsIfFlagged() {
-    let flagged = false;
-    try { flagged = localStorage.getItem('gifos_reseed') === '1'; } catch (e) {}
-    if (!flagged) return;
-    try { localStorage.removeItem('gifos_reseed'); } catch (e) {}
+  // Re-bake the default apps from this build's code when the BUILD MOVED under
+  // this desktop — two triggers, one mechanism:
+  //  • gifos_reseed — set by every EXPLICIT build move (pin / release / edge /
+  //    erase), consumed here on the next boot.
+  //  • gifos_reseed_build — the build identity ("<version>:<build>") that last
+  //    seeded/reseeded this desktop. A SILENT same-channel deploy (an edge user
+  //    who never opens the Version panel — the common case) used to leave stale
+  //    defaults forever; now the stamp mismatch catches it on the next boot.
+  // A missing stamp writes itself without rebuilding: a fresh desktop was just
+  // seeded by THIS build (seedIfEmpty runs first in the boot chain), and legacy
+  // desktops converge one deploy later. A dev checkout is 'edge:0' forever — no
+  // churn. A pinned snapshot's stamp never changes — frozen builds never
+  // reseed. Best-effort: a failed rebuild must never block boot.
+  async function reseedDefaultsIfNeeded() {
+    const stamp = (root.GIFOS_VERSION || 'edge') + ':' + (Number(root.GIFOS_BUILD) || 0);
+    let flagged = false, stored = null;
+    try {
+      flagged = localStorage.getItem('gifos_reseed') === '1';
+      stored = localStorage.getItem('gifos_reseed_build');
+      localStorage.removeItem('gifos_reseed');
+      localStorage.setItem('gifos_reseed_build', stamp);
+    } catch (e) {}
+    if (!flagged && !(stored && stored !== stamp)) return;
     try {
       const seed = await GifOS.samples.build();
       const { updated, added } = await rebuildDefaultApps(seed);
@@ -1557,7 +1574,7 @@
     eraseLocalStorage();
     // Set the reseed flag for the build we're about to land on so it bakes the
     // current default apps into the fresh desktop (the flag is consumed by
-    // reseedDefaultsIfFlagged on the next boot). Because we keep the channel
+    // reseedDefaultsIfNeeded on the next boot). Because we keep the channel
     // keys, this re-seed happens on the user's chosen build, not the live
     // release default.
     try { localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
@@ -1978,7 +1995,7 @@
   // PIN to an immutable /versions/<v>/ snapshot (roll back, or stick to the live
   // release). Clears the edge channel so the loader honours the pin.
   // gifos_reseed tells the build we're switching TO to re-bake its default apps on
-  // first load (see reseedDefaultsIfFlagged) — set on every build move so the new
+  // first load (see reseedDefaultsIfNeeded) — set on every build move so the new
   // build's default apps actually land instead of the ones baked at seed time.
   function pinTo(v) {
     try { localStorage.setItem('gifos_pin', v); localStorage.removeItem('gifos_channel'); localStorage.setItem('gifos_reseed', '1'); } catch (e) {}
@@ -2461,7 +2478,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfFlagged).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);
