@@ -9290,7 +9290,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // keys alone cannot show a MISMATCH — an announce whose stream never
         // arrives, or a stale id re-announced after a transport swap — which
         // is exactly the state that silently blocks failback, so surface the id.
-        annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)),
+        annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)
+          // mt = the mirror's TRANSIT ROW. A carrier recomputes the route from
+          // it, and slotFor/the forwarder both bail SILENTLY when it is absent
+          // (`if (t == null) return null`), so an announce that lost mt looks
+          // exactly like one that was never sent. Surface it.
+          + (v && v.mt != null ? ' mt=' + v.mt : ' mt=MISSING')),
         // multi-subscribe forensics: hot standby slots, outbound jobs' active/dormant
         // state, and the last want/idle demand I sent per announcer.
         standby: [...mosStandby.keys()],
