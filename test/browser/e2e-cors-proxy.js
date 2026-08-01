@@ -74,7 +74,7 @@ function startProxy() {
   check('Bible Browser is seeded as a default app', !!bibleId, 'fileId=' + bibleId);
   if (!bibleId) { await b.close(); srv.close(); console.log('\n' + fail + ' FAIL'); process.exit(1); }
 
-  await page.goto(BASE + '/run.html#id=' + bibleId);
+  await page.goto(BASE + '/meet.html#id=' + bibleId);
   await page.waitForSelector('iframe', { timeout: 8000 });
   await page.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {}); // network acknowledgement
   const fr = page.frameLocator('iframe');

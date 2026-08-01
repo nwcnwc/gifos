@@ -27,7 +27,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await hostPage.goto(BASE + '/index.html'); await hostPage.waitForSelector('.icon', { timeout: 20000 });
   const fid = await mmId(hostPage);
   check('My Media seeded', !!fid, fid);
-  await hostPage.goto(BASE + '/run.html#id=' + fid);
+  await hostPage.goto(BASE + '/meet.html#id=' + fid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   await ackPerms(hostPage);
   const hostFr = hostPage.frameLocator('iframe');
@@ -46,13 +46,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('host stored + marked the video read-only', JSON.stringify(stored.media) === '[{"id":"vid1","vis":"read-only"}]', JSON.stringify(stored));
 
   // ---- host mints invite ----
-  await hostPage.locator('#host').click();
+  await hostPage.evaluate(() => document.getElementById('appinvite').click());
   await hostPage.waitForSelector('#inv-go', { timeout: 6000 });
-  await hostPage.locator('#inv-go').click();
-  await hostPage.waitForSelector('#lm-url', { timeout: 15000 }).catch(() => {});
-  const link = await hostPage.locator('#lm-url').inputValue().catch(() => '');
+  await hostPage.evaluate(() => document.getElementById('inv-go').click());
+  await hostPage.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
+  const link = await hostPage.locator('#share-url').inputValue();
   check('minted invite', /#s=|#j=/.test(link || ''), (link || '').slice(0, 36));
-  await hostPage.evaluate(() => { const m = document.getElementById('link-modal'); if (m) m.remove(); });
 
   // ---- guest joins → My Media mounts ----
   const guestCtx = await makeUser('Ben');

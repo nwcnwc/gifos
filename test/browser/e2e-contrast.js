@@ -92,20 +92,17 @@ const PROSE = 2.5; // soft "muted" secondary prose: catch dark-on-dark, allow th
     check(`video[${t}] secondary (Close) button`, vid.cancel >= MIN, vid.cancel.toFixed(2));
     check(`video[${t}] Save (on-accent) button`, vid.accentBtn >= MIN, vid.accentBtn.toFixed(2));
 
-    // --- run.html: signature + permission chips, accent modal button ---
-    await page.goto(BASE + '/run.html', { waitUntil: 'domcontentloaded' });
+    // --- the room page's app chrome: permission chip, accent modal button ---
+    // (run.html died — one-runtime; the perms chip lives in the app bar now.
+    // The signature chip did not migrate — identity shows on the desktop.)
+    await page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded' });
     const run = await page.evaluate(() => {
-      const sig = document.getElementById('sig'); sig.style.display = ''; sig.className = 'sig ok'; sig.textContent = 'signed';
-      const per = document.getElementById('perms'); per.style.display = ''; per.className = 'perms unsafe'; per.textContent = 'any site';
+      const per = document.getElementById('appperms'); per.style.display = ''; per.className = 'perms unsafe'; per.textContent = 'any site';
       const btn = document.querySelector('.name-box button');
-      return {
-        sig: contrast(sig), perms: contrast(per),
-        accentBtn: btn ? contrast(btn) : 99,
-      };
+      return { perms: contrast(per), accentBtn: btn ? contrast(btn) : 99 };
     });
-    check(`run[${t}] signature chip`, run.sig >= MIN, run.sig.toFixed(2));
-    check(`run[${t}] permission chip`, run.perms >= MIN, run.perms.toFixed(2));
-    check(`run[${t}] name (on-accent) button`, run.accentBtn >= MIN, run.accentBtn.toFixed(2));
+    check(`room[${t}] permission chip`, run.perms >= MIN, run.perms.toFixed(2));
+    check(`room[${t}] name (on-accent) button`, run.accentBtn >= MIN, run.accentBtn.toFixed(2));
 
     // --- sign.html: active tab + accent action button + result message ---
     await page.goto(BASE + '/sign.html', { waitUntil: 'domcontentloaded' });

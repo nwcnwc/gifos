@@ -75,7 +75,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   // ACKNOWLEDGEMENT, it waits for a click and never detaches on its own, so
   // waiting for it to disappear would burn the budget and still fail. (I tried
   // that first; checking the history is what corrected it.) Both spellings of
-  // the dismiss button are covered — run.html's `.done` and runtime.js's
+  // the dismiss button are covered — the room page's `.done` and runtime.js's
   // `#gifos-setup-ok`.
   await m.waitForTimeout(500);
   for (const sel of ['.perm-modal .done', '#gifos-setup-ok']) {

@@ -826,7 +826,7 @@ async function openApp(page, ctx, folder, label) {
   }, Array.from(appDlBytes));
   check('Download of an app produces a valid GifOS GIF', /\.gif$/.test(appDl.suggestedFilename()) && appDlOk);
 
-  // ---- pretty invite links: the 404 router maps /join/<code> into run.html ----
+  // ---- pretty invite links: the 404 router maps /join/<code> into the room page ----
   // (GitHub Pages serves 404.html for unknown paths; the local test server
   // can't, so serve the real file via interception and exercise the router.)
   // Use a SERVICE-WORKER-BLOCKED context: once the SW is installed it intercepts
@@ -840,7 +840,7 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await routed.goto(BASE + '/join/wkm4tr7q2x');
-  await routed.waitForURL(/run\.html#j=wkm4tr7q2x/, { timeout: 5000, waitUntil: 'commit' });
+  await routed.waitForURL(/meet\.html#j=wkm4tr7q2x/, { timeout: 5000, waitUntil: 'commit' });
   check('/join/<code> routes into the app runner with the code', true);
   await routed.close();
   const called = await routerCtx.newPage();
@@ -1127,7 +1127,7 @@ async function openApp(page, ctx, folder, label) {
   await backApp.goBack().catch(() => {});
   await backApp.frameLocator('iframe').locator('#out').filter({ hasText: 'BACK' }).waitFor({ timeout: 5000 });
   check('an app receives Back through gifos.onBack', true);
-  check('...and the app tab never unloads', backApp.url().includes('/run.html'));
+  check('...and the app tab never unloads', backApp.url().includes('/meet.html'));
   await backApp.close();
   await backPage.close();
 

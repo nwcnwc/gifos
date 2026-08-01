@@ -1,5 +1,5 @@
 // End-to-end: gifos.app/?run=<gif url> fetches the GIF, drops it into Stolen
-// Apps, and runs it (same-tab redirect to run.html).
+// Apps, and runs it (same-tab redirect to the room page, meet.html#id=).
 //
 // Needs: static server on 8099 (serves both the site AND the test gif copy).
 const { chromium, CHROME } = require('../lib/pw');
@@ -21,9 +21,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     const runUrl = BASE + '/index.html?run=' + encodeURIComponent(BASE + '/__run-test.gif');
     await page.goto(runUrl);
-    // It should run the app: same-tab redirect to run.html.
+    // It should run the app: same-tab redirect to the room page.
     await page.waitForURL(/run\.html/, { timeout: 10000 }).catch(() => {});
-    check('?run=<url> launches the app (redirect to run.html)', /run\.html/.test(page.url()), page.url());
+    check('?run=<url> launches the app (redirect to the room page)', /meet\.html#id=/.test(page.url()), page.url());
 
     // The address bar dropped ?run= (so a refresh won't re-run) — the hash now
     // points at the stored file, not the original query.

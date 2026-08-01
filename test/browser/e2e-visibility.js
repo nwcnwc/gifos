@@ -60,7 +60,7 @@ const MANIFEST = JSON.stringify({
     return id;
   }, MANIFEST);
   check('host seeded the Vis Test app', !!fid, fid);
-  await hostPage.goto(BASE + '/run.html#id=' + fid);
+  await hostPage.goto(BASE + '/meet.html#id=' + fid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   await ackPerms(hostPage);
   const hostFr = hostPage.frameLocator('iframe');
@@ -71,13 +71,12 @@ const MANIFEST = JSON.stringify({
   await put(hostFr, 'lib', { id: 'd', v: 'my photo' });
 
   // ---- host mints an invite ----
-  await hostPage.locator('#host').click();
+  await hostPage.evaluate(() => document.getElementById('appinvite').click());
   await hostPage.waitForSelector('#inv-go', { timeout: 6000 });
-  await hostPage.locator('#inv-go').click();
-  await hostPage.waitForSelector('#lm-url', { timeout: 15000 }).catch(() => {});
-  const link = await hostPage.locator('#lm-url').inputValue().catch(() => '');
+  await hostPage.evaluate(() => document.getElementById('inv-go').click());
+  await hostPage.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
+  const link = await hostPage.locator('#share-url').inputValue();
   check('host minted an invite link', /#s=|#j=/.test(link || ''), (link || '').slice(0, 40));
-  await hostPage.evaluate(() => { const m = document.getElementById('link-modal'); if (m) m.remove(); });
 
   // ---- guest joins ----
   const guestCtx = await makeUser('Ben');

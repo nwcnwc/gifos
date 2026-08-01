@@ -53,7 +53,7 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   const cid = await chatId(hostPage);
   check('host seeded the Chat app', !!cid, cid);
   await hostPage.evaluate((c) => localStorage.setItem('gifos_ai_config', c), aiCfg('sk-ADA'));
-  await hostPage.goto(BASE + '/run.html#id=' + cid);
+  await hostPage.goto(BASE + '/meet.html#id=' + cid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   // Host acks its own abilities, and we wait for that panel to fully close so it
   // can't intercept the Invite click.
@@ -62,12 +62,12 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   await hostPage.waitForSelector('.perm-modal', { state: 'detached', timeout: 4000 }).catch(() => {});
 
   // Host mints an invite link.
-  await hostPage.locator('#host').click();
+  await hostPage.evaluate(() => document.getElementById('appinvite').click());
   await hostPage.waitForSelector('#inv-go', { timeout: 6000 });
-  await hostPage.locator('#inv-go').click();
-  const gotLink = await hostPage.waitForSelector('#lm-url', { timeout: 15000 }).then(() => true).catch(() => false);
+  await hostPage.evaluate(() => document.getElementById('inv-go').click());
+  const gotLink = await hostPage.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
   if (!gotLink) console.log('  (no invite link; host status="' + (await hostPage.locator('#status').innerText().catch(() => '')).slice(0, 80) + '")');
-  const link = gotLink ? await hostPage.locator('#lm-url').inputValue() : '';
+  const link = gotLink ? await hostPage.locator('#share-url').inputValue() : '';
   check('host minted an invite link', /#s=|#j=/.test(link || ''), (link || '').slice(0, 40));
 
   // Joiner opens the link on a DIFFERENT device with their OWN AI key.

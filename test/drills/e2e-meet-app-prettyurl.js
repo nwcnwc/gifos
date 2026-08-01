@@ -2,7 +2,7 @@
 // when the meeting page runs at the pretty /meet/<room> URL.
 //
 // THE REGRESSION THIS GUARDS (prod-only, ~1s teardown):
-//   run.html "Meeting" toggle -> meet.html#app=<fileId> auto-hosts the app.
+//   meet.html#app=<fileId> auto-hosts a desktop app in a meeting (one-runtime).
 //   On gifos.app the meeting rewrites its address to the pretty /meet/<room>
 //   form (history.replaceState). That moves the document's BASE URL. The
 //   runtime then loads its owner-authority module with a bare relative path
@@ -96,17 +96,13 @@ const check = (n, c, d) => {
   });
   check('seeded desktop exposes a runnable app fileId', !!appId, appId);
 
-  // ---- open the app in run.html, then toggle it into a meeting ----
+  // ---- boot a meeting auto-hosting the desktop app (#app= entry) ----
   const run = await ctx.newPage();
   const owner404 = [];
   run.on('response', (r) => { if (r.status() >= 400 && /app-owner/.test(r.url())) owner404.push(r.url()); });
   run.on('console', (m) => { if (/Could not run|app-owner/i.test(m.text())) console.log('  [run] ' + m.text().slice(0, 160)); });
   run.on('pageerror', (e) => console.log('  [run] pageerror: ' + e.message));
-  await run.goto(BASE + '/run.html#id=' + appId);
-  await run.waitForSelector('iframe', { timeout: 15000 });
-  await sleep(600);
-  const ack = run.locator('.perm-modal .done'); if (await ack.count()) await ack.first().click().catch(() => {});
-  await run.locator('#tomeet').click();
+  await run.goto(BASE + '/meet.html#app=' + appId);
   await run.waitForSelector('#appmount iframe', { timeout: 40000 });
   const t0 = Date.now();
 
