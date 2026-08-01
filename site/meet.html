@@ -2612,6 +2612,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         setStatus('😴 Phone looks parked — letting the screen rest. Tap for full quality.');
       } else keepAwake();
     }, 10000);
+    // A real rotation must re-run adapt() promptly: it re-derives the transposed
+    // rung ask AND resets the orientation-fix latch (one corrective re-grab per
+    // wanted orientation — see the block in adapt()). Without this the new
+    // orientation waits for whichever sweep happens along next.
+    try {
+      const omq = window.matchMedia && window.matchMedia('(orientation: portrait)');
+      if (omq && omq.addEventListener) omq.addEventListener('change', () => { try { adapt(); } catch (e) {} });
+    } catch (e) {}
     // TUNE overrides (the phone power-tuning sweep, 2026-07-29): knob sets the
     // harness applies per run — localStorage gifos_tune = '{"shift":1,
     // "fps":15,"aux":500,"kbps":300}' (or window.GIFOS_TUNE). Absent = exactly
@@ -2703,6 +2711,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         trackQ.t = track; trackQ.k = ckey;
         track.applyConstraints({ width: { ideal: cw }, height: { ideal: ch }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
       }
+      // THE CAPTURE'S SHAPE IS SET AT getUserMedia TIME (2026-08-01). If the
+      // live track's delivered frames are the WRONG orientation for the device
+      // (a capture opened before rotation, or opened landscape by an old
+      // hard-coded ask), no applyConstraints can rotate it — Chromium's track
+      // adapter only downscales. The one honest lever is a fresh grab
+      // (regrabCamera, the same swap the black-cam watchdog uses), now asking
+      // with orientation-aware constraints. BOUNDED: one attempt per wanted
+      // orientation — a genuinely landscape-only camera (desktop webcam in a
+      // portrait window) answers wrong once, we accept it and stop; a real
+      // rotation resets the latch and earns one fresh attempt. A latch, not a
+      // loop — this must never become the oscillation it replaces.
+      try {
+        const wantO = portrait ? 'p' : 'l';
+        if (orientFix.want !== wantO) { orientFix.want = wantO; orientFix.tried = false; }
+        const st = track && track.readyState === 'live' && track.getSettings ? track.getSettings() : null;
+        if (st && st.width && st.height && st.width !== st.height && !myStatus.camOff) {
+          const gotO = st.width > st.height ? 'l' : 'p';
+          if (gotO !== wantO && !orientFix.tried) { orientFix.tried = true; regrabCamera(); }
+        }
+      } catch (e) {}
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
@@ -2737,6 +2765,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     let lastQ = null; // the rung adapt() last applied — harness verification surface
     const trackQ = { t: null, k: '' }; // the camera track adapt() last constrained, and to what
+    const orientFix = { want: '', tried: false }; // one corrective re-grab per wanted orientation (see adapt())
     // COMPOSITES FOLLOW THE TIER TOO (2026-07-31 power work). Every packer took
     // the flat SCALE.COMP_FPS (8) — no call site has ever passed `fps` — so a
     // phone that has cut its OWN camera to the bottom of the ladder still
@@ -4710,7 +4739,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // hardware actually has a second camera (see maybeShowFlip).
     let camFacing = 'user';
     try { camFacing = localStorage.getItem('gifos_cam_facing') || 'user'; } catch (e) {}
-    const camVideoConstraints = () => ({ width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: camFacing } });
+    // ASK FOR THE DEVICE'S ORIENTATION AT GRAB TIME (2026-08-01). The capture's
+    // SHAPE is decided when getUserMedia opens it — applyConstraints on a live
+    // track can only downscale/drop frames, it can never change the aspect. A
+    // hard-coded 1280x720 here meant every upright phone opened a LANDSCAPE
+    // capture that adapt()'s portrait ask could then never fix; whichever later
+    // re-grab (idle-stop revive, black-cam watch) happened to land portrait
+    // "fixed" it by accident, which is why the orientation seemed random and
+    // blur-toggle-dependent. One helper feeds every grab path, so asking right
+    // here fixes them all.
+    const camVideoConstraints = () => {
+      let portrait = false;
+      try { portrait = !!(window.matchMedia && window.matchMedia('(orientation: portrait)').matches); } catch (e) {}
+      return portrait
+        ? { width: { ideal: 720 }, height: { ideal: 1280 }, facingMode: { ideal: camFacing } }
+        : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: camFacing } };
+    };
     let flipChecked = false;
     function maybeShowFlip() {
       if (flipChecked || !localStream || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
@@ -9363,6 +9407,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // oscillation (feedback from reading the camera's own echoed settings).
       camConstraint: () => trackQ.k,
       forceAdapt: () => { adapt(); return trackQ.k; },
+      // what the camera actually DELIVERS (the capture's true shape) — the ask
+      // (camConstraint) can be right while an aspect-locked capture stays wrong
+      camSettings: () => { try { const t = localStream && localStream.getVideoTracks()[0]; const s = t && t.getSettings ? t.getSettings() : null; return s && s.width ? { w: s.width, h: s.height } : null; } catch (e) { return null; } },
       blurNoneEnabled: () => !document.getElementById('blur-none').classList.contains('dis'),
       blurLocked: () => blurSeg.classList.contains('locked'),
       micMuted: () => myStatus.muted,

@@ -19,6 +19,19 @@
 // constraint adapt() asks for never changes orientation. On the pre-fix code
 // this test oscillates and FAILS; on the fix it is rock stable.
 //
+// SECOND WAVE (2026-08-01, field report: "no longer cycles, but the chosen
+// orientation is often WRONG — and toggling blur sometimes fixes it and it
+// sticks"): the capture's SHAPE is decided at getUserMedia time; Chromium's
+// applyConstraints can only downscale, never change aspect. The grab helper
+// hard-coded a landscape 1280x720 ask, so an upright phone opened a landscape
+// capture that adapt()'s portrait ask could never fix — until some incidental
+// re-grab (idle-stop revive, black-cam watch) happened to open portrait and
+// "fixed" it by luck. Fix: orientation-aware ask at every grab + ONE bounded
+// corrective re-grab when the delivered shape mismatches the device (a latch,
+// never a loop — a landscape-only desktop webcam is asked once and accepted).
+// Sections D and E guard both halves with device models that mimic Chromium:
+// honor orientation at open time, ignore it on applyConstraints.
+//
 // Needs RELAY + BASE.
 const { chromium, CHROME } = require('../lib/pw');
 
@@ -82,6 +95,49 @@ function perverseCameraInit() {
 
 const orient = (k) => { const m = /^(\d+)x(\d+)@/.exec(k || ''); if (!m) return '?'; return (+m[1]) >= (+m[2]) ? 'landscape' : 'portrait'; };
 
+// A camera that mimics Chromium's REAL contract: getUserMedia decides the
+// capture shape (honoring the ask, or — in 'locked' mode — always landscape),
+// and applyConstraints can change NOTHING about aspect. mode: 'honor' opens at
+// the asked dims; 'locked' always opens 640x480 regardless of the ask.
+function chromiumCameraInit(mode) {
+  window.__gumCount = 0; window.__gumAsks = [];
+  const md = navigator.mediaDevices;
+  const real = md.getUserMedia ? md.getUserMedia.bind(md) : null;
+  navigator.mediaDevices.getUserMedia = async (constraints) => {
+    if (constraints && constraints.video) {
+      window.__gumCount++;
+      const v = constraints.video;
+      const gw = (v.width && (v.width.ideal != null ? v.width.ideal : v.width)) || 640;
+      const gh = (v.height && (v.height.ideal != null ? v.height.ideal : v.height)) || 480;
+      window.__gumAsks.push(gw + 'x' + gh);
+      const canvas = document.createElement('canvas');
+      if (mode === 'locked') { canvas.width = 640; canvas.height = 480; }        // landscape-only hardware
+      else { canvas.width = gw; canvas.height = gh; }                            // honors the ask at OPEN time
+      const c2 = canvas.getContext('2d');
+      let n = 0;
+      setInterval(() => {
+        n++;
+        c2.fillStyle = (n & 1) ? '#234' : '#432';
+        c2.fillRect(0, 0, canvas.width, canvas.height);
+        c2.fillStyle = '#fff';
+        c2.fillRect((n * 11) % Math.max(1, canvas.width - 26), 8, 20, 20);
+      }, 80);
+      const stream = canvas.captureStream(15);
+      const patch = (t) => {
+        t.applyConstraints = () => Promise.resolve();   // Chromium truth: a live track's aspect is immutable
+        t.getSettings = () => ({ width: canvas.width, height: canvas.height, frameRate: 15, deviceId: 'chromium-model-cam', facingMode: 'user' });
+        const oclone = t.clone.bind(t);
+        t.clone = () => patch(oclone());
+        return t;
+      };
+      const out = new MediaStream([patch(stream.getVideoTracks()[0])]);
+      if (constraints.audio && real) { try { (await real({ audio: true })).getAudioTracks().forEach((t) => out.addTrack(t)); } catch (e) {} }
+      return out;
+    }
+    return real ? real(constraints) : Promise.reject(new Error('no gUM'));
+  };
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
@@ -97,6 +153,10 @@ const orient = (k) => { const m = /^(\d+)x(\d+)@/.exec(k || ''); if (!m) return 
   await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
   // Wait for the camera to be grabbed and the first adapt() to constrain it.
   await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.camConstraint && window.__gifosVideo.camConstraint(), null, { timeout: 15000 });
+  // Camera ON — the reported scenario, and the corrective re-grab only acts on
+  // a live, user-enabled camera (join-quiet camOff is the default).
+  await p.evaluate(() => { if (window.__gifosVideo.camOff()) document.getElementById('cam').click(); });
+  await p.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 5000 });
 
   // ---- A. drive many sweeps; the requested orientation must not oscillate ----
   const seq = [];
@@ -149,6 +209,65 @@ const orient = (k) => { const m = /^(\d+)x(\d+)@/.exec(k || ''); if (!m) return 
   const selfDistinct = Array.from(new Set(shots));
   check('the self-view tile holds ONE orientation (no visible flipping)',
     shots.length > 0 && selfDistinct.length === 1, shots.join(','));
+
+  // ---- D. aspect-locked camera (the real Chromium model): an upright phone ----
+  // must END UP with a portrait capture. The shape is fixed at getUserMedia
+  // time, so this only works if the GRAB asks portrait (or the bounded
+  // corrective re-grab fires). On the pre-fix code the hard-coded landscape
+  // ask left this stuck landscape forever.
+  const dCtx = await browser.newContext({ permissions: ['camera', 'microphone'], viewport: { width: 412, height: 915 } });
+  await dCtx.addInitScript("try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Dee');localStorage.setItem('gifos_meet_bar','0')}catch(e){}");
+  await dCtx.addInitScript(chromiumCameraInit, 'honor');
+  const d = await dCtx.newPage();
+  d.on('pageerror', (e) => console.log('  [d] ' + e.message));
+  await d.goto(BASE + '/meet.html');
+  await d.locator('#lob-open').click();
+  await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.camConstraint && window.__gifosVideo.camConstraint(), null, { timeout: 15000 });
+  await d.evaluate(() => { if (window.__gifosVideo.camOff()) document.getElementById('cam').click(); });
+  await d.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 5000 });
+  const firstAsk = await d.evaluate(() => window.__gumAsks[0]);
+  const fm = /^(\d+)x(\d+)$/.exec(firstAsk || '');
+  check('the very first camera grab ASKS portrait on an upright phone',
+    !!fm && (+fm[2]) > (+fm[1]), firstAsk);
+  let dSet = null;
+  try {
+    await d.waitForFunction(() => { const s = window.__gifosVideo.camSettings(); return !!s && s.h > s.w; }, null, { timeout: 10000 });
+    dSet = await d.evaluate(() => window.__gifosVideo.camSettings());
+  } catch (e) { dSet = await d.evaluate(() => window.__gifosVideo.camSettings()); }
+  check('the capture the camera DELIVERS is portrait (shape decided at grab time)',
+    !!dSet && dSet.h > dSet.w, JSON.stringify(dSet));
+  for (let i = 0; i < 4; i++) { await d.evaluate(() => window.__gifosVideo.forceAdapt()); await sleep(150); }
+  const dGrabs = await d.evaluate(() => window.__gumCount);
+  check('no re-grab churn when the camera cooperates', dGrabs <= 2, dGrabs + ' grabs');
+  await dCtx.close();
+
+  // ---- E. landscape-only camera in a portrait window: the corrective ----
+  // re-grab is a LATCH, not a loop. One attempt, then accept — the count must
+  // stay put across many sweeps. (This is the guard that the orientation fix
+  // can never become the oscillation it replaced.)
+  const eCtx = await browser.newContext({ permissions: ['camera', 'microphone'], viewport: { width: 412, height: 915 } });
+  await eCtx.addInitScript("try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Eve');localStorage.setItem('gifos_meet_bar','0')}catch(e){}");
+  await eCtx.addInitScript(chromiumCameraInit, 'locked');
+  const ep = await eCtx.newPage();
+  ep.on('pageerror', (e) => console.log('  [e] ' + e.message));
+  await ep.goto(BASE + '/meet.html');
+  await ep.locator('#lob-open').click();
+  await ep.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.camConstraint && window.__gifosVideo.camConstraint(), null, { timeout: 15000 });
+  await ep.evaluate(() => { if (window.__gifosVideo.camOff()) document.getElementById('cam').click(); });
+  await ep.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 5000 });
+  await ep.evaluate(() => window.__gifosVideo.forceAdapt());
+  await sleep(600); // let the one corrective attempt land
+  const eBefore = await ep.evaluate(() => window.__gumCount);
+  check('the corrective re-grab FIRED (once) on the mismatched capture — not skipped',
+    eBefore === 2, eBefore + ' grabs (1 initial + 1 corrective)');
+  const eAsks = [];
+  for (let i = 0; i < 6; i++) { eAsks.push(orient(await ep.evaluate(() => window.__gifosVideo.forceAdapt()))); await sleep(200); }
+  const eAfter = await ep.evaluate(() => window.__gumCount);
+  check('a camera that CANNOT do portrait is asked once and accepted (no re-grab loop)',
+    eAfter === eBefore, eBefore + ' -> ' + eAfter + ' grabs across 6 sweeps');
+  check('the ask itself stays stable against an uncooperative camera',
+    new Set(eAsks).size === 1, eAsks.join(','));
+  await eCtx.close();
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
