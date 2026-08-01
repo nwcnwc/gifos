@@ -118,3 +118,25 @@ Chromium silently changes the CODEC the system under test negotiates, and every
 downstream number — encoder implementation, CPU, power — changes with it. A
 whole architectural lever was nearly justified on it. **When measuring anything
 codec- or hardware-adjacent, launch bots with real Chrome, or use real devices.**
+
+## ADDENDUM 2026-08-01 — the adapt() half is REVERTED; only the pipe half stands
+
+The `adapt()` transpose ("ask for the rung TRANSPOSED on a portrait sensor")
+caused a three-round orientation regression and is GONE. What it actually did
+in the field: Chromium satisfies a transposed constraint on a landscape capture
+by CENTER-CROPPING (a zoomed-in face); reading the orientation back from
+`getSettings()` fed back into the next ask (self-view flipping every ~2s); and
+the follow-up attempts (transposed getUserMedia ask + corrective re-grab,
+then a canvas center-crop) produced sideways frames on one device, multi-second
+freezes, and a double-zoom. Every phone's camera pipeline already rotates the
+capture with the device — commanding orientation from JS only ever fought it.
+
+The rule now (guarded by `test/browser/e2e-cam-orientation.js`): **ask the rung
+literally, never transpose, never react to rotation, never restart the camera.
+The frame's shape belongs to the camera.**
+
+The BLUR-PIPE half of this fix — cap the canvas by the LONG side, not the
+width — is untouched and remains the real budget win: blur is the phone's
+steady state, so the pipe is the encode path that matters, and the long-side
+cap is shape-agnostic. The raw path may again spend up to ~3.2x the rung on a
+portrait phone; that is the accepted price of never fighting the camera.

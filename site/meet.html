@@ -2256,19 +2256,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Two ping-pong scratch canvases for the iOS fallback's progressive scaling.
     let blurA = document.createElement('canvas'), blurActx = blurA.getContext('2d');
     let blurB = document.createElement('canvas'), blurBctx = blurB.getContext('2d');
-    // srect: optional [sx, sy, sw, sh] source crop — the shape-normalizing
-    // center-crop (see paint()) rides through both blur branches. null = whole
-    // frame, drawn with the EXACT pre-crop call forms (the 9-arg drawImage can
-    // hit a slower raster path; the common uncropped case must not pay for a
-    // crop it isn't doing).
-    function blurDraw(ctx, src, dx, dy, dw, dh, px, level, srect) {
-      const sr = srect;
-      if (ctxFilterOK) {
-        ctx.filter = 'blur(' + px + 'px)';
-        if (sr) ctx.drawImage(src, sr[0], sr[1], sr[2], sr[3], dx, dy, dw, dh);
-        else ctx.drawImage(src, dx, dy, dw, dh);
-        ctx.filter = 'none'; return;
-      }
+    function blurDraw(ctx, src, dx, dy, dw, dh, px, level) {
+      if (ctxFilterOK) { ctx.filter = 'blur(' + px + 'px)'; ctx.drawImage(src, dx, dy, dw, dh); ctx.filter = 'none'; return; }
       // iOS/WebKit has no ctx.filter. A single big downscale→upscale looks BLOCKY
       // (like a bad connection). Build a mip pyramid instead: halve the image
       // repeatedly (each bilinear step averages neighbours ≈ one Gaussian pass)
@@ -2284,9 +2273,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const rW = Math.max(tW, Math.round(rPx)), rH = Math.max(tH, Math.round(rPx * asp));
       let a = blurA, actx = blurActx, b = blurB, bctx = blurBctx;
       let w = Math.max(tW, dw >> 1), h = Math.max(tH, dh >> 1);
-      a.width = w; a.height = h; actx.imageSmoothingEnabled = true;
-      if (sr) actx.drawImage(src, sr[0], sr[1], sr[2], sr[3], 0, 0, w, h);
-      else actx.drawImage(src, 0, 0, w, h);
+      a.width = w; a.height = h; actx.imageSmoothingEnabled = true; actx.drawImage(src, 0, 0, w, h);
       while (w > tW || h > tH) {                     // halve down to the tiny bottom
         const nw = Math.max(tW, Math.round(w / 2)), nh = Math.max(tH, Math.round(h / 2));
         b.width = nw; b.height = nh; bctx.imageSmoothingEnabled = true; bctx.drawImage(a, 0, 0, w, h, 0, 0, nw, nh);
@@ -2373,26 +2360,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const rf = (lastQ && lastQ.fps) || 15;
         const budget = Math.max(66, 1000 / Math.min(15, Math.max(8, rf)));
         if (now - paintLast < Math.max(budget, paintCost * 3)) return; // drop the frame
-        const fw = src.videoWidth || 640, fh = src.videoHeight || 480;
-        // SHAPE FOLLOWS THE DEVICE, FIXED HERE — NOT AT THE CAMERA (2026-08-01).
-        // On a phone, when the camera's delivered frame orientation disagrees
-        // with how the device is held (a stubborn sensor that answers landscape
-        // on an upright phone — field-observed), CENTER-CROP the frame to the
-        // device's orientation at paint time. This canvas is pixels we fully
-        // own: no camera reconfiguration, no re-grab, no device quirks — the
-        // two approaches that failed (transposed constraints → sideways frames
-        // on some devices; corrective re-grab → multi-second freezes). The
-        // crop is what the phone's own camera app shows, so it matches user
-        // expectation. Desktop windows have no device orientation — never crop.
-        let sx = 0, sy = 0, sw = fw, sh = fh;
-        if (IS_MOBILE && fw !== fh) {
-          let devP = false;
-          try { devP = !!(window.matchMedia && window.matchMedia('(orientation: portrait)').matches); } catch (e) {}
-          if (devP !== (fh > fw)) {
-            if (devP) { sw = Math.max(2, Math.round(fh * fh / fw)); sx = Math.round((fw - sw) / 2); }
-            else { sh = Math.max(2, Math.round(fw * fw / fh)); sy = Math.round((fh - sh) / 2); }
-          }
-        }
+        // The frame ships at the CAMERA'S OWN shape — no crop, no transpose
+        // (the 2026-08-01 canvas center-crop was reverted: stacked on the
+        // camera pipeline's own cropping it double-zoomed a face; the camera
+        // already rotates with the device on every phone).
+        const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
         // CAP THE LONG SIDE, NOT THE WIDTH (2026-07-31, measured). capW was
         // applied to width alone, which silently assumed a landscape source.
         // A phone held upright hands this pipe 320x568, width is already <=
@@ -2407,11 +2379,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const long = Math.max(sw, sh), sc = Math.min(1, capW / Math.max(1, long));
         const w = Math.max(2, Math.round(sw * sc)), h = Math.max(2, Math.round(sh * sc));
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-        try {
-          const srect = (sx || sy || sw !== fw || sh !== fh) ? [sx, sy, sw, sh] : null; // null = whole frame → blurDraw's exact pre-crop call forms
-          if (level > 0) blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(px * w / Math.max(1, sw))), level, srect);
-          else { ctx.imageSmoothingEnabled = true; ctx.drawImage(src, sx, sy, sw, sh, 0, 0, w, h); } // crop-only: full detail, just the device's shape
-        } catch (e) {}
+        try { blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(px * w / Math.max(1, sw))), level); } catch (e) {}
         paintLast = now; paintCost = performance.now() - now;
       };
       // Draw on every DECODED camera frame when the browser supports it (the
@@ -2466,24 +2434,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // — my own setting, a group-blur targeted at me, or the room's guest blur
     // — is baked into the broadcast pixels at the source. "Blurred" is never
     // viewer-side cosmetics alone: what leaves this browser is already blurry.
-    // A phone's camera that delivers the WRONG frame shape for how the device
-    // is held (landscape frames on an upright phone — field-observed) is
-    // normalized here too: the unblurred path rides the same canvas pipe at
-    // level 0 — crop-only, full detail (see paint()). Desktop never crops.
-    const camShapeMismatch = (cam) => {
-      try {
-        const st = cam && cam.getSettings ? cam.getSettings() : null;
-        if (!st || !st.width || !st.height || st.width === st.height) return false;
-        const devP = !!(window.matchMedia && window.matchMedia('(orientation: portrait)').matches);
-        return devP !== (st.height > st.width);
-      } catch (e) { return false; }
-    };
     function sentVideoTrack() {
       const cam = localStream && localStream.getVideoTracks()[0];
       if (!cam) return null;
       const lvl = blurLevelFor('me');
       if (lvl > 0 && !myStatus.camOff) return startBlurPipe(lvl) || cam;
-      if (!myStatus.camOff && IS_MOBILE && camShapeMismatch(cam)) return startBlurPipe(0) || cam;
       stopBlurPipe();
       return cam;
     }
@@ -2661,14 +2616,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         setStatus('😴 Phone looks parked — letting the screen rest. Tap for full quality.');
       } else keepAwake();
     }, 10000);
-    // A real rotation must re-run adapt() promptly (it re-derives the transposed
-    // rung ask) AND re-evaluate the outbound pipe (refreshOutbound — the
-    // shape-normalizing crop follows the device orientation). Without this the
-    // new orientation waits for whichever sweep happens along next.
-    try {
-      const omq = window.matchMedia && window.matchMedia('(orientation: portrait)');
-      if (omq && omq.addEventListener) omq.addEventListener('change', () => { try { refreshOutbound(); adapt(); } catch (e) {} });
-    } catch (e) {}
+    // (No orientation listener, deliberately — nothing here reacts to rotation.
+    // The camera pipeline rotates the capture itself; reacting on top of it is
+    // how the 2026-08-01 flip-cycling regression happened. See adapt().)
     // TUNE overrides (the phone power-tuning sweep, 2026-07-29): knob sets the
     // harness applies per run — localStorage gifos_tune = '{"shift":1,
     // "fps":15,"aux":500,"kbps":300}' (or window.GIFOS_TUNE). Absent = exactly
@@ -2723,48 +2673,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // rung it is already on every single time. Only touch the camera when the
       // numbers actually move; `trackQ` follows the TRACK, so a regrab (flip
       // camera, revive) clears it and the next adapt() re-applies in full.
-      // THE LADDER IS LANDSCAPE; A PHONE'S CAMERA IS NOT (2026-07-31, measured).
-      // Every rung is written 16:9 — "180p" is 320x180 — and we asked for it
-      // literally. A phone held upright captures 9:16, so `height:{ideal:180}`
-      // is unsatisfiable and the camera honours the WIDTH and returns
-      // 320x568. The encoder census caught it on a g24 at the 180p rung:
-      //   res "320x568@6"  =  181,760 px/frame against a nominal 57,600
-      // — 3.2x the budget the rung thought it was spending. Every resolution
-      // cut this ladder has ever made has landed at a THIRD of its intended
-      // effect on exactly the devices the ladder exists for.
-      // Fix: on a portrait device, ask for the rung TRANSPOSED (180x320). Same
-      // pixel count, same aspect an upright phone wants, ~3.2x fewer pixels to
-      // scale, blur, encode and ship.
-      //
-      // ORIENTATION FROM THE DEVICE, NOT THE CAMERA'S OWN ANSWER (2026-08-01).
-      // This used to read the orientation from `track.getSettings()` — i.e.
-      // from the camera's answer to our OWN previous applyConstraints — and
-      // that closes a feedback loop. A device whose camera answers a portrait
-      // request with a LANDSCAPE frame (and vice-versa — a real front-sensor
-      // mounting quirk: the sensor's long axis is fixed and the browser doesn't
-      // rotate to match the ask) makes the measured orientation the TRANSPOSE
-      // of what we requested. So each adapt() sweep reads the opposite of last
-      // time, transposes, and re-applies the opposite constraint — the camera
-      // reconfigures and the self-view visibly flips portrait<->landscape every
-      // couple of seconds forever (reported live 2026-07-31; the periodic
-      // sweep drives it, and toggling blur just re-runs adapt() so it looked
-      // blur-triggered). Read the intent from the DEVICE viewport instead: it
-      // changes only on a real rotation and never on our own constraint, so the
-      // ask is STABLE and the loop can't form. Same transpose, no feedback.
-      let cw = q.w, ch = q.h;
-      let portrait = false;
-      try { portrait = !!(window.matchMedia && window.matchMedia('(orientation: portrait)').matches); } catch (e) {}
-      if (portrait && cw > ch) { cw = q.h; ch = q.w; }
-      const ckey = cw + 'x' + ch + '@' + q.fps;
+      // ASK THE RUNG LITERALLY. NEVER TRANSPOSE. NEVER REACT TO ORIENTATION.
+      // (2026-08-01, after a three-round regression — the full story:)
+      // The 2026-07-31 pixel-budget work added a transpose here — ask 180x320
+      // on a portrait device — because a portrait camera answers a literal
+      // landscape ask with its own portrait frame (320x568) and blows the rung
+      // budget 3.2x. The transpose was read back from track.getSettings(): a
+      // feedback loop — the self-view flipped orientation every ~2s. Three
+      // fixes were layered on (viewport-sourced transpose; a transposed
+      // getUserMedia ask + corrective re-grab; a canvas center-crop), and each
+      // broke a different device: Chromium satisfies a TRANSPOSED constraint on
+      // a landscape capture BY CENTER-CROPPING — a zoomed-in face; some
+      // cameras answer a transposed gUM ask with UNROTATED sensor frames — a
+      // sideways room; mid-call re-grabs froze the self-view for seconds; and
+      // stacking our crop on the camera's own crop double-zoomed. Meanwhile
+      // the pre-07-31 behavior had worked on every device, because EVERY
+      // phone's camera pipeline already rotates the capture with the device.
+      // The frame's shape belongs to the camera. We only size it.
+      // So: literal rung ask (soft ideals — a portrait pipeline answers with
+      // its portrait shape at full FOV, exactly what the user expects), and
+      // the pixel budget is enforced where it always truly mattered: the blur
+      // pipe caps by the LONG side (the 07-31 fix that stands), and blur is
+      // the phone's steady state. The raw path may spend up to ~3.2x the rung
+      // on a portrait phone — the accepted price of never fighting the camera.
+      const ckey = q.w + 'x' + q.h + '@' + q.fps;
       if (track && (trackQ.t !== track || trackQ.k !== ckey)) {
         trackQ.t = track; trackQ.k = ckey;
-        track.applyConstraints({ width: { ideal: cw }, height: { ideal: ch }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
+        track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
       }
-      // (The 2026-08-01 corrective re-grab that lived here — restart the camera
-      // when its delivered shape mismatched the device — was REVERTED same-day:
-      // mid-call sensor restarts froze the self-view for seconds, and the
-      // transposed re-ask made some devices deliver sideways frames. The shape
-      // is normalized in the canvas pipe now; the camera is never restarted.)
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
@@ -2785,7 +2721,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // (the rung's 800k+ on blur was pure radio+encoder waste).
           // (keyed on the sender IDENTITY, not sender.track — replaceTrack is
           // async, so the track pointer lags the toggle by a beat)
-          const blurred = !!blurPipe && blurPipe.level > 0 && sender === p.mainV; // level 0 = crop-only pipe: full detail, no blur floor
+          const blurred = !!blurPipe && sender === p.mainV;
           const auxBudget = (tune && tune.aux ? +tune.aux * 1000 : 900000);
           const want = auxSenders.has(sender) ? auxBudget : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
           if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
