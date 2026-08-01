@@ -2675,15 +2675,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // — 3.2x the budget the rung thought it was spending. Every resolution
       // cut this ladder has ever made has landed at a THIRD of its intended
       // effect on exactly the devices the ladder exists for.
-      // Fix: on a portrait camera, ask for the rung TRANSPOSED (180x320). Same
-      // pixel count, same aspect the sensor wants, ~3.2x fewer pixels to
-      // scale, blur, encode and ship. Orientation is read from the track's own
-      // settings, so a rotation is picked up on the next adapt().
+      // Fix: on a portrait device, ask for the rung TRANSPOSED (180x320). Same
+      // pixel count, same aspect an upright phone wants, ~3.2x fewer pixels to
+      // scale, blur, encode and ship.
+      //
+      // ORIENTATION FROM THE DEVICE, NOT THE CAMERA'S OWN ANSWER (2026-08-01).
+      // This used to read the orientation from `track.getSettings()` — i.e.
+      // from the camera's answer to our OWN previous applyConstraints — and
+      // that closes a feedback loop. A device whose camera answers a portrait
+      // request with a LANDSCAPE frame (and vice-versa — a real front-sensor
+      // mounting quirk: the sensor's long axis is fixed and the browser doesn't
+      // rotate to match the ask) makes the measured orientation the TRANSPOSE
+      // of what we requested. So each adapt() sweep reads the opposite of last
+      // time, transposes, and re-applies the opposite constraint — the camera
+      // reconfigures and the self-view visibly flips portrait<->landscape every
+      // couple of seconds forever (reported live 2026-07-31; the periodic
+      // sweep drives it, and toggling blur just re-runs adapt() so it looked
+      // blur-triggered). Read the intent from the DEVICE viewport instead: it
+      // changes only on a real rotation and never on our own constraint, so the
+      // ask is STABLE and the loop can't form. Same transpose, no feedback.
       let cw = q.w, ch = q.h;
-      try {
-        const st = track && track.getSettings ? track.getSettings() : null;
-        if (st && st.width && st.height && st.height > st.width && cw > ch) { cw = q.h; ch = q.w; }
-      } catch (e) {}
+      let portrait = false;
+      try { portrait = !!(window.matchMedia && window.matchMedia('(orientation: portrait)').matches); } catch (e) {}
+      if (portrait && cw > ch) { cw = q.h; ch = q.w; }
       const ckey = cw + 'x' + ch + '@' + q.fps;
       if (track && (trackQ.t !== track || trackQ.k !== ckey)) {
         trackQ.t = track; trackQ.k = ckey;
@@ -9344,6 +9358,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       closedShown: () => { const el = document.getElementById('closed-modal'); return !!el && el.style.display !== 'none'; },
       myBlur: () => blurLevel(myStatus.blur),
       setBlur: (v) => setPersonalBlur(v),        // drive the slider from tests
+      // camera-orientation forensics: what adapt() last ASKED the camera for
+      // ("WxH@fps"), and a way to drive a sweep. Guards the portrait<->landscape
+      // oscillation (feedback from reading the camera's own echoed settings).
+      camConstraint: () => trackQ.k,
+      forceAdapt: () => { adapt(); return trackQ.k; },
       blurNoneEnabled: () => !document.getElementById('blur-none').classList.contains('dis'),
       blurLocked: () => blurSeg.classList.contains('locked'),
       micMuted: () => myStatus.muted,
