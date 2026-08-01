@@ -166,8 +166,18 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
 
   // ---- the mirror BUILDS dormant end-to-end --------------------------------
   const mosOf = (e) => e.page ? e.page.evaluate(() => __gifosVideo.mosaic()).catch(() => null) : null;
-  let built = null;
+  // HOLD THE SHAPE WHILE IT BUILDS. The topology check above is a single
+  // snapshot, and the forced 8-seat shape DECAYS during the long build wait:
+  // measured on a build failure, G and H had drifted out of section 2 into
+  // section 1 (F saw "H@1_1_1", H saw "G@1_1_0"), which makes the mirror route
+  // impossible — the chain needs a FULL child section. Every downstream leg
+  // then fails as collateral, which is what made this drill look like three
+  // independent reds instead of one. A drifted seat is a manufacture problem,
+  // not the law under test, so repair it the same way the setup does and say
+  // so out loud when it happens.
+  let built = null, repairs = 0;
   const t1 = Date.now();
+  let lastCheck = Date.now();
   while (Date.now() - t1 < 150000) {
     const m = await mosOf(pages[OBS]);
     if (m) {
@@ -175,8 +185,19 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
       if (pri && std) { built = { pri, std, demand: m.demand }; break; }
     }
+    if (Date.now() - lastCheck > 15000) {
+      lastCheck = Date.now();
+      const now = await Promise.all(pages.map(coordOf));
+      if (!now.every((c, k) => c === SEATS[k])) {
+        repairs++;
+        console.log('  topology drifted during build (' + now.map((c, k) => NAMES[k] + '@' + c).join(' ') + ') — repair ' + repairs);
+        await teleportAll();
+        await sleep(4000);
+      }
+    }
     await sleep(2500);
   }
+  if (repairs) console.log('   MEASURE topology repairs needed during build: ' + repairs);
   check('E holds sdn PRIMARY + mirror STANDBY', !!built, built && { pri: built.pri.via.slice(0, 8), std: built.std.via.slice(0, 8) });
   if (!built) { // diagnose: where did the chain stick?
     for (let k = 0; k < pages.length; k++) {
@@ -185,7 +206,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         const m = __gifosVideo.mosaic();
         const conns = peerIds.map((pid) => { const st = __gifosVideo.pcState(pid); return pid.slice(2, 6) + ':' + (st ? st.conn : 'NOPC'); });
         const occView = (__gifosVideo.debugDump().roster || []).map((r) => (r.name || '?') + '@' + (r.coord || '?')).join(' ');
-        return { claims: m.claims, ann: m.ann.map((a) => a.slice(0, 10) + '…' + a.slice(a.indexOf('|'))), jobs: m.jobsActive, conns, occView };
+        return { claims: m.claims, annSid: m.annSid, jobs: m.jobsActive, conns, occView };
       }, ids).catch((e) => String(e).slice(0, 80));
       console.log('  [' + NAMES[k] + '] ' + JSON.stringify(d));
     }
@@ -366,6 +387,26 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       lastAdv = series[k].t;
     } else if (stallStart == null && series[k].t - lastAdv > 700) stallStart = lastAdv;
   }
+  // WHERE DOES THE WAKE CASCADE STOP? A wake is supposed to propagate
+  // end-to-end in ONE pass — each woken hop immediately demands its own
+  // upstream awake (docs/media-plane.md). When the mirror never delivers, the
+  // question is which hop stayed parked. Dumped AFTER the timed sampler so it
+  // cannot distort the gap measurement. '+' = job active (carrying media),
+  // '·' = parked at replaceTrack(null).
+  {
+    const chain = [[0, 'A'], [2, 'C'], [3, 'D'], [6, 'G'], [7, 'H'], [5, 'F'], [4, 'E']];
+    const rows = [];
+    for (const [idx, nm] of chain) {
+      if (!pages[idx].page) { rows.push(nm + '=gone'); continue; }
+      const st = await pages[idx].page.evaluate(() => {
+        const m = (__gifosVideo.debugDump() || {}).mosaic || {};
+        return { act: (m.jobsActive || []).filter((x) => x.indexOf('sdnm:') === 0 || x.indexOf('sdn>') === 0).map((x) => x.slice(0, 14) + x.slice(-1)),
+          dem: (m.demand || []).filter((x) => x.indexOf('sdnm:') > 0).map((x) => x.slice(-1)) };
+      }).catch(() => null);
+      rows.push(nm + '[' + (st ? st.act.join(' ') + ' dem:' + st.dem.join('') : 'err') + ']');
+    }
+    console.log('  [wake cascade @+20s] ' + rows.join('  '));
+  }
   const finVia = series.length ? series[series.length - 1].via : null;
   if (stallStart == null) check('KILL: no visible sdn stall at all (wake under the sampling floor)', true);
   else {
@@ -381,7 +422,23 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // OFF the corpse, riding SOMEONE live (F mid-bridge, or the healed direct).
   const sawMirHot = series.some((s) => s.mirHot) || series.some((s) => s.via === ids[MIRROR_END]);
   check('KILL: the mirror was demand-woken (E commanded an sdnm stream hot)', sawMirHot);
-  check('KILL: sdn rides a LIVE via (off the corpse)', !!finVia && finVia !== ids[KILL], { via: finVia && finVia.slice(0, 8) });
+  // TWO LAWFUL OUTCOMES, and the fixed +20s sample races between them. Either
+  // E still holds the sdn claim and it rides a LIVE via (the mirror), or E has
+  // HEALED INTO the dead cell itself — the heir taking its dead owner's seat to
+  // reattach the subtree — in which case it IS the direct hop, holds no sdn
+  // claim at all, and via=null is CORRECT rather than a miss. Measured: the
+  // cascade dump shows E carrying an outbound 'sdn>' job in exactly those runs.
+  // The second branch is not a free pass: it requires E to have actually become
+  // a provider AND to have ridden a live non-corpse via during the window.
+  const eProvider = await pages[OBS].page.evaluate(() => {
+    const m = (__gifosVideo.debugDump() || {}).mosaic || {};
+    return (m.jobs || []).some((k) => k.indexOf('sdn>') === 0);
+  }).catch(() => false);
+  const lastLive = [...series].reverse().find((x) => x.via && x.via !== ids[KILL]);
+  check('KILL: sdn rides a LIVE via (off the corpse), or E has become the direct hop itself',
+    (!!finVia && finVia !== ids[KILL]) || (eProvider && !!lastLive),
+    { via: finVia && finVia.slice(0, 8), eBecameTheDirectHop: eProvider,
+      lastLiveVia: lastLive && String(lastLive.via).slice(0, 8) });
 
   // (The post-kill failback leg that used to live here is gone: it waited on a
   // heal that never comes. Failback is now proven above against a recoverable
