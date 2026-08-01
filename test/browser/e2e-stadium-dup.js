@@ -85,114 +85,111 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     hf.length > 0 && !hf.some((f) => f.pid === m8), { rowFaces: hf, tookMs: Date.now() - t1 });
 
   // …and the mover's face lives at its NEW row's product.
-  // TWO CLAIMS, not one (same lesson as e2e-mosaic's shrink leg): the deep
-  // seat must first SEE the mover as its row-mate — a mesh fact whose timing
-  // varies with the host — and only then can its packer be judged. Folded
-  // together, a slow mesh reported as `rowFaces: []` and read like a paint
-  // bug (red on the 8-core host, green here).
+  //
+  // RE-DERIVE THE OBSERVER — SEATS MOVE (2026-08-01). This leg used to
+  // interrogate pages[deepIdx] — the seat that was deep at SETUP time — and
+  // assume it was still the head of the mover's row at ASSERT time. Compaction
+  // is free to break that, and here it is actively invited to: the mover
+  // vacating 0/0.1 leaves a hole in an otherwise-full section 0, and a lone
+  // deep seat is the RIGHTMOST occupant of its row, which is exactly the seat
+  // tryCompact's clean-departure gate lets climb into that hole (site/js/mesh.js).
+  // Measured on a failing run:
+  //
+  //   coords@assert ["0/0.0","1/1.0","0/1.0","0/1.1","0/0.1"]
+  //   observer 2/1.0 -> 0/0.1   mover -> 1/1.0, ALONE as head of its own row
+  //
+  // The observer had climbed into section 0, so the old wait polled a page in a
+  // DIFFERENT SECTION for a row-mate it could never have: a deterministic 60s
+  // timeout that reads exactly like a paint bug. (The previous attempt to fix
+  // this accepted "or any visible direct tile" instead, which passes on a
+  // topology the test never built — the mover is not at that row at all.)
+  // So ask the topology where the mover IS, and judge the seat that is actually
+  // responsible for carrying it.
+  //
+  // TRACK THE MOVER BY ITS PAGE, NOT BY THE ID IT HAD AT SETUP. A peer severed
+  // for 30s can be declared gone and REJOIN with a fresh identity, and then the
+  // setup-time pid names nobody: measured, mover k_3dda94 -> k_4c8dd2, and this
+  // leg failed hunting a pid that no longer exists while the row head was
+  // faithfully composing the mover under its NEW id. Leg 1 above still uses the
+  // OLD pid on purpose — it asks whether the stale entry at the OLD seat stops
+  // being painted, which is exactly the disown guard under test — but "is this
+  // person visible at their new home" is a question about the PAGE, so it must
+  // read the page's current id. A rotation is reported, never silently
+  // absorbed: it changes what leg 1 proved (the old face can vanish because the
+  // identity rotated rather than because the guard fired).
+  const pidNow = (idx) => pages[idx].evaluate(() => (window.__gifosVideo.debugDump().me || {}).peer).catch(() => null);
+  const settle = async () => {
+    const cs = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.meshCoord()).catch(() => null)));
+    const mC = cs[mIdx];
+    if (!mC) return null;
+    const now = await pidNow(mIdx);
+    return { cs, mC, now8: now ? String(now).slice(0, 8) : null,
+      headIdx: cs.findIndex((c) => c && c.pc === mC.pc && c.r === mC.r && c.i === 0),
+      alone: !cs.some((c, k) => k !== mIdx && c && c.pc === mC.pc && c.r === mC.r) };
+  };
+
+  let topo = null, df = [], ship = [], via = 'NEITHER';
   const t2 = Date.now();
-  let seated = false;
-  while (Date.now() - t2 < 60000) {
-    seated = await pages[deepIdx].evaluate((p) => {
-      const c = window.__gifosVideo.meshCoord(); if (!c) return false;
-      const rows = window.__gifosVideo.debugDump().rows || [];
-      return (rows[c.r] || []).some((x) => x && p.indexOf(x) === 0);
-    }, m8).catch(() => false);
-    if (seated) break;
+  while (Date.now() - t2 < 90000) {
+    topo = await settle();
+    if (topo && topo.headIdx >= 0 && topo.headIdx !== mIdx) {
+      // Somebody else heads the mover's row: the row product MUST carry the
+      // moved face. This is the original claim, asserted at the right seat.
+      df = await rowFacesAt(topo.headIdx);
+      if (topo.now8 && df.some((f) => f.pid === topo.now8)) { via = 'row-product'; break; }
+    } else if (topo && topo.alone) {
+      // No other seat shares the mover's row, so no row product anywhere can
+      // hold its face — and that is a lawful, stable shape (5 people at C=2 is
+      // a full section 0 plus one deep seat). The room sees a lone deep seat
+      // through the BOTTOM-UP assembly instead: it composites its own product
+      // and ships it up its up-link, where the parent folds it in as a
+      // sub-block and the section-0 head packs it into the Stadium
+      // (docs/media-plane.md). Measured present on both sides of an A/B of
+      // this build, so it is a real mechanism and not an excuse: the lone seat
+      // carries jobSig ["sub>…"] and its parent claims sub:0 from it.
+      ship = await pages[mIdx].evaluate(() => ((window.__gifosVideo.debugDump().mosaic || {}).jobSig || []).map((x) => x.split('|')[0])).catch(() => []);
+      if (ship.some((k) => k.indexOf('sub>') === 0)) { via = 'up-ship'; break; }
+    }
     await sleep(2000);
   }
-  check('the deep row SEES the mover as its row-mate (mesh precondition)', seated, { waitedMs: Date.now() - t2 });
 
-  // WAIT FOR COMPOSITING TO BE LAWFUL BEFORE ASSERTING IT (2026-08-01).
-  // A head only composites when `beyondRow` holds — some occupant sits outside
-  // its own pc/row. A deep seat that has not yet learned the rest of the tree
-  // sees a room that IS just its row and, BY DESIGN, "renders everyone directly
-  // on Channel R and pays nothing here". Forensics from the failing run, the
-  // deep head itself:
-  //   coord {pc:2,r:0,i:0}  mosaicHead true  occ 2  parts 2
-  //   rows ["k_7b90b9,k_b37432", "-,-"]
-  // — it knew ONLY its own row, so it correctly composited nothing, and
-  // rowFaces was [] with not even its own face in it. The product was right and
-  // this leg was racing occ propagation: when the deep seat happened to have
-  // learned the wider room first, the same code passed.
-  // So wait for the precondition the law actually requires. If it never
-  // arrives that is a REAL failure worth reporting — occ never reached a deep
-  // seat — and it fails with that message instead of a bare empty list.
-  let knewRoom = false;
-  if (seated) {
-    const t2b = Date.now();
-    while (Date.now() - t2b < 30000) {
-      // `beyondRow` reads the SEAT's occ, not the roster — participants() comes
-      // from a different source and blips above the row count transiently while
-      // occ stays at 2, which is how the first version of this wait "passed"
-      // and then asserted against a head that still composited nothing. C=2
-      // here, so a row holds at most 2: occ > 2 means the seat genuinely knows
-      // a cell outside its own row, which is exactly what beyondRowRaw tests.
-      knewRoom = await pages[deepIdx].evaluate(() => {
-        const st = window.__gifosVideo.meshState();
-        return !!st && st.occ > 2;
-      }).catch(() => false);
-      if (knewRoom) break;
-      await sleep(2000);
-    }
-    console.log('   MEASURE deep seat beyondRow-capable (occ>2): ' + knewRoom);
-  }
+  const cstrs = topo ? topo.cs.map(cstr) : null;
+  const rotated = !!(topo && topo.now8 && topo.now8 !== m8);
+  console.log('   MEASURE topology@assert ' + JSON.stringify(cstrs) +
+    '  mover=' + cstr(topo && topo.mC) + '  alone=' + !!(topo && topo.alone) +
+    '  rowHeadIdx=' + (topo ? topo.headIdx : -1));
+  console.log('   MEASURE mover identity setup=' + m8 + ' now=' + (topo && topo.now8) +
+    (rotated ? '  ROTATED (it rejoined during the sever — leg 1 above proved less than it looks)' : '  stable'));
 
-  let df = [], direct = false;
-  if (seated) {
-    const t3 = Date.now();
-    while (Date.now() - t3 < 30000) {
-      df = await rowFacesAt(deepIdx);
-      if (df.some((f) => f.pid === m8)) break;
-      await sleep(2000);
-    }
-  }
-  // FORENSICS (2026-08-01): `rowFaces: []` means the deep head composed NOT EVEN
-  // ITS OWN face, and srcFor(myId) always returns meTile.video — so an empty
-  // list cannot be a face-selection miss, the packer block did not run at all.
-  // The suspect is beyondRow: it is true only if some occupant sits in a
-  // different pc/row, so a deep seat whose occ holds only its own row pays
-  // nothing here BY DESIGN. Print occ/rows/coord so the next reader can tell
-  // "correctly skipped, test expectation wrong" from "occ never learned the
-  // rest of the room".
-  if (!(seated && df.some((f) => f.pid === m8))) {
-    const fx = await pages[deepIdx].evaluate(() => {
+  // The manufacture must still hold at assert time, or the leg below proves
+  // nothing: the teleport put the mover in a DEEP section and it must not have
+  // been compacted back into section 0 before we judged it.
+  check('the mover is still seated deep at assert time (the manufacture held)',
+    !!(topo && topo.mC && topo.mC.pc !== 0), { mover: cstr(topo && topo.mC) });
+
+  if (via === 'NEITHER') {
+    const fx = await pages[mIdx].evaluate(() => {
       const V = window.__gifosVideo, d = V.debugDump() || {};
       return { coord: V.meshCoord(), mesh: V.meshState ? V.meshState() : null,
         rows: (d.rows || []).map((r) => r.map((x) => x || '-').join(',')),
-        mosaicHead: (d.mosaic || {}).head, claims: (d.mosaic || {}).claims,
+        mosaicHead: (d.mosaic || {}).head, rowFaces: (d.mosaic || {}).rowFaces,
+        jobSig: (d.mosaic || {}).jobSig, claimVia: (d.mosaic || {}).claimVia,
         parts: V.participants() };
     }).catch((e) => ({ err: String(e).slice(0, 120) }));
-    console.log('  [deep-head forensics] ' + JSON.stringify(fx));
-  }
-  // ASSERT THE LAW FOR THE SHAPE THIS TOPOLOGY ACTUALLY BUILDS.
-  // A head composites only when `beyondRow` holds — some occupant outside its
-  // own pc/row. Here C=2 and the deep SECTION contains exactly one row, so the
-  // deep head's occ is {itself, mover} forever: beyondRow is legitimately FALSE
-  // and it correctly composites nothing. Measured — occ never exceeds 2, and
-  // rowFaces was [] with NOT EVEN ITS OWN FACE, which srcFor(myId) always
-  // supplies. The product was right; this leg was asserting the wrong mechanism.
-  // What the media plane actually promises is that the mover is SEEN at its new
-  // row — by the row product where compositing is lawful, and by the DIRECT tile
-  // where it is not (row-mates always exchange main video: camPeer = isRowMate).
-  // So accept either, and say which one carried it.
-  if (seated && !df.some((f) => f.pid === m8)) {
-    const t4 = Date.now();
-    while (Date.now() - t4 < 30000) {
-      direct = await pages[deepIdx].evaluate((pref) => {
-        const t = Array.from(document.querySelectorAll('.tile[data-peer]'))
-          .find((x) => String(x.dataset.peer).indexOf(pref) === 0);
-        if (!t || t.style.display === 'none') return false;
-        const v = t.querySelector('video');
-        return !!(v && v.srcObject && v.videoWidth > 0);
-      }, m8).catch(() => false);
-      if (direct) break;
-      await sleep(2000);
+    console.log('  [mover forensics] ' + JSON.stringify(fx));
+    if (topo && topo.headIdx >= 0 && topo.headIdx !== mIdx) {
+      const hx = await pages[topo.headIdx].evaluate(() => {
+        const d = window.__gifosVideo.debugDump() || {};
+        return { coord: (d.me || {}).coord, rowFaces: (d.mosaic || {}).rowFaces,
+          claimVia: (d.mosaic || {}).claimVia, rows: (d.rows || []).map((r) => r.map((x) => x || '-').join(',')) };
+      }).catch((e) => ({ err: String(e).slice(0, 120) }));
+      console.log('  [row-head forensics] ' + JSON.stringify(hx));
     }
   }
-  check('the moved face is SEEN at its NEW row (row product, or direct tile when beyondRow is false)',
-    seated && (df.some((f) => f.pid === m8) || direct),
-    { via: df.some((f) => f.pid === m8) ? 'row-product' : direct ? 'direct-tile' : 'NEITHER', rowFaces: df, beyondRowCapable: knewRoom });
+  check('the moved face is carried at its NEW row (row product, or the up-ship when it seats alone)',
+    via !== 'NEITHER',
+    { via, mover: cstr(topo && topo.mC), moverPid: topo && topo.now8, idRotated: rotated,
+      alone: !!(topo && topo.alone), rowFaces: df, ship, coords: cstrs });
 
   const fs = require('fs');
   const SHOTDIR = process.env.SHOTDIR || '/tmp/e2e-stadium-dup';
