@@ -253,7 +253,6 @@ export class Session {
       }
     }
     const s = JSON.stringify(msg);
-    if (h) this.send(h, s);
     for (const ws of this.members()) this.send(ws, s);
   }
 
@@ -737,7 +736,6 @@ export class Session {
     // this one, this stale close must not announce a departure.
     if (this.members().some((s) => s !== ws && this.att(s).peer === a.peer)) return;
     if (a.role === 'mesh') { this.broadcast({ t: 'peer-leave', peer: a.peer }); this.tallyVotes(); }
-    else { const h = this.hostSock(); if (h) this.send(h, { t: 'peer-leave', peer: a.peer }); }
     this.roster();
   }
 }

@@ -28,6 +28,14 @@ set -u
 cd "$(dirname "$0")/../.."
 REPO=$(pwd)
 
+# Portable port probe: ss where present, else curl (a container without ss must
+# not read every port as closed — that is how the behavior tier refused on a
+# box where wrangler was LISTENING with a 200).
+port_up() {
+  if command -v ss >/dev/null 2>&1; then ss -lnt 2>/dev/null | grep -q ":$1 "
+  else curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$1/" 2>/dev/null; fi
+}
+
 BEHAVIOR=core           # core | full | skip
 ONLY=""
 LIST=0
@@ -134,7 +142,7 @@ start_fakes() {
 if [ "$LIST" != 1 ]; then
   busy=""
   for p in 8099 8790 8791 8792 8793; do
-    ss -lnt 2>/dev/null | grep -q ":$p " && busy="$busy $p"
+    port_up "$p" && busy="$busy $p"
   done
   if [ -n "$busy" ]; then
     echo "!! ports already in use:$busy — another sweep, a dev stack, or leftover fakes." >&2
@@ -327,7 +335,7 @@ if want behavior; then
     # self-test died with "stack unreachable" before running a single
     # assertion. That is a gate bug, not a product red, and it reported as 8
     # identical FAILs which reads exactly like a real regression.
-    [ "$(ss -lnt 2>/dev/null | grep -c -E ':(8099|8790) ')" -ge 2 ] || start_site_relay
+    { port_up 8099 && port_up 8790; } || start_site_relay
     # relay-dev.sh (the REAL Worker under wrangler) drives the deploy scenarios;
     # without it 04b/16b SKIP loudly rather than pretending to pass. And a SKIP
     # is NOT free here: behavior.sh exits non-zero when anything skipped, so the
@@ -336,7 +344,7 @@ if want behavior; then
     # with a log underneath reading "21 passed, 0 failed, 1 skipped", which
     # reads like a product regression and is nothing of the kind. So START it
     # rather than narrate its absence. Booting it makes 04b PASS in ~82s.
-    if ! ss -lnt 2>/dev/null | grep -q ':8794 '; then
+    if ! port_up 8794; then
       echo "  relay-dev not on :8794 — starting it (a SKIP here scores the tier RED)"
       # setsid: `npx wrangler` is a THREE-deep tree (npx shim -> node cli.js ->
       # workerd) and the middle node re-parents to init, so neither the pid nor
@@ -345,8 +353,8 @@ if want behavior; then
       # whole tree one process GROUP we can signal atomically.
       setsid bash test/servers/relay-dev.sh >"$LOGDIR/relay-dev.log" 2>&1 &
       RELAYDEV_PID=$!
-      for _i in $(seq 1 40); do ss -lnt 2>/dev/null | grep -q ':8794 ' && break; sleep 2; done
-      if ss -lnt 2>/dev/null | grep -q ':8794 '; then
+      for _i in $(seq 1 40); do port_up 8794 && break; sleep 2; done
+      if port_up 8794; then
         echo "  relay-dev up on :8794"
       else
         # Do not spend two hours to report an avoidable SKIP as a product red.

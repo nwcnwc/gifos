@@ -570,7 +570,7 @@ async function openApp(page, ctx, folder, label) {
       await touchPage.touchscreen.tap(tttBox.x + tttBox.width / 2, tttBox.y + tttBox.height / 2);
     })(),
   ]);
-  check('double-TAP launches an app (touch devices)', /run\.html/.test(touchApp.url()));
+  check('double-TAP launches an app (touch devices)', /meet\.html#id=/.test(touchApp.url()));
   await touchApp.close();
   await touchCtx.close();
   await page.locator('.icon', { hasText: 'Studio' }).click({ button: 'right' });
