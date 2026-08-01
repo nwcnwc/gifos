@@ -63,9 +63,9 @@
       // no &k= (the app branch below still needs it: an owned app carries one).
       location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '') + extra);
     } else if (verifier && lsec) {
-      location.replace('/run.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
+      location.replace('/meet.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
     } else if (!verifier) {
-      location.replace('/run.html#j=' + code + extra);
+      location.replace('/meet.html#j=' + code + extra);
     } else {
       location.replace('/'); // an owned link without its secret opens nothing
       return;

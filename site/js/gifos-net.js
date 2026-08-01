@@ -1,7 +1,7 @@
 /*
  * gifos-net.js — the shared transport fabric for GifOS multiplayer.
  *
- * BOTH session shapes ride this one module: app sessions (run.html /
+ * Every room shape rides this one module: app rooms and meetings (meet.html /
  * runtime.js — a host browser serving clients) and meetings (meet.html — a
  * host-less mesh). It owns everything that is about MOVING BYTES, so the two
  * never fork on transport behavior again:
@@ -284,7 +284,7 @@
 
   // ---- derive, don't send ----------------------------------------------------
   // DS is the derivation version tag. Bumping it is a FLAG DAY on purpose.
-  const DS = 'gifos-net-1';
+  const DS = 'gifos-net-2'; // ONE-RUNTIME FLAG DAY 2026-08-01: one derivation, app rooms on the mesh, star deleted
   const dsHash = (label, data) => sha256hex(DS + '|' + label + '|' + data);
   async function aesKey(label, secret) {
     if (!(root.crypto && root.crypto.subtle)) return null;
@@ -296,10 +296,9 @@
   // session id of an OWNED link is "<room>.<verifier>" (the relay's host gate
   // reads the verifier off it) and carries no secret, so it is NOT derived
   // here — only the token and key are.
-  function deriveJoin(lsec) {
-    return Promise.all([dsHash('app-sid', lsec), dsHash('app-tok', lsec), aesKey('app-e2e', lsec)])
-      .then(([sid, tok, key]) => ({ sid: sid.slice(0, 20), tok: tok.slice(0, 24), key }));
-  }
+  // (deriveJoin DELETED — one-runtime step 6: ONE derivation for every room.
+  // App rooms derive via deriveMeet with an 'app~' room string; lane ids are
+  // plain strings — the room key seals transport, the owner key signs state.)
   // Meeting: the room code (+ the admin verifier, which is part of the room's
   // identity) derives the sid the relay routes on, the token occupants must
   // match, and the room key. The verifier is re-appended after the derived
@@ -546,7 +545,7 @@
     steadySocket,
     FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex,
-    deriveJoin, deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof, mintGenesisKey,
+    deriveMeet, deriveMeetKey, deriveMeetSess, meetPwProof, mintGenesisKey,
     edKeysFromSeedHex, edSign, edVerify, edProven,
     seal, open, isSealed, makeChain,
     fwdWrap, isFwd,

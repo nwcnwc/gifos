@@ -25,33 +25,34 @@
  * the post-eviction race can neither seize nor unlock it. Per-socket rate
  * meters are in-memory and simply start fresh after a wake.
  *
- * BANDWIDTH GUARD — the relay is for CONTROL traffic only (DB ops, WebRTC
- * signaling). It hard-caps message size and per-connection throughput so
- * nobody can tunnel audio/video through it. High-bandwidth apps (video/voice)
- * MUST go peer-to-peer over WebRTC; if P2P can't be established, they get
- * nothing here. This is enforced on the relay, not trusted to the app.
+ * THE RELAY IS A GREETER + DOOR. NOTHING ELSE. (one-runtime flag day,
+ * docs/one-runtime.md — the app-session star, its host/client roles, and the
+ * gossip fan-out are DELETED. Every room — meeting or app — is a mesh room;
+ * room-wide traffic rides the mesh itself over WebRTC, owner-/admin-signed.)
+ *
+ *   GREETER (R2/R3, docs/healing-laws.md): knock → the sealed greeter list;
+ *     founding by arrival order; TTL'd sealed blobs; the relay reads none of it.
+ *   DOOR: targeted { t:'peer' } first-contact signaling (sealed), plus the
+ *     Ed25519-SIGNED door verbs — setpw / ban / unban / votekick / banlist —
+ *     verified here exactly as any peer would (§SIG); the relay stamps nothing.
+ *
+ * BANDWIDTH GUARD — hard caps on message size and per-connection throughput so
+ * nobody can tunnel audio/video through the door. Media is P2P or nothing.
  *
  * ABUSE GUARDS — per-session socket cap, per-IP socket cap, per-IP join-rate
  * cap inside each session, and a best-effort per-IP upgrade limiter in the
  * outer Worker (per-isolate, catches hot loops at the edge PoP).
  *
- * Routing protocol (all messages are JSON text frames):
- *   client → relay : { t:'rpc', ... }                → host as { t:'from', from:<peer>, msg:{...} }
- *   host   → relay : { t:'to',   to:<peer>, msg:{} }  → that one client as msg
- *   host   → relay : { t:'bcast', msg:{} }            → every client as msg
- *   any    → relay : { t:'peer', to:<peer>, msg:{} }  → routed peer↔peer (mesh signaling)
- *   mesh   → relay : { t:'knock', gk, gblob }         → { t:'greeters', list, founded, admitted } (R2/R3)
- *   relay  → host  : { t:'peer-join'|'peer-leave', peer }
- *   relay  → all   : { t:'roster', peers:[...], names:{...} }
- *   relay  → client: { t:'joined', peer } / { t:'host-gone' } / { t:'error', error }
+ * Protocol (all JSON text frames):
+ *   mesh → relay : { t:'peer', to:<peer>, msg:{} }  → routed peer↔peer (sealed signaling)
+ *   mesh → relay : { t:'knock', gk, gblob }         → { t:'greeters', list, founded, admitted }
+ *   mesh → relay : signed door verbs (setpw/ban/unban/votekick/banlist)
+ *   relay → all  : { t:'roster', peers:[...] } (opaque ids only)
+ *   relay → one  : { t:'joined' } / { t:'whoami', ip } / { t:'nosock', to } / { t:'error' }
  *
- * Roles: 'host'/'client' form an app session (host's browser is the server);
- * 'mesh' is a MEETING socket — but a meeting session is NOT the room anymore:
- * it is the stadium's FRONT DOOR (docs/healing-laws.md R2/R3), holding only
- * the greeter pool (Section-1 seats re-knocking on E3) plus knock churn.
- * Room-wide traffic rides the mesh itself (mesh.js gossip over WebRTC);
- * newcomers drop their socket after seating deep. With hibernation, an idle
- * door costs nothing to keep alive.
+ * A room session is the stadium's FRONT DOOR: it holds only the greeter pool
+ * (Section-1 seats re-knocking on E3) plus knock churn; seated members drop
+ * their sockets. With hibernation, an idle door costs nothing to keep alive.
  */
 
 async function sha256hex(s) {
@@ -211,8 +212,7 @@ export class Session {
   att(ws) { try { return ws.deserializeAttachment() || {}; } catch (e) { return {}; } }
   open(ws) { return ws.readyState === 1; }
   all() { return this.state.getWebSockets().filter((ws) => this.open(ws)); }
-  hostSock() { return this.state.getWebSockets('role:host').filter((ws) => this.open(ws))[0] || null; }
-  members() { return this.all().filter((ws) => { const r = this.att(ws).role; return r === 'client' || r === 'mesh'; }); }
+  members() { return this.all().filter((ws) => this.att(ws).role === 'mesh'); }
   peerSock(peer) { return this.members().find((ws) => this.att(ws).peer === peer) || null; }
   send(ws, obj) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (e) {} }
 
@@ -236,9 +236,7 @@ export class Session {
       if (ban === null && a.ban) ban = a.ban;
       if (!lockedPw && a.pw) lockedPw = a.pw;
     }
-    const h = this.hostSock();
     const msg = { t: 'roster', peers };
-    if (h) msg.epoch = this.att(h).epoch || 0; // clients claim epoch+1 on takeover
     if (mesh) {
       msg.devs = devs; // room-salted device tags, for client-side ban/vote UI
       // No admins[] here anymore: adminship is a SIGNATURE peers verify
@@ -432,40 +430,13 @@ export class Session {
     this.joinLog.set(ip, log);
     if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
 
-    if (role === 'host') {
-      // OWNED-app gate: if the sid carries a verifier, only the secret's holder
-      // may host. Checked here, before the epoch race, so no guest can ever seize
-      // the slot regardless of epoch. (A dotless sid skips this — self-healing.)
-      const verifier = verifierOf(sid);
-      if (verifier) {
-        const adm = url.searchParams.get('adm') || '';
-        const proven = adm && (await sha256hex(adm)).slice(0, verifier.length) === verifier;
-        if (!proven) return reject('this app link is owned — only its creator can host it', 4010);
-      }
-      // The host slot is guarded by an EPOCH so self-healing takeover can't
-      // split-brain: every takeover claims epoch+1, and a returning host with
-      // a stale epoch is bounced (it rejoins as a guest instead of clobbering
-      // the newer state). Same-epoch claims from a DIFFERENT machine are
-      // rejected too (first claim wins the race); the same machine (hostid)
-      // reconnecting just replaces its own dead socket. The epoch lives only
-      // in the host socket's attachment — an empty session accepts any claim,
-      // exactly like mesh tokens/passwords. Nothing is stored.
-      const epoch = Math.max(0, parseInt(url.searchParams.get('epoch') || '0', 10) || 0);
-      const hostid = (url.searchParams.get('hostid') || '').slice(0, 64);
-      const prev = this.hostSock();
-      if (prev) {
-        const cur = this.att(prev);
-        const curEpoch = cur.epoch || 0;
-        if (epoch < curEpoch) return reject('host-stale', 4008);
-        if (epoch === curEpoch && hostid && cur.hostid && hostid !== cur.hostid) return reject('host-taken', 4009);
-      }
-      for (const ws of this.state.getWebSockets('role:host')) { try { ws.close(4001, 'replaced by a new host'); } catch (e) {} }
-      this.state.acceptWebSocket(server, ['role:host', 'peer:host']);
-      server.serializeAttachment({ role: 'host', peer: 'host', iph, tok: token, epoch, hostid });
-      this.send(server, { t: 'host-ready', epoch });
-      for (const ws of this.members()) this.send(server, { t: 'peer-join', peer: this.att(ws).peer });
-      this.roster();
-    } else if (role === 'mesh') {
+    // ONE RUNTIME (docs/one-runtime.md step 6): the app-session STAR is DELETED.
+    // The relay is a GREETER + DOOR for mesh rooms and nothing else — app state
+    // rides each room's own mesh, owner-signed. role=host / role=client no
+    // longer exist; any straggler is told so and cut.
+    if (role !== 'mesh') return reject('the relay is a greeter — app sessions ride the room mesh now', 4010);
+    {
+
       // Host-less ROOM: every participant is equal and the room lives at its
       // URL forever. Its token and password are whatever the CURRENT
       // occupants carry in their attachments — the first person to arrive at
@@ -565,17 +536,6 @@ export class Session {
       // { t:'knock', gk, gblob } once it has taken a Section-1 seat (E3).
       await this.knock(server, gk, null);
       this.roster();
-    } else {
-      const h = this.hostSock();
-      if (!h) return reject('no host for this session', 1011);
-      const tok = this.att(h).tok || '';
-      if (tok && token !== tok) return reject('bad join token', 1008);
-      for (const ws of this.members()) if (this.att(ws).peer === peer) { try { ws.close(4000, 'replaced'); } catch (e) {} }
-      this.state.acceptWebSocket(server, ['role:client', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'client', peer, iph });
-      this.send(server, { t: 'joined', peer });
-      this.send(h, { t: 'peer-join', peer });
-      this.roster();
     }
 
     return new Response(null, { status: 101, webSocket: client });
@@ -600,11 +560,7 @@ export class Session {
     }
     let m; try { m = JSON.parse(data); } catch (e) { return; }
     const a = this.att(ws);
-    if (a.role === 'host') {
-      if (m.t === 'to') { const c = this.peerSock(m.to); if (c) this.send(c, m.msg); }
-      else if (m.t === 'bcast') this.broadcast(m.msg);
-      else if (m.t === 'peer') this.routePeer('host', m);
-    } else if (a.role === 'mesh') {
+    if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
       else if (m.t === 'knock') this.knock(ws, m.gk, m.gblob); // (re)register a greeter / take-over an empty room (R2/R3/R6)
       // ({ t:'gossip' } fan-out DELETED 2026-08-01 — dead since mesh gossip
@@ -664,9 +620,6 @@ export class Session {
         }
         this.roster();
       }
-    } else if (a.role === 'client') {
-      if (m.t === 'peer') this.routePeer(a.peer, m);
-      else { const h = this.hostSock(); if (h) this.send(h, { t: 'from', from: a.peer, msg: m }); }
     }
   }
 
@@ -674,7 +627,7 @@ export class Session {
   // sender — and, in admin rooms, with a relay-verified admin stamp receivers
   // can trust (clients themselves can't prove adminship to each other).
   routePeer(from, m) {
-    const dest = m.to === 'host' ? this.hostSock() : this.peerSock(m.to);
+    const dest = this.peerSock(m.to);
     if (dest) { this.send(dest, { t: 'peer', from, msg: m.msg }); return; } // no stamp — authority is a signature (§9)
     // Explicit no-socket bounce (docs/meet-security.md §FWD): the target holds
     // no socket here (a seated deep seat — R2 greeting scope), so tell the
@@ -682,7 +635,7 @@ export class Session {
     // sponsor-forward immediately instead of retrying blind. Leaks nothing the
     // roster doesn't already broadcast (which peers hold sockets). Mirrors
     // test/servers/relay-local.js routePeer.
-    const src = from === 'host' ? this.hostSock() : this.peerSock(from);
+    const src = this.peerSock(from);
     if (src) this.send(src, { t: 'nosock', to: m.to });
   }
 

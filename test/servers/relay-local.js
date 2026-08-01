@@ -230,7 +230,7 @@ server.on('upgrade', (req, socket, head) => {
   // relay is the only place that can tell those apart, so it says so out loud.
   const clog = (...a) => { if (process.env.RELAY_DEBUG) console.log('[conn]', new Date().toISOString().slice(11, 23), ...a); };
   const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
-  const allConns = () => (sess.host ? 1 : 0) + sess.clients.size;
+  const allConns = () => sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
   // never STORED on the connection. Mirrors relay/src/relay.js: a salted hash
@@ -239,7 +239,6 @@ server.on('upgrade', (req, socket, head) => {
   // key, which this relay never holds.
   const iph = crypto.createHash('sha256').update('gifos-relay-ip-tag|' + ip).digest('hex').slice(0, 24);
   let mine = 0;
-  if (sess.host && sess.host.iph === iph) mine++;
   for (const c of sess.clients.values()) if (c.iph === iph) mine++;
   if (mine >= 8 && !trusted) { rejectConn('too many connections from your network'); return; }
   sess.joins = sess.joins || new Map();
@@ -282,7 +281,6 @@ server.on('upgrade', (req, socket, head) => {
   };
   const roster = () => {
     const msg = { t: 'roster', peers: Array.from(sess.clients.keys()) };
-    if (sess.host) msg.epoch = sess.hostEpoch || 0; // clients claim epoch+1 on takeover
     if (sess.mesh) {
       // Room-salted device tags only (for client-side ban/vote UI). NO ips —
       // network addresses travel sealed peer-to-peer; the relay never authors
@@ -301,7 +299,6 @@ server.on('upgrade', (req, socket, head) => {
       }
     }
     const s = JSON.stringify(msg);
-    if (sess.host) sess.host.send(s);
     for (const c of sess.clients.values()) c.send(s);
   };
   const BAN_CAP = 20, BAN_NAME = 12;
@@ -347,7 +344,7 @@ server.on('upgrade', (req, socket, head) => {
   const routePeer = (from, m) => {
     // no stamp — authority is a signature (docs/meet-security.md §SIG)
     const wrapped = JSON.stringify({ t: 'peer', from, msg: m.msg });
-    const dest = m.to === 'host' ? sess.host : sess.clients.get(m.to);
+    const dest = sess.clients.get(m.to);
     if (process.env.RELAY_DEBUG) console.log('[route]', new Date().toISOString().slice(11, 23), 'peer', String(from).slice(0, 10), '->', String(m.to).slice(0, 10), dest ? 'DELIVERED' : 'NOSOCK');
     if (dest) { dest.send(wrapped); return; }
     // Explicit no-socket bounce (docs/meet-security.md §FWD): the target holds
@@ -356,7 +353,7 @@ server.on('upgrade', (req, socket, head) => {
     // sponsor-forward immediately instead of retrying blind. Leaks nothing the
     // roster doesn't already broadcast (which peers hold sockets). Mirrors
     // relay/src/relay.js routePeer.
-    const src = from === 'host' ? sess.host : sess.clients.get(from);
+    const src = sess.clients.get(from);
     if (src) src.send(JSON.stringify({ t: 'nosock', to: m.to }));
   };
   // ---- greeter registry (R2/R3) — mirrors relay/src/relay.js ----
@@ -400,40 +397,11 @@ server.on('upgrade', (req, socket, head) => {
     c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
   };
 
-  if (role === 'host') {
-    // Owned-app gate (mirrors the Worker): a sid "<room>.<verifier>" gates the
-    // host slot by a secret whose SHA-256 begins with the verifier — only the
-    // creator (who holds the secret) may host; guests join but can't take over.
-    const verifier = verifierOf(parts[1]);
-    if (verifier) {
-      const adm = url.searchParams.get('adm') || '';
-      const proven = adm && crypto.createHash('sha256').update(adm).digest('hex').slice(0, verifier.length) === verifier;
-      if (!proven) { rejectConn('this app link is owned — only its creator can host it'); return; }
-    }
-    // Epoch-guarded host slot (mirrors the Worker): a takeover claims epoch+1;
-    // a stale returning host is bounced to rejoin as a guest; a same-epoch
-    // claim from a different machine loses the race. Same hostid = reconnect.
-    const epoch = Math.max(0, parseInt(url.searchParams.get('epoch') || '0', 10) || 0);
-    const hostid = (url.searchParams.get('hostid') || '').slice(0, 64);
-    if (sess.host) {
-      const curEpoch = sess.hostEpoch || 0;
-      if (epoch < curEpoch) { rejectConn('host-stale'); return; }
-      if (epoch === curEpoch && hostid && sess.hostHostid && hostid !== sess.hostHostid) { rejectConn('host-taken'); return; }
-      try { sess.host.close(4001, 'replaced by a new host'); } catch (e) {}
-    }
-    sess.host = conn; sess.token = token; sess.hostEpoch = epoch; sess.hostHostid = hostid;
-    conn.onmessage = (data) => {
-      if (!allow(data)) return;
-      let m; try { m = JSON.parse(data); } catch (e) { return; }
-      if (m.t === 'to') { const c = sess.clients.get(m.to); if (c) c.send(JSON.stringify(m.msg)); }
-      else if (m.t === 'bcast') { for (const c of sess.clients.values()) c.send(JSON.stringify(m.msg)); }
-      else if (m.t === 'peer') { routePeer('host', m); }
-    };
-    conn.onclose = () => { if (sess.host === conn) { sess.host = null; for (const c of sess.clients.values()) c.send(JSON.stringify({ t: 'host-gone' })); } };
-    conn.send(JSON.stringify({ t: 'host-ready', epoch }));
-    for (const p of sess.clients.keys()) conn.send(JSON.stringify({ t: 'peer-join', peer: p }));
-    roster();
-  } else if (role === 'mesh') {
+  // ONE RUNTIME step 6 (mirrors relay/src/relay.js): the app-session star is
+  // DELETED — greeter + door only. role=host/client no longer exist.
+  if (role !== 'mesh') { rejectConn('the relay is a greeter — app sessions ride the room mesh now'); return; }
+  {
+
     // Host-less ROOM (mirrors the Worker): equal participants, lives forever.
     // Token + password + ban list are occupancy state; the admin verifier is
     // part of the ROOM IDENTITY (the &av= every occupant's URL carries — a
@@ -531,21 +499,6 @@ server.on('upgrade', (req, socket, head) => {
     conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
     knock(conn, gk, null); // KNOCK at connection (R2/R3): found if empty, else hand back the sealed greeter list
-    roster();
-  } else {
-    if (!sess.host) { conn.send(JSON.stringify({ t: 'error', error: 'no host' })); conn.close(); return; }
-    if (sess.token && token !== sess.token) { conn.send(JSON.stringify({ t: 'error', error: 'bad token' })); conn.close(); return; }
-    sess.clients.set(peer, conn);
-    conn.onmessage = (data) => {
-      if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] msg len=' + Buffer.byteLength(data) + ' allow=' + (meter.tokens | 0));
-      if (!allow(data)) { if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] DROPPED (budget)'); return; }
-      let m; try { m = JSON.parse(data); } catch (e) { if (process.env.RELAY_DEBUG) console.log('[client ' + peer + '] UNPARSEABLE'); return; }
-      if (m.t === 'peer') { routePeer(peer, m); }
-      else if (sess.host) sess.host.send(JSON.stringify({ t: 'from', from: peer, msg: m }));
-    };
-    conn.onclose = () => { if (sess.clients.get(peer) !== conn) return; sess.clients.delete(peer); if (sess.host) sess.host.send(JSON.stringify({ t: 'peer-leave', peer })); roster(); };
-    conn.send(JSON.stringify({ t: 'joined', peer }));
-    sess.host.send(JSON.stringify({ t: 'peer-join', peer }));
     roster();
   }
 });

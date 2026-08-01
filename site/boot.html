@@ -53,7 +53,7 @@ window.GIFOS_VERSION = 'edge';
     if (pm) {
       here = /^\/(?:meet|call)\//.test(pathname)
         ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
-        : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
+        : '/meet.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {
       here = pathname + hash;                                 // carry the page + invite hash across
     }

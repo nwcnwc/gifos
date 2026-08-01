@@ -48,7 +48,7 @@ var CACHE = 'gifos-shell-' + SHELL_VERSION;
 // computer extras (archived builds under /versions/) are runtime-cached on first
 // visit, so a computer you have actually opened keeps working offline too.
 var CORE = [
-  '/', '/index.html', '/boot.html', '/run.html', '/meet.html', '/sign.html', '/about.html', '/404.html',
+  '/', '/index.html', '/boot.html', '/meet.html', '/sign.html', '/about.html', '/404.html',
   '/css/desktop.css',
   '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js',

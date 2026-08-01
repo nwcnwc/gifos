@@ -109,17 +109,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const app = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
     return app ? app.id : null;
   });
-  await dRun.goto(BASE + '/run.html#id=' + dAppId);
-  await dRun.waitForSelector('iframe', { timeout: 10000 });
-  check('an app tab shows the Meeting toggle', await dRun.locator('#tomeet').isVisible());
-  // Dismiss the network-permission acknowledgement if it auto-popped over the tab.
-  await dRun.waitForTimeout(500);
-  const ack = dRun.locator('.perm-modal .done');
-  if (await ack.count()) await ack.first().click().catch(() => {});
-  await dRun.locator('#tomeet').click();
-  await dRun.waitForURL(/meet\.html#app=/, { timeout: 10000 });
+  // ONE RUNTIME: run.html's Meeting toggle died with run.html — #app= is now a
+  // direct meeting entry: boot a meeting and auto-host this desktop app in it.
+  await dRun.goto(BASE + '/meet.html#app=' + dAppId);
   await dRun.waitForSelector('#appmount iframe', { timeout: 40000 });
-  check('the toggle lands on the meeting page with the app already running', await dRun.evaluate(() => window.__gifosVideo.appActive()));
+  check('the #app= entry boots a meeting with the app already running', await dRun.evaluate(() => window.__gifosVideo.appActive()));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

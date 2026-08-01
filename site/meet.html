@@ -909,6 +909,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
+  <script>
+    // Bind to the right computer BEFORE the store loads: apps opened from a
+    // booted computer image (boot.html) carry their namespace in the URL so
+    // their files and saved state resolve inside that image, not the host.
+    // (Migrated from run.html — one-runtime step 6.)
+    (function () {
+      var db = new URLSearchParams(location.hash.slice(1)).get('db');
+      if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+    })();
+  </script>
   <script src="js/gifos-gif.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
@@ -9011,7 +9021,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (appMode === 'client' && appKey === sidNow) { appClientStop = c.stop; appClientCtl = c; }
             else { try { c.stop(); } catch (e) {} }
           }).catch(() => {});
-        } else GifOS.runtime.bootClient(appMountEl, { s: app.s, k: app.k, relay: app.relay }, null, {});
+        }
+        // (the relay-star bootClient fallback died with run.html — one-runtime step 6;
+        // every ad is mesh:true now, and non-mesh ads no longer exist)
       }
       catch (e) { clearAppView(); }
     }
