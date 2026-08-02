@@ -41,17 +41,20 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v7';
+var SHELL_VERSION = 'v8';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
 // computer extras (archived builds under /versions/) are runtime-cached on first
 // visit, so a computer you have actually opened keeps working offline too.
+// The store PAGE is shell (it opens offline and says so); the CATALOG and the
+// App GIFs are not — /apps/index.json, the covers and an 8 MB app are content
+// that must never be dragged into a precache on someone's phone.
 var CORE = [
-  '/', '/index.html', '/boot.html', '/run.html', '/meet.html', '/sign.html', '/about.html', '/404.html',
+  '/', '/index.html', '/boot.html', '/run.html', '/meet.html', '/sign.html', '/about.html', '/store.html', '/404.html',
   '/css/desktop.css',
   '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
-  '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js',
+  '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js', '/js/store.js',
   '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js', '/js/build.js', '/js/build-badge.js',
   '/themes/theme.js', '/themes/icons.js', '/themes/eggs.js',
   '/gifos.key', '/version.json', '/changelog.json', '/og.png', '/manifest.webmanifest', '/icon.svg',
@@ -230,6 +233,15 @@ self.addEventListener('fetch', function (e) {
     })());
     return;
   }
+
+  // An App Store download is a one-shot transfer, not shell. Chess Grandmaster
+  // is 8 MB; the catch-all below would put every installed app permanently into
+  // the shell cache, on a phone, duplicating bytes that are already saved in
+  // IndexedDB by the time the store is done with them. Straight to the network,
+  // cached nowhere. (The catalog JSON and the covers are small and DO fall
+  // through to the normal revalidate path — that is what makes the store's
+  // browse view fast on a second visit.)
+  if (/^\/apps\/[a-z0-9-]+\/[^/]+\.gif$/i.test(url.pathname)) return;
 
   // Everything else is the EDGE (site-root) shell. A visitor on the edge channel
   // is served from the root (release users are redirected to /versions/), and edge

@@ -654,6 +654,30 @@
     return { defs, art, shadowRx: 40 };
   };
 
+  // App Store — a glossy shopping bag with an accent body, a pale handle, and a
+  // download chevron on the front that pulses down the bag frame by frame: the
+  // whole promise of the store is "this becomes a file on your Home Screen".
+  ART.store = (a, f) => {
+    const base = toHex(candy(a));
+    const g1 = grad(), sh = grad(), hg = grad();
+    const defs = bodyGrad(g1, base) + sheenGrad(sh)
+      + lg(hg, [[0, '#ffffff'], [1, '#cdc6e4']]);
+    const dip = [0, 1.2, 2.2, 2.6, 1.8, 0.6][f];   // the chevron's little fall
+    const art =
+      // handle, behind the bag
+      "<path d='M50 44 v-6 a14 14 0 0 1 28 0 v6' fill='none' stroke='url(#" + hg + ")' stroke-width='6' stroke-linecap='round'/>"
+      // bag body, slightly tapered
+      + "<path d='M34 42 h60 l5 54 a10 10 0 0 1 -10 11 H39 a10 10 0 0 1 -10 -11 z' fill='url(#" + g1 + ")'/>"
+      + "<path d='M34 42 h60 l1.6 18 H32.4 z' fill='url(#" + sh + ")'/>"
+      + spec(46, 54, 7, 3.5, 0.4)
+      // download chevron on the front
+      + "<g opacity='.95' transform='translate(0," + dip + ")'>"
+      + "<path d='M64 62 v22' stroke='#fff' stroke-width='6' stroke-linecap='round'/>"
+      + "<path d='M53 74 l11 11 l11 -11' fill='none' stroke='#fff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></g>"
+      + sparkle(101, 40, 0.95, f);
+    return { defs, art, shadowRx: 38 };
+  };
+
   // ---- letter fallback: a glossy candy tile with the initial ----------------
   function fallbackArt(letter, a, f) {
     const base = toHex(candy(a));

@@ -21,6 +21,15 @@
   const TRASH_ID = 'sys_trash';
   const REPO_URL = 'https://github.com/nwcnwc/gifos';
 
+  // Launchers whose GIF opens a trusted GifOS page instead of running in the
+  // sandbox (runtime.js SYSTEM_PAGES). They wear a SYSTEM badge, and the value
+  // here is the tooltip explaining what extra power that page holds.
+  const SYSTEM_LAUNCHERS = {
+    meet: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
+    video: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
+    appstore: 'System app — opens the trusted GifOS store page, which can install an app onto this Home Screen. Regular apps run sandboxed and can never write to it.',
+  };
+
   let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
   let edgeBuild = BUILD;            // version.json.edgeBuild — the LATEST edge build available
   let releaseBuilds = {};           // version.json.builds — release → edge build it was cut from
@@ -436,7 +445,7 @@
     // Folded into the icon key so a tile rebuilds the moment its app gains data.
     const fresh = await Promise.all(visible.map((it, i) => {
       const f = files[i];
-      if (!f || !f.isApp || f.appId === 'meet' || f.appId === 'video') return false;
+      if (!f || !f.isApp || SYSTEM_LAUNCHERS[f.appId]) return false;
       return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
     }));
     // Identity pill (short name + version) for SIGNED app tiles only — decoding
@@ -580,13 +589,15 @@
           nb.title = 'Fresh — you haven’t saved anything in this app yet.';
           thumb.appendChild(nb);
         }
-        if (file.appId === 'meet' || file.appId === 'video') {
-          // Honest signage: this launcher opens a SYSTEM page that runs with
-          // camera/mic/WebRTC — capabilities sandboxed apps never get.
+        if (SYSTEM_LAUNCHERS[file.appId]) {
+          // Honest signage: this launcher opens a trusted GifOS PAGE, with
+          // powers the sandbox deliberately withholds from ordinary apps —
+          // camera/mic/WebRTC for a meeting, writing to this Home Screen for
+          // the store. The tooltip says which, per launcher.
           const sys = document.createElement('span');
           sys.className = 'sysbadge';
           sys.textContent = 'SYSTEM';
-          sys.title = 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.';
+          sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
         } else if (meta && (meta.shortName || meta.version)) {
           // Identity pill (top-center, like SYSTEM): the signed app's own short
@@ -2490,6 +2501,42 @@
     showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
   }
 
+  // #place=<fileId> — finish an App Store install. store.js downloaded and
+  // verified the GIF and wrote the FILE; the icon's cell is not its business,
+  // because saveItem is the only thing that decides where an arrival lands. So
+  // the store hands the fileId back here and the icon arrives on the Home
+  // Screen the same way every other icon does.
+  //
+  // In the HASH, not the query: the channel loader carries `pathname + hash`
+  // across a version redirect and drops the search, so a pinned visitor's
+  // install would otherwise reach the desktop with the icon silently missing.
+  async function handlePlaceParam() {
+    let fileId = '', from = '';
+    try {
+      const q = new URLSearchParams(location.hash.slice(1));
+      fileId = q.get('place') || ''; from = q.get('from') || '';
+    } catch (e) {}
+    if (!fileId) return;
+    // Strip it first: a refresh must never re-place the icon.
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    const f = await store.getFile(fileId).catch(() => null);
+    if (!f) { showModal('Nothing to install', 'That install didn’t finish — the app’s file isn’t on this computer. Try installing it again.'); return; }
+    // Already on the desktop (a double-back, a re-shared link): show it, don't
+    // add a second icon for the same file.
+    if (items.some((i) => i.fileId === fileId)) { render(); return; }
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: f.name,
+      parent: null, iconSize: 64 });
+    await load();
+    render();
+    const name = (f.name || 'The app').replace(/\.gif$/i, ''); // showConfirm escapes the title; labels are textContent
+    showConfirm(name + ' is installed',
+      'It’s on your Home Screen now — a GIF file you own. Copy it anywhere; it runs anywhere.',
+      [
+        { label: 'Open ' + name, fn: () => { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); } },
+        from === 'store' ? { label: 'Back to the Store', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } } : null,
+      ].filter(Boolean));
+  }
+
   function showAddDialog() {
     closeContext();
     const bg = document.createElement('div'); bg.className = 'modal-bg';
@@ -2650,7 +2697,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

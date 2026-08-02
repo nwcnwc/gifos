@@ -1530,6 +1530,19 @@ app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this i
 opens the built-in meeting page when opened in GifOS.</p>
 <p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a meeting.</p></div>`;
 
+  // Same idea for the App Store: the icon is a real GIF, but installing an app
+  // means writing to this computer's Home Screen, which the app sandbox cannot
+  // and must not do. The runtime routes it to the trusted store page instead.
+  const STORE_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
+  body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+  .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
+  h2{color:#7b5cff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#7b5cff}
+</style><div class="card"><h2>App Store</h2>
+<p>This is a GifOS <b>system app</b>. Installing an app writes to your Home Screen,
+which no sandboxed app may do, so this icon opens the built-in store page when
+opened in GifOS.</p>
+<p>Open this GIF on your Home Screen at <code>gifos.app</code> to browse apps.</p></div>`;
+
   // A real app now: friendly onboarding for non-technical people, with a live
   // checklist that demonstrates the core magic (state lives inside the icon).
   const WELCOME_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2611,6 +2624,13 @@ document.getElementById('f').onsubmit=async e=>{
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
       files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
                'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') },
+    }, {
+      // Where more apps come from. A system launcher for the same reason
+      // Meeting is one: the store installs onto this Home Screen, and the
+      // sandbox has no such power (nor should it).
+      name: 'App Store.gif', appId: 'appstore', accent: [123, 92, 255],
+      files: { 'manifest.json': manifest('appstore', 'App Store', [123, 92, 255], { system: 'store' }),
+               'index.html': themeHtml(STORE_FALLBACK_HTML, 'full') },
     }];
 
     const encGroup = (g) => Promise.all([
