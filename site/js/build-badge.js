@@ -59,6 +59,10 @@
       'font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace',
       'color:currentColor', 'opacity:.38', 'pointer-events:none',
       'user-select:none', 'white-space:nowrap',
+      // It now floats over arbitrary app pixels (the app pane runs to the
+      // bottom edge) — a faint counter-shadow keeps it legible on both a
+      // light and a dark surface without raising its presence.
+      'text-shadow:0 1px 2px rgba(0,0,0,.45),0 0 1px rgba(255,255,255,.25)',
     ].join(';');
     (document.body || document.documentElement).appendChild(el);
   }
