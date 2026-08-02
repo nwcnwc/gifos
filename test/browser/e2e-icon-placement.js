@@ -200,18 +200,42 @@ async function dragOnto(page, srcName, dstName) {
     });
     await p.locator('#desktop').click({ button: 'right', position: bare });
     await p.locator('.ctx button', { hasText: 'New Folder' }).click();
-    // A new folder opens its rename box. This is asserted, not assumed: it used
-    // to fire beginRename before render() had painted the icon, so the box
-    // never appeared — silently, because beginRename just returns when the node
-    // is missing. Nothing else in the suite covers folder creation.
-    await p.locator('.icon .label input').waitFor({ timeout: 8000 }).catch(() => {});
-    check('a new folder opens its rename box (' + nm + ')',
-      (await p.locator('.icon .label input').count()) === 1);
-    await p.locator('.icon .label input').fill(nm);
+    // A new folder opens its rename MODAL (2026-08-02: rename moved from the
+    // inline under-icon input — unusably tiny on phones — to a modal popup).
+    // Still asserted, not assumed: beginRename used to fire before render()
+    // had painted and silently did nothing; a modal that fails to appear must
+    // stay a loud failure here, because nothing else covers folder creation.
+    await p.locator('.modal input.rename-input').waitFor({ timeout: 8000 }).catch(() => {});
+    check('a new folder opens its rename modal (' + nm + ')',
+      (await p.locator('.modal input.rename-input').count()) === 1);
+    await p.locator('.modal input.rename-input').fill(nm);
     await p.keyboard.press('Enter');
     await sleep(400);
     made.push(nm);
   }
+  // Park the boxes on VISIBLE free cells before dragging: the bare-square scan
+  // can resolve a new folder onto a cell whose icon centre lies OUTSIDE the
+  // viewport, and a mouse drag cannot grab what elementFromPoint cannot see.
+  // (The old inline rename auto-scrolled the icon into view as a side effect
+  // of focusing its input; the rename modal deliberately does not touch the
+  // desktop's scroll.) Same store-parking idiom as the fixture set-up above.
+  await p.evaluate(async (names) => {
+    const items = await GifOS.store.allItems();
+    const taken = new Set(items.filter((i) => !i.parent).map((i) => (i.x || 12) + ',' + (i.y || 12)));
+    const free = [];
+    for (let col = 2; col < 7 && free.length < names.length; col++) {
+      for (let row = 0; row < 4 && free.length < names.length; row++) {
+        const x = 12 + col * 104, y = 12 + row * 104;
+        if (!taken.has(x + ',' + y)) free.push({ x, y });
+      }
+    }
+    for (const nm of names) {
+      const it = items.find((i) => i.name === nm); const spot = free.shift();
+      if (it && spot) { it.x = spot.x; it.y = spot.y; await GifOS.store.putItem(it); }
+    }
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  }, made);
+  await sleep(400);
   check('made two throwaway folders to trash — ' + made.join(', '),
     (await iconBox(p, 'Box A')) && (await iconBox(p, 'Box B')));
   for (const n of made) await dragOnto(p, n, 'Trash');
