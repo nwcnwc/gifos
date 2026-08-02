@@ -129,9 +129,26 @@
           good = await subtle.verify({ name: 'Ed25519' }, key, fromHex(frame.sig), canonicalBytes(p));
         } catch (e) { good = false; }
         if (!good) return { ok: false, reason: 'bad-sig' };
-        if (typeof p.n === 'number' && p.n <= lastN && pinned === frame.pk) return { ok: false, reason: 'stale' };
+        // THE APP FRAME IS IMMUTABLE CONTENT, NOT ORDERED STATE.
+        // The monotonic n exists to stop an old snap/delta/act being replayed
+        // over newer state — a rollback attack on MUTABLE data. The 'app' frame
+        // is different in kind: it carries the app GIF for this sid, which is
+        // fixed for the whole session, so replaying it can only ever deliver the
+        // same bytes (and mountFromB64 ignores it once mounted).
+        //
+        // Ordering it was what forced the star. A RETAINED frame necessarily
+        // carries its mint-time n, so the moment any snap advanced lastN the
+        // retained app was rejected 'stale' forever — which is precisely why the
+        // owner had to re-sign the bytes fresh for every guest that dialled in
+        // with 'need-app'. That design cannot scale past a handful of guests.
+        // Exempting 'app' from ordering is what lets the bytes be retained on
+        // every node and pulled peer-to-peer; the SIGNATURE still proves the
+        // owner minted them for this sid, so a relaying peer can carry the app
+        // but can never forge it.
+        const ordered = p.kind !== 'app';
+        if (ordered && typeof p.n === 'number' && p.n <= lastN && pinned === frame.pk) return { ok: false, reason: 'stale' };
         if (!pinned) pinned = frame.pk;
-        lastN = (typeof p.n === 'number') ? p.n : lastN;
+        if (ordered) lastN = (typeof p.n === 'number') ? p.n : lastN;
         return { ok: true, kind: p.kind, body: p.body, n: p.n };
       },
     };
