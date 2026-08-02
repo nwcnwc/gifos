@@ -1182,6 +1182,27 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
   identical, so the PR is nearly free once the port exists. Keep the PR narrow
   and additive (a new folder + a README line), never a rewrite, so it's easy to
   accept.
+- **Sell the upside to the owner (in the PR):** the PR / port README should
+  make the pitch — packaging as a GifOS App GIF hands their app capabilities
+  that normally need a backend, **for free and with no server**:
+  - **Multiplayer with one invite link.** Declare a shared collection
+    `read-write` in the manifest and keep its state in `gifos.db`; an invite link
+    then live-syncs that state peer-to-peer (direct WebRTC + relay fallback),
+    host-authoritative. For an app already built around shared state, that *is*
+    the multiplayer story — no realtime service, no accounts.
+  - **Offline** — app and data run in airplane mode (precached shell).
+  - **Persistence with no database** — `gifos.db` keeps state inside the icon;
+    nothing to host or operate.
+  - **The app is a file the user owns** — sharing the GIF shares the app *and*
+    its saved data.
+  - **Brokered AI / third-party APIs** — `gifos.ai.*` / `gifos.api` let the app
+    use the user's own keys without ever seeing them.
+  - **Runs inside a Meeting** — launched in a GifOS meeting, an app gains shared
+    audio/video/recording around it without touching the camera (the sandbox
+    blocks live media itself, by design).
+  Keep it **honest**: there is no cloud and no automatic cross-device sync —
+  state reaches others only via a live invite link or by sharing the GIF file
+  ("saved on this device inside the GIF"), never "syncs to the cloud."
 - **Owner-signing instructions (ship them with the PR):** include a short
   how-to so the **repo owner signs the built GIF with their OWN key** — then it
   verifies as **✓ signed by their-domain.com** (or their email), not gifos.app,
