@@ -100,6 +100,27 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 }
 .menubar button:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--glow); }
 
+/* arrange bar — stands IN PLACE of the menubar (same height, so #desktop's
+   inset still lines up) while icons are unlocked. Phones jiggle their icons and
+   never say what mode you're in; we say it, and we don't jiggle. */
+.arrange-bar {
+  height: 2.5rem; display: flex; align-items: center; gap: .6rem; padding: 0 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 32%, var(--bar)), color-mix(in srgb, var(--accent2) 24%, var(--bar)));
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--accent);
+  position: relative; z-index: 5; font-size: .85rem;
+}
+.arrange-bar .ab-glyph { font-size: 1rem; color: var(--accent); }
+.arrange-bar .ab-msg { flex: 0 0 auto; font-weight: 600; white-space: nowrap; }
+/* the how-to is the first thing to go when the bar is narrower than a phone */
+.arrange-bar .ab-hint { min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 460px) { .arrange-bar .ab-hint { display: none; } }
+.arrange-bar .spacer { flex: 1; }
+.arrange-bar button {
+  padding: .3rem 1.1rem; border-radius: .4rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--onaccent, #fff); cursor: pointer;
+  font-size: .82rem; font-weight: 600;
+}
+
 /* desktop surface */
 #desktop {
   position: absolute; inset: 2.5rem 0 0 0; /* matches the menubar height (scales with text size) */
@@ -127,8 +148,15 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 .icon {
   position: absolute; width: calc(var(--cell, 104px) - 8px); display: flex; flex-direction: column; align-items: center;
   gap: .35rem; padding: .4rem .1rem; border-radius: .6rem; cursor: pointer; text-align: center;
-  touch-action: none; /* touch drags move the icon, not the page */
+  /* LOCKED by default: a finger that lands on an icon still pans the page, so
+     scrolling a phone can't accidentally pick an icon up and post it into a
+     folder. pinch-zoom stays allowed (accessibility); only double-tap zoom goes,
+     which we want anyway — double-tap opens the app. */
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-touch-callout: none; /* no iOS image callout on our long-press */
 }
+/* unlocked, but only inside Arrange mode — now the icon owns the gesture */
+#desktop.arranging .icon { touch-action: none; }
 .icon:hover { background: rgba(255,255,255,.05); }
 .icon.selected { background: rgba(123,92,255,.18); outline: 1px solid var(--accent); }
 /* Icons are transparent sticker GIFs — no box, no border: they float on the
@@ -332,6 +360,47 @@ details.adv h4 { margin-top: .8rem; }
 .hist-clearwrap { text-align: center; margin-top: .7rem; }
 .hist-clear-link { color: var(--muted); font-size: .74rem; text-decoration: underline; cursor: pointer; opacity: .75; }
 .hist-clear-link:hover { color: #e0574a; opacity: 1; }
+
+/* Arrange mode: the desktop shows its bones. A phone HIDES its grid and wiggles
+   the icons; we do the opposite — the pegboard appears so you can see the cells
+   you're dropping into, and nothing wiggles. Its own element, not a background
+   on #desktop, because applyBackground() owns that inline style (wallpaper). */
+.pegboard {
+  position: absolute; left: 0; top: 0; display: none; pointer-events: none; z-index: 0;
+  background-image:
+    repeating-linear-gradient(to right, var(--pegline, rgba(123,92,255,.28)) 0 1px, transparent 1px var(--cell, 104px)),
+    repeating-linear-gradient(to bottom, var(--pegline, rgba(123,92,255,.28)) 0 1px, transparent 1px var(--row, 104px));
+  background-position: 12px 12px; /* GRID.origin — cell edges, not the viewport */
+}
+#desktop.arranging .pegboard { display: block; }
+#desktop.arranging { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+/* the cell an icon would land in, tracked live while it's dragged */
+.cell-ghost {
+  position: absolute; display: none; pointer-events: none; z-index: 0;
+  border: 2px solid var(--accent); border-radius: .6rem;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: 0 0 18px var(--glow);
+}
+#desktop.arranging .cell-ghost.on { display: block; }
+/* the picked-up icon lifts on a shadow — a MOVE, not a jiggle (mouse drags too) */
+.icon.lifted { z-index: 2; }
+.icon.lifted .thumb img { transform: translateY(-6px) scale(1.14); filter: drop-shadow(0 12px 14px rgba(0,0,0,.6)); }
+
+/* undo toast — the answer to "it fell into a folder and I don't know which" */
+.toast {
+  position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%);
+  display: none; align-items: center; gap: .8rem; max-width: min(92vw, 30rem);
+  padding: .55rem .7rem .55rem 1rem; border-radius: .6rem; z-index: 8;
+  background: var(--surface); border: 1px solid var(--accent);
+  box-shadow: 0 8px 30px rgba(0,0,0,.55); font-size: .84rem;
+}
+.toast.on { display: flex; }
+.toast .toast-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast button {
+  flex: 0 0 auto; padding: .3rem .9rem; border-radius: .4rem; border: 1px solid var(--accent);
+  background: none; color: var(--accent); cursor: pointer; font-size: .8rem; font-weight: 600;
+}
+.toast button:hover { background: rgba(123,92,255,.15); }
 
 /* empty hint — fixed so it stays visible even though the surface scrolls */
 .hint {

@@ -738,6 +738,104 @@
     return { x: px, y: py }; // desktop is impossibly full — leave as dropped
   }
 
+  // ---------- Arrange mode (icons are LOCKED by default) --------------------
+  // Scrolling a phone used to pick icons up: a finger that landed on an icon
+  // owned the gesture from pixel one (touch-action:none + pointer capture), so a
+  // 7px wobble was a drag and a drag that ended over a folder posted the icon
+  // into it silently. Now touch can't move an icon at all until you deliberately
+  // enter Arrange mode. Deliberately UNLIKE a phone: no long-press-to-jiggle
+  // (our long-press is the context menu), no wiggling — you enter from a menu,
+  // the pegboard appears so you can see the cells, and a bar says so until you
+  // tap Done. Mouse drag is untouched: accidental mouse drags aren't a thing and
+  // click-drag IS the desktop metaphor.
+  let arrangeMode = false;
+  const pegboard = document.createElement('div');
+  pegboard.className = 'pegboard';
+  const cellGhost = document.createElement('div');
+  cellGhost.className = 'cell-ghost';
+  surface.appendChild(pegboard);
+  surface.appendChild(cellGhost);
+
+  // Cover the whole scrollable extent. Measured at zero size first — the
+  // pegboard is itself a child of the surface, so measuring it while it's big
+  // would just re-measure its own footprint and grow forever.
+  function sizePegboard() {
+    if (!arrangeMode) return;
+    pegboard.style.width = '0px'; pegboard.style.height = '0px';
+    const w = Math.max(surface.scrollWidth, surface.clientWidth);
+    const h = Math.max(surface.scrollHeight, surface.clientHeight);
+    pegboard.style.width = w + 'px'; pegboard.style.height = h + 'px';
+  }
+  function showCellGhost(px, py, parent, excludeId) {
+    const spot = nearestFreeCell(px, py, parent, excludeId);
+    cellGhost.style.left = spot.x + 'px';
+    cellGhost.style.top = spot.y + 'px';
+    cellGhost.style.width = (GRID.pitch - 8) + 'px';
+    cellGhost.style.height = (GRID.rowPitch - 8) + 'px';
+    cellGhost.classList.add('on');
+  }
+  function hideCellGhost() { cellGhost.classList.remove('on'); }
+
+  const menubarEl = document.querySelector('.menubar');
+  const arrangeBarEl = document.getElementById('arrange-bar');
+  function setArrangeMode(on) {
+    arrangeMode = !!on;
+    surface.classList.toggle('arranging', arrangeMode);
+    if (menubarEl) menubarEl.style.display = arrangeMode ? 'none' : '';
+    if (arrangeBarEl) arrangeBarEl.style.display = arrangeMode ? '' : 'none';
+    if (arrangeMode) sizePegboard(); else { hideCellGhost(); clearDropTargets(); }
+  }
+  const arrangeDone = document.getElementById('arrange-done');
+  if (arrangeDone) arrangeDone.addEventListener('click', () => setArrangeMode(false));
+  // Esc, or a tap on bare wallpaper, locks up again. CLICK, not pointerdown: a
+  // scroll gesture that starts on empty desktop must not count as "tap to exit".
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && arrangeMode) setArrangeMode(false); });
+  surface.addEventListener('click', (e) => { if (arrangeMode && e.target === surface) setArrangeMode(false); });
+  surface.addEventListener('scroll', sizePegboard);
+
+  // ---------- undo toast ----------
+  // The real complaint isn't only that icons move — it's that one disappears
+  // into a folder and you can't tell WHICH. So every drop into a folder says
+  // where it went, and offers to take it back. Mouse drops too.
+  const toastEl = document.createElement('div');
+  toastEl.className = 'toast';
+  toastEl.innerHTML = '<span class="toast-msg"></span><button type="button">Undo</button>';
+  const toastMsg = toastEl.querySelector('.toast-msg');
+  const toastBtn = toastEl.querySelector('button');
+  document.body.appendChild(toastEl);
+  let toastTimer = null, toastUndo = null;
+  function hideToast() {
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+    toastUndo = null;
+    toastEl.classList.remove('on');
+  }
+  function showUndoToast(msgHtml, undoFn) {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastMsg.innerHTML = msgHtml;
+    toastUndo = undoFn;
+    toastEl.classList.add('on');
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+  toastBtn.addEventListener('click', () => { const fn = toastUndo; hideToast(); if (fn) fn(); });
+
+  // Snapshot an item's home BEFORE a move, so Undo can put it exactly back.
+  function homeOf(it) { return { id: it.id, parent: it.parent || null, x: it.x, y: it.y }; }
+  function placeName(parentId) {
+    if (!parentId) return 'Home Screen';
+    const f = items.find((i) => i.id === parentId);
+    return f ? f.name : 'a folder';
+  }
+  function offerUndoMove(before, toParent) {
+    showUndoToast('Moved <b>' + escapeHtml((items.find((i) => i.id === before.id) || {}).name || '') + '</b> into ' +
+      escapeHtml(placeName(toParent)), async () => {
+      const it = items.find((i) => i.id === before.id);
+      if (!it) return;
+      it.parent = before.parent; it.x = before.x; it.y = before.y;
+      await store.putItem(it);
+      render();
+    });
+  }
+
   // ---------- icon interaction (drag, double-click, select) ----------
   // Pointer events unify mouse + touch; long-press opens the context menu on touch.
   function wireIcon(el, it) {
@@ -747,12 +845,17 @@
     el.addEventListener('pointerdown', (e) => {
       if (e.target.tagName === 'INPUT') return;          // renaming — let the input work
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      e.preventDefault();                                 // no native image drag / text select
+      // LOCKED is the default for touch (see Arrange mode above): don't
+      // preventDefault, don't capture the pointer, don't move anything — the
+      // browser owns the gesture and the page scrolls. We still watch it, so a
+      // tap still selects/opens and a long-press still opens the menu.
+      const locked = e.pointerType !== 'mouse' && !arrangeMode;
+      if (!locked) e.preventDefault();                    // no native image drag / text select
       selectedId = it.id;
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
-      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop, sl: surface.scrollLeft };
+      down = { locked, x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop, sl: surface.scrollLeft };
       moved = false;
-      try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ }
+      if (!locked) { try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ } }
       if (e.pointerType !== 'mouse') {
         lpTimer = setTimeout(() => {                     // long-press → context menu
           if (!moved && down) { down = null; showContextMenu({ clientX: e.clientX, clientY: e.clientY }, it); }
@@ -763,7 +866,9 @@
       if (!down) return;
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearLp(); }
+      if (down.locked) return;   // the page is scrolling under the finger — hands off
       if (moved) {
+        el.classList.add('lifted');
         // Dragging near the edges scrolls the endless surface along — both axes,
         // so you can carry an icon out to a far column or row that's off-screen.
         const r = surface.getBoundingClientRect();
@@ -776,12 +881,19 @@
         el.style.left = Math.max(0, down.ox + dx + sld) + 'px';
         el.style.top = Math.max(0, down.oy + dy + sd) + 'px';
         highlightDropTarget(e, it);
+        // Show the cell it would land in, unless a folder/up-hole would claim it.
+        if (arrangeMode) {
+          if (surface.querySelector('.drop-target')) hideCellGhost();
+          else showCellGhost(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
+        }
       }
     });
     el.addEventListener('pointerup', async (e) => {
       clearLp();
       if (!down) return;
-      const wasMoved = moved; down = null;
+      const wasMoved = moved, wasLocked = down.locked; down = null;
+      el.classList.remove('lifted');
+      if (wasLocked && wasMoved) return;                 // that was a scroll, not a drag
       if (!wasMoved) {
         // Touch double-tap → open. iOS/WebKit never synthesizes dblclick once
         // pointerdown is preventDefault'd, so we detect the two taps ourselves.
@@ -794,25 +906,35 @@
       }
       const targetFolder = folderUnder(e, it);
       const hole = upHoleUnder(e);
+      const before = homeOf(it);                          // for Undo, if this move relocates it
+      let landedIn = null;
       if (hole && it.id !== TRASH_ID) {
         const upTo = upTarget();                          // dropped in the hole → up a level
         const spot = nearestFreeCell(GRID.origin, GRID.origin, upTo, it.id);
         it.parent = upTo; it.x = spot.x; it.y = spot.y;
+        landedIn = upTo;
       } else if (targetFolder && it.id !== TRASH_ID) {
         it.parent = targetFolder.id;                     // dropped into a folder (or Trash)
+        landedIn = targetFolder.id;
       } else {
         const snapped = nearestFreeCell(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
         it.x = snapped.x; it.y = snapped.y;
       }
       await store.putItem(it);
       clearDropTargets();
+      hideCellGhost();
+      // Changing FOLDER makes an icon vanish from this screen — always say where
+      // it went and offer to undo it. A move within one screen is self-evident.
+      if (landedIn !== null || before.parent !== (it.parent || null)) offerUndoMove(before, it.parent || null);
       render();
     });
     el.addEventListener('pointercancel', () => {         // scroll/gesture stole the pointer
       clearLp(); down = null;
+      el.classList.remove('lifted');
       el.style.left = (it.x || GRID.origin) + 'px';
       el.style.top = (it.y || GRID.origin) + 'px';
       clearDropTargets();
+      hideCellGhost();
     });
 
     el.addEventListener('dblclick', () => openItem(it));
@@ -1066,6 +1188,8 @@
               : [{ label: 'Sign this GIF…', fn: () => signItem(it) }])
           : []),
         { label: 'Rename', fn: () => beginRename(it) },
+        // The discoverable way in on a phone: icons don't move until you ask.
+        { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
         { label: 'Smaller icon', fn: () => resizeIcon(it, -16) },
         'sep',
@@ -1075,6 +1199,7 @@
       entries = [
         { label: 'New Folder', fn: () => newFolder(e.offsetX, e.offsetY) },
         { label: 'Add file(s)…', fn: () => fileInput.click() },
+        { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
       ];
     }
     buildMenu(e.clientX, e.clientY, entries);
@@ -1418,6 +1543,8 @@
       '<a href="about.html" target="_blank" rel="noopener">What is GifOS?</a> · ' +
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
       '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
+    'sep',
+    { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
     'sep',
     { label: 'Back up Home Screen…', fn: backupDesktop },
     { label: 'Restore from backup…', fn: () => restoreInput.click() },
