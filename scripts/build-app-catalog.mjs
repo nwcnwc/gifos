@@ -59,15 +59,22 @@ const fail = (msg) => { console.error('  ✗ ' + msg); errors++; };
 const readJSON = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const isoDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 
-// A GIFOSSIG block names the domain that signed the bytes. We record the CLAIM
-// here (a build script has no business fetching a domain key); the store
-// verifies for real, in the browser, against the bytes it just downloaded.
+// A GIFOSSIG block names the identity that signed the bytes (gifos-sign.js:
+// { v, type: 'domain'|'email', id, alg, sig, ts }). We record the CLAIM here —
+// a build script has no business fetching a domain key — and the store verifies
+// it for real, in the browser, against the bytes it just downloaded.
 function signatureClaim(bytes) {
   const at = bytes.indexOf(Buffer.from('GIFOSSIG'));
   if (at < 0) return null;
-  const tail = bytes.subarray(at, Math.min(bytes.length, at + 4096)).toString('latin1');
-  const m = tail.match(/"domain"\s*:\s*"([^"]+)"/);
-  return { domain: m ? m[1] : '', claimed: true };
+  // GIF application extension: <8-byte marker><3-byte auth> then length-prefixed
+  // sub-blocks until a zero byte. The JSON can span several sub-blocks.
+  let p = at + 11;
+  const parts = [];
+  while (p < bytes.length) { const n = bytes[p]; if (!n) break; parts.push(bytes.subarray(p + 1, p + 1 + n)); p += 1 + n; }
+  try {
+    const sig = JSON.parse(Buffer.concat(parts).toString('utf8'));
+    return { type: sig.type || '', id: sig.id || '', ts: sig.ts || null };
+  } catch (e) { return { type: '', id: '', ts: null }; }
 }
 
 async function coverFrom(srcPng, outJpg) {

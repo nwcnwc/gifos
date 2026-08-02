@@ -34,6 +34,19 @@
  * before the rename keep working. Anything unrecognized just goes home.
  */
 (function () {
+  // /store and /store/<slug> — the App Store, and a shareable link to one
+  // listing. The slug is a public catalog name (site/apps/<slug>/), NOT a
+  // capability like a join code: nothing is derived from it and anyone may
+  // hold it. store.js rewrites ?app= back to the pretty form.
+  var s = location.pathname.match(/^\/store(?:\/([a-z0-9-]{1,64}))?\/?$/i);
+  if (s) {
+    // Into the HASH, like every other pretty route here: store.html's channel
+    // loader carries `pathname + hash` across a version redirect and drops the
+    // query, so a slug in ?app= would vanish for anyone on a pinned build.
+    var q = location.search ? '&' + location.search.slice(1) : '';
+    location.replace('/store.html' + (s[1] ? '#app=' + encodeURIComponent(s[1].toLowerCase()) + q : (q ? '#' + q.slice(1) : '')));
+    return;
+  }
   // Bare /meet (or its /call alias), no room = START A FRESH MEETING, identical
   // to double-clicking the Meeting app on the Home Screen (which loads
   // meet.html with no room and mints one). Keeps the two entry points equal.
