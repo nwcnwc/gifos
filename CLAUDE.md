@@ -109,6 +109,19 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   `rebuildDefaultApps` — code+icon swap in place, saved data kept). Stolen /
   renamed / user-built copies are never touched, and data-format compat across
   builds is still unguarded (the remedy is erase).
+- Desktop icons are LOCKED to touch by default — a finger can never move one
+  until the user enters **Arrange mode** (`setArrangeMode` in `desktop.js`;
+  entered from the GifOS ▾ menu, an icon's long-press menu, or the desktop
+  menu). Locked means `.icon { touch-action: pan-x pan-y pinch-zoom }` AND no
+  `preventDefault`/`setPointerCapture` on the pointerdown, so the page scrolls
+  from an icon; `touch-action: none` alone is what made scrolling a phone post
+  apps into random folders. MOUSE drag is deliberately untouched. Any page that
+  loads `desktop.js` must ship the `#arrange-bar` markup (`e2e-icon-lock.js`
+  enforces this by scanning `site/*.html`) — the mode hides the menubar, so a
+  page without the bar strands you with no Done button. Note headless Chromium
+  cannot synthesize a touch scroll (`gestureSourceType: 'touch'` moves nothing
+  while `'mouse'` scrolls the same container) — guard the mechanisms
+  (touch-action, `defaultPrevented`), never the scroll itself.
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.
