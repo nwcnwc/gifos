@@ -78,15 +78,19 @@ servers (safe from a worktree); `test/swarm/` is scale/production-hitting.
 Note: e2e-fetch-bridge spawns its OWN server on 8791 — kill fake-ai first.
 
 Playwright + Chromium paths are hardcoded in the tests (already installed).
-If suites start timing out on page-opens for no reason, kill leftover
-Chromium processes first: `pkill -f "headless_shel[l]"` (Playwright launches
-`chrome-linux/headless_shell`, NOT `chrome-linux/chrome` — the old pattern
-here never matched anything, so leftovers piled up invisibly and the box sat
-at loadavg 18 while suites "flaked"; bracket the pattern or pgrep matches its
-own command line). Check `nproc` and `/proc/loadavg` BEFORE believing any red:
-this box is 4 cores and a browser suite spawns 6-10 of these.
+If suites start timing out on page-opens for no reason, kill leftover Chromium
+processes first — and kill BOTH binaries, because the suites are split between
+them: a suite run under `MEET_CHROME` launches `chrome-linux/chrome`, while one
+taking Playwright's default channel launches `chrome-linux/headless_shell`.
+Measured mid-gate 2026-08-02: 12 of the first and 2 of the second alive at once.
+Hunting only one leaves the other piling up invisibly while the box sits at
+loadavg 18 and suites "flake".
 
-Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
+    pkill -f "[c]hrome-linux/chrome"; pkill -f "[h]eadless_shel"
+
+Bracket the pattern or pgrep matches its own command line. Check `nproc` and
+`/proc/loadavg` BEFORE believing any red: this box is 4 cores and a browser
+suite spawns 6-10 of these.
 
 ## Conventions that bite
 
