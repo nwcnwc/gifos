@@ -71,14 +71,29 @@ async function invite(page, lifetime, resilient) {
   await host.locator('#start').click();
   for (const p of phones) await p.app.locator('.role').waitFor({ timeout: 10000 });
   // every phone can peek a secret role
-  const roles = [];
-  for (const p of phones) {
-    await p.app.locator('.role').dispatchEvent('pointerdown');
-    await sleep(150);
-    roles.push((await p.app.locator('.role .r').textContent()).trim());
-    await p.app.locator('.role').dispatchEvent('pointerup');
-  }
   const KNOWN = ['Werewolf', 'Seer', 'Robber', 'Troublemaker', 'Insomniac', 'Villager', 'Hunter'];
+  // Waiting for `.role` to EXIST is not the same as waiting for the deal to
+  // arrive: the element renders masked ("·····") and fills in when the state
+  // reaches that phone. Peeking once after a flat 150ms therefore read the mask
+  // on whichever phone was still catching up — deterministically the LAST
+  // joiner (Cyd), on a box under gate load, while passing on an idle one.
+  // Re-peek until a real role shows, and let the deadline fail the check: a
+  // phone that is genuinely never dealt in still ends up asserted against
+  // KNOWN, so this waits properly rather than softening anything.
+  async function peekRole(p, timeout = 15000) {
+    const deadline = Date.now() + timeout;
+    let txt = '';
+    for (;;) {
+      await p.app.locator('.role').dispatchEvent('pointerdown');
+      await sleep(150);
+      txt = (await p.app.locator('.role .r').textContent()).trim();
+      await p.app.locator('.role').dispatchEvent('pointerup');
+      if (KNOWN.includes(txt) || Date.now() >= deadline) return txt;
+      await sleep(250);
+    }
+  }
+  const roles = [];
+  for (const p of phones) roles.push(await peekRole(p));
   check('each phone was dealt a real secret role', roles.every((r) => KNOWN.includes(r)));
   console.log('  (dealt: ' + roles.join(', ') + ')');
 
