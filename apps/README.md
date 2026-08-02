@@ -1,26 +1,48 @@
 # GifOS-certified apps
 
 First-party apps that ship **with the GifOS project but are not seeded as
-default apps** on the Home Screen. They're built and maintained here, signed as
-first-party, and downloadable as finished GIFs — drop one on any GifOS desktop
-to run it. A certified app can later be **promoted to a default** (seeded from
-`site/js/sample-apps.js`) if it earns its place.
+default apps** on the Home Screen. They're built and maintained here and
+listed in the **App Store** on gifos.app — install one from there, or drop the
+GIF on any GifOS desktop, to run it. A certified app can later be **promoted to
+a default** (seeded from `site/js/sample-apps.js`) if it earns its place.
 
 ## Layout
 
 ```
 apps/
-  <name>.gif        ← the finished, downloadable App GIF (built artifact)
-  <name>/           ← the project source for that app
+  <name>/           ← the project SOURCE for that app
     index.html      ← (or a small multi-file project: app.js, style.css, …)
+    manifest.json   ← the app's manifest: appId, names, version, capabilities
+    listing.json    ← its STORE listing: author, tagline, description,
+                      releaseDate, categories, tags, license
+    screenshot.png  ← the master cover art the store's cover.jpg is made from
     README.md       ← what it is, which gifos.* capabilities it uses
-    build.*         ← how the .gif above is produced from this source
+    build.*         ← how the finished .gif is produced from this source
+
+site/apps/          ← the PUBLISHED catalog (generated, but committed)
+  index.json        ← the store grid, in one fetch
+  <name>/
+    app.json        ← manifest ∪ listing ∪ {bytes, sha256, cover, gif}
+    <name>.gif      ← the finished, downloadable App GIF
+    cover.jpg       ← the card / detail image
 ```
 
-A finished `<name>.gif` at the top level is what a user downloads and runs; the
-same-named subfolder holds the source it's built from. Rebuild the GIF from the
-source with the app's build script (or the `pack_gifos` recipe in
-[`site/llms.txt`](../site/llms.txt) / `+ Add`).
+The finished `<name>.gif` lives under `site/`, not here: Pages publishes
+**only** `site/` (`.github/workflows/pages.yml`), so a GIF anywhere else is not
+downloadable. There is no second copy at this level — an 8 MB artifact in two
+places is 8 MB twice in every clone, and two copies that drift.
+
+Rebuild the GIF from the source with the app's build script (or the
+`pack_gifos` recipe in [`site/llms.txt`](../site/llms.txt) / `+ Add`), writing
+it to `site/apps/<name>/<name>.gif`. Then regenerate the catalog:
+
+```bash
+node scripts/build-app-catalog.mjs          # write site/apps/*
+node scripts/build-app-catalog.mjs --check  # verify it's current (what CI runs)
+```
+
+A source tree with **no `listing.json` is simply not in the store** — that is
+how an app stays unlisted while it's being built.
 
 ## What "certified" means here
 
