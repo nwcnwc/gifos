@@ -77,12 +77,27 @@ function signatureClaim(bytes) {
   } catch (e) { return { type: '', id: '', ts: null }; }
 }
 
-async function coverFrom(srcPng, outJpg) {
+// crop: optional { top, bottom, left, right } in the SOURCE image's own pixels.
+// Screenshots are taken through the GifOS shell, so the master usually has the
+// run.html toolbar across the top — shell chrome, not the app. Cropped away, a
+// grid of thumbnails shows two different apps instead of two identical
+// headers. The author states it, because only they know their own capture.
+async function coverFrom(srcPng, outJpg, crop) {
   const sharp = (await import('sharp')).default;
+  let img = sharp(srcPng);
+  const c = crop || {};
+  if (c.top || c.bottom || c.left || c.right) {
+    const m = await img.metadata();
+    const left = c.left || 0, top = c.top || 0;
+    const width = m.width - left - (c.right || 0);
+    const height = m.height - top - (c.bottom || 0);
+    if (width <= 0 || height <= 0) throw new Error('coverCrop removes the whole image');
+    img = img.extract({ left, top, width, height });
+  }
   // 1200px wide is enough for a retina detail page; the grid card uses the same
   // file scaled down. Quality 82 keeps a UI screenshot crisp at a fraction of
   // the PNG's size.
-  return sharp(srcPng).resize({ width: 1200, withoutEnlargement: true })
+  return img.resize({ width: 1200, withoutEnlargement: true })
     .jpeg({ quality: 82, progressive: true, mozjpeg: true }).toBuffer()
     .then((buf) => writeOut(outJpg, buf));
 }
@@ -145,7 +160,7 @@ async function buildApp(slug) {
   const coverOut = path.join(outDir, 'cover.jpg');
   if (!fs.existsSync(coverSrc)) fail(slug + ': cover art missing at ' + path.relative(ROOT, coverSrc));
   else if (CHECK) { if (!coverIsCurrent(coverSrc, coverOut)) fail(path.relative(ROOT, coverOut) + ' is missing or older than its source'); }
-  else if (!coverIsCurrent(coverSrc, coverOut)) await coverFrom(coverSrc, coverOut);
+  else if (!coverIsCurrent(coverSrc, coverOut)) await coverFrom(coverSrc, coverOut, l.coverCrop);
 
   const rec = {
     catalog: CATALOG_VERSION,
@@ -179,7 +194,7 @@ async function buildApp(slug) {
     const o = path.join(outDir, 'shot-' + (i + 1) + '.jpg');
     if (!fs.existsSync(s)) { fail(slug + ': screenshot missing at ' + path.relative(ROOT, s)); continue; }
     if (CHECK) { if (!coverIsCurrent(s, o)) fail(path.relative(ROOT, o) + ' is missing or older than its source'); }
-    else if (!coverIsCurrent(s, o)) await coverFrom(s, o);
+    else if (!coverIsCurrent(s, o)) await coverFrom(s, o, l.coverCrop);
   }
 
   writeOut(path.join(outDir, 'app.json'), JSON.stringify(rec, null, 2) + '\n');
