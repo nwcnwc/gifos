@@ -2398,7 +2398,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0 };
+      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0, painted: 0 };
       // ADAPTIVE FRAME-DROP: paint is driven by BOTH the metronome and rVFC,
       // and on a software-rendered / overloaded device one filtered drawImage
       // can cost 100ms+. Without a governor the paint tasks queue FASTER than
@@ -2436,6 +2436,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // (the 2026-08-01 canvas center-crop was reverted: stacked on the
         // camera pipeline's own cropping it double-zoomed a face; the camera
         // already rotates with the device on every phone).
+        pipe.painted++;   // frames ARE flowing — blackCamWatch reads this
         const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
         // CAP THE LONG SIDE, NOT THE WIDTH (2026-07-31, measured). capW was
         // applied to width alone, which silently assumed a landscape source.
@@ -4887,7 +4888,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const probe = document.createElement('canvas');
       probe.width = 32; probe.height = 18;
       const pctx = probe.getContext('2d', { willReadFrequently: true });
-      let darkTicks = 0, revives = 0;
+      let darkTicks = 0, revives = 0, lastPainted = 0;
       const dark = () => {
         const v = meTile && meTile.video;
         if (!v || !v.videoWidth) return true; // no frames yet IS the symptom
@@ -4917,7 +4918,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // That is e2e-stage-onerow's "keeps ONE stream id" red, and it predates
         // 0.9.0 (0.8.8 fails it at the same rate).
         const judge = (blurPipe && blurPipe.srcTrack && blurPipe.srcTrack.readyState === 'live') ? blurPipe.srcTrack : vt;
-        if (judge.muted || dark()) {
+        // `muted` ALONE IS NOT EVIDENCE OF A DEAD CAMERA. It is a transient,
+        // source-driven flag — it flips true whenever the source briefly cannot
+        // supply data and flips back on its own. This watchdog's premise, in its
+        // own words, is a track that is live but delivers NO FRAMES; if the blur
+        // pipe is still painting, that premise is simply false. Requiring both
+        // keeps every real failure covered — a dead camera stops painting, and a
+        // camera that is live-but-black is still caught by the pixel probe below,
+        // which is deliberately left as an independent trigger.
+        const painting = !!(blurPipe && blurPipe.painted > lastPainted);
+        lastPainted = blurPipe ? blurPipe.painted : 0;
+        if ((judge.muted && !painting) || dark()) {
           if (++darkTicks >= 3 && revives < 3) {
             darkTicks = 0; revives++;
             setStatus('Your camera was sending black video — restarting it…');
