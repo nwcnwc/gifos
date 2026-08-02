@@ -18,8 +18,11 @@
 //   7. MOUSE drag is untouched — laptops never lost click-drag
 //   8. any drop that changes folder offers an Undo that puts it exactly back
 const { chromium, CHROME } = require('../lib/pw');
+const fs = require('fs');
+const path = require('path');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
+const SITE = path.join(__dirname, '..', '..', 'site');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
@@ -67,6 +70,20 @@ async function parentOf(page, name) {
 }
 
 (async () => {
+  // ---- 0. EVERY page that loads desktop.js must ship the arrange bar ----
+  // setArrangeMode hides the menubar. On a page with no bar to replace it,
+  // entering the mode would strand you: no Done button, no way back. boot.html
+  // loads desktop.js too, and the next page to do so will as well — so check
+  // the source, not just the two pages we happen to drive below.
+  const pages = fs.readdirSync(SITE).filter((f) => f.endsWith('.html'))
+    .filter((f) => /js\/desktop\.js/.test(fs.readFileSync(path.join(SITE, f), 'utf8')));
+  check('found the pages that load desktop.js — ' + pages.join(', '), pages.length >= 2);
+  for (const f of pages) {
+    const html = fs.readFileSync(path.join(SITE, f), 'utf8');
+    check(f + ' ships the arrange bar and its Done button',
+      /id="arrange-bar"/.test(html) && /id="arrange-done"/.test(html));
+  }
+
   const b = await chromium.launch({ executablePath: CHROME });
 
   // ================= PHONE (touch) =================
