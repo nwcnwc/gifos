@@ -72,6 +72,74 @@
   let catalog = null;          // index.json
   let installedByAppId = {};   // appId -> fileId, so a listing can say "Open"
   let activeCat = 'All';
+  let legacyDesktop = null;    // set to the release name when this visitor's
+                               // Home Screen predates the store (see below)
+
+  // ---------- which build owns this visitor's Home Screen? -------------------
+  // This page has NO channel loader, unlike every other entry page: a release
+  // visitor would have been redirected to /versions/<current>/store.html, and
+  // every snapshot cut before this feature 404s there — gifos.app/store was a
+  // hard 404 for the default channel the day it shipped. So the store is
+  // served from the root to everyone and works the channel out itself, using
+  // the same three localStorage keys the loader reads.
+  //
+  // The consequence that matters is the INSTALL HAND-OFF. It finishes on
+  // index.html, and a release visitor's index.html bounces them into their
+  // snapshot — a snapshot whose desktop.js may know nothing about #place=. It
+  // would save the file and never place the icon: a silent half-install. So we
+  // ask, once, whether that build has a store; a build that has store.html is
+  // by construction a build that has the handler (they shipped together).
+  // Order matters, and it is the CHANNEL LOADER'S order (see index.html): a pin
+  // wins everywhere, including localhost — that snapshot is the user's computer
+  // and an install has to reach it. Only the DEFAULT channel is gated on the
+  // real domain, because off it the root is what you're developing.
+  async function effectiveRelease() {
+    if (FROZEN) return null;                                    // already inside a snapshot
+    let pin = null, chan = null, cur = null;
+    try {
+      pin = localStorage.getItem('gifos_pin');
+      chan = localStorage.getItem('gifos_channel');
+      cur = localStorage.getItem('gifos_current');
+    } catch (e) {}
+    if (pin) return pin;
+    if (chan === 'edge') return null;                           // opted into the root build
+    if (!/(^|\.)gifos\.app$/.test(location.hostname)) return null;  // localhost/preview: the root IS the build
+    if (cur) return cur;                                        // default channel, fast path
+    // FIRST VISIT — nothing in localStorage yet, which is exactly the visitor
+    // who followed a shared /store/<slug> link. The channel loader would
+    // resolve the release pointer here, so we do too; skipping it would treat
+    // them as an edge user and hand their install to a desktop that is about
+    // to redirect itself into a snapshot.
+    try {
+      const r = await fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' });
+      const v = (await r.json()).current || '';
+      return v || null;
+    } catch (e) { return null; }
+  }
+
+  async function resolveBuild() {
+    const rel = await effectiveRelease();
+    if (!rel) return;                                           // the root build owns this visitor
+    let has = false;
+    try {
+      const r = await fetch('/versions/' + encodeURIComponent(rel) + '/store.html', { method: 'HEAD' });
+      has = !!(r && r.ok);
+    } catch (e) { /* offline: treat as "no", and say so rather than half-install */ }
+    if (has) { location.replace('/versions/' + encodeURIComponent(rel) + '/store.html' + location.hash); return 'redirected'; }
+    legacyDesktop = rel;
+  }
+
+  // Exposed so the decision can be tested directly rather than inferred from
+  // what the page happens to render — the same reason the channel loader
+  // exports gifosPinTarget. That hook once vanished in a redesign and took
+  // five version-pinning assertions with it, silently.
+  GifOS.storeBuild = { effectiveRelease, resolveBuild, get legacy() { return legacyDesktop; } };
+
+  function legacyNotice() {
+    return '<p class="err">Your Home Screen is running release ' + esc(legacyDesktop) +
+      ', which was built before the App Store existed — it can’t receive an install yet. ' +
+      'Update from <b>GifOS ▾ → Settings → Advanced → Version</b>, then come back.</p>';
+  }
 
   async function refreshInstalled() {
     installedByAppId = {};
@@ -160,12 +228,13 @@
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
       '<div class="actions">' +
         (installedId
-          ? '<a class="btn" href="run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
-            '<button class="btn ghost" id="install">Install again</button>'
-          : '<button class="btn" id="install">Install — free</button>') +
+          ? '<a class="btn" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
+            '<button class="btn ghost" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install again</button>'
+          : '<button class="btn" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install — free</button>') +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download</span>' +
         '<span class="prog" id="prog" style="display:none"><i></i></span>' +
       '</div>' +
+      (legacyDesktop ? legacyNotice() : '') +
       '<div class="err" id="err" style="display:none"></div>' +
       '<div class="desc">' + esc(app.description) + '</div>' +
       '<dl class="facts">' +
@@ -184,7 +253,7 @@
       '</dl>';
 
     $('back').onclick = () => showBrowse(true);
-    $('install').onclick = () => install(app);
+    if (!legacyDesktop) $('install').onclick = () => install(app);
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
@@ -283,6 +352,9 @@
   }
 
   (async function boot() {
+    // Settle the build question before anything renders — it decides whether we
+    // stay here at all, and whether Install is offered.
+    if (await resolveBuild() === 'redirected') return;
     try {
       const r = await fetch('/apps/index.json', { cache: 'no-cache' });
       catalog = await r.json();
@@ -292,6 +364,9 @@
     }
     await refreshInstalled();
     renderCats();
+    // Say it once at the top too, so nobody browses the whole catalog before
+    // discovering their computer can't take an install yet.
+    if (legacyDesktop) $('cats').insertAdjacentHTML('beforebegin', legacyNotice());
 
     $('q').addEventListener('input', renderGrid);
     $('cats').addEventListener('click', (e) => {

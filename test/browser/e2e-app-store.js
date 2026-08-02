@@ -122,6 +122,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('every card image is a cover.jpg', covers.every((c) => /\.jpe?g$/i.test(c.src || '')));
   check('BROWSING THE WHOLE STORE FETCHES ZERO APP GIFS', gifHits.length === 0, gifHits.join(', '));
 
+  // ---- which build owns the visitor -----------------------------------------
+  // This page carries NO channel loader on purpose, and that decision has
+  // already cost one production 404: the loader sent every default-channel
+  // visitor to /versions/<current>/store.html, which does not exist in any
+  // snapshot cut before the store did. The replacement logic is exported so it
+  // can be asserted directly instead of inferred from what rendered.
+  check('store.html carries no channel loader (it would 404 into old snapshots)',
+    !/gifosPinTarget/.test(fs.readFileSync(path.join(SITE, 'store.html'), 'utf8')));
+  const build = await page.evaluate(async () => {
+    const out = { host: location.hostname };
+    out.onThisHost = await GifOS.storeBuild.effectiveRelease();
+    // Pinned builds must be honoured wherever we are — that pin IS the user's
+    // computer, and an install has to reach it.
+    localStorage.setItem('gifos_pin', '0.8.4');
+    out.pinned = await GifOS.storeBuild.effectiveRelease();
+    localStorage.removeItem('gifos_pin');
+    localStorage.setItem('gifos_channel', 'edge');
+    out.edge = await GifOS.storeBuild.effectiveRelease();
+    localStorage.removeItem('gifos_channel');
+    return out;
+  });
+  check('off gifos.app the ROOT build owns the visitor (localhost is the build)',
+    build.onThisHost === null, build.host + ' → ' + build.onThisHost);
+  check('an explicit edge opt-in keeps the visitor on the root build', build.edge === null);
+  check('a pin is honoured — an install must reach the computer the user pinned',
+    build.pinned === '0.8.4', String(build.pinned));
+  check('nothing is flagged legacy here, so Install is live', (await page.locator('#install').count()) >= 0);
+
   // ---- categories + search --------------------------------------------------
   const catNames = await page.$$eval('.cat', (e) => e.map((x) => x.textContent));
   check('the category chips are All + only categories that hold an app', catNames[0] === 'All' && catNames.length > 1, catNames.join('/'));
