@@ -21,4 +21,12 @@
 # removed the NOROOM-cycling that widened the adoption race window. If they
 # flake again, that is a REGRESSION to hunt, not a reason to re-add them.)
 
-mirror-drill  ONE red left (2026-08-01), and it is now pinned to a specific wrong behaviour rather than a vague area. CLOSED: (a) FAILBACK was never a product bug — it was untestable with severPair, which CLOSES the pc; the mesh correctly reads that as transport death (D5), evicts and re-admits, and E's peer record for B then FLAPS (stable/connected -> NO-PEER-RECORD -> back) so no preferred candidate ever survives the MOS_SETTLE window. Under a MEDIA-ONLY outage (parkJobForTest: one job pinned at replaceTrack(null), pc/DC/m-lines all up) failback works exactly as docs/media-plane.md promises, every run: primary returns to the direct hop, mirror re-parks as standby. (b) The multi-hop demand-wake is NOT a lottery on its own — measured 0.9-1.5s consistently (899/910/919/1042/1140/1272/1307/1528ms) whenever the BUILD succeeded and the kill ran from a verified-dormant baseline. Every ">20s / via=null" wake failure in the logs sits in a run whose BUILD had already failed; they are collateral, which is what made one red look like three. STILL RED — BUILD-TIME CLAIM ORDERING, the original red #1, seen directly: "E: sdn primary rides the DIRECT hop (via B)" fails with via=k_5203c5 while B=k_1d5209, and the standby is B itself while F is k_05aa0a — E claims a THIRD sdn-class announcer as primary and B/F land in the wrong slots. A second, separate manufacture problem also bites: the forced 8-seat shape DECAYS during the long build wait (G and H drifting out of section 2 into section 1 — "H@1_1_1", "G@1_1_0" — which makes the mirror route impossible); the drill now repairs drift during the build, but that did not close the claim-ordering red. Roughly 2-4 runs in 6 are green. Promote when E reliably claims B primary + F standby. NOT a host problem: it fails at loadavg 1.9 and passes at 8.
+# (mirror-drill was promoted back into the gate 2026-08-02, cutting 0.9.0. Its
+# remaining red was BUILD-TIME CLAIM ORDERING — "E claims a THIRD sdn-class
+# announcer as primary and B/F land in the wrong slots" — and this release
+# carries exactly that fix: prefCand now matches sdn/sdx on the announcer's
+# IDENTITY (x.from === the up-seat/head occupant) instead of on the KEY alone,
+# where mosAnn's Map insertion order was literally deciding the winner. The gate
+# now requires a quarantined suite to be green on a BEST-OF-3 before it raises
+# ESCAPED, and mirror-drill went 3/3. If it reds again that is a REGRESSION to
+# hunt, not a reason to re-add it.)
