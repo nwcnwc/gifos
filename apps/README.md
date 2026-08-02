@@ -46,12 +46,12 @@ how an app stays unlisted while it's being built.
 
 ## What "certified" means here
 
-- **First-party**: lives in this repo, built by us.
-  **Not signed yet** — this line used to claim the GIFs carried a gifos.app
-  domain signature and they never have, so both store listings honestly read
-  "not signed" today. Signing them (`site/sign.html`, `gifos-sign.js`) is the
-  open work; the store already refuses any download whose claimed signature
-  fails to verify, so the machinery is waiting on the key, not on code.
+- **First-party**: lives in this repo, built by us, and **signed with the
+  gifos.app domain key** (`site/sign.html`, `gifos-sign.js`) so both store
+  listings read **✓ signed by gifos.app**. The catalog records the signature
+  claim (`build-app-catalog.mjs` reads the `GIFOSSIG` block); the store verifies
+  it for real in the browser against the downloaded bytes and refuses any
+  download whose claimed signature fails to verify.
 - **Sandbox-honest**: runs as a normal sandboxed GifOS app — data in
   `gifos.db`, network only via the manifest allowlist, brokered capture/AI via
   `gifos.recordAudio` / `gifos.ai.*` (keys never touch the app).

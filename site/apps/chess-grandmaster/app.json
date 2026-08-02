@@ -39,7 +39,11 @@
   "cover": "/apps/chess-grandmaster/cover.jpg",
   "screenshots": [],
   "gif": "/apps/chess-grandmaster/chess-grandmaster.gif",
-  "bytes": 8318483,
-  "sha256": "7125f085423b96ffd4b704dfb1f92277ff9cdb45e591d7b4ae5e2fa9af108689",
-  "signature": null
+  "bytes": 8318670,
+  "sha256": "5420910218076ec44a40ca1f1b7a8db5cec74d27c4ab29aa23abde26ee02b2bb",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-02"
+  }
 }
