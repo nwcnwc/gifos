@@ -108,12 +108,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (sids.length !== 1) {
     for (let i = 0; i < N; i++) {
       const rs = await pages[i].evaluate(() => {
-        try { return (window.__gifosVideo.debugDump().mosaic || {}).reship || []; } catch (e) { return []; }
-      }).catch(() => []);
-      for (const r of rs) {
-        console.log('  RESHIP seat' + i + (i === stagerIdx ? '(stager)' : '') + ' ' +
-          JSON.stringify(r));
-      }
+        try {
+          const m = window.__gifosVideo.debugDump().mosaic || {};
+          return { reship: m.reship || [], selfMemo: m.selfMemo || [] };
+        } catch (e) { return { reship: [], selfMemo: [] }; }
+      }).catch(() => ({ reship: [], selfMemo: [] }));
+      const tag = 'seat' + i + (i === stagerIdx ? '(stager)' : '');
+      for (const r of rs.reship) console.log('  RESHIP ' + tag + ' ' + JSON.stringify(r));
+      for (const r of rs.selfMemo) console.log('  SELFMEMO ' + tag + ' ' + JSON.stringify(r));
     }
   }
   check('the claimed stage feed never goes TRACKLESS (no husk under the claim)',
