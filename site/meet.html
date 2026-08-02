@@ -267,11 +267,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     grid-auto-columns: 180px; grid-template-rows: 1fr; height: 132px; padding: 8px;
     overflow-x: auto; overflow-y: hidden; }
   body.has-app #stadium, body.has-app #stagefeed { display: none; }
-  #appbar { display: flex; align-items: center; gap: .6rem; padding: .4rem .8rem;
+  #appbar { display: flex; align-items: center; gap: .5rem; padding: .25rem .6rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #appbar #appname { font-weight: 700; }
-  #appbar #appwho { color: var(--muted, #8888aa); font-size: .78rem; }
+  #appbar #appwho { color: var(--muted, #8888aa); font-size: .78rem;
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #appbar #appstop { margin-left: auto; }
+  /* When the app bar is the ONLY bar (solo / app room before a call), it also
+     carries the GifOS home link — same gradient wordmark as the meeting bar. */
+  #appbar .brand { display: none; font-weight: 800; font-size: .9rem; text-decoration: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  body.solo-app #appbar .brand, body.app-room #appbar .brand { display: inline; }
+  /* The app's own GIF stands in for its name — the file IS the app, and for a
+     guest the thumbnail rendering proves the bytes have landed (the same bytes
+     Steal copies). The name stays as the image's title/alt and the tab title. */
+  #appgif { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; display: none; flex: none; }
+  /* ONE button voice in the app bar: every control wears the same quiet pill
+     (the Abilities chip's geometry); .perms keeps its ok/unsafe accent colors. */
+  #appbar button { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem;
+    border: 1px solid var(--border, #2a2a3f); border-radius: .5rem; background: transparent;
+    color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
   /* The app-in-meeting Abilities/Internet chip — same acknowledgement + opt-out
      panel as the app's own tab (gifos-perms.js), so it's available here too. */
   #appbar .perms { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem;
@@ -455,12 +471,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   /* ONE RUNTIME — solo app entry (#id=): an app running on this device with NO
      room minted yet. Every meeting control hides until Invite mints one; the
      GifOS home link stays. (docs/one-runtime.md, engineering step 1.) */
-  body.solo-app .bar > *:not(.title) { display: none !important; }
+  body.solo-app .bar { display: none !important; }
   body.solo-app #grid { display: none; }
   /* App ROOM (one-runtime steps 2+4): the app is pinned front-and-center; the
      media plane exists but stays dark until someone opts into the call layer.
      The grid only appears once this browser joins the call (call-on). */
   body.app-room:not(.call-on) #grid { display: none !important; }
+  /* MAX REAL ESTATE for a pinned app: until a call exists there is exactly ONE
+     bar on screen — the thin app bar (which grows a GifOS brand link, below).
+     The meeting bar and the 132px call filmstrip (#feed) both cost dead pixels
+     when nobody is on camera; the filmstrip's reserved strip was the "white
+     band under the app" on phones. Both return the moment the call layer is on. */
+  body.app-room:not(.call-on) .bar { display: none !important; }
+  body.solo-app #feed, body.app-room:not(.call-on) #feed { display: none !important; }
   body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
   #callbanner { display: none; align-items: center; gap: .6rem; padding: .4rem .9rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
@@ -624,6 +647,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <div id="callbanner"><span id="callbanner-txt"></span><button id="callbanner-join">Join the call</button></div>
   <div id="apppane">
     <div id="appbar">
+      <a class="brand" href="index.html" target="_blank" rel="noopener" title="Open your GifOS computer in a new tab">GifOS</a>
+      <img id="appgif" alt="">
       <span id="appname">App</span>
       <span id="appwho"></span>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
@@ -5484,7 +5509,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!rec) throw new Error('file not found on this desktop');
         const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         document.title = nm + ' — GifOS';
-        showAppPane(nm, '· running on this device');
+        showAppPane(nm, 'on this device');
+        setAppGif(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), nm);
         const inv = document.getElementById('appinvite');
         inv.style.display = ''; inv.onclick = inviteFromSolo;
         return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl).then((ctl) => { soloCtl = ctl; });
@@ -5581,6 +5607,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // nothing) — reconcile on the tick so owner-away is TIME-driven, not
       // only event-driven. Idempotent when nothing changed.
       try { reconcileApp(); } catch (e) {}
+      // Guest thumbnail: the app bytes land asynchronously over the lane —
+      // paint the bar's GIF the first tick they exist (no-op afterwards).
+      if (!appGifUrl && appClientCtl && appClientCtl.gifBytes) {
+        try { const b = appClientCtl.gifBytes(); if (b) setAppGif(b, document.getElementById('appname').textContent); } catch (e) {}
+      }
       const on = document.body.classList.contains('call-on');
       if (!myStatus.camOff || !myStatus.muted) { if (!on) document.body.classList.add('call-on'); return; }
       let live = 0;
@@ -8919,6 +8950,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     const canIRunApp = () => !!myId && appAllowed(myId);
 
+    // The bar shows the app's GIF itself instead of its name — the file IS the
+    // app, and on a guest's screen the thumbnail doubles as proof the bytes
+    // have arrived (they are the exact bytes Steal copies). Name → title/alt.
+    let appGifUrl = null;
+    function setAppGif(bytes, name) {
+      if (!bytes || !bytes.length) return;
+      const img = document.getElementById('appgif');
+      if (appGifUrl) { try { URL.revokeObjectURL(appGifUrl); } catch (e) {} }
+      appGifUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+      img.src = appGifUrl; img.alt = name || 'App'; img.title = name || 'App';
+      img.style.display = 'block';
+      document.getElementById('appname').style.display = 'none';
+    }
     function showAppPane(name, who) {
       document.body.classList.add('has-app');
       document.getElementById('appname').textContent = name || 'App';
@@ -8984,7 +9028,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const rec = await GifOS.store.getFile(fileId);
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
-        showAppPane(name, '· you are hosting it for the meeting');
+        showAppPane(name, ROOM.appPinned ? 'you host it' : '· you are hosting it for the meeting');
+        if (rec && rec.bytes) setAppGif(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), name);
         const ctl = await GifOS.runtime.boot(appMountEl, fileId, null);
         appHostCtl = ctl; // Save/snapshot chrome (one-runtime)
         // Admin rooms: the sharer LEADS by default (their runtime fences the

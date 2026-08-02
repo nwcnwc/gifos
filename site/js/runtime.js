@@ -1874,6 +1874,10 @@
           ? ensureStolenFolder().then((folder) => saveAppToDesktop(appBytes, manifestRef, mirror, folder))
           : Promise.reject(new Error('app not loaded yet')),
         setFrozen: (f) => { frozen = !!f; },
+        // The mounted app's GIF bytes (null until they land). The app bar
+        // renders these as the thumbnail — seeing it IS seeing that a Steal
+        // would succeed, since it copies exactly these bytes.
+        gifBytes: () => appBytes,
       };
     });
   }
