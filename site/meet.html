@@ -3373,8 +3373,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (p.mainV) p.mainV.replaceTrack(null).catch(() => {});
         }
       } else if (!localStream) { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
-      // chat + pinned files travel on a DataChannel — browser to browser only
-      if (iInitiate(p.id)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
+      // chat + pinned files travel on a DataChannel — browser to browser only.
+      // THE OFFERER CREATES IT (2026-08-02; moved into sendOffer). It used to
+      // be created here for the id-order initiator only, which hard-wired the
+      // assumption that the id-initiator is always the dialer. The newcomer-
+      // dials rule broke that: a lower-id newcomer's offer then carried NO
+      // data m-line, ICE connected, ondatachannel never fired, and the pair
+      // sat connected-without-DC until the id-initiator's 5s dc-watchdog
+      // redialled (measured: every lower-id guest joined in 7-9s instead of
+      // ~1.5s). An answerer needs no channel of its own — the offerer's
+      // arrives via ondatachannel below — and an answer cannot add an m-line
+      // the offer lacked anyway, so creating one here was dead weight on the
+      // answering side.
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
       pc.ontrack = (ev) => {
         const stream = ev.streams[0];
@@ -3477,6 +3487,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
     function sendOffer(peerId, iceRestart) {
       const p = makePeer(peerId, null);
+      // The OFFERER creates the DataChannel (whoever dials — id-initiator,
+      // unwired newcomer, or a starved answerer-side rebuild), BEFORE
+      // createOffer so the data m-line rides this offer. Idempotent: a
+      // renegotiation/ICE-restart on a pc that already carries a channel
+      // keeps it.
+      if (!p.dc) { try { wireDc(p, p.pc.createDataChannel('gifos')); } catch (e) {} }
       preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
@@ -3694,7 +3710,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!linkTo(pid)) return; // the sweeper retires unwanted links, with grace
       let p = peers.get(pid);
       if (!p) {
-        if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
+        // THE NEWCOMER DIALS (2026-08-02, the ghost-churn join wedge). The
+        // id-order rule ("higher id offers") assumes BOTH sides know the pair
+        // exists — but a just-seated newcomer's CLAIM/HELLO are DC-only and
+        // its neighbours may not learn its seat for many beats, so when the
+        // id-order pointed at the side that had never heard of us, nobody
+        // dialled and the pair sat half-open until the 12s starve watchdog
+        // (measured: owner occ=1 forever, guest CLAIM/HELLO/PHONE all
+        // dropped). A seat with NO open DataChannel at all is still ARRIVING:
+        // it dials every neighbour its PLACE taught it, id order be damned —
+        // it is the one node guaranteed to know the pair should exist, and
+        // the offer rides the sanctioned first-contact signaling path.
+        // Perfect negotiation (the glare rollback in onSignal) absorbs the
+        // rare double-dial; id order governs everything after first wiring.
+        let anyDc = false; for (const q of peers.values()) if (q.dc && q.dc.readyState === 'open') { anyDc = true; break; }
+        if (iInitiate(pid) || !anyDc) { sendOffer(pid, false); p = peers.get(pid); }
         else p = makePeer(pid, name); // their offer is on its way
         // Newcomers can't trust gossip for moderation in admin rooms — an
         // admin hands them the table over the relay's stamped path.
@@ -5735,6 +5765,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (!sgaApp.has(sid)) { sgaAppReqAt.delete(sid); sgaAppRequest(sid); sgaAppChase(sid); }
           }
         } catch (e) {}
+        // …and RE-ANNOUNCE THE SEAT (2026-08-02): the take-burst CLAIM/HELLO
+        // fired when no channel existed and was dropped — one-shot, never
+        // resent, so a neighbour could sit across an OPEN channel and still
+        // not know our coord (the ghost-churn half-open wedge). The channel
+        // that just opened is exactly the missing transport: re-fire the
+        // HELLO announce so occupancy converges now instead of at the next
+        // PHONE beat (and to neighbours beyond this pair via §FWD, which
+        // needs at least one open channel to sponsor through — this one).
+        try { const s = meshSeat(); if (s && s.hasCoord && s.state === 3) s.announce(); } catch (e) {}
       };
       // D5: my channel to this peer died. On an ungraceful peer death (mobile
       // tab kill, OOM, crash) this lands within ~1-5s — first-hand evidence
