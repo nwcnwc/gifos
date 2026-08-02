@@ -148,7 +148,7 @@
     const bytes = await makeFolderGif(name);
     await store.putFile({ id: fileId, name: name + '.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
     const it = { id: store.uid('item'), kind: 'folder', name, parent: parent || null, x, y, iconSize: 64, fileId };
-    await store.putItem(it);
+    await saveItem(it, { at: { x, y } });
     return it;
   }
 
@@ -158,8 +158,8 @@
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
       isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif', isDefault: true });
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
-      parent, x: pos.x, y: pos.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
+      parent: parent || null, x: pos.x, y: pos.y, iconSize: 64 }, { at: pos });
   }
 
   async function seedIfEmpty() {
@@ -252,9 +252,8 @@
       let f = folderByName[folder.name];
       if (!f || f.parent !== parentId) {
         if (parentId) {
-          const parentItem = itemById[parentId];
-          const pspot = nearestFreeCell(GRID.origin, GRID.origin + GRID.rowPitch, parentId, null);
-          f = await createFolder(folder.name, parentId, pspot.x, pspot.y);
+          // Aim below the up-hole; saveItem resolves it to a free cell.
+          f = await createFolder(folder.name, parentId, GRID.origin, GRID.origin + GRID.rowPitch);
         } else {
           f = await createFolder(folder.name, null, x, y);
         }
@@ -309,18 +308,17 @@
   // shipped. 'sys_stolen' is shared with the runtime (run.html), which files
   // stolen apps into it — and creates it itself if a steal happens first.
   async function ensureSystemItems() {
+    const sysSpot = { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
     if (!items.find((i) => i.id === TRASH_ID)) {
-      const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
-      await store.putItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 });
+      await saveItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
+        x: sysSpot.x, y: sysSpot.y, iconSize: 64 }, { at: sysSpot });
       await load();
     }
     let stolen = items.find((i) => i.id === 'sys_stolen');
     if (!stolen) {
-      const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 };
-      await store.putItem(stolen);
+        x: sysSpot.x, y: sysSpot.y, iconSize: 64 };
+      await saveItem(stolen, { at: sysSpot });
       await load();
     }
     // The loot deserves a treasure chest. Also retrofits folders created bare
@@ -331,7 +329,7 @@
         const bytes = await makeFolderGif('Stolen Apps', FOLDER_ACCENTS['Stolen Apps'], 'chest');
         await store.putFile({ id: fileId, name: 'Stolen Apps.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
         stolen.fileId = fileId;
-        await store.putItem(stolen);
+        await saveItem(stolen);                    // same cell — only the art changed
         await load();
       } catch (e) { /* falls back to the 📁 glyph */ }
     }
@@ -738,6 +736,51 @@
     return { x: px, y: py }; // desktop is impossibly full — leave as dropped
   }
 
+  // ---------- saveItem: the ONE place an icon's home is written ------------
+  // Every icon that arrives anywhere — dragged into a folder, imported from the
+  // OS, trashed, restored, unpacked from a folder GIF, stolen by an app — goes
+  // through here, and here is the only code that decides which cell it lands
+  // on. Nothing else may call store.putItem for an item (the sole exception is
+  // restoreDesktop, which bulk-writes a backup while `items` is mid-rebuild).
+  //
+  // Icons used to land on top of each other because placement was re-derived by
+  // hand at every call site — nearestFreeCell was spelled out at eight of them
+  // — and the one that mattered most simply forgot: the folder drop set
+  // `parent` and kept the x/y the icon had on the screen OUTSIDE the folder. So
+  // it landed at whatever coordinates it happened to be dragged from, very
+  // often squarely on top of something already in there. That is why this takes
+  // `into` rather than trusting a caller to have set `parent` first: by the time
+  // a writer sees the item, `it` IS the object in `items`, so the move has
+  // already happened and there is nothing left to detect.
+  //
+  //   opts.into      — the destination container (null = Home Screen). Omit to
+  //                    leave the icon where it already lives.
+  //   opts.at        — where to AIM: a drop point, or a deliberate layout.
+  //                    Still resolved to the nearest FREE cell from there.
+  //   opts.keepCell  — write the coordinates verbatim, trusting the caller.
+  async function saveItem(it, opts) {
+    const o = opts || {};
+    const moving = Object.prototype.hasOwnProperty.call(o, 'into');
+    const dest = moving ? (o.into || null) : (it.parent || null);
+    // Arriving somewhere NEW (a different container, or brand new to this
+    // desktop)? The coordinates from wherever it used to live mean nothing
+    // here, so aim at the container's first cell and fill from there.
+    const arriving = !items.some((n) => n.id === it.id) || dest !== (it.parent || null);
+    if (moving) it.parent = dest;
+    if (!o.keepCell) {
+      const aim = o.at || (arriving ? { x: GRID.origin, y: GRID.origin } : { x: it.x, y: it.y });
+      const spot = nearestFreeCell(aim.x, aim.y, dest, it.id);
+      it.x = spot.x; it.y = spot.y;
+    }
+    await store.putItem(it);
+    // Keep the in-memory list authoritative so a BURST of saves — importing ten
+    // files, unpacking a folder bundle — sees its own earlier placements
+    // instead of piling every one of them onto the same free cell.
+    const i = items.findIndex((n) => n.id === it.id);
+    if (i >= 0) Object.assign(items[i], it); else items.push(it);
+    return it;
+  }
+
   // ---------- Arrange mode (icons are LOCKED by default) --------------------
   // Scrolling a phone used to pick icons up: a finger that landed on an icon
   // owned the gesture from pixel one (touch-action:none + pointer capture), so a
@@ -830,8 +873,9 @@
       escapeHtml(placeName(toParent)), async () => {
       const it = items.find((i) => i.id === before.id);
       if (!it) return;
-      it.parent = before.parent; it.x = before.x; it.y = before.y;
-      await store.putItem(it);
+      // Back to the exact cell it came from — or, if something has taken that
+      // cell in the meantime, the nearest free one. Never back onto an occupant.
+      await saveItem(it, { into: before.parent, at: { x: before.x, y: before.y } });
       render();
     });
   }
@@ -909,18 +953,16 @@
       const before = homeOf(it);                          // for Undo, if this move relocates it
       let landedIn = null;
       if (hole && it.id !== TRASH_ID) {
-        const upTo = upTarget();                          // dropped in the hole → up a level
-        const spot = nearestFreeCell(GRID.origin, GRID.origin, upTo, it.id);
-        it.parent = upTo; it.x = spot.x; it.y = spot.y;
-        landedIn = upTo;
+        landedIn = upTarget();                            // dropped in the hole → up a level
+        await saveItem(it, { into: landedIn });
       } else if (targetFolder && it.id !== TRASH_ID) {
-        it.parent = targetFolder.id;                     // dropped into a folder (or Trash)
-        landedIn = targetFolder.id;
+        landedIn = targetFolder.id;                       // dropped into a folder (or Trash)
+        await saveItem(it, { into: landedIn });           // lands on a FREE cell in there
       } else {
-        const snapped = nearestFreeCell(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
-        it.x = snapped.x; it.y = snapped.y;
+        // Moved within this screen: land on the cell nearest to where it was
+        // actually dropped, which is the whole point of dragging it there.
+        await saveItem(it, { at: { x: parseInt(el.style.left, 10), y: parseInt(el.style.top, 10) } });
       }
-      await store.putItem(it);
       clearDropTargets();
       hideCellGhost();
       // Changing FOLDER makes an icon vanish from this screen — always say where
@@ -1084,10 +1126,9 @@
     await store.putFile({ id: fileId, name, bytes: buf, kind: isGif ? 'gif' : 'other',
       isApp: !!archive, appId: m.appId || null, accent: m.accent || null,
       mime: isGif ? 'image/gif' : 'application/octet-stream' });
-    const spot = nearestFreeCell(x, y, currentFolder, null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
-    await load(); // next import's free-cell search must see this one
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name,
+      parent: currentFolder, iconSize: 64 }, { at: { x, y } });
+    await load();
   }
 
   // ---------- drop files from the OS ----------
@@ -1291,9 +1332,9 @@
     catch (e) { /* keep full bundle bytes as the shell */ }
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: name + '.gif', bytes: shellBytes, kind: 'gif', isApp: false, mime: 'image/gif' });
-    const spot = nearestFreeCell(x, y, parent || null, null);
     const folderId = store.uid('item');
-    await store.putItem({ id: folderId, kind: 'folder', name, parent: parent || null, x: spot.x, y: spot.y, iconSize: 64, fileId });
+    await saveItem({ id: folderId, kind: 'folder', name, parent: parent || null, iconSize: 64, fileId },
+      { at: { x, y } });
     let fj = null;
     try { fj = JSON.parse(bytesToText(archive.files['folder.json'])); } catch (e) { /* empty folder bundle */ }
     for (const entry of (fj && fj.items) || []) {
@@ -1310,29 +1351,27 @@
         await store.putFile({ id: fid, name: entry.name, bytes: data, kind: entry.fileKind || 'gif',
           isApp: !!entry.isApp, appId: entry.appId || null, accent: entry.accent || null,
           mime: entry.mime || 'image/gif' });
-        await store.putItem({ id: store.uid('item'), kind: 'file', fileId: fid, name: entry.name,
-          parent: folderId, x: entry.x || GRID.origin, y: entry.y || GRID.origin, iconSize: entry.iconSize || 64 });
+        // An entry with no saved cell aims at the folder's origin — which is
+        // the up-hole's cell, and shared by every other such entry. saveItem
+        // spreads them instead of stacking the whole bundle on one square.
+        await saveItem({ id: store.uid('item'), kind: 'file', fileId: fid, name: entry.name,
+          parent: folderId, iconSize: entry.iconSize || 64 },
+        { at: { x: entry.x || GRID.origin, y: entry.y || GRID.origin } });
       }
     }
     await load();
   }
   async function resizeIcon(it, delta) {
     it.iconSize = Math.max(32, Math.min(160, (it.iconSize || 64) + delta));
-    await store.putItem(it); render();
+    await saveItem(it); render();              // stays put; only its size changed
   }
   async function moveToTrash(it) {
     if (it.id === TRASH_ID) return;
-    it.parent = TRASH_ID;
-    const spot = nearestFreeCell(GRID.origin, GRID.origin, TRASH_ID, it.id);
-    it.x = spot.x; it.y = spot.y;
-    await store.putItem(it);
+    await saveItem(it, { into: TRASH_ID });
     await load(); render();
   }
   async function restoreFromTrash(it) {
-    it.parent = null;
-    const spot = nearestFreeCell(it.x, it.y, null, it.id);
-    it.x = spot.x; it.y = spot.y;
-    await store.putItem(it);
+    await saveItem(it, { into: null });
     await load(); render();
   }
   function descendantsOf(id) {
@@ -1373,9 +1412,11 @@
       } }]);
   }
   async function newFolder(x, y) {
-    const spot = nearestFreeCell(x || GRID.origin, y || GRID.origin, currentFolder, null);
-    const it = await createFolder('New Folder', currentFolder, spot.x, spot.y);
-    await load(); render();
+    const it = await createFolder('New Folder', currentFolder, x || GRID.origin, y || GRID.origin);
+    // AWAIT the paint: beginRename looks the new icon up in the DOM, so firing
+    // it while render() is still reading files finds nothing and silently skips
+    // — a new folder that never opens its rename box.
+    await load(); await render();
     beginRename(it);
   }
   function beginRename(it) {
@@ -1387,7 +1428,7 @@
     input.focus(); input.select();
     const commit = async () => {
       it.name = input.value.trim() || it.name;
-      await store.putItem(it);
+      await saveItem(it);                      // stays put; only its name changed
       // keep a folder GIF's embedded manifest in sync with its display name
       if (it.kind === 'folder' && it.fileId) {
         const rec = await store.getFile(it.fileId);
@@ -1437,6 +1478,10 @@
       const bytes = archive.files['files/' + m.id];
       if (bytes) await store.putFile(Object.assign({}, m, { bytes }));
     }
+    // THE one sanctioned raw write: a backup is restored verbatim, layout and
+    // all. saveItem cannot help here anyway — clearAll() has just emptied the
+    // store while `items` still holds the OLD desktop, so every free-cell
+    // search would be answered against a list that no longer exists.
     for (const it of dj.items || []) await store.putItem(it);
     for (const s of dj.states || []) await store.setState(s.fileId, s.state);
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
@@ -2333,9 +2378,8 @@
     const fileId = store.uid('file');
     const iconName = appName + '.gif';
     await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: hasIndex, appId: slug, mime: 'image/gif' });
-    const spot = nearestFreeCell(60, 60, currentFolder, null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
+      parent: currentFolder, iconSize: 64 }, { at: { x: 60, y: 60 } });
     await load(); render();
     return fileId;
   }
@@ -2439,8 +2483,7 @@
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: r.name, bytes: r.bytes, kind: 'gif', isApp, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
     await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
-    const spot = nearestFreeCell(GRID.origin, GRID.origin, 'sys_stolen', null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', x: spot.x, y: spot.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
     await load();
     if (isApp) { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
     render();
