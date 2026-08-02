@@ -190,6 +190,11 @@ async function parentOf(page, name) {
   const movedTo = await iconInfo(p, APP);
   check('UNLOCKED: a touch drag moves the icon', movedTo.top !== src.top || movedTo.left !== src.left);
   check('UNLOCKED: it snapped onto a grid cell', (movedTo.top - 12) % grid.row === 0 && (movedTo.left - 12) % grid.pitch === 0);
+  // The drag ENDED on bare wallpaper, which is also the "tap to lock again"
+  // target. Dropping is not tapping: one drag must not kick you out of the mode
+  // you're using, or arranging a second icon means re-entering from the menu.
+  check('UNLOCKED: dropping on bare wallpaper does NOT exit the mode',
+    await p.evaluate(() => document.getElementById('desktop').classList.contains('arranging')));
 
   // ---- 6. Done re-locks ----
   await p.locator('#arrange-done').click();
@@ -242,6 +247,43 @@ async function parentOf(page, name) {
   const mMoved = await iconInfo(mp, MAPP);
   check('MOUSE: click-drag still moves an icon with no mode at all',
     mMoved && (mMoved.top !== mSrc.top || mMoved.left !== mSrc.left));
+
+  // ---- 7b. MOUSE inside Arrange mode: drop ≠ tap ----
+  // A mouse drag that ends on wallpaper is the compat-events trap — mousedown on
+  // the icon and mouseup on the surface still produce a `click` on their common
+  // ancestor unless the pointerdown was preventDefault'd. If that click counted
+  // as "tap the wallpaper to lock again", arranging a second icon would mean
+  // re-opening the menu every time.
+  await mp.evaluate(() => document.getElementById('sys-menu-btn').click());
+  await mp.locator('.ctx button', { hasText: 'Arrange icons' }).click();
+  await sleep(250);
+  check('MOUSE: the menu enters Arrange mode on a laptop too',
+    await mp.evaluate(() => document.getElementById('desktop').classList.contains('arranging')));
+  const aSrc = await iconInfo(mp, MAPP);
+  await mp.mouse.move(aSrc.cx, aSrc.cy);
+  await mp.mouse.down();
+  await mp.mouse.move(mGrid.left + 12 + 3 * mGrid.pitch + 20, mGrid.top + 12 + 3 * mGrid.row + 20, { steps: 14 });
+  await mp.mouse.up();
+  await sleep(350);
+  check('MOUSE: a drag that ends on wallpaper does NOT exit Arrange mode',
+    await mp.evaluate(() => document.getElementById('desktop').classList.contains('arranging')));
+  // ...but a real click on bare wallpaper still locks up again. Ask the page
+  // for a point that really is bare — a computed cell can land off-viewport or
+  // under an icon, and then this would assert nothing.
+  const bare = await mp.evaluate(() => {
+    const s = document.getElementById('desktop');
+    for (let y = 120; y < window.innerHeight - 40; y += 40) {
+      for (let x = window.innerWidth - 60; x > 200; x -= 40) {
+        if (document.elementFromPoint(x, y) === s) return { x, y };
+      }
+    }
+    return null;
+  });
+  check('the test found a genuinely bare patch of wallpaper to click', !!bare);
+  await mp.mouse.click(bare.x, bare.y);
+  await sleep(250);
+  check('MOUSE: a plain click on bare wallpaper locks the icons again',
+    !(await mp.evaluate(() => document.getElementById('desktop').classList.contains('arranging'))));
 
   // ---- 8. undo toast: the answer to "it vanished and I don't know where" ----
   const mHome = await mp.evaluate(async (n) => {
