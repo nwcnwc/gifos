@@ -352,6 +352,11 @@ if want behavior; then
     # assertion. That is a gate bug, not a product red, and it reported as 8
     # identical FAILs which reads exactly like a real regression.
     { port_up 8099 && port_up 8790; } || start_site_relay
+    # The drills tier just ran mirror-drill (8 browsers) and friends. Behavior
+    # scenarios are the longest, most timing-sensitive things in the gate and
+    # they run LAST, so start them from a clean box rather than on top of the
+    # previous tier's residue. behavior.sh also reaps between its own scenarios.
+    reap_browsers; sleep 2
     # relay-dev.sh (the REAL Worker under wrangler) drives the deploy scenarios;
     # without it 04b/16b SKIP loudly rather than pretending to pass. And a SKIP
     # is NOT free here: behavior.sh exits non-zero when anything skipped, so the
