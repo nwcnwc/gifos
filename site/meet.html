@@ -6335,7 +6335,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const mySelfStream = () => {
       const v = sentVideoTrack(); if (!v) return null;
       const a = (localStream && localStream.getAudioTracks()[0]) || null;
-      if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+      if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) {
+        // WHICH track moved? Rebuilding this memo mints a new MediaStream id,
+        // which re-ships every stg job and cascades down the relay tree (each
+        // relayer sees its incoming sig change and re-ships in turn). So the
+        // one thing worth knowing is whether the VIDEO or the AUDIO track
+        // swapped underneath us, and what it swapped from.
+        try {
+          if (!window.__selfMemoLog) window.__selfMemoLog = [];
+          const cam = localStream && localStream.getVideoTracks()[0];
+          window.__selfMemoLog.push({
+            t: Date.now(),
+            why: !selfShipMemo ? 'first'
+              : (selfShipMemo.v !== v ? 'video-track-swapped' : 'audio-track-swapped'),
+            oldV: selfShipMemo && selfShipMemo.v ? String(selfShipMemo.v.id).slice(0, 8) : null,
+            newV: String(v.id).slice(0, 8),
+            oldA: selfShipMemo && selfShipMemo.a ? String(selfShipMemo.a.id).slice(0, 8) : null,
+            newA: a ? String(a.id).slice(0, 8) : null,
+            blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
+            pipeTrack: (typeof blurPipe !== 'undefined' && blurPipe && blurPipe.track) ? String(blurPipe.track.id).slice(0, 8) : null,
+            pipeCamId: (typeof blurPipe !== 'undefined' && blurPipe) ? String(blurPipe.camId).slice(0, 8) : null,
+            camId: cam ? String(cam.id).slice(0, 8) : null,
+            camEnded: cam ? (cam.readyState === 'ended') : null,
+          });
+          if (window.__selfMemoLog.length > 40) window.__selfMemoLog.shift();
+        } catch (e) {}
+        selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+      }
       return selfShipMemo.stream;
     };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -9655,6 +9681,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // the note in shipMos. A receiver can only observe that the id changed;
         // this says why it changed, on the side that changed it.
         reship: (window.__mosReship || []).slice(-12),
+        // Why my OWN outbound stg stream changed identity — the root event the
+        // reship cascade above hangs off. See mySelfStream.
+        selfMemo: (window.__selfMemoLog || []).slice(-8),
         annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)
           // mt = the mirror's TRANSIT ROW. A carrier recomputes the route from
           // it, and slotFor/the forwarder both bail SILENTLY when it is absent
