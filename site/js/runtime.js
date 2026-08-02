@@ -1537,14 +1537,21 @@
             // the bytes travel as a separate owner-signed 'app' frame, encoded
             // and signed ONCE, sent only when a client asks ('need-app') —
             // throttled, DC-borne like every sga frame.
-            let appFrameP = null, lastAppSent = 0;
+            let appB64 = null, lastAppSent = 0;
             const sendAppBytes = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               const now = Date.now();
               if (now - lastAppSent < 8000) return Promise.resolve();
               lastAppSent = now;
-              if (!appFrameP) appFrameP = stageSigner.sign(sid, 'app', { app: gif.b64encode(appBytes), name: manifest.name || 'App' });
-              return appFrameP.then((f) => stageBus.send('app', f)).catch(() => { appFrameP = null; });
+              if (!appB64) appB64 = gif.b64encode(appBytes); // encode once — the heavy half
+              // SIGN FRESH EVERY SEND (2026-08-02): frames carry a monotonic n
+              // and the verifier rejects n <= lastN as replay ('stale'). A
+              // cached signed frame kept its mint-time n while snaps/deltas
+              // advanced the clients' lastN — so the app frame arrived
+              // forever-stale and nobody could mount (found by the wolves
+              // room's frame tap; it also explains chess's join "slowness").
+              return stageSigner.sign(sid, 'app', { app: appB64, name: manifest.name || 'App' })
+                .then((f) => stageBus.send('app', f)).catch(() => {});
             };
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
@@ -1694,6 +1701,32 @@
       // host's own onAct fence stays authoritative against dishonest clients.
       let leadState = { on: false, keys: new Set() };
       let frozen = false; // owner away (one-runtime): shared writes refuse honestly
+      // ACT RETRY-UNTIL-ECHO (2026-08-02, found by a dropped chess move): the
+      // act lane is fire-and-forget over DCs, and a DC hiccup silently ate a
+      // guest's move. A pending act re-sends every 3s until the owner's
+      // canonical echo reflects it (or ~4 tries — then the next snap honestly
+      // reverts the optimistic apply). Puts/deletes are idempotent, so a
+      // false-negative echo check only costs a harmless duplicate.
+      const pendingActs = new Map(); // col\x00id -> { d, at, tries }
+      const actKey = (c, id) => c + '\x00' + id;
+      const echoSatisfied = (p) => {
+        const items = (mirror.collections[p.d.collection] || {}).items || {};
+        if (p.d.op === 'delete') return !(p.d.key in items);
+        const got = items[p.d.value && p.d.value.id];
+        try { return JSON.stringify(got) === JSON.stringify(p.d.value); } catch (e) { return !!got; }
+      };
+      const reconcilePending = () => { for (const [k, p] of pendingActs) if (echoSatisfied(p)) pendingActs.delete(k); };
+      const actSweep = setInterval(() => {
+        if (frozen) return;
+        const now = Date.now();
+        for (const [k, p] of pendingActs) {
+          if (echoSatisfied(p)) { pendingActs.delete(k); continue; }
+          if (now - p.at < 3000) continue;
+          if (++p.tries > 4) { pendingActs.delete(k); continue; }
+          p.at = now;
+          try { send('act', p.d); } catch (e) {}
+        }
+      }, 1500);
       const takeLead = (b) => { if (b && b.lead) leadState = { on: !!b.lead.on, keys: new Set(Array.isArray(b.lead.keys) ? b.lead.keys.map(String) : []) }; };
       const fenced = (collection, id) => leadState.on && id != null && leadState.keys.has(collection + '::' + id);
 
@@ -1737,7 +1770,9 @@
             if (fenced(collection, rec.id)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
-            try { send('act', { op: 'put', collection: collection, value: rec }); } catch (e) {}
+            const d = { op: 'put', collection: collection, value: rec };
+            pendingActs.set(actKey(collection, rec.id), { d: d, at: Date.now(), tries: 0 });
+            try { send('act', d); } catch (e) {}
             return Promise.resolve({ id: rec.id });
           }
           if (op === 'delete') {
@@ -1748,7 +1783,9 @@
             if (eff0 !== 'read-write') return Promise.reject(new Error('read-only for guests'));
             if (fenced(collection, key)) return Promise.reject(new Error('the leader is driving this record'));
             const c = mirror.collections[collection]; if (c && c.items) delete c.items[key]; notify(collection);
-            try { send('act', { op: 'delete', collection: collection, key: key }); } catch (e) {}
+            const dd = { op: 'delete', collection: collection, key: key };
+            pendingActs.set(actKey(collection, key), { d: dd, at: Date.now(), tries: 0 });
+            try { send('act', dd); } catch (e) {}
             return Promise.resolve(true);
           }
           if (op === 'setVisibility') return Promise.reject(new Error('the app owner controls visibility'));
@@ -1782,7 +1819,7 @@
         if (mounted || !b64) return Promise.resolve();
         appBytes = gif.b64decode(b64);
         return gif.decode(appBytes).then((archive) => {
-          if (!archive) { setStatus('Bad app from the mesh host.'); return; }
+          if (!archive) { setStatus('Bad app from the mesh host.'); try { console.error('[bootClientBus] app frame DECODE failed (bytes ' + (appBytes ? appBytes.length : 0) + ')'); } catch (e2) {} appBytes = null; return; }
           filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: name || 'App' };
           dataVis = manifestRef.data || {};
           if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
@@ -1791,7 +1828,7 @@
         });
       };
       const onSnap = (body) => {
-        if (body && body.state && body.state.collections) mirror = body.state;
+        if (body && body.state && body.state.collections) { mirror = body.state; reconcilePending(); }
         if (!mounted) {
           if (body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
           askApp();
@@ -1802,20 +1839,21 @@
       const unsub = subscribe((m) => {
         if (!m || m.kind === 'act' || m.kind === 'need-app') return; // client→owner directions
         Promise.resolve(ver.verify(m.d)).then((r) => {
-          if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
+          if (!r.ok) { try { console.error('[bootClientBus] frame REJECTED kind=' + (m.kind || '?') + ' reason=' + (r && r.reason || '?')); } catch (e2) {} return; } // unsigned / impostor / tampered — NEVER canonical
           takeLead(r.body); // the signed lead fence rides every canonical frame
           if (r.kind === 'app') return mountFromB64(r.body && r.body.app, r.body && r.body.name);
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
             if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; notify('*'); }
             else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
+            reconcilePending();
           }
         }).catch(() => {});
       });
 
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
-        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearInterval(askTimer); askTimer = null; } },
+        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearInterval(askTimer); askTimer = null; } clearInterval(actSweep); pendingActs.clear(); },
         // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
         // survival story. snapshot() packs app bytes + the owner-verified
         // mirror into a snapshot GIF — the successor adopts it (resilient

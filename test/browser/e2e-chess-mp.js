@@ -24,7 +24,7 @@ async function enterFriend(page) {
   // join + P2P handshake completes, which now runs on top of S4's async identity
   // mint — legitimately slower than the old synchronous client-set-id path. The
   // engine-ready wait below is already 45s; the iframe appears before that.
-  await page.waitForSelector('iframe', { timeout: 30000 });
+  await page.waitForSelector('iframe', { timeout: 120000 }); // 8MB app over the mesh lane: DC forms while the host's WASM engine churns a starved CI core, then ~15MB sealed transfer
   await page.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {});
   const fr = page.frameLocator('iframe');
   await fr.locator('#engineChip', { hasText: 'ready' }).waitFor({ timeout: 45000 }).catch(() => {});
@@ -65,7 +65,7 @@ async function clickMove(frame, orient, uci) {
   }, GIF_B64);
   const [aRun] = await Promise.all([aCtx.waitForEvent('page'), aDesk.locator('.icon', { hasText: 'Chess Grandmaster.gif' }).dblclick()]);
   aRun.on('pageerror', (e) => console.log('  [Alice app err]', e.message));
-  const aFrame = await enterFriend(aRun);
+  let aFrame = await enterFriend(aRun);
   await aFrame.locator('#fStatus', { hasText: /Waiting for another/i }).waitFor({ timeout: 5000 }).catch(() => {});
   check('host sees "waiting for another player"', /Waiting for another/i.test(await aFrame.evaluate(() => document.getElementById('fStatus').textContent)));
 
@@ -78,6 +78,9 @@ async function clickMove(frame, orient, uci) {
   });
   await aRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
   const shareUrl = await aRun.evaluate(() => document.getElementById('share-url').value);
+  // Invite REBOOTS the app into hosted mode (runApp remounts the iframe) — the
+  // pre-invite Frame handle is dead; re-enter friend mode on the fresh mount.
+  aFrame = await enterFriend(aRun);
 
   // ---- Bob joins from the link ----
   const bCtx = await browser.newContext(); await bCtx.addInitScript(setup('Bob'));
