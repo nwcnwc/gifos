@@ -55,7 +55,10 @@ body {
 .vbtn { padding: .3rem .7rem; border-radius: .4rem; border: 1px solid var(--accent);
   background: none; color: var(--accent); cursor: pointer; font-size: .78rem; white-space: nowrap; }
 .vbtn:hover { background: rgba(123,92,255,.15); }
-.vbtn.ghost { border-color: var(--border); color: var(--muted); }
+/* Secondary look (the "Re-pull" edge button) but still full-contrast text — a
+   solid surface fill so it reads on the tinted edge row in light AND dark. */
+.vbtn.ghost { background: var(--surface); border-color: var(--border); color: var(--text); }
+.vbtn.ghost:hover { border-color: var(--accent); background: var(--surface); }
 
 /* update bar: louder when a critical release is waiting */
 .update-bar.critical { background: linear-gradient(135deg, rgba(255,92,92,.28), rgba(255,150,60,.28)); border-bottom-color: #ff6b6b; }
