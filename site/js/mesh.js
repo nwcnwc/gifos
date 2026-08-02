@@ -480,9 +480,19 @@
     // target lifts the mark; when everyone is marked, fall back to the full
     // set (an all-dark roster still retries honestly).
     // TODO(sim parity): port triedSilent to test/sim/mesh.cpp — same rule.
+    // GATEWAY-FIRST (2026-08-02, the fresh-corpse ask): the greeter that
+    // ANSWERED my knock is the one roster member proven alive THIS INSTANT; a
+    // random pick can land on a just-departed seat that is still s1Fresh at
+    // the greeter (its LEAVE lost, its transport death not yet registered),
+    // and one silent ask costs the seeker its whole retry window. Prefer the
+    // gateway while it is untried; the random pick still spreads door load
+    // across seekers, because every seeker's gateway is a different pool
+    // entry. A silent gateway falls out via triedSilent and the spread
+    // resumes.
     pickRoster() {
       const liveIds = []; const fresh = [];
       for (const e of this.roster) if (e.v !== this.id) { liveIds.push(e.v); if (!this.triedSilent || !this.triedSilent.has(e.v)) fresh.push(e.v); }
+      if (this.gateway != null && fresh.includes(this.gateway)) return this.gateway;
       const pool = fresh.length ? fresh : liveIds;
       if (!pool.length) return null;
       return pool[(this.rng() * pool.length) | 0];
