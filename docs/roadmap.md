@@ -1108,16 +1108,86 @@ live; only the IAP rail below is still unbuilt.
 - Fully free apps (no IAP) remain first-class.
 
 **Open questions.**
-- Curation bar (signed makers only? theme-computer stores?). Note the two
-  listed apps are **not signed today**, so both show "not signed" in their
-  listing — `apps/README.md` claims first-party signing that has never
-  actually been applied. Signing them is the cheap first step of any curation
-  bar (the store already refuses a download whose signature doesn't verify).
+- Curation bar (signed makers only? theme-computer stores?). The two
+  first-party apps are now **signed by gifos.app** (verified in the browser on
+  install), so a "signed makers only" bar has a working reference; the open
+  question is the policy for **third-party** makers — self-signed + reputation,
+  a GifOS counter-signature, or domain-key proof.
 - IAP entitlement storage (local-only vs maker server); restore on new device
   without accounts (receipt export / wallet-bound proof).
 - Abuse: malicious GIFs that phish pays — review, report, delist, wallet block
   on IAP rail.
 - Platform fee bps on IAP; self-hosted store mirrors with fee = 0.
+
+### 6a. Catalog seeding: port MIT-licensed open source at scale
+
+**What.** A deliberate push to **fill the store fast** by turning popular
+**permissively-licensed** open-source projects — MIT above all, plus BSD /
+Apache-2.0 / ISC — into self-contained GifOS **App GIFs**. The web is full of
+finished, well-loved apps whose license already says "use it however you want,
+just keep the notice"; the effort is to package as many as run cleanly in the
+sandbox as we can. It rides the emerging **"AI software app store"** moment —
+teams open-sourcing their products (e.g. an agentic CRM under MIT) and
+directories springing up to index AI-built apps (hub.grok.me, dappit.io,
+mor.org) — except a GifOS listing is a **portable file you own**, offline and
+sandboxed, not a link to someone's server that dies when they stop paying for it.
+
+**Why it fits.**
+- A store's cold-start problem is inventory; permissive licenses give a huge,
+  legally-clean supply we can ship without asking permission (attribution kept).
+- App GIFs are the ideal container for "a whole app you keep" — self-contained,
+  runs offline, sandboxed, shareable as one file — a stronger claim than a
+  hosted directory entry.
+- The port work is exactly what makes an app **sandbox-honest** anyway (vendor
+  every asset, no CDN at load, state in `gifos.db`, network only via the
+  manifest allowlist), so seeding doubles as hardening.
+- It composes with §6's publish path and the AI-porting trend: a coding agent
+  can do most of a port mechanically, so "as many as possible" is realistic.
+
+**Sketch.**
+- **Candidate list:** curate by license (permissive), self-containability
+  (client-side, or a backend whose API can ride `gifos.fetch` + a declared
+  host), and appeal (stars / a category we're thin in). Keep it as a tracked
+  list in the repo, not tribal knowledge.
+- **Port recipe (per app):** vendor all assets INTO the GIF (no CDN, web font,
+  or remote image at load — the one hard sandbox rule); swap `localStorage` /
+  IndexedDB / cookies for `gifos.db`; route any live data through `gifos.fetch`
+  with the hosts declared in `manifest.capabilities.network` (proxy for
+  no-CORS public APIs); drop or client-side-reimplement server-only features.
+  Land it as an ordinary `apps/<slug>/` source tree + built GIF through
+  `scripts/build-app-catalog.mjs` — same pipeline as the first-party apps.
+- **License hygiene (non-negotiable):** carry the upstream `LICENSE` / copyright
+  INSIDE the GIF (as chess-grandmaster ships `COPYING-stockfish.txt`) and
+  surface **upstream license + source link + original author** in the listing.
+  Prefer permissive so the port stays freely usable; a GPL port is allowed but
+  stays GPL (chess-grandmaster is the precedent) and must say so.
+- **Authorship / signing:** a first-party port can be **signed by gifos.app**
+  (store shows ✓ signed) while the listing still **credits the upstream
+  author** — the signature is provenance of the *packaging*, not a claim of
+  original authorship. Ties to §6's curation-bar question.
+- **Scale via agents:** a repeatable port checklist plus the sandbox test
+  harness makes this a fan-out job — point coding agents at the candidate list,
+  one port each, gated by "runs offline in the sandbox, license carried, catalog
+  `--check` green."
+
+**Open questions.**
+- **License set:** MIT/BSD/ISC are easy; Apache-2.0 adds a NOTICE duty and a
+  patent grant — in scope for v1 or MIT-first? GPL/AGPL only when we're happy to
+  ship the port under that same license.
+- **Attribution UX:** how the listing shows "ported from `<repo>`, © upstream,
+  `<license>`" so credit and license are obvious, not buried in the GIF.
+- **Trademark vs copyright:** a permissive *code* license is not a *trademark*
+  license — rename/rebrand ports that carry a protected name; never imply
+  endorsement by the original project.
+- **Maintenance drift:** a port is a fork frozen in a GIF. Do we pin the
+  upstream commit in the listing and track releases, and who re-ports on a
+  security fix?
+- **What's actually portable:** anything needing a private backend, a login, or
+  a server secret is out (no accounts, no server that sees plaintext) — the
+  candidate filter must catch that before a wasted port.
+- **Curation / safety:** a permissive license says nothing about code safety; a
+  flood of ports raises the review bar (§6's abuse question) and the case for a
+  signing/curation gate.
 
 ## 7. ONE runtime: kill the app star, strip the relay to meeting-only
 
