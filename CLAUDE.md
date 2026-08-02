@@ -92,6 +92,24 @@ Bracket the pattern or pgrep matches its own command line. Check `nproc` and
 `/proc/loadavg` BEFORE believing any red: this box is 4 cores and a browser
 suite spawns 6-10 of these.
 
+## One box cannot tell a bug from a busy kernel
+
+Every browser suite runs the host, the guests AND the relay on ONE machine —
+not a shape that exists in real life. When a timing number looks bad there, you
+cannot tell a product bug from that kernel scheduling three Chromiums, and
+guessing has burned whole sessions. **Rebuild the topology across DEVICES, one
+or two clients per box** (penguin, nvidia-laptop, pi-16gb, raspberrypi, the
+Moto over adb) and the answer is unambiguous.
+
+The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
+`test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
+latency (the latter prints a per-leg `TRACE snap@… ask@… app-frame@… mounted@…`
+so you read WHICH leg was slow, not just the total). Full recipe, and every trap
+paid for so far — insecure-origin flag, worktrees with no node_modules, silent
+stale clones, hosts that degrade after ~20 guests, interleaving A/Bs — is in
+**test/README.md → "ONE BOX CANNOT ANSWER…"**. Read it before building anything
+new; then build freely if the bug needs machinery that isn't there.
+
 ## Conventions that bite
 
 - `site/versions/<x.y.z>/` are FROZEN archived builds — never edit them.

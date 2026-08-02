@@ -117,6 +117,75 @@ believing it.
 | is the room ONE room? | distinct coords + agreeing population (`drills/adversary-room.js` asserts both) |
 
 
+## ONE BOX CANNOT ANSWER "is this a real bug?" — go multi-box
+
+**The trap, hit repeatedly.** Every browser suite runs the host, the guests AND
+the relay on a single machine. That is not a meeting shape that exists in real
+life, and when a timing number looks bad there you genuinely cannot tell a
+product bug from that one kernel scheduling three Chromiums. Two full cycles
+were burned in the 0.9.0 cut on exactly this.
+
+**Worked example (2026-08-02).** `e2e-perms-share` measured the guest's app
+mount at 9-32 ms five runs in six and 32,899 ms on the sixth, on one box. Was it
+real? Rebuilt across three machines — host on raspberrypi, guest on an idle
+pi-16gb, site+relay on penguin — it reproduced and was far WORSE: 1.6s / 7.7s /
+7.7s / 20.7s / 36.5s, later 48.5s. Real bug, two causes, both fixed
+(`FIX both remaining legs of the slow app-room join`). Afterwards: max 6.1s.
+
+**The harnesses already exist — do not rebuild them.**
+
+| what | tool |
+|---|---|
+| meetings / topology (forceSeat, Stage, `tree` census) | `test/swarm/meet.js`, one or two clients per box |
+| app-room join latency, leg by leg | `test/tools/approom-host.js` + `test/tools/approom-join.js` |
+
+```bash
+# one box serves site+relay for everyone (a fresh relay on a spare port leaves
+# any existing dev relay on 8790 alone):
+RELAY_DEV=1 RELAY_HOST=0.0.0.0 RELAY_PORT=8795 node test/servers/relay-local.js &
+python3 -m http.server 8099 -d site &            # binds 0.0.0.0 already
+
+# HOST box — prints an invite link, then sits in the room until killed:
+export MEET_INSECURE_ORIGINS=http://<server-ip>:8099
+node test/tools/approom-host.js --base http://<server-ip>:8099 --relay ws://<server-ip>:8795
+
+# GUEST box — fresh guest per run, prints the join timeline:
+export MEET_INSECURE_ORIGINS=http://<server-ip>:8099
+node test/tools/approom-join.js --base http://<server-ip>:8099 \
+     --relay ws://<server-ip>:8795 --link '<invite url>' --runs 6
+```
+
+`approom-join` prints a per-run `TRACE snap@… ask@… app-frame@… mounted@…`
+(from `window.__appJoinTrace`, written by `runtime.js`). Read the LEGS, not the
+total: waiting on the owner's snap is mesh/DC establishment, asks going
+unanswered is the bytes path. They are different bugs and the total cannot tell
+them apart — guessing without this trace cost two wrong diagnoses in one day.
+
+**Traps, all of them paid for:**
+
+* **Plain http is not a secure context.** Without
+  `MEET_INSECURE_ORIGINS=http://<server-ip>:8099` getUserMedia and WebCrypto
+  fail and the page looks broken for the wrong reason.
+* **A fresh `git worktree` has no `node_modules`** (it is gitignored), so every
+  actor dies in 4s with "actor not running". Symlink the main clone's:
+  `ln -s ~/projects/gifos/node_modules $WT/node_modules`.
+* **A stale clone fails SILENTLY** — a box running older code simply never gets
+  placed, with no error. `git log -1` on every box before believing a result.
+  Pull there with `git fetch && git reset --hard origin/<branch>`.
+* **A long-lived host DEGRADES.** After ~20 sequential guests one
+  `approom-host` stopped serving app bytes altogether (0/4 mounted) and a fresh
+  host fixed it instantly. Restart the host between measurement batches, and do
+  not read a sudden all-fail as a code regression without trying that first.
+* **INTERLEAVE every A/B** (O,N,O,N…), never all-old-then-all-new. Box load
+  drifts upward across a session, and a sequential A/B reported a phantom
+  regression twice in one day. See the `power-lever-refutations` discipline.
+* **Background services skew a pi.** raspberrypi runs MonitorBot
+  (`systemctl --user stop gifos-meet-monitor.service`), pi-16gb runs the Home
+  Privacy Machine (`sudo systemctl stop hpm-app.service`, ~3 of its 4 cores).
+  Stop them for a clean measurement and **start them again afterwards**.
+* **Never `pkill chrome` broadly over ssh** — it took down the ssh session
+  itself. Kill the harness by its own bracketed name.
+
 ## Running
 
 ```bash
