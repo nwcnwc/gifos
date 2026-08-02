@@ -1,40 +1,79 @@
 {
-  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
+  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
+    {
+      "version": "0.8.8",
+      "date": "2026-07-31",
+      "critical": false,
+      "headline": "Longer phone battery in big meetings",
+      "notes": [
+        "Two lighter video rungs (down to 144p) so a phone low on battery in a crowded room stops draining.",
+        "An all-muted room wakes far less often — quiet meetings cost less power."
+      ]
+    },
+    {
+      "version": "0.8.7",
+      "date": "2026-07-30",
+      "critical": false,
+      "headline": "Deeper phone power savings",
+      "notes": [
+        "Phones now run video one to two rungs lighter in every state, so a call no longer outdrinks the charger."
+      ]
+    },
+    {
+      "version": "0.8.6",
+      "date": "2026-07-29",
+      "critical": false,
+      "headline": "Build badge on every page",
+      "notes": [
+        "A small corner badge shows which build you're running, so you no longer have to read the address bar.",
+        "Restored the version-pinning safeguard a loader redesign had quietly broken."
+      ]
+    },
     {
       "version": "0.8.5",
       "date": "2026-07-26",
       "critical": true,
-      "headline": "Invite links work again — and a room name is finally the name you typed",
+      "headline": "Invite links and room names fixed",
       "notes": [
-        "Shared links (gifos.app/meet/…, /call/… and /join/…) opened the Home Screen instead of the meeting for anyone who had visited the site before. The offline layer was discarding the very response that routes those links, and the channel loader then rewrote them into an address that does not exist. Both are fixed: an invite link goes straight into the meeting.",
-        "Room names keep their capital letters. Opening gifos.app/meet/BibleReading and pasting that same link into \"Join a link\" used to land you in two DIFFERENT meetings — one lowercased, one not — so two people with the identical link never saw each other. A room id is the secret your meeting's encryption key is derived from, and it is no longer altered in any way.",
-        "Sharing an app into a meeting could leave guests staring at an app header over blank space. A pinned computer's meeting was rewriting its address to a site-wide path, which moved the page's base and made it load pieces of the wrong build. Pinned computers now stay on their own build and still hand out the short link.",
-        "The build number shown in Settings → Advanced → Version was stuck, and went backwards (825 → 280), so the edge channel could never tell you a newer build existed. It counts correctly again."
+        "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
+        "Room names keep their capital letters, so the same link always lands everyone in the same meeting.",
+        "Sharing an app into a meeting works for guests again.",
+        "The build number in the Version panel counts correctly again."
+      ]
+    },
+    {
+      "version": "0.8.4",
+      "date": "2026-07-26",
+      "critical": false,
+      "headline": "Fullscreen view and a smoother join",
+      "notes": [
+        "New fullscreen view: one feed big, every other feed as floating thumbs.",
+        "Joining now shows a veil until your seat is real — no flash of an empty room.",
+        "Meetings start easing video quality down to match your device's battery."
       ]
     },
     {
       "version": "0.8.3",
       "date": "2026-07-25",
       "critical": false,
-      "headline": "Meetings: honest video frames, camera flip, real fullscreen, and room votes",
+      "headline": "Honest video, camera flip, fullscreen, votes",
       "notes": [
-        "Your row and the Stage now show each camera's whole broadcast frame — exactly what a recording captures — instead of a crop.",
-        "Switch between front and back cameras with the new flip button (appears when your device has both).",
-        "The tile button is now a real fullscreen button: one press fills your screen, Esc or a second press exits.",
-        "Recordings carry a burned-in 'Recording — name' badge on the recorder's own panel, so a shared file always shows who made it.",
-        "New Vote menu: vote someone onto the stage, off the stage, or out of the room. One vote per person, majorities decide, and your stage votes are withdrawn automatically when you leave.",
-        "Meeting monitors and locked test rooms aside: this release also carries the 0.8.2 door-stability fixes for anyone who skipped it."
+        "Tiles show your whole camera frame, not a cropped square.",
+        "Flip between front and back cameras.",
+        "A real fullscreen button (Esc or tap to exit).",
+        "Recordings carry a burned-in \"Recording — name\" badge.",
+        "Vote someone onto the stage, off it, or out of the room."
       ]
     },
     {
       "version": "0.8.2",
       "date": "2026-07-25",
       "critical": true,
-      "headline": "Meeting stability: a relay blip can no longer tear a room in two",
+      "headline": "A relay blip can't split a room",
       "notes": [
-        "Meeting greeters now re-register the instant their relay socket reconnects (plus an idle keepalive and a zombie-socket watchdog), so a relay hiccup no longer leaves the room's door unmanned for minutes. Before this, a joiner in that window could stall at 'participants: 1' or accidentally found a second copy of the meeting — the split-room picker and the bouncing participant counts some rooms saw.",
-        "Meeting diagnostics now show when a participant's media is arriving via a friend-relay instead of a direct connection."
+        "Greeters re-register the instant they reconnect, so a relay hiccup no longer strands joiners or spawns a duplicate room.",
+        "Diagnostics show when someone's media is arriving via a friend-relay."
       ]
     },
     {
@@ -43,13 +82,11 @@
       "critical": false,
       "headline": "First public release",
       "notes": [
-        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs, and sharing the file shares the whole app with its saved data inside.",
-        "Peer-to-peer Meetings that scale to large rooms on a self-healing mesh, with no server in the middle — and you can run any app live inside a meeting.",
-        "Any app goes multiplayer with one invite link (direct WebRTC, relay fallback); the link is yours by a secret only your app holds.",
-        "Fully offline-capable: your computer and its apps run in airplane mode. Back up a whole computer as one GIF and boot it anywhere.",
-        "Ten themed computers (the numbered subdomains), provenance signing, and per-person AI/API keys that apps can use but never see.",
-        "Two-player games (Tic-Tac-Toe, Connect Four) ask before New game clears the board — the other player consents, or you confirm your own reset.",
-        "Version panel: pin or roll back to any release. Switching a build rebuilds the built-in default apps to that build, and the data saved inside them carries over."
+        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs; share the file, share the app with its data inside.",
+        "Peer-to-peer meetings that scale on a self-healing mesh, with no server in the middle — run any app live inside one.",
+        "Any app goes multiplayer with one invite link.",
+        "Fully offline-capable; back up a whole computer as one GIF and boot it anywhere.",
+        "Ten themed computers, provenance signing, and per-person AI/API keys apps can use but never see."
       ]
     }
   ]

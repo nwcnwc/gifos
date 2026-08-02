@@ -1375,9 +1375,14 @@
       // System apps run as trusted first-party pages, not in the sandbox —
       // live media (camera/mic + WebRTC) is impossible from an opaque origin.
       // Whitelist only; a manifest can't route to arbitrary URLs.
-      const SYSTEM_PAGES = { meet: 'meet.html', video: 'meet.html' }; // 'video' = pre-rename seeds
+      const SYSTEM_PAGES = { meet: 'meet.html', video: 'meet.html', store: 'store.html' }; // 'video' = pre-rename seeds
       if (manifest.system && SYSTEM_PAGES[manifest.system]) {
-        location.replace(SYSTEM_PAGES[manifest.system]);
+        // The store installs INTO a computer, so it has to land on the one this
+        // app was opened from — a booted computer image (boot.html) keeps its
+        // own namespace, and an install must not leak into the host desktop.
+        const ns = (manifest.system === 'store' && store.dbName && store.dbName !== 'gifos')
+          ? '?db=' + encodeURIComponent(store.dbName) : '';
+        location.replace(SYSTEM_PAGES[manifest.system] + ns);
         return noop;
       }
       document.title = (manifest.name || 'App') + ' — GifOS';

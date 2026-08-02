@@ -21,6 +21,15 @@
   const TRASH_ID = 'sys_trash';
   const REPO_URL = 'https://github.com/nwcnwc/gifos';
 
+  // Launchers whose GIF opens a trusted GifOS page instead of running in the
+  // sandbox (runtime.js SYSTEM_PAGES). They wear a SYSTEM badge, and the value
+  // here is the tooltip explaining what extra power that page holds.
+  const SYSTEM_LAUNCHERS = {
+    meet: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
+    video: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
+    appstore: 'System app — opens the trusted GifOS store page, which can install an app onto this Home Screen. Regular apps run sandboxed and can never write to it.',
+  };
+
   let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
   let edgeBuild = BUILD;            // version.json.edgeBuild — the LATEST edge build available
   let releaseBuilds = {};           // version.json.builds — release → edge build it was cut from
@@ -148,7 +157,7 @@
     const bytes = await makeFolderGif(name);
     await store.putFile({ id: fileId, name: name + '.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
     const it = { id: store.uid('item'), kind: 'folder', name, parent: parent || null, x, y, iconSize: 64, fileId };
-    await store.putItem(it);
+    await saveItem(it, { at: { x, y } });
     return it;
   }
 
@@ -158,8 +167,8 @@
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: a.name, bytes: a.bytes, kind: 'gif',
       isApp: true, appId: a.appId, accent: a.accent, mime: 'image/gif', isDefault: true });
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
-      parent, x: pos.x, y: pos.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: a.name,
+      parent: parent || null, x: pos.x, y: pos.y, iconSize: 64 }, { at: pos });
   }
 
   async function seedIfEmpty() {
@@ -252,9 +261,8 @@
       let f = folderByName[folder.name];
       if (!f || f.parent !== parentId) {
         if (parentId) {
-          const parentItem = itemById[parentId];
-          const pspot = nearestFreeCell(GRID.origin, GRID.origin + GRID.rowPitch, parentId, null);
-          f = await createFolder(folder.name, parentId, pspot.x, pspot.y);
+          // Aim below the up-hole; saveItem resolves it to a free cell.
+          f = await createFolder(folder.name, parentId, GRID.origin, GRID.origin + GRID.rowPitch);
         } else {
           f = await createFolder(folder.name, null, x, y);
         }
@@ -309,18 +317,17 @@
   // shipped. 'sys_stolen' is shared with the runtime (run.html), which files
   // stolen apps into it — and creates it itself if a steal happens first.
   async function ensureSystemItems() {
+    const sysSpot = { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
     if (!items.find((i) => i.id === TRASH_ID)) {
-      const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
-      await store.putItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 });
+      await saveItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
+        x: sysSpot.x, y: sysSpot.y, iconSize: 64 }, { at: sysSpot });
       await load();
     }
     let stolen = items.find((i) => i.id === 'sys_stolen');
     if (!stolen) {
-      const spot = nearestFreeCell(GRID.origin, GRID.origin + 3 * GRID.pitch, null, null);
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
-        x: spot.x, y: spot.y, iconSize: 64 };
-      await store.putItem(stolen);
+        x: sysSpot.x, y: sysSpot.y, iconSize: 64 };
+      await saveItem(stolen, { at: sysSpot });
       await load();
     }
     // The loot deserves a treasure chest. Also retrofits folders created bare
@@ -331,7 +338,7 @@
         const bytes = await makeFolderGif('Stolen Apps', FOLDER_ACCENTS['Stolen Apps'], 'chest');
         await store.putFile({ id: fileId, name: 'Stolen Apps.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
         stolen.fileId = fileId;
-        await store.putItem(stolen);
+        await saveItem(stolen);                    // same cell — only the art changed
         await load();
       } catch (e) { /* falls back to the 📁 glyph */ }
     }
@@ -438,7 +445,7 @@
     // Folded into the icon key so a tile rebuilds the moment its app gains data.
     const fresh = await Promise.all(visible.map((it, i) => {
       const f = files[i];
-      if (!f || !f.isApp || f.appId === 'meet' || f.appId === 'video') return false;
+      if (!f || !f.isApp || SYSTEM_LAUNCHERS[f.appId]) return false;
       return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
     }));
     // Identity pill (short name + version) for SIGNED app tiles only — decoding
@@ -582,13 +589,15 @@
           nb.title = 'Fresh — you haven’t saved anything in this app yet.';
           thumb.appendChild(nb);
         }
-        if (file.appId === 'meet' || file.appId === 'video') {
-          // Honest signage: this launcher opens a SYSTEM page that runs with
-          // camera/mic/WebRTC — capabilities sandboxed apps never get.
+        if (SYSTEM_LAUNCHERS[file.appId]) {
+          // Honest signage: this launcher opens a trusted GifOS PAGE, with
+          // powers the sandbox deliberately withholds from ordinary apps —
+          // camera/mic/WebRTC for a meeting, writing to this Home Screen for
+          // the store. The tooltip says which, per launcher.
           const sys = document.createElement('span');
           sys.className = 'sysbadge';
           sys.textContent = 'SYSTEM';
-          sys.title = 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.';
+          sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
         } else if (meta && (meta.shortName || meta.version)) {
           // Identity pill (top-center, like SYSTEM): the signed app's own short
@@ -738,6 +747,150 @@
     return { x: px, y: py }; // desktop is impossibly full — leave as dropped
   }
 
+  // ---------- saveItem: the ONE place an icon's home is written ------------
+  // Every icon that arrives anywhere — dragged into a folder, imported from the
+  // OS, trashed, restored, unpacked from a folder GIF, stolen by an app — goes
+  // through here, and here is the only code that decides which cell it lands
+  // on. Nothing else may call store.putItem for an item (the sole exception is
+  // restoreDesktop, which bulk-writes a backup while `items` is mid-rebuild).
+  //
+  // Icons used to land on top of each other because placement was re-derived by
+  // hand at every call site — nearestFreeCell was spelled out at eight of them
+  // — and the one that mattered most simply forgot: the folder drop set
+  // `parent` and kept the x/y the icon had on the screen OUTSIDE the folder. So
+  // it landed at whatever coordinates it happened to be dragged from, very
+  // often squarely on top of something already in there. That is why this takes
+  // `into` rather than trusting a caller to have set `parent` first: by the time
+  // a writer sees the item, `it` IS the object in `items`, so the move has
+  // already happened and there is nothing left to detect.
+  //
+  //   opts.into      — the destination container (null = Home Screen). Omit to
+  //                    leave the icon where it already lives.
+  //   opts.at        — where to AIM: a drop point, or a deliberate layout.
+  //                    Still resolved to the nearest FREE cell from there.
+  //   opts.keepCell  — write the coordinates verbatim, trusting the caller.
+  async function saveItem(it, opts) {
+    const o = opts || {};
+    const moving = Object.prototype.hasOwnProperty.call(o, 'into');
+    const dest = moving ? (o.into || null) : (it.parent || null);
+    // Arriving somewhere NEW (a different container, or brand new to this
+    // desktop)? The coordinates from wherever it used to live mean nothing
+    // here, so aim at the container's first cell and fill from there.
+    const arriving = !items.some((n) => n.id === it.id) || dest !== (it.parent || null);
+    if (moving) it.parent = dest;
+    if (!o.keepCell) {
+      const aim = o.at || (arriving ? { x: GRID.origin, y: GRID.origin } : { x: it.x, y: it.y });
+      const spot = nearestFreeCell(aim.x, aim.y, dest, it.id);
+      it.x = spot.x; it.y = spot.y;
+    }
+    await store.putItem(it);
+    // Keep the in-memory list authoritative so a BURST of saves — importing ten
+    // files, unpacking a folder bundle — sees its own earlier placements
+    // instead of piling every one of them onto the same free cell.
+    const i = items.findIndex((n) => n.id === it.id);
+    if (i >= 0) Object.assign(items[i], it); else items.push(it);
+    return it;
+  }
+
+  // ---------- Arrange mode (icons are LOCKED by default) --------------------
+  // Scrolling a phone used to pick icons up: a finger that landed on an icon
+  // owned the gesture from pixel one (touch-action:none + pointer capture), so a
+  // 7px wobble was a drag and a drag that ended over a folder posted the icon
+  // into it silently. Now touch can't move an icon at all until you deliberately
+  // enter Arrange mode. Deliberately UNLIKE a phone: no long-press-to-jiggle
+  // (our long-press is the context menu), no wiggling — you enter from a menu,
+  // the pegboard appears so you can see the cells, and a bar says so until you
+  // tap Done. Mouse drag is untouched: accidental mouse drags aren't a thing and
+  // click-drag IS the desktop metaphor.
+  let arrangeMode = false;
+  const pegboard = document.createElement('div');
+  pegboard.className = 'pegboard';
+  const cellGhost = document.createElement('div');
+  cellGhost.className = 'cell-ghost';
+  surface.appendChild(pegboard);
+  surface.appendChild(cellGhost);
+
+  // Cover the whole scrollable extent. Measured at zero size first — the
+  // pegboard is itself a child of the surface, so measuring it while it's big
+  // would just re-measure its own footprint and grow forever.
+  function sizePegboard() {
+    if (!arrangeMode) return;
+    pegboard.style.width = '0px'; pegboard.style.height = '0px';
+    const w = Math.max(surface.scrollWidth, surface.clientWidth);
+    const h = Math.max(surface.scrollHeight, surface.clientHeight);
+    pegboard.style.width = w + 'px'; pegboard.style.height = h + 'px';
+  }
+  function showCellGhost(px, py, parent, excludeId) {
+    const spot = nearestFreeCell(px, py, parent, excludeId);
+    cellGhost.style.left = spot.x + 'px';
+    cellGhost.style.top = spot.y + 'px';
+    cellGhost.style.width = (GRID.pitch - 8) + 'px';
+    cellGhost.style.height = (GRID.rowPitch - 8) + 'px';
+    cellGhost.classList.add('on');
+  }
+  function hideCellGhost() { cellGhost.classList.remove('on'); }
+
+  const menubarEl = document.querySelector('.menubar');
+  const arrangeBarEl = document.getElementById('arrange-bar');
+  function setArrangeMode(on) {
+    arrangeMode = !!on;
+    surface.classList.toggle('arranging', arrangeMode);
+    if (menubarEl) menubarEl.style.display = arrangeMode ? 'none' : '';
+    if (arrangeBarEl) arrangeBarEl.style.display = arrangeMode ? '' : 'none';
+    if (arrangeMode) sizePegboard(); else { hideCellGhost(); clearDropTargets(); }
+  }
+  const arrangeDone = document.getElementById('arrange-done');
+  if (arrangeDone) arrangeDone.addEventListener('click', () => setArrangeMode(false));
+  // Esc, or a tap on bare wallpaper, locks up again. CLICK, not pointerdown: a
+  // scroll gesture that starts on empty desktop must not count as "tap to exit".
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && arrangeMode) setArrangeMode(false); });
+  surface.addEventListener('click', (e) => { if (arrangeMode && e.target === surface) setArrangeMode(false); });
+  surface.addEventListener('scroll', sizePegboard);
+
+  // ---------- undo toast ----------
+  // The real complaint isn't only that icons move — it's that one disappears
+  // into a folder and you can't tell WHICH. So every drop into a folder says
+  // where it went, and offers to take it back. Mouse drops too.
+  const toastEl = document.createElement('div');
+  toastEl.className = 'toast';
+  toastEl.innerHTML = '<span class="toast-msg"></span><button type="button">Undo</button>';
+  const toastMsg = toastEl.querySelector('.toast-msg');
+  const toastBtn = toastEl.querySelector('button');
+  document.body.appendChild(toastEl);
+  let toastTimer = null, toastUndo = null;
+  function hideToast() {
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+    toastUndo = null;
+    toastEl.classList.remove('on');
+  }
+  function showUndoToast(msgHtml, undoFn) {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastMsg.innerHTML = msgHtml;
+    toastUndo = undoFn;
+    toastEl.classList.add('on');
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+  toastBtn.addEventListener('click', () => { const fn = toastUndo; hideToast(); if (fn) fn(); });
+
+  // Snapshot an item's home BEFORE a move, so Undo can put it exactly back.
+  function homeOf(it) { return { id: it.id, parent: it.parent || null, x: it.x, y: it.y }; }
+  function placeName(parentId) {
+    if (!parentId) return 'Home Screen';
+    const f = items.find((i) => i.id === parentId);
+    return f ? f.name : 'a folder';
+  }
+  function offerUndoMove(before, toParent) {
+    showUndoToast('Moved <b>' + escapeHtml((items.find((i) => i.id === before.id) || {}).name || '') + '</b> into ' +
+      escapeHtml(placeName(toParent)), async () => {
+      const it = items.find((i) => i.id === before.id);
+      if (!it) return;
+      // Back to the exact cell it came from — or, if something has taken that
+      // cell in the meantime, the nearest free one. Never back onto an occupant.
+      await saveItem(it, { into: before.parent, at: { x: before.x, y: before.y } });
+      render();
+    });
+  }
+
   // ---------- icon interaction (drag, double-click, select) ----------
   // Pointer events unify mouse + touch; long-press opens the context menu on touch.
   function wireIcon(el, it) {
@@ -747,12 +900,17 @@
     el.addEventListener('pointerdown', (e) => {
       if (e.target.tagName === 'INPUT') return;          // renaming — let the input work
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      e.preventDefault();                                 // no native image drag / text select
+      // LOCKED is the default for touch (see Arrange mode above): don't
+      // preventDefault, don't capture the pointer, don't move anything — the
+      // browser owns the gesture and the page scrolls. We still watch it, so a
+      // tap still selects/opens and a long-press still opens the menu.
+      const locked = e.pointerType !== 'mouse' && !arrangeMode;
+      if (!locked) e.preventDefault();                    // no native image drag / text select
       selectedId = it.id;
       surface.querySelectorAll('.icon').forEach((n) => n.classList.toggle('selected', n === el));
-      down = { x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop, sl: surface.scrollLeft };
+      down = { locked, x: e.clientX, y: e.clientY, ox: it.x || GRID.origin, oy: it.y || GRID.origin, st: surface.scrollTop, sl: surface.scrollLeft };
       moved = false;
-      try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ }
+      if (!locked) { try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer */ } }
       if (e.pointerType !== 'mouse') {
         lpTimer = setTimeout(() => {                     // long-press → context menu
           if (!moved && down) { down = null; showContextMenu({ clientX: e.clientX, clientY: e.clientY }, it); }
@@ -763,7 +921,9 @@
       if (!down) return;
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearLp(); }
+      if (down.locked) return;   // the page is scrolling under the finger — hands off
       if (moved) {
+        el.classList.add('lifted');
         // Dragging near the edges scrolls the endless surface along — both axes,
         // so you can carry an icon out to a far column or row that's off-screen.
         const r = surface.getBoundingClientRect();
@@ -776,12 +936,19 @@
         el.style.left = Math.max(0, down.ox + dx + sld) + 'px';
         el.style.top = Math.max(0, down.oy + dy + sd) + 'px';
         highlightDropTarget(e, it);
+        // Show the cell it would land in, unless a folder/up-hole would claim it.
+        if (arrangeMode) {
+          if (surface.querySelector('.drop-target')) hideCellGhost();
+          else showCellGhost(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
+        }
       }
     });
     el.addEventListener('pointerup', async (e) => {
       clearLp();
       if (!down) return;
-      const wasMoved = moved; down = null;
+      const wasMoved = moved, wasLocked = down.locked; down = null;
+      el.classList.remove('lifted');
+      if (wasLocked && wasMoved) return;                 // that was a scroll, not a drag
       if (!wasMoved) {
         // Touch double-tap → open. iOS/WebKit never synthesizes dblclick once
         // pointerdown is preventDefault'd, so we detect the two taps ourselves.
@@ -794,25 +961,33 @@
       }
       const targetFolder = folderUnder(e, it);
       const hole = upHoleUnder(e);
+      const before = homeOf(it);                          // for Undo, if this move relocates it
+      let landedIn = null;
       if (hole && it.id !== TRASH_ID) {
-        const upTo = upTarget();                          // dropped in the hole → up a level
-        const spot = nearestFreeCell(GRID.origin, GRID.origin, upTo, it.id);
-        it.parent = upTo; it.x = spot.x; it.y = spot.y;
+        landedIn = upTarget();                            // dropped in the hole → up a level
+        await saveItem(it, { into: landedIn });
       } else if (targetFolder && it.id !== TRASH_ID) {
-        it.parent = targetFolder.id;                     // dropped into a folder (or Trash)
+        landedIn = targetFolder.id;                       // dropped into a folder (or Trash)
+        await saveItem(it, { into: landedIn });           // lands on a FREE cell in there
       } else {
-        const snapped = nearestFreeCell(parseInt(el.style.left, 10), parseInt(el.style.top, 10), it.parent, it.id);
-        it.x = snapped.x; it.y = snapped.y;
+        // Moved within this screen: land on the cell nearest to where it was
+        // actually dropped, which is the whole point of dragging it there.
+        await saveItem(it, { at: { x: parseInt(el.style.left, 10), y: parseInt(el.style.top, 10) } });
       }
-      await store.putItem(it);
       clearDropTargets();
+      hideCellGhost();
+      // Changing FOLDER makes an icon vanish from this screen — always say where
+      // it went and offer to undo it. A move within one screen is self-evident.
+      if (landedIn !== null || before.parent !== (it.parent || null)) offerUndoMove(before, it.parent || null);
       render();
     });
     el.addEventListener('pointercancel', () => {         // scroll/gesture stole the pointer
       clearLp(); down = null;
+      el.classList.remove('lifted');
       el.style.left = (it.x || GRID.origin) + 'px';
       el.style.top = (it.y || GRID.origin) + 'px';
       clearDropTargets();
+      hideCellGhost();
     });
 
     el.addEventListener('dblclick', () => openItem(it));
@@ -962,10 +1137,9 @@
     await store.putFile({ id: fileId, name, bytes: buf, kind: isGif ? 'gif' : 'other',
       isApp: !!archive, appId: m.appId || null, accent: m.accent || null,
       mime: isGif ? 'image/gif' : 'application/octet-stream' });
-    const spot = nearestFreeCell(x, y, currentFolder, null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
-    await load(); // next import's free-cell search must see this one
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name,
+      parent: currentFolder, iconSize: 64 }, { at: { x, y } });
+    await load();
   }
 
   // ---------- drop files from the OS ----------
@@ -1066,6 +1240,8 @@
               : [{ label: 'Sign this GIF…', fn: () => signItem(it) }])
           : []),
         { label: 'Rename', fn: () => beginRename(it) },
+        // The discoverable way in on a phone: icons don't move until you ask.
+        { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
         { label: 'Bigger icon', fn: () => resizeIcon(it, +16) },
         { label: 'Smaller icon', fn: () => resizeIcon(it, -16) },
         'sep',
@@ -1075,6 +1251,7 @@
       entries = [
         { label: 'New Folder', fn: () => newFolder(e.offsetX, e.offsetY) },
         { label: 'Add file(s)…', fn: () => fileInput.click() },
+        { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
       ];
     }
     buildMenu(e.clientX, e.clientY, entries);
@@ -1166,9 +1343,9 @@
     catch (e) { /* keep full bundle bytes as the shell */ }
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: name + '.gif', bytes: shellBytes, kind: 'gif', isApp: false, mime: 'image/gif' });
-    const spot = nearestFreeCell(x, y, parent || null, null);
     const folderId = store.uid('item');
-    await store.putItem({ id: folderId, kind: 'folder', name, parent: parent || null, x: spot.x, y: spot.y, iconSize: 64, fileId });
+    await saveItem({ id: folderId, kind: 'folder', name, parent: parent || null, iconSize: 64, fileId },
+      { at: { x, y } });
     let fj = null;
     try { fj = JSON.parse(bytesToText(archive.files['folder.json'])); } catch (e) { /* empty folder bundle */ }
     for (const entry of (fj && fj.items) || []) {
@@ -1185,29 +1362,27 @@
         await store.putFile({ id: fid, name: entry.name, bytes: data, kind: entry.fileKind || 'gif',
           isApp: !!entry.isApp, appId: entry.appId || null, accent: entry.accent || null,
           mime: entry.mime || 'image/gif' });
-        await store.putItem({ id: store.uid('item'), kind: 'file', fileId: fid, name: entry.name,
-          parent: folderId, x: entry.x || GRID.origin, y: entry.y || GRID.origin, iconSize: entry.iconSize || 64 });
+        // An entry with no saved cell aims at the folder's origin — which is
+        // the up-hole's cell, and shared by every other such entry. saveItem
+        // spreads them instead of stacking the whole bundle on one square.
+        await saveItem({ id: store.uid('item'), kind: 'file', fileId: fid, name: entry.name,
+          parent: folderId, iconSize: entry.iconSize || 64 },
+        { at: { x: entry.x || GRID.origin, y: entry.y || GRID.origin } });
       }
     }
     await load();
   }
   async function resizeIcon(it, delta) {
     it.iconSize = Math.max(32, Math.min(160, (it.iconSize || 64) + delta));
-    await store.putItem(it); render();
+    await saveItem(it); render();              // stays put; only its size changed
   }
   async function moveToTrash(it) {
     if (it.id === TRASH_ID) return;
-    it.parent = TRASH_ID;
-    const spot = nearestFreeCell(GRID.origin, GRID.origin, TRASH_ID, it.id);
-    it.x = spot.x; it.y = spot.y;
-    await store.putItem(it);
+    await saveItem(it, { into: TRASH_ID });
     await load(); render();
   }
   async function restoreFromTrash(it) {
-    it.parent = null;
-    const spot = nearestFreeCell(it.x, it.y, null, it.id);
-    it.x = spot.x; it.y = spot.y;
-    await store.putItem(it);
+    await saveItem(it, { into: null });
     await load(); render();
   }
   function descendantsOf(id) {
@@ -1248,9 +1423,11 @@
       } }]);
   }
   async function newFolder(x, y) {
-    const spot = nearestFreeCell(x || GRID.origin, y || GRID.origin, currentFolder, null);
-    const it = await createFolder('New Folder', currentFolder, spot.x, spot.y);
-    await load(); render();
+    const it = await createFolder('New Folder', currentFolder, x || GRID.origin, y || GRID.origin);
+    // AWAIT the paint: beginRename looks the new icon up in the DOM, so firing
+    // it while render() is still reading files finds nothing and silently skips
+    // — a new folder that never opens its rename box.
+    await load(); await render();
     beginRename(it);
   }
   function beginRename(it) {
@@ -1262,7 +1439,7 @@
     input.focus(); input.select();
     const commit = async () => {
       it.name = input.value.trim() || it.name;
-      await store.putItem(it);
+      await saveItem(it);                      // stays put; only its name changed
       // keep a folder GIF's embedded manifest in sync with its display name
       if (it.kind === 'folder' && it.fileId) {
         const rec = await store.getFile(it.fileId);
@@ -1312,6 +1489,10 @@
       const bytes = archive.files['files/' + m.id];
       if (bytes) await store.putFile(Object.assign({}, m, { bytes }));
     }
+    // THE one sanctioned raw write: a backup is restored verbatim, layout and
+    // all. saveItem cannot help here anyway — clearAll() has just emptied the
+    // store while `items` still holds the OLD desktop, so every free-cell
+    // search would be answered against a list that no longer exists.
     for (const it of dj.items || []) await store.putItem(it);
     for (const s of dj.states || []) await store.setState(s.fileId, s.state);
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
@@ -1418,6 +1599,13 @@
       '<a href="about.html" target="_blank" rel="noopener">What is GifOS?</a> · ' +
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
       '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
+    'sep',
+    // Where more apps come from. Also on the Home Screen as a launcher icon,
+    // but an icon can be moved into a folder or trashed — the menu is the one
+    // route to the store that a user can't misplace.
+    { label: 'App Store…', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } },
+    'sep',
+    { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
     'sep',
     { label: 'Back up Home Screen…', fn: backupDesktop },
     { label: 'Restore from backup…', fn: () => restoreInput.click() },
@@ -2030,16 +2218,11 @@
     location.replace('/?edge&ts=' + Date.now());
   }
 
-  // Render the Advanced → Version panel. It separates the things that used to be
-  // conflated into one "latest":
-  //   • RUNNING NOW  — the build this computer loaded: the unreleased edge build
-  //                    (site root) or a numbered snapshot it was pinned to.
-  //   • LIVE RELEASE — version.json.current: the immutable snapshot a fresh
-  //                    visitor to gifos.app gets by default.
-  //   • UNRELEASED   — the edge build at the site root (/), unnumbered, ahead of
-  //                    the release; loaded with its own button.
-  //   • SNAPSHOTS    — every immutable /versions/<x>/ build, each pinnable.
-  // `net` is 'offline' when the live version.json check just failed.
+  // Render the Advanced → Version panel: ONE picker list, no summary block above
+  // it. Every row says its own state inline — the running build carries a
+  // "running" pill, the live release a "latest" pill, the edge row an "attached"
+  // marker — so there is nothing to repeat up top. `net` is 'offline' when the
+  // live version.json check just failed.
   function paintVersion(container, net) {
     if (!container) return;
     const pinned = pinnedVersion();
@@ -2047,31 +2230,6 @@
     const onEdge = runningEdge();
     // Edge builds carry a monotonic build number (build.js), not a release version.
     const newerEdge = onEdge && edgeBuild > BUILD;   // a fresher edge build is out
-
-    // ---- FACTS: three plain-language answers so "which build am I on", "what's
-    // the latest release", and "am I on the edge channel" are never conflated. ----
-    const runningFact = onEdge
-      ? 'the <b>edge build</b> — build ' + BUILD + (newerEdge ? ' <span class="vtag">(update available)</span>' : '')
-      : (VERSION === latestVersion ? '<b>v' + escapeHtml(VERSION) + '</b> — the latest release'
-                                   : '<b>v' + escapeHtml(VERSION) + '</b> — a pinned older snapshot');
-    const latestFact = offline
-      ? '<span class="vtag">unknown — offline</span>'
-      : '<b>v' + escapeHtml(latestVersion) + '</b> — the snapshot a fresh visitor gets'
-        + (!onEdge && VERSION === latestVersion ? ' <span class="vpill run">you’re on it</span>' : '');
-    const edgeFact = offline
-      ? (onEdge ? 'build ' + BUILD + ' <span class="vpill run">attached</span>' : '<span class="vtag">unknown — offline</span>')
-      : 'build ' + edgeBuild
-        + (onEdge ? ' <span class="vpill run">attached</span>' : ' <span class="vtag">not attached</span>');
-
-    const facts =
-      '<div class="vfacts">' +
-        '<div class="vfact"><span class="vfl">Running now</span>' +
-          '<span class="vfv">' + runningFact + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Latest release</span>' +
-          '<span class="vfv">' + latestFact + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Edge channel</span>' +
-          '<span class="vfv">' + edgeFact + '</span></div>' +
-      '</div>';
 
     // ---- EDGE row: the moving unreleased build, kept visually distinct at the
     // top of the picker so "the edge channel vs a numbered release" is obvious.
@@ -2081,11 +2239,11 @@
     const edgeRow =
       '<details class="vrow vedge">' +
         '<summary class="vhead">' +
+          '<span class="vcaret" aria-hidden="true">▸</span>' +
           '<span class="vlabel">Edge build <span class="vbuild">build ' + edgeBuild + '</span>' +
             (onEdge ? ' <span class="vpill run">running</span>' : '') + '</span>' +
           '<span class="vspacer"></span>' +
           '<button class="vbtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>' +
-          '<span class="vcaret" aria-hidden="true">▾</span>' +
         '</summary>' +
         '<div class="vnotes"><p class="add-help">The unreleased build at the site root, ahead of every release. It carries a build number that bumps on every change; you can always jump to the latest, but edge builds aren’t archived — you can’t pin or roll back to a specific one.</p></div>' +
       '</details>';
@@ -2110,10 +2268,12 @@
       const dateTag = (e && e.date) ? '<span class="cl-date">' + escapeHtml(e.date) + '</span>' : '';
       const action = isRunning ? '<span class="vtag">running</span>'
         : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use latest' : 'Roll back') + '</button>';
+      // Caret leads the row (big, left) so the tap-to-unfold target sits far from
+      // the Roll-back button on the right — no accidental rollback reaching for it.
       const head =
+        '<span class="vcaret' + (hasNotes ? '' : ' vcaret-empty') + '" aria-hidden="true">▸</span>' +
         '<span class="vlabel">v' + escapeHtml(v) + ' ' + tags + buildTag + dateTag + '</span>' +
-        '<span class="vspacer"></span>' + action +
-        (hasNotes ? '<span class="vcaret" aria-hidden="true">▾</span>' : '');
+        '<span class="vspacer"></span>' + action;
       // No notes on file → a plain, non-expandable row (no fold to open onto empty).
       if (!hasNotes) return '<div class="vrow vrow-plain"><div class="vhead">' + head + '</div></div>';
       return '<details class="vrow"' + (critical ? ' open' : '') + '>' +
@@ -2123,9 +2283,7 @@
     }).join('');
 
     container.innerHTML =
-      facts +
       (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the latest release — you may be offline. The snapshots below still work.</p>' : '') +
-      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. Pick a row to switch; open one to read its release notes. Your files and data are shared across all builds (migrations are additive), so switching is safe — it also rebuilds the built-in <b>default apps</b> to the build you land on, and the data saved inside them carries over.</p>' +
       '<div class="vlist">' + edgeRow + rows + '</div>';
     const eb = container.querySelector('#set-edge');
     if (eb) eb.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); loadEdge(); };
@@ -2236,9 +2394,8 @@
     const fileId = store.uid('file');
     const iconName = appName + '.gif';
     await store.putFile({ id: fileId, name: iconName, bytes, kind: 'gif', isApp: hasIndex, appId: slug, mime: 'image/gif' });
-    const spot = nearestFreeCell(60, 60, currentFolder, null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
-      parent: currentFolder, x: spot.x, y: spot.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: iconName,
+      parent: currentFolder, iconSize: 64 }, { at: { x: 60, y: 60 } });
     await load(); render();
     return fileId;
   }
@@ -2342,12 +2499,47 @@
     const fileId = store.uid('file');
     await store.putFile({ id: fileId, name: r.name, bytes: r.bytes, kind: 'gif', isApp, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
     await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
-    const spot = nearestFreeCell(GRID.origin, GRID.origin, 'sys_stolen', null);
-    await store.putItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', x: spot.x, y: spot.y, iconSize: 64 });
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
     await load();
     if (isApp) { location.href = 'meet.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
     render();
     showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
+  }
+
+  // #place=<fileId> — finish an App Store install. store.js downloaded and
+  // verified the GIF and wrote the FILE; the icon's cell is not its business,
+  // because saveItem is the only thing that decides where an arrival lands. So
+  // the store hands the fileId back here and the icon arrives on the Home
+  // Screen the same way every other icon does.
+  //
+  // In the HASH, not the query: the channel loader carries `pathname + hash`
+  // across a version redirect and drops the search, so a pinned visitor's
+  // install would otherwise reach the desktop with the icon silently missing.
+  async function handlePlaceParam() {
+    let fileId = '', from = '';
+    try {
+      const q = new URLSearchParams(location.hash.slice(1));
+      fileId = q.get('place') || ''; from = q.get('from') || '';
+    } catch (e) {}
+    if (!fileId) return;
+    // Strip it first: a refresh must never re-place the icon.
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    const f = await store.getFile(fileId).catch(() => null);
+    if (!f) { showModal('Nothing to install', 'That install didn’t finish — the app’s file isn’t on this computer. Try installing it again.'); return; }
+    // Already on the desktop (a double-back, a re-shared link): show it, don't
+    // add a second icon for the same file.
+    if (items.some((i) => i.fileId === fileId)) { render(); return; }
+    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: f.name,
+      parent: null, iconSize: 64 });
+    await load();
+    render();
+    const name = (f.name || 'The app').replace(/\.gif$/i, ''); // showConfirm escapes the title; labels are textContent
+    showConfirm(name + ' is installed',
+      'It’s on your Home Screen now — a GIF file you own. Copy it anywhere; it runs anywhere.',
+      [
+        { label: 'Open ' + name, fn: () => { location.href = 'meet.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); } },
+        from === 'store' ? { label: 'Back to the Store', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } } : null,
+      ].filter(Boolean));
   }
 
   function showAddDialog() {
@@ -2356,6 +2548,11 @@
     const box = document.createElement('div'); box.className = 'modal wide';
     box.innerHTML =
       '<h3>Add to your Home Screen</h3>' +
+      // The store first: "where do I get apps?" is the question this dialog is
+      // opened to answer, and browsing a catalog beats pasting a link.
+      '<div class="add-actions">' +
+        '<button id="ad-store">🛍️ Browse the App Store…</button>' +
+      '</div>' +
       '<div class="add-actions">' +
         '<button id="ad-file">📄 Add file(s)…</button>' +
         '<button id="ad-folder">📁 New Folder</button>' +
@@ -2384,6 +2581,7 @@
       '</div>';
     bg.appendChild(box); document.body.appendChild(bg);
 
+    box.querySelector('#ad-store').onclick = () => { location.href = 'store.html' + (nsParam('#db=') || ''); };
     box.querySelector('#ad-file').onclick = () => { bg.remove(); fileInput.click(); };
     box.querySelector('#ad-folder').onclick = () => { bg.remove(); newFolder(60, 60); };
     const urlInput = box.querySelector('#ad-url'), urlBtn = box.querySelector('#ad-url-go'), urlMsg = box.querySelector('#ad-url-msg');
@@ -2510,7 +2708,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(checkForUpdate);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

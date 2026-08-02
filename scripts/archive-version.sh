@@ -18,7 +18,11 @@ if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwri
 mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
 cp "$SITE/index.html" "$SITE/run.html" "$SITE/meet.html" "$SITE/boot.html" "$DEST/"
-cp "$SITE/sign.html" "$SITE/about.html" "$DEST/" 2>/dev/null || true
+cp "$SITE/sign.html" "$SITE/about.html" "$SITE/store.html" "$DEST/" 2>/dev/null || true
+# NOT site/apps/ — the store's CATALOG is content, not code. A frozen build's
+# store reads the live catalog (absolute /apps/… paths), so a pinned computer
+# still sees apps published after its cut, and no snapshot carries an 8 MB copy
+# of every App GIF.
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
 # Freeze the themes too, so a pinned build is a pixel-perfect time capsule — its
 # chrome, icon packs, eggs, and wallpapers as they were at the cut. The frozen

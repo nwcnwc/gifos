@@ -1,0 +1,52 @@
+{
+  "catalog": "1.0",
+  "slug": "fluence",
+  "appId": "fluence",
+  "name": "Fluence",
+  "shortName": "Fluence",
+  "version": "1.0.0",
+  "tagline": "Speak off the cuff, get honest coaching on how you actually spoke.",
+  "description": "Fluence is a spontaneous-speech coach that lives in a GIF.\n\nPick a drill — freestyle, or one of nine types from the catalog — and record a take. GifOS captures the clip behind its own visible recorder, so the app never holds the live microphone. Deepgram nova-3 returns a transcript with per-word timestamps, confidence and filler tagging; a pure-JavaScript pass then extracts the honest, comparable signal: pace and articulation rate, pauses and long-pause moments, fillers, hedges, adjacent-repeat restarts, lexical diversity and vocabulary reach, ASR confidence and sentence structure.\n\nOnly then does a language model weigh in, with drill-type-aware grading rules — a listing task is graded on item count, a narrative on structure. You get evidence-grounded coaching that quotes what you said, a suggested next drill aimed at your top weakness, and a weekly review that tracks whether any of it is working. Picture-description drills draw their own scene.\n\nEvery take, review and benchmark stays private, inside the icon on your Home Screen.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-07-09",
+  "updated": "2026-07-20",
+  "categories": [
+    "Learning",
+    "Productivity"
+  ],
+  "tags": [
+    "speech",
+    "coaching",
+    "practice",
+    "ai",
+    "transcription"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fluence",
+  "accent": [
+    123,
+    92,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "microphone": true,
+    "ai": [
+      "smartest",
+      "cheapest",
+      "image"
+    ],
+    "api": [
+      "deepgram"
+    ]
+  },
+  "cover": "/apps/fluence/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/fluence/fluence.gif",
+  "bytes": 158142,
+  "sha256": "311f28eecc1bb77e1c65033a9f90d0bd536192a326b3e1de2bf3a4fa0329de97",
+  "signature": null
+}

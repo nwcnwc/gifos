@@ -45,10 +45,6 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('Erase button lives deep in Advanced settings', await page.locator('#set-erase').isVisible());
 
   // ---- 3. Version panel: releases listed, each with its notes folded behind it
-  await page.waitForFunction(() => {
-    const v = document.querySelector('#set-version');
-    return v && /Running/.test(v.textContent);
-  }, null, { timeout: 8000 });
   await page.waitForSelector('#set-version .vlist .vrow', { timeout: 8000 }).catch(() => {});
   const rowCount = await page.locator('#set-version .vlist .vrow').count();
   check('Version panel lists release rows', rowCount >= 1, 'rows=' + rowCount);

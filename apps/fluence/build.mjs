@@ -1,10 +1,11 @@
-// Pack apps/fluence/ source into the finished, downloadable apps/fluence.gif.
+// Pack apps/fluence/ source into the finished, downloadable
+// site/apps/fluence/fluence.gif (the App Store's copy — see apps/README.md).
 // Uses the SAME codec the GifOS desktop and MCP server use
 // (site/js/gifos-gif.js) — it only needs CompressionStream + TextEncoder, both
 // native in Node 22. Run:  node apps/fluence/build.mjs
 import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { oratorIcon } from './icon.mjs';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -26,6 +27,11 @@ const files = {
 };
 
 const bytes = await gif.encode(files, { preview: oratorIcon() });
-const out = join(dir, '..', 'fluence.gif');
+// Into the PUBLISH boundary: Pages ships only site/, and the App Store has to
+// be able to download this. site/apps/<slug>/ is also where the catalog build
+// (scripts/build-app-catalog.mjs) looks for it.
+const out = join(dir, '..', '..', 'site', 'apps', 'fluence', 'fluence.gif');
+mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
-console.log('wrote apps/fluence.gif —', bytes.length, 'bytes, from', Object.keys(files).length, 'files');
+console.log('wrote site/apps/fluence/fluence.gif —', bytes.length, 'bytes, from', Object.keys(files).length, 'files');
+console.log('now refresh the store catalog: node scripts/build-app-catalog.mjs');
