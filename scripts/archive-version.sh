@@ -3,9 +3,12 @@
 # so users can pin to it later, and update version.json.
 #
 # Usage:  scripts/archive-version.sh 0.6.0
-# Then bump window.GIFOS_VERSION in site/index.html (and its archived copies
-# never change), commit, and push. The Pages workflow ships site/ as-is, so
+# Then commit and push. The Pages workflow ships site/ as-is, so
 # /versions/<version>/ is served automatically.
+#
+# The site ROOT is NOT bumped: it stays GIFOS_VERSION='edge' (the unreleased edge
+# build). Only the SNAPSHOT is stamped with the release number, below. A fresh
+# visitor follows version.json.current to it.
 set -euo pipefail
 
 V="${1:?usage: archive-version.sh <x.y.z>}"
@@ -17,8 +20,32 @@ if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwri
 
 mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
-cp "$SITE/index.html" "$SITE/run.html" "$SITE/meet.html" "$SITE/boot.html" "$DEST/"
-cp "$SITE/sign.html" "$SITE/about.html" "$SITE/store.html" "$DEST/" 2>/dev/null || true
+#
+# REQUIRED pages are load-bearing: index.html and boot.html get GIFOS_VERSION
+# stamped into them below, and meet.html IS the room. A missing one is a broken
+# snapshot, so say which file and why rather than dying on a bare `cp` error.
+# (run.html was in this list until the one-runtime flag day DELETED it — the
+# stale entry then aborted the whole cut under `set -e`, after mkdir had already
+# left a half-built versions/<V>/ behind. Hence the accounting check below.)
+REQUIRED=(index.html meet.html boot.html)
+OPTIONAL=(sign.html about.html store.html)
+# NOT snapshotted: 404.html is Pages' root error page — it is never served from
+# under /versions/, and a copy would just collect a meaningless <base> stamp.
+NOT_SNAPSHOT=(404.html)
+for f in "${REQUIRED[@]}"; do
+  [ -f "$SITE/$f" ] || { echo "archive-version.sh: site/$f is MISSING — it is required in every snapshot. If it was deliberately deleted, drop it from REQUIRED here." >&2; exit 1; }
+  cp "$SITE/$f" "$DEST/"
+done
+for f in "${OPTIONAL[@]}"; do [ -f "$SITE/$f" ] && cp "$SITE/$f" "$DEST/"; done
+# Every root page must be ACCOUNTED FOR — copied, or explicitly excluded. A new
+# page added to site/ and not listed above would otherwise be silently absent
+# from every frozen build, and a pinned computer would 404 on it with nothing
+# anywhere saying why. Fail the cut instead; adding one line is the fix.
+for p in "$SITE"/*.html; do
+  b=$(basename "$p"); known=0
+  for f in "${REQUIRED[@]}" "${OPTIONAL[@]}" "${NOT_SNAPSHOT[@]}"; do [ "$b" = "$f" ] && known=1; done
+  [ "$known" = 1 ] || { echo "archive-version.sh: site/$b is a root page this script has never heard of — add it to REQUIRED, OPTIONAL, or NOT_SNAPSHOT and re-cut." >&2; exit 1; }
+done
 # NOT site/apps/ — the store's CATALOG is content, not code. A frozen build's
 # store reads the live catalog (absolute /apps/… paths), so a pinned computer
 # still sees apps published after its cut, and no snapshot carries an 8 MB copy
