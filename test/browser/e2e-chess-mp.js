@@ -8,6 +8,7 @@
 //
 // Needs: static server on 8099 and the local relay on 8790 (test/servers/relay-local.js).
 const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
 const { readFileSync } = require('fs');
 const path = require('path');
 
@@ -17,7 +18,7 @@ const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const GIF_B64 = readFileSync(path.join(__dirname, '..', '..', 'apps', 'chess-grandmaster.gif')).toString('base64');
+const GIF_B64 = readFileSync(appGif('chess-grandmaster')).toString('base64');
 
 async function enterFriend(page) {
   // 30s (was 12s): the JOINER mounts the WASM chess app only after the app-mesh

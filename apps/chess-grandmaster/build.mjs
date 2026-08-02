@@ -1,4 +1,5 @@
-// Pack apps/chess-grandmaster/ source into the finished apps/chess-grandmaster.gif.
+// Pack apps/chess-grandmaster/ source into the finished, downloadable
+// site/apps/chess-grandmaster/chess-grandmaster.gif (see apps/README.md).
 // Uses the SAME codec the GifOS desktop and MCP server use (site/js/gifos-gif.js).
 //
 // Two of the packed files are GENERATED here from the vendored Stockfish engine
@@ -13,7 +14,7 @@
 // Run:  node apps/chess-grandmaster/build.mjs
 import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { grandmasterIcon } from './icon.mjs';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -50,6 +51,9 @@ const files = {
 };
 
 const bytes = await gif.encode(files, { preview: grandmasterIcon(), accent: manifest.accent });
-const out = join(dir, '..', 'chess-grandmaster.gif');
+// Into the PUBLISH boundary — see apps/fluence/build.mjs for why.
+const out = join(dir, '..', '..', 'site', 'apps', 'chess-grandmaster', 'chess-grandmaster.gif');
+mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
-console.log('wrote apps/chess-grandmaster.gif —', (bytes.length / 1e6).toFixed(2), 'MB, from', Object.keys(files).length, 'files (wasm', (wasmB64.length / 1e6).toFixed(1), 'MB b64)');
+console.log('wrote site/apps/chess-grandmaster/chess-grandmaster.gif —', (bytes.length / 1e6).toFixed(2), 'MB, from', Object.keys(files).length, 'files (wasm', (wasmB64.length / 1e6).toFixed(1), 'MB b64)');
+console.log('now refresh the store catalog: node scripts/build-app-catalog.mjs');

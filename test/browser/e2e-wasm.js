@@ -5,11 +5,12 @@
 //   blocked on both (default APP_CSP), proving the hatch is opt-in.
 // - connect-src stays 'none' either way (the worker gets no network) — enforced
 //   by the rest of the suite; here we only assert compute is unlocked.
-// - Smoke test: the real apps/chess-grandmaster.gif boots full-strength
+// - Smoke test: the real site/apps/chess-grandmaster/chess-grandmaster.gif boots full-strength
 //   Stockfish (Worker + WASM, net embedded, zero fetch) and plays a reply move.
 //
 // Needs: static server on 8099.
 const { chromium, CHROME } = require('../lib/pw');
+const { appGifIfBuilt } = require('../lib/apps');
 const { readFileSync, existsSync } = require('fs');
 const path = require('path');
 
@@ -94,8 +95,8 @@ async function openApp(context, page, label) {
   await app.close();
 
   // ---- real engine smoke ----
-  const gifPath = path.join(__dirname, '..', '..', 'apps', 'chess-grandmaster.gif');
-  if (existsSync(gifPath)) {
+  const gifPath = appGifIfBuilt('chess-grandmaster');
+  if (gifPath) {
     const b64 = readFileSync(gifPath).toString('base64');
     await installGif(page, { bytesB64: b64, appId: 'chess-grandmaster', label: 'Chess Grandmaster.gif', x: 520 });
     app = await openApp(context, page, 'Chess Grandmaster.gif');
@@ -121,7 +122,7 @@ async function openApp(context, page, label) {
     }
     await app.close();
   } else {
-    console.log('SKIP — apps/chess-grandmaster.gif not built');
+    console.log('SKIP — site/apps/chess-grandmaster/chess-grandmaster.gif not built');
   }
 
   await browser.close();
