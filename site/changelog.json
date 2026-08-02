@@ -2,6 +2,22 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.9.0",
+      "date": "2026-08-02",
+      "critical": true,
+      "headline": "Apps and meetings became one thing — and an App Store to fill them",
+      "notes": [
+        "Everyone needs this build to meet: rooms changed how they're addressed, so a computer pinned to 0.8.8 or older lands in a different room and won't see you.",
+        "An App Store on your Home Screen: browse apps, install one, and it's yours — the app crosses the wire once, on Install.",
+        "Every app is now a room. Send one link and someone joins you inside the running app, with video, exactly like a meeting.",
+        "Share your screen into a room.",
+        "An app you've opened alone gets the whole window — one thin bar instead of meeting chrome.",
+        "Home Screen icons are locked until you choose Arrange — scrolling a phone no longer drops apps into folders.",
+        "The camera stops flipping sideways, and keeps the shape your device actually gives it.",
+        "If the person hosting an app wanders off, the room freezes rather than losing your work, and hands over cleanly."
+      ]
+    },
+    {
       "version": "0.8.8",
       "date": "2026-07-31",
       "critical": false,
