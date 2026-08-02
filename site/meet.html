@@ -5721,11 +5721,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       p.dc = dc;
       dc.onopen = () => {
         dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
-        // Anything I broadcast on the stage channel while I had no open channel
-        // (a just-seated guest's 'need-app', an owner's 'app' reply to a peer
-        // still wiring up) was dropped on the floor. This is the moment it can
-        // actually go somewhere.
+        // THE MOMENT A CHANNEL EXISTS is the moment the stage pulls can finally
+        // travel. Everything below was silently impossible a millisecond ago:
+        // sgaFan delivers only to peers whose DC is already OPEN, so a
+        // just-seated node's first broadcast and its first snap/app request all
+        // went nowhere. Flush what I queued, then re-drive both pulls for every
+        // sid I subscribe to but do not hold — without this the node waits out
+        // a 2s chase tick (or, for the very first request, forever).
         try { sgaFlushPending(); } catch (e) {}
+        try {
+          for (const sid of sgaSubs.keys()) {
+            if (!sgaSnap.has(sid)) { sgaReqAt.delete(sid); sgaRequest(sid); sgaChase(sid); }
+            if (!sgaApp.has(sid)) { sgaAppReqAt.delete(sid); sgaAppRequest(sid); sgaAppChase(sid); }
+          }
+        } catch (e) {}
       };
       // D5: my channel to this peer died. On an ungraceful peer death (mobile
       // tab kill, OOM, crash) this lands within ~1-5s — first-hand evidence

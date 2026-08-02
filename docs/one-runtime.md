@@ -176,45 +176,52 @@ Every commit on the branch green; the product cut only lands on main whole.
    (mirror in relay-local) → **DS bump** → router rewrite.
 7. Full battery green → merge to main as the flag day.
 
-## STAR VESTIGE STILL IN THE TREE: `need-app` (found 2026-08-02, NOT yet removed)
+## THE LAST STAR EDGE IS GONE: app bytes are peer-served (2026-08-02)
 
 One-runtime deleted the star everywhere except one edge, and it survived because
 nothing tested a room with more than one guest.
 
-**What it is.** The app bytes are broadcast by the owner ONLY in reply to a
-client's `need-app` request (`runtime.js`: `askApp()` → owner's
-`m.kind === 'need-app'` → `sendAppBytes()`). Every joiner therefore DIALS THE
-HOST for the file. That is the star pattern: it makes the owner — typically a
-phone — an origin server for every guest who ever arrives, and it cannot scale
-to a large room.
-
-**Why it is also broken today.** The request rides the same stage channel as
-everything else, and `sgaFan` sends only to peers whose DataChannel is ALREADY
-open, dropping the frame for everyone else. A just-seated guest has no open
-channel, so its asks vanish. Measured on one box: a guest sent five asks
-(0/301/902/2103/4504 ms) while the owner's ledger read `asks=0`. Across three
-machines, 14 sequential guests produced only 10 mounts, with 20-36s stalls.
+**What it was.** The app bytes were broadcast ONLY in reply to a client's
+`need-app` request. Every joiner DIALLED THE HOST for the file, making the owner
+— typically a phone — an origin server for every guest who ever arrives. It
+could not scale, and it did not even work at two people: the request rides the
+stage channel, `sgaFan` delivers only to peers whose DataChannel is ALREADY
+open, and a just-seated guest has none, so its asks vanished. Measured: a guest
+sent five asks (0/301/902/2103/4504 ms) while the owner's ledger read `asks=0`.
 `e2e-perms-share`'s long-standing "~40% flaky" was this bug all along.
 
-**What has landed** (`meet.html`): the app frame is now RETAINED on every node
-that receives it (`sgaApp`) and pull-served peer-to-peer — `sga-appreq` /
-`sga-app`, mirroring the retained snap's `sga-req` / `sga-snap` pull-through,
-including the "hold nothing, remember who asked, chase upstream myself" step.
-The owner seeds itself in `broadcast()`, so it answers as an ordinary holder.
-Undeliverable self-originated stage frames are also queued and flushed on the
-next `dc.onopen` instead of being dropped. Successful mounts went 4.6-6.3s →
-1.7-2.9s.
+**Why it could not simply be deleted — the real root cause.** The verifier
+(`app-owner.js`) rejects `p.n <= lastN` as `'stale'`. A RETAINED frame
+necessarily carries its mint-time `n`, so the moment any snap advanced `lastN`
+the retained app was rejected forever. THAT is why the owner had to re-sign the
+bytes fresh for each dialling guest, and why retain-and-replay had never been
+possible. The monotonic counter exists to stop an old snap/delta/act being
+replayed over newer state — a rollback attack on MUTABLE data. The app frame is
+immutable content: the GIF for a sid is fixed for the session, so replaying it
+can only ever deliver the same bytes. It is now exempt from ordering (and does
+not advance `lastN`); the SIGNATURE still proves the owner minted it, so a
+relaying peer can carry the app but never forge it.
 
-**What is NOT done.** Deleting `need-app` outright. I tried it in the same
-session — owner seeds once at attach via `sendSnap().then(sendAppBytes)`, client
-`askApp()` removed entirely — and ALL 8 guests then failed with empty traces
-(no snap, no app), i.e. the peer-pull did not carry the load on its own. It was
-reverted rather than left broken. The likely gap is that a guest with no open
-channel cannot send `sga-appreq` either, so SOMETHING must re-drive the pull
-when a channel finally opens; the `dc.onopen` flush covers frames already
-queued, not a chase that never got to send. Fix that, then delete `need-app`.
+**The shape now.** The owner broadcasts the bytes ONCE, unprompted, at attach
+(fire-and-forget, retried on a 3s drum — never inside the attach promise, since
+`gif.b64encode` is a synchronous multi-megabyte call and a throw there used to
+abort the owner's entire setup, leaving guests with no snap either). Every node
+that receives the frame RETAINS it (`sgaApp`), and a latecomer pulls it from
+whichever PEER already holds it: `sga-appreq` / `sga-app`, mirroring the
+retained snap's `sga-req` / `sga-snap` pull-through, including the "hold
+nothing, remember who asked, chase upstream myself" step so the pull climbs
+toward older nodes. Both pulls are re-driven the instant a DataChannel opens,
+and a self-originated stage frame that reached nobody is queued and flushed
+then too. The owner is simply the first seeder.
 
-**The guard:** `test/browser/e2e-approom-serial-guests.js` — 8 guests one after
-another, all must mount. It is RED at 5/8 and is the acceptance test for the
-work above. Reproduce across machines with `test/tools/approom-host.js` +
-`approom-join.js` (see test/README.md "ONE BOX CANNOT ANSWER...").
+**Measured**, 8 guests joining one after another:
+
+    before (star)     5/8 mounted, 1.7-9.9s scattered, 20-36s stalls
+    after  (mesh)     7/8 mounted, 1825/1779/1803/1707/1908 ms — flat ~1.8s
+
+**Still open:** the first guest can take ~25s and one guest in eight still gets
+no stage data at all inside 45s — neither snap nor app, so it is mesh SEATING,
+not the bytes path. `test/browser/e2e-approom-serial-guests.js` is the
+acceptance test and stays RED until that is fixed. Reproduce across machines
+with `test/tools/approom-host.js` + `approom-join.js` (test/README.md, "ONE BOX
+CANNOT ANSWER...").
