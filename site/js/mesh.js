@@ -485,14 +485,18 @@
     // random pick can land on a just-departed seat that is still s1Fresh at
     // the greeter (its LEAVE lost, its transport death not yet registered),
     // and one silent ask costs the seeker its whole retry window. Prefer the
-    // gateway while it is untried; the random pick still spreads door load
+    // gateway for the FIRST ask of a join attempt (seatTries===0) ONLY — a
+    // NOROOM lifts its author's silent mark, so an always-refusing gateway
+    // would stay eternally preferred and the seeker would ping-pong NOROOM
+    // with one greeter forever (mass-rejoin livelock: sweep kill=0.5 seed=5
+    // went 29/400 seated). Re-asks spread randomly; the random pick still spreads door load
     // across seekers, because every seeker's gateway is a different pool
     // entry. A silent gateway falls out via triedSilent and the spread
     // resumes.
     pickRoster() {
       const liveIds = []; const fresh = [];
       for (const e of this.roster) if (e.v !== this.id) { liveIds.push(e.v); if (!this.triedSilent || !this.triedSilent.has(e.v)) fresh.push(e.v); }
-      if (this.gateway != null && fresh.includes(this.gateway)) return this.gateway;
+      if (this.seatTries === 0 && this.gateway != null && fresh.includes(this.gateway)) return this.gateway;
       const pool = fresh.length ? fresh : liveIds;
       if (!pool.length) return null;
       return pool[(this.rng() * pool.length) | 0];
@@ -1645,7 +1649,13 @@
             this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: this.id }); return;
           }
           if (m.ttl <= 0) { this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return; }
-          const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id }); return; }
+          // FORWARD WITH THE PROBE PAYLOAD (2026-08-02): the re-minted hop
+          // used to drop `ack` (the tag-3 answer's coord) and `acoord` (the
+          // tag-2 probe's return address), so any D5 answer that actually
+          // ROUTED AROUND the dead link arrived empty — probeAck stamped an
+          // undefined key, the observation never cleared, and a LIVE severed
+          // peer was early-confirmed dead. Never worked past one hop.
+          const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id, acoord: m.acoord, ack: m.ack }); return; }
           this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return;
         }
         case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.tlLog.push([ck(m.target), TICK, 'pa:routed-tag' + m.tag + ' id=' + String(m.id).slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
