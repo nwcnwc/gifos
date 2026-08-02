@@ -2157,16 +2157,11 @@
     location.replace('/?edge&ts=' + Date.now());
   }
 
-  // Render the Advanced → Version panel. It separates the things that used to be
-  // conflated into one "latest":
-  //   • RUNNING NOW  — the build this computer loaded: the unreleased edge build
-  //                    (site root) or a numbered snapshot it was pinned to.
-  //   • LIVE RELEASE — version.json.current: the immutable snapshot a fresh
-  //                    visitor to gifos.app gets by default.
-  //   • UNRELEASED   — the edge build at the site root (/), unnumbered, ahead of
-  //                    the release; loaded with its own button.
-  //   • SNAPSHOTS    — every immutable /versions/<x>/ build, each pinnable.
-  // `net` is 'offline' when the live version.json check just failed.
+  // Render the Advanced → Version panel: ONE picker list, no summary block above
+  // it. Every row says its own state inline — the running build carries a
+  // "running" pill, the live release a "latest" pill, the edge row an "attached"
+  // marker — so there is nothing to repeat up top. `net` is 'offline' when the
+  // live version.json check just failed.
   function paintVersion(container, net) {
     if (!container) return;
     const pinned = pinnedVersion();
@@ -2174,31 +2169,6 @@
     const onEdge = runningEdge();
     // Edge builds carry a monotonic build number (build.js), not a release version.
     const newerEdge = onEdge && edgeBuild > BUILD;   // a fresher edge build is out
-
-    // ---- FACTS: three plain-language answers so "which build am I on", "what's
-    // the latest release", and "am I on the edge channel" are never conflated. ----
-    const runningFact = onEdge
-      ? 'the <b>edge build</b> — build ' + BUILD + (newerEdge ? ' <span class="vtag">(update available)</span>' : '')
-      : (VERSION === latestVersion ? '<b>v' + escapeHtml(VERSION) + '</b> — the latest release'
-                                   : '<b>v' + escapeHtml(VERSION) + '</b> — a pinned older snapshot');
-    const latestFact = offline
-      ? '<span class="vtag">unknown — offline</span>'
-      : '<b>v' + escapeHtml(latestVersion) + '</b> — the snapshot a fresh visitor gets'
-        + (!onEdge && VERSION === latestVersion ? ' <span class="vpill run">you’re on it</span>' : '');
-    const edgeFact = offline
-      ? (onEdge ? 'build ' + BUILD + ' <span class="vpill run">attached</span>' : '<span class="vtag">unknown — offline</span>')
-      : 'build ' + edgeBuild
-        + (onEdge ? ' <span class="vpill run">attached</span>' : ' <span class="vtag">not attached</span>');
-
-    const facts =
-      '<div class="vfacts">' +
-        '<div class="vfact"><span class="vfl">Running now</span>' +
-          '<span class="vfv">' + runningFact + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Latest release</span>' +
-          '<span class="vfv">' + latestFact + '</span></div>' +
-        '<div class="vfact"><span class="vfl">Edge channel</span>' +
-          '<span class="vfv">' + edgeFact + '</span></div>' +
-      '</div>';
 
     // ---- EDGE row: the moving unreleased build, kept visually distinct at the
     // top of the picker so "the edge channel vs a numbered release" is obvious.
@@ -2208,11 +2178,11 @@
     const edgeRow =
       '<details class="vrow vedge">' +
         '<summary class="vhead">' +
+          '<span class="vcaret" aria-hidden="true">▸</span>' +
           '<span class="vlabel">Edge build <span class="vbuild">build ' + edgeBuild + '</span>' +
             (onEdge ? ' <span class="vpill run">running</span>' : '') + '</span>' +
           '<span class="vspacer"></span>' +
           '<button class="vbtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>' +
-          '<span class="vcaret" aria-hidden="true">▾</span>' +
         '</summary>' +
         '<div class="vnotes"><p class="add-help">The unreleased build at the site root, ahead of every release. It carries a build number that bumps on every change; you can always jump to the latest, but edge builds aren’t archived — you can’t pin or roll back to a specific one.</p></div>' +
       '</details>';
@@ -2237,10 +2207,12 @@
       const dateTag = (e && e.date) ? '<span class="cl-date">' + escapeHtml(e.date) + '</span>' : '';
       const action = isRunning ? '<span class="vtag">running</span>'
         : '<button data-v="' + escapeHtml(v) + '" class="vbtn">' + (isLive ? 'Use latest' : 'Roll back') + '</button>';
+      // Caret leads the row (big, left) so the tap-to-unfold target sits far from
+      // the Roll-back button on the right — no accidental rollback reaching for it.
       const head =
+        '<span class="vcaret' + (hasNotes ? '' : ' vcaret-empty') + '" aria-hidden="true">▸</span>' +
         '<span class="vlabel">v' + escapeHtml(v) + ' ' + tags + buildTag + dateTag + '</span>' +
-        '<span class="vspacer"></span>' + action +
-        (hasNotes ? '<span class="vcaret" aria-hidden="true">▾</span>' : '');
+        '<span class="vspacer"></span>' + action;
       // No notes on file → a plain, non-expandable row (no fold to open onto empty).
       if (!hasNotes) return '<div class="vrow vrow-plain"><div class="vhead">' + head + '</div></div>';
       return '<details class="vrow"' + (critical ? ' open' : '') + '>' +
@@ -2250,9 +2222,7 @@
     }).join('');
 
     container.innerHTML =
-      facts +
       (offline ? '<p class="add-help bad">Couldn’t reach gifos.app to check the latest release — you may be offline. The snapshots below still work.</p>' : '') +
-      '<p class="add-help">Nothing updates on its own — a plain reload keeps you on the build you’re running. Pick a row to switch; open one to read its release notes. Your files and data are shared across all builds (migrations are additive), so switching is safe — it also rebuilds the built-in <b>default apps</b> to the build you land on, and the data saved inside them carries over.</p>' +
       '<div class="vlist">' + edgeRow + rows + '</div>';
     const eb = container.querySelector('#set-edge');
     if (eb) eb.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); loadEdge(); };

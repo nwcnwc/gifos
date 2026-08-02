@@ -974,14 +974,13 @@ async function openApp(page, ctx, folder, label) {
   // left this behind too. Assert the real contract for whichever channel runs.
   const ver = await page.evaluate(() => ({ v: window.GIFOS_VERSION, b: window.GIFOS_BUILD }));
   const namesRunning = ver.v === 'edge'
-    ? /edge build/.test(settingsText) && settingsText.includes('build ' + ver.b)
+    ? /Edge build/.test(settingsText) && settingsText.includes('build ' + ver.b)
     : settingsText.includes('v' + ver.v);
-  check('Settings names the running build for its channel', /Running now/.test(settingsText) && namesRunning);
-  // The facts panel separates the three concepts that used to blur together:
-  // what you're running (Running now), the release a fresh visitor gets (Latest
-  // release), and whether you're on the moving edge channel (Edge channel).
-  check('Settings shows the latest release and the edge channel',
-    /Latest release/.test(settingsText) && /Edge channel/.test(settingsText));
+  check('Settings names the running build for its channel', namesRunning);
+  // State lives INLINE on the picker rows now — no summary block up top. The
+  // running build carries a "running" pill and the live release a "latest" one.
+  check('running + latest are marked inline in the version list',
+    /running/i.test(settingsText) && /latest/i.test(settingsText));
   await page.locator('#set-close').click();
 
   // ---- versioning: the OLDEST archived build still serves a working desktop ----
