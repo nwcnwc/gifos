@@ -6728,29 +6728,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // other live path is a legitimate carrier but only a stand-in.
     function prefCand(rk, cand) {
       const c = meshCoord(); if (!c) return null;
-      // IDENTITY, NOT JUST KEY (2026-08-01). These two used to match on the
-      // KEY alone and take whichever announcer happened to be FIRST in the
-      // candidate array — and that order is mosAnn's Map insertion order, i.e.
-      // arbitrary. Every other slot below resolves a COORD and identity-checks
-      // `x.from === pid`; sdn/sdx were the odd ones out. So a stale announcer
-      // that is no longer my up-seat (or head) could win the PRIMARY slot while
-      // the real one was demoted to standby, roughly half the time. Measured on
-      // the mirror drill: E claimed a third sdn-class announcer as primary
-      // (via=k_5203c5) while its actual up-seat B (k_1d5209) sat in the standby
-      // slot — the "build-time claim ORDERING" red, and the coin flip was
-      // literally Map ordering. Prefer the announcer that IS the seat the feed
-      // is supposed to come from; fall back to the old key-only match when that
-      // cell's occupant is not known yet, so a gap in occ cannot leave a head
-      // with no primary at all.
-      // NOTE the mirror deliberately cannot win either of these: it arrives
-      // under key 'sdnm:<dst>' and only resolves to the 'sdn' SLOT at the
-      // destination, so `x.key === 'sdn'` still excludes it from being preferred.
-      if (rk === 'sdx' || rk === 'sdn') {
-        const src = rk === 'sdn' ? net.topo.up(c) : { pc: c.pc, r: c.r, i: 0 };
-        const srcPid = src ? occPid(src) : null;
-        return (srcPid && cand.find((x) => x.live && x.key === rk && x.from === srcPid))
-          || cand.find((x) => x.live && x.key === rk) || null;
-      }
+      if (rk === 'sdx') return cand.find((x) => x.live && x.key === 'sdx') || null;             // direct from my head (not the '^x' carrier copy)
+      if (rk === 'sdn') return cand.find((x) => x.live && x.key === 'sdn') || null;             // direct from my up-seat (not the mirror chain)
       if (rk.indexOf('stg:') === 0) return cand.find((x) => x.live && x.key.indexOf('^') < 0) || null; // an on-tree copy over the '^x' cross copy
       let co = null;
       if (rk === 'sdm') co = { pc: c.pc, r: c.r, i: 0 };                                        // my head's own fan

@@ -175,7 +175,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // independent reds instead of one. A drifted seat is a manufacture problem,
   // not the law under test, so repair it the same way the setup does and say
   // so out loud when it happens.
-  let built = null, repairs = 0, firstSeen = null;
+  let built = null, repairs = 0;
   const t1 = Date.now();
   let lastCheck = Date.now();
   while (Date.now() - t1 < 150000) {
@@ -183,17 +183,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     if (m) {
       const pri = (m.claimVia || []).find((x) => x.rk === 'sdn');
       const std = (m.standbyVia || []).find((x) => x.rk === 'sdn');
-      // WAIT FOR THE ASSIGNMENT THE LAW SPECIFIES, not merely for both slots to
-      // be occupied. A first claim can legitimately land on the wrong announcer
-      // — prefCand falls back to a key-only match while occ has not yet taught
-      // this seat who owns its up-cell — and the failback machinery then
-      // corrects it (pref becomes the up-seat, it stages as standby, the roles
-      // swap after MOS_SETTLE). Breaking out on `pri && std` samples the middle
-      // of that correction and reports a transient as a defect. If the right
-      // assignment never arrives inside the budget, that IS a real failure and
-      // the identity checks below say so.
-      if (pri && std && pri.via === ids[KILL] && std.via === ids[MIRROR_END]) { built = { pri, std, demand: m.demand }; break; }
-      if (pri && std && !firstSeen) { firstSeen = { pri: String(pri.via).slice(0, 8), std: String(std.via).slice(0, 8), atMs: Date.now() - t1 }; }
+      if (pri && std) { built = { pri, std, demand: m.demand }; break; }
     }
     if (Date.now() - lastCheck > 15000) {
       lastCheck = Date.now();
@@ -208,11 +198,6 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     await sleep(2500);
   }
   if (repairs) console.log('   MEASURE topology repairs needed during build: ' + repairs);
-  if (firstSeen && built) {
-    const corrected = firstSeen.pri !== String(built.pri.via).slice(0, 8) || firstSeen.std !== String(built.std.via).slice(0, 8);
-    console.log('   MEASURE first slots seen at +' + Math.round(firstSeen.atMs / 1000) + 's: pri=' + firstSeen.pri + ' std=' + firstSeen.std
-      + (corrected ? '  -> SELF-CORRECTED to pri=' + String(built.pri.via).slice(0, 8) + ' std=' + String(built.std.via).slice(0, 8) : '  (already correct)'));
-  }
   check('E holds sdn PRIMARY + mirror STANDBY', !!built, built && { pri: built.pri.via.slice(0, 8), std: built.std.via.slice(0, 8) });
   if (!built) { // diagnose: where did the chain stick?
     for (let k = 0; k < pages.length; k++) {
