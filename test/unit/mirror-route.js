@@ -64,14 +64,22 @@ for (const pc of parents) {
     if (!ok) fail(`NO valid transit row for pc=${pc} r=${r} i=${i} at C=5 (full occupancy)`);
   }
 }
-console.log('C=5: ' + checks + ' routes verified across ' + parents.length + ' parent sections (' + parents.length * C5 * C5 + ' (r,i) cases, each with ≥1 valid t)');
+// A sweep that verified NOTHING is not a pass. Without this the suite could
+// exit 0 having short-circuited and still read as green (see the PASS note at
+// the foot of this file).
+if (!checks) fail('C=5 sweep verified ZERO routes — the suite did not actually run');
+else console.log('PASS — C=5: ' + checks + ' routes verified across ' + parents.length + ' parent sections (' + parents.length * C5 * C5 + ' (r,i) cases, each with ≥1 valid t)');
 
 // ---- C=2 spot checks: S1 parent has routes; deep parents mostly cannot -----
 const before = failures;
 let c2 = 0;
 for (let r = 0; r < 2; r++) for (let i = 0; i < 2; i++) for (let t = 0; t < 2; t++) if (verify(2, 0, r, i, t)) c2++;
 if (c2 === 0) fail('C=2 S1 parent should still admit mirror routes');
-console.log('C=2: ' + c2 + ' S1-parent routes verified (deep C=2 parents legitimately have none for r=1)');
+else if (failures === before) console.log('PASS — C=2: ' + c2 + ' S1-parent routes verified (deep C=2 parents legitimately have none for r=1)');
 
+// The tally line says "ALL PASS", which does NOT match the release gate's
+// `^ *PASS` counter — so this suite reported "GREEN, 0 assertions" in every gate
+// run, indistinguishable from one that had stopped testing anything. The two
+// PASS lines above are what the gate actually counts; keep them countable.
 console.log(failures === 0 ? 'ALL PASS (' + checks + ' routes)' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);
