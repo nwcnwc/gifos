@@ -175,3 +175,46 @@ Every commit on the branch green; the product cut only lands on main whole.
    `openHostSocket`, AUTO_TAKEOVER) → **strip the relay** to greeter + door
    (mirror in relay-local) → **DS bump** → router rewrite.
 7. Full battery green → merge to main as the flag day.
+
+## STAR VESTIGE STILL IN THE TREE: `need-app` (found 2026-08-02, NOT yet removed)
+
+One-runtime deleted the star everywhere except one edge, and it survived because
+nothing tested a room with more than one guest.
+
+**What it is.** The app bytes are broadcast by the owner ONLY in reply to a
+client's `need-app` request (`runtime.js`: `askApp()` → owner's
+`m.kind === 'need-app'` → `sendAppBytes()`). Every joiner therefore DIALS THE
+HOST for the file. That is the star pattern: it makes the owner — typically a
+phone — an origin server for every guest who ever arrives, and it cannot scale
+to a large room.
+
+**Why it is also broken today.** The request rides the same stage channel as
+everything else, and `sgaFan` sends only to peers whose DataChannel is ALREADY
+open, dropping the frame for everyone else. A just-seated guest has no open
+channel, so its asks vanish. Measured on one box: a guest sent five asks
+(0/301/902/2103/4504 ms) while the owner's ledger read `asks=0`. Across three
+machines, 14 sequential guests produced only 10 mounts, with 20-36s stalls.
+`e2e-perms-share`'s long-standing "~40% flaky" was this bug all along.
+
+**What has landed** (`meet.html`): the app frame is now RETAINED on every node
+that receives it (`sgaApp`) and pull-served peer-to-peer — `sga-appreq` /
+`sga-app`, mirroring the retained snap's `sga-req` / `sga-snap` pull-through,
+including the "hold nothing, remember who asked, chase upstream myself" step.
+The owner seeds itself in `broadcast()`, so it answers as an ordinary holder.
+Undeliverable self-originated stage frames are also queued and flushed on the
+next `dc.onopen` instead of being dropped. Successful mounts went 4.6-6.3s →
+1.7-2.9s.
+
+**What is NOT done.** Deleting `need-app` outright. I tried it in the same
+session — owner seeds once at attach via `sendSnap().then(sendAppBytes)`, client
+`askApp()` removed entirely — and ALL 8 guests then failed with empty traces
+(no snap, no app), i.e. the peer-pull did not carry the load on its own. It was
+reverted rather than left broken. The likely gap is that a guest with no open
+channel cannot send `sga-appreq` either, so SOMETHING must re-drive the pull
+when a channel finally opens; the `dc.onopen` flush covers frames already
+queued, not a chase that never got to send. Fix that, then delete `need-app`.
+
+**The guard:** `test/browser/e2e-approom-serial-guests.js` — 8 guests one after
+another, all must mount. It is RED at 5/8 and is the acceptance test for the
+work above. Reproduce across machines with `test/tools/approom-host.js` +
+`approom-join.js` (see test/README.md "ONE BOX CANNOT ANSWER...").
