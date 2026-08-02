@@ -9,18 +9,25 @@
 //   run 1-6  ok      7 FAIL   8 FAIL   9 ok   10 FAIL   11 ok  12 ok
 //   13 FAIL  14 ok (28.9s)                    => 10/14, ~29% never mounted
 //
-// The owner is NOT the one refusing. Its ledger over that run
-// (window.__appOwnerStats, printed by test/tools/approom-host.js) read
-// asks=45 sends=29 deferred=32 sendErrors=0 — every request arrived and the
-// owner kept broadcasting the app frame throughout, with no errors. So the
-// request reaches the owner over the guest's DC, the owner sends, and the frame
-// does not reach THAT guest. The failure is in delivery/fan-out of the
-// owner-signed 'app' broadcast to a newly-arrived subscriber.
+// TWO BUGS LIVED HERE. The first is FIXED; the second is what keeps this red.
 //
-// Why it hid for so long: with ONE guest it is a coin flip nobody chases, and
-// the suite that did hit it (e2e-perms-share) was simply given a bigger timeout
-// — its "~40% flaky" was this bug all along. It only becomes obvious when
-// guests arrive in SEQUENCE, which is exactly what a real room does.
+// 1. FIXED — the star. App bytes were broadcast only in reply to a client's
+//    'need-app', so every joiner dialled the owner for the file. They are now
+//    retained on every node and pulled peer-to-peer (meet.html sga-appreq /
+//    sga-app). The blocker had been the verifier's monotonic n: a RETAINED
+//    frame always carries its mint-time n, so a retained app read as 'stale'
+//    forever — 'app' is now exempt from ordering as immutable content.
+//    Sequential guests went 5/8 (1.7-9.9s, 20-36s stalls) -> flat ~1.8s.
+//
+// 2. STILL OPEN — mesh membership, NOT the bytes path. A guest seats at a real
+//    coord and then sees NOTHING for ~23s:
+//        guest1 SEAT {"coord":{"pc":0,"r":0,"i":1},"peers":0,"dcs":0}
+//        times  -1, 23664, 24060, 2713, 22644, 1659, 1756, 1719
+//    debugDump().participants is EMPTY — the guest does not know the owner
+//    exists, so it has no sga target to pull snap OR app from, and no amount of
+//    retrying in the app layer can help. The ~23-24s clustering looks like a
+//    fixed retry somewhere in roster/greeter propagation. Once the room is warm
+//    later guests are 1.7s. THAT is the next bug, and this suite is its test.
 //
 // This suite is deliberately sequential and single-file: at most two browsers
 // are alive at once (the owner plus the current guest), so it cannot be
@@ -103,8 +110,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // WHOSE fault? Print the guest's own join timeline and the owner's ledger.
       const tr = await page.evaluate(() => window.__appJoinTrace || []).catch(() => []);
       console.log('    guest' + g + ' TRACE ' + (tr.length ? tr.map((e) => e.ev + '@' + e.ms).join(' ') : '(none)'));
-      const own = await host.evaluate(() => window.__appOwnerStats || null).catch(() => null);
-      console.log('    owner ledger ' + JSON.stringify(own));
+      // Seated at all? A guest with no mesh coord has no sga targets, so it can
+      // neither pull the snap nor the app — that is a SEATING failure, a
+      // different bug from the bytes path.
+      const st = await page.evaluate(() => {
+        const V = window.__gifosVideo;
+        let coord = null, dcs = 0, peers = 0;
+        try { coord = V && V.meshCoord ? V.meshCoord() : null; } catch (e) {}
+        try {
+          const d = V && V.debugDump ? V.debugDump() : null;
+          const ps = d && d.participants;   // debugDump's real key
+          if (Array.isArray(ps)) { peers = ps.length; dcs = ps.filter((x) => x && x.conn).length; }
+        } catch (e) {}
+        return { coord, peers, dcs };
+      }).catch(() => null);
+      console.log('    guest' + g + ' SEAT ' + JSON.stringify(st));
     }
     await ctx.close().catch(() => {});
     await sleep(500);
