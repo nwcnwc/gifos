@@ -107,13 +107,18 @@
     }
     // lastIndexOf so this can never diverge from the relay's split (which also
     // takes the verifier after the LAST dot), even if a room ever held a dot.
+    // The fallback is meet.html, NOT run.html — the one-runtime flag day deleted
+    // run.html, and these hashes are exactly what /404.html's router rewrites the
+    // pretty /join/… links into. This was not merely a local-dev wart: `onProd`
+    // also requires the DEFAULT relay, so a user on gifos.app with a CUSTOM RELAY
+    // took this branch and handed out a link that 404s.
     const dot = String(sid || '').lastIndexOf('.');
     if (dot > 0) {
       if (onProd) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1) + '/' + lsec;
-      return location.origin + '/run.html#s=' + sid + '&k=' + lsec + '&relay=' + encodeURIComponent(relay);
+      return location.origin + '/meet.html#s=' + sid + '&k=' + lsec + '&relay=' + encodeURIComponent(relay);
     }
     if (onProd) return location.origin + '/join/' + lsec;
-    return location.origin + '/run.html#j=' + lsec + '&relay=' + encodeURIComponent(relay);
+    return location.origin + '/meet.html#j=' + lsec + '&relay=' + encodeURIComponent(relay);
   }
   GifOS.links = { shortCode, buildJoinUrl };
 
