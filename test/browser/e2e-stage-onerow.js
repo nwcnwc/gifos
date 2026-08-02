@@ -111,7 +111,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         try {
           const m = window.__gifosVideo.debugDump().mosaic || {};
           return {
-            reship: m.reship || [], selfMemo: m.selfMemo || [],
+            reship: m.reship || [], selfMemo: m.selfMemo || [], regrab: m.regrab || [],
             // Read the raw globals too: an empty selfMemo could mean the memo
             // never rebuilt OR that the dump plumbing is wrong, and those point
             // at opposite bugs.
@@ -124,6 +124,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const tag = 'seat' + i + (i === stagerIdx ? '(stager)' : '');
       for (const r of rs.reship) console.log('  RESHIP ' + tag + ' ' + JSON.stringify(r));
       for (const r of rs.selfMemo) console.log('  SELFMEMO ' + tag + ' ' + JSON.stringify(r));
+      for (const r of (rs.regrab || [])) console.log('  REGRAB ' + tag + ' ' + JSON.stringify(r));
       console.log('  DIAG ' + tag + ' rawSelf=' + rs.rawSelf + ' rawShip=' + rs.rawShip + ' hasField=' + rs.hasField + (rs.err ? ' err=' + rs.err : ''));
     }
   }
