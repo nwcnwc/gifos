@@ -74,7 +74,8 @@ node apps/chess-grandmaster/build.mjs
 ```
 
 That packs the source below into the finished, self-contained
-`apps/chess-grandmaster.gif` (~8 MB — it carries the whole engine). Two of the
+`site/apps/chess-grandmaster/chess-grandmaster.gif` (~8 MB — it carries the
+whole engine). Two of the
 packed files are generated from the vendored engine at build time:
 
 - `sf-glue.js` — the Stockfish glue, made executable, with its self-init tail

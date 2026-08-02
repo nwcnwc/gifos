@@ -60,7 +60,7 @@ how an app stays unlisted while it's being built.
   tagging via `gifos.api`) → deterministic pace/filler/lexical features →
   drill-type-aware `gifos.ai` coaching → suggested next drill → weekly review,
   all in `gifos.db`. Picture-description drills render a scene with
-  `gifos.ai.image`. Finished GIF: [`fluence.gif`](fluence.gif). The first app to
+  `gifos.ai.image`. Finished GIF: [`site/apps/fluence/fluence.gif`](../site/apps/fluence/fluence.gif). The first app to
   exercise the generic third-party-API capability.
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
@@ -68,5 +68,5 @@ how an app stays unlisted while it's being built.
   centipawn eval. The first app to use the **`wasm`** capability: it bundles the
   Stockfish WASM (net embedded) and instantiates it from bytes — `connect-src`
   stays `'none'`, so the engine never touches the network. Finished GIF:
-  [`chess-grandmaster.gif`](chess-grandmaster.gif). **GPLv3** (it links Stockfish
+  [`site/apps/chess-grandmaster/chess-grandmaster.gif`](../site/apps/chess-grandmaster/chess-grandmaster.gif). **GPLv3** (it links Stockfish
   — see [`chess-grandmaster/COPYING-stockfish.txt`](chess-grandmaster/COPYING-stockfish.txt)).
