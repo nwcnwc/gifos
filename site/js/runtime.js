@@ -1821,6 +1821,7 @@
 
       const mount = () => {
         if (mounted) return; mounted = true;
+        trace('mounted');
         iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
         mountApp(iframe, filesRef, manifestRef, db, appBytes, makeNetPolicy(null, manifestRef));
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifestRef);
@@ -1843,14 +1844,29 @@
       // costs 300ms, while a genuinely absent owner is still only polled every
       // 6s in the steady state, so this adds no load to the case that drum was
       // protecting.
+      // JOIN TIMELINE. The end-to-end "guest sees the app" number cannot say
+      // WHICH leg was slow, and the legs mean different bugs: waiting for the
+      // owner's retained snap is mesh/DC establishment, whereas asks going
+      // unanswered is the bytes path. Measured across three boxes the total
+      // ranged 1.6s-36.5s, and I guessed at the cause twice before recording it.
+      const joinT0 = Date.now();
+      const joinTrace = [];
+      const trace = (ev, extra) => {
+        try {
+          joinTrace.push(Object.assign({ ms: Date.now() - joinT0, ev }, extra || {}));
+          root.__appJoinTrace = joinTrace;
+        } catch (e) {}
+      };
       let askTimer = null, askDelay = 300;
       const askApp = () => {
         if (mounted) return;
+        trace('ask');
         try { send('need-app', {}); } catch (e) {}
         if (askTimer) return;
         const tick = () => {
           askTimer = null;
           if (mounted) return;
+          trace('ask');
           try { send('need-app', {}); } catch (e) {}
           askDelay = Math.min(6000, askDelay * 2);
           askTimer = setTimeout(tick, askDelay);
@@ -1859,6 +1875,7 @@
       };
       const mountFromB64 = (b64, name) => {
         if (mounted || !b64) return Promise.resolve();
+        trace('app-frame', { kb: Math.round((b64.length || 0) / 1024) });
         appBytes = gif.b64decode(b64);
         return gif.decode(appBytes).then((archive) => {
           if (!archive) { setStatus('Bad app from the mesh host.'); try { console.error('[bootClientBus] app frame DECODE failed (bytes ' + (appBytes ? appBytes.length : 0) + ')'); } catch (e2) {} appBytes = null; return; }
@@ -1870,6 +1887,7 @@
         });
       };
       const onSnap = (body) => {
+        trace('snap');
         if (body && body.state && body.state.collections) { mirror = body.state; reconcilePending(); }
         if (!mounted) {
           if (body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes

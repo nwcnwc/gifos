@@ -68,6 +68,11 @@ if (!LINK) { console.log('JOIN-ERROR --link is required'); process.exit(2); }
     const modalMs = Date.now() - t0;
     console.log('MOUNT run=' + n + ' iframeMs=' + (iframeOk ? iframeMs : -1) +
       ' modalMs=' + (modalOk ? modalMs : -1) + ' ok=' + (iframeOk && modalOk));
+    // WHICH LEG was slow? runtime.js records the join timeline; without it the
+    // total is unactionable (waiting on the owner's snap is mesh/DC, asks going
+    // unanswered is the bytes path).
+    const tr = await page.evaluate(() => window.__appJoinTrace || []).catch(() => []);
+    if (tr.length) console.log('  TRACE ' + tr.map((e) => e.ev + '@' + e.ms + (e.kb ? '(' + e.kb + 'kb)' : '')).join(' '));
     results.push({ iframeMs: iframeOk ? iframeMs : -1, modalMs: modalOk ? modalMs : -1 });
     await ctx.close().catch(() => {});
   }
