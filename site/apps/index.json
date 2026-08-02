@@ -42,8 +42,12 @@
         75
       ],
       "cover": "/apps/chess-grandmaster/cover.jpg",
-      "bytes": 8318483,
-      "signature": null
+      "bytes": 8318670,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-02"
+      }
     },
     {
       "slug": "fluence",
@@ -75,8 +79,12 @@
         255
       ],
       "cover": "/apps/fluence/cover.jpg",
-      "bytes": 158142,
-      "signature": null
+      "bytes": 158329,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-02"
+      }
     }
   ]
 }
