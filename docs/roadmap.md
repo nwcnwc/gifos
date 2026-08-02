@@ -1182,6 +1182,25 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
   identical, so the PR is nearly free once the port exists. Keep the PR narrow
   and additive (a new folder + a README line), never a rewrite, so it's easy to
   accept.
+- **Owner-signing instructions (ship them with the PR):** include a short
+  how-to so the **repo owner signs the built GIF with their OWN key** — then it
+  verifies as **✓ signed by their-domain.com** (or their email), not gifos.app,
+  which is the honest provenance for an app they authored. The whole flow
+  already exists in [`site/sign.html`](../site/sign.html) (attaches to
+  `GifOS.sign`, `site/js/gifos-sign.js`), entirely in-browser, no upload/account,
+  two paths:
+  - **Domain** — generate an Ed25519 key in the page, publish the public half at
+    `https://<their-domain>/gifos.key` (served with CORS), then "Sign &
+    download". The key location is derived from the domain, so "signed by it"
+    means they control it.
+  - **Email / PGP** — download the statement, `gpg --detach-sign --digest-algo
+    SHA256 gifos-statement.bin` with a key already on keys.openpgp.org, upload
+    the `.sig`, download the signed GIF.
+  The signature covers the app bytes but **excludes the saved `.state`**, so it
+  stays valid as people use the app. A GIF carries **one** `GIFOSSIG` block, so
+  an owner signature *replaces* ours: when the owner signs, the listing shows
+  **them** as the signer and credits GifOS as the *packager* in text, not in the
+  block. The port README and the upstream PR both carry these steps.
 
 **Open questions.**
 - **License set:** MIT/BSD/ISC are easy; Apache-2.0 adds a NOTICE duty and a
