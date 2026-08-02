@@ -1,0 +1,13 @@
+{
+  "tagline": "Full-strength Stockfish, running offline inside the sandbox.",
+  "description": "The real engine — Stockfish 18 with its NNUE evaluation net embedded — compiled to WebAssembly and bundled inside the GIF. Not a JavaScript reimplementation, and not a server: the app instantiates the engine from bytes it already carries, so it never touches the network. It plays on a plane.\n\nPick your level on a ladder from about 1320 Elo up through Grandmaster, plus a top rung that removes the leash entirely — objectively stronger than any human alive. Every search reports the engine's win / draw / loss odds alongside a centipawn evaluation and the best line it has found, and the whole coaching layer toggles off for a distraction-free game.\n\nHints only ever appear when you press Hint. Take-backs, resign and a promotion picker are all there. Finished games are saved into the icon so you can step through any of them move by move, and your game in progress auto-saves — close the tab, come back, resume.\n\nOr press Play a friend and send the invite: the same board, live, on two devices.",
+  "author": { "name": "GifOS", "url": "https://gifos.app" },
+  "releaseDate": "2026-07-09",
+  "updated": "2026-07-11",
+  "categories": ["Games", "Learning"],
+  "tags": ["chess", "stockfish", "offline", "wasm", "multiplayer"],
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/chess-grandmaster",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
