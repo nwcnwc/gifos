@@ -248,13 +248,44 @@ run_one() {
     verdict=RED; reason="RED TWICE: ${fail} failed / ${pass} passed :: $(grep -m1 -E '^ *FAIL' "$log" | sed 's/^ *FAIL *— *//' | cut -c1-80)"; red=$((red+1))
   fi
   # Reclassify against the quarantine list before recording the verdict.
-  # FLAKY counts as passing here: a quarantined suite is expected
-  # DETERMINISTIC-red, so greening on any attempt means promote-or-fix.
+  #
+  # ESCAPED means "somebody fixed it — promote it". The old test was "green on
+  # ANY attempt", which assumed every quarantined suite is DETERMINISTICALLY
+  # red. mirror-drill is not: its own quarantine entry says "roughly 2-4 runs in
+  # 6 are green", and measured 2026-08-02 on an idle 8-core box it was 3/6. So a
+  # single lucky green raised ESCAPED, ESCAPED blocks the gate, and the gate
+  # therefore COULD NOT GO GREEN — not because anything was broken, but because
+  # a coin-flip suite was on a list that assumes coins have one face.
+  #
+  # Re-roll until it lands red is not an option; that is gaming the gate. So
+  # implement the bar quarantine.txt already states in words — "promote when E
+  # RELIABLY claims B primary + F standby" — and require CONSISTENTLY green:
+  # best-of-3, all three green. One red in three and it is still the known
+  # nondeterministic behaviour, reported as QUAR and not blocking.
+  # This does not soften a product assertion: the suite's own checks are
+  # untouched, and a genuinely fixed suite (3/3) still blocks until promoted.
+  if is_quarantined "$name" && { [ "$verdict" = GREEN ] || [ "$verdict" = FLAKY ]; }; then
+    confirm_green=1
+    for _try in 2 3; do
+      reap_browsers; sleep 1
+      timeout -k 45 "$to" node "$f" > "$log.q$_try" 2>&1 || { confirm_green=0; break; }
+    done
+    reap_browsers
+    if [ "$confirm_green" = 0 ]; then
+      # Still nondeterministic — the quarantine entry stands.
+      [ "$verdict" = GREEN ] && green=$((green-1)) || flaky=$((flaky-1))
+      verdict=QUAR; quar=$((quar+1))
+      reason="known-unfixed (quarantined), NONDETERMINISTIC :: green once, red again on a best-of-3 re-check — entry stands"
+      printf '%s\t%s\t%s\t%s\n' "$verdict" "$tier/$name" "${secs}s" "$reason" >> "$RESULTS"
+      printf '%-5s %-38s %6s  %s\n' "$verdict" "$tier/$name" "${secs}s" "$reason"
+      return
+    fi
+  fi
   if is_quarantined "$name"; then
     if [ "$verdict" = GREEN ] || [ "$verdict" = FLAKY ]; then
       [ "$verdict" = GREEN ] && green=$((green-1)) || flaky=$((flaky-1))
       verdict=ESCAPED; escaped="$escaped $name"
-      reason="QUARANTINED SUITE IS NOW GREEN — fix confirmed; promote it back into the gate and delete it from quarantine.txt"
+      reason="QUARANTINED SUITE IS GREEN 3/3 — fix confirmed; promote it back into the gate and delete it from quarantine.txt"
     else
       [ "$verdict" = RED ] && red=$((red-1)) || dead=$((dead-1))
       verdict=QUAR; quar=$((quar+1))
@@ -389,8 +420,37 @@ if want behavior; then
     if [ "$BEHAVIOR" = full ]; then bash test/batteries/behavior.sh > "$LOGDIR/behavior.log" 2>&1
     else bash test/batteries/behavior.sh --core > "$LOGDIR/behavior.log" 2>&1; fi
     rc=$?; secs=$(( $(date +%s) - start ))
+    # ONE RETRY, of the FAILED SCENARIOS ONLY — the same policy every other tier
+    # has had since 2026-07-28, and behavior was the only tier without it despite
+    # being the most timing-sensitive thing in the gate. Retrying the whole
+    # battery would cost another ~50 minutes, and behavior.sh already takes
+    # scenario prefixes, so re-run just the names it reported.
+    #
+    # Measured 2026-08-02 on an IDLE 8-core box: 08a-techsupport-reload-mash is
+    # 8/12 green on main. It is NOT starvation (it fails at loadavg 0.58) and it
+    # is NOT a regression from this release — the same scenario run from the
+    # 0.8.8 CUT COMMIT's own tree is 3/4, i.e. the shipped release has the same
+    # race. It is the open fast-rejoin race (#2) the scenario was written to
+    # catch, still open. A scenario like that must be reported LOUDLY as FLAKY —
+    # a standing work queue — not silently absorbed, and not allowed to block a
+    # release on a coin flip either.
+    behretry=0
+    if [ $rc -ne 0 ]; then
+      failed_scen=$(grep -m1 '^failed:' "$LOGDIR/behavior.log" | cut -d: -f2-)
+      if [ -n "$failed_scen" ]; then
+        echo "  behavior: retrying only:$failed_scen"
+        reap_browsers; sleep 2
+        # shellcheck disable=SC2086
+        bash test/batteries/behavior.sh $failed_scen > "$LOGDIR/behavior-retry.log" 2>&1
+        if [ $? -eq 0 ]; then rc=0; behretry=1; fi
+        secs=$(( $(date +%s) - start ))
+      fi
+    fi
     tail -1 "$LOGDIR/behavior.log" | grep -q 'BEHAVIOR BATTERY' && tally=$(tail -1 "$LOGDIR/behavior.log") || tally="see $LOGDIR/behavior.log"
-    if [ $rc -eq 0 ]; then v=GREEN; green=$((green+1)); else v=RED; red=$((red+1)); fi
+    if [ $rc -eq 0 ] && [ $behretry -eq 1 ]; then
+      v=FLAKY; flaky=$((flaky+1)); flakes="$flakes behavior/$failed_scen"
+      tally="GREEN on RETRY of$failed_scen — first pass red ($tally); fix the race"
+    elif [ $rc -eq 0 ]; then v=GREEN; green=$((green+1)); else v=RED; red=$((red+1)); fi
     printf '%s\t%s\t%s\t%s\n' "$v" "behavior/$BEHAVIOR" "${secs}s" "$tally" >> "$RESULTS"
     printf '%-5s %-38s %6s  %s\n' "$v" "behavior/$BEHAVIOR" "${secs}s" "$tally"
     grep -E '^FAIL' "$LOGDIR/behavior.log" | head -8 | sed 's/^/        /'
