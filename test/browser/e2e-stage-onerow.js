@@ -110,12 +110,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const rs = await pages[i].evaluate(() => {
         try {
           const m = window.__gifosVideo.debugDump().mosaic || {};
-          return { reship: m.reship || [], selfMemo: m.selfMemo || [] };
-        } catch (e) { return { reship: [], selfMemo: [] }; }
+          return {
+            reship: m.reship || [], selfMemo: m.selfMemo || [],
+            // Read the raw globals too: an empty selfMemo could mean the memo
+            // never rebuilt OR that the dump plumbing is wrong, and those point
+            // at opposite bugs.
+            rawSelf: (window.__selfMemoLog || []).length,
+            rawShip: (window.__mosReship || []).length,
+            hasField: ('selfMemo' in m),
+          };
+        } catch (e) { return { reship: [], selfMemo: [], err: String(e).slice(0, 80) }; }
       }).catch(() => ({ reship: [], selfMemo: [] }));
       const tag = 'seat' + i + (i === stagerIdx ? '(stager)' : '');
       for (const r of rs.reship) console.log('  RESHIP ' + tag + ' ' + JSON.stringify(r));
       for (const r of rs.selfMemo) console.log('  SELFMEMO ' + tag + ' ' + JSON.stringify(r));
+      console.log('  DIAG ' + tag + ' rawSelf=' + rs.rawSelf + ' rawShip=' + rs.rawShip + ' hasField=' + rs.hasField + (rs.err ? ' err=' + rs.err : ''));
     }
   }
   check('the claimed stage feed never goes TRACKLESS (no husk under the claim)',
