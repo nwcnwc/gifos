@@ -3,7 +3,7 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
-  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false;
+  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false;   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
@@ -24,6 +24,15 @@ void Seat::announce(){
 
 // A: assigner recheck + soft TTL — free sitting-down marks that never self-confirmed
 // (lost PLACE under packet loss). Only the assigner that wrote the mark rechecks.
+// CHECK-BACK (law A tightened, 2026-08-02 — the ghost-churn fix): the recheck
+// at SIT_RECHECK now actually FREES a vouch that was never answered. A live
+// joiner is always HEARD within a couple of beats of its PLACE (its CLAIM or
+// HELLO lands, or its first PHONE beat at +8 ticks); a tab killed mid-placement
+// is never heard at all. 25 ticks of total silence after my own PLACE means my
+// vouch is dead — holding the chair the full SIT_TTL (90) let six killed tabs
+// wall off the whole home row and strand every real newcomer behind it.
+// Freeing also clears the cell's healTry admission stamp: a freed chair is
+// admissible NOW, not 45 ticks after its dead admittee's own admission.
 void Seat::recheckSitting(){
   if(sitting.empty()) return;
   vector<uint64_t> del;
@@ -32,13 +41,18 @@ void Seat::recheckSitting(){
     if(s.assigner!=id) continue;
     // Confirmed seated by first-hand contact with the joiner at this cell.
     if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ del.push_back(e.first); continue; }
-    // Soft TTL backstop: mark cannot live forever if recheck is skipped.
     if(TICK-s.at < SIT_RECHECK) continue;
+    // The check-back: never heard from the joiner at this cell — free it now.
+    if(occGet(e.first)!=s.joiner && !firstHandLive(e.first)){
+      del.push_back(e.first); healTry.erase(e.first);
+      continue;
+    }
+    // Soft TTL backstop: mark cannot live forever if recheck is skipped.
     if(TICK-s.at >= SIT_TTL){
       del.push_back(e.first);
       // Ghost occ left by an older admit path or partial confirm: clear if not live.
       if(occGet(e.first)==s.joiner && !firstHandLive(e.first)){
-        occ.erase(e.first); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first);
+        occ.erase(e.first); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first); healTry.erase(e.first);
       }
     }
   }
@@ -96,14 +110,19 @@ void Seat::serveFind(Msg& mm){
     for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t]; rowHeld[t]=false;
       for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; if(cellReserved(k)) rowHeld[t]=true; } }
     for(int t=0;t<C;t++){
-      // A + H7: do NOT start the next S1 row until the previous row is fully
-      // reserved (every cell taken or soft-sitting) AND its head is not merely
-      // soft-sitting. Dense row-major fill for the media plane.
+      // A + H7 (HARDENED 2026-08-02): do NOT start the next S1 row until the
+      // previous row is fully OCCUPIED — confirmed seats, not reservations.
+      // A row of soft sitting-down marks is a row of vouches nobody has
+      // answered yet: seating a newcomer BEHIND it gambles that every one of
+      // them confirms, and when they are killed tabs (the ghost-churn repro)
+      // the newcomer lands in an empty row with zero live links — a fragment
+      // that can pull neither snap nor app from anyone. NOROOM is the honest
+      // answer while the previous row settles: the joiner's ordinary retry
+      // costs beats; a fragment costs the whole join. (The old gate counted
+      // cellTaken — occ OR soft — and only refused a soft HEAD.)
       if(t>0){
-        uint64_t prevHead=ckey({0,(uint8_t)(t-1),0});
-        if(softSitting(prevHead)) break;
         bool prevFull=true;
-        for(int j=0;j<C;j++) if(!cellTaken(ckey({0,(uint8_t)(t-1),(uint8_t)j}))){ prevFull=false; break; }
+        for(int j=0;j<C;j++) if(!occ.count(ckey({0,(uint8_t)(t-1),(uint8_t)j}))){ prevFull=false; break; }
         if(!prevFull) break;
       }
       bool liveRow=rowLive[t], everSeen=rowSeen[t];
@@ -665,7 +684,7 @@ void Seat::rowSweep(){
   if(coord.i!=0) return;
   vector<uint64_t> del;
   for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0) del.push_back(e.first); }
-  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); }
+  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); healTry.erase(k); }   // freed ⇒ admissible now (healTry is heal pacing, not a chair embargo)
   // (D5's early corpse-forget lives in tlSweep — every observer, not just
   // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
 }
@@ -680,7 +699,7 @@ void Seat::tlSweep(){
   if(translost.empty()) return;
   vector<uint64_t> tl; for(auto&e:translost) tl.push_back(e.first);
   for(auto k:tl){ if(!translostConfirmed(k)) continue;
-    if(occ.count(k)){ occ.erase(k); live.erase(k); kidful.erase(k); s1seen.erase(k); } }
+    if(occ.count(k)){ occ.erase(k); live.erase(k); kidful.erase(k); s1seen.erase(k); healTry.erase(k); } }   // freed ⇒ admissible now
 }
 void Seat::s1Fill(){
   // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from below
@@ -848,7 +867,7 @@ void Seat::recv(Msg& m){
       return;
     case LEAVE: {
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); }
+      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       clearSoft(m.ck);   // A: LEAVE clears any soft sitting-down on that cell
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
       // H-CHAIN vertical: when a DOWN-CHILD vacates, clear childOf on its
@@ -915,7 +934,7 @@ void Seat::recv(Msg& m){
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue(); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
-      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); }
+      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
       wake(id); return; }
     case PHONE: onPhone(m); return;
@@ -946,6 +965,9 @@ void Seat::leave(){ alive[id]=0; active.erase(id); moving=false; leaseCk=0; leas
 void Seat::tick(){
   if(!alive[id]){ return; }
   if(state!=3){ if(stranded){ if(TICK-strandedAt>STRAND_TTL){ stranded=false; lastReach=-1; joinStart=-1; join(); } wake(id); return; }   // R6: stranded shows "network settings won't let you connect", but the client RETRIES after a backoff — if a greeter is now reachable (e.g. my side's pool stabilised after a partition) I re-seat; a genuinely cut-off seat just strands again.
+    if(reAsk||reJoin){ bool a=reAsk; reAsk=false; reJoin=false;   // ENTRY PACING: fire the ask/knock deferred from a same-tick repeat
+      if(a&&haveRoster&&roster.size()){ int t=pickRoster(); if(t>=0){ askSeat(t); wake(id); return; } }
+      join(); wake(id); return; }
     if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>((seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } } wake(id); return; }
   if(evil) attack();
   // T: transit bookkeeping — a claim window that closes with NO contradiction
