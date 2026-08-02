@@ -2399,7 +2399,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0 };
+      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0, painted: 0 };
       // ADAPTIVE FRAME-DROP: paint is driven by BOTH the metronome and rVFC,
       // and on a software-rendered / overloaded device one filtered drawImage
       // can cost 100ms+. Without a governor the paint tasks queue FASTER than
@@ -2437,6 +2437,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // (the 2026-08-01 canvas center-crop was reverted: stacked on the
         // camera pipeline's own cropping it double-zoomed a face; the camera
         // already rotates with the device on every phone).
+        pipe.painted++;   // frames ARE flowing — blackCamWatch reads this
         const sw = src.videoWidth || 640, sh = src.videoHeight || 480;
         // CAP THE LONG SIDE, NOT THE WIDTH (2026-07-31, measured). capW was
         // applied to width alone, which silently assumed a landscape source.
@@ -4837,9 +4838,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!localStream) return;
       const vt = localStream.getVideoTracks()[0], at = localStream.getAudioTracks()[0];
       if ((!vt || vt.readyState !== 'ended') && (!at || at.readyState !== 'ended')) return;
-      regrabCamera();
+      regrabCamera('reviveCamera:ended-track');
     }
-    function regrabCamera() {
+    function regrabCamera(reason) {
+      // A re-grab replaces BOTH tracks in localStream, which restarts the blur
+      // pipe and so changes sentVideoTrack — which rebuilds mySelfStream's memo,
+      // mints a new stg stream id, and re-ships the stage feed to everyone (and
+      // cascades down the relay tree). It is therefore never cheap, and WHO asked
+      // for it is the first question when the stage feed churns.
+      try {
+        if (!window.__regrabLog) window.__regrabLog = [];
+        window.__regrabLog.push({ t: Date.now(), reason: reason || 'unknown', staged: (typeof stageIds === 'function' ? stageIds().indexOf(myId) >= 0 : null) });
+        if (window.__regrabLog.length > 20) window.__regrabLog.shift();
+      } catch (e) {}
       navigator.mediaDevices.getUserMedia({ video: camVideoConstraints(), audio: true })
         .then((s) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
@@ -4878,7 +4889,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const probe = document.createElement('canvas');
       probe.width = 32; probe.height = 18;
       const pctx = probe.getContext('2d', { willReadFrequently: true });
-      let darkTicks = 0, revives = 0;
+      let darkTicks = 0, revives = 0, lastPainted = 0;
       const dark = () => {
         const v = meTile && meTile.video;
         if (!v || !v.videoWidth) return true; // no frames yet IS the symptom
@@ -4893,11 +4904,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!localStream || myStatus.camOff || document.hidden) return;
         const vt = localStream.getVideoTracks()[0];
         if (!vt || vt.readyState === 'ended') return; // reviveCamera's case
-        if (vt.muted || dark()) {
+        // JUDGE THE TRACK THAT ACTUALLY LEAVES THIS DEVICE. While the blur pipe
+        // runs it feeds on its own CLONE of the camera (startBlurPipe clones so
+        // the self-view can keep the original — Safari won't render one track in
+        // two elements), and the original in localStream can then sit `muted`
+        // simply because nothing consumes it. That is normal, not a black
+        // camera. Reading `vt.muted` here made the watchdog "repair" a perfectly
+        // healthy camera: measured on the stage lane, a stager re-grabbed ~12s
+        // after stepping up with reason `blackCamWatch:track-muted` while
+        // staged:true. A re-grab replaces BOTH tracks, which restarts the pipe,
+        // changes sentVideoTrack, rebuilds mySelfStream's memo and mints a NEW
+        // stg stream id — so every receiver's stage feed re-shipped and each
+        // relayer cascaded the same change downstream, up to the 3-revive cap.
+        // That is e2e-stage-onerow's "keeps ONE stream id" red, and it predates
+        // 0.9.0 (0.8.8 fails it at the same rate).
+        const judge = (blurPipe && blurPipe.srcTrack && blurPipe.srcTrack.readyState === 'live') ? blurPipe.srcTrack : vt;
+        // `muted` ALONE IS NOT EVIDENCE OF A DEAD CAMERA. It is a transient,
+        // source-driven flag — it flips true whenever the source briefly cannot
+        // supply data and flips back on its own. This watchdog's premise, in its
+        // own words, is a track that is live but delivers NO FRAMES; if the blur
+        // pipe is still painting, that premise is simply false. Requiring both
+        // keeps every real failure covered — a dead camera stops painting, and a
+        // camera that is live-but-black is still caught by the pixel probe below,
+        // which is deliberately left as an independent trigger.
+        const painting = !!(blurPipe && blurPipe.painted > lastPainted);
+        lastPainted = blurPipe ? blurPipe.painted : 0;
+        if ((judge.muted && !painting) || dark()) {
           if (++darkTicks >= 3 && revives < 3) {
             darkTicks = 0; revives++;
             setStatus('Your camera was sending black video — restarting it…');
-            regrabCamera();
+            regrabCamera('blackCamWatch:' + (judge.muted ? 'track-muted' : 'dark-pixels'));
           }
         } else { darkTicks = 0; revives = 0; }
       }, 3000);
@@ -6336,7 +6372,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const mySelfStream = () => {
       const v = sentVideoTrack(); if (!v) return null;
       const a = (localStream && localStream.getAudioTracks()[0]) || null;
-      if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+      if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) {
+        // WHICH track moved? Rebuilding this memo mints a new MediaStream id,
+        // which re-ships every stg job and cascades down the relay tree (each
+        // relayer sees its incoming sig change and re-ships in turn). So the
+        // one thing worth knowing is whether the VIDEO or the AUDIO track
+        // swapped underneath us, and what it swapped from.
+        try {
+          if (!window.__selfMemoLog) window.__selfMemoLog = [];
+          const cam = localStream && localStream.getVideoTracks()[0];
+          window.__selfMemoLog.push({
+            t: Date.now(),
+            why: !selfShipMemo ? 'first'
+              : (selfShipMemo.v !== v ? 'video-track-swapped' : 'audio-track-swapped'),
+            oldV: selfShipMemo && selfShipMemo.v ? String(selfShipMemo.v.id).slice(0, 8) : null,
+            newV: String(v.id).slice(0, 8),
+            oldA: selfShipMemo && selfShipMemo.a ? String(selfShipMemo.a.id).slice(0, 8) : null,
+            newA: a ? String(a.id).slice(0, 8) : null,
+            blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
+            pipeTrack: (typeof blurPipe !== 'undefined' && blurPipe && blurPipe.track) ? String(blurPipe.track.id).slice(0, 8) : null,
+            pipeCamId: (typeof blurPipe !== 'undefined' && blurPipe) ? String(blurPipe.camId).slice(0, 8) : null,
+            camId: cam ? String(cam.id).slice(0, 8) : null,
+            camEnded: cam ? (cam.readyState === 'ended') : null,
+          });
+          if (window.__selfMemoLog.length > 40) window.__selfMemoLog.shift();
+        } catch (e) {}
+        selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+      }
       return selfShipMemo.stream;
     };
     const multiSection = () => { const s = meshSeat(); if (!s || !s.hasCoord) return false; for (const k of s.occ.keys()) if (!(k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95)) return true; return false; };
@@ -6378,6 +6440,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (meta) cur.meta = meta; // counts change while the stream id doesn't — the fresh {n, cols} must ride each re-announce
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
+      }
+      // WHY did an established job re-ship? A re-ship mints a NEW container id,
+      // so every receiver sees the feed's stream id change under it and its
+      // decoder resets — the "stage feed keeps ONE stream id" red. Only two
+      // things can cause it here, and they mean completely different bugs:
+      // the SOURCE stream changed identity (sig-change — someone upstream
+      // handed us a fresh MediaStream) or the senders left the pc (orphaned).
+      // Record which, with the source-side state that decides it, because after
+      // the fact the two are indistinguishable from the receiver's side.
+      if (cur) {
+        try {
+          if (!window.__mosReship) window.__mosReship = [];
+          const cam = localStream && localStream.getVideoTracks()[0];
+          window.__mosReship.push({
+            t: Date.now(), key, to: String(to).slice(0, 8),
+            why: orphaned ? 'orphaned' : 'sig-change',
+            oldSig: String(cur.sig).slice(0, 8), newSig: String(stream.id).slice(0, 8),
+            oldStreamId: String(cur.streamId).slice(0, 8),
+            blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
+            pipe: !!(typeof blurPipe !== 'undefined' && blurPipe) ,
+            camId: cam ? String(cam.id).slice(0, 8) : null,
+          });
+          if (window.__mosReship.length > 40) window.__mosReship.shift();
+        } catch (e) {}
       }
       if (cur) unshipMos(jk, false);
       if (!p || !p.pc || !p.connected) return null; // not linked yet — next sweep retries
@@ -9628,6 +9714,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // keys alone cannot show a MISMATCH — an announce whose stream never
         // arrives, or a stale id re-announced after a transport swap — which
         // is exactly the state that silently blocks failback, so surface the id.
+        // Every re-ship of an ALREADY-ESTABLISHED job, with the reason — see
+        // the note in shipMos. A receiver can only observe that the id changed;
+        // this says why it changed, on the side that changed it.
+        reship: (window.__mosReship || []).slice(-12),
+        // Why my OWN outbound stg stream changed identity — the root event the
+        // reship cascade above hangs off. See mySelfStream.
+        selfMemo: (window.__selfMemoLog || []).slice(-8),
+        regrab: (window.__regrabLog || []).slice(-8),
         annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)
           // mt = the mirror's TRANSIT ROW. A carrier recomputes the route from
           // it, and slotFor/the forwarder both bail SILENTLY when it is absent
