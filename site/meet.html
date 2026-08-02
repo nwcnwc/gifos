@@ -5721,6 +5721,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       p.dc = dc;
       dc.onopen = () => {
         dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
+        // Anything I broadcast on the stage channel while I had no open channel
+        // (a just-seated guest's 'need-app', an owner's 'app' reply to a peer
+        // still wiring up) was dropped on the floor. This is the moment it can
+        // actually go somewhere.
+        try { sgaFlushPending(); } catch (e) {}
       };
       // D5: my channel to this peer died. On an ungraceful peer death (mobile
       // tab kill, OOM, crash) this lands within ~1-5s — first-hand evidence
@@ -5912,6 +5917,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (m.k === 'sga-snap' && m.m && typeof m.m.sid === 'string') {
         // Direct snapshot replay (the answer to sga-req) — deliver, never re-fan.
         sgaRecvSnap(m.m);
+      } else if (m.k === 'sga-appreq' && typeof m.sid === 'string') {
+        // A neighbour wants the APP BYTES. Same pull-through as the snap: hand
+        // over my copy if I have one, otherwise remember them and chase it
+        // upstream myself. This is what makes the app spread peer to peer — the
+        // owner is only the first seeder, not an origin server every joiner has
+        // to reach.
+        sgaAppServe(p, m);
+      } else if (m.k === 'sga-app' && m.m && typeof m.m.sid === 'string') {
+        // Direct app replay (the answer to sga-appreq) — deliver, never re-fan.
+        // Still owner-SIGNED: the verifier in runtime.js checks the signature,
+        // so a relaying peer can pass the bytes on but can never forge them.
+        sgaRecvApp(m.m);
       } else if (m.k === 'bye') {
         // The peer's own farewell (sendMeshLeave, D2's app-level echo): an
         // ANNOUNCED departure — remove them from the human view now. Sealed
@@ -7560,6 +7577,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // replayed to late subscribers; 'delta'/'act' frames are fire-and-forget.
     const sgaSeen = new Map();  // sid|seq -> at (flood dedup)
     const sgaSnap = new Map();  // sid -> latest full-state frame (late-joiner replay)
+    // THE APP BYTES ARE RETAINED AND PEER-SERVED, exactly like the snap.
+    // Until 2026-08-02 the owner-signed 'app' frame was a ONE-SHOT broadcast:
+    // it was neither retained nor replayable, so the only way a latecomer could
+    // ever obtain it was to ask THE OWNER and hope its request arrived. That
+    // does not scale — it makes the owner a origin server for every joiner who
+    // ever arrives, on a phone — and it does not even work reliably at two
+    // people (measured: a guest sent five 'need-app' asks while the owner's
+    // ledger read asks=0, because a just-seated guest has no open channel yet).
+    // Retaining it means the bytes spread the way a file should on a mesh: any
+    // peer that HAS the app answers a neighbour that lacks it, the pull climbs
+    // toward older nodes, and the owner is just the first seeder.
+    const sgaApp = new Map();   // sid -> the owner-signed 'app' frame (peer-servable)
+    const sgaAppWant = new Map(); // sid -> Map(pid -> at): neighbours waiting on an app I lack
     const sgaSubs = new Map();  // sid -> Set(cb)
     let sgaSeq = 0;
     // The same neighbour set the media fans ride: deep — up (head or parent),
@@ -7577,14 +7607,55 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       add(T.down(c));
       return [...out];
     }
+    // A stage frame reaches only peers whose DataChannel is ALREADY open, and
+    // used to be discarded for everyone else — no queue, no retry. For a guest
+    // that has just seated, NO channel is open yet, so its very first
+    // 'need-app' evaporated: measured 2026-08-02, a guest sent five asks
+    // (0/301/902/2103/4504 ms) while the owner's ledger read asks=0. It only
+    // recovered when a later retry happened to coincide with a channel opening,
+    // which is why guests mounted in 1.6s or 29s with nothing in between and
+    // why ~29% never mounted at all inside 30s. Same hazard in reverse: the
+    // owner's 'app' reply is dropped for any peer not yet wired, and unlike
+    // 'snap' it is not retained for replay.
+    //
+    // So: if a frame reached NOBODY, hold it and flush when a channel opens.
+    // Bounded and short-lived — this is a wiring race lasting seconds, not a
+    // store-and-forward queue, and stale mesh state is its own class of bug.
+    const sgaPending = [];        // [{ m, at }]
+    const SGA_PEND_MAX = 32, SGA_PEND_TTL = 30000;
     function sgaFan(m, fromPid) {
+      let sent = 0;
       for (const pid of sgaTargets()) {
         if (pid === fromPid) continue;
         const p = peers.get(pid);
-        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, m);
+        if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, m); sent++; }
       }
+      // Only frames I ORIGINATED are worth holding (fromPid == null). A relayed
+      // frame that finds no onward peer is just the edge of the fan.
+      if (!sent && fromPid == null) {
+        sgaPending.push({ m, at: Date.now() });
+        while (sgaPending.length > SGA_PEND_MAX) sgaPending.shift();
+      }
+      return sent;
+    }
+    // Flush on link-up: the channel that just opened is exactly the one those
+    // frames had nowhere to go without.
+    function sgaFlushPending() {
+      if (!sgaPending.length) return;
+      const now = Date.now();
+      const due = sgaPending.splice(0, sgaPending.length).filter((e) => now - e.at < SGA_PEND_TTL);
+      for (const e of due) sgaFan(e.m, null);
     }
     function sgaDeliver(m) {
+      if (m.kind === 'app') {
+        // First copy wins: app bytes for a sid are immutable for the session.
+        if (!sgaApp.has(m.sid)) sgaApp.set(m.sid, m);
+        const aw = sgaAppWant.get(m.sid);
+        if (aw) {
+          sgaAppWant.delete(m.sid);
+          for (const pid of aw.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-app', m }); }
+        }
+      }
       if (m.kind === 'snap') {
         const cur = sgaSnap.get(m.sid);
         if (!cur || cur.seq === m.seq || (cur.at || 0) <= (m.at || 0)) sgaSnap.set(m.sid, m);
@@ -7637,6 +7708,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }, 2000);
       sgaReqTimer.set(sid, t);
     }
+    const sgaAppReqAt = new Map(), sgaAppTimer = new Map();
+    function sgaAppRequest(sid) {
+      const now = Date.now();
+      if ((sgaAppReqAt.get(sid) || 0) > now - 1800) return;
+      sgaAppReqAt.set(sid, now);
+      for (const pid of sgaTargets()) {
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'sga-appreq', sid: sid });
+      }
+    }
+    function sgaAppChase(sid) { // ask now, retry until the app lands or interest dies
+      if (sgaAppTimer.has(sid)) return;
+      sgaAppRequest(sid);
+      let tries = 0;
+      const t = setInterval(() => {
+        const wanted = sgaSubs.has(sid) || (sgaAppWant.get(sid) || { size: 0 }).size;
+        if (sgaApp.has(sid) || !wanted || ++tries > 30) { clearInterval(t); sgaAppTimer.delete(sid); return; }
+        sgaAppRequest(sid);
+      }, 2000);
+      sgaAppTimer.set(sid, t);
+    }
+    // A neighbour asked for the app. Hold it? Answer directly. Don't? Remember
+    // who asked and chase upstream myself — the same pull-through that makes
+    // the snap climb toward older nodes, so the bytes walk peer to peer instead
+    // of every joiner dialling the owner.
+    function sgaAppServe(p, m) {
+      const held = sgaApp.get(m.sid);
+      if (held) { dcSend(p, { k: 'sga-app', m: held }); return; }
+      let w = sgaAppWant.get(m.sid); if (!w) { w = new Map(); sgaAppWant.set(m.sid, w); }
+      w.set(p.id, Date.now());
+      sgaAppChase(m.sid);
+    }
+    function sgaRecvApp(m) {
+      if (!m || !m.sid || m.kind !== 'app') return;
+      if (sgaApp.has(m.sid)) return;   // immutable — first copy wins
+      sgaDeliver(m);                   // retains, wakes subscribers, serves waiters — NO re-fan
+    }
     function sgaServe(p, m) {
       const held = sgaSnap.get(m.sid);
       if (held) { if (held.seq !== m.have) dcSend(p, { k: 'sga-snap', m: held }); return; }
@@ -7669,6 +7777,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       broadcast(sid, kind, d) {
         const m = { k: 'sga', sid, seq: myId + ':' + (++sgaSeq), kind: kind || 'delta', d, at: Date.now() };
         sgaSeen.set(sid + '|' + m.seq, Date.now());
+        // sgaDeliver retains an 'app' frame, so the OWNER seeds itself here and
+        // can answer sga-appreq like any other holder. Without this the owner
+        // would broadcast the bytes and keep no copy to serve, which is what
+        // forced every latecomer back to the direct 'need-app' path.
         sgaDeliver(m); sgaFan(m, null);
         return m.seq;
       },
@@ -7678,10 +7790,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const snap = sgaSnap.get(sid);
         if (snap) { try { cb(snap); } catch (e) {} }
         else sgaChase(sid); // late joiner: pull the retained snap from the mesh
+        // ...and the app bytes, from whichever PEER already has them.
+        const appHeld = sgaApp.get(sid);
+        if (appHeld) { try { cb(appHeld); } catch (e) {} }
+        else sgaAppChase(sid);
         return () => { s.delete(cb); if (!s.size) sgaSubs.delete(sid); };
       },
       drop(sid) {
         sgaSnap.delete(sid); sgaSubs.delete(sid); sgaWant.delete(sid);
+        sgaApp.delete(sid); sgaAppWant.delete(sid);
+        const ta = sgaAppTimer.get(sid); if (ta) { clearInterval(ta); sgaAppTimer.delete(sid); }
         const t = sgaReqTimer.get(sid); if (t) { clearInterval(t); sgaReqTimer.delete(sid); }
       },
     };
