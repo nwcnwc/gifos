@@ -72,7 +72,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log('HOST-READY');
 
   // Stay in the room. The joiner needs a live owner to serve the app bytes.
+  //
+  // HEARTBEAT: print the owner's ask/send ledger every 10s. A guest that never
+  // mounts looks identical from outside whether the owner never RECEIVED the
+  // request (mesh/DC) or received it and failed to SEND (owner wedged) — this
+  // is the only thing that tells them apart, and it is what makes "does a
+  // long-lived host degrade?" a measurable question instead of a story.
   const stop = () => { browser.close().catch(() => {}); process.exit(0); };
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
-  for (;;) await sleep(3600000);
+  for (;;) {
+    await sleep(10000);
+    const st = await page.evaluate(() => {
+      const o = window.__appOwnerStats || null;
+      let peers = -1;
+      try { const d = window.__gifosVideo && window.__gifosVideo.debugDump(); peers = d && d.peers ? d.peers.length : -1; } catch (e) {}
+      return { o, peers, hidden: document.hidden };
+    }).catch(() => null);
+    if (st && st.o) {
+      console.log('OWNER asks=' + st.o.asks + ' sends=' + st.o.sends + ' deferred=' + st.o.deferred +
+        ' sendErrors=' + st.o.sendErrors + ' lastAskAgo=' + st.o.lastAskAgoMs +
+        ' lastSendAgo=' + st.o.lastSendAgoMs + ' peers=' + st.peers);
+    } else {
+      console.log('OWNER (no stats — page unreachable or bus not attached)');
+    }
+  }
 })().catch((e) => { console.log('HOST-ERROR ' + String(e).slice(0, 300)); process.exit(1); });

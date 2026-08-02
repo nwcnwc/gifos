@@ -1548,6 +1548,21 @@
             // and signed ONCE, sent only when a client asks ('need-app') —
             // throttled, DC-borne like every sga frame.
             let appB64 = null, lastAppSent = 0, appPendingTimer = null;
+            // OWNER-SIDE LEDGER. When a guest fails to mount, the decisive
+            // question is whether the owner even SAW the request: no ask means
+            // the mesh/DC never carried it, whereas asks without sends means the
+            // owner is the one wedged. From outside they look identical (a guest
+            // staring at nothing), and that ambiguity is why "the host degrades"
+            // sat as an untested claim.
+            const ownerStats = { asks: 0, sends: 0, deferred: 0, lastAskAgoMs: -1, lastSendAgoMs: -1, sendErrors: 0 };
+            const ownerNote = (k) => { try { ownerStats[k]++; root.__appOwnerStats = ownerStats; } catch (e) {} };
+            try {
+              root.__appOwnerStats = ownerStats;
+              setInterval(() => {
+                ownerStats.lastAskAgoMs = ownerStats._lastAsk ? Date.now() - ownerStats._lastAsk : -1;
+                ownerStats.lastSendAgoMs = lastAppSent ? Date.now() - lastAppSent : -1;
+              }, 1000);
+            } catch (e) {}
             const sendAppBytes = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               const now = Date.now();
@@ -1560,6 +1575,7 @@
               // retry storm — the asker's own backoff starts at 300ms — while
               // making a second joiner's wait unnoticeable.
               const wait = 1500 - (now - lastAppSent);
+              if (wait > 0) ownerNote('deferred');
               if (wait > 0) {
                 // THROTTLED — BUT DO NOT DROP THE REQUEST (2026-08-02). A client
                 // only sends 'need-app' when it does NOT have the bytes, so
@@ -1577,6 +1593,7 @@
                 return Promise.resolve();
               }
               lastAppSent = now;
+              ownerNote('sends');
               if (!appB64) appB64 = gif.b64encode(appBytes); // encode once — the heavy half
               // SIGN FRESH EVERY SEND (2026-08-02): frames carry a monotonic n
               // and the verifier rejects n <= lastN as replay ('stale'). A
@@ -1585,7 +1602,7 @@
               // forever-stale and nobody could mount (found by the wolves
               // room's frame tap; it also explains chess's join "slowness").
               return stageSigner.sign(sid, 'app', { app: appB64, name: manifest.name || 'App' })
-                .then((f) => stageBus.send('app', f)).catch(() => {});
+                .then((f) => stageBus.send('app', f)).catch((e) => { ownerNote('sendErrors'); });
             };
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
@@ -1638,7 +1655,7 @@
                 stageUnsub = bus.subscribe((m) => {
                   if (!m) return;
                   if (m.kind === 'act') onAct(m.d);
-                  else if (m.kind === 'need-app') sendAppBytes(); // a mounting client wants the bytes
+                  else if (m.kind === 'need-app') { ownerNote('asks'); try { ownerStats._lastAsk = Date.now(); } catch (e) {} sendAppBytes(); } // a mounting client wants the bytes
                 });
                 // Refresh the retained snapshot (with app bytes) on a debounce,
                 // and push a live delta immediately, on every change.
