@@ -109,6 +109,45 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   `rebuildDefaultApps` — code+icon swap in place, saved data kept). Stolen /
   renamed / user-built copies are never touched, and data-format compat across
   builds is still unguarded (the remedy is erase).
+- `saveItem()` in `desktop.js` is the ONLY place an item may be written. It
+  decides which cell an icon lands on, so an arrival never stacks on an
+  occupant: pass `{ into: parentId }` to move (it sets `parent` itself — by the
+  time a writer sees `it`, it IS the object in `items`, so a move is undetectable
+  after the fact), `{ at: {x,y} }` to aim, `{ keepCell: true }` to write
+  verbatim. `store.putItem` for an item is called in exactly two places —
+  `saveItem`, and `restoreDesktop` (a backup is restored verbatim, and
+  `clearAll()` has just made `items` untrustworthy). `e2e-icon-placement.js`
+  counts both call sites, so adding a third is a deliberate act.
+- Desktop icons are LOCKED to touch by default — a finger can never move one
+  until the user enters **Arrange mode** (`setArrangeMode` in `desktop.js`;
+  entered from the GifOS ▾ menu, an icon's long-press menu, or the desktop
+  menu). Locked means `.icon { touch-action: pan-x pan-y pinch-zoom }` AND no
+  `preventDefault`/`setPointerCapture` on the pointerdown, so the page scrolls
+  from an icon; `touch-action: none` alone is what made scrolling a phone post
+  apps into random folders. MOUSE drag is deliberately untouched. Any page that
+  loads `desktop.js` must ship the `#arrange-bar` markup (`e2e-icon-lock.js`
+  enforces this by scanning `site/*.html`) — the mode hides the menubar, so a
+  page without the bar strands you with no Done button. Note headless Chromium
+  cannot synthesize a touch scroll (`gestureSourceType: 'touch'` moves nothing
+  while `'mouse'` scrolls the same container) — guard the mechanisms
+  (touch-action, `defaultPrevented`), never the scroll itself.
+- The App Store catalog under `site/apps/` is GENERATED but COMMITTED (Pages
+  serves static files; there is no build step on deploy). Sources are
+  `apps/<slug>/manifest.json` + `apps/<slug>/listing.json`; regenerate with
+  `node scripts/build-app-catalog.mjs`, and `--check` fails if the committed
+  catalog has drifted. A built App GIF lives at `site/apps/<slug>/<slug>.gif`
+  and NOWHERE else — `site/` is the whole publish boundary, so a GIF outside it
+  is not downloadable, and a second copy is 8 MB twice in every clone plus two
+  versions that drift. Tests must resolve it through `test/lib/apps.js`.
+  **THE COVER RULE:** the store never references an App GIF as an image —
+  a grid of them would pull the entire catalog to paint one screen. Every
+  picture is `cover.jpg`; the GIF crosses the wire once, on Install.
+  `e2e-app-store.js` guards this by COUNTING NETWORK REQUESTS, not by reading
+  the source (a CSS background or a preload hint would sail past a source
+  scan). And the store never places an icon: it writes the file, then hands
+  off to `index.html#place=<fileId>` so `saveItem` picks the cell. Anything
+  that must survive a version redirect goes in the HASH — the channel loader
+  carries `pathname + hash` and DROPS the query.
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.

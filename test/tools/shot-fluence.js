@@ -1,5 +1,6 @@
 // Screenshot the Fluence app after one take, for a visual check.
 const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
 const fs = require('fs');
 
 const BASE = 'http://127.0.0.1:8099', DG = 'http://127.0.0.1:8792', AI = 'http://127.0.0.1:8791';
@@ -7,7 +8,7 @@ const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, che
 const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'dg-secret-key' } });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
-  const gifB64 = fs.readFileSync(__dirname + '/../../apps/fluence.gif').toString('base64');
+  const gifB64 = fs.readFileSync(appGif('fluence')).toString('base64');
   const browser = await chromium.launch({ executablePath: CHROME, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const context = await browser.newContext({ permissions: ['microphone'], viewport: { width: 480, height: 900 } });
   await context.addInitScript((c) => { localStorage.setItem('gifos_ai_config', c.ai); localStorage.setItem('gifos_api_config', c.api); }, { ai: AI_CFG, api: API_CFG });

@@ -5,7 +5,8 @@ GifOS app GIF. Speak off the cuff to a prompt; get honest, evidence-grounded
 coaching on how you actually spoke.
 
 This is the **first GifOS-certified app** (see `../README.md`): first-party,
-built here, **not** seeded as a default. Download `../fluence.gif` and drop it on
+built here, **not** seeded as a default. Install it from the App Store at
+gifos.app/store, or download `../../site/apps/fluence/fluence.gif` and drop it on
 any GifOS desktop to run it. It's a **full port** — every pipeline stage the
 original had.
 
@@ -111,14 +112,14 @@ apps/fluence/
                      coach → suggest-next → db; weekly review; history
   style.css
   manifest.json
-  build.mjs       ← packs ../fluence.gif with the repo's own codec
+  build.mjs       ← packs ../../site/apps/fluence/fluence.gif with the repo's own codec
   screenshot.png  ← a take, rendered
 ```
 
 Rebuild the GIF after editing any source file:
 
 ```bash
-node apps/fluence/build.mjs   # → apps/fluence.gif
+node apps/fluence/build.mjs   # → site/apps/fluence/fluence.gif
 ```
 
 ## Parity with the original

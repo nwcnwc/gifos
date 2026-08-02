@@ -52,12 +52,11 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
 
   // ---- Advanced → Version panel ----
   await openAdvanced(page);
-  await page.waitForFunction(() => {
-    const v = document.querySelector('#set-version');
-    return v && /Running/.test(v.textContent);
-  }, null, { timeout: 8000 });
-  const vfacts = await page.locator('#set-version .vfacts').textContent().catch(() => '');
-  check('Version panel states what is running now', /Running now/.test(vfacts), vfacts.slice(0, 80).replace(/\n/g, ' | '));
+  await page.waitForSelector('#set-version .vlist .vrow', { timeout: 8000 });
+  // State lives INLINE on the rows now (running/latest pills), not in a summary
+  // block above the list — so there's nothing repeated up top.
+  check('no summary facts block above the list (state lives in the rows)', (await page.locator('#set-version .vfacts').count()) === 0);
+  check('the running build is marked inline with a pill', (await page.locator('#set-version .vpill.run').count()) >= 1);
   check('Version panel offers an edge/load action', (await page.locator('#set-edge').count()) === 1);
   check('Version panel lists archived snapshots', (await page.locator('.vlist .vbtn').count()) >= 1, 'vbtns=' + (await page.locator('.vlist .vbtn').count()));
 

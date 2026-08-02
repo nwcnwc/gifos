@@ -1,4 +1,4 @@
-// End-to-end for the Fluence certified app (apps/fluence.gif): mount the built
+// End-to-end for the Fluence certified app (site/apps/fluence/fluence.gif): mount the built
 // GIF on a real GifOS desktop and drive the whole pipeline —
 //   gifos.recordAudio → gifos.api('deepgram') → FL.extractFeatures →
 //   gifos.ai.chat → gifos.db history.
@@ -8,6 +8,7 @@
 // Needs: static server on 8099, fake-keyapi.js on 8792 (Deepgram),
 //        fake-ai.js on 8791 (coach). The GIF is loaded from disk.
 const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
 const need = require('../lib/need');   // fixtures must be up, or say so plainly
 const fs = require('fs');
 
@@ -24,7 +25,7 @@ const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'd
 
 (async () => {
   await need({ 8791: 'fake-ai', 8792: 'fake-keyapi' });
-  const gifBytes = fs.readFileSync(__dirname + '/../../apps/fluence.gif');
+  const gifBytes = fs.readFileSync(appGif('fluence'));
   const gifB64 = gifBytes.toString('base64');
 
   const browser = await chromium.launch({

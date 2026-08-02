@@ -128,6 +128,17 @@ window.GIFOS_VERSION = 'edge';
     <span class="spacer"></span>
     <button id="add-btn">＋ Add</button>
   </div>
+  <!-- Icons are LOCKED by default; this bar stands in for the menubar while
+       Arrange mode has them unlocked. A booted computer needs it as much as the
+       Home Screen does — without it, entering the mode here would hide the
+       menubar with no Done button to get back. -->
+  <div class="arrange-bar" id="arrange-bar" style="display:none">
+    <span class="ab-glyph" aria-hidden="true">✥</span>
+    <span class="ab-msg">Arranging icons</span>
+    <span class="ab-hint">— drag them anywhere</span>
+    <span class="spacer"></span>
+    <button id="arrange-done">Done</button>
+  </div>
   <div id="desktop"></div>
   <input type="file" id="file-input" multiple style="display:none">
   <input type="file" id="restore-input" accept=".gif,image/gif" style="display:none">

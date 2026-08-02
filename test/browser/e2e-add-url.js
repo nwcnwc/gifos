@@ -5,6 +5,7 @@
 //
 // Needs: static server on 8099 (serves both the site AND the gif copy).
 const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
 const fs = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -15,7 +16,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   // Serve the built gif from inside site/ so it shares the static server origin.
-  fs.copyFileSync(__dirname + '/../../apps/fluence.gif', __dirname + '/../../site/__fluence-test.gif');
+  fs.copyFileSync(appGif('fluence'), __dirname + '/../../site/__fluence-test.gif');
   try {
     const browser = await chromium.launch({ executablePath: CHROME });
     const page = await browser.newPage();

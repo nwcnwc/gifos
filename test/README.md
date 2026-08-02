@@ -160,6 +160,12 @@ start timing out for no reason, kill leftover browsers first:
 `pkill -f "chrome-linux/chrome"`.
 
 Gotchas:
+- A certified app's built GIF lives at `site/apps/<slug>/<slug>.gif` (inside the
+  publish boundary, so the App Store can download it). Never spell that path out
+  in a suite — use `lib/apps.js` (`appGif('fluence')`), which THROWS when the
+  GIF isn't built. It used to be `apps/<slug>.gif` in six suites, and
+  `e2e-wasm` SKIPPED when the file was missing: moving the artifact would have
+  turned the real-Stockfish test green having asserted nothing.
 - `browser/e2e-fetch-bridge.js` spawns its OWN server on 8791 — kill fake-ai first.
 - `relay/relay-owned.js` (8792) and `relay/relay-device-dedupe.js` (8791)
   hardcode ports that collide with the fake servers; don't run them concurrently.
@@ -274,6 +280,8 @@ Roughly three families in one directory:
 - **desktop / apps** — `e2e.js` (the big one), `e2e-boot`, `e2e-store`,
   `e2e-version`, `e2e-required`, `e2e-visibility`, `e2e-contrast`,
   `e2e-icon-rotate`, `e2e-add-url`, `e2e-run-param`, `e2e-update-erase`,
+  `e2e-app-store` (the store catalog, its listings, and Install — including
+  the rule that browsing must fetch ZERO App GIFs),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
   `e2e-mymedia-share`, `e2e-theme-wallpaper`, `e2e-invite-lifetime`,
   `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`.

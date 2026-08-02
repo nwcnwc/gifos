@@ -3,6 +3,7 @@
 //
 // Needs: static server on 8099 (serves both the site AND the test gif copy).
 const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
 const fs = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -12,7 +13,7 @@ function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' â€
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
-  fs.copyFileSync(__dirname + '/../../apps/fluence.gif', __dirname + '/../../site/__run-test.gif');
+  fs.copyFileSync(appGif('fluence'), __dirname + '/../../site/__run-test.gif');
   try {
     const browser = await chromium.launch({ executablePath: CHROME });
     const context = await browser.newContext();

@@ -1,0 +1,82 @@
+{
+  "catalog": "1.0",
+  "categories": [
+    "Games",
+    "Learning",
+    "Productivity",
+    "Creativity",
+    "Media",
+    "Social",
+    "Utilities",
+    "Developer",
+    "Health"
+  ],
+  "apps": [
+    {
+      "slug": "chess-grandmaster",
+      "appId": "chess-grandmaster",
+      "name": "Chess Grandmaster",
+      "shortName": "Chess",
+      "version": "1.0.0",
+      "tagline": "Full-strength Stockfish, running offline inside the sandbox.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "releaseDate": "2026-07-09",
+      "updated": "2026-07-11",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "chess",
+        "stockfish",
+        "offline",
+        "wasm",
+        "multiplayer"
+      ],
+      "accent": [
+        201,
+        162,
+        75
+      ],
+      "cover": "/apps/chess-grandmaster/cover.jpg",
+      "bytes": 8318483,
+      "signature": null
+    },
+    {
+      "slug": "fluence",
+      "appId": "fluence",
+      "name": "Fluence",
+      "shortName": "Fluence",
+      "version": "1.0.0",
+      "tagline": "Speak off the cuff, get honest coaching on how you actually spoke.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "releaseDate": "2026-07-09",
+      "updated": "2026-07-20",
+      "categories": [
+        "Learning",
+        "Productivity"
+      ],
+      "tags": [
+        "speech",
+        "coaching",
+        "practice",
+        "ai",
+        "transcription"
+      ],
+      "accent": [
+        123,
+        92,
+        255
+      ],
+      "cover": "/apps/fluence/cover.jpg",
+      "bytes": 158142,
+      "signature": null
+    }
+  ]
+}
