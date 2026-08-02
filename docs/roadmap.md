@@ -1169,6 +1169,19 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
   harness makes this a fan-out job — point coding agents at the candidate list,
   one port each, gated by "runs offline in the sandbox, license carried, catalog
   `--check` green."
+- **Upstream the packaging (PR the build back):** once a port works, open a PR
+  to the **source repo** adding the GifOS build recipe — a small `gifos/`
+  target (manifest + `build.mjs` + the pack step) that produces the App GIF from
+  *their* source. This turns a one-way take into a **contribution**: the
+  upstream project can then build and ship its own GifOS artifact on every
+  release, the port stops being a fork frozen in a GIF (it rebuilds from source —
+  the antidote to the drift question below), and the PR itself is a distribution
+  channel (a "Run it on GifOS" badge / link in their README reaches their whole
+  audience). If they merge, GifOS becomes a first-class build target upstream;
+  if they decline, we keep our own `apps/<slug>/` port. Either way the recipe is
+  identical, so the PR is nearly free once the port exists. Keep the PR narrow
+  and additive (a new folder + a README line), never a rewrite, so it's easy to
+  accept.
 
 **Open questions.**
 - **License set:** MIT/BSD/ISC are easy; Apache-2.0 adds a NOTICE duty and a
@@ -1181,7 +1194,12 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
   endorsement by the original project.
 - **Maintenance drift:** a port is a fork frozen in a GIF. Do we pin the
   upstream commit in the listing and track releases, and who re-ports on a
-  security fix?
+  security fix? (The upstream-PR path above is the real fix when it's accepted —
+  the GIF rebuilds from source; for un-merged ports we still own the drift.)
+- **Will upstreams accept it:** the PR-the-build-back play depends on maintainers
+  merging a new build target. Keep it tiny and self-contained so it's low-risk
+  to accept; have a fallback (our own port + a listing that links upstream) for
+  repos that decline or are unmaintained.
 - **What's actually portable:** anything needing a private backend, a login, or
   a server secret is out (no accounts, no server that sees plaintext) — the
   candidate filter must catch that before a wasted port.
