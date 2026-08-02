@@ -182,11 +182,28 @@ trap stop_all EXIT
 # Verdict from BOTH the exit code and whether the suite actually asserted
 # anything, because "exited 1 with no output" and "one assertion failed" are
 # completely different problems and only one of them is a test failure.
+# Reap BOTH browser binaries. Suites run under MEET_CHROME launch
+# `chrome-linux/chrome`; suites that take Playwright's default channel launch
+# `chrome-linux/headless_shell` instead. This script only ever hunted the
+# former, so on a gate run every headless_shell leaked and ACCUMULATED across
+# ~104 suites — the load-induced timing flakiness the retry logic exists to
+# paper over is partly self-inflicted. (Measured mid-run: 12 chrome vs 2
+# headless_shell alive at once.) CLAUDE.md has warned about exactly this
+# pattern; the gate itself was still using the old one.
+# Every pattern is bracketed so pgrep/pkill cannot match this script's own
+# command line — see the pgrep self-match note in CLAUDE.md.
+reap_browsers() {
+  for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null) \
+            $(pgrep -f '[h]eadless_shel' 2>/dev/null); do
+    kill -9 "$_p" 2>/dev/null
+  done
+}
+
 run_one() {
   local f="$1" to="$2" tier="$3"
   local name; name=$(basename "$f" .js)
   local log="$LOGDIR/${tier}_${name}.log"
-  [ "$tier" = browser ] || [ "$tier" = drills ] && { pkill -f "chrome-linux/chrome" 2>/dev/null; sleep 1; }
+  if [ "$tier" = browser ] || [ "$tier" = drills ]; then reap_browsers; sleep 1; fi
   local start; start=$(date +%s)
   # -k: escalate to SIGKILL 45s after SIGTERM. Plain `timeout` only sends TERM
   # and then waits FOREVER if the child ignores it — a Playwright suite holding
@@ -196,8 +213,7 @@ run_one() {
   timeout -k 45 "$to" node "$f" > "$log" 2>&1
   local rc=$? secs=$(( $(date +%s) - start ))
   # Reap anything the suite leaked, or the next suite inherits its browsers.
-  # Bracket-quoted so pgrep does not match this script's own command line.
-  for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null); do kill -9 "$_p" 2>/dev/null; done
+  reap_browsers
   local pass fail verdict reason flaked=0
   pass=$(grep -cE '^ *PASS' "$log"); fail=$(grep -cE '^ *FAIL' "$log")
   # ONE retry for a red/dead browser-class suite (Nathan, 2026-07-28): five
@@ -209,10 +225,10 @@ run_one() {
   # so a deterministic red still blocks absolutely (it fails twice) and the
   # flake list is a standing work queue instead of invisible noise.
   if [ "$rc" -ne 0 ] && ! is_quarantined "$name"; then
-    pkill -f "chrome-linux[/]chrome" 2>/dev/null; sleep 1
+    reap_browsers; sleep 1
     timeout -k 45 "$to" node "$f" > "$log.retry" 2>&1
     local rc2=$?
-    for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null); do kill -9 "$_p" 2>/dev/null; done
+    reap_browsers
     if [ "$rc2" -eq 0 ]; then
       flaked=1; rc=0
       pass=$(grep -cE '^ *PASS' "$log.retry"); fail=0
