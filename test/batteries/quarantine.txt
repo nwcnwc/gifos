@@ -30,3 +30,18 @@
 # now requires a quarantined suite to be green on a BEST-OF-3 before it raises
 # ESCAPED, and mirror-drill went 3/3. If it reds again that is a REGRESSION to
 # hunt, not a reason to re-add it.)
+
+# RESTORED 2026-08-02, same day I removed it — the promotion was PREMATURE and
+# that is my error, recorded rather than quietly re-hidden. I promoted on a 3/3
+# best-of-3 in the 0.9.0 gate; it then red-twice in the very next gate. Measured
+# across the whole day on an idle 8-core box: 3/6, then 3/3, then 0/2, then 4/6
+# = 10/17. That is the same coin flip the original entry described, not a fix.
+# 3/3 at p~0.55 lands about one time in six, and I took it as confirmation.
+#
+# NONDETERMINISTIC — see the note in release.sh: ESCAPED is not raised for an
+# entry carrying this word, because a best-of-N cannot tell "fixed" from "lucky"
+# for a coin-flip suite. Promotion is a HUMAN call; the measured rate above is
+# what to base it on. The behaviour is unchanged from the original entry:
+# build-time claim ordering, plus a multi-hop demand-wake that lands ~1s when it
+# lands at all.
+mirror-drill  NONDETERMINISTIC known-unfixed: ~10/17 green measured 2026-08-02. Build-time claim ORDERING + multi-hop demand-wake reliability. Promote only on a deliberate human read of the rate, never on one green gate.
