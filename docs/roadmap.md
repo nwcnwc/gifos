@@ -1074,21 +1074,45 @@ duplicate anyway). No accounts: maker = wallet + git identity; payer = wallet.
 Curated GitHub repo keeps review in a familiar PR workflow. Store is
 **catalog + trust + IAP rail**, not a paid DRM gate.
 
-**Sketch.**
-- **Catalog source:** GitHub repo (manifest: title, blurb, icon, content hash,
-  maker pay-to for IAP, fee bps, optional `capabilities` / screenshots; **no
-  download price**).
+**SHIPPED (2026-08-01) — v1: browse + free install.** The store itself is
+live; only the IAP rail below is still unbuilt.
+
+- **Catalog source:** THIS repo, not a separate one. `apps/<slug>/listing.json`
+  (author, tagline, long description, releaseDate, **categories**, tags,
+  license) beside the app's own `manifest.json`; `scripts/build-app-catalog.mjs`
+  composes the published `site/apps/index.json` + `site/apps/<slug>/app.json`
+  (adding bytes, sha256, cover, signature claim) and renders `cover.jpg` from
+  the source screenshot. Same-origin was the deciding factor: a catalog on
+  another host means CORS, which is the one failure `desktop.js` already
+  apologizes for.
+- **Store UI:** `site/store.html` + `js/store.js` — grid, category filter,
+  search, listing page, **Install — free** → the icon lands on the Home Screen
+  via `desktop.js`'s `saveItem` (the store never places an icon itself).
+  Reachable from a seeded `appstore` system launcher, the GifOS ▾ menu, and
+  ＋ Add. Public links: `/store` and `/store/<slug>`.
+- **THE COVER RULE:** the store never references an App GIF as an image —
+  Chess is 8 MB, and a grid of real GIFs would download the catalog to paint
+  one screen. Covers are JPEGs; the GIF crosses the wire exactly once, on
+  Install. `e2e-app-store.js` asserts this by counting network requests.
+- **Distribution:** GitHub Pages, straight from `site/apps/`. The catalog
+  carries each app's sha256 and the store checks the download against it (and
+  against the manifest's appId) before writing anything.
+
+**Still to build (the commerce half).**
 - **Publish path:** maker PR with App GIF + listing JSON; CI checks hash / size /
-  basic policy; merge → store index → Home Screen.
-- **Store UI:** browse + **Install free** → GIF on Home Screen / chest.
-- **Distribution:** static/Pages or free CDN/R2 get of bytes by content hash —
-  no x402 on download.
+  basic policy; merge → store index → Home Screen. (Today the catalog holds
+  first-party certified apps only, and `--check` is the CI gate.)
+- **IAP:** the whole x402 rail below.
 - **IAP:** shell broker e.g. `gifos.pay` / 402 handling — “Pay $X to &lt;maker&gt;
   (GifOS fee Y%)?”; receipt unlocks in-app entitlement (local or maker-verified).
 - Fully free apps (no IAP) remain first-class.
 
 **Open questions.**
-- Curation bar (signed makers only? theme-computer stores?).
+- Curation bar (signed makers only? theme-computer stores?). Note the two
+  listed apps are **not signed today**, so both show "not signed" in their
+  listing — `apps/README.md` claims first-party signing that has never
+  actually been applied. Signing them is the cheap first step of any curation
+  bar (the store already refuses a download whose signature doesn't verify).
 - IAP entitlement storage (local-only vs maker server); restore on new device
   without accounts (receipt export / wallet-bound proof).
 - Abuse: malicious GIFs that phish pays — review, report, delist, wallet block
