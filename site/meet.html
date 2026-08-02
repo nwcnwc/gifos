@@ -6378,6 +6378,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
       }
+      // WHY did an established job re-ship? A re-ship mints a NEW container id,
+      // so every receiver sees the feed's stream id change under it and its
+      // decoder resets — the "stage feed keeps ONE stream id" red. Only two
+      // things can cause it here, and they mean completely different bugs:
+      // the SOURCE stream changed identity (sig-change — someone upstream
+      // handed us a fresh MediaStream) or the senders left the pc (orphaned).
+      // Record which, with the source-side state that decides it, because after
+      // the fact the two are indistinguishable from the receiver's side.
+      if (cur) {
+        try {
+          if (!window.__mosReship) window.__mosReship = [];
+          const cam = localStream && localStream.getVideoTracks()[0];
+          window.__mosReship.push({
+            t: Date.now(), key, to: String(to).slice(0, 8),
+            why: orphaned ? 'orphaned' : 'sig-change',
+            oldSig: String(cur.sig).slice(0, 8), newSig: String(stream.id).slice(0, 8),
+            oldStreamId: String(cur.streamId).slice(0, 8),
+            blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
+            pipe: !!(typeof blurPipe !== 'undefined' && blurPipe) ,
+            camId: cam ? String(cam.id).slice(0, 8) : null,
+          });
+          if (window.__mosReship.length > 40) window.__mosReship.shift();
+        } catch (e) {}
+      }
       if (cur) unshipMos(jk, false);
       if (!p || !p.pc || !p.connected) return null; // not linked yet — next sweep retries
       const container = new MediaStream();
@@ -9627,6 +9651,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // keys alone cannot show a MISMATCH — an announce whose stream never
         // arrives, or a stale id re-announced after a transport swap — which
         // is exactly the state that silently blocks failback, so surface the id.
+        // Every re-ship of an ALREADY-ESTABLISHED job, with the reason — see
+        // the note in shipMos. A receiver can only observe that the id changed;
+        // this says why it changed, on the side that changed it.
+        reship: (window.__mosReship || []).slice(-12),
         annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)
           // mt = the mirror's TRANSIT ROW. A carrier recomputes the route from
           // it, and slotFor/the forwarder both bail SILENTLY when it is absent

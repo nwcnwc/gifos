@@ -100,6 +100,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   check('the claimed stage feed keeps ONE stream id for 30 s (no re-ship churn)',
     sids.length === 1, { distinctSids: sids.length, sids, trail: samples.map((s) => (s.sid || 'none') + ':' + s.vt).join(' ') });
+  // A receiver can only see THAT the id changed. The sender records WHY (shipMos
+  // pushes to debugDump().mosaic.reship: sig-change vs orphaned, plus the blur/
+  // camera state that decides it). On a churn, print every seat's records —
+  // without this the red is unactionable and has been re-diagnosed from scratch
+  // every time it appears.
+  if (sids.length !== 1) {
+    for (let i = 0; i < N; i++) {
+      const rs = await pages[i].evaluate(() => {
+        try { return (window.__gifosVideo.debugDump().mosaic || {}).reship || []; } catch (e) { return []; }
+      }).catch(() => []);
+      for (const r of rs) {
+        console.log('  RESHIP seat' + i + (i === stagerIdx ? '(stager)' : '') + ' ' +
+          JSON.stringify(r));
+      }
+    }
+  }
   check('the claimed stage feed never goes TRACKLESS (no husk under the claim)',
     trackless === 0, { tracklessSamples: trackless, of: samples.length });
   check('decoded frames advance steadily across the window (>10 in 30 s)',
