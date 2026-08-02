@@ -1551,7 +1551,15 @@
             const sendAppBytes = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               const now = Date.now();
-              const wait = 8000 - (now - lastAppSent);
+              // 1.5s, NOT 8s. The 8s floor was set when the app rode inside the
+              // retained snap at ~11MB b64; the standalone frame measured 339KB
+              // and appB64 is encoded ONCE, so a resend costs one signature and
+              // a 339KB broadcast. Traced across three boxes, that 8s window was
+              // adding a flat 8.1s to any guest arriving just after another
+              // (snap@18006 -> app-frame@26134). A 1.5s floor still coalesces a
+              // retry storm — the asker's own backoff starts at 300ms — while
+              // making a second joiner's wait unnoticeable.
+              const wait = 1500 - (now - lastAppSent);
               if (wait > 0) {
                 // THROTTLED — BUT DO NOT DROP THE REQUEST (2026-08-02). A client
                 // only sends 'need-app' when it does NOT have the bytes, so
@@ -1911,6 +1919,15 @@
         }).catch(() => {});
       });
 
+      // ASK IMMEDIATELY, don't wait for a snap. askApp() used to be reachable
+      // only from onSnap, so a guest whose first snap was late could not even
+      // BEGIN asking — and the snap is exactly the leg measured as bimodal
+      // across three boxes: ~6ms, or 14-30s. mountFromB64 needs no snap (it
+      // mounts from the app frame alone), so there is nothing to wait for.
+      // Combined with the 300ms backoff, an ask that vanishes because the DC
+      // is not wired yet now retries into it within a few hundred ms instead
+      // of riding on whenever the owner's next snap happens to arrive.
+      askApp();
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
         stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearTimeout(askTimer); askTimer = null; } clearInterval(actSweep); pendingActs.clear(); },
