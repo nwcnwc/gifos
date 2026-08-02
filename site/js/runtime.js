@@ -1547,11 +1547,27 @@
             // the bytes travel as a separate owner-signed 'app' frame, encoded
             // and signed ONCE, sent only when a client asks ('need-app') —
             // throttled, DC-borne like every sga frame.
-            let appB64 = null, lastAppSent = 0;
+            let appB64 = null, lastAppSent = 0, appPendingTimer = null;
             const sendAppBytes = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               const now = Date.now();
-              if (now - lastAppSent < 8000) return Promise.resolve();
+              const wait = 8000 - (now - lastAppSent);
+              if (wait > 0) {
+                // THROTTLED — BUT DO NOT DROP THE REQUEST (2026-08-02). A client
+                // only sends 'need-app' when it does NOT have the bytes, so
+                // discarding the ask left it waiting for its own next retry, and
+                // measured ACROSS THREE MACHINES the joiner's app mount was
+                // 1.6s / 7.7s / 7.7s / 20.7s / 36.5s / 7.7s — 6s multiples, i.e.
+                // whole retry drums lost to this branch. Remember that somebody
+                // still needs it and send ONCE when the window lifts. The frame
+                // is a room BROADCAST, so one send serves every waiting joiner
+                // and the 8s floor still protects the owner from re-encoding and
+                // re-signing megabytes per ask.
+                if (!appPendingTimer) {
+                  appPendingTimer = setTimeout(() => { appPendingTimer = null; sendAppBytes(); }, wait + 50);
+                }
+                return Promise.resolve();
+              }
               lastAppSent = now;
               if (!appB64) appB64 = gif.b64encode(appBytes); // encode once — the heavy half
               // SIGN FRESH EVERY SEND (2026-08-02): frames carry a monotonic n
@@ -1816,14 +1832,30 @@
       // per keystroke starved the owner's signaling; see attachStageBus). Ask
       // on a slow drum until mounted: the first ask may fire before any DC is
       // wired and vanish; a later one lands.
-      let askTimer = null;
+      // BACK OFF FROM FAST, don't drum slowly from the start (2026-08-02). The
+      // first ask genuinely can vanish — it may fire before any DC is wired —
+      // but a flat 6s drum made every lost ask cost a FULL SIX SECONDS, and
+      // measured across three machines (host, joiner and relay each on their
+      // own box, joiner idle at loadavg 0.30) the mount landed at 1.6s, 7.7s,
+      // 7.7s, 20.7s, 36.5s, 7.7s — 6s multiples, one per swallowed ask. A guest
+      // staring at an empty room for half a minute closes the tab.
+      // 300ms, 600ms, 1.2s, 2.4s, 4.8s, then settle at 6s: a lost first ask now
+      // costs 300ms, while a genuinely absent owner is still only polled every
+      // 6s in the steady state, so this adds no load to the case that drum was
+      // protecting.
+      let askTimer = null, askDelay = 300;
       const askApp = () => {
         if (mounted) return;
         try { send('need-app', {}); } catch (e) {}
-        if (!askTimer) askTimer = setInterval(() => {
-          if (mounted) { clearInterval(askTimer); askTimer = null; return; }
+        if (askTimer) return;
+        const tick = () => {
+          askTimer = null;
+          if (mounted) return;
           try { send('need-app', {}); } catch (e) {}
-        }, 6000);
+          askDelay = Math.min(6000, askDelay * 2);
+          askTimer = setTimeout(tick, askDelay);
+        };
+        askTimer = setTimeout(tick, askDelay);
       };
       const mountFromB64 = (b64, name) => {
         if (mounted || !b64) return Promise.resolve();
@@ -1833,7 +1865,7 @@
           filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: name || 'App' };
           dataVis = manifestRef.data || {};
           if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
-          if (askTimer) { clearInterval(askTimer); askTimer = null; }
+          if (askTimer) { clearTimeout(askTimer); askTimer = null; }
           mount();
         });
       };
@@ -1863,7 +1895,7 @@
 
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
-        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearInterval(askTimer); askTimer = null; } clearInterval(actSweep); pendingActs.clear(); },
+        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearTimeout(askTimer); askTimer = null; } clearInterval(actSweep); pendingActs.clear(); },
         // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
         // survival story. snapshot() packs app bytes + the owner-verified
         // mirror into a snapshot GIF — the successor adopts it (resilient
