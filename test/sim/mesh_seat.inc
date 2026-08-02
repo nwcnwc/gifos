@@ -954,7 +954,13 @@ void Seat::recv(Msg& m){
         }
         Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=id; emit(m.asker,r); return; }
       if(m.ttl<=0){ Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
-      int nh=nextHopToward(m.target,m.via); if(nh>=0){ Msg r;r.t=ROUTE;r.target=m.target;r.asker=m.asker;r.tag=m.tag;r.ttl=m.ttl-1;r.via=id; emit(nh,r); return; }
+      // FORWARD WITH THE PROBE PAYLOAD (2026-08-02): the re-minted hop used to
+      // drop `ck` (the tag-3 answer's ack coord) and `coord` (the tag-2
+      // probe's return address), so any D5 answer that actually ROUTED AROUND
+      // the dead link arrived empty — probeAck stamped key 0, the observation
+      // never cleared, and a LIVE severed peer was early-confirmed dead. The
+      // answer-around machinery had never worked past one hop.
+      int nh=nextHopToward(m.target,m.via); if(nh>=0){ Msg r;r.t=ROUTE;r.target=m.target;r.asker=m.asker;r.tag=m.tag;r.ttl=m.ttl-1;r.via=id;r.ck=m.ck;r.coord=m.coord; emit(nh,r); return; }
       Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
     case ROUTED: if(m.tag==1||m.tag==2){ if(m.id>=0&&hasCoord){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); probeAck[ckey(m.target)]=(int)TICK; Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;   // probeAck AFTER setOcc (a changed occupant clears the observation first)
     case TRANSLOST: transportLost(m.id); return;   // D5: fabric event — MY OWN transport to m.id died

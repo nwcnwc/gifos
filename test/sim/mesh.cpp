@@ -358,11 +358,14 @@ struct Seat {
   // my knock is the one roster member proven alive THIS INSTANT; a random pick
   // can land on a just-departed seat that is still s1Fresh at the greeter (its
   // LEAVE lost, its transport death not yet registered), and one silent ask
-  // costs the seeker its whole retry window. Prefer the gateway while it is
-  // untried; the random pick still spreads door load across seekers, because
+  // costs the seeker its whole retry window. Prefer the gateway for the FIRST ask of a join attempt
+  // (seatTries==0) ONLY — a NOROOM lifts its author's silent mark, so an
+  // always-refusing gateway would stay eternally preferred and the seeker
+  // would ping-pong NOROOM with one greeter forever (mass-rejoin livelock:
+  // sweep kill=0.5 seed=5 went 29/400 seated). Re-asks spread randomly; the random pick still spreads door load across seekers, because
   // every seeker's gateway is a different pool entry. A silent gateway falls
   // out via triedSilent and the spread resumes.
-  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } if(gateway>=0) for(int f2:fresh_) if(f2==gateway) return gateway; vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
+  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } if(seatTries==0 && gateway>=0) for(int f2:fresh_) if(f2==gateway) return gateway; vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first) && !translost.count(e.first)) out.push_back({e.first,e.second}); } return out; }  // a standing-translost occupant is UNREACHABLE-PENDING-PROBE: handing it to a newcomer as a gateway wastes their whole retry window (the honest answer is silence, not a corpse)
 
   void take(Coord c,int owner,vector<KV>&nbrs);
