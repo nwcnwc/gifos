@@ -627,7 +627,9 @@ GIF has no hard size limit; the practical limit is what platforms will transmit 
 
 ## Future Considerations
 
-- **App Store** — gifos.app as a public directory of App GIFs.
+- ~~**App Store** — gifos.app as a public directory of App GIFs.~~ SHIPPED
+  2026-08-01: `gifos.app/store`, catalog in `site/apps/` (see roadmap §6).
+  In-app purchases are the part still unbuilt.
 - **Versioning** — upgrade an app GIF while keeping its embedded state compatible.
 - **Merge** — combine two snapshots (git-style merge for shared app state).
 - **Encryption** — password-protected GIFs and end-to-end encrypted relay sessions.

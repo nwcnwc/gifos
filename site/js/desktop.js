@@ -1600,6 +1600,11 @@
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
       '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
     'sep',
+    // Where more apps come from. Also on the Home Screen as a launcher icon,
+    // but an icon can be moved into a folder or trashed — the menu is the one
+    // route to the store that a user can't misplace.
+    { label: 'App Store…', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } },
+    'sep',
     { label: 'Arrange icons…', fn: () => setArrangeMode(true) },
     'sep',
     { label: 'Back up Home Screen…', fn: backupDesktop },
@@ -2543,6 +2548,11 @@
     const box = document.createElement('div'); box.className = 'modal wide';
     box.innerHTML =
       '<h3>Add to your Home Screen</h3>' +
+      // The store first: "where do I get apps?" is the question this dialog is
+      // opened to answer, and browsing a catalog beats pasting a link.
+      '<div class="add-actions">' +
+        '<button id="ad-store">🛍️ Browse the App Store…</button>' +
+      '</div>' +
       '<div class="add-actions">' +
         '<button id="ad-file">📄 Add file(s)…</button>' +
         '<button id="ad-folder">📁 New Folder</button>' +
@@ -2571,6 +2581,7 @@
       '</div>';
     bg.appendChild(box); document.body.appendChild(bg);
 
+    box.querySelector('#ad-store').onclick = () => { location.href = 'store.html' + (nsParam('#db=') || ''); };
     box.querySelector('#ad-file').onclick = () => { bg.remove(); fileInput.click(); };
     box.querySelector('#ad-folder').onclick = () => { bg.remove(); newFolder(60, 60); };
     const urlInput = box.querySelector('#ad-url'), urlBtn = box.querySelector('#ad-url-go'), urlMsg = box.querySelector('#ad-url-msg');

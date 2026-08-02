@@ -131,6 +131,23 @@ Known failure that predates current work: `e2e-fluence` (Deepgram pipeline).
   cannot synthesize a touch scroll (`gestureSourceType: 'touch'` moves nothing
   while `'mouse'` scrolls the same container) — guard the mechanisms
   (touch-action, `defaultPrevented`), never the scroll itself.
+- The App Store catalog under `site/apps/` is GENERATED but COMMITTED (Pages
+  serves static files; there is no build step on deploy). Sources are
+  `apps/<slug>/manifest.json` + `apps/<slug>/listing.json`; regenerate with
+  `node scripts/build-app-catalog.mjs`, and `--check` fails if the committed
+  catalog has drifted. A built App GIF lives at `site/apps/<slug>/<slug>.gif`
+  and NOWHERE else — `site/` is the whole publish boundary, so a GIF outside it
+  is not downloadable, and a second copy is 8 MB twice in every clone plus two
+  versions that drift. Tests must resolve it through `test/lib/apps.js`.
+  **THE COVER RULE:** the store never references an App GIF as an image —
+  a grid of them would pull the entire catalog to paint one screen. Every
+  picture is `cover.jpg`; the GIF crosses the wire once, on Install.
+  `e2e-app-store.js` guards this by COUNTING NETWORK REQUESTS, not by reading
+  the source (a CSS background or a preload hint would sail past a source
+  scan). And the store never places an icon: it writes the file, then hands
+  off to `index.html#place=<fileId>` so `saveItem` picks the cell. Anything
+  that must survive a version redirect goes in the HASH — the channel loader
+  carries `pathname + hash` and DROPS the query.
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.

@@ -90,6 +90,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a system launcher is never marked NEW (it holds no data of yours)',
     (await page.locator('.icon:has-text("App Store") .new-badge').count()) === 0);
 
+  // An icon can be dragged into a folder or trashed. The menu and ＋ Add are the
+  // routes to the store a user cannot misplace, so both are guarded.
+  await page.locator('#sys-menu-btn').click();
+  await sleep(250);
+  check('the GifOS ▾ menu offers the App Store',
+    (await page.locator('.ctx >> text=App Store…').count()) >= 1);
+  await page.keyboard.press('Escape');
+  await sleep(150);
+  await page.locator('#add-btn').click();
+  await page.waitForSelector('#ad-store', { timeout: 5000 });
+  check('＋ Add — the "where do I get apps?" dialog — leads with the store', true);
+  await page.locator('#ad-store').click();
+  await page.waitForURL(/store\.html/, { timeout: 10000 });
+  check('…and it opens the store', /store\.html/.test(page.url()), page.url());
+
   // ---- browse ---------------------------------------------------------------
   await page.goto(BASE + '/store.html');
   await page.waitForSelector('.card', { timeout: 15000 });
