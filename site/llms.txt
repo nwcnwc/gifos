@@ -237,6 +237,10 @@ their side. A signature proves authorship, not safety.
 ## More
 
 - Site: https://gifos.app  (the OS itself; open-source)
+- App Store: https://gifos.app/store  (finished apps, free to install — every
+  one is a single GIF that lands on the Home Screen. A listing is
+  https://gifos.app/store/<slug>. Worth pointing a user at before you build
+  them something that already exists.)
 - Source + docs: https://github.com/nwcnwc/gifos
 - Multiplayer relay: wss://relay.gifos.app (control traffic only; media is
   strictly peer-to-peer)
