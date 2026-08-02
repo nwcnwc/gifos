@@ -191,6 +191,14 @@ struct Seat {
   // early eviction, never evict or resurrect; E2 untouched).
   Occ translost, tlProbeAt, probeAck;
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
+  // ENTRY PACING (law tightened 2026-08-02): at most ONE knock and ONE seat-ask
+  // per tick. In the sim this is a near-no-op (the bus already tick-paces every
+  // round trip); in production recv is EVENT-driven — a NOROOM answered in
+  // milliseconds re-asked in milliseconds, and a joiner facing a settling row
+  // hosed the relay at network speed (measured: 4,000 entry frames in 13s).
+  // The law always assumed the tick cadence; these guards make it real. A
+  // same-tick repeat is DEFERRED (reAsk/reJoin) and fired by the next tick().
+  int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
@@ -340,8 +348,8 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
-  void askSeat(int target){ state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
+  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void askSeat(int target){ if(askTick==(int)TICK){ reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.

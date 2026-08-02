@@ -133,6 +133,14 @@
       // decision; it only makes the verdict deliverable.
       this.d5Deaths = []; // [k, pid, tick]
       this.retryAt = -1; this.seatTries = 0; this.lastPhone = -99; this.lastAck = 0;
+      // ENTRY PACING (law tightened 2026-08-02): at most ONE knock and ONE
+      // seat-ask per tick. The sim's bus already tick-paces every round trip,
+      // but production recv is EVENT-driven — a NOROOM answered in
+      // milliseconds re-asked in milliseconds, and a joiner facing a settling
+      // row hosed the relay at network speed (measured: 4,000 entry frames in
+      // 13s). The law always assumed the tick cadence; these guards make it
+      // real. A same-tick repeat is DEFERRED (reAsk/reJoin), fired next tick.
+      this.askTick = -1; this.joinTick = -1; this.reAsk = false; this.reJoin = false;
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
       this.rookSeenAt = 0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
@@ -270,6 +278,16 @@
     confirmSeated(k, joiner) {
       this.clearSoft(k); this.setOcc(k, joiner); this.live.set(k, this.TICK); this.noteS1(k);
     }
+    // CHECK-BACK (law A tightened, 2026-08-02 — the ghost-churn fix): the
+    // recheck at SIT_RECHECK now actually FREES a vouch that was never
+    // answered. A live joiner is always HEARD within a couple of beats of its
+    // PLACE (its CLAIM or HELLO lands, or its first PHONE beat at +8 ticks);
+    // a tab killed mid-placement is never heard at all. 25 ticks of total
+    // silence after my own PLACE means my vouch is dead — holding the chair
+    // the full SIT_TTL (90) let six killed tabs wall off the whole home row
+    // and strand every real newcomer behind it. Freeing also clears the
+    // cell's healTry admission stamp: a freed chair is admissible NOW, not 45
+    // ticks after its dead admittee's own admission.
     recheckSitting() {
       if (!this.sitting.size) return;
       const del = [];
@@ -277,11 +295,16 @@
         if (s.assigner !== this.id) continue;
         if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
         if (this.TICK - s.at < SIT_RECHECK) continue;
+        // The check-back: never heard from the joiner at this cell — free it now.
+        if (this.occGet(k) !== s.joiner && !this.firstHandLive(k)) {
+          del.push(k); this.healTry.delete(k);
+          continue;
+        }
         if (this.TICK - s.at >= SIT_TTL) {
           del.push(k);
           if (this.occGet(k) === s.joiner && !this.firstHandLive(k)) {
             this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k);
-            this.kidful.delete(k); this.tlForget(k, 'sit-ttl');
+            this.kidful.delete(k); this.tlForget(k, 'sit-ttl'); this.healTry.delete(k);
           }
         }
       }
@@ -412,7 +435,7 @@
         if (this.occ.has(k)) {
           const pid = this.occ.get(k);
           if (pid != null && pid !== this.id) { this.d5Deaths.push([k, pid, this.TICK]); if (this.d5Deaths.length > 24) this.d5Deaths.shift(); }
-          this.occ.delete(k); this.live.delete(k); this.kidful.delete(k); this.s1seen.delete(k);
+          this.occ.delete(k); this.live.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.healTry.delete(k); // freed ⇒ admissible now (healTry is heal pacing, not a chair embargo)
         }
       }
     }
@@ -492,6 +515,8 @@
     // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis;
     // else I learn the real key via the dance and re-present it once seated.
     join() {
+      if (this.joinTick === this.TICK) { this.reJoin = true; this.wake(); return; } // ENTRY PACING: one knock per tick
+      this.joinTick = this.TICK;
       this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
       this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
       this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
@@ -499,7 +524,7 @@
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); }
+    askSeat(target) { if (this.askTick === this.TICK) { this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); } // ENTRY PACING: one ask per tick
     // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
     static forkFaceList(sample) {
       if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
@@ -645,7 +670,7 @@
 
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
-      this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false;
+      this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false; this.reAsk = false; this.reJoin = false; // seated: any deferred entry retry is moot
       // A: self-confirm sitting-down → seated (only the joiner upgrades).
       this.confirmSeated(ck(c), this.id);
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
@@ -717,12 +742,19 @@
           for (let j = 0; j < C(); j++) { const k = ck({ pc: 0, r: t, i: j }); if (this.s1Fresh(k)) rowLive[t] = true; if (this.s1seen.has(k)) rowSeen[t] = true; if (this.cellReserved(k)) rowHeld[t] = true; }
         }
         for (let t = 0; t < C(); t++) {
-          // A + H7: previous row fully reserved and head not only soft-sitting.
+          // A + H7 (HARDENED 2026-08-02): do NOT start the next S1 row until
+          // the previous row is fully OCCUPIED — confirmed seats, not
+          // reservations. A row of soft sitting-down marks is a row of
+          // vouches nobody has answered yet: seating a newcomer BEHIND it
+          // gambles that every one of them confirms, and when they are killed
+          // tabs (the ghost-churn repro) the newcomer lands in an empty row
+          // with zero live links — a fragment that can pull neither snap nor
+          // app from anyone. NOROOM is the honest answer while the previous
+          // row settles. (The old gate counted cellTaken — occ OR soft — and
+          // only refused a soft HEAD.)
           if (t > 0) {
-            const prevHead = ck({ pc: 0, r: t - 1, i: 0 });
-            if (this.softSitting(prevHead)) break;
             let prevFull = true;
-            for (let j = 0; j < C(); j++) if (!this.cellTaken(ck({ pc: 0, r: t - 1, i: j }))) { prevFull = false; break; }
+            for (let j = 0; j < C(); j++) if (!this.occ.has(ck({ pc: 0, r: t - 1, i: j }))) { prevFull = false; break; }
             if (!prevFull) break;
           }
           const liveRow = rowLive[t], everSeen = rowSeen[t];
@@ -1252,7 +1284,7 @@
       const TICK = this.TICK;
       if (this.coord.i !== 0) return; const del = [];
       for (const [k, at] of this.live) { if (TICK - at <= 50) continue; const c = unck(k); if (c.pc === this.coord.pc && c.r === this.coord.r && c.i > 0) del.push(k); }
-      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k, 'row-age'); }
+      for (const k of del) { this.live.delete(k); this.occ.delete(k); this.kidful.delete(k); this.s1seen.delete(k); this.tlForget(k, 'row-age'); this.healTry.delete(k); } // freed ⇒ admissible now
       // (D5's early corpse-forget lives in tlSweep — every observer, not just
       // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
     }
@@ -1501,7 +1533,7 @@
           return;
         case 'LEAVE': {
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); }
+          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           this.clearSoft(m.ck); // A: LEAVE clears soft sitting-down
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // H-CHAIN vertical: vacated down-child clears childOf on its owner
@@ -1572,7 +1604,7 @@
         case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
         case 'GSP': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); }
+          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.live.set(m.mvd, TICK); this.noteS1(m.mvd); }
           this.wake(); return;
         }
@@ -1626,6 +1658,11 @@
         if (this.stranded) { if (TICK - this.strandedAt > STRAND_TTL) { this.stranded = false; this.lastReach = -1; this.joinStart = -1; this.join(); } this.wake(); return; }
         if (this.forkProbe) this.maybeResolveFork(); // R5: settle multi-greeter HOME collection
         if (this.forkPaused) { this.wake(); return; } // waiting on human pick-one
+        if (this.reAsk || this.reJoin) { // ENTRY PACING: fire the ask/knock deferred from a same-tick repeat (after the fork gate — a join() here must never wipe a pending pick-one)
+          const a = this.reAsk; this.reAsk = false; this.reJoin = false;
+          if (a && this.haveRoster && this.roster.length) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); this.wake(); return; } }
+          this.join(); this.wake(); return;
+        }
         if ((this.state === 0 || this.state === 1) && TICK - this.retryAt > 20) this.join();
         // Graded state-2 retry, SOLE-CANDIDATE ONLY: with exactly one live
         // greeter to ask there is no second admission chain to race, so a void

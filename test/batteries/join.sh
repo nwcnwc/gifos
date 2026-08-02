@@ -77,6 +77,9 @@ run "sim — H-CHAIN multi-level devolution (admit + left-pack heal)" \
 run "sim — headless-row admission (single-step devolution control)" \
     ./test/sim/repro-headless-row.sh
 
+run "sim — ghost churn (joiners killed mid-placement; check-back + hard H7 gate)" \
+    ./test/sim/repro-ghost-join.sh
+
 # Leave / crash / loss / scoot — the other half of seating correctness.
 # Full disruption matrix: test/batteries/mesh-churn.sh
 run "sim — loss wedge (10% packet loss admission)" \
