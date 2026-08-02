@@ -1528,10 +1528,28 @@
             // client must refuse a led write LOCALLY — and it may only trust a
             // fence that arrives owner-signed.
             const leadBody = () => ({ on: !!meshLead.on, keys: [...meshLead.keys] });
+            // APP BYTES LEFT THE SNAP (2026-08-02, forced by an 8.3MB chess app).
+            // The retained snap used to carry the whole app b64 — the owner
+            // re-encoded and re-SIGNED ~11MB on every db-change debounce,
+            // starving its own main thread (signaling included: a 2-person
+            // room's DC took ~40s to form), and every fan re-shipped it. Now
+            // the snap carries STATE only (cheap, sign-per-change is fine) and
+            // the bytes travel as a separate owner-signed 'app' frame, encoded
+            // and signed ONCE, sent only when a client asks ('need-app') —
+            // throttled, DC-borne like every sga frame.
+            let appFrameP = null, lastAppSent = 0;
+            const sendAppBytes = () => {
+              if (!stageBus || !stageSigner) return Promise.resolve();
+              const now = Date.now();
+              if (now - lastAppSent < 8000) return Promise.resolve();
+              lastAppSent = now;
+              if (!appFrameP) appFrameP = stageSigner.sign(sid, 'app', { app: gif.b64encode(appBytes), name: manifest.name || 'App' });
+              return appFrameP.then((f) => stageBus.send('app', f)).catch(() => { appFrameP = null; });
+            };
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
               return db.getFullState().then((s) => {
-                const body = { app: gif.b64encode(appBytes), name: manifest.name || 'App', state: filterForGuests(s), lead: leadBody() };
+                const body = { name: manifest.name || 'App', state: filterForGuests(s), lead: leadBody() };
                 return stageSigner.sign(sid, 'snap', body).then((f) => stageBus.send('snap', f));
               }).catch(() => {});
             };
@@ -1576,7 +1594,11 @@
               if (liveHost) { const gone = liveHost; liveHost = null; if (gone.timer) clearTimeout(gone.timer); try { gone.stop && gone.stop(); } catch (e) {} try { gone.ws.close(); } catch (e) {} }
               return appOwnerLib().then((AO) => AO.createSigner()).then((signer) => {
                 stageSigner = signer; stageBus = bus;
-                stageUnsub = bus.subscribe((m) => { if (m && m.kind === 'act') onAct(m.d); });
+                stageUnsub = bus.subscribe((m) => {
+                  if (!m) return;
+                  if (m.kind === 'act') onAct(m.d);
+                  else if (m.kind === 'need-app') sendAppBytes(); // a mounting client wants the bytes
+                });
                 // Refresh the retained snapshot (with app bytes) on a debounce,
                 // and push a live delta immediately, on every change.
                 stageOnChange = () => {
@@ -1742,26 +1764,47 @@
         notify('*');
       };
 
+      // The app BYTES arrive as their own owner-signed 'app' frame, once, on
+      // request — never inside the retained snap (an 8.3MB chess app re-signed
+      // per keystroke starved the owner's signaling; see attachStageBus). Ask
+      // on a slow drum until mounted: the first ask may fire before any DC is
+      // wired and vanish; a later one lands.
+      let askTimer = null;
+      const askApp = () => {
+        if (mounted) return;
+        try { send('need-app', {}); } catch (e) {}
+        if (!askTimer) askTimer = setInterval(() => {
+          if (mounted) { clearInterval(askTimer); askTimer = null; return; }
+          try { send('need-app', {}); } catch (e) {}
+        }, 6000);
+      };
+      const mountFromB64 = (b64, name) => {
+        if (mounted || !b64) return Promise.resolve();
+        appBytes = gif.b64decode(b64);
+        return gif.decode(appBytes).then((archive) => {
+          if (!archive) { setStatus('Bad app from the mesh host.'); return; }
+          filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: name || 'App' };
+          dataVis = manifestRef.data || {};
+          if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
+          if (askTimer) { clearInterval(askTimer); askTimer = null; }
+          mount();
+        });
+      };
       const onSnap = (body) => {
         if (body && body.state && body.state.collections) mirror = body.state;
-        if (!mounted && body && body.app) {
-          appBytes = gif.b64decode(body.app);
-          return gif.decode(appBytes).then((archive) => {
-            if (!archive) { setStatus('Bad app from the mesh host.'); return; }
-            filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: body.name || 'App' };
-            dataVis = manifestRef.data || {};
-            if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
-            mount();
-          });
+        if (!mounted) {
+          if (body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
+          askApp();
         }
         notify('*');
       };
 
       const unsub = subscribe((m) => {
-        if (!m || m.kind === 'act') return; // acts are the client→owner direction
+        if (!m || m.kind === 'act' || m.kind === 'need-app') return; // client→owner directions
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) return; // unsigned / impostor / tampered — NEVER canonical
           takeLead(r.body); // the signed lead fence rides every canonical frame
+          if (r.kind === 'app') return mountFromB64(r.body && r.body.app, r.body && r.body.name);
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
             if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; notify('*'); }
@@ -1772,7 +1815,7 @@
 
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
-        stop: () => { try { unsub && unsub(); } catch (e) {} },
+        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearInterval(askTimer); askTimer = null; } },
         // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
         // survival story. snapshot() packs app bytes + the owner-verified
         // mirror into a snapshot GIF — the successor adopts it (resilient

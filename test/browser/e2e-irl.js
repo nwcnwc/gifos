@@ -57,7 +57,7 @@ async function invite(page, lifetime, resilient) {
     const run = await ctx.newPage();
     run.on('console', (m) => { if (m.type() === 'error') console.log('  [' + name + ']', m.text()); });
     await run.goto(shareUrl);
-    await run.waitForSelector('iframe', { timeout: 10000 });
+    await run.waitForSelector('iframe', { timeout: 40000 }); // mesh seat + snap + bytes-on-demand — slower than the old star burst
     const app = run.frameLocator('iframe');
     await app.locator('main').waitFor({ timeout: 10000 });
     phones.push({ page: run, app, name });
@@ -131,7 +131,7 @@ async function invite(page, lifetime, resilient) {
     await ctx.addInitScript(setup(name));
     const run = await ctx.newPage();
     await run.goto(sbUrl);
-    await run.waitForSelector('iframe', { timeout: 10000 });
+    await run.waitForSelector('iframe', { timeout: 40000 }); // mesh seat + snap + bytes-on-demand — slower than the old star burst
     const app = run.frameLocator('iframe');
     await app.locator('main').waitFor({ timeout: 10000 });
     sbPhones.push({ app, page: run });
