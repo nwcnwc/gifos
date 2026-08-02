@@ -37,11 +37,28 @@ match() { # does scenario basename $1 match any requested prefix?
   return 1
 }
 
+# Reap leftover browsers BETWEEN scenarios, exactly as release.sh does between
+# suites. Scenarios are 2-6 browsers each and this battery is the LAST tier of
+# the gate, so it inherits whatever the drills tier leaked — mirror-drill alone
+# launches 8. Measured 2026-08-02: 08a-techsupport-reload-mash run straight
+# after six back-to-back mirror-drill runs failed in 423s with "Target page,
+# context or browser has been closed", then passed in 43s and 71s on a clean
+# box. A scenario that dies of the PREVIOUS scenario's residue reports as a
+# product regression, which is the one thing this battery must never do.
+# Both binaries, both bracketed — see the note in release.sh's reap_browsers.
+reap_browsers() {
+  for p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null) \
+           $(pgrep -f '[h]eadless_shel' 2>/dev/null); do
+    kill -9 "$p" 2>/dev/null
+  done
+}
+
 pass=0; fail=0; skip=0; failed=""
 for f in test/behavior/scenarios/*.js; do
   name=$(basename "$f" .js)
   match "$name" || continue
   log="$LOGDIR/$name.log"
+  reap_browsers; sleep 2
   start=$(date +%s)
   node "$f" >"$log" 2>&1
   rc=$?
