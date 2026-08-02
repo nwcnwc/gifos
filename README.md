@@ -233,4 +233,20 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 
 ## License
 
-TBD — Patent pending concepts. See [LICENSE](LICENSE) for details.
+GifOS is licensed under the [Apache License 2.0](LICENSE) — permissive use,
+modification, and distribution, with an explicit patent grant from contributors
+(Apache-2.0 §3) and a patent-retaliation clause. See [`NOTICE`](NOTICE) for
+attribution.
+
+Bundled apps under `apps/<slug>/` carry their **own** licenses, which govern
+those subtrees and the App GIFs built from them (Apache-2.0 does not relicense
+them):
+
+- [`apps/fluence`](apps/fluence) — MIT
+- [`apps/chess-grandmaster`](apps/chess-grandmaster) — GPL-3.0-or-later (it
+  bundles the Stockfish engine; see
+  [`COPYING-stockfish.txt`](apps/chess-grandmaster/COPYING-stockfish.txt))
+
+Contributions are accepted under Apache-2.0 (License §5, inbound = outbound).
+"GifOS" and its logo are trademarks and are not licensed by the code license
+(Apache-2.0 §6).
