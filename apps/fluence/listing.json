@@ -9,5 +9,6 @@
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fluence",
   "cover": "screenshot.png",
+  "coverCrop": { "top": 44 },
   "screenshots": []
 }
