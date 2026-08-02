@@ -46,14 +46,26 @@ function census(nodes) {
   await Promise.all(nodes.map((n) => n.whenReady));
   for (const n of nodes) bus.set(n.peer, { node: n, dead: false });
 
+  // This suite used to exit(0) unconditionally — it printed "DEADLOCK … the
+  // flood is REAL" and still scored GREEN, so the burst-join guard could never
+  // fail the release gate and reported 0 assertions while doing it. Record the
+  // verdict and exit on it.
+  let converged = false, last = null;
   for (let t = 0; t < 40; t++) {
     await sleep(1000);
-    const c = census(nodes);
+    const c = census(nodes); last = c;
     const gks = new Set(nodes.map((n) => n.seat.genKey)); gks.delete(null);
     console.log('t+' + (t + 1) + 's  seated=' + c.seated + '/' + N + ' unseated=' + c.unseated + ' dups=' + c.dups + ' genKeys=' + gks.size);
-    if (c.seated === N && c.dups === 0) { console.log('\nCONVERGED — the flood is survivable, no stagger needed.'); break; }
-    if (t === 39) console.log('\nDEADLOCK — ' + c.unseated + ' never seated. The flood is REAL.');
+    // One genesis key, or the burst founded rival rooms — a split-brain the old
+    // seated/dups check alone would have called convergence.
+    if (c.seated === N && c.dups === 0 && gks.size === 1) { converged = true; console.log('\nCONVERGED — the flood is survivable, no stagger needed.'); break; }
   }
   for (const n of nodes) n.stop();
-  relay.kill(); process.exit(0);
+  relay.kill();
+  if (converged) {
+    console.log('PASS — all ' + N + ' burst-joined seats took, no duplicates, one genesis key');
+    process.exit(0);
+  }
+  console.log('FAIL — DEADLOCK: seated=' + last.seated + '/' + N + ' unseated=' + last.unseated + ' dups=' + last.dups + ' after 40s. The flood is REAL.');
+  process.exit(1);
 })();

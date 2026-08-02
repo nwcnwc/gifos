@@ -13,7 +13,7 @@
 const AO = require('../../site/js/app-owner.js');
 
 let failed = 0;
-const ok = (c, m) => { if (c) console.log('  ok  - ' + m); else { failed++; console.log('  FAIL- ' + m); } };
+const ok = (c, m) => { if (c) console.log('  PASS — ' + m); else { failed++; console.log('  FAIL — ' + m); } };
 const eq = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m);
 
 // A faithful mini-copy of meet.html's sga lane (broadcast/subscribe/retain).

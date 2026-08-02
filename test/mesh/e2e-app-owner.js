@@ -18,7 +18,7 @@
 const AO = require('../../site/js/app-owner.js');
 
 let failed = 0;
-function ok(cond, msg) { if (cond) { console.log('  ok  - ' + msg); } else { failed++; console.log('  FAIL- ' + msg); } }
+function ok(cond, msg) { if (cond) { console.log('  PASS — ' + msg); } else { failed++; console.log('  FAIL — ' + msg); } }
 function eq(a, b, msg) { ok(JSON.stringify(a) === JSON.stringify(b), msg + (JSON.stringify(a) === JSON.stringify(b) ? '' : '  (' + JSON.stringify(a) + ' != ' + JSON.stringify(b) + ')')); }
 
 // A minimal in-memory OWNER: authoritative state + a signer + a lane broadcast.
