@@ -4902,11 +4902,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!localStream || myStatus.camOff || document.hidden) return;
         const vt = localStream.getVideoTracks()[0];
         if (!vt || vt.readyState === 'ended') return; // reviveCamera's case
-        if (vt.muted || dark()) {
+        // JUDGE THE TRACK THAT ACTUALLY LEAVES THIS DEVICE. While the blur pipe
+        // runs it feeds on its own CLONE of the camera (startBlurPipe clones so
+        // the self-view can keep the original — Safari won't render one track in
+        // two elements), and the original in localStream can then sit `muted`
+        // simply because nothing consumes it. That is normal, not a black
+        // camera. Reading `vt.muted` here made the watchdog "repair" a perfectly
+        // healthy camera: measured on the stage lane, a stager re-grabbed ~12s
+        // after stepping up with reason `blackCamWatch:track-muted` while
+        // staged:true. A re-grab replaces BOTH tracks, which restarts the pipe,
+        // changes sentVideoTrack, rebuilds mySelfStream's memo and mints a NEW
+        // stg stream id — so every receiver's stage feed re-shipped and each
+        // relayer cascaded the same change downstream, up to the 3-revive cap.
+        // That is e2e-stage-onerow's "keeps ONE stream id" red, and it predates
+        // 0.9.0 (0.8.8 fails it at the same rate).
+        const judge = (blurPipe && blurPipe.srcTrack && blurPipe.srcTrack.readyState === 'live') ? blurPipe.srcTrack : vt;
+        if (judge.muted || dark()) {
           if (++darkTicks >= 3 && revives < 3) {
             darkTicks = 0; revives++;
             setStatus('Your camera was sending black video — restarting it…');
-            regrabCamera('blackCamWatch:' + (vt.muted ? 'track-muted' : 'dark-pixels'));
+            regrabCamera('blackCamWatch:' + (judge.muted ? 'track-muted' : 'dark-pixels'));
           }
         } else { darkTicks = 0; revives = 0; }
       }, 3000);
