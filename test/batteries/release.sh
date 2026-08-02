@@ -69,6 +69,19 @@ is_quarantined() {
   [ -f "$QFILE" ] || return 1
   grep -qE "^[[:space:]]*$1([[:space:]]|$)" "$QFILE"
 }
+# An entry may declare itself NONDETERMINISTIC. For those, ESCAPED is never
+# raised: a best-of-N cannot distinguish "somebody fixed it" from "it came up
+# heads N times" on a coin-flip suite, and a false ESCAPED blocks the release
+# outright. Measured the hard way on mirror-drill (2026-08-02): ~10/17 green, it
+# passed a best-of-3 by luck, I promoted it, and it red-twice in the next gate.
+# Promotion for these is a HUMAN call against the rate recorded in the entry.
+# Deterministic entries keep the full ESCAPED behaviour — that is the check that
+# stops a stale entry silently un-guarding fixed code, and it still works for
+# every suite whose red is reproducible.
+is_nondet() {
+  [ -f "$QFILE" ] || return 1
+  grep -qE "^[[:space:]]*$1[[:space:]].*NONDETERMINISTIC" "$QFILE"
+}
 
 # ---- servers -----------------------------------------------------------------
 # We only ever tear down servers WE started. An earlier version trapped EXIT
@@ -264,6 +277,14 @@ run_one() {
   # nondeterministic behaviour, reported as QUAR and not blocking.
   # This does not soften a product assertion: the suite's own checks are
   # untouched, and a genuinely fixed suite (3/3) still blocks until promoted.
+  if is_quarantined "$name" && is_nondet "$name" && { [ "$verdict" = GREEN ] || [ "$verdict" = FLAKY ]; }; then
+    # Declared nondeterministic: a green proves nothing, so report and move on.
+    [ "$verdict" = GREEN ] && green=$((green-1)) || flaky=$((flaky-1))
+    quar=$((quar+1))
+    printf 'QUAR\t%s\t%s\t%s\n' "$tier/$name" "${secs}s" "known-unfixed (quarantined), NONDETERMINISTIC :: GREEN this run — not proof of a fix; promote only on the measured rate in quarantine.txt" >> "$RESULTS"
+    printf '%-5s %-38s %6s  %s\n' QUAR "$tier/$name" "${secs}s" "known-unfixed, NONDETERMINISTIC :: green this run, not proof of a fix"
+    return
+  fi
   if is_quarantined "$name" && { [ "$verdict" = GREEN ] || [ "$verdict" = FLAKY ]; }; then
     confirm_green=1
     for _try in 2 3; do

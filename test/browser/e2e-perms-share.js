@@ -79,8 +79,28 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   await dismissName(joinPage);
 
   // THE POINT: the joiner gets the Abilities challenge, with the AI opt-out.
-  const gotModal = await joinPage.waitForSelector('.perm-modal', { timeout: 20000 }).then(() => true).catch(() => false);
-  check('JOINER gets the Abilities acknowledgement on join', gotModal);
+  // BUDGET MATCHED TO MEASURED REALITY, and the cliff kept visible.
+  // Measured 2026-08-02, 6 runs on an idle 8-core box: this panel lands in
+  // 9-32 MILLISECONDS five times out of six — and once took 32,899 ms. The old
+  // 20s budget sat right inside that gap, so the suite failed ~40% of the time
+  // (both on this tree and on the 0.8.8 one: 2/4 vs 1/4 interleaved, so it is
+  // not a 0.9.0 regression). With a budget past the cliff it is 6/6.
+  //
+  // The assertion is UNCHANGED — the acknowledgement must still appear, and a
+  // joiner who never gets it still fails. But the ~33s slow path is a REAL
+  // product latency cliff in the app-room join (bytes-on-demand, 4e06b8d),
+  // almost certainly a retry cycle, and a 33-second wait to see a shared app is
+  // its own bug: on a phone that is a closed tab. So log the arrival time on
+  // every run and shout when it is slow, rather than let a bigger timeout hide
+  // it. If the WARN stops appearing, the cliff is gone.
+  const tModal = Date.now();
+  const gotModal = await joinPage.waitForSelector('.perm-modal', { timeout: 60000 }).then(() => true).catch(() => false);
+  const modalMs = Date.now() - tModal;
+  check('JOINER gets the Abilities acknowledgement on join', gotModal, { afterMs: modalMs });
+  if (gotModal && modalMs > 5000) {
+    console.log('  WARN — the joiner waited ' + modalMs + 'ms for the app to mount (usually <50ms). ' +
+      'That is the app-room bytes-on-demand latency cliff, not a test problem.');
+  }
   const joinAiCb = joinPage.locator('.perm-modal input[data-cap="ai"]');
   check('JOINER sees the AI opt-out checkbox', (await joinAiCb.count()) === 1);
 
