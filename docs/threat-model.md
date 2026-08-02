@@ -39,7 +39,7 @@ workers — is denied by default and granted narrowly.
 
 ```
  ┌─────────────────────────────────────────────────────────────┐
- │ TRUSTED: the GifOS shell (index.html / run.html / runtime.js) │
+ │ TRUSTED: the GifOS shell (index.html / meet.html / runtime.js)│
  │  - reads manifests, holds the DB, owns the postMessage bridge │
  │                                                               │
  │   ╭──────────────── boundary A: the sandbox ───────────────╮  │

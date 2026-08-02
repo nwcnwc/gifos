@@ -102,7 +102,7 @@ On the **server**, writes hit the local DB and the runtime **broadcasts** the ch
 When an app opens, its tab URL can be shared. It encodes what a new client needs:
 
 ```
-https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
+https://gifos.app/meet.html#s=<session-id>&k=<join-token>&relay=<relay-url>
 ```
 
 ```
