@@ -4836,9 +4836,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!localStream) return;
       const vt = localStream.getVideoTracks()[0], at = localStream.getAudioTracks()[0];
       if ((!vt || vt.readyState !== 'ended') && (!at || at.readyState !== 'ended')) return;
-      regrabCamera();
+      regrabCamera('reviveCamera:ended-track');
     }
-    function regrabCamera() {
+    function regrabCamera(reason) {
+      // A re-grab replaces BOTH tracks in localStream, which restarts the blur
+      // pipe and so changes sentVideoTrack — which rebuilds mySelfStream's memo,
+      // mints a new stg stream id, and re-ships the stage feed to everyone (and
+      // cascades down the relay tree). It is therefore never cheap, and WHO asked
+      // for it is the first question when the stage feed churns.
+      try {
+        if (!window.__regrabLog) window.__regrabLog = [];
+        window.__regrabLog.push({ t: Date.now(), reason: reason || 'unknown', staged: (typeof stageIds === 'function' ? stageIds().indexOf(myId) >= 0 : null) });
+        if (window.__regrabLog.length > 20) window.__regrabLog.shift();
+      } catch (e) {}
       navigator.mediaDevices.getUserMedia({ video: camVideoConstraints(), audio: true })
         .then((s) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
@@ -4896,7 +4906,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (++darkTicks >= 3 && revives < 3) {
             darkTicks = 0; revives++;
             setStatus('Your camera was sending black video — restarting it…');
-            regrabCamera();
+            regrabCamera('blackCamWatch:' + (vt.muted ? 'track-muted' : 'dark-pixels'));
           }
         } else { darkTicks = 0; revives = 0; }
       }, 3000);
@@ -9684,6 +9694,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Why my OWN outbound stg stream changed identity — the root event the
         // reship cascade above hangs off. See mySelfStream.
         selfMemo: (window.__selfMemoLog || []).slice(-8),
+        regrab: (window.__regrabLog || []).slice(-8),
         annSid: [...mosAnn.entries()].map(([k, v]) => k.slice(0, 14) + '|' + k.slice(k.indexOf('|') + 1) + '=' + String(v && v.streamId).slice(0, 8)
           // mt = the mirror's TRANSIT ROW. A carrier recomputes the route from
           // it, and slotFor/the forwarder both bail SILENTLY when it is absent
