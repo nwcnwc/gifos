@@ -5815,7 +5815,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // bootAppRoom resolves, and runApp refuses without it (canIRunApp).
             const waitMyId = () => myId ? Promise.resolve()
               : new Promise((res) => { const t = setInterval(() => { if (myId) { clearInterval(t); res(); } }, 100); });
-            return bootAppRoom().then(waitMyId).then(() => runApp(ROOM.fileId, nm)).then(() => share.classList.add('show'));
+            return bootAppRoom().then(waitMyId).then(() => runApp(ROOM.fileId, nm)).then(() => { share.classList.add('show'); showInviteModal(); });
           }).catch((e) => setStatus('Could not share the app: ' + (e && e.message || e)));
         };
       }).catch((e) => setStatus('Could not share the app: ' + (e && e.message || e)));
@@ -9262,7 +9262,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const body = document.getElementById('inv-body');
       const others = peers.size;
       const ppl = others > 1 ? 'people' : 'person';
-      if (hasAdminRoom()) {
+      // Same copy modal everywhere you can mint a link. An APP room gets its own
+      // copy: "mute/blur" and "create a room you control" are meeting concepts,
+      // meaningless for a shared app — so we don't show them here.
+      const isApp = document.body.classList.contains('app-room');
+      if (isApp) {
+        body.innerHTML =
+          '<p style="color:#aab">Anyone with this link joins you <b>live inside this app</b>, and it works forever.</p>' +
+          linkRowHtml() +
+          '<div style="display:flex;justify-content:flex-end;margin-top:.9rem"><button id="inv-done" style="' + surfaceBtn + '">Close</button></div>';
+      } else if (hasAdminRoom()) {
         body.innerHTML =
           '<p style="color:#aab">This room is <b>admin-controlled</b>. The link is safe to hand to everyone — admin power is the password, which is never in the link.</p>' +
           linkRowHtml() +
@@ -9290,7 +9299,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         try { document.execCommand('copy'); } catch (e) {}
         if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
         copyBtn.textContent = 'Copied ✓';
-        if (navigator.share) navigator.share({ title: 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value }).catch(() => {});
+        if (navigator.share) navigator.share({ title: isApp ? 'Join me on GifOS' : 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value }).catch(() => {});
       };
       const done = document.getElementById('inv-done');
       if (done) done.onclick = () => { invModal.style.display = 'none'; };

@@ -79,6 +79,11 @@ async function clickMove(frame, orient, uci) {
   });
   await aRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 25000 });
   const shareUrl = await aRun.evaluate(() => document.getElementById('share-url').value);
+  // Inviting now pops the shared copy-link modal (after runApp remounts, so a
+  // beat AFTER share-url appears); wait for it, then close it so it doesn't sit
+  // over the board — exactly what a host does before playing.
+  await aRun.waitForFunction(() => { const m = document.getElementById('inv-modal'); return m && getComputedStyle(m).display !== 'none'; }, null, { timeout: 25000 }).catch(() => {});
+  await aRun.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
   // Invite REBOOTS the app into hosted mode (runApp remounts the iframe) — the
   // pre-invite Frame handle is dead; re-enter friend mode on the fresh mount.
   aFrame = await enterFriend(aRun);

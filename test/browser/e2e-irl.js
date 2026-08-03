@@ -17,6 +17,11 @@ async function invite(page, lifetime, resilient) {
     document.querySelector('input[name="rmcls"][value="' + (res ? 'heal' : 'owned') + '"]').checked = true;
     document.getElementById('inv-go').click();
   }, !!resilient);
+  // Inviting now pops the shared copy-link modal (same as everywhere else), a
+  // beat after the room mints. Wait for it to show, then close it so the
+  // full-screen modal doesn't sit over the app — what a host does before playing.
+  await page.waitForFunction(() => { const m = document.getElementById('inv-modal'); return m && getComputedStyle(m).display !== 'none'; }, null, { timeout: 25000 }).catch(() => {});
+  await page.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
 }
 
 (async () => {
