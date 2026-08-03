@@ -118,7 +118,7 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   check('JOINER with AI off makes NO AI call', joiner.seen.hits === 0, 'hits=' + joiner.seen.hits);
 
   const hfr = hostPage.frameLocator('iframe');
-  await hostPage.evaluate(() => { var m = document.getElementById('link-modal'); if (m) m.remove(); }); // clear the overlay so we can reach the app
+  await hostPage.evaluate(() => { for (const id of ['link-modal', 'inv-modal']) { var m = document.getElementById(id); if (m) m.style.display = 'none'; } }); // clear the invite copy modal so we can reach the app
   await hfr.locator('#ai').click({ timeout: 6000 }).catch(() => {});
   await sleep(1200);
   check('HOST (AI on) still drafts, with the HOST key', host.seen.hits === 1 && /sk-ADA/.test(host.seen.auth || ''), 'hits=' + host.seen.hits + ' auth=' + (host.seen.auth || '').slice(0, 12));
