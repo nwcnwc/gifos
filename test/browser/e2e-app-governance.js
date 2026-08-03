@@ -123,8 +123,24 @@ const LED_APP = {
 
   // C (not the sharer) stops the app for the whole room — attributed anarchy
   await cPage.evaluate(() => window.__gifosVideo.stopRoomAppForTest());
-  for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => !window.__gifosVideo.appActive(), null, { timeout: 40000 });
-  check('open room: ANYONE can stop the shared app for everyone', true);
+  // Named-page wait with forensics: the bare waitForFunction loop CRASHED the
+  // whole process on a stall (gate retry 2026-08-03 died here with 4 lines of
+  // output), and the timeout could not say WHICH page kept the app.
+  {
+    const t0 = Date.now();
+    const who = [['A', aPage], ['B', bPage], ['C', cPage]];
+    let stuck = who.map(([n]) => n);
+    while (Date.now() - t0 < 40000 && stuck.length) {
+      const states = await Promise.all(who.map(([n, pg]) => pg.evaluate(() => window.__gifosVideo.appActive()).catch(() => null)));
+      stuck = who.filter((_, i) => states[i]).map(([n]) => n);
+      if (stuck.length) await sleep(500);
+    }
+    check('open room: ANYONE can stop the shared app for everyone', !stuck.length);
+    if (stuck.length) for (const [n, pg] of who) console.log('  [stop-forensics] ' + n + '=' + JSON.stringify(await pg.evaluate(() => ({
+      active: window.__gifosVideo.appActive(), winner: window.__gifosVideo.appWinner(), isHost: window.__gifosVideo.appIsHost(),
+    })).catch(() => null)));
+    // a stalled page un-wedges for the NEXT legs via the re-share below
+  }
 
   // ...and it is reversible: the sharer re-shares and walks back in
   await bPage.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'LedTest'), bFile);
