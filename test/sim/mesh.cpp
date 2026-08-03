@@ -199,6 +199,7 @@ struct Seat {
   // The law always assumed the tick cadence; these guards make it real. A
   // same-tick repeat is DEFERRED (reAsk/reJoin) and fired by the next tick().
   int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
+  unordered_map<int,int> strangeSeen;   // two-ring reconciliation: pool-listed ids absent from my occ, by consecutive E3 sightings
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;

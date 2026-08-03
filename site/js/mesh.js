@@ -1512,6 +1512,53 @@
           // other greeter, so it never trips.
           if (this.state === 3 && this.coord.pc === 0 && TICK - this.rookSeenAt > STRAND_TTL
               && m.list.some((g) => g != null && g !== this.id)) { this.requeue(); return; }
+          // TWO-RING RECONCILIATION (2026-08-02): the lone-fragment rescue
+          // above needs a seat hearing NOBODY — but a churn can rebuild TWO
+          // complete home rings in one session (each ring hears its own rook,
+          // so neither is "isolated"), a stable split-brain the sweep found
+          // at C=2 (three duplicated home cells for 20k ticks). Both rings'
+          // greeters share the ONE door: a pool-listed id that appears
+          // NOWHERE in my occ is a greeter of a ring I cannot see — greet it.
+          // The HELLO carries my coord; if we contest a cell, E2 settles it
+          // (lower id wins, the loser requeues through the door into the
+          // winning ring), and mutual occ learning cascades the rest. Under a
+          // TRUE partition the HELLO is undeliverable, so the two-clean-homes
+          // doctrine is untouched. Paced naturally by the E3 re-knock cadence
+          // that delivers this reply.
+          // …and ONLY from a COMPLETE home view: a stranger in the pool
+          // while my C×C home has holes is an ordinary join/churn transient
+          // (its seat simply hasn't reached my occ yet), and greeting through
+          // those transients perturbed unrelated settling (the compaction
+          // repro's lone-row pin). A stranger in the pool while I hold a
+          // FULL home is the two-ring signature exactly: there is no seat
+          // left it could be sitting in that I cannot see.
+          // …and DORMANT until the stranger PERSISTS: a freshly-promoted S1
+          // seat reads as a stranger to a stale-but-full view for a beat
+          // (S1SYNC catches up well inside one E3 cycle), and greeting
+          // through that transient perturbed unrelated settling (the
+          // compaction lone-row pin). Only a stranger seen in TWO
+          // consecutive E3 replies — hundreds of ticks apart — while my home
+          // stays full is a rival ring.
+          // …and only from QUIESCENCE (the Q2 hysteresis doctrine): mid-
+          // churn a greeter's "full" home view is routinely full of corpses
+          // while the pool already lists their replacements — greeting
+          // through that window fired 157 times in the compaction shrink
+          // scenario and perturbed its pinned settle. A rival ring is a
+          // STABLE state: nothing churns, and the strangers persist —
+          // exactly what this detector should see.
+          if (this.state === 3 && this.coord.pc === 0 && TICK - this.seatedAt > 80 && TICK - this.lastChurn > 300 && TICK - this.healAt > 300) {
+            let full = true;
+            for (let r = 0; r < C() && full; r++) for (let i = 0; i < C() && full; i++) if (!this.occ.has(ck({ pc: 0, r, i }))) full = false;
+            if (full) {
+              const known = new Set(this.occ.values());
+              const next = new Map();
+              for (const g of m.list) if (g != null && g !== this.id && !known.has(g)) {
+                const seen = (this.strangeSeen && this.strangeSeen.get(g) || 0) + 1; next.set(g, seen);
+                if (seen >= 8) { this.emit(g, { t: 'HELLO', ck: ck(this.coord), id: this.id }); next.delete(g); } // 8 consecutive E3 cycles ≈ 1600-3200 ticks: an order past any legit staleness window (live mates' S1SYNC overwrites a non-first-hand corpse cell within beats), far inside a standoff's lifetime
+              }
+              this.strangeSeen = next; // ids no longer listed/known drop out
+            } else if (this.strangeSeen) this.strangeSeen.clear();
+          }
           return;
         }
         case 'WHOHOME': {
