@@ -160,8 +160,10 @@
         + "<ellipse cx='" + (x + s * 1.45) + "' cy='" + y + "' rx='" + s + "' ry='" + ry + "' fill='#fff' opacity='.96'/>"
         + (blink ? '' : pupil(x - s * 1.45) + pupil(x + s * 1.45));
     };
-    const crowd = eyes(52, 82, 3.0, false) + eyes(78, 82, 3.0, f === 2)          // back row, smaller
-      + eyes(40, 91, 4.2, false) + eyes(64, 93, 4.6, f === 4) + eyes(88, 91, 4.2, false);
+    const crowd =                                                                // a PACKED house, three rows deep
+      eyes(34, 82, 2.4, false) + eyes(52, 82, 2.4, f === 1) + eyes(76, 82, 2.4, false) + eyes(94, 82, 2.4, false)
+      + eyes(30, 90, 3.2, false) + eyes(52, 91, 3.2, f === 2) + eyes(74, 90, 3.2, false) + eyes(96, 91, 3.2, f === 5)
+      + eyes(36, 99, 4.2, false) + eyes(64, 100, 4.4, f === 4) + eyes(92, 99, 4.2, false);
     const art =
       "<path d='" + rr(20, 24, 88, 54, 13) + "' fill='url(#" + g1 + ")'/>"       // bezel
       + "<path d='" + rr(26, 30, 76, 42, 8) + "' fill='url(#" + scr + ")'/>"     // screen
