@@ -1485,3 +1485,84 @@ over the shared `mesh-app.js` node so the divergence stays cosmetic.
   fallback as live): `README.md:54,207`, `site/about.html:77`,
   `site/changelog.json`, and the relay's own header promise (`relay.js:28`),
   which should be rewritten from "control traffic only" to greeter+door.
+
+## 8. Lock a GIF with a passcode (encrypted App GIFs + computer backups)
+
+**What.** Optionally **encrypt the contents of a GIF behind a passcode** so it
+can't be opened, run, or restored without unlocking it. Two headline uses: lock
+a **whole-computer backup GIF** (the "Back up Home Screen" artifact —
+`backupDesktop()`), and lock **any single App GIF** on the Home Screen. Offer
+**several passcode methods**, not just a typed password: a **numeric PIN**, a
+**connect-the-dots swipe pattern**, a **freeform drawing**, or a full **text
+passphrase** — each chosen at lock time, with a matching unlock UI. The file
+stays a **valid GIF** (still shareable, still previews its cover animation); only
+the GifOS payload inside it is ciphertext.
+
+**Why it fits.**
+- Privacy-first with **no accounts and no server**: the key is derived from the
+  passcode entirely in the browser — same "derive, don't send" posture as the
+  meeting link crypto. Nothing to store server-side, nothing to leak.
+- A backup GIF or a shared app can carry real secrets — notes, saved API keys, a
+  whole desktop. Locking lets you keep a backup in a shared drive, hand someone
+  your phone, or post a computer image without exposing its contents.
+- The GIF container already separates **visible frames** from the **GifOS
+  filesystem block** (`GIFOS1.0`), and `gifos-gif.js` can already splice that
+  block in place — so encrypting the payload while leaving the animation alone is
+  a natural extension, not a new format.
+
+**Sketch.**
+- **What's encrypted:** the `GIFOS1.0` filesystem payload (app files + `.state`
+  user data, or a backup's `desktop.json` + files) → AES-GCM with a per-file
+  random salt + IV. The visible GIF frames stay plaintext so it still looks and
+  previews like a GIF.
+- **Where the lock metadata lives:** a new **unencrypted** app-ext block (e.g.
+  `GIFOSLOCK`, a sibling of `GIFOS1.0`/`GIFOSSIG`) carrying `{ method, kdf,
+  params, salt, iv }` — the opener needs it to know *how* to prompt and derive,
+  so it can't be secret. Reuse `findAppExtSpan` / the repack path.
+- **Every method funnels to bytes → KDF → key:** passphrase (UTF-8), PIN (digit
+  string), pattern (ordered cell sequence, Android-style), freeform draw
+  (quantized to a canonical form). KDF is **memory-hard** — Argon2id (WASM) or
+  scrypt, PBKDF2-SHA256 high-iteration as the no-WASM fallback — scaled to the
+  device.
+- **UX:** "Lock this GIF…" in an icon's menu and a "Lock this backup" toggle in
+  the backup flow; an unlock sheet on open/run/restore that renders the right
+  input (keypad / dot-grid / draw canvas); change-passcode and remove-lock;
+  a **lock badge** on locked icons.
+- **Signing stays compatible:** `gifos-sign` already excludes `GIFOS1.0` and
+  `.state` from the content hash, so a GIF can be **both signed and locked** and
+  the signature still verifies on the visible bytes — confirm block ordering and
+  that a recipient can verify provenance *before* they hold the passcode.
+
+**Open questions.**
+- **Threat-model honesty (the big one).** With no server there is nothing to
+  rate-limit: anyone who holds the file can brute-force **offline**. A 4-digit
+  PIN (~10⁴) or a 3×3 pattern (~3.9×10⁵) has tiny entropy, so a memory-hard KDF
+  only *slows* cracking, it doesn't stop it. Low-entropy methods are "keep a
+  nosy person or a grabbed phone out," **not** "safe against a determined
+  attacker with the file"; only a real passphrase gives meaningful offline
+  resistance. The UI must state each method's protection level plainly and never
+  imply PIN/pattern = encryption-grade.
+- **Freeform drawing is hard to reproduce.** Exact re-draw is impossible, so it
+  needs fuzzy matching — which either quantizes to a low-entropy canonical form
+  (weak) or accepts a tolerance (leaks entropy, enables replay). Ship PIN +
+  pattern + passphrase first; treat freeform "draw a picture" as a stretch, or
+  reduce it to a connect-the-dots pattern that reproduces exactly.
+- **Recovery / loss.** No accounts, no server ⇒ a forgotten passcode means the
+  contents are **gone** (same finality as Erase). Offer an optional high-entropy
+  **recovery phrase** as a second unlock path, or key escrow to another device
+  you own? At minimum, warn loudly at lock time.
+- **`.state` while running.** Excluding `.state` from encryption (to preserve the
+  signature rule) would leave a running locked app's saved data in plaintext —
+  defeating the point. Locking probably must encrypt `.state` too, which then
+  interacts with the signature-excludes-`.state` invariant; resolve that tension
+  before build.
+- **Locked + shared + store.** Can a locked App GIF still install from the store
+  (which checks sha256 + signature on download) with unlock deferred to run? Does
+  the recipient verify the signature before unlocking (yes — sig is on the
+  visible bytes)?
+- **Locked backup restore.** `restoreDesktop()` must prompt and unlock *before*
+  `clearAll()` / bulk `putItem` — a wrong passcode must never wipe the current
+  desktop first.
+- **Per-file vs a vault.** Lock individual icons, or a "locked folder" that
+  unlocks for a session? Per-open unlock vs unlock-for-session, and what the lock
+  badge/relock timeout is.
