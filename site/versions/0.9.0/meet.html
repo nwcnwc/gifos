@@ -1088,7 +1088,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // attributed to who did it. Latest change wins (timestamped).
     // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
     // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0 };
+    // pwEp — MY §LOCK generation, gossiped (2026-08-02). The epoch guard that
+    // stops a replayed grant rolling a member backwards was disabled on a
+    // FRESH page: `pwEpoch && m.ep <= pwEpoch` is false when pwEpoch is 0, so
+    // a late joiner who typed the CURRENT password and was already talking
+    // adopted an ANCIENT grant (measured: Dee typed 'vault', joined, chatted,
+    // then took a replayed ep=1 'clubhouse' grant and sealed itself away —
+    // files stopped mid-transfer and it grant-healed the whole room forever).
+    // A joiner cannot know the room's generation from its own state; the room
+    // knows, so the room says. Gossiping the NUMBER leaks nothing (the
+    // password itself only ever travels inside a signed, sealed grant).
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
 
     // ================= THE STADIUM (docs/healing-laws.md + docs/media-plane.md) =================
@@ -2907,7 +2917,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // dropped both ways (window.__gifosBlockIce = ['*'|peerId…]) — simulates a
     // firewalled pair. Sealing hid ICE from the e2e suite's old WS-sniffing
     // trick, so the fault now injects at the signaling layer itself.
-    const iceBlocked = (pid) => { const b = window.__gifosBlockIce; return !!b && (b.includes('*') || b.includes(pid)); };
+    // Entries are '*' (everyone), a peer id, or 'name:<screen name>'. The NAME
+    // form exists because a peer id is H(pubkey), minted at page boot: a drill
+    // that wants a pair split cannot name the far end until it exists, so the
+    // block always landed LATE on one side — and one side's candidates are
+    // enough to connect on a LAN (the far end learns the address
+    // peer-reflexively from the incoming STUN binding), which made the
+    // manufactured split leak (e2e-peer-relay-reunion, splitLeft:false).
+    // Names are known before any page loads, so both ends can state the split
+    // at init with no window. Inert unless a test sets the global.
+    const iceBlocked = (pid) => {
+      const b = window.__gifosBlockIce;
+      if (!b || !b.length) return false;
+      if (b.includes('*') || b.includes(pid)) return true;
+      const nm = rosterNames[pid] || (peers.get(pid) || {}).name;
+      return !!nm && b.includes('name:' + nm);
+    };
     // A blocked pair must see NO candidates at all: a re-offer minted after
     // gathering finished carries every candidate INLINE in the SDP, which
     // would tunnel right around the dropped trickle messages — so blocked
@@ -3374,8 +3399,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (p.mainV) p.mainV.replaceTrack(null).catch(() => {});
         }
       } else if (!localStream) { try { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {} }
-      // chat + pinned files travel on a DataChannel — browser to browser only
-      if (iInitiate(p.id)) { try { wireDc(p, pc.createDataChannel('gifos')); } catch (e) {} }
+      // chat + pinned files travel on a DataChannel — browser to browser only.
+      // THE OFFERER CREATES IT (2026-08-02; moved into sendOffer). It used to
+      // be created here for the id-order initiator only, which hard-wired the
+      // assumption that the id-initiator is always the dialer. The newcomer-
+      // dials rule broke that: a lower-id newcomer's offer then carried NO
+      // data m-line, ICE connected, ondatachannel never fired, and the pair
+      // sat connected-without-DC until the id-initiator's 5s dc-watchdog
+      // redialled (measured: every lower-id guest joined in 7-9s instead of
+      // ~1.5s). An answerer needs no channel of its own — the offerer's
+      // arrives via ondatachannel below — and an answer cannot add an m-line
+      // the offer lacked anyway, so creating one here was dead weight on the
+      // answering side.
       pc.ondatachannel = (ev) => wireDc(p, ev.channel);
       pc.ontrack = (ev) => {
         const stream = ev.streams[0];
@@ -3478,6 +3513,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
     function sendOffer(peerId, iceRestart) {
       const p = makePeer(peerId, null);
+      // The OFFERER creates the DataChannel (whoever dials — id-initiator,
+      // unwired newcomer, or a starved answerer-side rebuild), BEFORE
+      // createOffer so the data m-line rides this offer. Idempotent: a
+      // renegotiation/ICE-restart on a pc that already carries a channel
+      // keeps it.
+      if (!p.dc) { try { wireDc(p, p.pc.createDataChannel('gifos')); } catch (e) {} }
       preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
@@ -3499,6 +3540,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
       st.rx = Date.now(); // RECEIPT time (local clock) — the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
       statusOf.set(from, st);
+      // §LOCK EPOCH FLOOR: a member whose sealed frames I can OPEN is speaking
+      // my key generation — so its epoch number is mine too, and adopting the
+      // NUMBER (never a password) re-arms the replay guard on a fresh page.
+      // This is the whole fix for the roll-back: a joiner that typed the
+      // current password now learns it is at generation N from the room, and
+      // the ancient ep<N grant is rejected as the replay it is.
+      if (typeof st.pwEp === 'number' && st.pwEp > pwEpoch) storePwEpoch(st.pwEp);
       return true;
     }
     // One global, ordered hand-raise queue: hands ride the status pulse, and
@@ -3695,7 +3743,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!linkTo(pid)) return; // the sweeper retires unwanted links, with grace
       let p = peers.get(pid);
       if (!p) {
-        if (iInitiate(pid)) { sendOffer(pid, false); p = peers.get(pid); }
+        // THE NEWCOMER DIALS (2026-08-02, the ghost-churn join wedge). The
+        // id-order rule ("higher id offers") assumes BOTH sides know the pair
+        // exists — but a just-seated newcomer's CLAIM/HELLO are DC-only and
+        // its neighbours may not learn its seat for many beats, so when the
+        // id-order pointed at the side that had never heard of us, nobody
+        // dialled and the pair sat half-open until the 12s starve watchdog
+        // (measured: owner occ=1 forever, guest CLAIM/HELLO/PHONE all
+        // dropped). A seat with NO open DataChannel at all is still ARRIVING:
+        // it dials every neighbour its PLACE taught it, id order be damned —
+        // it is the one node guaranteed to know the pair should exist, and
+        // the offer rides the sanctioned first-contact signaling path.
+        // Perfect negotiation (the glare rollback in onSignal) absorbs the
+        // rare double-dial; id order governs everything after first wiring.
+        let anyDc = false; for (const q of peers.values()) if (q.dc && q.dc.readyState === 'open') { anyDc = true; break; }
+        if (iInitiate(pid) || !anyDc) { sendOffer(pid, false); p = peers.get(pid); }
         else p = makePeer(pid, name); // their offer is on its way
         // Newcomers can't trust gossip for moderation in admin rooms — an
         // admin hands them the table over the relay's stamped path.
@@ -4282,10 +4344,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // generations are monotonic for the room's whole life, or clearing
     // would re-arm every grant that preceded it.
     const pwEpochKey = () => 'gifos_vpwep_' + roomKey();
-    function storePwEpoch(ep) { pwEpoch = ep; try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
+    function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
     function loadPw() {
       try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; }
-      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); } catch (e) {}
+      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); myStatus.pwEp = pwEpoch; } catch (e) {}
     }
     function storePw(v) { roomPw = v || ''; pwProvisional = false; /* every explicit adoption (grant, admin set, typed challenge) ends provisionality */ try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // THE PASSWORD IS THE KEY (docs/meet-security.md §LOCK): adopting a password means
@@ -5722,6 +5784,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       p.dc = dc;
       dc.onopen = () => {
         dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
+        // THE MOMENT A CHANNEL EXISTS is the moment the stage pulls can finally
+        // travel. Everything below was silently impossible a millisecond ago:
+        // sgaFan delivers only to peers whose DC is already OPEN, so a
+        // just-seated node's first broadcast and its first snap/app request all
+        // went nowhere. Flush what I queued, then re-drive both pulls for every
+        // sid I subscribe to but do not hold — without this the node waits out
+        // a 2s chase tick (or, for the very first request, forever).
+        try { sgaFlushPending(); } catch (e) {}
+        try {
+          for (const sid of sgaSubs.keys()) {
+            if (!sgaSnap.has(sid)) { sgaReqAt.delete(sid); sgaRequest(sid); sgaChase(sid); }
+            if (!sgaApp.has(sid)) { sgaAppReqAt.delete(sid); sgaAppRequest(sid); sgaAppChase(sid); }
+          }
+        } catch (e) {}
+        // …and RE-ANNOUNCE THE SEAT (2026-08-02): the take-burst CLAIM/HELLO
+        // fired when no channel existed and was dropped — one-shot, never
+        // resent, so a neighbour could sit across an OPEN channel and still
+        // not know our coord (the ghost-churn half-open wedge). The channel
+        // that just opened is exactly the missing transport: re-fire the
+        // HELLO announce so occupancy converges now instead of at the next
+        // PHONE beat (and to neighbours beyond this pair via §FWD, which
+        // needs at least one open channel to sponsor through — this one).
+        try { const s = meshSeat(); if (s && s.hasCoord && s.state === 3) s.announce(); } catch (e) {}
       };
       // D5: my channel to this peer died. On an ungraceful peer death (mobile
       // tab kill, OOM, crash) this lands within ~1-5s — first-hand evidence
@@ -5913,6 +5998,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (m.k === 'sga-snap' && m.m && typeof m.m.sid === 'string') {
         // Direct snapshot replay (the answer to sga-req) — deliver, never re-fan.
         sgaRecvSnap(m.m);
+      } else if (m.k === 'sga-appreq' && typeof m.sid === 'string') {
+        // A neighbour wants the APP BYTES. Same pull-through as the snap: hand
+        // over my copy if I have one, otherwise remember them and chase it
+        // upstream myself. This is what makes the app spread peer to peer — the
+        // owner is only the first seeder, not an origin server every joiner has
+        // to reach.
+        sgaAppServe(p, m);
+      } else if (m.k === 'sga-app' && m.m && typeof m.m.sid === 'string') {
+        // Direct app replay (the answer to sga-appreq) — deliver, never re-fan.
+        // Still owner-SIGNED: the verifier in runtime.js checks the signature,
+        // so a relaying peer can pass the bytes on but can never forge them.
+        sgaRecvApp(m.m);
       } else if (m.k === 'bye') {
         // The peer's own farewell (sendMeshLeave, D2's app-level echo): an
         // ANNOUNCED departure — remove them from the human view now. Sealed
@@ -5949,7 +6046,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // EPOCH GUARD (§LOCK healing): a grant at or below my own generation
         // is a replay — dead on arrival. Nobody can roll a member backwards;
         // an ep-less grant is a legacy client's, treated as next-generation.
-        if (m.ep != null && pwEpoch && m.ep <= pwEpoch) return;
+        if (m.ep != null && m.ep <= pwEpoch) return; // (no `pwEpoch &&`: epoch 0 is a real generation — see myStatus.pwEp)
         if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) storePwEpoch(m.ep); return; } // already adopted
         const cleared = !m.pw && roomPw;
         pwLog('pwinfo-adopt from=' + String(p.id || '?').slice(0, 6) + ' by=' + (m.by || '?') + ' ep=' + m.ep + ' myEp=' + pwEpoch + ' pwSame=' + (String(m.pw || '') === String(roomPw || '')));
@@ -7561,6 +7658,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // replayed to late subscribers; 'delta'/'act' frames are fire-and-forget.
     const sgaSeen = new Map();  // sid|seq -> at (flood dedup)
     const sgaSnap = new Map();  // sid -> latest full-state frame (late-joiner replay)
+    // THE APP BYTES ARE RETAINED AND PEER-SERVED, exactly like the snap.
+    // Until 2026-08-02 the owner-signed 'app' frame was a ONE-SHOT broadcast:
+    // it was neither retained nor replayable, so the only way a latecomer could
+    // ever obtain it was to ask THE OWNER and hope its request arrived. That
+    // does not scale — it makes the owner a origin server for every joiner who
+    // ever arrives, on a phone — and it does not even work reliably at two
+    // people (measured: a guest sent five 'need-app' asks while the owner's
+    // ledger read asks=0, because a just-seated guest has no open channel yet).
+    // Retaining it means the bytes spread the way a file should on a mesh: any
+    // peer that HAS the app answers a neighbour that lacks it, the pull climbs
+    // toward older nodes, and the owner is just the first seeder.
+    const sgaApp = new Map();   // sid -> the owner-signed 'app' frame (peer-servable)
+    const sgaAppWant = new Map(); // sid -> Map(pid -> at): neighbours waiting on an app I lack
     const sgaSubs = new Map();  // sid -> Set(cb)
     let sgaSeq = 0;
     // The same neighbour set the media fans ride: deep — up (head or parent),
@@ -7578,14 +7688,55 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       add(T.down(c));
       return [...out];
     }
+    // A stage frame reaches only peers whose DataChannel is ALREADY open, and
+    // used to be discarded for everyone else — no queue, no retry. For a guest
+    // that has just seated, NO channel is open yet, so its very first
+    // 'need-app' evaporated: measured 2026-08-02, a guest sent five asks
+    // (0/301/902/2103/4504 ms) while the owner's ledger read asks=0. It only
+    // recovered when a later retry happened to coincide with a channel opening,
+    // which is why guests mounted in 1.6s or 29s with nothing in between and
+    // why ~29% never mounted at all inside 30s. Same hazard in reverse: the
+    // owner's 'app' reply is dropped for any peer not yet wired, and unlike
+    // 'snap' it is not retained for replay.
+    //
+    // So: if a frame reached NOBODY, hold it and flush when a channel opens.
+    // Bounded and short-lived — this is a wiring race lasting seconds, not a
+    // store-and-forward queue, and stale mesh state is its own class of bug.
+    const sgaPending = [];        // [{ m, at }]
+    const SGA_PEND_MAX = 32, SGA_PEND_TTL = 30000;
     function sgaFan(m, fromPid) {
+      let sent = 0;
       for (const pid of sgaTargets()) {
         if (pid === fromPid) continue;
         const p = peers.get(pid);
-        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, m);
+        if (p && p.dc && p.dc.readyState === 'open') { dcSend(p, m); sent++; }
       }
+      // Only frames I ORIGINATED are worth holding (fromPid == null). A relayed
+      // frame that finds no onward peer is just the edge of the fan.
+      if (!sent && fromPid == null) {
+        sgaPending.push({ m, at: Date.now() });
+        while (sgaPending.length > SGA_PEND_MAX) sgaPending.shift();
+      }
+      return sent;
+    }
+    // Flush on link-up: the channel that just opened is exactly the one those
+    // frames had nowhere to go without.
+    function sgaFlushPending() {
+      if (!sgaPending.length) return;
+      const now = Date.now();
+      const due = sgaPending.splice(0, sgaPending.length).filter((e) => now - e.at < SGA_PEND_TTL);
+      for (const e of due) sgaFan(e.m, null);
     }
     function sgaDeliver(m) {
+      if (m.kind === 'app') {
+        // First copy wins: app bytes for a sid are immutable for the session.
+        if (!sgaApp.has(m.sid)) sgaApp.set(m.sid, m);
+        const aw = sgaAppWant.get(m.sid);
+        if (aw) {
+          sgaAppWant.delete(m.sid);
+          for (const pid of aw.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-app', m }); }
+        }
+      }
       if (m.kind === 'snap') {
         const cur = sgaSnap.get(m.sid);
         if (!cur || cur.seq === m.seq || (cur.at || 0) <= (m.at || 0)) sgaSnap.set(m.sid, m);
@@ -7638,6 +7789,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }, 2000);
       sgaReqTimer.set(sid, t);
     }
+    const sgaAppReqAt = new Map(), sgaAppTimer = new Map();
+    function sgaAppRequest(sid) {
+      const now = Date.now();
+      if ((sgaAppReqAt.get(sid) || 0) > now - 1800) return;
+      sgaAppReqAt.set(sid, now);
+      for (const pid of sgaTargets()) {
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'sga-appreq', sid: sid });
+      }
+    }
+    function sgaAppChase(sid) { // ask now, retry until the app lands or interest dies
+      if (sgaAppTimer.has(sid)) return;
+      sgaAppRequest(sid);
+      let tries = 0;
+      const t = setInterval(() => {
+        const wanted = sgaSubs.has(sid) || (sgaAppWant.get(sid) || { size: 0 }).size;
+        if (sgaApp.has(sid) || !wanted || ++tries > 30) { clearInterval(t); sgaAppTimer.delete(sid); return; }
+        sgaAppRequest(sid);
+      }, 2000);
+      sgaAppTimer.set(sid, t);
+    }
+    // A neighbour asked for the app. Hold it? Answer directly. Don't? Remember
+    // who asked and chase upstream myself — the same pull-through that makes
+    // the snap climb toward older nodes, so the bytes walk peer to peer instead
+    // of every joiner dialling the owner.
+    function sgaAppServe(p, m) {
+      const held = sgaApp.get(m.sid);
+      if (held) { dcSend(p, { k: 'sga-app', m: held }); return; }
+      let w = sgaAppWant.get(m.sid); if (!w) { w = new Map(); sgaAppWant.set(m.sid, w); }
+      w.set(p.id, Date.now());
+      sgaAppChase(m.sid);
+    }
+    function sgaRecvApp(m) {
+      if (!m || !m.sid || m.kind !== 'app') return;
+      if (sgaApp.has(m.sid)) return;   // immutable — first copy wins
+      sgaDeliver(m);                   // retains, wakes subscribers, serves waiters — NO re-fan
+    }
     function sgaServe(p, m) {
       const held = sgaSnap.get(m.sid);
       if (held) { if (held.seq !== m.have) dcSend(p, { k: 'sga-snap', m: held }); return; }
@@ -7670,6 +7858,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       broadcast(sid, kind, d) {
         const m = { k: 'sga', sid, seq: myId + ':' + (++sgaSeq), kind: kind || 'delta', d, at: Date.now() };
         sgaSeen.set(sid + '|' + m.seq, Date.now());
+        // sgaDeliver retains an 'app' frame, so the OWNER seeds itself here and
+        // can answer sga-appreq like any other holder. Without this the owner
+        // would broadcast the bytes and keep no copy to serve, which is what
+        // forced every latecomer back to the direct 'need-app' path.
         sgaDeliver(m); sgaFan(m, null);
         return m.seq;
       },
@@ -7679,10 +7871,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const snap = sgaSnap.get(sid);
         if (snap) { try { cb(snap); } catch (e) {} }
         else sgaChase(sid); // late joiner: pull the retained snap from the mesh
+        // ...and the app bytes, from whichever PEER already has them.
+        const appHeld = sgaApp.get(sid);
+        if (appHeld) { try { cb(appHeld); } catch (e) {} }
+        else sgaAppChase(sid);
         return () => { s.delete(cb); if (!s.size) sgaSubs.delete(sid); };
       },
       drop(sid) {
         sgaSnap.delete(sid); sgaSubs.delete(sid); sgaWant.delete(sid);
+        sgaApp.delete(sid); sgaAppWant.delete(sid);
+        const ta = sgaAppTimer.get(sid); if (ta) { clearInterval(ta); sgaAppTimer.delete(sid); }
         const t = sgaReqTimer.get(sid); if (t) { clearInterval(t); sgaReqTimer.delete(sid); }
       },
     };

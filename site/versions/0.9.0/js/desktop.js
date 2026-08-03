@@ -171,6 +171,17 @@
       parent: parent || null, x: pos.x, y: pos.y, iconSize: 64 }, { at: pos });
   }
 
+  // The App Store's DEFAULT spot is right below the Stolen Apps chest (user
+  // decision 2026-08-02): the store and the loot live together. The chest is
+  // ensureSystemItems' to create, so seedIfEmpty holds the store back, calls
+  // ensureSystemItems ITSELF, and places the store before returning — the
+  // placement must not outlive this function. Handing it to the later
+  // ensureSystemItems in the boot chain instead put an UNPLACED default app
+  // in front of reseedDefaultsIfNeeded, which correctly saw the appId missing
+  // and added its own copy: two App Store icons after every erase (erase sets
+  // gifos_reseed, so the rebuild runs on the very next boot — caught by
+  // e2e.js's "reset re-seeds a fresh desktop", 12 root items where 11 belong).
+  let pendingStoreApp = null;
   async function seedIfEmpty() {
     if (items.length) return;
     const seed = await GifOS.samples.build();
@@ -181,6 +192,7 @@
     const rowY = (r) => GRID.origin + r * GRID.rowPitch;
     let rightRow = 0, leftRow = 0;
     for (const a of seed.loose) {
+      if (a.appId === 'appstore') { pendingStoreApp = a; continue; } // placed below Stolen Apps by ensureSystemItems
       if (a.appId === 'meet' || a.appId === 'video') await putDefaultApp(a, null, { x: rightX, y: rowY(rightRow++) });
       else await putDefaultApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
@@ -193,6 +205,17 @@
     };
     for (const folder of seed.folders) await putFolder(folder, null, rightX, rowY(rightRow++));
     await load();
+    // The chest first (it owns the cell the store aims below), then the store —
+    // both inside this function, so nothing downstream ever sees a default app
+    // that exists in the seed but not on the desktop.
+    await ensureSystemItems();
+    if (pendingStoreApp) {
+      const a = pendingStoreApp; pendingStoreApp = null;
+      const chest = items.find((i) => i.id === 'sys_stolen');
+      const at = chest ? { x: chest.x, y: chest.y + GRID.rowPitch } : { x: GRID.origin, y: rowY(leftRow++) };
+      await putDefaultApp(a, null, at);
+      await load();
+    }
   }
 
   // ---- rebuild the built-in default apps from THIS build's code ----------------
@@ -254,6 +277,10 @@
     let rightRow = 0, leftRow = 0;
     const nextRootSpot = (appId) => {
       if (appId === 'meet' || appId === 'video') return { x: rightX, y: rowY(rightRow++) };
+      if (appId === 'appstore') { // default spot: right below the Stolen Apps chest (when it exists yet)
+        const chest = items.find((i) => i.id === 'sys_stolen');
+        if (chest) return { x: chest.x, y: chest.y + GRID.rowPitch };
+      }
       return { x: GRID.origin, y: rowY(leftRow++) };
     };
     for (const a of seed.loose || []) await addMissingApp(a, null, nextRootSpot(a.appId));
@@ -318,17 +345,28 @@
   // stolen apps into it — and creates it itself if a steal happens first.
   async function ensureSystemItems() {
     const sysSpot = { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
+    // FRESH SEED (pendingStoreApp held by seedIfEmpty): the left column is
+    // laid out deterministically — Welcome / My Media / Stolen Apps / App
+    // Store / Trash — so the store sits RIGHT BELOW the chest (user decision
+    // 2026-08-02: the store and the loot live together). Existing desktops
+    // keep their arrangement: the aims below only apply to items that do not
+    // exist yet, and saveItem still resolves every aim to a free cell.
+    const fresh = !!pendingStoreApp;
+    const rowAt = (r) => ({ x: GRID.origin, y: GRID.origin + r * GRID.rowPitch });
     if (!items.find((i) => i.id === TRASH_ID)) {
+      const at = fresh ? rowAt(4) : sysSpot;
       await saveItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
-        x: sysSpot.x, y: sysSpot.y, iconSize: 64 }, { at: sysSpot });
+        x: at.x, y: at.y, iconSize: 64 }, { at });
       await load();
     }
     let stolen = items.find((i) => i.id === 'sys_stolen');
     if (!stolen) {
+      const at = fresh ? rowAt(2) : sysSpot;
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
-        x: sysSpot.x, y: sysSpot.y, iconSize: 64 };
-      await saveItem(stolen, { at: sysSpot });
+        x: at.x, y: at.y, iconSize: 64 };
+      await saveItem(stolen, { at });
       await load();
+      stolen = items.find((i) => i.id === 'sys_stolen') || stolen;
     }
     // The loot deserves a treasure chest. Also retrofits folders created bare
     // (by the runtime mid-steal, or by earlier versions of this code).
@@ -1424,18 +1462,27 @@
   }
   async function newFolder(x, y) {
     const it = await createFolder('New Folder', currentFolder, x || GRID.origin, y || GRID.origin);
-    // AWAIT the paint: beginRename looks the new icon up in the DOM, so firing
-    // it while render() is still reading files finds nothing and silently skips
-    // — a new folder that never opens its rename box.
-    await load(); await render();
+    await load(); await render(); // paint the icon first, then offer the name
     beginRename(it);
   }
+  // Rename happens in a MODAL, not inline under the icon (user decision
+  // 2026-08-02): the inline input inherited the icon label's size, which is
+  // unusably tiny on a phone screen. Same commit semantics as before — empty
+  // input keeps the old name, Escape/cancel changes nothing.
   function beginRename(it) {
-    const el = surface.querySelector('.icon[data-id="' + it.id + '"]');
-    if (!el) return;
-    const label = el.querySelector('.label');
+    const bg = document.createElement('div'); bg.className = 'modal-bg';
+    const box = document.createElement('div'); box.className = 'modal';
+    box.innerHTML = '<h3>Rename</h3>';
     const input = document.createElement('input');
-    input.value = it.name; label.innerHTML = ''; label.appendChild(input);
+    input.type = 'text'; input.className = 'rename-input'; input.value = it.name;
+    // 16px floor: anything smaller makes iOS Safari zoom the page on focus.
+    input.style.cssText = 'width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;margin:6px 0 2px;';
+    box.appendChild(input);
+    const row = document.createElement('div'); row.className = 'modal-actions';
+    const okBtn = document.createElement('button'); okBtn.textContent = 'Rename';
+    const cancel = document.createElement('button'); cancel.textContent = 'Cancel'; cancel.className = 'ghost';
+    row.appendChild(okBtn); row.appendChild(cancel);
+    box.appendChild(row); bg.appendChild(box); document.body.appendChild(bg);
     input.focus(); input.select();
     const commit = async () => {
       it.name = input.value.trim() || it.name;
@@ -1454,8 +1501,11 @@
       }
       render();
     };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') render(); });
-    input.addEventListener('blur', commit);
+    const done = (save) => { bg.remove(); if (save) commit(); else render(); };
+    okBtn.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
+    bg.addEventListener('click', (e) => { if (e.target === bg) done(false); });
   }
 
   // ---------- whole-desktop backup/restore: your computer as ONE GIF ----------
