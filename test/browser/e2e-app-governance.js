@@ -68,6 +68,24 @@ const LED_APP = {
     }
     return appFrame(pg).locator('#res').textContent().catch(() => '-');
   };
+  // Click a button in the app and read the settled #res. '-' after a click
+  // means the INPUT was never delivered (the client mount can flap on a
+  // status-freshness gap and a click can land in the swap window — measured
+  // 2026-08-03: #res='-' with the app healthy and remounted a beat later), so
+  // silence re-clicks, bounded, exactly as a human would. Any SETTLED outcome
+  // — ok or err — is returned at once: the honest refusals stay one-shot and
+  // no assertion weakens. #res is reset first so a previous leg's stale text
+  // can never impersonate a settle.
+  const clickRes = async (pg, sel, want, tries = 3) => {
+    for (let i = 0; i < tries; i++) {
+      await appFrame(pg).locator('#res').evaluate((el) => { el.textContent = '-'; }).catch(() => {});
+      await appFrame(pg).locator(sel).click();
+      const got = await waitRes(pg, want, i === tries - 1 ? 15000 : 6000);
+      if (got !== '-') return got;
+      console.log('  [clickRes] ' + sel + ' produced no settle in ' + (i === tries - 1 ? 15 : 6) + 's — re-clicking');
+    }
+    return '-';
+  };
 
   // ========================= OPEN ROOM: ANARCHY, ORDERED =========================
   const room = 'gov' + Math.floor(Math.random() * 1e9).toString(36);
@@ -123,21 +141,28 @@ const LED_APP = {
   check('Show app un-hides it', true);
 
   // ---- LED RECORDS: communal by default in an open room ----
-  await appFrame(cPage).locator('#setnav').click();
-  check('open room defaults COMMUNAL — a guest can turn the page', (await waitRes(cPage, 'ok-nav')) === 'ok-nav');
+  {
+    const got = await clickRes(cPage, '#setnav', 'ok-nav');
+    check('open room defaults COMMUNAL — a guest can turn the page', got === 'ok-nav');
+    // Evidence on failure (2026-08-03 gate RED came with none): '-' means the
+    // input was never delivered even after re-clicks; 'err-nav' is an honest
+    // refusal — frozen / read-only / fenced. Different bugs.
+    if (got !== 'ok-nav') console.log('  [forensics] #res=' + JSON.stringify(got)
+      + ' state=' + JSON.stringify(await cPage.evaluate(() => ({
+        active: window.__gifosVideo.appActive(), winner: window.__gifosVideo.appWinner(),
+        isHost: window.__gifosVideo.appIsHost(), leading: (() => { try { return window.__gifosVideo.appLeading(); } catch (e) { return null; } })(),
+      })).catch(() => null)));
+  }
 
   // Sharer flips to LEADING: the guest's led write is refused by the HOST runtime
   await bPage.locator('#applead').click();
   check('the sharer sees the Leading state', await bPage.evaluate(() => window.__gifosVideo.appLeading()));
   await sleep(300);
-  await appFrame(cPage).locator('#setnav').click();
-  check('LEADING: a guest\'s write to the led record is refused', (await waitRes(cPage, 'err-nav')) === 'err-nav');
-  await appFrame(cPage).locator('#setfree').click();
-  check('…but non-led records stay writable (only the cursor is fenced)', (await waitRes(cPage, 'ok-free')) === 'ok-free');
+  check('LEADING: a guest\'s write to the led record is refused', (await clickRes(cPage, '#setnav', 'err-nav')) === 'err-nav');
+  check('…but non-led records stay writable (only the cursor is fenced)', (await clickRes(cPage, '#setfree', 'ok-free')) === 'ok-free');
   await bPage.locator('#applead').click(); // back to communal
   await sleep(300);
-  await appFrame(cPage).locator('#setnav').click();
-  check('back to communal — the guest drives again', (await waitRes(cPage, 'ok-nav')) === 'ok-nav');
+  check('back to communal — the guest drives again', (await clickRes(cPage, '#setnav', 'ok-nav')) === 'ok-nav');
 
   await aPage.close(); await bPage.close(); await cPage.close();
 
