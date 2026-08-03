@@ -42,8 +42,19 @@ void Seat::recheckSitting(){
     // Confirmed seated by first-hand contact with the joiner at this cell.
     if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ del.push_back(e.first); continue; }
     if(TICK-s.at < SIT_RECHECK) continue;
-    // The check-back: never heard from the joiner at this cell — free it now.
+    // The check-back, PROBE-GATED (H1-S1's conservatism, at admission scale).
+    // A vouch with no first-hand answer is asked about across the mesh; only
+    // silence on every path frees it. Freeing on my own silence alone was
+    // wrong in exactly the case this law exists to survive: an admitter that
+    // cannot hear — a DARK seat, seated and greeting but with no DataChannel
+    // to anyone — never receives the CLAIM, so it evicted a live, correctly-
+    // seated guest and then admitted somebody else onto it (adversary-room:
+    // the late joiner saw 3 of 11). A killed tab answers no probe either, so
+    // the ghost-churn case is unchanged, just confirmed instead of assumed.
     if(occGet(e.first)!=s.joiner && !firstHandLive(e.first)){
+      auto pa=probeAck.find(e.first);
+      if(pa!=probeAck.end() && pa->second>=s.at){ del.push_back(e.first); continue; }   // it answered: alive, vouch discharged
+      if(TICK-s.at < SIT_CONFIRM){ routeTo(unck(e.first),1); continue; }                // ask, and hold the chair while asking
       del.push_back(e.first); healTry.erase(e.first);
       continue;
     }
