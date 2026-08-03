@@ -1545,47 +1545,49 @@
             // room's DC took ~40s to form), and every fan re-shipped it. Now
             // the snap carries STATE only (cheap, sign-per-change is fine) and
             // the bytes travel as a separate owner-signed 'app' frame, encoded
-            // and signed ONCE, sent only when a client asks ('need-app') —
-            // throttled, DC-borne like every sga frame.
-            let appB64 = null, lastAppSent = 0, appPendingTimer = null;
+            // and signed ONCE, broadcast at startup, then RETAINED on every
+            // node it reaches and pulled peer-to-peer by latecomers.
+            let appB64 = null, appSeeded = false, appSeedTimer = null;
+            // SEED THE APP ONCE, UNPROMPTED — the owner is not a server.
+            // This used to run ONLY in reply to a client's 'need-app', i.e.
+            // every guest DIALLED THE HOST for the file. That is the star
+            // pattern one-runtime deleted everywhere else, left behind here: it
+            // makes the owner (typically a phone) an origin server for every
+            // guest who ever arrives, so it cannot scale to a large room, and
+            // it did not even work at two people — the request rides the stage
+            // channel, sgaFan delivers only to peers whose DC is ALREADY open,
+            // and a just-seated guest has none. Measured: a guest sent five
+            // asks while the owner's ledger read asks=0.
+            //
+            // Now the bytes are broadcast ONCE and RETAINED on every node they
+            // reach (meet.html sgaApp), so a latecomer pulls them from whichever
+            // PEER already holds them (sga-appreq / sga-app pull-through). The
+            // owner seeds itself in the same call and is then just the first
+            // seeder — one holder among many.
             const sendAppBytes = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
-              const now = Date.now();
-              // 1.5s, NOT 8s. The 8s floor was set when the app rode inside the
-              // retained snap at ~11MB b64; the standalone frame measured 339KB
-              // and appB64 is encoded ONCE, so a resend costs one signature and
-              // a 339KB broadcast. Traced across three boxes, that 8s window was
-              // adding a flat 8.1s to any guest arriving just after another
-              // (snap@18006 -> app-frame@26134). A 1.5s floor still coalesces a
-              // retry storm — the asker's own backoff starts at 300ms — while
-              // making a second joiner's wait unnoticeable.
-              const wait = 1500 - (now - lastAppSent);
-              if (wait > 0) {
-                // THROTTLED — BUT DO NOT DROP THE REQUEST (2026-08-02). A client
-                // only sends 'need-app' when it does NOT have the bytes, so
-                // discarding the ask left it waiting for its own next retry, and
-                // measured ACROSS THREE MACHINES the joiner's app mount was
-                // 1.6s / 7.7s / 7.7s / 20.7s / 36.5s / 7.7s — 6s multiples, i.e.
-                // whole retry drums lost to this branch. Remember that somebody
-                // still needs it and send ONCE when the window lifts. The frame
-                // is a room BROADCAST, so one send serves every waiting joiner
-                // and the 8s floor still protects the owner from re-encoding and
-                // re-signing megabytes per ask.
-                if (!appPendingTimer) {
-                  appPendingTimer = setTimeout(() => { appPendingTimer = null; sendAppBytes(); }, wait + 50);
-                }
-                return Promise.resolve();
-              }
-              lastAppSent = now;
-              if (!appB64) appB64 = gif.b64encode(appBytes); // encode once — the heavy half
-              // SIGN FRESH EVERY SEND (2026-08-02): frames carry a monotonic n
-              // and the verifier rejects n <= lastN as replay ('stale'). A
-              // cached signed frame kept its mint-time n while snaps/deltas
-              // advanced the clients' lastN — so the app frame arrived
-              // forever-stale and nobody could mount (found by the wolves
-              // room's frame tap; it also explains chess's join "slowness").
+              if (!appBytes) return Promise.resolve();
+              try {
+                if (!appB64) appB64 = gif.b64encode(appBytes); // encode once — the heavy half
+              } catch (e) { return Promise.resolve(); }
+              // SIGN FRESH: frames carry a monotonic n and the verifier rejects
+              // n <= lastN as replay. The signature is also what makes
+              // PEER-SERVED bytes safe — a relaying peer passes this frame on
+              // verbatim and can carry the app but never forge it.
               return stageSigner.sign(sid, 'app', { app: appB64, name: manifest.name || 'App' })
-                .then((f) => stageBus.send('app', f)).catch(() => {});
+                .then((f) => { stageBus.send('app', f); appSeeded = true; })
+                .catch(() => {});
+            };
+            // FIRE-AND-FORGET, never in the attach promise. b64encode is a
+            // SYNCHRONOUS multi-megabyte call: when the seed sat inside
+            // `sendSnap().then(sendAppBytes)` a throw there rejected
+            // attachStageBus, the owner's whole setup aborted, and every guest
+            // then saw nothing at all — no snap, no app. Retry on a slow drum
+            // until it is actually out, so one bad moment cannot leave the room
+            // without bytes.
+            const seedApp = () => {
+              if (appSeeded) return;
+              Promise.resolve().then(() => sendAppBytes()).catch(() => {});
             };
             const sendSnap = () => {
               if (!stageBus || !stageSigner) return Promise.resolve();
@@ -1638,7 +1640,6 @@
                 stageUnsub = bus.subscribe((m) => {
                   if (!m) return;
                   if (m.kind === 'act') onAct(m.d);
-                  else if (m.kind === 'need-app') sendAppBytes(); // a mounting client wants the bytes
                 });
                 // Refresh the retained snapshot (with app bytes) on a debounce,
                 // and push a live delta immediately, on every change.
@@ -1648,6 +1649,11 @@
                 };
                 announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
                 setStatus('Live on the meeting mesh — app-state is owner-signed');
+                seedApp();                       // fire-and-forget; retried by the drum below
+                if (!appSeedTimer) appSeedTimer = setInterval(() => {
+                  if (appSeeded) { clearInterval(appSeedTimer); appSeedTimer = null; return; }
+                  seedApp();
+                }, 3000);
                 return sendSnap().then(() => ({ pk: signer.pkHex }));
               });
             };
@@ -1841,22 +1847,23 @@
       // per keystroke starved the owner's signaling; see attachStageBus). Ask
       // on a slow drum until mounted: the first ask may fire before any DC is
       // wired and vanish; a later one lands.
-      // BACK OFF FROM FAST, don't drum slowly from the start (2026-08-02). The
-      // first ask genuinely can vanish — it may fire before any DC is wired —
-      // but a flat 6s drum made every lost ask cost a FULL SIX SECONDS, and
-      // measured across three machines (host, joiner and relay each on their
-      // own box, joiner idle at loadavg 0.30) the mount landed at 1.6s, 7.7s,
-      // 7.7s, 20.7s, 36.5s, 7.7s — 6s multiples, one per swallowed ask. A guest
-      // staring at an empty room for half a minute closes the tab.
-      // 300ms, 600ms, 1.2s, 2.4s, 4.8s, then settle at 6s: a lost first ask now
-      // costs 300ms, while a genuinely absent owner is still only polled every
-      // 6s in the steady state, so this adds no load to the case that drum was
-      // protecting.
+      // NO DIRECT DIAL TO THE HOST — the last star-shaped edge, now gone.
+      // There used to be an askApp() drum here sending 'need-app' to the owner
+      // until the bytes came back. It could never help the guests that needed
+      // it: the request rides the same stage channel as everything else, so a
+      // guest with no open DataChannel had its asks dropped silently (measured:
+      // five asks sent, owner ledger asks=0), while a guest WITH a channel
+      // would be served by the mesh anyway.
+      //
+      // The app bytes are retained on every node that holds them and pulled
+      // peer-to-peer (meet.html: sga-appreq / sga-app, mirroring the retained
+      // snap's pull-through, re-driven the instant a channel opens). Mounting
+      // therefore needs nothing from the owner specifically — this subscriber
+      // just waits for the frame to arrive from ANY peer, which is the only
+      // shape that scales past a handful of guests.
       // JOIN TIMELINE. The end-to-end "guest sees the app" number cannot say
-      // WHICH leg was slow, and the legs mean different bugs: waiting for the
-      // owner's retained snap is mesh/DC establishment, whereas asks going
-      // unanswered is the bytes path. Measured across three boxes the total
-      // ranged 1.6s-36.5s, and I guessed at the cause twice before recording it.
+      // WHICH leg was slow, and the legs are different bugs: no snap means mesh
+      // /DC establishment, a snap with no app frame means the bytes path.
       const joinT0 = Date.now();
       const joinTrace = [];
       const trace = (ev, extra) => {
@@ -1864,22 +1871,6 @@
           joinTrace.push(Object.assign({ ms: Date.now() - joinT0, ev }, extra || {}));
           root.__appJoinTrace = joinTrace;
         } catch (e) {}
-      };
-      let askTimer = null, askDelay = 300;
-      const askApp = () => {
-        if (mounted) return;
-        trace('ask');
-        try { send('need-app', {}); } catch (e) {}
-        if (askTimer) return;
-        const tick = () => {
-          askTimer = null;
-          if (mounted) return;
-          trace('ask');
-          try { send('need-app', {}); } catch (e) {}
-          askDelay = Math.min(6000, askDelay * 2);
-          askTimer = setTimeout(tick, askDelay);
-        };
-        askTimer = setTimeout(tick, askDelay);
       };
       const mountFromB64 = (b64, name) => {
         if (mounted || !b64) return Promise.resolve();
@@ -1890,22 +1881,18 @@
           filesRef = archive.files; manifestRef = gif.readManifest(archive) || { name: name || 'App' };
           dataVis = manifestRef.data || {};
           if (typeof document !== 'undefined') document.title = (manifestRef.name || 'App') + ' — GifOS (mesh)';
-          if (askTimer) { clearTimeout(askTimer); askTimer = null; }
           mount();
         });
       };
       const onSnap = (body) => {
         trace('snap');
         if (body && body.state && body.state.collections) { mirror = body.state; reconcilePending(); }
-        if (!mounted) {
-          if (body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
-          askApp();
-        }
+        if (!mounted && body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
         notify('*');
       };
 
       const unsub = subscribe((m) => {
-        if (!m || m.kind === 'act' || m.kind === 'need-app') return; // client→owner directions
+        if (!m || m.kind === 'act') return; // client->owner direction
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) { try { console.error('[bootClientBus] frame REJECTED kind=' + (m.kind || '?') + ' reason=' + (r && r.reason || '?')); } catch (e2) {} return; } // unsigned / impostor / tampered — NEVER canonical
           takeLead(r.body); // the signed lead fence rides every canonical frame
@@ -1919,18 +1906,9 @@
         }).catch(() => {});
       });
 
-      // ASK IMMEDIATELY, don't wait for a snap. askApp() used to be reachable
-      // only from onSnap, so a guest whose first snap was late could not even
-      // BEGIN asking — and the snap is exactly the leg measured as bimodal
-      // across three boxes: ~6ms, or 14-30s. mountFromB64 needs no snap (it
-      // mounts from the app frame alone), so there is nothing to wait for.
-      // Combined with the 300ms backoff, an ask that vanishes because the DC
-      // is not wired yet now retries into it within a few hundred ms instead
-      // of riding on whenever the owner's next snap happens to arrive.
-      askApp();
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
-        stop: () => { try { unsub && unsub(); } catch (e) {} if (askTimer) { clearTimeout(askTimer); askTimer = null; } clearInterval(actSweep); pendingActs.clear(); },
+        stop: () => { try { unsub && unsub(); } catch (e) {} clearInterval(actSweep); pendingActs.clear(); },
         // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
         // survival story. snapshot() packs app bytes + the owner-verified
         // mirror into a snapshot GIF — the successor adopts it (resilient
