@@ -453,6 +453,18 @@
         try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); else if (o && o.p === peer) sealedFps.push('SELF'); else sealedFps.push('X' + blobFp(s)); /* net.open resolves NULL on wrong key — the sealed-under-a-different-key case */ } catch (e) { sealedFps.push('E' + blobFp(s)); }
       }
       if (stopped || !seat) return;
+      // DEBUG sever (drill lever, mirrors ingest's drop): while a pid is
+      // severed, the DOOR must not show it either. The fragment rescue reads
+      // the pool as ground truth for "who is reachable", so a manufactured
+      // pair partition that leaves the counterpart visible at the door
+      // un-forks itself mid-sever: the solo seat requeues into a knock-loop
+      // toward a peer whose frames are all dropped, and the drill's stable
+      // both-solo window never forms (e2e-fork-heal premise leak, 2026-08-03
+      // — surfaced when the entry-pacing fix made the rescue prompt).
+      try {
+        const sv = (typeof window !== 'undefined') && window.__severed;
+        if (sv && sv.size) { const now = Date.now(); for (let i = ids.length - 1; i >= 0; i--) if ((sv.get(ids[i]) || 0) > now) ids.splice(i, 1); }
+      } catch (e) {}
       regPendingAt = 0; // the relay answered — the socket is provably alive
       // Capture join state BEFORE recv — GREETERS empty+founded take()s at
       // state===0 and leaves state=3, so a post-recv snapshot would hide the
