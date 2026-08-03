@@ -859,6 +859,36 @@ void Seat::recv(Msg& m){
         bool other=false; for(int g:m.list) if(g!=id && g>=0){ other=true; break; }
         if(other){ requeue(); return; }
       }
+      // TWO-RING RECONCILIATION (2026-08-02): the lone-fragment rescue above
+      // needs a seat hearing NOBODY — but a churn can rebuild TWO complete
+      // home rings in one session (each ring hears its own rook, so neither
+      // is "isolated"), a stable split-brain the sweep found at C=2 (three
+      // duplicated home cells for 20k ticks). Both rings' greeters share the
+      // ONE door: a pool-listed id that appears NOWHERE in my occ is a
+      // greeter of a ring I cannot see — greet it; if we contest a cell, E2
+      // settles it (lower id wins, the loser requeues through the door into
+      // the winning ring), and mutual occ learning cascades the rest. Under
+      // a TRUE partition the HELLO is undeliverable, so two-clean-homes is
+      // untouched. THREE dormancy gates keep it out of ordinary life:
+      //   QUIESCENCE (Q2 hysteresis — mid-churn a "full" home view is
+      //   routinely full of corpses while the pool lists replacements;
+      //   greeting through that fired 157× in the compaction shrink),
+      //   FULL HOME (a stranger while my home has holes is a transient),
+      //   PERSISTENCE (eight consecutive E3 sightings — any legit
+      //   staleness resolves in one or two; a rival ring never does).
+      if(state==3&&coord.pc==0&&TICK-seatedAt>80&&TICK-lastChurn>300&&TICK-healAt>300){
+        bool full=true;
+        for(int r=0;r<C&&full;r++) for(int i=0;i<C&&full;i++) if(!occ.count(ckey({0,(uint8_t)r,(uint8_t)i}))) full=false;
+        if(full){
+          unordered_set<int> known; for(auto&e:occ) known.insert(e.second);
+          unordered_map<int,int> next;
+          for(int g:m.list) if(g>=0&&g!=id&&!known.count(g)){
+            int seen=(strangeSeen.count(g)?strangeSeen[g]:0)+1; next[g]=seen;
+            if(seen>=8){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(g,h); next.erase(g); }   // 8 consecutive E3 cycles ≈ 1600-3200 ticks: an order past any legit staleness window (live mates' S1SYNC overwrites a non-first-hand corpse cell within beats), far inside a standoff's lifetime
+          }
+          strangeSeen.swap(next);   // ids no longer listed/known drop out
+        } else strangeSeen.clear();
+      }
       return; }
     case WHOHOME: {
       if(!hasCoord){ Msg h;h.t=HOME; emit(m.from,h); return; }
