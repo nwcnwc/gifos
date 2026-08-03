@@ -172,11 +172,15 @@
   }
 
   // The App Store's DEFAULT spot is right below the Stolen Apps chest (user
-  // decision 2026-08-02): the store and the loot live together. But the chest
-  // is created by ensureSystemItems, which runs AFTER seeding in the boot
-  // chain — so seedIfEmpty holds the store app here and ensureSystemItems
-  // places it once the chest exists. Only a FRESH seed does this; existing
-  // desktops keep whatever arrangement the user has made.
+  // decision 2026-08-02): the store and the loot live together. The chest is
+  // ensureSystemItems' to create, so seedIfEmpty holds the store back, calls
+  // ensureSystemItems ITSELF, and places the store before returning — the
+  // placement must not outlive this function. Handing it to the later
+  // ensureSystemItems in the boot chain instead put an UNPLACED default app
+  // in front of reseedDefaultsIfNeeded, which correctly saw the appId missing
+  // and added its own copy: two App Store icons after every erase (erase sets
+  // gifos_reseed, so the rebuild runs on the very next boot — caught by
+  // e2e.js's "reset re-seeds a fresh desktop", 12 root items where 11 belong).
   let pendingStoreApp = null;
   async function seedIfEmpty() {
     if (items.length) return;
@@ -201,6 +205,17 @@
     };
     for (const folder of seed.folders) await putFolder(folder, null, rightX, rowY(rightRow++));
     await load();
+    // The chest first (it owns the cell the store aims below), then the store —
+    // both inside this function, so nothing downstream ever sees a default app
+    // that exists in the seed but not on the desktop.
+    await ensureSystemItems();
+    if (pendingStoreApp) {
+      const a = pendingStoreApp; pendingStoreApp = null;
+      const chest = items.find((i) => i.id === 'sys_stolen');
+      const at = chest ? { x: chest.x, y: chest.y + GRID.rowPitch } : { x: GRID.origin, y: rowY(leftRow++) };
+      await putDefaultApp(a, null, at);
+      await load();
+    }
   }
 
   // ---- rebuild the built-in default apps from THIS build's code ----------------
@@ -350,15 +365,6 @@
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
         x: at.x, y: at.y, iconSize: 64 };
       await saveItem(stolen, { at });
-      await load();
-      stolen = items.find((i) => i.id === 'sys_stolen') || stolen;
-    }
-    // A fresh seed held the App Store back (see seedIfEmpty): place it right
-    // below the chest now that the chest has a cell. saveItem still resolves
-    // the aim to a free cell, so nothing can ever stack.
-    if (pendingStoreApp) {
-      const a = pendingStoreApp; pendingStoreApp = null;
-      await putDefaultApp(a, null, { x: stolen.x, y: stolen.y + GRID.rowPitch });
       await load();
       stolen = items.find((i) => i.id === 'sys_stolen') || stolen;
     }
