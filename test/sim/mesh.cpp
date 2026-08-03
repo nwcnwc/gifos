@@ -81,6 +81,13 @@ static const long long RING_HOLD=220;
 // firstHandLive hand-off gate and never PLACE-TTL alone as the sole fix.
 static const long long SIT_TTL=90;       // soft sitting-down backstop (ticks)
 static const long long SIT_RECHECK=25;   // assigner recheck cadence
+// The CHECK-BACK's probe window: at SIT_RECHECK the assigner starts asking the
+// mesh whether its admittee lives; an unanswered vouch frees at SIT_CONFIRM.
+// Never free on silence alone — an admitter that cannot HEAR (a dark seat:
+// seated, greeting, but no DataChannel to anyone) never receives its
+// admittee's CLAIM, so "I have not heard from it" says nothing about the
+// joiner and everything about me.
+static const long long SIT_CONFIRM=50;
 // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies (a
 // FIRST-HAND observation — the modelled DataChannel close, never gossip), the
 // confirm probe may start immediately instead of waiting out the silence
