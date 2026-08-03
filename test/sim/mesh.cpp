@@ -179,7 +179,16 @@ static inline void wake(int id){ if(PAR) tlsWake[curTid()].push_back(id); else n
 struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
-  Occ occ, live, s1seen, healTry, cousins, holeSince; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
+  Occ occ, live, s1seen, healTry, cousins, holeSince;
+  // liveBy: WHO earned each cell's last first-hand contact (E2 sharpened,
+  // 2026-08-02). `live` is keyed by CELL, so a stale gossip echo that captured
+  // occ during a first-hand gap then borrowed the REAL occupant's freshness:
+  // occ said ghost, live was fresh from the true occupant's own beats, and the
+  // tenure rule evicted the true occupant as an impostor (harness D5-sever: an
+  // immortal join-era ghost — kept alive by the S1SYNC lower-id tie-break
+  // re-winning at every age-laundered hop — evicted a severed-but-alive peer).
+  // Tenure now protects an occupant only when the fresh contact IS its own.
+  unordered_map<uint64_t,int> liveBy; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   // A three-state soft marks: cell → {joiner, assigner, at}. Empty = no entry in
   // occ/sitting; sitting-down = sitting[]; seated = occ + firstHandLive (or self).
   struct SoftSit { int joiner; int assigner; int at; };
@@ -199,6 +208,7 @@ struct Seat {
   // The law always assumed the tick cadence; these guards make it real. A
   // same-tick repeat is DEFERRED (reAsk/reJoin) and fired by the next tick().
   int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
+  bool gwRefused=false;   // GATEWAY-FIRST scope: my gateway answered my ask with NOROOM this join attempt — stop preferring it (see pickRoster)
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
@@ -312,7 +322,7 @@ struct Seat {
   inline void markSitting(uint64_t k,int joiner){ sitting[k]={joiner,id,(int)TICK}; }
   // Confirm seated for joiner at k (CLAIM/HELLO/take path).
   inline void confirmSeated(uint64_t k,int joiner){
-    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
+    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; liveBy[k]=joiner; noteS1(k);
   }
   void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
@@ -348,7 +358,7 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); gwRefused=false; if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
   void askSeat(int target){ if(askTick==(int)TICK){ reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
@@ -358,14 +368,17 @@ struct Seat {
   // my knock is the one roster member proven alive THIS INSTANT; a random pick
   // can land on a just-departed seat that is still s1Fresh at the greeter (its
   // LEAVE lost, its transport death not yet registered), and one silent ask
-  // costs the seeker its whole retry window. Prefer the gateway for the FIRST ask of a join attempt
-  // (seatTries==0) ONLY — a NOROOM lifts its author's silent mark, so an
-  // always-refusing gateway would stay eternally preferred and the seeker
-  // would ping-pong NOROOM with one greeter forever (mass-rejoin livelock:
-  // sweep kill=0.5 seed=5 went 29/400 seated). Re-asks spread randomly; the random pick still spreads door load across seekers, because
-  // every seeker's gateway is a different pool entry. A silent gateway falls
-  // out via triedSilent and the spread resumes.
-  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } if(seatTries==0 && gateway>=0) for(int f2:fresh_) if(f2==gateway) return gateway; vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
+  // costs the seeker its whole retry window. Scope: prefer the gateway UNTIL
+  // IT REFUSES ME (gwRefused — set by a NOROOM authored by the gateway,
+  // cleared per join attempt). Unconditional preference livelocked mass
+  // rejoin (a NOROOM lifts its author's silent mark, so an always-refusing
+  // gateway stayed eternally preferred: sweep kill=0.5 seed=5 went 29/400);
+  // first-ask-only was wrong the other way (post-s1all rosters are
+  // corpse-heavy and random re-asks burned a 60-tick silent window per
+  // corpse: mesh-harness s1all went 10/475) — a corpse's SILENCE must never
+  // demote the one target proven alive. Door load still spreads: every
+  // seeker's gateway is a different pool entry.
+  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } if(!gwRefused && gateway>=0) for(int f2:fresh_) if(f2==gateway) return gateway; vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first) && !translost.count(e.first)) out.push_back({e.first,e.second}); } return out; }  // a standing-translost occupant is UNREACHABLE-PENDING-PROBE: handing it to a newcomer as a gateway wastes their whole retry window (the honest answer is silence, not a corpse)
 
   void take(Coord c,int owner,vector<KV>&nbrs);
