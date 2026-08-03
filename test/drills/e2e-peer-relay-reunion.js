@@ -180,7 +180,8 @@ const check = (n, c, d) => {
     try {
       const V = window.__gifosVideo; const d = V.debugDump();
       return { live: V.liveLinks(), st: d.me.state, coord: d.me.coord,
-        links: d.me.links, occ: d.me.occ, tx: V.txStats(),
+        links: d.me.links, occ: d.me.occ, tx: V.txStats(), rx: V.rxStats(),
+        starve: window.__starve ? { kicked: window.__starve.kicked, why: window.__starve.why } : null,
         roster: (d.roster || []).map((r) => (r.name || '?') + ':' + (r.conn ? 'Y' : 'n') + (r.relay ? '+via' : '')) };
     } catch (e) { return { err: String(e && e.message || e).slice(0, 60) }; }
   }).catch(() => ({ err: 'eval-failed' }));
@@ -195,9 +196,13 @@ const check = (n, c, d) => {
     if (hubLinks >= 2) break;
     await sleep(5000);
   }
-  console.log('  hub-links timeline: ' + timeline.map((s) => s.t + 's=' + (s.hub && s.hub.live != null ? s.hub.live : '?')).join(' ') + ' (2 links @' + (hubLinks >= 2 ? Math.round((Date.now() - t0abs) / 1000) + 's' : 'NEVER') + ')');
+  const wireSecs = Math.round((Date.now() - t0abs) / 1000);
+  console.log('  hub-links timeline: ' + timeline.map((s) => s.t + 's=' + (s.hub && s.hub.live != null ? s.hub.live : '?')).join(' ') + ' (2 links @' + (hubLinks >= 2 ? wireSecs + 's' : 'NEVER') + ')');
   check('Hub (bridge peer) has live links to both islands', hubLinks >= 2, hubLinks);
-  if (hubLinks < 2) for (const s of timeline) console.log('  [forensics t+' + s.t + 's] ' + JSON.stringify(s));
+  // Forensics on failure AND on slow wiring (>12s = a watchdog had to rescue
+  // it): the slow pass is the recoverable face of the never-wires flake, and
+  // at ~1-in-15 it is the specimen we can actually catch.
+  if (hubLinks < 2 || wireSecs > 12) for (const s of timeline) console.log('  [forensics t+' + s.t + 's] ' + JSON.stringify(s));
   await camOn(hub); // Hub's camera on too (its own feed rides beside the forwards)
 
   // Peer-relay asks after ~10s of downSince; allow wall-clock room for
