@@ -172,14 +172,31 @@ const check = (n, c, d) => {
   // loaded gate box (this drill runs beside the rest of the battery) that has
   // been measured taking past 45s — the assertion below is unchanged, this is
   // only how long we are willing to wait for it. Flagged FLAKY by the gate at
-  // 45s, green on the retry.
-  await hub.page.waitForFunction(() => {
-    try { return window.__gifosVideo.liveLinks() >= 2; } catch (e) { return false; }
-  }, null, { timeout: 90000 }).catch(() => {});
-  const hubLinks = await hub.page.evaluate(() => {
-    try { return window.__gifosVideo.liveLinks(); } catch (e) { return -1; }
-  });
+  // 45s (liveLinks()=0 — ZERO, not one-of-two), green on the retry.
+  // FORENSICS: sample all three pages while waiting, print the timeline only
+  // if the leg fails — a bare "0" cannot say whether Hub never dialled, its
+  // offers were refused (seat not yet learned), or ICE genuinely stalled.
+  const sample = (u) => u.page.evaluate(() => {
+    try {
+      const V = window.__gifosVideo; const d = V.debugDump();
+      return { live: V.liveLinks(), st: d.me.state, coord: d.me.coord,
+        links: d.me.links, occ: d.me.occ, tx: V.txStats(),
+        roster: (d.roster || []).map((r) => (r.name || '?') + ':' + (r.conn ? 'Y' : 'n') + (r.relay ? '+via' : '')) };
+    } catch (e) { return { err: String(e && e.message || e).slice(0, 60) }; }
+  }).catch(() => ({ err: 'eval-failed' }));
+  const timeline = [];
+  const t0abs = Date.now(); // t+0 = Hub seated
+  const hubDeadline = t0abs + 90000;
+  let hubLinks = -1;
+  while (Date.now() < hubDeadline) {
+    const [h, l, r] = await Promise.all([sample(hub), sample(left), sample(right)]);
+    timeline.push({ t: Math.round((Date.now() - t0abs) / 1000), hub: h, left: l, right: r });
+    hubLinks = (h && h.live != null) ? h.live : -1;
+    if (hubLinks >= 2) break;
+    await sleep(5000);
+  }
   check('Hub (bridge peer) has live links to both islands', hubLinks >= 2, hubLinks);
+  if (hubLinks < 2) for (const s of timeline) console.log('  [forensics t+' + s.t + 's] ' + JSON.stringify(s));
   await camOn(hub); // Hub's camera on too (its own feed rides beside the forwards)
 
   // Peer-relay asks after ~10s of downSince; allow wall-clock room for
