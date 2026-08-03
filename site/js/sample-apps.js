@@ -1530,6 +1530,18 @@ app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this i
 opens the built-in meeting page when opened in GifOS.</p>
 <p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a meeting.</p></div>`;
 
+  // Same idea for Broadcast: the Meet page wearing its broadcast skin — one
+  // host live on the Stage, unlimited viewers, chat as the back-channel.
+  const BROADCAST_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
+  body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+  .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
+  h2{color:#ff5c78;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#ff5c78}
+</style><div class="card"><h2>Broadcast</h2>
+<p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
+app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
+opens the built-in broadcast page when opened in GifOS.</p>
+<p>Open this GIF on your Home Screen at <code>gifos.app</code> to go live.</p></div>`;
+
   // Same idea for the App Store: the icon is a real GIF, but installing an app
   // means writing to this computer's Home Screen, which the app sandbox cannot
   // and must not do. The runtime routes it to the trusted store page instead.
@@ -2624,6 +2636,12 @@ document.getElementById('f').onsubmit=async e=>{
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
       files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
                'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') },
+    }, {
+      // Meeting's sibling: the same trusted page wearing the broadcast skin
+      // (meet.html#bc=1) — one host on the Stage, unlimited viewers, chat.
+      name: 'Broadcast.gif', appId: 'broadcast', accent: [255, 92, 120],
+      files: { 'manifest.json': manifest('broadcast', 'Broadcast', [255, 92, 120], { system: 'broadcast' }),
+               'index.html': themeHtml(BROADCAST_FALLBACK_HTML, 'full') },
     }, {
       // Where more apps come from. A system launcher for the same reason
       // Meeting is one: the store installs onto this Home Screen, and the
