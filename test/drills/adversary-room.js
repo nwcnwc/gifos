@@ -239,13 +239,37 @@ const check = (n, c, d) => {
   // peers that can talk to each other is never acceptable.
   check('no two MUTUALLY REACHABLE peers share a cell',
     reachableDups === 0, reachableDups + ' reachable duplicate pair(s)');
-  const pops = [];
-  for (const u of users) {
-    const p = await u.page.evaluate(() => { try { return window.__gifosVideo.debugDump().participants; } catch (e) { return -1; } }).catch(() => -1);
-    if (p > 0) pops.push(p);
+  // WAIT FOR THE VIEW TO CONVERGE, then judge it. This was sampled ONCE,
+  // moments after Phase 5 seated a brand-new joiner — and room population
+  // rides gossip, which reaches that joiner over the links it is still
+  // building. The outlier was therefore the FINAL joiner every time, still
+  // catching up: measured on the 8-core gate box, counts=…,10,10,10,3 with
+  // the low value always last, and at the PRE-EXISTING baseline (19b023e,
+  // before any 0.9.0 mesh work) the same shape failed 3 runs in 5. It is a
+  // sampling race, not a split: the dark adversaries — the pages that
+  // genuinely cannot complete P2P — were reporting 10-11 all along.
+  // Polling to convergence keeps the assertion exactly as strict (spread ≤ 2
+  // across EVERY page, adversaries included) and stops it firing before the
+  // room has had a chance to be one room. A real split never converges, so
+  // it still fails, just at the end of the window instead of the start.
+  const pollPops = async () => {
+    const out = [];
+    for (const u of users) {
+      const p = await u.page.evaluate(() => { try { return window.__gifosVideo.debugDump().participants; } catch (e) { return -1; } }).catch(() => -1);
+      if (p > 0) out.push(p);
+    }
+    return out;
+  };
+  let pops = [], spread = 99;
+  const popT0 = Date.now();
+  while (Date.now() - popT0 < 45000) {
+    pops = await pollPops();
+    spread = pops.length ? Math.max(...pops) - Math.min(...pops) : 99;
+    if (spread <= 2) break;
+    await sleep(3000);
   }
-  const spread = pops.length ? Math.max(...pops) - Math.min(...pops) : 99;
-  check('all participants see ONE room (population agrees within 2)', spread <= 2, 'counts=' + pops.join(','));
+  check('all participants see ONE room (population agrees within 2)', spread <= 2,
+    'counts=' + pops.join(',') + ' after ' + Math.round((Date.now() - popT0) / 1000) + 's');
 
   // ── TICK RATE: the greeter pool's margin is thin, so measure it ──────────
   // A Section-1 seat holds its place in the greeter registry by re-knocking
