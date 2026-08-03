@@ -87,6 +87,16 @@ const check = (n, c, d) => {
   };
 
   // ── Phase 1: the split exists BEFORE any bridge ──────────────────────────
+  // THE SPLIT IS STATED AT PAGE-INIT ON BOTH ENDS, by NAME. A peer id is
+  // H(pubkey), minted at page boot, so LeftIsle could only be told rightId
+  // after RightIsle existed — and one side's candidates are enough to connect
+  // on a LAN (the far end learns the address peer-reflexively from the
+  // incoming STUN binding), so any dial inside that window produced live media
+  // between the "split" islands and the drill's own premise failed
+  // (splitLeft:false, measured). The window stayed shut while dialling was
+  // id-order-gated; a seat with no open channel now dials every neighbour the
+  // mesh names, so it opens on most runs. Names are known before any page
+  // loads — no window, and the block stays narrow (Hub must ICE to both).
   const left = await newUser('LeftIsle');
   await left.page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await left.page.locator('#lob-open').click();
@@ -102,15 +112,23 @@ const check = (n, c, d) => {
   });
   check('LeftIsle founded a room and has a peer id', !!leftId, leftId);
 
-  // RightIsle cannot ICE to LeftIsle (and LeftIsle will refuse RightIsle once
-  // the block is known — we also push the reverse block after RightIsle sits).
+  // RightIsle knows leftId before it boots (LeftIsle founded the room), so its
+  // half of the blackhole is exact from page-init; LeftIsle is told rightId as
+  // soon as RightIsle HAS an id — its peer id is H(pubkey), minted at page
+  // boot, well before it seats and long before LeftIsle can learn of it
+  // through the mesh. (Waiting for the SEAT, as this drill used to, left
+  // LeftIsle unblocked across the whole join; one side's candidates are enough
+  // on a LAN, so a dial in that window would make live media between the
+  // "split" islands. Blocking '*' on LeftIsle instead is NOT the answer: it
+  // churns its pairs and Hub then finds no links at all — measured.)
   const right = await newUser('RightIsle', [leftId]);
   await right.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const rightId = await right.page.waitForFunction(
+    () => { try { return window.__gifosVideo.debugDump().me.peer || null; } catch (e) { return null; } },
+    null, { timeout: 45000 }).then((h) => h.jsonValue());
+  await left.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, rightId);
   await right.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.meshState
     && window.__gifosVideo.meshState() && window.__gifosVideo.meshState().state === 3, null, { timeout: 45000 });
-  const rightId = await right.page.evaluate(() => window.__gifosVideo.debugDump().me.peer);
-  // Symmetric ICE blackhole: LeftIsle also drops RightIsle's candidates.
-  await left.page.evaluate((pid) => { window.__gifosBlockIce = [pid]; }, rightId);
   check('RightIsle seated (control plane can still meet via greeters)', !!rightId, rightId);
 
   // Cameras ON for everyone (meet starts cam-off; same idiom as e2e-latejoin).
@@ -122,6 +140,18 @@ const check = (n, c, d) => {
 
   // Wait past the noRoute grace (~15s) so the split is visible, not a slow offer.
   await sleep(18000);
+  // …and wait for the far side to be KNOWN before judging it. tileNoDirectMedia
+  // returns false when it finds no tile, which reads as "not split" — but a
+  // tile is labelled with the peer's NAME, and the name arrives with that
+  // peer's first status or offer. A split pair exchanges neither promptly
+  // (measured on a failing run: LeftIsle at rx.status=0, the name landing off
+  // the 4th offer just after the fixed 18s sample), so the drill was sampling
+  // BEFORE its own premise was observable and calling that a leak. Requiring
+  // the tile first makes the assertion stronger, not weaker: the far side is
+  // known to this page AND has no media path to it.
+  const tileKnown = (name) => () => !!Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(name));
+  await left.page.waitForFunction(tileKnown('RightIsle'), null, { timeout: 30000 }).catch(() => {});
+  await right.page.waitForFunction(tileKnown('LeftIsle'), null, { timeout: 30000 }).catch(() => {});
   const splitLeft = await left.page.evaluate(tileNoDirectMedia('RightIsle')).catch(() => false);
   const splitRight = await right.page.evaluate(tileNoDirectMedia('LeftIsle')).catch(() => false);
   // Also assert neither side already has via-Hub (no bridge exists yet).

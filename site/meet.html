@@ -2916,7 +2916,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // dropped both ways (window.__gifosBlockIce = ['*'|peerId…]) — simulates a
     // firewalled pair. Sealing hid ICE from the e2e suite's old WS-sniffing
     // trick, so the fault now injects at the signaling layer itself.
-    const iceBlocked = (pid) => { const b = window.__gifosBlockIce; return !!b && (b.includes('*') || b.includes(pid)); };
+    // Entries are '*' (everyone), a peer id, or 'name:<screen name>'. The NAME
+    // form exists because a peer id is H(pubkey), minted at page boot: a drill
+    // that wants a pair split cannot name the far end until it exists, so the
+    // block always landed LATE on one side — and one side's candidates are
+    // enough to connect on a LAN (the far end learns the address
+    // peer-reflexively from the incoming STUN binding), which made the
+    // manufactured split leak (e2e-peer-relay-reunion, splitLeft:false).
+    // Names are known before any page loads, so both ends can state the split
+    // at init with no window. Inert unless a test sets the global.
+    const iceBlocked = (pid) => {
+      const b = window.__gifosBlockIce;
+      if (!b || !b.length) return false;
+      if (b.includes('*') || b.includes(pid)) return true;
+      const nm = rosterNames[pid] || (peers.get(pid) || {}).name;
+      return !!nm && b.includes('name:' + nm);
+    };
     // A blocked pair must see NO candidates at all: a re-offer minted after
     // gathering finished carries every candidate INLINE in the SDP, which
     // would tunnel right around the dropped trickle messages — so blocked
