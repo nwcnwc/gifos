@@ -81,6 +81,76 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('a settled desktop (stamp matches) is left alone — no reseed churn',
     noChurn === seeded.len + 4, noChurn + ' vs tampered ' + (seeded.len + 4));
 
+  // ---- folder-multiplication regression (2026-08-03) ------------------------
+  // A SUBFOLDER default ('Single Phone' inside IRL Games) was invisible to
+  // the reseed's folder index — it held only ROOT folders by bare name — so
+  // EVERY reseed minted another empty copy of it. Force two more reseeds and
+  // count: one copy, in its place, still holding its apps.
+  const countSP = () => p.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const sp = items.filter((i) => i.kind === 'folder' && i.name === 'Single Phone');
+    const irl = items.find((i) => i.kind === 'folder' && i.name === 'IRL Games' && !i.parent);
+    return {
+      n: sp.length,
+      inIrl: !!(irl && sp.length && sp.every((s) => s.parent === irl.id)),
+      kids: sp.length === 1 ? items.filter((i) => i.parent === sp[0].id).length : -1,
+    };
+  });
+  for (const stamp of ['edge:999998', 'edge:999995']) {
+    await p.evaluate((s) => localStorage.setItem('gifos_reseed_build', s), stamp);
+    await p.reload();
+    await p.waitForSelector('.icon', { timeout: 30000 });
+  }
+  const sp = await countSP();
+  check('reseeds never multiply a default SUBFOLDER (one Single Phone, inside IRL Games)',
+    sp.n === 1 && sp.inIrl, 'count=' + sp.n);
+  check('…and it still holds its default apps', sp.kids >= 5, 'kids=' + sp.kids);
+
+  // ---- cleanup for desktops the bug already hit -----------------------------
+  // Manufacture the damage (two empty strays beside the real one) and reseed:
+  // the strays purge, the populated copy survives untouched.
+  await p.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const irl = items.find((i) => i.kind === 'folder' && i.name === 'IRL Games' && !i.parent);
+    for (let k = 0; k < 2; k++) {
+      await GifOS.store.putItem({ id: 'stray' + k, kind: 'folder', name: 'Single Phone', parent: irl.id, x: 200 + k * 90, y: 300, iconSize: 64 });
+    }
+    localStorage.setItem('gifos_reseed_build', 'edge:999997');
+  });
+  await p.reload();
+  await p.waitForSelector('.icon', { timeout: 30000 });
+  const cleaned = await countSP();
+  check('a bug-hit desktop heals on reseed: empty stray copies purge, the real one stays',
+    cleaned.n === 1 && cleaned.kids >= 5, 'count=' + cleaned.n + ' kids=' + cleaned.kids);
+
+  // ---- Broadcast-below-Meeting slot migration -------------------------------
+  // An old desktop (Broadcast auto-placed wherever a cell was free, one-shot
+  // flag unset) reseeds: Broadcast moves into the slot directly below
+  // Meeting, opening it by pushing that column down.
+  await p.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const files = await GifOS.store.allFiles();
+    const by = (aid) => items.find((i) => { const f = files.find((x) => x.id === i.fileId); return f && f.appId === aid && !i.parent; });
+    const bc = by('broadcast');
+    bc.x = 12; bc.y = 900; // stranded far away, as the pre-slot reseed left it
+    await GifOS.store.putItem(bc);
+    localStorage.removeItem('gifos_mig_bc_slot');
+    localStorage.setItem('gifos_reseed_build', 'edge:999996');
+  });
+  await p.reload();
+  await p.waitForSelector('.icon', { timeout: 30000 });
+  const slot = await p.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const files = await GifOS.store.allFiles();
+    const by = (aid) => items.find((i) => { const f = files.find((x) => x.id === i.fileId); return f && f.appId === aid && !i.parent; });
+    const meet = by('meet') || by('video'), bc = by('broadcast');
+    const row = parseInt(getComputedStyle(document.getElementById('desktop')).getPropertyValue('--row'), 10);
+    const overlap = items.some((i) => !i.parent && i.id !== bc.id && i.x === bc.x && i.y === bc.y);
+    return { ok: !!meet && !!bc && bc.x === meet.x && bc.y === meet.y + row && !overlap,
+      detail: meet && bc && ('meet@' + meet.x + ',' + meet.y + ' bc@' + bc.x + ',' + bc.y + ' row=' + row + (overlap ? ' OVERLAP' : '')) };
+  });
+  check('the one-shot migration slots Broadcast directly below Meeting, nothing overlapping', slot.ok, slot.detail);
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
