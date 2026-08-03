@@ -9413,8 +9413,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
       const fan = (w) => { for (const pid of gossipIds()) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName(), w }); };
-      if (hasAdminRoom()) admSigned('appstop', { s: ad.s }).then(fan);
-      else fan(undefined);
+      // RETRY-UNTIL-OBSERVED (2026-08-03, e2e-app-governance stop stall): the
+      // appstop fan-out was ONE SHOT over per-pair signaling, and the HOST
+      // missing that one frame is the one loss the room cannot heal around —
+      // everyone else tombstones the sid, but the host keeps advertising, and
+      // its REPEATED status pulse carries the ad forever (measured: appActive
+      // stuck >40s on one page while the rest had converged). Same doctrine as
+      // the act lane's retry-until-echo: while any FRESH status still carries
+      // an ad this tombstone should have killed (ts <= at ⇒ the host has not
+      // heard the stop — a legit re-share mints ts > at and is never touched),
+      // re-fan on a 3s drum, bounded. Receivers keep the newest 'at' so the
+      // re-send is idempotent, and an admin room's signed w re-sends verbatim.
+      const hostStillAdvertising = () => {
+        for (const [pid, st] of statusOf) if (st && st.app && st.app.s === ad.s && (st.app.ts || 0) <= at && stHold(pid) && !meshGone.has(pid)) return true;
+        return false;
+      };
+      const refan = (w, tries) => setTimeout(() => {
+        if (tries <= 0 || !hostStillAdvertising()) return;
+        fan(w); refan(w, tries - 1);
+      }, 3000);
+      if (hasAdminRoom()) admSigned('appstop', { s: ad.s }).then((w) => { fan(w); refan(w, 5); });
+      else { fan(undefined); refan(undefined, 5); }
       setStatus('🧩 You stopped the shared app for everyone here.');
       reconcileApp();
     }
