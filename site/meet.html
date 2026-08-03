@@ -5705,12 +5705,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               // One-shot; waits out the async admin sign-in + S4 identity.
               // Camera and mic still start OFF (quiet-join discipline) — going
               // live on pixels stays a deliberate tap.
+              // canStage is part of the WAIT, not the one-shot's condition:
+              // amAdmin arms straight from the stored key, but `admins` (what
+              // canStage reads) only fills on the next heartbeat — testing it
+              // at the moment amAdmin lands skipped the step-up every time.
               const t0 = Date.now();
               const t = setInterval(() => {
                 if (Date.now() - t0 > 30000) { clearInterval(t); return; }
-                if (!myId || !amAdmin) return;
+                if (!myId || !amAdmin || !canStage(myId)) return;
                 clearInterval(t);
-                if (!myStatus.stg && canStage(myId) && stageIds().length < SCALE.C) setStage(true);
+                if (!myStatus.stg && stageIds().length < SCALE.C) setStage(true);
               }, 250);
             }
           }
