@@ -1900,7 +1900,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // a room password after arriving IS the deliberate "this room may show
       // clear video" act, broadcast or meeting alike. §LOCK keeps sid/token
       // password-free, so a locked broadcast's viewers still route to the
-      // room; the password is the read capability, as ever.)
+      // room; the password is the read capability, as ever.
+      // A TRULY OPEN CLEAR LIVE BROADCAST — clear video to anyone holding
+      // only the link — is DELIBERATELY not a thing and must never become
+      // one: live clear video reachable by unvetted strangers triggers
+      // minor-protection law in many countries. The password gate is the
+      // legal boundary, not a UX inconvenience to optimize away.)
       const clear = !!roomPw && !blocked && (hasAdminRoom() ? (adminPresent() && consents(st)) : allConsent());
       if (clear) return 0;
       return Math.max(1, blurLevel(st.blur));
