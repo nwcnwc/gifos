@@ -199,7 +199,6 @@ struct Seat {
   // The law always assumed the tick cadence; these guards make it real. A
   // same-tick repeat is DEFERRED (reAsk/reJoin) and fired by the next tick().
   int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
-  bool gwRefused=false;   // GATEWAY-FIRST scope: my gateway answered my ask with NOROOM this join attempt — stop preferring it (see pickRoster)
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
@@ -349,27 +348,27 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); gwRefused=false; if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
   void askSeat(int target){ if(askTick==(int)TICK){ reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.
   // (Ported from mesh.js pickRoster — this closed the sim-parity TODO.)
-  // GATEWAY-FIRST (2026-08-02, the fresh-corpse ask): the greeter that ANSWERED
-  // my knock is the one roster member proven alive THIS INSTANT; a random pick
-  // can land on a just-departed seat that is still s1Fresh at the greeter (its
-  // LEAVE lost, its transport death not yet registered), and one silent ask
-  // costs the seeker its whole retry window. Scope: prefer the gateway UNTIL
-  // IT REFUSES ME (gwRefused — set by a NOROOM authored by the gateway,
-  // cleared per join attempt). Unconditional preference livelocked mass
-  // rejoin (a NOROOM lifts its author's silent mark, so an always-refusing
-  // gateway stayed eternally preferred: sweep kill=0.5 seed=5 went 29/400);
-  // first-ask-only was wrong the other way (post-s1all rosters are
-  // corpse-heavy and random re-asks burned a 60-tick silent window per
-  // corpse: mesh-harness s1all went 10/475) — a corpse's SILENCE must never
-  // demote the one target proven alive. Door load still spreads: every
-  // seeker's gateway is a different pool entry.
-  int pickRoster(){ vector<int> live_, fresh_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)) fresh_.push_back(e.v); } if(!gwRefused && gateway>=0) for(int f2:fresh_) if(f2==gateway) return gateway; vector<int>& pool=fresh_.empty()?live_:fresh_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
+  // DOOR-LISTED FIRST (2026-08-02, the fresh-corpse ask): a roster can name a
+  // JUST-DEPARTED seat that is still s1Fresh at the greeter (its LEAVE lost,
+  // its transport death not yet registered), and one silent ask costs the
+  // seeker its whole retry window (the e2e serial-guests "~23s clustering").
+  // The seeker's own last GREETERS list is FRESH DOOR TRUTH — it just knocked
+  // — and a pool entry dies WITH its socket, so a fresh corpse is absent
+  // while every live S1 seat is present. Prefer targets the door lists;
+  // fall back to the plain roster when the intersection is empty. In a
+  // healthy room the intersection IS the roster, so the pick distribution —
+  // and the door-load spread — are unchanged. (Every stronger shape was
+  // tried and failed a pinned battery: gateway-always livelocked mass rejoin
+  // at 29/400; gateway-until-refused re-asked a slow admitter into twin-
+  // PLACE dups; gateway-first-ask-only moved partition seed 29 into a
+  // split-brain draw.)
+  int pickRoster(){ vector<int> live_, fresh_, door_; for(auto&e:roster) if(e.v!=id){ live_.push_back(e.v); if(!triedSilent.count(e.v)){ fresh_.push_back(e.v); for(int g:lastGreeters) if(g==e.v){ door_.push_back(e.v); break; } } } vector<int>& pool = door_.empty() ? (fresh_.empty()?live_:fresh_) : door_; if(pool.empty()) return -1; return pool[(int)(rng()*pool.size())]; }
   vector<KV> s1Roster(){ vector<KV> out; if(hasCoord&&coord.pc==0) out.push_back({ckey(coord),id}); for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id && s1Fresh(e.first) && !translost.count(e.first)) out.push_back({e.first,e.second}); } return out; }  // a standing-translost occupant is UNREACHABLE-PENDING-PROBE: handing it to a newcomer as a gateway wastes their whole retry window (the honest answer is silence, not a corpse)
 
   void take(Coord c,int owner,vector<KV>&nbrs);
