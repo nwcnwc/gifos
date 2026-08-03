@@ -65,7 +65,19 @@ void Seat::admit(Coord c,Msg& f){
   tlForget(k);   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int i=0;i<n;i++){ int x=occGet(ckey(ol[i])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[i]),x}); }
+  // ALWAYS teach the admittee its ADMITTER (2026-08-02) — not only when the
+  // admitter happens to be an owned-link. A deep non-head admittee whose
+  // admitter is the SECTION OWNER learned nothing about it, so when that
+  // admittee later became the head's LEFT-PACK healer it promoted itself
+  // into the head hole with an EMPTY nbrs list: take(hole, -1, []) sends no
+  // CLAIM, the no-neighbour claim window confirms SAME-TICK, and the
+  // promoted head is an ISLAND — empty occ, no phone target, invisible to
+  // the owner, whose stale head-occ then re-admits another seat behind it.
+  // Two seats oscillated head↔row-cell forever, sampling as a duplicate
+  // (c-sweep C=5 0.30×2 seed 1, dup at 00/0.0). The entry is truthful (the
+  // admitter at its real coord), so it can only inform.
   bool selfNb=false; for(int i=0;i<n;i++) if(ckey(ol[i])==ckey(coord)) selfNb=true;
+  if(!selfNb && hasCoord) nbrs.push_back({ckey(coord),id});
   if(selfNb) nbrs.push_back({ckey(coord),id});
   Msg m; m.t=PLACE; m.coord=c; m.owner=id; m.nbrs=nbrs; m.tag=f.tag; m.nc=nc;
   // Q2 compaction (tag==1): destination reserve still uses occ (seeker is already
@@ -161,8 +173,15 @@ void Seat::serveFind(Msg& mm){
         // the corpse for what it is, so a dead admitter row falls through to the
         // bottom-up `continue` and the cascade reaches a live admitter.
         Coord admc={0,(uint8_t)((t+1)%C),coord.i}, admh={0,(uint8_t)((t+1)%C),0};
-        int aid = firstHandLive(ckey(admc)) ? occGet(ckey(admc)) : -1;
-        if(aid<0||aid==id) aid = firstHandLive(ckey(admh)) ? occGet(ckey(admh)) : -1;   // column-mate not live → try that row's head, still first-hand
+        // First-hand, or DOOR-LISTED: mid-churn my first-hand hearing of the
+        // admitter row decays while it is alive and greeting — the door still
+        // lists it (every S1 seat is a greeter), and a door-listed admitter
+        // is deliverable by definition. Without this, the dead-row fall-
+        // through below raced a merely-unheard admitter row's own admissions
+        // and minted a dup (c-sweep C=5 0.30×2 seed 1).
+        auto doorListed=[&](int x){ if(x<0) return false; for(int g:lastGreeters) if(g==x) return true; return false; };
+        int aid = firstHandLive(ckey(admc)) ? occGet(ckey(admc)) : (doorListed(occGet(ckey(admc))) ? occGet(ckey(admc)) : -1);
+        if(aid<0||aid==id){ int hx=occGet(ckey(admh)); aid = firstHandLive(ckey(admh)) ? hx : (doorListed(hx) ? hx : -1); }
         if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
         // The whole admitter row below is dead too. "Resolve bottom-up"
         // DEADLOCKED here when EVERY row below was dead or empty (s1all

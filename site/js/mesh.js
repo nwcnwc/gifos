@@ -719,7 +719,20 @@
       this.tlForget(k, 'refill'); // the cell genuinely refills — any standing D5 observation of the old occupant ends here
       const nbrs = []; const ol = topo.ownedLinks(c);
       for (const olc of ol) { const x = this.occGet(ck(olc)); if (x != null && x !== nc) nbrs.push({ k: ck(olc), v: x }); }
+      // ALWAYS teach the admittee its ADMITTER (2026-08-02) — not only when
+      // the admitter happens to be an owned-link. A deep non-head admittee
+      // whose admitter is the SECTION OWNER learned nothing about it, so
+      // when that admittee later became the head's LEFT-PACK healer it
+      // promoted itself into the head hole with an EMPTY nbrs list:
+      // take(hole, null, []) sends no CLAIM, the no-neighbour claim window
+      // confirms SAME-TICK, and the promoted head is an ISLAND — empty occ,
+      // no phone target, invisible to the owner, whose stale head-occ then
+      // re-admits another seat behind it. Two seats oscillated head↔row-cell
+      // forever, sampling as a duplicate (c-sweep C=5 0.30×2 seed 1). The
+      // entry is truthful (the admitter at its real coord) — it can only
+      // inform.
       let selfNb = false; for (const olc of ol) if (ck(olc) === ck(this.coord)) selfNb = true;
+      if (!selfNb && this.hasCoord) nbrs.push({ k: ck(this.coord), v: this.id });
       if (selfNb) nbrs.push({ k: ck(this.coord), v: this.id });
       const m = { t: 'PLACE', coord: c, owner: this.id, nbrs, tag: f.tag, nc };
       // Q2 compaction (tag==1): reserve with occ. Newcomer: soft sitting-down only
@@ -819,8 +832,16 @@
             // First-hand liveness sees the corpse for what it is, so a dead
             // admitter row falls through to the bottom-up continue.
             const ac = ck({ pc: 0, r: below, i: this.coord.i }), ah = ck({ pc: 0, r: below, i: 0 });
-            let aid = this.firstHandLive(ac) ? this.occGet(ac) : null;
-            if (aid == null || aid === this.id) aid = this.firstHandLive(ah) ? this.occGet(ah) : null; // column-mate not live → that row's head, still first-hand
+            // First-hand, or DOOR-LISTED: mid-churn my first-hand hearing of
+            // the admitter row decays while it is alive and greeting — the
+            // door still lists it (every S1 seat is a greeter), and a door-
+            // listed admitter is deliverable by definition. Without this, the
+            // dead-row fall-through below raced a merely-unheard admitter
+            // row's own admissions and minted a dup (c-sweep C=5 0.30×2
+            // seed 1).
+            const doorListed = (x) => x != null && !!(this.lastGreeters && this.lastGreeters.includes(x));
+            let aid = this.firstHandLive(ac) ? this.occGet(ac) : (doorListed(this.occGet(ac)) ? this.occGet(ac) : null);
+            if (aid == null || aid === this.id) { const hx = this.occGet(ah); aid = this.firstHandLive(ah) ? hx : (doorListed(hx) ? hx : null); }
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
             // The whole admitter row below is dead too. "Resolve bottom-up"
             // DEADLOCKED here when EVERY row below was dead or empty (s1all
