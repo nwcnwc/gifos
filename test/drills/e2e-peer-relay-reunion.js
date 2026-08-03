@@ -212,16 +212,34 @@ const check = (n, c, d) => {
 
   // Peer-relay asks after ~10s of downSince; allow wall-clock room for
   // connsOf gossip + relay-req + renegotiation + first frames.
+  // Forensics: WHY a tile isn't via-Hub yet (label vs noroute vs frames), plus
+  // the same page sample as the hub-links leg — a one-way engagement failure
+  // (seen 2026-08-03: Right healed, chat crossed, Left never) is otherwise a
+  // bare boolean.
+  const tileState = (name) => (n) => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(n));
+    if (!t) return { found: false };
+    const v = t.querySelector('video');
+    return { found: true, viaHub: /via Hub/.test(t.textContent), noroute: t.classList.contains('noroute'),
+      vid: !!(v && v.srcObject), vw: v ? v.videoWidth : -1 };
+  };
   let leftHealed = false, rightHealed = false;
+  const healTl = [];
   const t0 = Date.now();
   while (Date.now() - t0 < 55000) {
     if (!leftHealed) leftHealed = await left.page.evaluate(tileViaHub('RightIsle')).catch(() => false);
     if (!rightHealed) rightHealed = await right.page.evaluate(tileViaHub('LeftIsle')).catch(() => false);
+    const [lt, rt, ls, rs, hs] = await Promise.all([
+      left.page.evaluate(tileState('RightIsle'), 'RightIsle').catch(() => null),
+      right.page.evaluate(tileState('LeftIsle'), 'LeftIsle').catch(() => null),
+      sample(left), sample(right), sample(hub)]);
+    healTl.push({ t: Math.round((Date.now() - t0) / 1000), leftTile: lt, rightTile: rt, left: ls, right: rs, hub: hs });
     if (leftHealed && rightHealed) break;
     await sleep(2000);
   }
   check('E5§1: after co-member Hub joins same room, LeftIsle sees RightIsle via Hub', leftHealed);
   check('E5§1: after co-member Hub joins same room, RightIsle sees LeftIsle via Hub', rightHealed);
+  if (!leftHealed || !rightHealed) for (const s of healTl) console.log('  [heal-forensics t+' + s.t + 's] ' + JSON.stringify(s));
 
   // Optional control-plane hop: chat Left → Hub → Right (gossip over DCs).
   try {
