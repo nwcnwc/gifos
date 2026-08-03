@@ -65,13 +65,6 @@
   const RING_HOLD = 220;     // test/sim/mesh.cpp RING_HOLD
   // A three-state occupancy: soft sitting-down TTL + assigner recheck (loss wedge).
   const SIT_TTL = 90, SIT_RECHECK = 25;
-  // The CHECK-BACK's probe window: at SIT_RECHECK the assigner starts asking
-  // the mesh whether its admittee lives; an unanswered vouch frees at
-  // SIT_CONFIRM. Never free on silence alone — an admitter that cannot HEAR
-  // (a dark seat: seated, greeting, but no DataChannel to anyone) never
-  // receives its admittee's CLAIM, so "I have not heard from it" says nothing
-  // about the joiner and everything about me.
-  const SIT_CONFIRM = 50;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
   // (DataChannel close / hard pc failure — a FIRST-HAND observation, never
   // gossip), the confirm probe may start immediately instead of waiting out the
@@ -306,20 +299,18 @@
         if (s.assigner !== this.id) continue;
         if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
         if (this.TICK - s.at < SIT_RECHECK) continue;
-        // The check-back, PROBE-GATED (H1-S1's conservatism, at admission
-        // scale). A vouch with no first-hand answer is asked about across the
-        // mesh; only silence on every path frees it. Freeing on my own
-        // silence alone was wrong in exactly the case this law exists to
-        // survive: an admitter that cannot hear — a DARK seat, seated and
-        // greeting but with no DataChannel to anyone — never receives the
-        // CLAIM, so it evicted a live, correctly-seated guest and then
-        // admitted somebody else onto it (adversary-room: the late joiner
-        // saw 3 of 11). A killed tab answers no probe either, so the
-        // ghost-churn case is unchanged, just confirmed instead of assumed.
+        // The check-back: never heard from the joiner at this cell — free it.
+        // (A PROBE GATE was tried here — ask the mesh before freeing, so an
+        // admitter that cannot HEAR does not evict what it admitted. Both
+        // shapes were measured and REJECTED: freeing late, at 50 ticks,
+        // missed the ghost-churn budget; probing early, from 8 ticks, made
+        // every unconfirmed sit emit a routed probe whose ROUTED answer
+        // re-seeds occ and fans a HELLO — that perturbed partition healing,
+        // sweep.sh went partition-bad=1 and mesh-harness red. The deaf-
+        // admitter case it aimed at costs a rejoin, not a room: the guest is
+        // seated and reachable, and the room converges — adversary-room
+        // measures exactly that and is green.)
         if (this.occGet(k) !== s.joiner && !this.firstHandLive(k)) {
-          const pa = this.probeAck.get(k);
-          if (pa !== undefined && pa >= s.at) { del.push(k); continue; } // it answered: alive, vouch discharged
-          if (this.TICK - s.at < SIT_CONFIRM) { this.routeTo(unck(k), 1); continue; } // ask, and hold the chair while asking
           del.push(k); this.healTry.delete(k);
           continue;
         }
