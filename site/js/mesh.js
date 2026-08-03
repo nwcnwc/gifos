@@ -549,7 +549,14 @@
     // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis;
     // else I learn the real key via the dance and re-present it once seated.
     join() {
-      if (this.joinTick === this.TICK) { this.reJoin = true; this.wake(); return; } // ENTRY PACING: one knock per tick
+      // ENTRY-PACING INVARIANT: a paced-out (same-tick) join defers the SEND,
+      // never the STATE. A requeue() whose join() got paced out used to return
+      // with hasCoord=false but state still 3 — and tick()'s state-3 branch
+      // never consumes reJoin, so the seat wedged forever: seated-looking,
+      // coordless, knocking never (behavior 04a: a 20s radio blip left one
+      // phone solo for 3.5 minutes; the netDark tick-freeze lets a whole
+      // rescue→rejoin→rescue dance share ONE tick at the radio-on edge).
+      if (this.joinTick === this.TICK) { if (!this.hasCoord) { this.state = 0; this.retryAt = this.TICK; } this.reJoin = true; this.wake(); return; } // ENTRY PACING: one knock per tick
       this.joinTick = this.TICK;
       this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
       this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
@@ -558,7 +565,7 @@
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { if (this.askTick === this.TICK) { this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); } // ENTRY PACING: one ask per tick
+    askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
     // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
     static forkFaceList(sample) {
       if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
