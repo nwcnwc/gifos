@@ -134,10 +134,46 @@ async function openApp(page, ctx, folder, label) {
     .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
   const surfW = await page.evaluate(() => document.getElementById('desktop').clientWidth);
   check('Meeting sits in the top-right corner', vcPos.top === 12 && vcPos.left > surfW / 2);
+  check('Broadcast is a root icon wearing the SYSTEM badge',
+    labels.includes('Broadcast.gif')
+    && await page.locator('.icon', { hasText: 'Broadcast.gif' }).locator('.sysbadge').count() === 1);
+  const bcPos = await page.locator('.icon', { hasText: 'Broadcast.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  const rowPitch = await page.evaluate(() => parseInt(getComputedStyle(document.getElementById('desktop')).getPropertyValue('--row'), 10));
+  check('Broadcast sits DIRECTLY BELOW Meeting (the folder column starts under it)',
+    bcPos.left === vcPos.left && bcPos.top === vcPos.top + rowPitch);
   check('has Trash', labels.includes('Trash'));
   // folders are GIFs too — each renders its own folder GIF, not an emoji
   check('folders render as GIF images (folders are GIFs)',
     (await page.locator('.icon', { hasText: /^Games$/ }).locator('img').count()) === 1);
+
+  // ---- scroll memory: a child folder never inherits the parent's scroll ----
+  // (regression, 2026-08-03: entering a folder kept the ROOT's scrollTop, so
+  // a short folder opened onto empty space). Shrink the viewport so the root
+  // actually scrolls, scroll down, enter a folder — top of page; go back up —
+  // the root's own position returns.
+  const vp0 = page.viewportSize();
+  await page.setViewportSize({ width: 700, height: 420 });
+  await sleep(300);
+  const rootScroll = await page.evaluate(() => {
+    const s = document.getElementById('desktop');
+    s.scrollTop = 260;
+    return s.scrollTop; // what actually stuck (0 would make the test vacuous)
+  });
+  check('the shrunken root desktop is genuinely scrolled', rootScroll >= 200);
+  // dispatchEvent, not .dblclick(): actionability would scroll the icon into
+  // view first and silently change the very scrollTop under test.
+  await page.locator('.icon', { hasText: 'IRL Games' }).dispatchEvent('dblclick');
+  await sleep(400);
+  check('entering a folder lands at the TOP, never the parent\'s scroll',
+    (await page.evaluate(() => document.getElementById('desktop').scrollTop)) === 0);
+  await page.locator('.icon.uphole').dispatchEvent('click');
+  await sleep(400);
+  check('going back up restores the parent\'s own scroll position',
+    (await page.evaluate(() => document.getElementById('desktop').scrollTop)) === rootScroll);
+  await page.evaluate(() => { document.getElementById('desktop').scrollTop = 0; });
+  await page.setViewportSize(vp0);
+  await sleep(300);
 
   // ---- IRL Games: own-phone games at the top, pass-the-phone in a subfolder ----
   await page.locator('.icon', { hasText: 'IRL Games' }).dblclick();

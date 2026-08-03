@@ -106,6 +106,22 @@
   let currentFolder = null;       // null = root, else folder id
   const blobUrls = new Map();     // fileId -> object URL (for gif thumbnails)
   let selectedId = null;
+  // Folder navigation is the ONE place the desktop scroll may jump: each
+  // container keeps its own scroll memory. A child must never inherit the
+  // parent's position — entering a folder used to keep the root's scroll, so
+  // a folder shorter than that scroll opened onto empty space (major user
+  // confusion). First entry lands at the top; coming back restores where you
+  // were. Every currentFolder change goes through here.
+  const folderScroll = new Map(); // container id (null = root) -> scrollTop
+  function navTo(folderId) {
+    folderScroll.set(currentFolder, surface.scrollTop);
+    currentFolder = folderId;
+    selectedId = null;
+    return Promise.resolve(render()).then(() => {
+      surface.scrollTop = folderScroll.get(folderId) || 0;
+      surface.scrollLeft = 0;
+    });
+  }
 
   // ---------- data ----------
   // Reload the item list, but keep the SAME object for any id that survives, so
@@ -263,8 +279,40 @@
       updated++;                                         // code swapped in place; the app's saved data (by fileId) is untouched
     }
 
+    // CLEANUP for desktops the folder-multiplication bug (below) already hit:
+    // among same-name same-parent copies of a SEED folder, keep the one with
+    // contents (or the first) and purge the empty strays. Seed names only —
+    // a user's own folders are never touched, and never a folder holding
+    // anything, however it got its name.
+    const seedNames = new Set();
+    (function names(list) { (list || []).forEach((f2) => { seedNames.add(f2.name); names(f2.sub); }); })(seed.folders);
+    const dupGroups = new Map();
+    for (const it of items) {
+      if (it.kind !== 'folder' || !seedNames.has(it.name)) continue;
+      const k2 = it.name + '|' + (it.parent || '');
+      if (!dupGroups.has(k2)) dupGroups.set(k2, []);
+      dupGroups.get(k2).push(it);
+    }
+    let purged = 0;
+    for (const g of dupGroups.values()) {
+      if (g.length < 2) continue;
+      const hasKids = (f2) => items.some((c) => c.parent === f2.id);
+      const keep = g.find(hasKids) || g[0];
+      for (const f2 of g) {
+        if (f2 === keep || hasKids(f2)) continue;
+        await purgeItem(f2);
+        items.splice(items.indexOf(f2), 1);
+        purged++;
+      }
+    }
+
     // Add defaults that are present in this build but missing from the desktop.
-    const folderByName = {}; for (const it of items) { if (it.kind === 'folder' && it.name && !it.parent) folderByName[it.name] = it; }
+    // Find the EXISTING copy of a default folder by name AND PARENT. The old
+    // index held only ROOT folders under their bare name, so a SUBFOLDER
+    // ('Single Phone' inside IRL Games) was never found — and every reseed
+    // minted another empty copy of it: the folder-multiplication bug.
+    const findFolder = (name, parentId) =>
+      items.find((it) => it.kind === 'folder' && it.name === name && (it.parent || null) === (parentId || null));
     let added = 0;
     const addMissingApp = async (a, parentId, pos) => {
       if (seenAppIds.has(a.appId)) return;
@@ -286,15 +334,14 @@
     };
     for (const a of seed.loose || []) await addMissingApp(a, null, nextRootSpot(a.appId));
     const addFolder = async (folder, parentId, x, y) => {
-      let f = folderByName[folder.name];
-      if (!f || f.parent !== parentId) {
+      let f = findFolder(folder.name, parentId);
+      if (!f) {
         if (parentId) {
           // Aim below the up-hole; saveItem resolves it to a free cell.
           f = await createFolder(folder.name, parentId, GRID.origin, GRID.origin + GRID.rowPitch);
         } else {
           f = await createFolder(folder.name, null, x, y);
         }
-        folderByName[folder.name] = f;
         itemById[f.id] = f;
         added++; // count newly created folder separately? we'll include it.
       }
@@ -308,7 +355,43 @@
     };
     for (const folder of seed.folders || []) await addFolder(folder, null, rightX, rowY(rightRow++));
 
-    return { updated, added };
+    return { updated, added, purged };
+  }
+
+  // One-shot layout migration (2026-08-03, Nathan): Broadcast slots DIRECTLY
+  // BELOW Meeting. A desktop that predates the slot (or whose reseed
+  // auto-placed Broadcast wherever a cell was free) opens it by shifting
+  // everything in Meeting's column at/below that row down one row. Best
+  // effort and respectful: if either icon left the root (the user filed it
+  // away), nothing moves; the flag still sets so we never fight the user.
+  async function placeBroadcastBelowMeeting() {
+    const key = 'gifos_mig_bc_slot' + (store.dbName === 'gifos' ? '' : '::' + store.dbName);
+    try { if (localStorage.getItem(key)) return 0; } catch (e) {}
+    const done = () => { try { localStorage.setItem(key, '1'); } catch (e) {} };
+    const files = await store.allFiles();
+    const rootApp = (match) => {
+      for (const it of items) {
+        if (it.kind !== 'file' || it.parent) continue;
+        const fl = files.find((x) => x.id === it.fileId);
+        if (fl && fl.isApp && fl.isDefault && match(fl.appId)) return it;
+      }
+      return null;
+    };
+    const meet = rootApp((id) => id === 'meet' || id === 'video');
+    const bc = rootApp((id) => id === 'broadcast');
+    if (!meet || !bc) { done(); return 0; }
+    const tx = meet.x, ty = (meet.y || 0) + GRID.rowPitch;
+    if (bc.x === tx && bc.y === ty) { done(); return 0; }
+    // Open the slot: Meeting's column at/below it moves down one row,
+    // bottom-first so no two icons ever share a cell mid-shift.
+    const col = cellOf(tx, 0).col;
+    const movers = items
+      .filter((it) => !it.parent && it.id !== bc.id && cellOf(it.x, 0).col === col && (it.y || 0) >= ty)
+      .sort((p, q) => (q.y || 0) - (p.y || 0));
+    for (const it of movers) { it.y = (it.y || 0) + GRID.rowPitch; await saveItem(it, { keepCell: true }); }
+    await saveItem(bc, { at: { x: tx, y: ty } });
+    done();
+    return movers.length + 1;
   }
 
   // Re-bake the default apps from this build's code when the BUILD MOVED under
@@ -336,8 +419,9 @@
     if (!flagged && !(stored && stored !== stamp)) return;
     try {
       const seed = await GifOS.samples.build();
-      const { updated, added } = await rebuildDefaultApps(seed);
-      if (updated || added) await load();
+      const { updated, added, purged } = await rebuildDefaultApps(seed);
+      const moved = await placeBroadcastBelowMeeting();
+      if (updated || added || purged || moved) await load();
     } catch (e) { /* never block boot */ }
   }
 
@@ -568,7 +652,7 @@
     el.style.top = GRID.origin + 'px';
     el.title = 'Up to ' + parentName + ' — or drop things here to move them there';
     el.innerHTML = '<div class="thumb"><div class="hole">⤴</div></div><div class="label">' + escapeHtml(parentName) + '</div>';
-    el.addEventListener('click', () => { currentFolder = upTo; selectedId = null; render(); });
+    el.addEventListener('click', () => navTo(upTo));
     return el;
   }
 
@@ -737,7 +821,7 @@
     const folder = items.find((i) => i.id === currentFolder);
     crumbs.innerHTML = '<a id="crumb-root">Home</a> › ' + (folder ? escapeHtml(folder.name) : '…');
     const rootLink = document.getElementById('crumb-root');
-    if (rootLink) rootLink.onclick = () => { currentFolder = null; selectedId = null; render(); };
+    if (rootLink) rootLink.onclick = () => navTo(null);
   }
 
   // ---------- grid snapping (Windows-style: drag anywhere, land on a cell) ----
@@ -1072,7 +1156,7 @@
     const now = Date.now();
     if (lastOpen.id === it.id && now - lastOpen.t < 700) return;
     lastOpen = { id: it.id, t: now };
-    if (it.kind === 'folder') { currentFolder = it.id; selectedId = null; return render(); }
+    if (it.kind === 'folder') return navTo(it.id);
     // Fast path — the common case. An app GIF's URL is known from its fileId, so
     // open it SYNCHRONOUSLY in the tap gesture. iOS/WebKit blocks window.open()
     // after any await, which is why double-tap and "Open" did nothing on iPhone.
@@ -2751,7 +2835,7 @@
     ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((ev) =>
       root.addEventListener(ev, arm, { capture: true, passive: true }));
     root.addEventListener('popstate', () => {
-      if (currentFolder) { currentFolder = upTarget(); selectedId = null; render(); }
+      if (currentFolder) navTo(upTarget());
       // The Back press itself is a user gesture, so re-pushing here sticks.
       root.history.pushState({ gifos: 'trap' }, '');
     });
