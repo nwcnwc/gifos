@@ -349,8 +349,14 @@ struct Seat {
 
   void emit(int to, const Msg& m);         // fwd
   void emitRelay(uint64_t presentedKey);
-  void join(){ if(joinTick==(int)TICK){ reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
-  void askSeat(int target){ if(askTick==(int)TICK){ reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
+  // ENTRY-PACING INVARIANT: a paced-out (same-tick) join/ask defers the SEND,
+  // never the STATE. A requeue() whose join() got paced out used to return with
+  // hasCoord=false but state still 3 — and tick()'s state-3 branch never
+  // consumes reJoin, so the seat wedged forever: seated-looking, coordless,
+  // knocking never (behavior 04a: a 20s radio blip left one phone solo for 3.5
+  // minutes until the NEXT blip re-fired the rescue at a fresh tick).
+  void join(){ if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.

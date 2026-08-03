@@ -324,6 +324,7 @@ what the mesh/relay/drill suites spawn. `fake-ai.js`, `fake-keyapi.js` and
 | suite | covers |
 |---|---|
 | `mesh-harness.js` | the Node reference harness for `site/js/mesh.js` — replays the C++ sim's scenarios (JOIN, 50%-kill, s1row, s1all) and asserts its convergence targets at N=500/1000. With `mesh.js` it IS the JS reference implementation. |
+| `requeue-pacing.js` | the entry-pacing invariant: a paced-out (same-tick) `join()`/`askSeat()` defers the SEND, never the STATE — a requeue whose rejoin got paced out must never wedge seated-looking-but-coordless (the behavior-04a radio-blip solo, 2026-08-03) |
 | `flood.js` | N nodes hit a FRESH relay in one synchronous burst (no stagger) — the genesis-flood claim |
 | `e2e-mesh-wire.js` | mesh↔wire over a real relay and real sealing |
 | `e2e-mesh-identity.js` | S4 per-participant identity minting over real WebSockets |

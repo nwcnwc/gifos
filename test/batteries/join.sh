@@ -97,6 +97,9 @@ run "mesh.js — Q5 row-clique designation chain (exhaustive C=5)" \
 run "mesh.js — R5/E5§2 multi-greeter fork pick-one" \
     node test/mesh/r5-fork-pick.js
 
+run "mesh.js — entry-pacing invariant (paced-out requeue must not wedge seated-coordless)" \
+    node test/mesh/requeue-pacing.js
+
 # ── the port: mesh.js replaying the sim's scenarios at scale ────────────────
 run "mesh.js — harness (JOIN N=1000, 50% kill, s1row, s1all, D5)" \
     node test/mesh/mesh-harness.js
