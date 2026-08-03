@@ -19,7 +19,7 @@ typedef unordered_map<uint64_t,int> Occ;
 // ---- message ----
 enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went.
 struct KV { uint64_t k; int v; };
-struct Ent { uint64_t k; int v; int age; int ch=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir
+struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
 struct Msg {
   MT t; int to=-1;
   int from=-1,id=-1,owner=-1,nc=-1,asker=-1,via=-1,child=-1,ttl=0,tag=0,hold=0;
@@ -179,16 +179,7 @@ static inline void wake(int id){ if(PAR) tlsWake[curTid()].push_back(id); else n
 struct Seat {
   int id; int state=0; // 0 join,1 ask,2 search,3 seated
   bool hasCoord=false; Coord coord{0,0,0};
-  Occ occ, live, s1seen, healTry, cousins, holeSince;
-  // liveBy: WHO earned each cell's last first-hand contact (E2 sharpened,
-  // 2026-08-02). `live` is keyed by CELL, so a stale gossip echo that captured
-  // occ during a first-hand gap then borrowed the REAL occupant's freshness:
-  // occ said ghost, live was fresh from the true occupant's own beats, and the
-  // tenure rule evicted the true occupant as an impostor (harness D5-sever: an
-  // immortal join-era ghost — kept alive by the S1SYNC lower-id tie-break
-  // re-winning at every age-laundered hop — evicted a severed-but-alive peer).
-  // Tenure now protects an occupant only when the fresh contact IS its own.
-  unordered_map<uint64_t,int> liveBy; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
+  Occ occ, live, s1seen, healTry, cousins, holeSince, born; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   // A three-state soft marks: cell → {joiner, assigner, at}. Empty = no entry in
   // occ/sitting; sitting-down = sitting[]; seated = occ + firstHandLive (or self).
   struct SoftSit { int joiner; int assigner; int at; };
@@ -238,7 +229,7 @@ struct Seat {
   inline int occGet(uint64_t k){ auto it=occ.find(k); return it==occ.end()?-1:it->second; }
   inline void tlForget(uint64_t k){ translost.erase(k); tlProbeAt.erase(k); probeAck.erase(k); }
   inline void tlClear(){ translost.clear(); tlProbeAt.clear(); probeAck.clear(); }
-  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v) tlForget(k); occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
+  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v){ tlForget(k); born[k]=(int)TICK; } occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
   // E2 FIRST-HAND liveness: `live[]` is set ONLY by direct contact — a PHONE I
@@ -322,7 +313,7 @@ struct Seat {
   inline void markSitting(uint64_t k,int joiner){ sitting[k]={joiner,id,(int)TICK}; }
   // Confirm seated for joiner at k (CLAIM/HELLO/take path).
   inline void confirmSeated(uint64_t k,int joiner){
-    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; liveBy[k]=joiner; noteS1(k);
+    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
   }
   void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }

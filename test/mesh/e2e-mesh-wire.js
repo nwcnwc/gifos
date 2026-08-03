@@ -117,8 +117,24 @@ async function waitConverged(nodes, N, ms) {
       nodes.push(wire.createMeshNode({ relayUrl: RELAY, sid: 'wire-c-sid', tok: 'T', key, peer: 'c' + i, tickMs: 300 }));
       await sleep(150);
     }
-    const c = await waitConverged(nodes, 3, 90000);
-    check('C: 3 nodes converge with ALL control over sealed relay frames', c.seated === 3 && c.dups === 0, c);
+    // RE-SCOPED 2026-08-02 (the star removal + the ghost-churn CHECK-BACK).
+    // This scenario predates "the relay is a DOOR, not a transport": with no
+    // DC layer at all, a seated member's CLAIM/HELLO/PHONE can never travel,
+    // so it is INDISTINGUISHABLE from a tab killed mid-join — and the
+    // check-back (law A tightened) now honestly reclaims its chair at
+    // SIT_RECHECK instead of letting the old 90-tick window hide the churn
+    // inside this suite's horizon. Sustained transport-less membership is
+    // impossible BY DESIGN now; what door-only control must still guarantee —
+    // and what this scenario guards — is ENTRY: every node can seat through
+    // the sealed relay dance alone, and nobody strands.
+    const t0c = Date.now(); const everSeated = new Set();
+    while (Date.now() - t0c < 90000 && everSeated.size < 3) {
+      for (const n of nodes) { const st = n.stats(); if (st.state === 3 && st.coord && st.coord.pc === 0) everSeated.add(n.peer); }
+      await sleep(400);
+    }
+    const strandedC = nodes.filter((n) => n.stats().stranded).length;
+    check('C: every node SEATS through door-only entry (sealed relay dance, no DC layer)',
+      everSeated.size === 3 && strandedC === 0, { everSeated: everSeated.size, stranded: strandedC });
     for (const n of nodes) n.stop();
   }
 
