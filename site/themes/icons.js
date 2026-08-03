@@ -149,6 +149,11 @@
       + "<path d='M" + (cx - hw * 0.22) + ' ' + (hy0 + hh - 1.5) + ' a' + (hw * 0.22) + ' ' + (hh * 0.42)
         + ' 0 0 1 ' + (hw * 0.44) + " 0 z' fill='#fff' opacity='.95'/>"
       + "<circle cx='" + cx + "' cy='" + (hy0 + hh * 0.42) + "' r='" + (hh * 0.24) + "' fill='#fff' opacity='.97'/>"
+      // the host is mid-broadcast: the mouth works through the loop —
+      // open, half, wide, near-closed — like someone saying something important
+      + "<ellipse cx='" + cx + "' cy='" + (hy0 + hh * 0.42 + hh * 0.24 * 0.48) + "' rx='"
+        + (hh * 0.24 * [0.36, 0.46, 0.3, 0.42, 0.26, 0.44][f]) + "' ry='" + (hh * 0.24 * [0.2, 0.09, 0.3, 0.13, 0.34, 0.07][f])
+        + "' fill='" + INK + "' opacity='.85'/>"
       + "<circle cx='" + (hx0 + 8) + "' cy='" + (hy0 + 8) + "' r='4' fill='url(#" + lv + ")' opacity='" + lamp + "'/>"
       + "<circle cx='" + (hx0 + 8) + "' cy='" + (hy0 + 8) + "' r='4.6' fill='#ff4d5e' opacity='" + (lamp * 0.55) + "' filter='url(#fglow)'/>";
     // the audience: pairs of eyes below the panel, pupils drifting together
