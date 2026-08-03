@@ -168,9 +168,14 @@ const check = (n, c, d) => {
   await hub.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.meshState
     && window.__gifosVideo.meshState() && window.__gifosVideo.meshState().state === 3, null, { timeout: 45000 });
   // Hub should open live links to both islands (it is not ICE-blocked).
+  // 90s, not 45: Hub seats and then completes TWO ICE negotiations, and on a
+  // loaded gate box (this drill runs beside the rest of the battery) that has
+  // been measured taking past 45s — the assertion below is unchanged, this is
+  // only how long we are willing to wait for it. Flagged FLAKY by the gate at
+  // 45s, green on the retry.
   await hub.page.waitForFunction(() => {
     try { return window.__gifosVideo.liveLinks() >= 2; } catch (e) { return false; }
-  }, null, { timeout: 45000 }).catch(() => {});
+  }, null, { timeout: 90000 }).catch(() => {});
   const hubLinks = await hub.page.evaluate(() => {
     try { return window.__gifosVideo.liveLinks(); } catch (e) { return -1; }
   });
