@@ -159,9 +159,7 @@
   // keep resolving if a subject is ever renamed.
   // The Meeting hero app carries appId 'meet'; every pack still registers its
   // hero art under the legacy subject 'video', so alias the two.
-  // Broadcast (Meeting's sibling skin) wears the same camera art in its own
-  // accent — every pack already draws 'video', so every theme just works.
-  const SUBJECTS = { meet: 'video', broadcast: 'video', appstore: 'store' };
+  const SUBJECTS = { meet: 'video', appstore: 'store' };
   const subjectFor = (appId) => SUBJECTS[appId] || appId;
 
   // Render an app's icon as an animated GIF through the ACTIVE pack (lazy-
@@ -173,9 +171,15 @@
     return ensure(want).then((loaded) => {
       const pack = loaded || packs.aurora || packs.sticker;
       const subject = subjectFor(appId);
-      const frames = pack.draw(subject, accent)
-        || pack.fallback((appId || '?')[0].toUpperCase(), accent);
-      return rasterize(frames, pack.size || S, pack.delayCs || DELAY, { dither: pack.dither || 0 });
+      // A subject the active theme hasn't drawn yet falls back to the
+      // FLAGSHIP's art before the lettered tile: a new system app (e.g.
+      // 'broadcast') gets real art on every theme the day it ships, and each
+      // pack overrides with its own take at its own pace. Rasterize with the
+      // params of whichever pack actually drew.
+      let src = pack, frames = pack.draw(subject, accent);
+      if (!frames && packs.aurora && packs.aurora !== pack) { src = packs.aurora; frames = src.draw(subject, accent); }
+      if (!frames) { src = pack; frames = pack.fallback((appId || '?')[0].toUpperCase(), accent); }
+      return rasterize(frames, src.size || S, src.delayCs || DELAY, { dither: src.dither || 0 });
     });
   }
 
