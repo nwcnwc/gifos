@@ -89,11 +89,11 @@ window.GIFOS_VERSION = 'edge';
     // bounce the visitor to the desktop with their invite silently dropped. So
     // translate a pretty path to its real target instead of decorating it. Room case
     // is PRESERVED: the room id is the capability the key derives from.
-    var pm = pathname.match(/^\/(?:join|meet|call)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
+    var pm = pathname.match(/^\/(?:join|meet|call|cast)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
     var here;
     if (pm) {
-      here = /^\/(?:meet|call)\//.test(pathname)
-        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
+      here = /^\/(?:meet|call|cast)\//.test(pathname)
+        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
         : '/meet.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {
       here = pathname + hash;                                 // carry the page + invite hash across

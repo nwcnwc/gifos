@@ -40,11 +40,11 @@
     // bounce the visitor to the desktop with their invite silently dropped. So
     // translate a pretty path to its real target instead of decorating it. Room case
     // is PRESERVED: the room id is the capability the key derives from.
-    var pm = pathname.match(/^\/(?:join|meet|call)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
+    var pm = pathname.match(/^\/(?:join|meet|call|cast)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
     var here;
     if (pm) {
-      here = /^\/(?:meet|call)\//.test(pathname)
-        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '')
+      here = /^\/(?:meet|call|cast)\//.test(pathname)
+        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
         : '/meet.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {
       here = pathname + hash;                                 // carry the page + invite hash across
@@ -267,6 +267,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     grid-auto-columns: 180px; grid-template-rows: 1fr; height: 132px; padding: 8px;
     overflow-x: auto; overflow-y: hidden; }
   body.has-app #stadium, body.has-app #stagefeed { display: none; }
+  /* BROADCAST (the Broadcast app, #bc=1 on an admin room): the Stage is the
+     show and chat is the back-channel — the row grid and the stadium strip
+     never render. Viewers (guests) also lose every media control: they bring
+     no camera or mic at all. A guest the host GRANTS the stage (the same
+     signed 'app' grant that gates the Stage) gets the mic/cam buttons back —
+     body.stage-granted — so they can go live when called up. */
+  body.broadcast #grid, body.broadcast #stadium { display: none !important; }
+  body.broadcast #stagefeed .rowtile { max-height: 76vh; }
+  body.broadcast.notadmin:not(.stage-granted) #mic,
+  body.broadcast.notadmin:not(.stage-granted) #cam,
+  body.broadcast.notadmin:not(.stage-granted) #flipcam,
+  body.broadcast.notadmin:not(.stage-granted) .blurctl,
+  body.broadcast.notadmin #appbtn,
+  body.broadcast.notadmin #recbtn,
+  body.broadcast.notadmin #ccbtn,
+  body.broadcast.notadmin #mixbtn,
+  body.broadcast.notadmin #pwbtn,
+  body.broadcast #votebtn { display: none !important; }
   #appbar { display: flex; align-items: center; gap: .5rem; padding: .25rem .6rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #appbar #appname { font-weight: 700; }
@@ -701,7 +719,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
   <div id="chatpanel">
     <div id="chathead"><span id="paneltitle">Meeting chat</span> <small style="color:#667;font-weight:400">· private to this meeting, gone when everyone leaves</small>
-      <button id="trtab" style="margin-left:auto">Transcript</button><button id="chatclose">✕</button></div>
+      <button id="trtab" style="margin-left:auto">Transcript</button>
+      <button id="chatmod" style="display:none" title="Silence the chat for everyone but you">Turn chat off</button>
+      <button id="chatclose">✕</button></div>
     <div id="chatlog"></div>
     <div id="trwrap">
       <div id="trlog"><small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small></div>
@@ -1040,6 +1060,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (j) return { kind: 'app', solo: false, appPinned: true, mediaPinned: false, fileId: null, join: { short: null, av: null, k: j, owned: false } };
       return { kind: 'meet', solo: false, appPinned: false, mediaPinned: true, fileId: null, join: null };
     })();
+    // ---- BROADCAST (the Broadcast app — a SKIN of this page) ----------------
+    // #bc=1 on an ADMIN room (v+av): one host live on the Stage, unlimited
+    // viewers who bring no media of their own. The flag rides the HASH so it
+    // survives the version-channel redirect and travels inside the share link
+    // (/cast/<room>/<V> pretty form). It is a skin, not a security boundary:
+    // a client that strips it lands in the plain meeting UI of the SAME room,
+    // and every rule that matters — signed authority, admin-only stage entry,
+    // receiver-side moderation — is the admin room's, enforced as ever.
+    // BC_INTENT alone (bare meet.html#bc=1) opens the broadcast-flavored lobby.
+    const BC_INTENT = params.has('bc');
+    const BROADCAST = BC_INTENT && !!params.get('v') && /^[a-f0-9]{16,64}$/.test((params.get('av') || '').toLowerCase());
+    if (BROADCAST) document.body.classList.add('broadcast');
+    // The HOST is whoever holds this room's stored admin key — known before
+    // any network exists, which is what lets the boot skip the viewer's
+    // camera ask entirely (below) while the host boots like a meeting.
+    const bcHostStored = () => {
+      try { return !!localStorage.getItem('gifos_vadm_' + params.get('v') + '.' + (params.get('av') || '').toLowerCase()); }
+      catch (e) { return false; }
+    };
     const grid = document.getElementById('grid');
     const statusEl = document.getElementById('status');
     const share = document.getElementById('share');
@@ -1760,7 +1799,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       let changed = false;
       for (const target in incoming || {}) {
         const mine = modTable[target] = modTable[target] || {};
-        for (const field of ['mute', 'blur', 'cam', 'app']) {
+        // 'chat' lives under the pseudo-target '*' — the one ROOM-WIDE mod
+        // field (the admin's chat on/off switch). It rides the same signed
+        // table as every per-target order, so it reaches late joiners on the
+        // heartbeat and a forged copy dies in takeMod's admVerify.
+        for (const field of ['mute', 'blur', 'cam', 'app', 'chat']) {
           const inc = incoming[target][field];
           if (!inc) continue;
           // The TARGET cannot lift a restriction the group put on them —
@@ -1769,13 +1812,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); reactHandCall(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera; a fresh grant may be a call-up (don't wait for the beat)
+      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); reactHandCall(); paintChatGate(); paintStage(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera; a fresh grant may be a call-up (don't wait for the beat); a chat/app order repaints its gates
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
       // The 'app' right only exists in admin rooms (open rooms let everyone
       // run apps already), and only admins hand it out.
       if (field === 'app' && (!hasAdminRoom() || !amAdmin)) return;
+      // The room-wide chat switch is the admin's alone, and only means
+      // anything where there IS an admin to sign it.
+      if (field === 'chat' && (!hasAdminRoom() || !amAdmin)) return;
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
@@ -1849,6 +1895,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const isMe = id === 'me';
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
       const blocked = !!(modOf(id).blur && modOf(id).blur.on);
+      // BROADCAST amendment: the password rule protects MUTUAL privacy — a
+      // room of peers who all show their faces to each other. A broadcast has
+      // no such contract: stepping onto the Stage IS the deliberate act of
+      // being seen by strangers, and requiring a room password would leave a
+      // street broadcaster permanently blurred (a locked room's password is
+      // part of the key — viewers could never even join). So a STAGER's tile
+      // clears on consent alone: host present, camera on, No blur, no
+      // moderator block. Everyone else keeps the meeting rule — viewers send
+      // nothing and are never rendered, so nothing of theirs can leak clear.
+      if (BROADCAST && stageIds().includes(isMe ? myId : id)) {
+        return (!blocked && adminPresent() && consents(st)) ? 0 : Math.max(1, blurLevel(st.blur));
+      }
       const clear = !!roomPw && !blocked && (hasAdminRoom() ? (adminPresent() && consents(st)) : allConsent());
       if (clear) return 0;
       return Math.max(1, blurLevel(st.blur));
@@ -4234,13 +4292,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const sp = JSON.stringify(Object.assign({ act, ts: Date.now(), room: roomKey(), by: myId }, extra || {}));
       return { sp, sig: await net.edSign(admKeys.priv, sp), pub: admKeys.pubB64 };
     }
-    async function admVerify(w, act) { // -> parsed signed payload, or null
+    async function admVerify(w, act, maxAge) { // -> parsed signed payload, or null
       try {
         if (!w || !hasAdminRoom()) return null;
         if (!(await net.edProven(av, w.pub, w.sig, w.sp))) return null;
         const o = JSON.parse(w.sp);
         if (o.act !== act || o.room !== roomKey()) return null;
-        if (Math.abs(Date.now() - o.ts) > 300000) return null; // stale order — replay window
+        // Stale order — replay window. An act whose replay is HARMLESS (a
+        // chat-delete tombstone: idempotent, monotonic, never re-armed) may
+        // pass Infinity so 'hi' backfill can re-prove old orders to late
+        // joiners; every state-changing act keeps the tight window.
+        if (Math.abs(Date.now() - o.ts) > (maxAge || 300000)) return null;
         return o;
       } catch (e) { return null; }
     }
@@ -4334,6 +4396,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       renderBanned();
       if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn();
       if (typeof updateCamAllBtn === 'function') updateCamAllBtn();
+      paintChatGate(); renderChat(); // signing in as admin grows the chat toggle + per-line deletes
       refreshOutbound(); // admin presence changes what clears
     }
 
@@ -5347,9 +5410,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pwProvisional = !!(av && roomPw && !admKey);
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
-      const avPart = av ? '&av=' + av : '';
+      const avPart = (av ? '&av=' + av : '') + (BROADCAST ? '&bc=1' : '');
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
-      const prettyPath = '/meet/' + room + (av ? '/' + av : '');
+      // A broadcast's pretty form is /cast/<room>/<V> — same 404-router
+      // machinery as /meet, but the path itself carries the skin so the
+      // shared link opens as a broadcast for every viewer.
+      const prettyPath = (BROADCAST ? '/cast/' : '/meet/') + room + (av ? '/' + av : '');
       // A RELEASE/pinned computer runs from /versions/<x.y.z>/, but prettyPath is
       // rooted at the domain. Rewriting the address bar to it MOVED THE DOCUMENT
       // BASE off the snapshot — document.baseURI became /meet/<room>, so every
@@ -5470,16 +5536,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function parseMeetInput(s) {
       s = (s || '').trim();
       if (!s) return null;
-      let room = '', av = '', relay = '';
+      let room = '', av = '', relay = '', bc = false;
       if (/[:/#?]/.test(s)) {
         let u = null; try { u = new URL(s, location.origin); } catch (e) { u = null; }
         if (u) {
-          const pm = u.pathname.match(/\/(?:meet|call|join)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64}))?/i);
-          if (pm) { room = pm[1]; av = (pm[2] || '').toLowerCase(); }
+          const pm = u.pathname.match(/\/(?:meet|call|join|cast)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64}))?/i);
+          if (pm) { room = pm[1]; av = (pm[2] || '').toLowerCase(); bc = /^\/cast\//i.test(u.pathname); }
           const hp = new URLSearchParams((u.hash || '').replace(/^#/, ''));
           if (hp.get('v')) room = hp.get('v');
           if (hp.get('av')) av = (hp.get('av') || '').toLowerCase();
           if (hp.get('relay')) relay = hp.get('relay');
+          if (hp.get('bc')) bc = true;
         }
       }
       if (!room) {
@@ -5495,7 +5562,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // different rooms depending on whether you opened the link or pasted it —
       // /meet/BibleReading and biblereading are different meetings, and the two
       // people never saw each other. Only `av` is case-folded: it is a hex digest.
-      return { room, av, relay };
+      return { room, av, relay, bc: bc && !!av }; // bc is only meaningful on an admin room
     }
     function enterMeeting(hashOrUrl) {
       // Accept a '#…' hash (minted here) or a full URL (a saved entry). A
@@ -5540,7 +5607,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const K = await deriveAdminKey(chosen, pass);
           const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key (§9)
           try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
-          enterMeeting('#v=' + chosen + '&av=' + V);
+          enterMeeting('#v=' + chosen + '&av=' + V + (BC_INTENT ? '&bc=1' : ''));
         } catch (e) { err.textContent = 'Could not create the room. Try again.'; go.disabled = false; go.textContent = 'Create & enter'; }
       };
       document.getElementById('lob-join-btn').onclick = () => { toggle('lob-join'); document.getElementById('lob-admin').style.display = 'none'; const i = document.getElementById('lob-join-in'); if (document.getElementById('lob-join').style.display !== 'none') i.focus(); };
@@ -5549,7 +5616,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const err = document.getElementById('lob-join-err');
         const p = parseMeetInput(document.getElementById('lob-join-in').value);
         if (!p) { err.textContent = 'Couldn’t read that — paste a meeting link or its id.'; return; }
-        enterMeeting('#v=' + p.room + (p.av ? '&av=' + p.av : '') + (p.relay ? '&relay=' + encodeURIComponent(p.relay) : ''));
+        enterMeeting('#v=' + p.room + (p.av ? '&av=' + p.av : '') + (p.bc ? '&bc=1' : '') + (p.relay ? '&relay=' + encodeURIComponent(p.relay) : ''));
       };
       document.getElementById('lob-join-go').onclick = doJoin;
       document.getElementById('lob-join-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
@@ -5572,7 +5639,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       });
     }
     function showLobby() {
-      document.title = 'Meeting — GifOS';
+      document.title = (BC_INTENT ? 'Broadcast' : 'Meeting') + ' — GifOS';
+      // The Broadcast app opens THIS page with #bc=1 and no room: same lobby,
+      // reworded — no open rooms (a broadcast without a host is nothing), and
+      // creating one mints the same admin room with &bc=1 riding the link.
+      if (BC_INTENT) {
+        document.querySelector('#lobby h1').textContent = 'Broadcast';
+        document.getElementById('lob-open').style.display = 'none';
+        document.getElementById('lob-admin-btn').innerHTML = 'Start broadcasting<small>You go live on the Stage; anyone with the link watches and chats</small>';
+        document.getElementById('lob-admin-pass').placeholder = 'Host password (the key to your broadcast)';
+        document.getElementById('lob-join-btn').innerHTML = 'Watch a broadcast<small>Paste a broadcast link someone shared</small>';
+      }
       document.getElementById('lob-name').textContent = myName();
       renderLobbyList();
       wireLobby();
@@ -5585,6 +5662,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function bootIntoRoom() {
       return ensureName()
         .then(() => {
+          // BROADCAST viewers bring no media at all — never even ASK for the
+          // camera (an audience of thousands must not see a permission prompt
+          // to watch). The null-localStream path below is the same fully
+          // supported view-only join a denied camera lands in; a viewer the
+          // host later calls up gets media through lateMedia (a user gesture),
+          // exactly like any view-only guest tapping the mic button.
+          if (BROADCAST && !bcHostStored()) { localStream = null; return; }
           // getUserMedia is absent on an insecure context (no HTTPS) — don't let
           // that crash the boot; join view-only, exactly as for a denied camera.
           const md = navigator.mediaDevices;
@@ -5605,10 +5689,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
           meTile = makeTile('me', myName() + ' (you)', true);
           if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
+          else if (BROADCAST) tileNote(meTile, 'You’re watching this broadcast.'); // the grid is hidden in the skin; this only shows to a stripped-URL client
           else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — tap the mic or camera button above to ask again.');
           updateTile('me');
           joinRoom();
           updateStatus();
+          if (BROADCAST) {
+            document.title = 'Broadcast — GifOS';
+            const hint = document.querySelector('.share .hint');
+            if (hint) hint.textContent = 'Share this link — anyone who opens it is watching:';
+            if (!bcHostStored()) setStatus('Joining the broadcast…');
+            else {
+              // The HOST auto-steps onto the Stage: a broadcast page's whole
+              // point, and the Stage is where their camera reaches the room.
+              // One-shot; waits out the async admin sign-in + S4 identity.
+              // Camera and mic still start OFF (quiet-join discipline) — going
+              // live on pixels stays a deliberate tap.
+              const t0 = Date.now();
+              const t = setInterval(() => {
+                if (Date.now() - t0 > 30000) { clearInterval(t); return; }
+                if (!myId || !amAdmin) return;
+                clearInterval(t);
+                if (!myStatus.stg && canStage(myId) && stageIds().length < SCALE.C) setStage(true);
+              }, 250);
+            }
+          }
         });
     }
     // ---- ONE RUNTIME entry dispatch (docs/one-runtime.md) -------------------
@@ -5759,6 +5864,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const chat = new Map();  // id -> { id, by, byId, at, text }
     const files = new Map(); // id -> { id, name, size, mime, by, at, bytes|null, parts, got }
     const tombs = new Map(); // fileId -> { by, at }
+    // Chat moderation (admin rooms): per-message deletes are SIGNED admin
+    // orders ('cdel', same §SIG verify as a ban) kept as tombstones so the
+    // union-merge can never resurrect a deleted line; the tomb stores the
+    // signed order itself so 'hi' backfill re-proves it to late joiners.
+    const chatTombs = new Map(); // msgId -> w (the verified signed 'cdel' order)
+    // The room-wide chat on/off switch lives in the signed mod table under
+    // the pseudo-target '*' (see mergeMod). Null when chat is on.
+    const chatOffInfo = () => {
+      if (!hasAdminRoom()) return null;
+      const m = modTable['*'] && modTable['*'].chat;
+      return (m && m.on) ? m : null;
+    };
+    function applyCdel(id, w) {
+      if (!id || chatTombs.has(id)) return false;
+      chatTombs.set(id, w);
+      chat.delete(id);
+      return true;
+    }
     const MAX_FILE = 25 * 1024 * 1024;
     let unread = 0;
 
@@ -5797,7 +5920,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function wireDc(p, dc) {
       p.dc = dc;
       dc.onopen = () => {
-        dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj() });
+        dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj(), ctombs: (() => { const o = {}; for (const [id, w] of chatTombs) o[id] = w; return o; })() });
         // THE MOMENT A CHANNEL EXISTS is the moment the stage pulls can finally
         // travel. Everything below was silently impossible a millisecond ago:
         // sgaFan delivers only to peers whose DC is already OPEN, so a
@@ -5862,6 +5985,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         (m.trs || []).forEach((l) => { if (takeTr(l)) { trNew = true; sendAll({ k: 'tr', m: l }); } });
         if (trNew) renderTranscript();
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
+        // Chat tombstones re-prove themselves: each carries its own signed
+        // 'cdel' order, verified here exactly as when it was first issued
+        // (age-exempt — deleting twice is deleting).
+        for (const id in m.ctombs || {}) {
+          if (chatTombs.has(id)) continue;
+          const w = m.ctombs[id];
+          admVerify(w, 'cdel', Infinity).then((o) => { if (o && o.id === id && applyCdel(id, w)) renderChat(); });
+        }
         (m.metas || []).forEach((meta) => takeMeta(meta, p));
         renderChat(); renderFiles();
       } else if (m.k === 'chat') {
@@ -5869,6 +6000,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           renderChat();
           if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = 'Chat (' + unread + ')'; }
           sendAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
+        }
+      } else if (m.k === 'cdel') {
+        // A signed admin chat-delete: verify, tomb, repaint, gossip onward on
+        // first sight (the tomb is the dedupe). Receiver-enforced like every
+        // moderation — an unverified delete simply never lands anywhere honest.
+        if (m.w && m.id && !chatTombs.has(m.id)) {
+          admVerify(m.w, 'cdel', Infinity).then((o) => {
+            if (o && o.id === m.id && applyCdel(m.id, m.w)) { renderChat(); sendAll({ k: 'cdel', id: m.id, w: m.w }); }
+          });
         }
       } else if (m.k === 'tlhint') {
         // D5 HINT (see the peer-leave sender): a neighbour with a live relay
@@ -6133,7 +6273,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
     }
     function takeChat(m) {
-      if (!m || !m.id || chat.has(m.id)) return false;
+      if (!m || !m.id || chat.has(m.id) || chatTombs.has(m.id)) return false;
+      // While the admin's chat-off stands, only a verified admin's NEW lines
+      // land — receiver-enforced, so a DOM-hacked sender is still unheard by
+      // everyone honest. Lines from BEFORE the switch stay: turning chat off
+      // silences the room, it doesn't censor its history (delete does that).
+      const co = chatOffInfo();
+      if (co && (m.at || 0) > co.at && !admins.includes(m.byId)) return false;
       // `link`, when present, renders as a "Join →" button — validate it is an
       // http(s) URL (never javascript:/data:) so a peer can't inject a live link.
       const link = (typeof m.link === 'string' && /^https?:\/\//i.test(m.link)) ? m.link.slice(0, 400) : undefined;
@@ -6197,10 +6343,47 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const body = m.link
           ? esc(m.text) + ' <a href="' + esc(m.link) + '" style="color:#8ab4ff;font-weight:600">Join →</a>'
           : esc(m.text);
-        return '<div class="cmsg' + (m.byId === myId ? ' mine' : '') + '"><b>' + esc(m.by) + '</b>' + body + '</div>';
+        // The signed-in admin moderates line by line: the standard row-delete
+        // glyph mints a signed 'cdel' (see the #chatlog click delegate).
+        const del = amAdmin ? '<button class="row-del" data-cdel="' + esc(m.id) + '" title="Delete this message for everyone">' + DEL_ICON + '</button>' : '';
+        return '<div class="cmsg' + (m.byId === myId ? ' mine' : '') + '"><b>' + esc(m.by) + '</b>' + body + del + '</div>';
       }).join('');
+      const co = chatOffInfo();
+      if (co) log.innerHTML += '<div class="cmsg" style="opacity:.65"><b>🔇</b>Chat was turned off' + (co.by ? ' by ' + esc(co.by) : '') + '.' + (amAdmin ? '' : ' Only the host can post.') + '</div>';
       log.scrollTop = log.scrollHeight;
     }
+    // The chat gate: repainted on every mod merge and admin-state flip. The
+    // admin keeps a live input while chat is off (announcements still flow);
+    // everyone else's composer locks, with the reason in the placeholder.
+    function paintChatGate() {
+      const off = !!chatOffInfo();
+      const locked = off && !amAdmin;
+      const inp = document.getElementById('chat-in');
+      inp.disabled = locked;
+      inp.placeholder = locked ? 'Chat is off — only the host can post.'
+        : (off ? 'Chat is off for guests — you can still post.' : 'Message everyone…');
+      document.querySelector('#chatform button[type="submit"]').disabled = locked;
+      document.getElementById('cattach').disabled = locked;
+      const b = document.getElementById('chatmod');
+      b.style.display = (hasAdminRoom() && amAdmin) ? '' : 'none';
+      b.textContent = off ? 'Turn chat on' : 'Turn chat off';
+      b.title = off ? 'Let everyone post in chat again' : 'Silence the chat for everyone but you';
+    }
+    document.getElementById('chatmod').onclick = () => {
+      setMod('*', 'chat', !chatOffInfo());
+      paintChatGate(); renderChat();
+    };
+    document.getElementById('chatlog').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cdel]'); if (!b) return;
+      const id = b.getAttribute('data-cdel');
+      if (!amAdmin || chatTombs.has(id)) return;
+      admSigned('cdel', { id }).then((w) => {
+        if (!w) return;
+        applyCdel(id, w);
+        sendAll({ k: 'cdel', id, w });
+        renderChat();
+      });
+    });
     function renderFiles() {
       const el = document.getElementById('cfilelist');
       // Files are only allowed in a PASSWORD-PROTECTED meeting: an open room anyone
@@ -6230,6 +6413,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     });
     document.getElementById('chatform').addEventListener('submit', (e) => {
       e.preventDefault();
+      if (chatOffInfo() && !amAdmin) { setStatus('The host has turned chat off.'); return; }
       const inp = document.getElementById('chat-in');
       const text = inp.value.trim();
       if (!text) return;
@@ -7963,6 +8147,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stageBtn.classList.toggle('on', on);
       stageBtn.textContent = on ? 'Step down' : 'Stage';
       stageBtn.style.display = (!hasAdminRoom() || amAdmin || (modOf(myId).app && modOf(myId).app.on) || myStatus.stg) ? '' : 'none';
+      // The broadcast skin hides a viewer's mic/cam buttons — until the host
+      // grants them the stage, when the controls they now need grow back.
+      document.body.classList.toggle('stage-granted', canStage(myId));
     }
     function setStage(on) {
       myStatus.stg = on ? Date.now() : 0;
@@ -10109,6 +10296,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }),
       hasAdmin: () => hasAdminRoom(),
       amAdmin: () => amAdmin,
+      broadcast: () => BROADCAST,
+      chatOff: () => !!chatOffInfo(),
+      chatOffForTest: (on) => setMod('*', 'chat', !!on),
+      localStreamActive: () => !!localStream,
       banList: () => roomBan,
       bannedOut: () => bannedOut,
       deviceId,
