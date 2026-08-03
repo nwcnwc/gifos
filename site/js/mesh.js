@@ -145,7 +145,6 @@
       // 13s). The law always assumed the tick cadence; these guards make it
       // real. A same-tick repeat is DEFERRED (reAsk/reJoin), fired next tick.
       this.askTick = -1; this.joinTick = -1; this.reAsk = false; this.reJoin = false;
-      this.gwRefused = false; // GATEWAY-FIRST scope: my gateway answered my ask with NOROOM this join attempt — stop preferring it (see pickRoster)
       this.healAt = -99; this.drainAt = 0; this.rosterAskAt = -999; this.xlinkAt = 0;
       this.seatedAt = 0; this.challAt = 0; this.s1CheckAt = -1;
       this.rookSeenAt = 0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
@@ -485,25 +484,30 @@
     // target lifts the mark; when everyone is marked, fall back to the full
     // set (an all-dark roster still retries honestly).
     // TODO(sim parity): port triedSilent to test/sim/mesh.cpp — same rule.
-    // GATEWAY-FIRST (2026-08-02, the fresh-corpse ask): the greeter that
-    // ANSWERED my knock is the one roster member proven alive THIS INSTANT; a
-    // random pick can land on a just-departed seat that is still s1Fresh at
-    // the greeter (its LEAVE lost, its transport death not yet registered),
-    // and one silent ask costs the seeker its whole retry window. Scope:
-    // prefer the gateway UNTIL IT REFUSES ME (gwRefused — set by a NOROOM
-    // authored by the gateway, cleared per join attempt). Unconditional
-    // preference livelocked mass rejoin (a NOROOM lifts its author's silent
-    // mark, so an always-refusing gateway stayed eternally preferred: sweep
-    // kill=0.5 seed=5 went 29/400); first-ask-only was wrong the other way
-    // (post-s1all rosters are corpse-heavy and random re-asks burned a
-    // 60-tick silent window per corpse: mesh-harness s1all went 10/475) — a
-    // corpse's SILENCE must never demote the one target proven alive. Door
-    // load still spreads: every seeker's gateway is a different pool entry.
+    // DOOR-LISTED FIRST (2026-08-02, the fresh-corpse ask): a roster can
+    // name a JUST-DEPARTED seat that is still s1Fresh at the greeter (its
+    // LEAVE lost, its transport death not yet registered), and one silent
+    // ask costs the seeker its whole retry window (the e2e serial-guests
+    // "~23s clustering"). The seeker's own last GREETERS list is FRESH DOOR
+    // TRUTH — it just knocked — and a pool entry dies WITH its socket, so a
+    // fresh corpse is absent while every live S1 seat is present. Prefer
+    // targets the door lists; fall back to the plain roster when the
+    // intersection is empty. In a healthy room the intersection IS the
+    // roster, so the pick distribution — and the door-load spread — are
+    // unchanged. (Every stronger shape was tried and failed a pinned
+    // battery: gateway-always livelocked mass rejoin at 29/400; gateway-
+    // until-refused re-asked a slow admitter into twin-PLACE dups; gateway-
+    // first-ask-only moved partition seed 29 into a split-brain draw.)
     pickRoster() {
-      const liveIds = []; const fresh = [];
-      for (const e of this.roster) if (e.v !== this.id) { liveIds.push(e.v); if (!this.triedSilent || !this.triedSilent.has(e.v)) fresh.push(e.v); }
-      if (!this.gwRefused && this.gateway != null && fresh.includes(this.gateway)) return this.gateway;
-      const pool = fresh.length ? fresh : liveIds;
+      const liveIds = []; const fresh = []; const door = [];
+      for (const e of this.roster) if (e.v !== this.id) {
+        liveIds.push(e.v);
+        if (!this.triedSilent || !this.triedSilent.has(e.v)) {
+          fresh.push(e.v);
+          if (this.lastGreeters && this.lastGreeters.includes(e.v)) door.push(e.v);
+        }
+      }
+      const pool = door.length ? door : (fresh.length ? fresh : liveIds);
       if (!pool.length) return null;
       return pool[(this.rng() * pool.length) | 0];
     }
@@ -537,7 +541,7 @@
     join() {
       if (this.joinTick === this.TICK) { this.reJoin = true; this.wake(); return; } // ENTRY PACING: one knock per tick
       this.joinTick = this.TICK;
-      this.state = 0; this.retryAt = this.TICK; this.haveRoster = false; this.gwRefused = false;
+      this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
       this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
       this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
       this.forkOpts = new Map(); this.forkPending = 0;
@@ -818,7 +822,36 @@
             let aid = this.firstHandLive(ac) ? this.occGet(ac) : null;
             if (aid == null || aid === this.id) aid = this.firstHandLive(ah) ? this.occGet(ah) : null; // column-mate not live → that row's head, still first-hand
             if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
-            continue;                                    // the whole admitter row below is dead too (not first-hand live) → resolve bottom-up
+            // The whole admitter row below is dead too. "Resolve bottom-up"
+            // DEADLOCKED here when EVERY row below was dead or empty (s1all
+            // recovery: fresh greeters in rows 0-1, rows 2-4 dead, one stale
+            // corpse hint in row 2 — 465 seekers NOROOM'd for 39k ticks): the
+            // wrap admitters can never seat because seating THEM needs this
+            // row first. A dead-held row whose resurrectors are also dead can
+            // only be re-seeded by ORDINARY admission — fall through to the
+            // j-loop: the H7 advance gate above already proved the row ABOVE
+            // full, so j==0's admitter (that row's head) is alive, and the
+            // stale corpse hints are individually skipped by cellReserved.
+            // The row's new head then s1Fill-sweeps the corpses itself.
+            // BUT ONLY WITH THE DOOR'S CORROBORATION: an unconditional fall-
+            // through re-seeded rows a PARTITION had merely hidden and
+            // minted split-brain dups (sweep split-0.5 seed 29: side B
+            // dups=18). Every S1 seat is a greeter: the registry drops the
+            // DEAD instantly, while a partitioned-but-alive row's members
+            // keep E3-knocking the shared door and stay LISTED — so a hinted
+            // occupant present in my own last greeter list means "hold the
+            // hole" (H1-S1), and a row of occupants the door has forgotten
+            // is genuinely dead.
+            {
+              let anyHint = false, doorHolds = false;
+              for (let j = 0; j < C() && !doorHolds; j++) { const x = this.occGet(ck({ pc: 0, r: t, i: j })); if (x == null) continue; anyHint = true; if (this.lastGreeters && this.lastGreeters.includes(x)) doorHolds = true; }
+              // POSITIVE corroboration only: fall through iff the row still
+              // NAMES occupants and the door has forgotten every one of
+              // them. A row whose hints have fully decayed gives no verdict —
+              // hold (a partition starves hints and door-listings alike, and
+              // H1-S1 says hold the hole when you cannot tell).
+              if (doorHolds || !anyHint) continue;
+            }
           }
           for (let j = 0; j < C(); j++) {
             const cell = { pc: 0, r: t, i: j }; const k = ck(cell);
@@ -1536,7 +1569,7 @@
         // scattered away from the funnel and deep sections filled row 1 before
         // row 0 (H7 dense-fill broken; sim hchain E + c-sweep, 2026-07-29). A
         // corpse answers NOTHING, so its mark stands — corpse-avoid untouched.
-        case 'NOROOM': if (this.state === 2) { if (m.id != null && m.id === this.gateway) this.gwRefused = true; if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); if (this.triedSilent && this.lastAsked != null) this.triedSilent.delete(this.lastAsked); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
+        case 'NOROOM': if (this.state === 2) { if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); if (this.triedSilent && this.lastAsked != null) this.triedSilent.delete(this.lastAsked); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.

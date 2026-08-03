@@ -164,7 +164,35 @@ void Seat::serveFind(Msg& mm){
         int aid = firstHandLive(ckey(admc)) ? occGet(ckey(admc)) : -1;
         if(aid<0||aid==id) aid = firstHandLive(ckey(admh)) ? occGet(ckey(admh)) : -1;   // column-mate not live → try that row's head, still first-hand
         if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
-        continue;                                      // the whole admitter row below is dead too (not first-hand live) → resolve bottom-up
+        // The whole admitter row below is dead too. "Resolve bottom-up"
+        // DEADLOCKED here when EVERY row below was dead or empty (s1all
+        // recovery: fresh greeters in rows 0-1, rows 2-4 dead, one stale
+        // corpse hint in row 2 — 465 seekers NOROOM'd for 39k ticks): the
+        // wrap admitters can never seat because seating THEM needs this row
+        // first. A dead-held row whose resurrectors are also dead can only be
+        // re-seeded by ORDINARY admission — fall through to the j-loop (the
+        // H7 gate above proved the row ABOVE full, so j==0's admitter is
+        // alive, and stale corpse hints are individually cellReserved-
+        // skipped; the row's new head then s1Fill-sweeps the corpses).
+        // BUT ONLY WITH THE DOOR'S CORROBORATION: an unconditional fall-
+        // through re-seeded rows a PARTITION had merely hidden and minted
+        // split-brain dups (sweep split-0.5 seed 29: side B dups=18). Every
+        // S1 seat is a greeter: the registry drops the DEAD instantly, while
+        // a partitioned-but-alive row's members keep E3-knocking the shared
+        // door and stay LISTED — so a hinted occupant present in my own last
+        // greeter list means "hold the hole" (H1-S1), and a row of occupants
+        // the door has forgotten is genuinely dead.
+        {
+          bool anyHint=false, doorHolds=false;
+          for(int j=0;j<C&&!doorHolds;j++){ int x=occGet(ckey({0,(uint8_t)t,(uint8_t)j})); if(x<0) continue; anyHint=true;
+            for(int g:lastGreeters) if(g==x){ doorHolds=true; break; } }
+          // POSITIVE corroboration only: fall through iff the row still NAMES
+          // occupants and the door has forgotten every one of them. A row
+          // whose hints have fully decayed gives no verdict — hold (a
+          // partition starves hints and door-listings alike, and H1-S1 says
+          // hold the hole when you cannot tell).
+          if(doorHolds || !anyHint) continue;
+        }
       }
       for(int j=0;j<C;j++){
         Coord cell={0,(uint8_t)t,(uint8_t)j}; uint64_t k=ckey(cell);
@@ -852,7 +880,7 @@ void Seat::recv(Msg& m){
     // stands — the corpse-avoid win is untouched. (A late NOROOM from a
     // superseded ask can lift the CURRENT target's mark early; that errs
     // toward the old behavior — one wasted re-pick — never toward a wedge.)
-    case NOROOM: if(state==2){ if(m.id>=0&&m.id==gateway) gwRefused=true; triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
+    case NOROOM: if(state==2){ triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
