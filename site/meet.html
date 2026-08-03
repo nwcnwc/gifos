@@ -1895,18 +1895,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const isMe = id === 'me';
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
       const blocked = !!(modOf(id).blur && modOf(id).blur.on);
-      // BROADCAST amendment: the password rule protects MUTUAL privacy — a
-      // room of peers who all show their faces to each other. A broadcast has
-      // no such contract: stepping onto the Stage IS the deliberate act of
-      // being seen by strangers, and requiring a room password would leave a
-      // street broadcaster permanently blurred (a locked room's password is
-      // part of the key — viewers could never even join). So a STAGER's tile
-      // clears on consent alone: host present, camera on, No blur, no
-      // moderator block. Everyone else keeps the meeting rule — viewers send
-      // nothing and are never rendered, so nothing of theirs can leak clear.
-      if (BROADCAST && stageIds().includes(isMe ? myId : id)) {
-        return (!blocked && adminPresent() && consents(st)) ? 0 : Math.max(1, blurLevel(st.blur));
-      }
+      // (This rule applies UNCHANGED in broadcast rooms — Nathan's call,
+      // 2026-08-03. An admin room is born UNLOCKED; the host locking it with
+      // a room password after arriving IS the deliberate "this room may show
+      // clear video" act, broadcast or meeting alike. §LOCK keeps sid/token
+      // password-free, so a locked broadcast's viewers still route to the
+      // room; the password is the read capability, as ever.)
       const clear = !!roomPw && !blocked && (hasAdminRoom() ? (adminPresent() && consents(st)) : allConsent());
       if (clear) return 0;
       return Math.max(1, blurLevel(st.blur));

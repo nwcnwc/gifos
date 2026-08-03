@@ -1,6 +1,8 @@
 // Broadcast e2e — the Broadcast skin of meet.html (#bc=1 on an admin room):
-//   the host boots as admin, auto-steps onto the Stage, and their stage feed
-//   clears WITHOUT a room password (the broadcast blur amendment);
+//   the host boots as admin, auto-steps onto the Stage; the stage stays
+//   BLURRED until the host LOCKS the room (the meeting password rule applies
+//   unchanged — the room password is the broadcast's ticket: a pre-lock
+//   viewer learns it by sealed pwinfo, a late one is prompted at the door);
 //   a viewer joins with NO camera/mic permission granted and getUserMedia is
 //   NEVER called (no prompt to watch), the row grid + stadium are hidden and
 //   the media controls gone; chat flows both ways; the host's chat-off locks
@@ -83,12 +85,38 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('viewer keeps Chat and Hand (the back-channel and the call-up request)',
     !(await hidden(v, '#chatbtn')) && !(await hidden(v, '#hand')));
 
-  // ---- the show: host cam on ⇒ CLEAR stage feed with NO room password -------
+  // ---- the skin is a skin: strip &bc=1 and it is the same room, meeting UI --
+  // (joined BEFORE the lock below — a stripped client after it would meet the
+  // ticket booth like any late arrival, which the tail of this suite covers.)
+  const S = await newUser('Sami', ['camera', 'microphone']);
+  const s = await open(S, 'stripped', 'v=' + room + '&av=' + av);
+  await s.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
+  check('a stripped-URL client joins the SAME room in the plain meeting skin',
+    !(await s.evaluate(() => window.__gifosVideo.broadcast()))
+    && !(await s.evaluate(() => document.body.classList.contains('broadcast')))
+    && (await s.evaluate(() => window.__gifosVideo.hasAdmin())));
+  await s.close();
+
+  // ---- the show: BLURRED until the host LOCKS the room ----------------------
+  // The meeting rule applies unchanged (Nathan's call, 2026-08-03): an admin
+  // room is born unlocked, and the host setting the room password after
+  // arriving IS the deliberate "this room may show clear video" act. §LOCK
+  // keeps sid/token password-free, so viewers still route to a locked room —
+  // the password is the ticket, prompted for at the door.
   await h.locator('#cam').click();
   await h.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 20000 });
   await h.evaluate(() => window.__gifosVideo.setBlur(0));
-  await h.waitForFunction(() => window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 20000 });
-  check('a broadcast STAGER clears on consent alone — no room password required', true);
+  await sleep(2500);
+  check('an UNLOCKED broadcast stays blurred — the password rule is not skinned away',
+    (await h.evaluate(() => window.__gifosVideo.blurClassOf('me'))) >= 1);
+  const TICKET = 'showkey1';
+  await h.locator('#pwbtn').click();
+  await h.locator('#pw-new').fill(TICKET);
+  await h.locator('#pw-save').click();
+  await h.waitForFunction(() => window.__gifosVideo.blurClassOf('me') === 0, null, { timeout: 25000 });
+  check('the host locking the room clears their stage feed', true);
+  await v.waitForFunction((pw) => window.__gifosVideo.roomPw() === pw, TICKET, { timeout: 25000 });
+  check('the ticket reaches the pre-lock viewer by itself (sealed pwinfo)', true);
   await v.waitForFunction(() => {
     const el = document.querySelector('#stagefeed video');
     return !!(el && el.srcObject && el.readyState >= 2);
@@ -159,14 +187,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await v.waitForFunction(() => !document.body.classList.contains('stage-granted'), null, { timeout: 15000 });
   check('revoking the grant takes them away again', await hidden(v, '#mic'));
 
-  // ---- the skin is a skin: strip &bc=1 and it is the same room, meeting UI --
-  const S = await newUser('Sami', ['camera', 'microphone']);
-  const s = await open(S, 'stripped', 'v=' + room + '&av=' + av);
-  await s.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
-  check('a stripped-URL client joins the SAME room in the plain meeting skin',
-    !(await s.evaluate(() => window.__gifosVideo.broadcast()))
-    && !(await s.evaluate(() => document.body.classList.contains('broadcast')))
-    && (await s.evaluate(() => window.__gifosVideo.hasAdmin())));
+  // ---- a LATE viewer at a locked broadcast: the ticket booth ----------------
+  // The door's courtesy gate refuses their empty proof, the R6 prompt asks
+  // for the room password, and typing the ticket admits them to the show.
+  const T = await newUser('Tara', null);
+  const t = await open(T, 'late', 'v=' + room + '&av=' + av + '&bc=1');
+  await t.waitForFunction(() => document.getElementById('pw-modal').style.display === 'flex'
+    && /locked/i.test(document.getElementById('pw-title').textContent), null, { timeout: 30000 });
+  check('a late viewer without the ticket meets the "room is locked" prompt', true);
+  await t.locator('#pw-new').fill(TICKET);
+  await t.locator('#pw-save').click();
+  await t.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 60000 });
+  await t.waitForFunction(() => {
+    const el = document.querySelector('#stagefeed video');
+    return !!(el && el.srcObject && el.readyState >= 2);
+  }, null, { timeout: 40000 });
+  check('typing the ticket admits them and the show is on their screen', true);
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
