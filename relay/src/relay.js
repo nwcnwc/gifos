@@ -446,8 +446,8 @@ export class Session {
       // unlock it after an eviction.)
       //
       // ADMIN rooms: the verifier V is part of the ROOM'S IDENTITY (the
-      // /call/<room>/<V> link everyone shares — the session id is the
-      // room+V composite, so /call/<room> is a DIFFERENT room that can
+      // /meet/<room>/<V> link everyone shares — the session id is the
+      // room+V composite, so /meet/<room> is a DIFFERENT room that can
       // NEVER have an admin). Joining an admin room is structural consent
       // to be administered. Admin power = knowledge of the password: the
       // client derives K from it (PBKDF2, room-salted) and presents K;

@@ -1443,7 +1443,7 @@ Two follow-ons this creates:
   room's address to `/join/<shortname>/…`, or a swap would silently move
   everyone.
 
-`/call/…` remains a permanent alias for `/meet/…` (`404.html:33`). The link is a
+A pretty link is a
 **secret capability** either way — the client derives the session id, token, and
 E2E key from the code and the relay never sees it ("derive, don't send"). The one
 real difference to reconcile is the **derivation**: app links use `deriveJoin`,

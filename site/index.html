@@ -82,17 +82,17 @@ window.GIFOS_VERSION = 'edge';
     var pin = null, chan = null, cur = null;
     try { pin = localStorage.getItem('gifos_pin'); chan = localStorage.getItem('gifos_channel'); cur = localStorage.getItem('gifos_current'); } catch (e) {}
     var stay = cleared ? { clear: true } : null;
-    // A PRETTY router path (/meet/<room>, /call/<room>, /join/<code>[/…]) is NOT a
+    // A PRETTY router path (/meet/<room>, /join/<code>[/…]) is NOT a
     // file — Pages 404s it and 404.html routes it to a real page. If we ever run at
     // one (an offline cached shell, or any substitution of index.html), prepending
     // /versions/<v> would build /versions/<v>/meet/<room>, which exists nowhere, and
     // bounce the visitor to the desktop with their invite silently dropped. So
     // translate a pretty path to its real target instead of decorating it. Room case
     // is PRESERVED: the room id is the capability the key derives from.
-    var pm = pathname.match(/^\/(?:join|meet|call|cast)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
+    var pm = pathname.match(/^\/(?:join|meet|cast)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
     var here;
     if (pm) {
-      here = /^\/(?:meet|call|cast)\//.test(pathname)
+      here = /^\/(?:meet|cast)\//.test(pathname)
         ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
         : '/meet.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {

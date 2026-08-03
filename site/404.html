@@ -5,10 +5,10 @@
 <meta name="robots" content="noindex">
 <title>GifOS</title>
 <!-- Link-preview card for pretty invite links. GitHub Pages serves THIS file for
-     /meet/…, /call/…, and /join/… (the router below redirects real users to the
+     /meet/… and /join/… (the router below redirects real users to the
      right page). A JS-less scraper can't tell those apart, so the static card is
      neutral ("Join on GifOS"). On theme subdomains the mirror Worker upgrades
-     /meet & /call to the themed MEETING card with a 200 status (mirror/src/mirror.js).
+     /meet to the themed MEETING card with a 200 status (mirror/src/mirror.js).
      og:url is omitted so the scraper keeps the actual invite URL (incl. subdomain). -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="GifOS">
@@ -30,8 +30,7 @@
  * anywhere. The code in a link is a SECRET CAPABILITY: the client derives the
  * relay-facing session id, token, and end-to-end key from it (see
  * gifos-net.js "derive, don't send"); the relay never sees the code itself.
- * /call/<code> stays a permanent alias for /meet/<code> so links shared
- * before the rename keep working. Anything unrecognized just goes home.
+ * Anything unrecognized just goes home.
  */
 (function () {
   // /store and /store/<slug> — the App Store, and a shareable link to one
@@ -47,10 +46,10 @@
     location.replace('/store.html' + (s[1] ? '#app=' + encodeURIComponent(s[1].toLowerCase()) + q : (q ? '#' + q.slice(1) : '')));
     return;
   }
-  // Bare /meet (or its /call alias), no room = START A FRESH MEETING, identical
-  // to double-clicking the Meeting app on the Home Screen (which loads
-  // meet.html with no room and mints one). Keeps the two entry points equal.
-  if (/^\/(?:meet|call)\/?$/i.test(location.pathname)) {
+  // Bare /meet, no room = START A FRESH MEETING, identical to double-clicking
+  // the Meeting app on the Home Screen (which loads meet.html with no room and
+  // mints one). Keeps the two entry points equal.
+  if (/^\/meet\/?$/i.test(location.pathname)) {
     location.replace('/meet.html');
     return;
   }
@@ -71,13 +70,13 @@
   // capability); /join/<room>/<verifier>/<code> is an OWNED app — the public
   // room.verifier names the session (only the creator's app can host it), and
   // the trailing code is the guests' join-and-decrypt secret.
-  var m = location.pathname.match(/^\/(?:join|meet|call|cast)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64})(?:\/([a-z0-9]{1,64}))?)?\/?$/i);
+  var m = location.pathname.match(/^\/(?:join|meet|cast)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64})(?:\/([a-z0-9]{1,64}))?)?\/?$/i);
   if (m) {
     var code = m[1];
     var verifier = m[2] ? m[2].toLowerCase() : '';
     var lsec = m[3] || '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
-    if (/^\/(?:meet|call|cast)\//.test(location.pathname)) {
+    if (/^\/(?:meet|cast)\//.test(location.pathname)) {
       // A meeting has no separate join token — the room id IS the capability, so
       // no &k= (the app branch below still needs it: an owned app carries one).
       // /cast/<room>/<V> is the SAME admin room worn as the Broadcast skin —

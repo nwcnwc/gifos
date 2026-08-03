@@ -144,7 +144,7 @@ function raceNetwork(req, cache, ms) {
 // blocking <script>, and a transient 5xx should serve the last good build.
 // `pass404` — a NAVIGATION whose server answer is 404 must be delivered as-is,
 // never papered over. On GitHub Pages the 404 body IS 404.html: the pretty-link
-// router that turns /meet/<room>, /call/<room> and /join/<code> into a real
+// router that turns /meet/<room> and /join/<code> into a real
 // page. Resolving null for it sent the caller to the cached shell instead, whose
 // channel loader then rewrote the pretty path to /versions/<v>/meet/<room> —
 // a path that exists nowhere — and every invite link landed on the desktop with

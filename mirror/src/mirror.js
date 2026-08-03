@@ -86,7 +86,7 @@ export default {
     // one (site/themes/<sub>/meet-og.png) right here at the edge.
     //
     //   /meet.html            → meet.html (has the base card) — rewrite the image
-    //   /meet/… , /call/…     → the pretty invite, served by 404.html (200) with
+    //   /meet/…               → the pretty invite, served by 404.html (200) with
     //                           the neutral "Join on GifOS" card — rewrite it to
     //                           the themed MEETING card AND flip 404→200 so strict
     //                           scrapers (which skip non-200) still unfurl it.
@@ -98,7 +98,7 @@ export default {
     const isHtml = (out.headers.get('content-type') || '').includes('text/html');
     const p = url.pathname;
     const meetHtml = /^\/meet\.html$/i.test(p);
-    const meetPretty = /^\/(?:meet|call)(?:\/|$)/i.test(p);
+    const meetPretty = /^\/meet(?:\/|$)/i.test(p);
     if (ro && isHtml && (meetHtml || meetPretty)) {
       const card = ORIGIN + '/themes/' + sub + '/meet-og.png';
       const desc = 'Peer-to-peer video, right in your browser. One link — no account, no installs.';
