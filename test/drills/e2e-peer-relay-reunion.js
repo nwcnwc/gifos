@@ -195,6 +195,7 @@ const check = (n, c, d) => {
     if (hubLinks >= 2) break;
     await sleep(5000);
   }
+  console.log('  hub-links timeline: ' + timeline.map((s) => s.t + 's=' + (s.hub && s.hub.live != null ? s.hub.live : '?')).join(' ') + ' (2 links @' + (hubLinks >= 2 ? Math.round((Date.now() - t0abs) / 1000) + 's' : 'NEVER') + ')');
   check('Hub (bridge peer) has live links to both islands', hubLinks >= 2, hubLinks);
   if (hubLinks < 2) for (const s of timeline) console.log('  [forensics t+' + s.t + 's] ' + JSON.stringify(s));
   await camOn(hub); // Hub's camera on too (its own feed rides beside the forwards)
