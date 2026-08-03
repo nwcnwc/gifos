@@ -27,6 +27,7 @@
   const SYSTEM_LAUNCHERS = {
     meet: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
     video: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
+    broadcast: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
     appstore: 'System app — opens the trusted GifOS store page, which can install an app onto this Home Screen. Regular apps run sandboxed and can never write to it.',
   };
 
@@ -193,7 +194,7 @@
     let rightRow = 0, leftRow = 0;
     for (const a of seed.loose) {
       if (a.appId === 'appstore') { pendingStoreApp = a; continue; } // placed below Stolen Apps by ensureSystemItems
-      if (a.appId === 'meet' || a.appId === 'video') await putDefaultApp(a, null, { x: rightX, y: rowY(rightRow++) });
+      if (a.appId === 'meet' || a.appId === 'video' || a.appId === 'broadcast') await putDefaultApp(a, null, { x: rightX, y: rowY(rightRow++) });
       else await putDefaultApp(a, null, { x: GRID.origin, y: rowY(leftRow++) });
     }
     const putFolder = async (folder, parent, x, y) => {
@@ -276,7 +277,7 @@
     const rowY = (r) => GRID.origin + r * GRID.rowPitch;
     let rightRow = 0, leftRow = 0;
     const nextRootSpot = (appId) => {
-      if (appId === 'meet' || appId === 'video') return { x: rightX, y: rowY(rightRow++) };
+      if (appId === 'meet' || appId === 'video' || appId === 'broadcast') return { x: rightX, y: rowY(rightRow++) };
       if (appId === 'appstore') { // default spot: right below the Stolen Apps chest (when it exists yet)
         const chest = items.find((i) => i.id === 'sys_stolen');
         if (chest) return { x: chest.x, y: chest.y + GRID.rowPitch };
