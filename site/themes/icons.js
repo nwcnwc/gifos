@@ -129,6 +129,49 @@
     return { defs, art, shadowRx: 44 };
   };
 
+  // Broadcast — ONE glossy panel with ONE host live on it (never a grid: the
+  // whole point is one-to-many), a breathing LIVE lamp, and rows of eyeballs
+  // watching from the dark below. The audience's pupils drift as one; a pair
+  // blinks mid-loop.
+  ART.broadcast = (a, f) => {
+    const base = toHex(candy(a));
+    const g1 = grad(), g2 = grad(), sh = grad(), scr = grad(), lv = grad();
+    const defs = lg(g1, [[0, '#ffffff'], [0.5, '#f3effc'], [1, '#d8d2ea']])      // bezel
+      + rg(scr, [[0, '#2a2152'], [0.7, '#1d1640'], [1, '#140d2e']], 0.42, 0.3)   // screen glass
+      + bodyGrad(g2, base)
+      + rg(lv, [[0, '#ff8a8a'], [0.55, '#ff4d5e'], [1, '#d1273c']], 0.35, 0.3)   // LIVE lamp
+      + sheenGrad(sh);
+    const lamp = 0.55 + 0.45 * SPARK[f];
+    // the one host, filling the panel
+    const hx0 = 30, hy0 = 33, hw = 68, hh = 36, cx = hx0 + hw / 2;
+    const host = "<path d='" + rr(hx0, hy0, hw, hh, 7) + "' fill='url(#" + g2 + ")'/>"
+      + "<path d='" + rr(hx0, hy0, hw, hh * 0.5, 7) + "' fill='url(#" + sh + ")'/>"
+      + "<path d='M" + (cx - hw * 0.22) + ' ' + (hy0 + hh - 1.5) + ' a' + (hw * 0.22) + ' ' + (hh * 0.42)
+        + ' 0 0 1 ' + (hw * 0.44) + " 0 z' fill='#fff' opacity='.95'/>"
+      + "<circle cx='" + cx + "' cy='" + (hy0 + hh * 0.42) + "' r='" + (hh * 0.24) + "' fill='#fff' opacity='.97'/>"
+      + "<circle cx='" + (hx0 + 8) + "' cy='" + (hy0 + 8) + "' r='4' fill='url(#" + lv + ")' opacity='" + lamp + "'/>"
+      + "<circle cx='" + (hx0 + 8) + "' cy='" + (hy0 + 8) + "' r='4.6' fill='#ff4d5e' opacity='" + (lamp * 0.55) + "' filter='url(#fglow)'/>";
+    // the audience: pairs of eyes below the panel, pupils drifting together
+    const drift = [-1.6, -0.8, 0, 0.8, 1.6, 0.6][f];
+    const eyes = (x, y, s, blink) => {
+      const ry = blink ? s * 0.14 : s;
+      const pupil = (ex) => "<circle cx='" + (ex + drift) + "' cy='" + (y - s * 0.22) + "' r='" + (s * 0.46) + "' fill='" + INK + "'/>";
+      return "<ellipse cx='" + (x - s * 1.45) + "' cy='" + y + "' rx='" + s + "' ry='" + ry + "' fill='#fff' opacity='.96'/>"
+        + "<ellipse cx='" + (x + s * 1.45) + "' cy='" + y + "' rx='" + s + "' ry='" + ry + "' fill='#fff' opacity='.96'/>"
+        + (blink ? '' : pupil(x - s * 1.45) + pupil(x + s * 1.45));
+    };
+    const crowd = eyes(52, 82, 3.0, false) + eyes(78, 82, 3.0, f === 2)          // back row, smaller
+      + eyes(40, 91, 4.2, false) + eyes(64, 93, 4.6, f === 4) + eyes(88, 91, 4.2, false);
+    const art =
+      "<path d='" + rr(20, 24, 88, 54, 13) + "' fill='url(#" + g1 + ")'/>"       // bezel
+      + "<path d='" + rr(26, 30, 76, 42, 8) + "' fill='url(#" + scr + ")'/>"     // screen
+      + host
+      + "<path d='" + rr(20, 24, 88, 16, 13) + "' fill='url(#" + sh + ")'/>"     // bezel top-gloss
+      + crowd
+      + sparkle(106, 28, 1, f);
+    return { defs, art, shadowRx: 44 };
+  };
+
   // Folder — dimensional two-tone folder, paper peeking, star sticker.
   ART.folder = (a, f) => {
     const base = toHex(candy(a));
