@@ -630,11 +630,8 @@ void Seat::onPhone(Msg& m){
   // 40-tick window must not out-tenure the legitimate healer's fill. An
   // answered probe erases the observation, restoring full tenure protection
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
-  // E2 sharpened: tenure protects prev ONLY when the fresh contact was EARNED
-  // BY PREV (liveBy) — a cell kept fresh by the true occupant's own beats must
-  // never shield a gossip ghost that captured occ.
-  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && (liveBy.count(ck)&&liveBy[ck]==prev) && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
-  setOcc(ck,m.id); live[ck]=(int)TICK; liveBy[ck]=m.id; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
+  setOcc(ck,m.id); live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -669,8 +666,8 @@ void Seat::s1Heartbeat(){
     Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(t);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m); }
 }
 void Seat::s1Sync(){
-  vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord)))});   // carry MY heir (my down-child)
-  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1}); } }
+  vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord))), born.count(ckey(coord))?born[ckey(coord)]:(int)TICK});   // carry MY heir (my down-child)
+  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1, born.count(e.first)?born[e.first]:-1}); } }
   // W7: sync S1SYNC over the whole rook neighbourhood — every live row-mate AND
   // column-mate (heads included). This is the S1SYNC that keeps the full C^2 home
   // roster consistent across the richly-meshed section.
@@ -864,10 +861,10 @@ void Seat::recv(Msg& m){
       // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
       // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.
       // D5: an unanswered transport loss ends my first-hand hearing of prev.
-      bool prevFresh = (prev>=0) && firstHandLive(m.ck) && (liveBy.count(m.ck)&&liveBy[m.ck]==prev) && !translost.count(m.ck);   // E2 sharpened: freshness must belong to prev
+      bool prevFresh = (prev>=0) && firstHandLive(m.ck) && !translost.count(m.ck);
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
-      live[m.ck]=(int)TICK; liveBy[m.ck]=m.id;   // first-hand: I just heard m.id directly at m.ck
+      live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck);
       // A: HELLO from the soft-sit joiner self-confirms the seat.
       clearSoft(m.ck);
@@ -937,8 +934,21 @@ void Seat::recv(Msg& m){
         if(firstHandLive(ck)) continue;                    // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
         if(translost.count(ck)) continue;                  // D5: my standing first-hand observation (transport died, probe unanswered) outranks an echo — gossip must not re-seat the corpse; any answer or a genuine refill clears it and gossip resumes
         int seen=(int)TICK-age-2; int cur=occGet(ck); int curSeen=s1seen.count(ck)?s1seen[ck]:-999;
-        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur)){ s1seen[ck]=max(curSeen,seen); if(cur!=eid)setOcc(ck,eid); }
-        else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); }
+        // CLAIM BIRTH (2026-08-02): the ±8 lower-id tie-break exists to resolve
+        // SIMULTANEOUS claims, but the freshness stamps it compares are hop-
+        // laundered — `max(curSeen, seen)` lets a displacing entry inherit the
+        // displaced occupant's freshness, so a join-era ghost claim re-won
+        // ties FOREVER (an immortal gossip echo that, when a sever opened a
+        // first-hand gap at one arbiter, evicted a live seat — mesh-harness
+        // D5-sever). Honest hop-ages broke legit races instead (a tie-win
+        // stored stale went phantom and double-admitted: c-sweep dups). The
+        // launder-proof signal is END-TO-END: every entry carries b — the
+        // tick its (cell → claimant) pairing was first established, relayed
+        // UNCHANGED — and a claim BORN more than S1B_HORIZON ago may never
+        // win a tie. A ghost's birth is ancient by definition; every legit
+        // contender's is recent.
+        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur && (e.b<0 || TICK-e.b<=600))){ s1seen[ck]=max(curSeen,seen); if(cur!=eid){ setOcc(ck,eid); born[ck]=(e.b>=0?e.b:(int)TICK); } }
+        else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); born[ck]=(e.b>=0?e.b:(int)TICK); }
       } return; }
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
@@ -947,10 +957,10 @@ void Seat::recv(Msg& m){
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue(); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
-      if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; liveBy[m.mvd]=m.id; noteS1(m.mvd); }
+      if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
       wake(id); return; }
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; liveBy[ckey(m.coord)]=m.from; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
+    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;

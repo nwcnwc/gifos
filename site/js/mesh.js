@@ -108,16 +108,10 @@
       this.state = 0;            // 0 join, 1 ask, 2 search, 3 seated
       this.hasCoord = false; this.coord = { pc: 0, r: 0, i: 0 };
       this.occ = new Map(); this.live = new Map(); this.s1seen = new Map();
-      // liveBy: WHO earned each cell's last first-hand contact (E2 sharpened,
-      // 2026-08-02). `live` is keyed by CELL, so a stale gossip echo that
-      // captured occ during a first-hand gap then borrowed the REAL
-      // occupant's freshness: occ said ghost, live was fresh from the true
-      // occupant's own beats, and the tenure rule evicted the true occupant
-      // as an impostor (mesh-harness D5-sever: an immortal join-era ghost —
-      // kept alive by the S1SYNC lower-id tie-break re-winning at every
-      // age-laundered hop — evicted a severed-but-alive peer). Tenure now
-      // protects an occupant only when the fresh contact IS its own.
-      this.liveBy = new Map();
+      // born: CLAIM BIRTH — the tick each (cell → claimant) pairing was first
+      // established, locally or carried end-to-end in S1SYNC (entry field b).
+      // Gates the gossip tie-break: an ancient claim never wins a tie.
+      this.born = new Map();
       this.healTry = new Map(); this.cousins = new Map();
       this.kidful = new Map(); this.childOf = new Map();
       // A three-state: soft sitting-down marks {joiner, assigner, at} by cell key.
@@ -224,7 +218,7 @@
     occGet(k) { const v = this.occ.get(k); return v === undefined ? null : v; }
     // a seat can be in exactly ONE place: never store MYSELF at a coord I do not
     // hold (stale self-claims circulating back made invisible zombies)
-    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.occ.set(k, v); }
+    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) { this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.born.set(k, this.TICK); } this.occ.set(k, v); }
     noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
     // A three-state helpers (empty / sitting-down / seated)
@@ -287,7 +281,7 @@
     clearSoft(k) { this.sitting.delete(k); }
     markSitting(k, joiner) { this.sitting.set(k, { joiner, assigner: this.id, at: this.TICK }); }
     confirmSeated(k, joiner) {
-      this.clearSoft(k); this.setOcc(k, joiner); this.live.set(k, this.TICK); this.liveBy.set(k, joiner); this.noteS1(k);
+      this.clearSoft(k); this.setOcc(k, joiner); this.live.set(k, this.TICK); this.noteS1(k);
     }
     // CHECK-BACK (law A tightened, 2026-08-02 — the ghost-churn fix): the
     // recheck at SIT_RECHECK now actually FREES a vouch that was never
@@ -1251,11 +1245,8 @@
       // answered probe erases the observation, restoring the sitting
       // occupant's full tenure protection (S5: "has itself, first-hand,
       // stopped hearing the prior occupant").
-      // E2 sharpened: tenure protects prev ONLY when the fresh contact was
-      // EARNED BY PREV (liveBy) — a cell kept fresh by the true occupant's
-      // own beats must never shield a gossip ghost that captured occ.
-      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && this.liveBy.get(kk) === prev && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
-      this.setOcc(kk, m.id); this.live.set(kk, TICK); this.liveBy.set(kk, m.id); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
+      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
+      this.setOcc(kk, m.id); this.live.set(kk, TICK); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
       const row = [];
       if (this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) { row.push({ k: ck(this.coord), v: this.id, age: this.occGet(ck(topo.down(this.coord))) }); for (let c = 1; c < C(); c++) { const rc = { pc: this.coord.pc, r: this.coord.r, i: c }; const x = this.occGet(ck(rc)); if (x != null && x !== m.id) row.push({ k: ck(rc), v: x, age: this.childOf.has(ck(rc)) ? this.childOf.get(ck(rc)) : null }); } }
@@ -1294,8 +1285,8 @@
     }
     s1Sync() {
       const TICK = this.TICK;
-      const ent = [{ k: ck(this.coord), v: this.id, age: 0, ch: this.occGet(ck(topo.down(this.coord))) }]; // carry MY heir
-      for (const [k, v] of this.occ) { if (isS1key(k) && v !== this.id) { const it = this.s1seen.get(k); if (it !== undefined && TICK - it < 120) ent.push({ k, v, age: TICK - it, ch: this.childOf.has(k) ? this.childOf.get(k) : null }); } }
+      const ent = [{ k: ck(this.coord), v: this.id, age: 0, ch: this.occGet(ck(topo.down(this.coord))), b: this.born.has(ck(this.coord)) ? this.born.get(ck(this.coord)) : this.TICK }]; // carry MY heir
+      for (const [k, v] of this.occ) { if (isS1key(k) && v !== this.id) { const it = this.s1seen.get(k); if (it !== undefined && TICK - it < 120) ent.push({ k, v, age: TICK - it, ch: this.childOf.has(k) ? this.childOf.get(k) : null, b: this.born.has(k) ? this.born.get(k) : -1 }); } }
       // W7: sync over the whole rook neighbourhood — every live row-mate AND
       // column-mate (heads included) — keeping the full C^2 home roster
       // consistent across the richly-meshed section.
@@ -1555,10 +1546,10 @@
           // only gossip (a phantom) is NOT first-hand live ⇒ no yield ⇒ the
           // real sender is accepted (bug #1). D5: an unanswered transport loss
           // ends my first-hand hearing of prev, so it no longer counts fresh.
-          const prevFresh = (prev != null) && this.firstHandLive(m.ck) && this.liveBy.get(m.ck) === prev && !this.translost.has(m.ck); // E2 sharpened: freshness must belong to prev
+          const prevFresh = (prev != null) && this.firstHandLive(m.ck) && !this.translost.has(m.ck);
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
-          this.live.set(m.ck, TICK); this.liveBy.set(m.ck, m.id); // first-hand: I just heard m.id directly at m.ck
+          this.live.set(m.ck, TICK); // first-hand: I just heard m.id directly at m.ck
           this.noteS1(m.ck);
           this.clearSoft(m.ck); // A: HELLO from soft-sit joiner self-confirms
           return;
@@ -1629,8 +1620,22 @@
             if (this.firstHandLive(kk)) continue; // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
             if (this.translost.has(kk)) continue; // D5: my standing first-hand observation (transport died, probe unanswered) outranks an echo — gossip must not re-seat the corpse; any answer or a genuine refill clears the observation and gossip resumes
             const seen = TICK - age - 2; const cur = this.occGet(kk); const curSeen = this.s1seen.has(kk) ? this.s1seen.get(kk) : -999;
-            if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur != null && eid < cur)) { this.s1seen.set(kk, Math.max(curSeen, seen)); if (cur !== eid) this.setOcc(kk, eid); }
-            else if (cur == null && seen > -999) { this.s1seen.set(kk, seen); this.setOcc(kk, eid); }
+            // CLAIM BIRTH (2026-08-02): the ±8 lower-id tie-break exists to
+            // resolve SIMULTANEOUS claims, but the freshness stamps it
+            // compares are hop-laundered — max(curSeen, seen) lets a
+            // displacing entry inherit the displaced occupant's freshness,
+            // so a join-era ghost claim re-won ties FOREVER (an immortal
+            // gossip echo that, when a sever opened a first-hand gap at one
+            // arbiter, evicted a live seat — mesh-harness D5-sever). Honest
+            // hop-ages broke legit races instead (a tie-win stored stale
+            // went phantom and double-admitted: c-sweep dups). The
+            // launder-proof signal is END-TO-END: every entry carries b —
+            // the tick its (cell → claimant) pairing was first established,
+            // relayed UNCHANGED — and a claim BORN more than 600 ticks ago
+            // may never win a tie. A ghost's birth is ancient by definition;
+            // every legit contender's is recent.
+            if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur != null && eid < cur && (e.b == null || e.b < 0 || TICK - e.b <= 600))) { this.s1seen.set(kk, Math.max(curSeen, seen)); if (cur !== eid) { this.setOcc(kk, eid); this.born.set(kk, (e.b != null && e.b >= 0) ? e.b : TICK); } }
+            else if (cur == null && seen > -999) { this.s1seen.set(kk, seen); this.setOcc(kk, eid); this.born.set(kk, (e.b != null && e.b >= 0) ? e.b : TICK); }
           }
           return;
         }
@@ -1643,7 +1648,7 @@
         case 'GSP': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
-          if (m.mvd) { this.setOcc(m.mvd, m.id); this.live.set(m.mvd, TICK); this.liveBy.set(m.mvd, m.id); this.noteS1(m.mvd); }
+          if (m.mvd) { this.setOcc(m.mvd, m.id); this.live.set(m.mvd, TICK); this.noteS1(m.mvd); }
           this.wake(); return;
         }
         case 'PHONE': this.onPhone(m); return;
@@ -1651,7 +1656,7 @@
           this.lastAck = TICK;
           // FIRST-HAND: the responder spoke to me directly on our rook link.
           const pid = (m.id != null) ? m.id : m.from;
-          if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.live.set(ck(m.coord), TICK); this.liveBy.set(ck(m.coord), pid); this.noteS1(ck(m.coord)); }
+          if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.live.set(ck(m.coord), TICK); this.noteS1(ck(m.coord)); }
           if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
           for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
           for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); // W: learn the heirs at my future owned-links for relay-free promote-up

@@ -110,6 +110,9 @@ trap '[ -n "$DEV_PID" ] && kill $DEV_PID 2>/dev/null' EXIT
 run "door — ghost genesis cannot brick a live room" \
     node test/drills/e2e-ghost-genesis.js
 
+run "door — a greeter SEALED OUT by a ghost genesis notices and re-enters (R3a client arm)" \
+    node test/mesh/ghost-genesis-client.js
+
 run "browser — vanish / transport-loss (pagehide + dc close)" \
     node test/drills/e2e-vanish-browser.js
 

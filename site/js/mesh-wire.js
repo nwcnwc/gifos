@@ -112,6 +112,14 @@
     let lastRelayRx = 0;   // last frame heard from the relay on the live socket
     let lastRegAt = 0;     // last time we sent a greeter registration
     let regPendingAt = 0;  // a registration awaiting its greeters reply (zombie detector)
+    // R3a CLIENT ARM (2026-08-02): consecutive not-admitted registration
+    // replies while seated-S1. The relay's `admitted` says whether MY
+    // presented genesis key matches the room's; a seated greeter refused
+    // repeatedly is SEALED OUT of its own door (ghost genesis, or a room
+    // re-founded under a key I missed) — its registrations are silently
+    // dropped and, from its own view, the pool just looks empty. Nothing
+    // acted on the flag before; the greeterTrace merely recorded it.
+    let notAdm = 0, notAdmAt = -1;
     // SHRANK-TO-SOLO (the 2-person fork fix, 2026-07-29): a room that WAS
     // populated and collapsed to one is a fragment SUSPECT the moment it
     // happens — a fresh founder is legitimately alone, but nobody legitimately
@@ -519,6 +527,31 @@
         listLen: list.length, open: ids.length, founded: !!m.founded, adm: !!m.admitted, action, sealed: sealedFps,
       });
       if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
+      // R3a CLIENT ARM: a seated Section-1 greeter that the door REFUSES
+      // (admitted:false — my genesis key does not match the room's) three
+      // registrations running, spanning at least 60 ticks, is provably
+      // sealed out: its E3/keepalive re-registrations are being dropped and
+      // it will never appear in the pool again. Requeue through the front
+      // door — the join dance re-teaches the room's REAL current key (or,
+      // once a ghost claim lapses per R3a's relay-side mint grace, this
+      // seat's own re-mint finally sticks). Only a definitive verdict acts:
+      // relays that don't send the flag give no verdict, joiners presenting
+      // a throwaway key are refused by DESIGN, and a single refusal can be
+      // the transient window of a mint in flight.
+      if (typeof m.admitted === 'boolean' && preState === 3 && iAmAGreeter()) {
+        if (m.admitted) { notAdm = 0; notAdmAt = -1; }
+        else {
+          if (!notAdm) notAdmAt = env.TICK;
+          notAdm++;
+          if (notAdm >= 3 && env.TICK - notAdmAt >= 60) {
+            notAdm = 0; notAdmAt = -1;
+            greeterTrace.push({ t: Date.now(), tick: env.TICK, state: seat.state, post: seat.state,
+              listLen: list.length, open: ids.length, founded: !!m.founded, adm: false, action: 'ghost-genesis-requeue' });
+            if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift();
+            try { seat.requeue(); } catch (e) {}
+          }
+        }
+      }
       // A seated Section-1 greeter looking at an EMPTY pool is looking at a
       // door with no doorman — the very knock a joiner would stall or FOUND
       // on. My own entry is never in my replies (the relay excludes the
