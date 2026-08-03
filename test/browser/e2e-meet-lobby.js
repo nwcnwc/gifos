@@ -56,6 +56,48 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await p2.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 15000 });
   check('"Start a room you run" mints a NAMED admin room, you as admin',
     (await p2.evaluate(() => window.__gifosVideo.room())) === adminName);
+  check('no guest password at mint ⇒ the room opens unlocked',
+    (await p2.evaluate(() => window.__gifosVideo.roomPw())) === '');
+
+  // ---- 3b. the TWO-password mint: ADMIN password vs GUEST password --------------
+  // The mint screen must make the two impossible to confuse (a host who sends
+  // the ADMIN password to guests hands out the room), and a guest password set
+  // at mint locks the room the moment its admin arrives.
+  const p2b = await coldOpen('p2b');
+  await p2b.locator('#lob-admin-btn').click();
+  check('the mint screen labels the ADMIN password "never share it"',
+    /never share it/i.test(await p2b.locator('#lob-admin .lob-pwlab').first().textContent()));
+  check('…and the GUEST password as the one you DO share, optional but needed for clear video',
+    /do\s*share/i.test((await p2b.locator('#lob-admin .lob-pwlab').nth(1).textContent()) || '')
+    && /clear \(unblurred\) video/i.test(await p2b.locator('#lob-guest-pass-note').textContent()));
+  const tkRoom = 'show' + Math.floor(Math.random() * 1e6).toString(36);
+  const TICKET = 'row-g-7';
+  await p2b.locator('#lob-admin-name').fill(tkRoom);
+  await p2b.locator('#lob-admin-pass').fill('host-key-topsecret');
+  await p2b.locator('#lob-guest-pass').fill(TICKET);
+  await p2b.locator('#lob-admin-go').click();
+  await p2b.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 20000 });
+  await p2b.waitForFunction((t) => window.__gifosVideo.roomPw() === t, TICKET, { timeout: 20000 });
+  check('the guest password set at mint locks the room as its admin arrives', true);
+  const mintUrl = await p2b.locator('#share-url').inputValue();
+  check('NEITHER password rides the invite link', !!mintUrl && !mintUrl.includes('host-key-topsecret') && !mintUrl.includes(TICKET));
+  const av2 = ((await p2b.evaluate(() => location.hash)).match(/av=([a-f0-9]{16,64})/) || [])[1];
+  // a guest holding ONLY the link (fresh context — none of the host's storage)
+  // meets the ticket booth, and the GUEST password is what opens it
+  const gctx = await browser.newContext();
+  await gctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Gus')}catch(e){}" });
+  const g = await gctx.newPage();
+  g.on('pageerror', () => {});
+  await g.goto(BASE + '/meet.html#v=' + tkRoom + '&av=' + av2);
+  await g.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
+  await g.waitForFunction(() => document.getElementById('pw-modal').style.display === 'flex'
+    && /locked/i.test(document.getElementById('pw-title').textContent), null, { timeout: 30000 });
+  check('a guest with the link alone meets the ticket booth (never needs the admin password)', true);
+  await g.locator('#pw-new').fill(TICKET);
+  await g.locator('#pw-save').click();
+  await g.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 60000 });
+  check('the GUEST password admits them, end to end', true);
+  await gctx.close();
 
   // ---- 4. Recent & saved remembers both (started counts, not just joined) ------
   const p3 = await coldOpen('p3');

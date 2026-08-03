@@ -559,6 +559,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .lob-row button { padding: .45rem .9rem; }
   .lob-ghost { background: var(--surface, #1c1c2b); border: 1px solid var(--border, #2a2a3f); color: var(--text, #e0e0f0); }
   .lob-err { color: #ff8a8a; font-size: .82rem; margin-top: .35rem; min-height: 1em; }
+  /* The two-password minting labels: the ADMIN password (never shared) vs the
+     GUEST password (the one you do share) must be impossible to confuse. */
+  .lob-pwlab { display: block; font-size: .82rem; margin: .2rem 0 .3rem; color: var(--text, #e0e0f0); }
+  .lob-pwlab small { display: block; font-weight: 400; color: var(--muted, #8888aa); font-size: .74rem; line-height: 1.35; margin: .12rem 0 .1rem; }
   .lob-sep { border-top: 1px solid var(--border, #2a2a3f); margin: 1rem 0 .7rem; }
   .lob-hist-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; opacity: .55; margin-bottom: .4rem; }
   .lob-item { display: flex; align-items: center; gap: .6rem; padding: .5rem .55rem; border-radius: .5rem; cursor: pointer; }
@@ -588,7 +592,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="lob-admin-btn" class="lob-action">Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
       <div id="lob-admin" class="lob-expand" style="display:none">
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
-        <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (pick a strong one)" autocomplete="off">
+        <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone, <b>never share it</b><small id="lob-admin-pass-note">This is the key to RUNNING the room. Guests never need it — sending it to anyone hands them your admin powers.</small></label>
+        <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off">
+        <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional — but clear (unblurred) video needs one. Guests type it to get in, for this session. It never rides the invite link — you send it to your guests yourself, and the room’s Password button changes or clears it.</small></label>
+        <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off">
         <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
         <div id="lob-admin-err" class="lob-err"></div>
       </div>
@@ -5606,6 +5613,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const K = await deriveAdminKey(chosen, pass);
           const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key (§9)
           try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
+          // The GUEST password (optional): pre-seed the room-password store —
+          // exactly what the Password button writes — and the admin's normal
+          // §LOCK re-assert locks the door + seals the key the moment they
+          // arrive. It rides the SESSION, never the link (the whole point of
+          // the two separate fields: the admin password must never reach a
+          // guest, the guest password is the one you send them).
+          const guest = (document.getElementById('lob-guest-pass').value || '').trim();
+          if (guest) { try { localStorage.setItem('gifos_vpw_' + chosen + '.' + V, guest); } catch (e) {} }
           enterMeeting('#v=' + chosen + '&av=' + V + (BC_INTENT ? '&bc=1' : ''));
         } catch (e) { err.textContent = 'Could not create the room. Try again.'; go.disabled = false; go.textContent = 'Create & enter'; }
       };
@@ -5619,7 +5634,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
       document.getElementById('lob-join-go').onclick = doJoin;
       document.getElementById('lob-join-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
-      document.getElementById('lob-admin-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('lob-admin-go').click(); });
+      document.getElementById('lob-admin-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('lob-guest-pass').focus(); });
+      document.getElementById('lob-guest-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('lob-admin-go').click(); });
       document.getElementById('lob-rename').onclick = renameFlow;
       document.getElementById('lob-list').addEventListener('click', (e) => {
         const star = e.target.closest('[data-star]');
@@ -5646,7 +5662,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         document.querySelector('#lobby h1').textContent = 'Broadcast';
         document.getElementById('lob-open').style.display = 'none';
         document.getElementById('lob-admin-btn').innerHTML = 'Start broadcasting<small>You go live on the Stage; anyone with the link watches and chats</small>';
-        document.getElementById('lob-admin-pass').placeholder = 'Host password (the key to your broadcast)';
+        document.getElementById('lob-admin-pass-head').textContent = 'Host password';
+        document.getElementById('lob-guest-pass-head').textContent = 'Viewer password';
+        document.getElementById('lob-admin-pass').placeholder = 'Host password (keep to yourself)';
+        document.getElementById('lob-admin-pass-note').textContent = 'This is the key to RUNNING your broadcast. Viewers never need it — sending it to anyone hands them your host powers.';
+        document.getElementById('lob-guest-pass').placeholder = 'Viewer password (optional — share with viewers)';
+        document.getElementById('lob-guest-pass-note').textContent = 'Optional — but clear (unblurred) video needs one. Viewers type it to watch, for this session. It never rides the broadcast link — you send it to your audience yourself, and the room’s Password button changes or clears it.';
         document.getElementById('lob-join-btn').innerHTML = 'Watch a broadcast<small>Paste a broadcast link someone shared</small>';
       }
       document.getElementById('lob-name').textContent = myName();
@@ -9286,7 +9307,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This always makes a <b>new, separate room</b> that you run — so <b>name it anything you like</b>. ' +
               (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically, so leave the box ticked to drop the new link into this room\'s chat and they can follow you over.' : 'You\'ll switch to it now.') + '</div>' +
             '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
-            '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (pick a strong one)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
+            '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone, <b>never share it</b><small>The key to RUNNING the room. Guests never need it — sending it to anyone hands them your admin powers.</small></label>' +
+            '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
+            '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional — but clear (unblurred) video needs one. Guests type it to get in, for this session; it never rides the link.</small></label>' +
+            '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             (others ? '<label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer;margin-bottom:.7rem;font-size:.9rem"><input type="checkbox" id="inv-adm-post" checked style="margin-top:.2rem"><span>Post the new link to this room\'s chat so the ' + others + ' ' + ppl + ' here can follow me over.</span></label>' : '') +
             '<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="inv-adm-back" style="' + surfaceBtn + '">Back</button><button id="inv-adm-go">Create &amp; switch</button></div>' +
           '</div>' +
@@ -9321,9 +9345,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!chosen) { document.getElementById('inv-adm-room').focus(); return; }
         if (!pass) { document.getElementById('inv-adm-pass').focus(); return; }
         const post = !!(document.getElementById('inv-adm-post') && document.getElementById('inv-adm-post').checked);
+        const guest = (document.getElementById('inv-adm-guest').value || '').trim();
         go.disabled = true; go.textContent = 'Creating…';
         invModal.style.display = 'none';
-        await createAdminRoom(chosen, pass, post);
+        await createAdminRoom(chosen, pass, post, guest);
       };
       invModal.style.display = 'flex';
     }
@@ -9346,11 +9371,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return out || fallback || 'room';
     }
 
-    async function createAdminRoom(chosen, pass, postToChat) {
+    async function createAdminRoom(chosen, pass, postToChat, guestPw) {
       setStatus('🛡 Creating your room… (takes a few seconds)');
       const K = await deriveAdminKey(chosen, pass);
       const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key K seeds (§9) — 96-bit, short link, preimage-safe
       try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
+      // Optional GUEST password: pre-seed the room-password store (what the
+      // Password button writes) — the §LOCK re-assert locks the new room the
+      // moment its admin arrives. Session state, never part of the link.
+      if (guestPw) { try { localStorage.setItem('gifos_vpw_' + chosen + '.' + V, guestPw); } catch (e) {} }
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const pretty = /(^|\.)gifos\.app$/.test(location.hostname) && !custom;
