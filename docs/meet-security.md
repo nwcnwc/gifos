@@ -27,6 +27,22 @@ property of the ciphertext, not a check someone enforces.
   decrypt any entry has the wrong password — that undecryptability IS the
   "wrong password, prompt for it" signal (R6). The relay's own pw check
   remains a courtesy gate only (fail fast with a clear error).
+- **A GENERATION COUNTER, and a FLOOR the room supplies (2026-08-02).** Every
+  grant carries `ep`, and a grant at or below my own generation is a replay —
+  dead on arrival. That guard was disabled precisely where it mattered most:
+  it read `if (m.ep != null && pwEpoch && m.ep <= pwEpoch)`, and `pwEpoch` is 0
+  on a FRESH page, so a late joiner accepted ANY replayed grant. Measured: a
+  room rotated clubhouse(1) → cleared(2) → vault(3); a joiner typed the current
+  password, connected, received the chat — then adopted a replayed ep=1 grant,
+  re-keyed itself a generation behind, and sealed itself away mid-transfer,
+  grant-healing the room forever from the wrong side. A joiner cannot know the
+  room's generation from its own state, so the ROOM says it: the status pulse
+  carries `pwEp` (the NUMBER only — the password itself still travels solely
+  inside a signed, sealed grant, so this leaks nothing), and a member whose
+  sealed frames I can OPEN is speaking my key generation, so its epoch becomes
+  my FLOOR. With the floor in place the guard drops its truthiness test —
+  epoch 0 is a real generation — and the ancient grant is rejected as the
+  replay it is.
 
 ## §SIG — Authority is a signature, never a stamp
 

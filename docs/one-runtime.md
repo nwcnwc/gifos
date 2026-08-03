@@ -219,9 +219,31 @@ then too. The owner is simply the first seeder.
     before (star)     5/8 mounted, 1.7-9.9s scattered, 20-36s stalls
     after  (mesh)     7/8 mounted, 1825/1779/1803/1707/1908 ms — flat ~1.8s
 
-**Still open:** the first guest can take ~25s and one guest in eight still gets
-no stage data at all inside 45s — neither snap nor app, so it is mesh SEATING,
-not the bytes path. `test/browser/e2e-approom-serial-guests.js` is the
-acceptance test and stays RED until that is fixed. Reproduce across machines
-with `test/tools/approom-host.js` + `approom-join.js` (test/README.md, "ONE BOX
-CANNOT ANSWER...").
+**The seating half, closed 2026-08-02.** The residue — first guest ~25s, one in
+eight with no stage data at all — was never the bytes path. It was three
+independent defects, each of which alone could strand a guest:
+
+1. **The newcomer didn't dial.** The link layer's id-order rule ("higher id
+   offers") assumes both sides know the pair exists, but a just-seated guest's
+   CLAIM/HELLO are DataChannel-only — so when id-order pointed at the side that
+   had never heard of the guest, nobody dialled and the pair sat half-open
+   until the 12s starve watchdog. A seat with NO open channel now dials every
+   neighbour its PLACE named, id order be damned, and re-fires its announce the
+   moment a channel opens.
+2. **The offerer didn't create the channel.** It was created by ID-ORDER, not
+   by who offers, so a lower-id newcomer's offer carried no data m-line: ICE
+   connected, `ondatachannel` never fired, and the dc-watchdog had to redial 5s
+   later. Creation moved into `sendOffer`.
+3. **Killed tabs poisoned the home row.** A guest killed mid-placement left a
+   soft sitting-down mark for the full `SIT_TTL` (90t); six of them walled off
+   Section 1 row 0, and the H7 advance gate then seated real newcomers into an
+   EMPTY row 1 — an isolated fragment with nobody to pull from. Law A now
+   frees a vouch nobody ever answered at `SIT_RECHECK`, and a row advances
+   only past CONFIRMED seats. (`test/sim/repro-ghost-join.sh`.)
+
+**Measured after**, sequential guests: 8/8 mounted, 1.1-2.2s flat, four
+consecutive runs; and the deterministic reproducer
+(`test/browser/e2e-approom-ghost-churn.js`: six tabs killed at 700ms, then
+three real guests) is 3/3. Both suites are GREEN and gated. Reproduce across
+machines with `test/tools/approom-host.js` + `approom-join.js` (test/README.md,
+"ONE BOX CANNOT ANSWER...").
