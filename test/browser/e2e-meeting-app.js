@@ -37,7 +37,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // grab a normal (non-system) app fileId from the seeded store
   const appId = await aDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
-    const app = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
+    const app = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
     return app ? app.id : null;
   });
   check('seeded desktop exposes a runnable app fileId', !!appId);
@@ -106,7 +106,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await dDesk.waitForSelector('.icon', { timeout: 90000 }); // same seed cost as above
   const dAppId = await dDesk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
-    const app = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
+    const app = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
     return app ? app.id : null;
   });
   // ONE RUNTIME: run.html's Meeting toggle died with run.html — #app= is now a

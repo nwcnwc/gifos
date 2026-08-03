@@ -91,7 +91,7 @@ const check = (n, c, d) => {
   await desk.waitForSelector('.icon', { timeout: 90000 });
   const appId = await desk.evaluate(async () => {
     const fs = await window.GifOS.store.allFiles();
-    const a = fs.find((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
+    const a = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
     return a ? a.id : null;
   });
   check('seeded desktop exposes a runnable app fileId', !!appId, appId);
