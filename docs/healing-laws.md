@@ -300,6 +300,48 @@ childless — a leaf. **Only leaves move. No exceptions.**
     really did die, or to mis-fill a hole that really is empty — a bounded,
     local liveness nuisance, never an eviction.)
 
+- **C4. A vouch nobody answered is not a reservation (the CHECK-BACK).** An
+  admitter writes a soft sitting-down mark when it sends a PLACE and re-checks
+  its own vouch at `SIT_RECHECK`. A live joiner is always HEARD within a beat
+  or two (its CLAIM or HELLO lands, or its first PHONE at +8t); a tab killed
+  mid-placement is never heard at all, so total silence at the re-check frees
+  the cell — and clears its `healTry`, because a chair freed by a verdict is
+  admissible NOW, not 45 ticks later. Holding the mark the full `SIT_TTL`
+  instead let six killed tabs wall off Section 1 row 0 for 45s.
+  **And a row advances only past CONFIRMED seats:** with the previous row all
+  soft, the honest answer is NOROOM (the joiner's ordinary retry) — seating a
+  newcomer behind a row of unanswered vouches gambles that every one confirms,
+  and when they were killed tabs the newcomer landed alone in an empty row,
+  unable to pull snap or app from anyone. Guard: `test/sim/repro-ghost-join.sh`.
+- **C5. A claim's BIRTH decides gossip ties, never its hop-freshness.** The
+  S1SYNC ±8 lower-id tie-break resolves SIMULTANEOUS claims, but the freshness
+  stamps it compares are hop-laundered — a displacing entry inherited the
+  displaced occupant's freshness, so a join-era ghost re-won ties forever: an
+  immortal echo that, the moment a sever opened a first-hand gap at one
+  arbiter, evicted a live seat. Every entry therefore carries `b`, the tick its
+  (cell → claimant) pairing was first established, relayed UNCHANGED, and a
+  claim born more than 600 ticks ago may never win a tie. A ghost's birth is
+  ancient by definition; a real contender's is recent.
+- **C6. An admittee is ALWAYS taught its admitter.** A PLACE used to carry only
+  the occupants of the cell's owned links — and for a deep non-head cell the
+  admitter (the section owner) is not one of them, so the admittee learned
+  nothing about it. When that admittee later became its head's LEFT-PACK
+  healer it promoted itself with an EMPTY neighbour list: no CLAIM to send, the
+  no-neighbour claim window confirming same-tick, and an ISLAND head the owner
+  could not see — whose stale occ then admitted somebody else behind it,
+  forever. The admitter now rides every PLACE at its true coord.
+- **C7. Two complete rings reconcile through the shared DOOR.** The lone-
+  fragment rescue (E, split-off fragment) needs a seat that hears NOBODY, so a
+  churn that rebuilds TWO full home rings — each hearing its own rook — was a
+  stable split-brain no rule could see. Both rings' greeters share one relay
+  registry: a seated Section-1 seat that keeps seeing a pool-listed id NOWHERE
+  in its occ greets it, and E2 settles any contested cell (lower id wins; the
+  loser requeues through the door into the winning ring). Three dormancy gates
+  keep it out of ordinary life — QUIESCENCE (no churn or heal for 300t), a
+  FULL home view, and PERSISTENCE across eight consecutive E3 replies. Under a
+  TRUE partition the greeting is undeliverable, so R's two-clean-homes doctrine
+  is untouched.
+
 ## T — the mover's lease (atomic seat switching)
 
 Every heal above ends in a MOVE — a scooch, a leaf promotion, a vertical
@@ -616,7 +658,17 @@ confirmation rides frames the seating already produces.)*
     found for real. A socket that HAS registered keeps the full TTL — that
     is the E3 re-knock window, and shortening it re-opens the room tear.
     Guard: `test/drills/e2e-ghost-genesis.js`.
-- **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
+
+    **The client half (2026-08-02):** the relay answers every knock with
+    `admitted` — does the presented genesis key match the room's? — and for a
+    long time NOTHING read it. A seated Section-1 greeter sealed out by a ghost
+    genesis had its E3 re-registrations silently dropped forever and, from its
+    own side, simply saw an empty pool: indistinguishable from a room where
+    nobody else registers, which is why the field wedge took a relay-side
+    instrumented rebuild to see. A seated greeter refused THREE registrations
+    running, spanning 60+ ticks, now requeues through the front door — the join
+    dance re-teaches the room's real key, or its own re-mint sticks once the
+    squatting claim lapses. Guard: `test/mesh/ghost-genesis-client.js`.- **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
   descend its tree, dense-before-deep, to a definitive vacancy — with the home
   itself filled row-major first (H7): while Section 1 has an admissible cell,
   the FIND converges on that cell's designated admitter; only a full home
