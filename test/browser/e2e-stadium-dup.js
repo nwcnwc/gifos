@@ -31,7 +31,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pages = [];
   for (let i = 0; i < N; i++) {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
-    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','D${i}')}catch(e){}; window.GIFOS_SCALE={C:2};` });
+    // GIFOS_COMPACTION=false — the browser twin of the sim's `compacton 0`:
+    // this suite MANUFACTURES a pinned topology (sever + forceSeat), and Q2
+    // compaction is free to move the deep head out from under it — the
+    // mover's up-chain then vanishes, it legally drains and rejoins, and the
+    // assert races the rejoin (measured: mover coord=null at assert, ~1 run
+    // in 4). The disown-guard under test is orthogonal to packing.
+    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','D${i}')}catch(e){}; window.GIFOS_SCALE={C:2}; window.GIFOS_COMPACTION=false;` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`  [D${i}] PAGEERROR`, String(e).slice(0, 200)));
     await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on');

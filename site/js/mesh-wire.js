@@ -230,7 +230,16 @@
     const env = {
       TICK: 0,
       HEALING: true,
-      COMPACTION: true,   // Q2: pack the tree upward (deep leaves atomically move to shallower occupied rows). Roadmap §3 / law T.
+      // Q2: pack the tree upward (deep leaves atomically move to shallower
+      // occupied rows). Roadmap §3 / law T. GIFOS_COMPACTION=false is the
+      // browser twin of the sim's `compacton 0` — the sim's own pinned-coord
+      // legs (crash/sever/blackhole) disable compaction because it is
+      // orthogonal background packing whose moves perturb a manufactured
+      // topology; a browser suite that forceSeats a pinned shape needs the
+      // same isolation (e2e-stadium-dup: the deep head compacted away, the
+      // mover's up-chain vanished, and its legal drain+rejoin raced the
+      // assert). Production pages never set the flag.
+      COMPACTION: (typeof root !== 'undefined' && root.GIFOS_COMPACTION === false) ? false : true,
       send(from, to, m) {
         // S4: sign the participant's own occupancy-authoring frames before they
         // leave. The signature is the same for every recipient (it commits to

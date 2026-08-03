@@ -1087,7 +1087,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // attributed to who did it. Latest change wins (timestamped).
     // Join QUIET AND HIDDEN: muted, camera off, and Max blur (level 2). blur
     // is a 3-level field — 0 off, 1 plain, 2 max — not a boolean.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0 };
+    // pwEp — MY §LOCK generation, gossiped (2026-08-02). The epoch guard that
+    // stops a replayed grant rolling a member backwards was disabled on a
+    // FRESH page: `pwEpoch && m.ep <= pwEpoch` is false when pwEpoch is 0, so
+    // a late joiner who typed the CURRENT password and was already talking
+    // adopted an ANCIENT grant (measured: Dee typed 'vault', joined, chatted,
+    // then took a replayed ep=1 'clubhouse' grant and sealed itself away —
+    // files stopped mid-transfer and it grant-healed the whole room forever).
+    // A joiner cannot know the room's generation from its own state; the room
+    // knows, so the room says. Gossiping the NUMBER leaks nothing (the
+    // password itself only ever travels inside a signed, sealed grant).
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur }
 
     // ================= THE STADIUM (docs/healing-laws.md + docs/media-plane.md) =================
@@ -3514,6 +3524,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
       st.rx = Date.now(); // RECEIPT time (local clock) — the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
       statusOf.set(from, st);
+      // §LOCK EPOCH FLOOR: a member whose sealed frames I can OPEN is speaking
+      // my key generation — so its epoch number is mine too, and adopting the
+      // NUMBER (never a password) re-arms the replay guard on a fresh page.
+      // This is the whole fix for the roll-back: a joiner that typed the
+      // current password now learns it is at generation N from the room, and
+      // the ancient ep<N grant is rejected as the replay it is.
+      if (typeof st.pwEp === 'number' && st.pwEp > pwEpoch) storePwEpoch(st.pwEp);
       return true;
     }
     // One global, ordered hand-raise queue: hands ride the status pulse, and
@@ -4311,10 +4328,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // generations are monotonic for the room's whole life, or clearing
     // would re-arm every grant that preceded it.
     const pwEpochKey = () => 'gifos_vpwep_' + roomKey();
-    function storePwEpoch(ep) { pwEpoch = ep; try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
+    function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
     function loadPw() {
       try { roomPw = localStorage.getItem(pwKey()) || ''; } catch (e) { roomPw = ''; }
-      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); } catch (e) {}
+      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); myStatus.pwEp = pwEpoch; } catch (e) {}
     }
     function storePw(v) { roomPw = v || ''; pwProvisional = false; /* every explicit adoption (grant, admin set, typed challenge) ends provisionality */ try { roomPw ? localStorage.setItem(pwKey(), roomPw) : localStorage.removeItem(pwKey()); } catch (e) {} }
     // THE PASSWORD IS THE KEY (docs/meet-security.md §LOCK): adopting a password means
@@ -6013,7 +6030,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // EPOCH GUARD (§LOCK healing): a grant at or below my own generation
         // is a replay — dead on arrival. Nobody can roll a member backwards;
         // an ep-less grant is a legacy client's, treated as next-generation.
-        if (m.ep != null && pwEpoch && m.ep <= pwEpoch) return;
+        if (m.ep != null && m.ep <= pwEpoch) return; // (no `pwEpoch &&`: epoch 0 is a real generation — see myStatus.pwEp)
         if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) storePwEpoch(m.ep); return; } // already adopted
         const cleared = !m.pw && roomPw;
         pwLog('pwinfo-adopt from=' + String(p.id || '?').slice(0, 6) + ' by=' + (m.by || '?') + ' ep=' + m.ep + ' myEp=' + pwEpoch + ' pwSame=' + (String(m.pw || '') === String(roomPw || '')));
