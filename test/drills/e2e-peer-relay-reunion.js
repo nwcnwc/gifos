@@ -39,6 +39,10 @@ const check = (n, c, d) => {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   relay.stderr.on('data', (d) => process.stderr.write('[relay] ' + d));
+  // Drain stdout ALWAYS (an unread pipe blocks the relay once full); print it
+  // under RELAY_DEBUG — the [route] DELIVERED/NOSOCK trace is the decisive
+  // witness for "offer sent but never delivered" in the one-sided-stall hunt.
+  relay.stdout.on('data', (d) => { if (process.env.RELAY_DEBUG) process.stdout.write('[relay] ' + d); });
   const site = spawn('python3', ['-m', 'http.server', String(SITE_PORT), '-d',
     path.join(__dirname, '..', '..', 'site')], { stdio: 'ignore' });
   const cleanup = () => { try { relay.kill(); } catch (e) {} try { site.kill(); } catch (e) {} };
