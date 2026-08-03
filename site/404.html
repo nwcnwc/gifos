@@ -54,6 +54,12 @@
     location.replace('/meet.html');
     return;
   }
+  // Bare /cast, no room = the Broadcast app's lobby (meet.html's broadcast
+  // skin — see the BROADCAST block in meet.html).
+  if (/^\/cast\/?$/i.test(location.pathname)) {
+    location.replace('/meet.html#bc=1');
+    return;
+  }
   // /meet/<room>/<verifier> is an ADMIN-MANAGED room — a DIFFERENT room from
   // /meet/<room>. The verifier segment is part of the room's identity (safe
   // to share publicly); admin power is knowing the password it derives from.
@@ -65,16 +71,19 @@
   // capability); /join/<room>/<verifier>/<code> is an OWNED app — the public
   // room.verifier names the session (only the creator's app can host it), and
   // the trailing code is the guests' join-and-decrypt secret.
-  var m = location.pathname.match(/^\/(?:join|meet|call)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64})(?:\/([a-z0-9]{1,64}))?)?\/?$/i);
+  var m = location.pathname.match(/^\/(?:join|meet|call|cast)\/([a-z0-9-]{1,64})(?:\/([a-f0-9]{16,64})(?:\/([a-z0-9]{1,64}))?)?\/?$/i);
   if (m) {
     var code = m[1];
     var verifier = m[2] ? m[2].toLowerCase() : '';
     var lsec = m[3] || '';
     var extra = location.search ? '&' + location.search.slice(1) : '';
-    if (/^\/(?:meet|call)\//.test(location.pathname)) {
+    if (/^\/(?:meet|call|cast)\//.test(location.pathname)) {
       // A meeting has no separate join token — the room id IS the capability, so
       // no &k= (the app branch below still needs it: an owned app carries one).
-      location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '') + extra);
+      // /cast/<room>/<V> is the SAME admin room worn as the Broadcast skin —
+      // the flag rides the hash, like everything that must survive a redirect.
+      location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '')
+        + (/^\/cast\//i.test(location.pathname) ? '&bc=1' : '') + extra);
     } else if (verifier && lsec) {
       location.replace('/meet.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
     } else if (!verifier) {
