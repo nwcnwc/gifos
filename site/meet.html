@@ -3170,7 +3170,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // table, which receivers only trust with the RELAY's admin stamp — that
       // one stays on the relay. Offers/answers/ICE stay on the relay too (the
       // DC doesn't exist yet when they matter).
-      if (msg.kind === 'status') { // admin heartbeats too — their authority is the signature (§9), not the transport
+      // 'appstop' rides the DC too (2026-08-03, the governance stop stall):
+      // its authority is transport-independent exactly like the status pulse's
+      // mod table — open rooms take anyone's word, admin rooms verify the
+      // signed w — and the open pair channel is the one path that stays true
+      // while the relay view of a churning peer goes stale.
+      if (msg.kind === 'status' || msg.kind === 'appstop') { // admin heartbeats too — their authority is the signature (§9), not the transport
         const pd = peers.get(to);
         if (pd && pd.dc && pd.dc.readyState === 'open') {
           const m2 = sigSansIce(to, msg);
@@ -5916,7 +5921,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // relay's stamp — a peer can't smuggle authority through its own
         // channel.
         const k2 = m.msg && m.msg.kind;
-        if (k2 === 'status' || k2 === 'offer' || k2 === 'answer' || k2 === 'ice') onSignal(p.id, m.msg);
+        if (k2 === 'status' || k2 === 'offer' || k2 === 'answer' || k2 === 'ice' || k2 === 'appstop') onSignal(p.id, m.msg);
       } else if (m.k === 'fsig') {
         // Sponsor-forwarded signaling (§FWD): if it names me, take it as if it
         // arrived from its claimed sender; otherwise pass it ONWARD — my
@@ -5926,8 +5931,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // re-sponsor" single-hop rule starved the friendless newcomer, whose
         // envelopes ENTER the mesh at a greeter that rarely borders the
         // target.
+        // …plus 'appstop' (2026-08-03): sendSig DIVERTS to this sponsor path
+        // whenever its relay view of the target is stale (targetUnreachable /
+        // altPath rotation) — exactly the takeover churn around a stop — and
+        // the old filter then swallowed every retry deterministically (the
+        // governance stop stall: 11 sends over 30s, the host heard none).
+        // Authority is unchanged: the appstop handler admVerify's the signed
+        // w in admin rooms; open rooms take anyone's word by design.
         const k3 = m.m && m.m.kind;
-        if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice')) return;
+        if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice' || k3 === 'appstop')) return;
         if (m.to === myId) {
           if (m.from && m.from !== myId) {
             // An offer that REACHED me sponsored gets its answer sent back the
