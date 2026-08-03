@@ -630,8 +630,11 @@ void Seat::onPhone(Msg& m){
   // 40-tick window must not out-tenure the legitimate healer's fill. An
   // answered probe erases the observation, restoring full tenure protection
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
-  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
-  setOcc(ck,m.id); live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  // E2 sharpened: tenure protects prev ONLY when the fresh contact was EARNED
+  // BY PREV (liveBy) — a cell kept fresh by the true occupant's own beats must
+  // never shield a gossip ghost that captured occ.
+  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && (liveBy.count(ck)&&liveBy[ck]==prev) && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
+  setOcc(ck,m.id); live[ck]=(int)TICK; liveBy[ck]=m.id; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -684,7 +687,16 @@ void Seat::rowSweep(){
   if(coord.i!=0) return;
   vector<uint64_t> del;
   for(auto&e:live){ if(TICK-e.second<=50) continue; Coord c=unck(e.first); if(c.pc==coord.pc&&c.r==coord.r&&c.i>0) del.push_back(e.first); }
-  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); healTry.erase(k); }   // freed ⇒ admissible now (healTry is heal pacing, not a chair embargo)
+  // A SILENCE-forget is NOT a free chair (2026-08-02): the occupant may be
+  // merely severed from ME while my row-mates still hear it — their next
+  // S1SYNC re-seeds my occ within a beat, but the gap between this forget and
+  // that re-seed was an ADMISSION WINDOW: a seeker could be seated on a live
+  // peer's cell and the E2 contest then churned one of them out (mesh-harness
+  // D5-sever: a revolving door at the severed cell). Stamp healTry — the
+  // head's own 45-tick admission pace — so the window is closed; every
+  // EXPLICIT free (LEAVE, MOVED, D5 confirm, check-back) still clears healTry
+  // and stays instantly admissible.
+  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); healTry[k]=(int)TICK; }
   // (D5's early corpse-forget lives in tlSweep — every observer, not just
   // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
 }
@@ -843,7 +855,7 @@ void Seat::recv(Msg& m){
     // stands — the corpse-avoid win is untouched. (A late NOROOM from a
     // superseded ask can lift the CURRENT target's mark early; that errs
     // toward the old behavior — one wasted re-pick — never toward a wedge.)
-    case NOROOM: if(state==2){ triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
+    case NOROOM: if(state==2){ if(m.id>=0&&m.id==gateway) gwRefused=true; triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
@@ -852,10 +864,10 @@ void Seat::recv(Msg& m){
       // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
       // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.
       // D5: an unanswered transport loss ends my first-hand hearing of prev.
-      bool prevFresh = (prev>=0) && firstHandLive(m.ck) && !translost.count(m.ck);
+      bool prevFresh = (prev>=0) && firstHandLive(m.ck) && (liveBy.count(m.ck)&&liveBy[m.ck]==prev) && !translost.count(m.ck);   // E2 sharpened: freshness must belong to prev
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
-      live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
+      live[m.ck]=(int)TICK; liveBy[m.ck]=m.id;   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck);
       // A: HELLO from the soft-sit joiner self-confirms the seat.
       clearSoft(m.ck);
@@ -935,10 +947,10 @@ void Seat::recv(Msg& m){
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue(); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
-      if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
+      if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; liveBy[m.mvd]=m.id; noteS1(m.mvd); }
       wake(id); return; }
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
+    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; liveBy[ckey(m.coord)]=m.from; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;
