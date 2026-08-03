@@ -299,7 +299,17 @@
         if (s.assigner !== this.id) continue;
         if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
         if (this.TICK - s.at < SIT_RECHECK) continue;
-        // The check-back: never heard from the joiner at this cell — free it now.
+        // The check-back: never heard from the joiner at this cell — free it.
+        // (A PROBE GATE was tried here — ask the mesh before freeing, so an
+        // admitter that cannot HEAR does not evict what it admitted. Both
+        // shapes were measured and REJECTED: freeing late, at 50 ticks,
+        // missed the ghost-churn budget; probing early, from 8 ticks, made
+        // every unconfirmed sit emit a routed probe whose ROUTED answer
+        // re-seeds occ and fans a HELLO — that perturbed partition healing,
+        // sweep.sh went partition-bad=1 and mesh-harness red. The deaf-
+        // admitter case it aimed at costs a rejoin, not a room: the guest is
+        // seated and reachable, and the room converges — adversary-room
+        // measures exactly that and is green.)
         if (this.occGet(k) !== s.joiner && !this.firstHandLive(k)) {
           del.push(k); this.healTry.delete(k);
           continue;
