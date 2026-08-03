@@ -185,6 +185,7 @@ const check = (n, c, d) => {
       const V = window.__gifosVideo; const d = V.debugDump();
       return { live: V.liveLinks(), st: d.me.state, coord: d.me.coord,
         links: d.me.links, occ: d.me.occ, tx: V.txStats(), rx: V.rxStats(),
+        pairs: V.pairs(), // raw WebRTC per-pair state — the glare cycle is only visible here
         starve: window.__starve ? { kicked: window.__starve.kicked, why: window.__starve.why } : null,
         roster: (d.roster || []).map((r) => (r.name || '?') + ':' + (r.conn ? 'Y' : 'n') + (r.relay ? '+via' : '')) };
     } catch (e) { return { err: String(e && e.message || e).slice(0, 60) }; }
@@ -198,7 +199,7 @@ const check = (n, c, d) => {
     timeline.push({ t: Math.round((Date.now() - t0abs) / 1000), hub: h, left: l, right: r });
     hubLinks = (h && h.live != null) ? h.live : -1;
     if (hubLinks >= 2) break;
-    await sleep(5000);
+    await sleep(3000);
   }
   const wireSecs = Math.round((Date.now() - t0abs) / 1000);
   console.log('  hub-links timeline: ' + timeline.map((s) => s.t + 's=' + (s.hub && s.hub.live != null ? s.hub.live : '?')).join(' ') + ' (2 links @' + (hubLinks >= 2 ? wireSecs + 's' : 'NEVER') + ')');
