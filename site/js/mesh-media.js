@@ -392,7 +392,13 @@
         if (pk.track) { try { pk.track.stop(); } catch (e) {} }
         pk.stream = null; pk.track = null;
       },
-      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R }; },
+      // w/h: the canvas actually being encoded and shipped. Without these the
+      // single number that decides whether a feed is a portrait or a thumbnail
+      // was invisible to every harness — you could read faces/cols/rows and
+      // still not know the Stage was going out at 110px. The cross-device
+      // harnesses (test/README.md, "ONE BOX CANNOT ANSWER…") are where stage
+      // sizing has to be confirmed, and they can only report what stats() says.
+      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R, w: canvas ? canvas.width : 0, h: canvas ? canvas.height : 0 }; },
     };
     return pk;
   }
