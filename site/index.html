@@ -5,14 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
-<!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
-     cascade (js/gifos-themes.js) applies real vars, so the purple :root default
-     from desktop.css never paints first. Reveals the instant --accent is set; a
-     failsafe timeout guarantees we never stay hidden if a theme file 404s or
-     hangs. See js/gifos-themes.js. -->
-<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:#0a0a0f}</style>
+<!-- Theming gate: hide chrome until the theme cascade (js/gifos-themes.js,
+     included in this head so vars land parser-blocking, BEFORE first paint)
+     applies real vars, so the purple :root default from desktop.css never
+     paints first. The booting backdrop follows the theme's own --bg the moment
+     it lands. Reveals the instant --accent is set; a failsafe timeout
+     guarantees we never stay hidden if a theme file 404s or hangs. On reveal
+     the theme-color meta is synced to --bg so the browser chrome (mobile URL
+     bar) matches the theme instead of flashing dark on a light theme. -->
+<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:var(--bg,#0a0a0f)}</style>
 <script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
-function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');}
+function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');
+try{var bg=h.style.getPropertyValue('--bg');var m=document.querySelector('meta[name=theme-color]');if(bg&&m)m.setAttribute('content',bg.trim());}catch(e){}}
 function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();else requestAnimationFrame(chk);}
 requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -129,6 +133,10 @@ window.GIFOS_VERSION = 'edge';
   if (decision && decision.redirect) location.replace(decision.redirect);
 })();
 </script>
+<!-- THEME PASS (see gifos-themes.js TWO-PASS): applies the theme's chrome vars
+     parser-blocking, before the stylesheet and any paint — no baseline flash.
+     The include at the end of <body> is the ART pass (icons/eggs/wallpaper). -->
+<script src="js/gifos-themes.js"></script>
 <link rel="stylesheet" href="css/desktop.css">
 </head>
 <body>

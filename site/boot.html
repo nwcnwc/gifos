@@ -110,6 +110,10 @@ window.GIFOS_VERSION = 'edge';
   window.GIFOS_DB_NAME = 'gifos_vm_' + window.__bootImageId;
 })();
 </script>
+<!-- THEME PASS (see gifos-themes.js TWO-PASS): applies the theme's chrome vars
+     parser-blocking, before the stylesheet and any paint — no baseline flash.
+     The include at the end of <body> is the ART pass (icons/eggs/wallpaper). -->
+<script src="js/gifos-themes.js"></script>
 <link rel="stylesheet" href="css/desktop.css">
 <style>
   .vm-banner { display: flex; align-items: center; gap: .6rem; padding: .35rem .9rem;

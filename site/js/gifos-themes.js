@@ -37,6 +37,20 @@
  * a wallpaper behind an occluded call would just burn battery). wallpaper.js is
  * also OVERRIDE-only — there is no default wallpaper, so the base themes/ folder
  * is never asked for one.
+ *
+ * TWO-PASS LOADING: "before first paint" is only true if this file itself runs
+ * before first paint — and at the end of <body> it doesn't: on a cold cache the
+ * theme-gate's 1.5s failsafe fired first and revealed the purple :root
+ * baseline, which then visibly snapped to the real theme (the first-visit
+ * flash). So the entry pages now include this file TWICE: once in <head>
+ * (before the stylesheet — writes ONLY theme.js, so chrome vars truly land
+ * before any paint), and the desktop pages again at the end of <body>, after
+ * gifos-icons.js (writes ONLY the art: icons/eggs/wallpaper). The passes are
+ * told apart by GifOS._themePass; a page that includes the file just once —
+ * every frozen /versions/ snapshot, or a plain single include after
+ * gifos-icons.js — still gets the original single-pass behaviour, because the
+ * first pass always writes theme.js and writes the art whenever iconPacks is
+ * already there.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -84,6 +98,10 @@
   // Only the desktop loads gifos-icons.js first (so GifOS.iconPacks exists);
   // the meeting/app pages skip the art packs entirely.
   const wantIcons = !!GifOS.iconPacks;
+  // Second include of this file on the same page (see TWO-PASS above): the
+  // theme pass already ran from <head>, so only the art is still owed.
+  const artPassOnly = !!GifOS._themePass;
+  GifOS._themePass = true;
   const d = root.document;
   // Resolve theme files relative to THIS script's own location, so a page served
   // from an immutable snapshot (/versions/<x>/js/gifos-themes.js) loads THAT
@@ -97,7 +115,7 @@
   const base = jsAt !== -1 ? self.slice(0, jsAt + 1) : '/';
   if (d) {
     for (let i = 0; i < dirs.length; i++) {
-      d.write('<scr' + 'ipt src="' + base + dirs[i] + '/theme.js"></scr' + 'ipt>');
+      if (!artPassOnly) d.write('<scr' + 'ipt src="' + base + dirs[i] + '/theme.js"></scr' + 'ipt>');
       if (wantIcons) {
         d.write('<scr' + 'ipt src="' + base + dirs[i] + '/icons.js"></scr' + 'ipt>');
         d.write('<scr' + 'ipt src="' + base + dirs[i] + '/eggs.js"></scr' + 'ipt>');
