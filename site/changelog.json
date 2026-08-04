@@ -2,6 +2,17 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.9.1",
+      "date": "2026-08-03",
+      "critical": false,
+      "headline": "Three meeting bugs that hid behind flaky tests",
+      "notes": [
+        "Stopping a shared app now sticks for everyone — a room could wedge half-stopped if people were joining or leaving at that exact moment.",
+        "Video that stayed frozen after a split room came back together now recovers on its own.",
+        "Joining right as your connection blips no longer wedges your seat."
+      ]
+    },
+    {
       "version": "0.9.0",
       "date": "2026-08-02",
       "critical": true,

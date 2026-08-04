@@ -2267,9 +2267,12 @@
       if (h && h.scrollIntoView) h.scrollIntoView({ block: 'start' });
     };
     if (opts.focus === 'version') { const adv = box.querySelector('#set-advanced'); if (adv) adv.open = true; }
-    paintVersion(vc);
+    // The deep-link came from "What's new", so deliver the news: unfold the
+    // notes of every release newer than the running build (see paintVersion).
+    const unfoldNew = opts.focus === 'version';
+    paintVersion(vc, null, unfoldNew);
     revealVersion();
-    checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline'); revealVersion(); });
+    checkForUpdate().then((ok) => { paintVersion(vc, ok ? null : 'offline', unfoldNew); revealVersion(); });
     box.querySelector('#set-bg-color').addEventListener('input', (e) => setBackgroundColor(e.target.value));
     box.querySelector('#set-bg-image').onclick = () => {
       const inp = document.createElement('input');
@@ -2357,8 +2360,11 @@
   // it. Every row says its own state inline — the running build carries a
   // "running" pill, the live release a "latest" pill, the edge row an "attached"
   // marker — so there is nothing to repeat up top. `net` is 'offline' when the
-  // live version.json check just failed.
-  function paintVersion(container, net) {
+  // live version.json check just failed. `unfoldNew` (the update bar's
+  // "What's new" deep-link) unfolds the notes of every release newer than the
+  // running build, so the click lands on readable release notes, not on a list
+  // of folded rows.
+  function paintVersion(container, net, unfoldNew) {
     if (!container) return;
     const pinned = pinnedVersion();
     const offline = net === 'offline';
@@ -2393,6 +2399,8 @@
       const e = notesFor(v);
       const hasNotes = !!(e && ((Array.isArray(e.notes) && e.notes.length) || e.headline));
       const critical = !!(e && e.critical && !onEdge && cmpVer(v, VERSION) > 0);
+      // "New to you": newer than what you run, no newer than the live release.
+      const newSince = !onEdge && cmpVer(v, VERSION) > 0 && cmpVer(v, latestVersion) <= 0;
       // The edge build number this release was cut from (releases before build
       // numbering have none — shown without a build).
       const bn = Number(releaseBuilds[v]);
@@ -2411,7 +2419,7 @@
         '<span class="vspacer"></span>' + action;
       // No notes on file → a plain, non-expandable row (no fold to open onto empty).
       if (!hasNotes) return '<div class="vrow vrow-plain"><div class="vhead">' + head + '</div></div>';
-      return '<details class="vrow"' + (critical ? ' open' : '') + '>' +
+      return '<details class="vrow"' + (critical || (unfoldNew && newSince) ? ' open' : '') + '>' +
         '<summary class="vhead">' + head + '</summary>' +
         '<div class="vnotes">' + releaseNotesHtml(e) + '</div>' +
       '</details>';
