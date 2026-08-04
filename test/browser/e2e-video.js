@@ -652,7 +652,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a password set by one participant propagates to every attached session', true);
   // …and her "Show current password" reveals it
   await ePage.locator('#pwbtn').click();
-  await ePage.locator('#pw-show').click();
+  // The reveal used to be a single #pw-show button next to the current-password
+  // field. It is now the GENERIC password eye (run.html, pwEye): every
+  // input[type=password] wears one, built at load for the static fields and by a
+  // focusin delegate for dynamically minted ones, with id 'pweye-<inputId>'.
+  // This assertion kept clicking #pw-show, which no element has carried since —
+  // a dead selector in the password path, failing as a locator timeout.
+  await ePage.locator('#pweye-pw-cur').click();
   check('Show current password reveals the live password',
     (await ePage.locator('#pw-cur').inputValue()) === 'sesame'
     && (await ePage.locator('#pw-cur').getAttribute('type')) === 'text');
