@@ -84,8 +84,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await hidden(v, '#mic')) && (await hidden(v, '#cam')) && (await hidden(v, '.blurctl')));
   check('viewer keeps Chat and Hand (the back-channel and the call-up request)',
     !(await hidden(v, '#chatbtn')) && !(await hidden(v, '#hand')));
-  check('nobody mixes and the host has no row-tier hammers (Mix / Blur guests / Video off gone)',
-    (await hidden(h, '#mixbtn')) && (await hidden(h, '#blurall')) && (await hidden(h, '#camall')) && (await hidden(v, '#mixbtn')));
+  check('nobody mixes and the host has no row-tier hammers (mix section / Blur guests / Video off gone)',
+    (await hidden(h, '#mixpanel')) && (await hidden(h, '#blurall')) && (await hidden(h, '#camall')) && (await hidden(v, '#mixpanel')));
+  check('Settings stays for everyone (video quality lives there)',
+    !(await hidden(h, '#setbtn')) && !(await hidden(v, '#setbtn')));
   check('Help speaks BROADCAST, not the meeting explainer',
     (await h.evaluate(() => document.querySelector('#help-modal h3').textContent)) === 'How this broadcast works'
     && (await v.evaluate(() => /viewer password/i.test(document.querySelector('#help-modal .help-scroll').textContent))));

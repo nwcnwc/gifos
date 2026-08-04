@@ -248,9 +248,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      button (tap = the signed stage/app grant, §SIG). Everyone else — guests,
      open rooms — sees the identical banner, inert. */
   body.admroom.amadmin #handq .hq { text-decoration: underline; cursor: pointer; }
-  #mixpanel { position: fixed; right: 12px; bottom: 64px; z-index: 40; display: flex; flex-direction: column;
-    gap: .45rem; padding: .7rem .9rem; background: var(--surface, #14141f);
-    border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; font-size: .8rem; }
+  /* The Settings modal sections (video quality, and the sound mix that used
+     to float as its own Mix panel — same element ids, new home). */
+  .set-sec { display: flex; flex-direction: column; gap: .45rem; font-size: .8rem; margin-bottom: .9rem; }
+  .set-sec > b, #mixpanel > b { font-size: .85rem; }
+  .set-help { color: var(--muted, #8888aa); font-size: .76rem; line-height: 1.35; margin: 0; }
+  #vqrow { display: flex; flex-wrap: wrap; }
+  #mixpanel { display: flex; flex-direction: column; gap: .45rem; font-size: .8rem; }
   #mixpanel label { display: flex; align-items: center; justify-content: space-between; gap: .6rem; color: var(--text, #e0e0f0); }
   #timingrow { display: flex; gap: .35rem; }
   #timingrow button { flex: 1; padding: .3rem .4rem; border-radius: .45rem; font-size: .72rem; cursor: pointer;
@@ -284,10 +288,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.broadcast.notadmin #ccbtn,
   body.broadcast.notadmin #pwbtn,
   body.broadcast #votebtn,
-  /* Nobody mixes in a broadcast: Stage audio is the only bus there is. And
-     the host's guest-video hammers (Blur guests / Video off) moderate a
-     row tier a broadcast doesn't have — viewers bring no camera at all. */
-  body.broadcast #mixbtn,
+  /* Nobody mixes in a broadcast: Stage audio is the only bus there is (the
+     whole Sound-mix section hides inside Settings). And the host's
+     guest-video hammers (Blur guests / Video off) moderate a row tier a
+     broadcast doesn't have — viewers bring no camera at all. */
+  body.broadcast #mixpanel,
   body.broadcast #blurall,
   body.broadcast #camall { display: none !important; }
   #appbar { display: flex; align-items: center; gap: .5rem; padding: .25rem .6rem;
@@ -662,7 +667,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
-    <button id="mixbtn" title="Your personal sound mix — the stage, your row and the far stadium, plus Timing and leading a song">Mix</button>
+    <button id="setbtn" title="Meeting settings — your sound mix, timing, and the video quality your camera records">Settings</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, singing together, and the dream">Help</button>
     <span class="status" id="status">Starting camera…</span>
@@ -697,16 +702,37 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <div id="grid"></div>
     <div id="stadium"></div>
   </div>
-  <div id="mixpanel" style="display:none">
-    <b>Sound mix</b>
-    <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
-    <label>My row <input type="range" id="mix-row" min="0" max="100" value="100"></label>
-    <label id="mixlab-stadium">The stadium <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
-    <b>Timing</b>
-    <div id="timingrow">
-      <button data-timing="chat" title="Snappiest replies — your ears align to your own links only; across the room, timing may stagger">Conversation</button>
-      <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
-      <button data-timing="song" title="Lead the room in song — steps you onto the stage with a music-grade mic and lines everyone's sound up to you; tap again to end (earbuds recommended for singers)">🎵 Song</button>
+  <div class="name-modal" id="set-modal" style="display:none">
+    <div class="name-box" style="max-width:440px;text-align:left">
+      <h3 style="text-align:center">Settings</h3>
+      <div class="set-sec">
+        <b>Video quality</b>
+        <p class="set-help">What <b>your own camera</b> records and sends. <b>Auto</b> adapts to the room's size and your battery; a fixed choice pins it.</p>
+        <span class="segwrap" id="vqrow" role="group" aria-label="Video quality">
+          <button class="seg" data-vq="">Auto</button>
+          <button class="seg" data-vq="1080p">1080p</button>
+          <button class="seg" data-vq="720p">720p</button>
+          <button class="seg" data-vq="480p">480p</button>
+          <button class="seg" data-vq="360p">360p</button>
+          <button class="seg" data-vq="240p">240p</button>
+          <button class="seg" data-vq="144p">144p</button>
+        </span>
+      </div>
+      <div id="mixpanel">
+        <b>Sound mix</b>
+        <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
+        <label>My row <input type="range" id="mix-row" min="0" max="100" value="100"></label>
+        <label id="mixlab-stadium">The stadium <input type="range" id="mix-stadium" min="0" max="100" value="100"></label>
+        <b>Timing</b>
+        <div id="timingrow">
+          <button data-timing="chat" title="Snappiest replies — your ears align to your own links only; across the room, timing may stagger">Conversation</button>
+          <button data-timing="unison" title="Everyone hears everyone at the same synced instant — reactions, responses and spontaneous song land together (the room may wait for its slowest link, capped)">Unison</button>
+          <button data-timing="song" title="Lead the room in song — steps you onto the stage with a music-grade mic and lines everyone's sound up to you; tap again to end (earbuds recommended for singers)">🎵 Song</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:.9rem">
+        <button id="set-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Done</button>
+      </div>
     </div>
   </div>
 
@@ -861,7 +887,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         back.</p>
 
         <h4>The sound mix — faders that grow in</h4>
-        <p>Tap <b>Mix</b> for your own private sound board (it only changes what
+        <p>Tap <b>Settings</b> for your own private sound board (it only changes what
         <i>you</i> hear — like your own volume knob). Faders appear as the room gets big enough
         to need them:</p>
         <ul class="help-list">
@@ -888,7 +914,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <p>Singing on a normal video call is famously awful: every voice arrives a
         different beat late, so a hymn turns to mush — and phone microphones treat a held
         note like background noise and try to erase it. This room does it differently.</p>
-        <p>When someone taps <b>🎵 Song</b> (in <b>Mix</b>, under Timing), they step onto
+        <p>When someone taps <b>🎵 Song</b> (in <b>Settings</b>, under Timing), they step onto
         the stage as the song leader, their microphone switches to <b>music quality</b>,
         and every phone quietly lines the room up in time — the way sound behaves in a
         great stone church:</p>
@@ -1045,6 +1071,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // undefined here threw on q.w/q.label at every status + adapt tick once a
     // room crossed ~99, taking the whole client down as a section filled.
     const rung = (n) => LADDER.find((r) => n <= r.max) || LADDER[LADDER.length - 1];
+    // ---- VIDEO QUALITY (Settings): what YOUR OWN camera records --------------
+    // Auto (the default, and the whole behavior until 2026-08-03) = the LADDER
+    // above: room size picks the rung, the power tier and tune cut deeper. A
+    // MANUAL choice pins capture + encode to that rung instead — the user's
+    // deliberate knob, so it overrides the room-size and power stepping. Two
+    // laws still apply on top of a manual rung: blur's fps honesty caps (a
+    // blurred feed never pays for frames) and the aux/fold budgets (carried
+    // media was never the user's own camera). 1080p exists ONLY here — no
+    // room size ever auto-picks it; it is a broadcaster's deliberate spend.
+    // Manual only ever shapes MY outgoing camera; receivers are untouched.
+    const VQ_KEY = 'gifos_vq';
+    const VQ_1080 = { max: 0, w: 1920, h: 1080, fps: 30, kbps: 3500, label: '1080p' };
+    const VQ_CHOICES = [VQ_1080].concat(LADDER.filter((r) => r.label !== '180p')); // 180p is power-tier internal, not a human choice
+    let vqManual = (() => { try { return localStorage.getItem(VQ_KEY) || ''; } catch (e) { return ''; } })();
+    if (!VQ_CHOICES.some((r) => r.label === vqManual)) vqManual = '';
+    const vqRung = () => VQ_CHOICES.find((r) => r.label === vqManual) || null;
+    function setVq(label) {
+      vqManual = VQ_CHOICES.some((r) => r.label === label) ? label : '';
+      try { vqManual ? localStorage.setItem(VQ_KEY, vqManual) : localStorage.removeItem(VQ_KEY); } catch (e) {}
+      paintVq();
+      adapt(); // re-ask the camera + re-cap every sender now, not on the next beat
+    }
+    function paintVq() {
+      for (const b of document.querySelectorAll('#vqrow button')) b.classList.toggle('sel', (b.dataset.vq || '') === vqManual);
+    }
 
     const params = new URLSearchParams(location.hash.slice(1));
     // The real file we're served from (always /meet.html at load — a pretty
@@ -2780,7 +2831,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function adapt() {
       const n = Math.max(2, 1 + peers.size);
-      let q = rung(n);
+      // A MANUAL video-quality choice (Settings) replaces the auto selection —
+      // room size, power tier and tune all step aside; blur caps still apply.
+      const manual = vqRung();
+      let q = manual || rung(n);
       const tune = tuneCfg();
       // Effective power tier: the deepest cut wins — battery level, a losing
       // charger, being a phone at all, or a parked phone (floor).
@@ -2790,7 +2844,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // ~2.2W against a 2.5W USB budget — full-rung video loses to real-world
       // chargers in BOTH states, so both states cut deeper.
       const tier = Math.max(battTier, drainTier, IS_MOBILE ? 2 : 0, idleNow ? 3 : 0);
-      if (tier) {
+      if (tier && !manual) {
         q = LADDER[Math.min(LADDER.indexOf(q) + tier, LADDER.length - 1)];
         if (tier >= 3 && q.fps > 15) q = Object.assign({}, q, { fps: 15 });
       }
@@ -2809,7 +2863,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const cap = myBlurLvl >= 2 ? 8 : 12;   // Max blur ⇒ 8fps, Min blur ⇒ 12fps
         if (q.fps > cap) q = Object.assign({}, q, { fps: cap });
       }
-      if (tune) {
+      if (tune && !manual) {
         if (tune.shift) q = LADDER[Math.min(LADDER.indexOf(q) + (+tune.shift || 0), LADDER.length - 1)];
         if (tune.fps && q.fps > +tune.fps) q = Object.assign({}, q, { fps: +tune.fps });
         if (tune.kbps && q.kbps > +tune.kbps) q = Object.assign({}, q, { kbps: +tune.kbps });
@@ -4969,7 +5023,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The frame SHAPE is normalized where we own the pixels instead: the
     // canvas pipe center-crops to the device orientation (see paint()/
     // sentVideoTrack) — no camera reconfiguration, no device quirks, ever.
-    const camVideoConstraints = () => ({ width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: camFacing } });
+    const camVideoConstraints = () => {
+      // A manual video-quality rung (Settings) shapes the CAPTURE ask too —
+      // 1080p can only come out of a camera that was asked for 1080p.
+      const m = vqRung();
+      return { width: { ideal: m ? m.w : 1280 }, height: { ideal: m ? m.h : 720 }, facingMode: { ideal: camFacing } };
+    };
     let flipChecked = false;
     function maybeShowFlip() {
       if (flipChecked || !localStream || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
@@ -8360,11 +8419,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
       if (stageEar) stageEar.el.volume = mix.stage; // the Stage fader drives the ear fold
     }
-    const mixPanel = document.getElementById('mixpanel');
-    document.getElementById('mixbtn').onclick = () => {
-      mixPanel.style.display = mixPanel.style.display === 'none' ? 'flex' : 'none';
-      if (mixPanel.style.display !== 'none') applyBuses(); // refresh which faders show
+    // The Settings modal: the sound mix's new home (same fader ids as when it
+    // floated as its own Mix panel) plus the video-quality picker.
+    const setModal = document.getElementById('set-modal');
+    document.getElementById('setbtn').onclick = () => {
+      paintVq();
+      applyBuses(); // refresh which faders show
+      setModal.style.display = 'flex';
     };
+    document.getElementById('set-close').onclick = () => { setModal.style.display = 'none'; };
+    setModal.addEventListener('click', (e) => { if (e.target === setModal) setModal.style.display = 'none'; });
+    document.getElementById('vqrow').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-vq]'); if (!b) return;
+      setVq(b.dataset.vq || '');
+    });
     for (const bus of ['stage', 'row', 'stadium']) {
       const inp = document.getElementById('mix-' + bus);
       inp.value = Math.round(mix[bus] * 100);
@@ -10467,6 +10535,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // ("WxH@fps"), and a way to drive a sweep. Guards the portrait<->landscape
       // oscillation (feedback from reading the camera's own echoed settings).
       camConstraint: () => trackQ.k,
+      vq: () => vqManual || 'auto',
+      setVqForTest: (label) => setVq(label || ''),
+      rungNow: () => lastQ && lastQ.label,
       forceAdapt: () => { adapt(); return trackQ.k; },
       // what the camera actually DELIVERS (the capture's true shape) — the ask
       // (camConstraint) can be right while an aspect-locked capture stays wrong
