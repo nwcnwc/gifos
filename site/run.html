@@ -3019,8 +3019,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function stageCeilingKbps() {
       if (BROADCAST) return 3500;      // viewers bring NO media — the whole local budget is the stage's, at any scale
       if (hasAdminRoom()) return 1800; // ≤C admin-granted stagers, over a room that also carries its own tiles
-      const n = participantCount();    // open: self step-up, and the stage competes with a full section of tiles
-      return n <= 8 ? 1500 : n <= 25 ? 1100 : 800;
+      // Open: anyone may step up, and the stage competes with the seat's own
+      // tiles — a competition that really does grow with the room (2 tiles at
+      // three people, a full section plus stadium composites at thirty) and
+      // then PLATEAUS, because a full section is all any seat ever carries.
+      // Hence a short taper, not a slope to zero. The floor stays above the old
+      // flat 900k aux constant on purpose: this work must not make the Stage
+      // WORSE in any room than the thumbnail budget it replaces.
+      const n = participantCount();
+      return n <= 8 ? 1500 : n <= 25 ? 1200 : 1000;
     }
     // ---- power forensics -----------------------------------------------
     // The Moto died ON THE CHARGER in a 3-person room — power work needs
