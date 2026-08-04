@@ -13,10 +13,12 @@ const TICKET = 'street-show-1';
 
 scenario('24a-broadcast-street', {
   hana: { profile: 'desktop', adminPw: 'hosts-own-key!', bc: true, ensurePass: TICKET, video: 1 }, // the host
-  vera: { profile: 'phone', bc: true, pass: TICKET },
-  tara: { profile: 'phone', bc: true, pass: TICKET },
-  gus:  { profile: 'phone', bc: true, pass: TICKET },
-  zed:  { profile: 'phone', bc: true, pass: TICKET }, // joins LATE, mid-show
+  // viewers are OBSERVERS: the driver must not enable its default swatch
+  // camera — a real audience member's page never touches getUserMedia at all
+  vera: { profile: 'phone', bc: true, pass: TICKET, observe: true },
+  tara: { profile: 'phone', bc: true, pass: TICKET, observe: true },
+  gus:  { profile: 'phone', bc: true, pass: TICKET, observe: true },
+  zed:  { profile: 'phone', bc: true, pass: TICKET, observe: true }, // joins LATE, mid-show
 }, async (cast, check) => {
   const ev = (role, js) => cast.get(role).eval(js);
 
