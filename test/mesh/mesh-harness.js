@@ -340,17 +340,33 @@ function d5Scenario() {
 // We pin the sim's numbers: JOIN converges, then kill {0.4, 0.5} + the
 // S1-targeted kills heal back to seated=all, s1=25/25, dups=0, stranded=0,
 // teleport=0 (the sim's CHECK PASS line).
-const N = process.env.N ? parseInt(process.env.N, 10) : 0;
-if (process.env.D5_ONLY) { d5Scenario(); } // just the D5 early-probe scenarios (debug convenience)
-else if (N) { scenario(N, process.env.KILL === '40' ? { frac: 0.4, label: '40%-kill' } : process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
-else {
-  scenario(500);
-  scenario(1000);
-  scenario(500, { frac: 0.4, label: '40%-kill' });
-  scenario(500, { frac: 0.5, label: '50%-kill' });
-  scenario(500, { mode: 's1row', label: 's1row' });
-  scenario(500, { mode: 's1all', label: 's1all' });
-  d5Scenario();
+// THE FABRIC IS REUSABLE, THE SCENARIOS ARE NOT. Other drivers (test/tools/
+// seat-flap-repro.js) need this file's S4 fabric — real Ed25519 identities,
+// signFill on send, verifyDelivered + s4ok on delivery — because mesh.js's
+// verifyFill is FAIL-CLOSED: a fill that arrives unstamped is dropped, so a
+// hand-rolled env silently seats nobody and looks like a product bug. There
+// must be exactly ONE such fabric, or a driver drifts from the gate it claims
+// to share a brain with. Exported here; the scenarios below still run — and
+// still exit — exactly as before when this file is invoked directly.
+module.exports = {
+  mesh, net, topo, ck,
+  makeFabric, doTick, converge, counts, spawn, spawnOne, spawnDue, runJoin, kill,
+  mintId, newPins, signFill, verifyDelivered, seatSeed, seedRng, H_SIGNED,
+};
+
+if (require.main === module) {
+  const N = process.env.N ? parseInt(process.env.N, 10) : 0;
+  if (process.env.D5_ONLY) { d5Scenario(); } // just the D5 early-probe scenarios (debug convenience)
+  else if (N) { scenario(N, process.env.KILL === '40' ? { frac: 0.4, label: '40%-kill' } : process.env.KILL === '50' ? { frac: 0.5, label: '50%-kill' } : process.env.KILL === 's1row' ? { mode: 's1row', label: 's1row' } : process.env.KILL === 's1all' ? { mode: 's1all', label: 's1all' } : null); }
+  else {
+    scenario(500);
+    scenario(1000);
+    scenario(500, { frac: 0.4, label: '40%-kill' });
+    scenario(500, { frac: 0.5, label: '50%-kill' });
+    scenario(500, { mode: 's1row', label: 's1row' });
+    scenario(500, { mode: 's1all', label: 's1all' });
+    d5Scenario();
+  }
+  console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
+  process.exit(fails === 0 ? 0 : 1);
 }
-console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
-process.exit(fails === 0 ? 0 : 1);
