@@ -31,17 +31,37 @@ EDGE_FLAG=""; [ "${MEET_EDGE:-1}" != "0" ] && EDGE_FLAG="--edge"
 PASS_ARGS=(); [ -n "${MEET_PASS:-}" ] && PASS_ARGS=(--ensure-pass "$MEET_PASS")
 mkdir -p "$DATA"
 
+# A LONG-LIVED MONITOR MUST NOT FOSSILIZE (Nathan, 2026-08-04, after its
+# ~7h-stale keeper page fought a fresh client's password for a minute):
+# every (re)spawn pulls the current code, and the bot is recycled DAILY so
+# its page never runs an edge build more than a day old. The recycle is a
+# plain kill — the keeper re-enters and re-locks, the exact churn a phone
+# user's close-and-reopen already exercises.
+RECYCLE_SECS="${MEET_RECYCLE_SECS:-86400}"
+
 while true; do
+  # Fresh code for the driver and the next page load. --ff-only: a monitor
+  # host never mints merges; a diverged checkout is reported loudly and the
+  # monitor keeps running on what's here (its job is presence, not deploys).
+  git -C "$REPO" pull --ff-only origin main >> "$DATA/stderr.log" 2>&1 \
+    || echo "[run.sh] git pull failed (diverged checkout or offline) — running the code already here" >> "$DATA/stderr.log"
   # After the REPL has had time to join and seat, type `watch` into our own
   # pane so the stream starts without a human. Keystrokes land in readline's
   # buffer, so racing the prompt is harmless.
   ( sleep 25; tmux send-keys -t "$SESSION" 'watch 5 info' Enter 2>/dev/null ) &
   KICK=$!
-  node "$REPO/test/swarm/meet.js" \
+  # --foreground keeps the REPL interactive on the tty; at RECYCLE_SECS the
+  # child gets TERM (exit 124) and the loop respawns it onto current code.
+  timeout --foreground "$RECYCLE_SECS" \
+    node "$REPO/test/swarm/meet.js" \
     --room "$ROOM" --name "$NAME" --cam $EDGE_FLAG "${PASS_ARGS[@]}" \
     --every 5 --jsonl "$DATA/snapshots-%d.jsonl" \
     2>> "$DATA/stderr.log"
-  kill "$KICK" 2>/dev/null
-  echo "[run.sh] meet.js exited — rejoining in 5s (ctrl-c me to stop for real)"
-  sleep 5
+  RC=$?
+  if [ "$RC" = 124 ]; then
+    echo "[run.sh] daily recycle — pulling and reloading onto the current build"
+  else
+    echo "[run.sh] meet.js exited ($RC) — rejoining in 5s (ctrl-c me to stop for real)"
+    sleep 5
+  fi
 done
