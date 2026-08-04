@@ -11042,6 +11042,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (t.receiver && t.receiver.track) midIn.set(String(t.mid), trkLbl.get(t.receiver.track) || null);
             if (t.sender) midOut.set(String(t.mid), sndLbl.get(t.sender) || (t.sender.track ? trkLbl.get(t.sender.track) : null) || null);
           } } catch (e) {}
+          const codecMime = new Map(); // codec stats id -> mimeType (H264-vs-VP8 truth per flow)
+          rep.forEach((s) => { if (s.type === 'codec') codecMime.set(s.id, s.mimeType); });
           rep.forEach((s) => {
             if (s.type === 'inbound-rtp' && s.kind === 'video') {
               out.push({ pid: String(pid).slice(0, 6), dir: 'in',
@@ -11049,14 +11051,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                 fdec: s.framesDecoded || 0, kdec: s.keyFramesDecoded || 0,
                 pliTx: s.pliCount || 0, nackTx: s.nackCount || 0,
                 drop: s.framesDropped || 0, lost: s.packetsLost || 0,
-                fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0 });
+                fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0,
+                mime: codecMime.get(s.codecId) || null, impl: s.decoderImplementation || null });
             } else if (s.type === 'outbound-rtp' && s.kind === 'video') {
               out.push({ pid: String(pid).slice(0, 6), dir: 'out',
                 slot: (s.mid != null ? (midOut.get(String(s.mid)) || null) : null),
                 fenc: s.framesEncoded || 0, kenc: s.keyFramesEncoded || 0,
                 pliRx: s.pliCount || 0, nackRx: s.nackCount || 0,
                 fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0,
-                qlim: s.qualityLimitationReason || null });
+                qlim: s.qualityLimitationReason || null,
+                mime: codecMime.get(s.codecId) || null, impl: s.encoderImplementation || null });
             }
           });
         }

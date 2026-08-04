@@ -1735,15 +1735,50 @@ buy back quality and latency by making each hop free, not by removing hops.
   is the same change** — the C encoders collapse to zero for forwarded media.
 
 **Open questions.**
-- **Per-hop adaptation is lost.** Today each hop re-encodes to its own budget, so
-  a weak downstream link automatically gets a cheaper stream (`stageCeilingKbps`,
-  the aux budgets, the power tiers). Verbatim forwarding hands everyone exactly
-  what the source encoded. The SFU answer is **simulcast / SVC**: the source
-  encodes layers and each forwarder **drops** layers instead of re-encoding —
-  dropping is free and lossless. That means layered encode at the stager and
-  layer-selection logic at every seat, and it needs to compose with the existing
-  ladder rather than replace it. **This is the main design work of 9a**, not the
-  transform plumbing.
+- **Per-hop adaptation is lost — THE LAYER-DROP DESIGN (measure-first plan,
+  2026-08-04).** Today the pipe hands every consumer exactly what the source
+  encoded; the SFU answer is layers the forwarder DROPS instead of
+  re-encodes. The design that composes with what shipped:
+  (1) LAYERED ENCODE AT THE STG PRODUCER ONLY, to start — it is the one
+  lane with a single producer, a pulse, and stage-grade budget:
+  `scalabilityMode: 'L1T2'` (temporal-only SVC) on the stg sender's
+  encodings is the cheapest first rung — no second encoder session, ~15%
+  bitrate overhead, and TEMPORAL dropping is doable INSIDE the existing
+  worker (RTCEncodedVideoFrame.getMetadata().temporalIndex: a pipe told to
+  halve its rate skips temporalIndex>0 frames — reference chains survive by
+  construction; that is a per-CONSUMER rate choice at zero re-encode).
+  Spatial simulcast (two encodings on the stg sender) is the second rung —
+  real spatial downshift for weak consumers, at the cost of a second
+  encoder session on the producer (phones: check MediaCodec session
+  ceiling first, docs/phone-power-tuning.md).
+  (2) SELECTION composes with the LADDER as a per-pipe cap: adapt() already
+  computes each seat's rung; a piped job maps its consumer's advertised
+  tier (already gossiped in status) to keep-all / drop-T1 / low-simulcast
+  — the DEMAND side (mx-want) grows a {layers} field, old clients omit it
+  and get everything (today's behavior, zero flag day).
+  (3) MEASURE FIRST, in this order: does L1T2 hurt the pulse (key
+  cadence x temporal layers interaction)? does temporalIndex survive the
+  payload swap onto templates (the swap is content-agnostic but the
+  DEPENDENCY DESCRIPTOR header extension may not ride — check
+  getMetadata() on swapped frames at a receiver tap)? and what does T1-drop
+  actually save a 4-core receiver (decode fps vs battery on the Moto rig)?
+  The worker's per-pipe counters + kfStats mime/impl are the instruments.
+- **Per-leg latency (piped vs transcode) — the method, and what the counters
+  already say.** The worker stamps lastWriteAt per write and the tap sees
+  each frame's rtpTimestamp — a per-leg trace shaped like approom-join's
+  TRACE line falls out of correlating one rtpTimestamp across (tap-seen@,
+  written@) at each hop plus framesDecoded advance at the consumer; the
+  pipe-freeze-probe already carries the plumbing (chain counters per 2s).
+  What the frza logs already bound without a dedicated run: a healthy piped
+  hop holds q=0-4 template-paired frames (drainer) ≈ ONE mint round trip
+  (~35-100ms at 10fps) of added latency per hop, vs the transcode path's
+  full encode (frame-interval + encoder delay, ≥100-200ms per hop at the
+  same rungs) — and the piped hop's latency is bounded by mint pacing, not
+  by encoder load, so it does not degrade under CPU pressure the way the
+  transcode lane measurably did (frza10's pinned-queue latency tax is the
+  failure mode to watch instead, now gated by the drainer). A dedicated
+  timestamp-correlated run across the 5-box rig is the remaining
+  measurement, cheap to add to the probe when wanted.
 - **Keyframes without a back-channel — ANSWERED (2026-08-04, second wave),
   and Nathan's pulse won the lane that matters.** Three levers, each with a
   measured domain: receiver-side `transformer.sendKeyFrameRequest()` works
@@ -1764,11 +1799,23 @@ buy back quality and latency by making each hop free, not by removing hops.
   path to be fast (a pulse-less producer), the candidate remains: suppress
   re-flooding a copy until it has decoded its own first frame, so
   establishing chains are never claim candidates.
-- **Codec coherence across every hop.** The forwarded bitstream carries a
-  specific codec/profile/resolution; every link it crosses must have negotiated
-  something compatible. Interacts with the H.264-first `setCodecPreferences`
-  already shipped for phone hardware encode (§3/G2) — which helps, since it
-  pushes the room toward one codec anyway.
+- **Codec coherence across every hop — VERIFIED ON REAL HARDWARE
+  (2026-08-04, the Moto).** All three legs measured in live rooms (kfStats
+  now carries per-flow codec + encoder/decoder implementation): (a) with a
+  real phone staged through real-Chrome relays the chain is H.264
+  END-TO-END and every relay hop RIDES THE PIPE deny-free — the phone
+  encodes its face ONCE on hardware (`NdkVideoEncodeAccelerator
+  (c2.mtk.avc.encoder)`, 480x270@10) and hardware-decodes its inbound strip
+  and stadium (`MediaCodecVideoDecoder`), which is the §9/§3-G2 watt story
+  working: one hw content encode, relays cost 48px template mints;
+  (b) a MIXED room (a VP8-only-encode seat staged through H264-first
+  relays) codec-DENIES exactly the incompatible hops per-job and falls back
+  to transcode with zero picture loss (fr advancing at every seat through
+  the deny); (c) homogenization needs no new code — `preferHwVideo` already
+  puts H264 first on every pc wherever decode caps exist, so capable rooms
+  converge on one codec by construction. Not yet run: the powered-USB watt
+  A/B against docs/phone-power-* baselines (needs the meter rig on the
+  raspberrypi Motos).
 - **Browser support and fallback.** Chrome/Safari/Firefox all ship encoded
   transforms, but details differ; a seat that cannot do passthrough must fall
   back to today's transcode path without splitting the tree.
