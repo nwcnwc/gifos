@@ -718,7 +718,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // …and after the grace period the tile SAYS why there's no video.
   await hPage.waitForFunction(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cubicle'));
-    return t && /no direct path/.test(t.textContent) && t.classList.contains('noroute') && parseInt(t.style.order || '0', 10) >= 100000;
+    return t && /connect straight to them/.test(t.textContent) && t.classList.contains('noroute') && parseInt(t.style.order || '0', 10) >= 100000;
   }, null, { timeout: 30000 });
   check('with NO possible route or relayer, the tile sinks to the bottom, labeled', true);
 
@@ -974,7 +974,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await beth.locator('#pwbtn').click();
   await beth.locator('#pw-new').fill('hax');
   await beth.locator('#pw-save').click();
-  await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
+  await beth.waitForFunction(() => /only the person who runs this room/i.test(document.getElementById('status').textContent), null, { timeout: 6000 });
   check('a non-admin setpw is refused (admins only)', true);
   // …and the refusal must not have re-keyed HER: a client that adopts a
   // password the room rejected seals itself out of its own room (the fork
@@ -984,8 +984,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // The RELAY's own gate is proven independently of the client's — a raw
   // setpw with no admin signature is refused at the door (this is what the
   // client guard above now prevents the UI from ever sending).
+  // Blank the pill first: the client guard above shows the SAME sentence (one
+  // rule, one message), so without this the wait could pass on its leftovers
+  // and prove nothing about the door.
+  await beth.evaluate(() => { document.getElementById('status').textContent = ''; });
   await beth.evaluate(() => window.__gifosVideo.relaySend({ t: 'setpw', pw: 'raw-hax', by: 'beth' }));
-  await beth.waitForFunction(() => /admins only/i.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  await beth.waitForFunction(() => /only the person who runs this room/i.test(document.getElementById('status').textContent), null, { timeout: 8000 });
   check('the relay itself refuses an unsigned setpw (server-side gate intact)', true);
 
   // ADMIN ROOMS: with an admin PRESENT, each tile is clear iff its OWN owner

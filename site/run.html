@@ -1155,6 +1155,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const statusEl = document.getElementById('status');
     const share = document.getElementById('share');
     const shareUrl = document.getElementById('share-url');
+    // ONE rule, ONE sentence: the password button's own guard and the door's
+    // refusal of the same act say exactly this, so a person never sees the same
+    // rule twice in two voices (nor the door's machine wording).
+    const PW_ADMIN_ONLY = '⛔ Only the person who runs this room can change its password.';
     // Explicit messages ("Wrong admin password.", "You were banned…") HOLD the
     // pill briefly so the ambient counter (updateStatus) can't eat them the
     // moment any gossip arrives.
@@ -4916,6 +4920,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // pool\u2019s, and newcomers drop their socket after seating anyway.
         if (/voted-off/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 The people in this room voted not to let this device in.'); }
         else if (/banned/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 This device was banned from the room by its admin.'); }
+        // The door's own refusals are written for a machine. Say the ONE that a
+        // person can actually trigger in the same words the button uses \u2014 one
+        // rule, one sentence \u2014 and never show the raw wire text for it.
+        else if (/admins only/.test(m.error || '')) setStatus(PW_ADMIN_ONLY);
         else if (!/password required|session is full/.test(m.error || '')) setStatus('Connection trouble: ' + m.error);
       }
     }
@@ -5431,7 +5439,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // does exactly that to prove the relay refuses — but a client must
         // never eject itself on an order it knows it cannot issue.)
         if (hasAdminRoom() && !amAdmin) {
-          setStatus('⛔ Only the person who runs this room can change its password.'); // same words the relay refuses with — one message for one rule
+          setStatus(PW_ADMIN_ONLY); // the same sentence the door's refusal shows — one message for one rule
           pwModal.style.display = 'none';
           return;
         }
