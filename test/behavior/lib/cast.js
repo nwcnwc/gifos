@@ -208,6 +208,7 @@ class Actor {
     let c = 'join ' + room;
     if (opts.pass || this.spec.pass) c += ' --pass ' + (opts.pass || this.spec.pass);
     if (opts.av) c += ' --av ' + opts.av;
+    if (opts.bc || this.spec.bc) c += ' --bc'; // the BROADCAST skin (spec: bc true on every role of a broadcast cast)
     const p = this.cmd(c, 120000).then((r) => { if (!r.err) this.joined = true; return r; });
     return p;
   }
