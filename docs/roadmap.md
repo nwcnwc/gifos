@@ -1618,6 +1618,28 @@ whole media plane.
 
 ### 9a. Encoded passthrough with local decode (the fix for all three)
 
+**STATUS — FIRST WAVE SHIPPED to edge 2026-08-04** (`site/js/mesh-pipe.js` +
+run.html wiring; gates `test/unit/mesh-pipe.js` 23 green,
+`test/browser/e2e-pipe.js` 15 green, e2e-mosaic/stage-onerow/broadcast all
+green). Every PACKER-ORIGIN forward (sgs, the sd*/x*/sub family) now ships the
+received compressed bytes — byte-identical, zero content re-encode per hop —
+with per-job automatic failback to the transcode path. What the capability
+probes taught (all measured on the pinned Chromium 141, and different from the
+sketch below): cross-transformer injection NEVER ships (the sender's sink does
+frame-object identity, not provenance — even constructor-clones of its own
+frames are silently discarded), so the mechanism is a payload SWAP on the
+sender's own frames, template-minted on demand by a 48px `captureStream(0)` +
+`requestFrame()` canvas; `transformer.generateKeyFrame()` DOES NOT EXIST, so
+the keyframe pulse below is dead — replaced by an on-demand `mx-kf` walk up the
+claim chain (fired by the worker on key starvation, and by the consumer's PLI
+tunneling through the carrier encoder as key-templates-against-a-delta-queue),
+resolved at the producer by a 1px canvas resize. STILL OUT: `stg:*`
+(camera-origin) forwards — piping the S1 stage flood produced a real one-seat
+bright-freeze (moving target, 120s+) that a one-box rig cannot decompose
+further; the flood is 1-2 hops of bounded transcode, so it stays stock until
+the freeze is understood across devices. §9b's fan collapse shipped with this
+for free (one tap fans to N pipes).
+
 **What.** Forward the **compressed bytes**, and decode **once, locally, only to
 put pixels on this seat's screen**. A seat's job becomes: decode for display
 (one decode, unavoidable — it is showing the picture), and hand the *untouched*

@@ -7068,6 +7068,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (job2.key !== key || pipeJobs.has(jk2)) continue;
         for (const t of job2.trackList) {
           if (t && t.canvas) { const c = t.canvas; try { c.width = c.width > 2 ? c.width - 1 : c.width + 1; } catch (e) {} return; }
+          // CAMERA producer (a stager's stg feed): no canvas to resize. The one
+          // JS-reachable keyframe lever is a capture-constraint change — a ±2px
+          // width ideal, restored a beat later. This is the op class adapt()
+          // itself performs on every rung move (and unlike the 2026-08-01
+          // transpose saga it never reads the answer back — no feedback loop);
+          // it is DEMAND-driven and rate-limited by kfLast, never a standing
+          // pulse. trackQ keeps following the track, so the next adapt() simply
+          // re-applies the rung's own constraints — self-consistent.
+          if (t && t.kind === 'video' && t.readyState === 'live' && t.applyConstraints && t.getSettings) {
+            try {
+              const w = (t.getSettings().width | 0) || 640;
+              t.applyConstraints({ width: { ideal: w - 2 } }).catch(() => {});
+              setTimeout(() => { try { t.applyConstraints({ width: { ideal: w } }).catch(() => {}); } catch (e) {} }, 350);
+            } catch (e) {}
+            return;
+          }
         }
       }
     }
@@ -7148,7 +7164,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // trackList holds the CARRIER — dormancy (setJobActive) replaceTracks
         // it back on wake; re-attaching the remote track would re-enter the
         // transcode path with the pipe transform still on the sender.
-        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk)) {
+        // stg:* (CAMERA-origin) DELIBERATELY EXCLUDED for now (2026-08-04).
+        // Piping the S1 stage flood produced a real, moving-target freeze: one
+        // receiver per run stuck bright-and-frozen for 120s+ (e2e-mosaic's
+        // stage-pixels leg, seat different every run) while every packer-origin
+        // lane stayed green through every gate. The camera keyframe lever
+        // (applyConstraints nudge) is the least-proven link in that chain, and
+        // a 6-browser box at ~1fps cannot separate its failure modes further —
+        // the ONE-BOX law. The flood is 1-2 hops of bounded transcode, so the
+        // cost of keeping it stock is small; the multi-level chains where
+        // generation loss and latency actually compound (sgs, the sd* family)
+        // are all canvas-origin and ride the pipe. Re-scope stg once the freeze
+        // is understood across DEVICES (test/README.md).
+        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk) && String(key).indexOf('stg:') !== 0) {
           try {
             const rcv = MPipe.receiverForTrack(tr, [...peers.values()].map((q) => q.pc).filter(Boolean));
             const srcId = rcv && 'rx:' + tr.id;
@@ -7199,6 +7227,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (let i = 0; i < job.senders.length; i++) {
         try { job.senders[i].replaceTrack(on ? (job.trackList[i] || null) : null); } catch (e) {}
       }
+      // A PIPED job's dormancy must reach the worker: a parked pipe's minted
+      // templates die at the detached track, so its tap must stop queueing
+      // (else the queue fills against a wall and the watchdog denies a healthy
+      // spare — measured). A WAKE starts a fresh GOP: the worker re-arms
+      // needKey and fires the keyframe walk itself.
+      if (pipeJobs.has(jk) && MPipe) { try { MPipe.pausePipe(jk, !on); } catch (e) {} }
       compKick(job.to);
     }
     function unshipMos(jk, notify) {
