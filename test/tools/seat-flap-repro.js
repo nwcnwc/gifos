@@ -69,12 +69,40 @@ const STATE = ['0 join', '1 ask', '2 search', '3 SEATED'];
 // can be gone when the answer comes back. That second case is the common one
 // on a real flapping link and the first cut of this file missed it.
 // ---------------------------------------------------------------------------
-function run({ up, down, ticks, trace, seed = 20260804 }) {
+function run({ up, down, ticks, trace, seed = 20260804, jitter = false, noResume = false }) {
   seedRng(seed);
   const env = makeFabric();
 
-  const period = up + down;
-  const doorUp = (t) => (down === 0 ? true : (t % period) < up);
+  // Two door models. PERIODIC (jitter=false) is the readable one --trace uses,
+  // but it PHASE-LOCKS: entry retries fire on a fixed ~21-tick cadence, so a
+  // fixed door period can land every reply at the same dead offset forever and
+  // the row measures the phase geometry, not the mechanism (observed: 3up/6down
+  // + 21 locks WHOHOME at phase 1, its HOME at phase 3-5, eaten every cycle for
+  // 3000 ticks straight). Real flaps are not metronomes — so the MEASUREMENT
+  // legs use JITTERED windows: each segment uniform in [0.5, 1.5)×its mean,
+  // seeded, so runs stay reproducible while phase artifacts average out.
+  let doorUp;
+  if (down === 0) doorUp = () => true;
+  else if (!jitter) { const period = up + down; doorUp = (t) => (t % period) < up; }
+  else {
+    let rs = (seed ^ 0x5f3759df) >>> 0;
+    const rnd = () => { rs = (Math.imul(rs, 1103515245) + 12345) & 0x7fffffff; return rs / 2147483648; };
+    const seg = (mean) => Math.max(1, Math.round(mean * (0.5 + rnd())));
+    const sched = []; let isUp = true;
+    while (sched.length < ticks + 200) { const n = seg(isUp ? up : down); for (let i = 0; i < n; i++) sched.push(isUp); isUp = !isUp; }
+    doorUp = (t) => sched[t] !== false; // beyond the schedule ⇒ up (never reached)
+  }
+
+  // Baseline arm for the A/B: same seed, same door, resume disabled — the
+  // pre-fix entry dance, restart-from-knock on every failure.
+  if (noResume) {
+    const S = H.mesh.Seat.prototype;
+    if (!S.__resumeOrig) S.__resumeOrig = S.resumeAsk;
+    S.resumeAsk = function () { return false; };
+  } else {
+    const S = H.mesh.Seat.prototype;
+    if (S.__resumeOrig) S.resumeAsk = S.__resumeOrig;
+  }
 
   // Bring up the genesis greeter on a perfect door and let it settle.
   const greeter = spawnOne(env);
@@ -179,71 +207,65 @@ if (argv.includes('--trace')) {
   process.exit(0);
 }
 
-console.log('\n=== SEATING vs DOOR STABILITY ===');
-console.log('One seated greeter, one entrant. The entry dance is');
-console.log('  knock -> GREETERS -> WHOHOME -> HOME -> FIND -> PLACE');
-console.log('— three relay round trips, ALL of them over the door, because an');
-console.log('unseated peer has no data channels to use instead.\n');
-console.log('  door up/down     up%    seated at     sent    eaten    stalled at');
-console.log('  ' + '-'.repeat(70));
-
-const CASES = [
-  { up: 1, down: 0 },
-  { up: 400, down: 20 },
-  { up: 200, down: 60 },
-  { up: 100, down: 60 },
-  { up: 60, down: 60 },
-  { up: 30, down: 60 },
-  { up: 20, down: 60 },
-  { up: 10, down: 60 },
-  { up: 5, down: 120 },
-];
-
-let control = false;
-for (const c of CASES) {
-  const r = run({ ...c, ticks: TICKS, trace: false });
-  const pct = c.down === 0 ? 100 : Math.round(100 * c.up / (c.up + c.down));
-  const label = c.down === 0 ? 'never down' : `${c.up}/${c.down}`;
-  const seated = r.seatedAt >= 0 ? `tick ${r.seatedAt}` : 'NEVER';
-  const stalled = r.seatedAt >= 0 ? '-' : STATE[r.entrant.state] + (r.stranded ? ' +STRANDED' : '');
-  console.log('  ' + label.padEnd(15) + String(pct + '%').padEnd(7) + seated.padEnd(14) +
-    String(r.stats.sent).padEnd(8) + String(r.stats.dropped).padEnd(9) + stalled);
-  if (c.down === 0) control = r.seatedAt >= 0;
-}
-
 // ---------------------------------------------------------------------------
-// THE DECISIVE LEG: hold the duty cycle FIXED and vary only the WINDOW LENGTH.
+// THE MEASUREMENT: same 33% uptime, shrinking window length, JITTERED windows
+// (see the door-model note in run()), N seeds per row, and a PAIRED A/B —
+// baseline = the pre-fix dance (resume disabled), fix = ENTRY RESUME
+// (mesh.js resumeAsk: a retry that holds a registry-fresh greeter list
+// re-enters at WHOHOME instead of re-knocking).
 //
-// The entry dance is three relay round trips (knock->GREETERS, WHOHOME->HOME,
-// FIND->PLACE) and it keeps NO PARTIAL PROGRESS: a socket that dies mid-dance
-// sends the entrant back to state 0 and the next attempt starts from nothing.
-// So what should matter is not "what fraction of the time is the link up" but
-// "is one continuous up-window longer than the whole dance". Same 33% uptime,
-// chopped finer and finer:
+// The entry dance is three door round trips and the baseline keeps NO partial
+// progress across a socket death, so its requirement is "one continuous
+// up-window longer than the WHOLE dance"; resume's is "one round trip per
+// window". Production ticks every 500ms (mesh-wire.js:99), so the window
+// column is real wall-clock socket lifetime.
 // ---------------------------------------------------------------------------
-console.log('\n=== SAME 33% UPTIME, DIFFERENT WINDOW LENGTHS ===');
-console.log('If duty cycle were what mattered these would all behave alike.\n');
-// Production drives one tick per `tickMs = opts.tickMs || 500` (mesh-wire.js:99),
-// so a tick is HALF A SECOND and these windows are real wall-clock socket
-// lifetimes — the column that turns this from a curve into a requirement.
 const TICK_MS = 500;
 const secs = (t) => (t * TICK_MS / 1000).toFixed(1) + 's';
-console.log('  window (up/down)   up-window   up%    seated at        eaten   stalled at');
-console.log('  ' + '-'.repeat(78));
-for (const up of [200, 100, 40, 20, 10, 6, 3]) {
-  const c = { up, down: up * 2 };
-  const r = run({ ...c, ticks: TICKS, trace: false });
-  const seated = r.seatedAt >= 0 ? `tick ${r.seatedAt} (${secs(r.seatedAt)})` : 'NEVER';
-  const stalled = r.seatedAt >= 0 ? '-' : STATE[r.entrant.state] + (r.stranded ? ' +STRANDED' : '');
-  console.log('  ' + `${up}/${up * 2}`.padEnd(19) + secs(up).padEnd(12) + '33%'.padEnd(7) +
-    seated.padEnd(17) + String(r.stats.dropped).padEnd(8) + stalled);
-}
-console.log('\n  A tick is 500ms (mesh-wire.js:99). Same total uptime throughout — the only');
-console.log('  variable is how long the socket stays up in one stretch.');
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => 20260804 + k * 7919);
 
-console.log('\n--trace <up> <down> for the frame-by-frame timeline.');
+function arm(c, noResume) {
+  const times = [];
+  for (const seed of SEEDS) {
+    const r = run({ ...c, ticks: TICKS, trace: false, jitter: c.down !== 0, seed, noResume });
+    if (r.seatedAt >= 0) times.push(r.seatedAt);
+  }
+  times.sort((a, b) => a - b);
+  const med = times.length ? times[times.length >> 1] : -1;
+  return { n: times.length, med };
+}
+
+console.log('\n=== ENTRY RESUME A/B — same 33% uptime, shrinking socket windows ===');
+console.log(`${SEEDS.length} jittered seeds per row, ${TICKS} ticks (${secs(TICKS)}) budget, paired arms.\n`);
+console.log('  mean window   up-window    BASELINE seated    WITH RESUME seated');
+console.log('  ' + '-'.repeat(66));
+
+const ROWS = [
+  { up: 1, down: 0, label: 'never down' },
+  { up: 200, down: 400 },
+  { up: 40, down: 80 },
+  { up: 20, down: 40 },
+  { up: 10, down: 20 },
+  { up: 6, down: 12 },
+  { up: 3, down: 6 },
+];
+
+let control = false, fixWins = true;
+for (const c of ROWS) {
+  const base = arm(c, true), fix = arm(c, false);
+  const label = c.label || `${c.up}/${c.down}`;
+  const show = (a) => `${a.n}/${SEEDS.length}` + (a.n ? ` med ${secs(a.med)}` : '        ');
+  console.log('  ' + label.padEnd(14) + (c.down ? secs(c.up) : '-').padEnd(13) +
+    show(base).padEnd(19) + show(fix));
+  if (c.down === 0) control = fix.n === SEEDS.length;
+  if (c.up === 6) fixWins = fix.n >= base.n;
+}
+
+console.log('\n--trace <up> <down> for a frame-by-frame periodic-door timeline.');
 
 if (argv.includes('--assert')) {
-  console.log('\n' + (control ? 'PASS' : 'FAIL') + ' — control leg (perfect door) seats the entrant');
-  process.exit(control ? 0 : 1);
+  const ok = control && fixWins;
+  console.log('\n' + (control ? 'PASS' : 'FAIL') + ' — control leg (perfect door) seats on every seed');
+  console.log((fixWins ? 'PASS' : 'FAIL') + ' — resume seats at least as many 3s-window seeds as baseline');
+  process.exit(ok ? 0 : 1);
 }

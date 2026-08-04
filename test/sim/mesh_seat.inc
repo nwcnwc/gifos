@@ -845,7 +845,7 @@ void Seat::recv(Msg& m){
     case GREETERS: {
       if(m.list.empty()){ if(state==0){ genKey=myKey; vector<KV> e; take({0,0,0},-1,e);} return; }   // R3: empty list => I minted the genesis key & found the home (also R6 TAKE-OVER: a stranded newcomer whose room finally emptied)
       if((state==0||state==1) && joinStart>=0 && TICK-joinStart>STRAND_TTL && (lastReach<0 || TICK-lastReach>STRAND_TTL)){ stranded=true; strandedAt=(int)TICK; return; }   // R6: greeters exist (meeting alive) but I've REACHED none (no HOME roster came back) for a full TTL => voted off / unreachable subnet. A seat that keeps reaching greeters (lastReach fresh) but only gets NOROOM is competing for a slot in a busy heal — NOT stranded — so it keeps retrying.
-      lastGreeters=m.list;
+      lastGreeters=m.list; greetersAt=(int)TICK;   // stamped: entry-resume trusts this list only while registry-fresh
       if(state==0){ int g=m.list[(int)(rng()*m.list.size())]; gateway=g; Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w); state=1; retryAt=(int)TICK; }   // pick a RANDOM greeter (spreads intro load); it is my ENTRY GATEWAY — replies route back through it while I'm unseated
       // E3 (stripped): a seated Section-1 seat knocks ONLY to keep an honest
       // greeter in the pool (anti-poison floor); it IGNORES the greeters it gets
@@ -906,7 +906,7 @@ void Seat::recv(Msg& m){
       return; }
     case HOME: {
       if(m.gkey) genKey=m.gkey;   // learn THIS meeting's genesis key from the greeter (the newcomer dance)
-      if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6. genesis is ONLY via an empty greeter LIST.
+      if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
     case FIND: if(m.tag==1) serveCompact(m); else { findNc=m.nc; serveFind(m); findNc=-1; } return;   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
@@ -1078,7 +1078,7 @@ void Seat::tick(){
     if(reAsk||reJoin){ bool a=reAsk; reAsk=false; reJoin=false;   // ENTRY PACING: fire the ask/knock deferred from a same-tick repeat
       if(a&&haveRoster&&roster.size()){ int t=pickRoster(); if(t>=0){ askSeat(t); wake(id); return; } }
       join(); wake(id); return; }
-    if((state==0||state==1)&&TICK-retryAt>20) join(); else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>((seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else join(); } else { seatTries=0; join(); } } } wake(id); return; }
+    if((state==0||state==1)&&TICK-retryAt>20){ if(!resumeAsk()) join(); } else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>((seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else if(!resumeAsk()) join(); } else { seatTries=0; if(!resumeAsk()) join(); } } } wake(id); return; }   // ENTRY RESUME: re-enter at WHOHOME while the greeter list is registry-fresh; full knock only when it isn't
   if(evil) attack();
   // T: transit bookkeeping — a claim window that closes with NO contradiction
   // CONFIRMS (a wiped region has nobody to answer; a contradiction would have

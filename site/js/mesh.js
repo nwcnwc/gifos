@@ -559,6 +559,7 @@
       if (this.joinTick === this.TICK) { if (!this.hasCoord) { this.state = 0; this.retryAt = this.TICK; } this.reJoin = true; this.wake(); return; } // ENTRY PACING: one knock per tick
       this.joinTick = this.TICK;
       this.state = 0; this.retryAt = this.TICK; this.haveRoster = false;
+      this.resumeTries = 0; // ENTRY RESUME: a fresh knock re-arms the knockless-retry budget
       this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
       this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
       this.forkOpts = new Map(); this.forkPending = 0;
@@ -566,6 +567,54 @@
       this.emitRelay(this.myKey); this.wake();
     }
     askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
+    // ENTRY RESUME (2026-08-04 plane incident; test/tools/seat-flap-repro.js).
+    // The dance is three door round trips — knock→GREETERS, WHOHOME→HOME,
+    // FIND→PLACE — and a retry used to restart it from the knock, so a socket
+    // whose continuous up-windows were shorter than the WHOLE dance never
+    // seated (measured: at a fixed 33% uptime, 100s windows seat in 5.5s;
+    // 1.5s windows never seat) — while an already-established media pc kept
+    // streaming, needing zero round trips. Video without a seat, for hours.
+    // A retry that still HOLDS a fresh greeter list re-enters at the WHOHOME
+    // step instead of re-knocking: each up-window then has to carry only ONE
+    // round trip, and the dance ratchets forward across socket deaths.
+    // Bounds, so a stale list can never trap the entrant:
+    //   - the list is trusted only for RELAY_TTL — the registry's own entry
+    //     lifetime; beyond that we can't know the doors are still doors;
+    //   - each list entry is tried ONCE per join attempt (the same triedSilent
+    //     silent-until-answered marks the classic path uses); a dead list
+    //     costs one WHOHOME per entry and then the next retry re-knocks;
+    //   - fork handling is untouched: a resume never runs while a fork probe
+    //     or pick-one pause is live, and R5 cluster detection stays where it
+    //     was — on fresh GREETERS replies. A fork born after our knock waits
+    //     one RELAY_TTL; forks are rare and human-gated, entry is constant.
+    resumeAsk() {
+      if (this.forkProbe || this.forkPaused) return false;
+      const ls = this.lastGreeters;
+      if (!ls || !ls.length) return false;
+      if (this.greetersAt === undefined || this.TICK - this.greetersAt > RELAY_TTL) return false;
+      const tried = this.triedSilent = this.triedSilent || new Set();
+      let pool = ls.filter((g) => g && g !== this.id && !tried.has(g));
+      // The silent marks say "its HOME never landed" — but on a flapping
+      // socket that is usually OUR flap eating the reply, not a dark greeter
+      // (the exact confusion this path exists to survive: a 1-greeter room
+      // marks its only door on the first WHOHOME and resume would then never
+      // fire twice). So when the marks exhaust the list, cycle it again —
+      // but only RESUME_TRIES consecutive times without a HOME, so a
+      // genuinely dead list concedes to a fresh knock, never a livelock.
+      if (!pool.length) {
+        if ((this.resumeTries || 0) >= 6) return false; // mirrors seatTries<=6
+        pool = ls.filter((g) => g && g !== this.id);
+        if (!pool.length) return false;
+      }
+      this.resumeTries = (this.resumeTries || 0) + 1; // cleared by join() and by a landed HOME — any real progress re-arms the budget
+      const g = pool[(this.rng() * pool.length) | 0];
+      tried.add(g); // silent until its HOME lands — same mark the knock path sets
+      this.gateway = g;
+      this.emit(g, { t: 'WHOHOME', from: this.id, ttl: 60 });
+      this.state = 1; this.retryAt = this.TICK;
+      this.wake();
+      return true;
+    }
     // Faces for pick-one UI: Stage first, else Stadium, else S1 roster peers.
     static forkFaceList(sample) {
       if (sample.stage && sample.stage.length) return { tier: 'stage', faces: sample.stage.slice(0, 12) };
@@ -1496,7 +1545,7 @@
           // A seat that keeps reaching greeters but only gets NOROOM is
           // competing for a slot in a busy heal — NOT stranded (bug #6).
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL && (this.lastReach < 0 || TICK - this.lastReach > STRAND_TTL)) { this.stranded = true; this.strandedAt = TICK; return; }
-          this.lastGreeters = m.list;
+          this.lastGreeters = m.list; this.greetersAt = TICK; // stamped: entry-resume trusts this list only while registry-fresh
           if (this.state === 0 && !this.forkPaused) {
             // R5: probe SEVERAL greeters. One greeter → classic path. Many →
             // collect HOMEs; cluster by gkey + roster overlap. Two+ clusters
@@ -1625,7 +1674,7 @@
             return;
           }
           if (m.gkey != null) this.genKey = m.gkey; // learn this meeting's genesis key (the dance)
-          if (this.state === 1) { if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6
+          if (this.state === 1) { if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; this.resumeTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6; a landed HOME re-arms the resume budget
           else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
@@ -1830,7 +1879,7 @@
           if (a && this.haveRoster && this.roster.length) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); this.wake(); return; } }
           this.join(); this.wake(); return;
         }
-        if ((this.state === 0 || this.state === 1) && TICK - this.retryAt > 20) this.join();
+        if ((this.state === 0 || this.state === 1) && TICK - this.retryAt > 20) { if (!this.resumeAsk()) this.join(); } // ENTRY RESUME: re-enter at WHOHOME while the greeter list is fresh; full knock only when it isn't
         // Graded state-2 retry, SOLE-CANDIDATE ONLY: with exactly one live
         // greeter to ask there is no second admission chain to race, so a void
         // FIND may re-ask after 12 ticks instead of 60 — before this, one
@@ -1839,7 +1888,7 @@
         // the full window stands: a fast re-pick abandons a merely-SLOW
         // admitter hand-off chain mid-walk and the twin PLACE races leave
         // shape holes (sim join-patterns N=9-11 serial caught exactly that).
-        else if (this.state === 2 && TICK - this.retryAt > ((this.seatTries === 0 && this.roster.filter((e) => e.v !== this.id).length === 1) ? 12 : 60)) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.join(); } else { this.seatTries = 0; this.join(); } }
+        else if (this.state === 2 && TICK - this.retryAt > ((this.seatTries === 0 && this.roster.filter((e) => e.v !== this.id).length === 1) ? 12 : 60)) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else if (!this.resumeAsk()) this.join(); } else { this.seatTries = 0; if (!this.resumeAsk()) this.join(); } } // ENTRY RESUME on roster exhaustion too: a fresh WHOHOME beats a fresh knock
         this.wake(); return;
       }
       if (this.evil) this.attack();
