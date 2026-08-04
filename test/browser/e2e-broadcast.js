@@ -84,6 +84,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await hidden(v, '#mic')) && (await hidden(v, '#cam')) && (await hidden(v, '.blurctl')));
   check('viewer keeps Chat and Hand (the back-channel and the call-up request)',
     !(await hidden(v, '#chatbtn')) && !(await hidden(v, '#hand')));
+  check('nobody mixes and the host has no row-tier hammers (Mix / Blur guests / Video off gone)',
+    (await hidden(h, '#mixbtn')) && (await hidden(h, '#blurall')) && (await hidden(h, '#camall')) && (await hidden(v, '#mixbtn')));
+  check('Help speaks BROADCAST, not the meeting explainer',
+    (await h.evaluate(() => document.querySelector('#help-modal h3').textContent)) === 'How this broadcast works'
+    && (await v.evaluate(() => /viewer password/i.test(document.querySelector('#help-modal .help-scroll').textContent))));
 
   // ---- the skin is a skin: strip &bc=1 and it is the same room, meeting UI --
   // (joined BEFORE the lock below — a stripped client after it would meet the

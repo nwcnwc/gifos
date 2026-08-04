@@ -64,6 +64,8 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   });
   await h.waitForFunction(() => document.body.classList.contains('app-room') && window.__gifosVideo.room(), null, { timeout: 20000 });
   check('Invite flips the SAME page into an app room (no navigation)', true);
+  check('Help speaks APP ROOM, not the meeting explainer (per-product help)',
+    (await h.evaluate(() => document.querySelector('#help-modal h3').textContent)) === 'How this app room works');
   await h.waitForFunction(() => window.__gifosVideo.appIsHost && window.__gifosVideo.appIsHost(), null, { timeout: 20000 });
   check('the inviter hosts the app on the room lane', true);
   const link = await h.evaluate(() => document.getElementById('share-url').value);
