@@ -250,7 +250,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.locator('.card[data-slug="' + target.slug + '"]').click();
   await page.waitForSelector('#install', { timeout: 10000 });
   const openHref = await page.locator('.actions a.btn').getAttribute('href').catch(() => '');
-  check('an installed listing offers Open (pointing at the icon you own)', /meet\.html#id=/.test(openHref || ''), openHref || 'none');
+  check('an installed listing offers Open (pointing at the icon you own)', /run\.html#id=/.test(openHref || ''), openHref || 'none');
   check('re-opening the store STILL fetches no App GIF', gifHits.length === 1, gifHits.length + ' total');
 
   await browser.close();

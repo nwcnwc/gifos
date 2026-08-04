@@ -1519,7 +1519,7 @@
 
   // Shown only if this GIF is run somewhere WITHOUT the GifOS system routing
   // (an old build, another host). On a real desktop the runtime never mounts
-  // this — it routes the icon straight to the trusted meet.html page.
+  // this — it routes the icon straight to the trusted run.html page.
   const MEET_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
   body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
@@ -2638,7 +2638,7 @@ document.getElementById('f').onsubmit=async e=>{
                'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') },
     }, {
       // Meeting's sibling: the same trusted page wearing the broadcast skin
-      // (meet.html#bc=1) — one host on the Stage, unlimited viewers, chat.
+      // (run.html#bc=1) — one host on the Stage, unlimited viewers, chat.
       name: 'Broadcast.gif', appId: 'broadcast', accent: [255, 92, 120],
       files: { 'manifest.json': manifest('broadcast', 'Broadcast', [255, 92, 120], { system: 'broadcast' }),
                'index.html': themeHtml(BROADCAST_FALLBACK_HTML, 'full') },

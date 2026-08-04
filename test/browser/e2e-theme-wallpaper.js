@@ -40,7 +40,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   check('the desktop loads a computer\'s wallpaper.js', (await desk.evaluate(() => window.__wpLoaded)) === 1);
 
   const meet = await themed.newPage();
-  await meet.goto(BASE + '/meet.html');
+  await meet.goto(BASE + '/run.html');
   await meet.waitForFunction(() => document.readyState === 'complete', null, { timeout: 12000 });
   check('the meeting page does NOT load the wallpaper (art pages skip it)',
     !(await meet.evaluate(() => window.__wpLoaded)));

@@ -1,7 +1,7 @@
 // e2e-deep-pair-heal.js — A PARTITIONED DEEP PAIR REJOINS THE ROOM.
 //
 // A head composites and ships its product UP only when `beyondRow` holds —
-// some occupant outside its own pc/row (meet.html reconcileMosaic). So a deep
+// some occupant outside its own pc/row (run.html reconcileMosaic). So a deep
 // pair whose occ contains ONLY their own row composites nothing for anyone
 // above and ships nothing up: invisible to the rest of the room. That state was
 // seen once as a snapshot during churn (2026-08-01, the e2e-stadium-dup
@@ -44,7 +44,7 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
     await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; window.GIFOS_SCALE={C:2};` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 160)));
-    await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on');
+    await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
     pages.push(page);
     await sleep(1200);
   }

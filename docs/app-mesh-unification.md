@@ -40,7 +40,7 @@ completely above it.
 
 | Dimension | **Meeting mesh** (control plane) | **App multiplayer** (host/client) |
 |---|---|---|
-| **Where it lives** | `site/js/mesh.js` (Seat brain, sim port) + `site/js/mesh-wire.js` (transport binding) + `site/meet.html` (`startMesh` line 2279) | `site/js/runtime.js` (`boot`/`becomeHost` 1827/`bootClient` 1940) + `site/run.html` |
+| **Where it lives** | `site/js/mesh.js` (Seat brain, sim port) + `site/js/mesh-wire.js` (transport binding) + `site/run.html` (`startMesh` line 2279) | `site/js/runtime.js` (`boot`/`becomeHost` 1827/`bootClient` 1940) + `site/run.html` |
 | **Transport** | Bounded-degree WebRTC tree (rows + cross + up/down + S1 columns), degree ≤ C+1; relay is greeter-only | Star: host browser ⇄ each client, over relay WebSocket (P2) with opportunistic DataChannels (P1); relay fans `{t:'bcast'}` to all clients |
 | **Invite / join** | URL secret → `deriveMeet` (`gifos-net.js` 321) → knock relay greeter registry, newcomer dance, seated at a vacant coord (R1–R6) | Link secret → `deriveJoin` (`gifos-net.js` 299) → relay session `sid`; host holds the slot, client joins and mirrors |
 | **Identity of the room** | URL + optional admin verifier; **genesis key** (R2/R3) is the per-instance identity (`mintGenesisKey` `gifos-net.js` 354) | `sid` = `deriveJoin(lsec)` for self-healing links, or `"<room>.<verifier>"` for owned links; fileId names the app, not the room |
@@ -63,7 +63,7 @@ already shared:
    path ladder, and `verifierOf` authority all belong to both. Apps and
    meetings *already* authenticate authority identically (same helper —
    `architecture.md` L4, `threat-model.md` Boundary E).
-2. **App-in-a-meeting is already half on the mesh.** `runApp` (`meet.html`
+2. **App-in-a-meeting is already half on the mesh.** `runApp` (`run.html`
    5112) boots the app through the normal runtime, `becomeHost`s it
    `forever`/resilient (5124), and advertises `{s,k,relay,name}` **inside the
    mesh status heartbeat** (`myStatus.app`, 5135) — so app *control*
@@ -73,9 +73,9 @@ already shared:
    with the app's own `{s,k,relay}` — a distinct `deriveJoin` sid, not the
    meeting sid).
 3. **The gossip lane is already a general app bus.** `meshNode.gossip({a:1,
-   msg})` (`meet.html` 1703) already carries chat, status, votes, and file
+   msg})` (`run.html` 1703) already carries chat, status, votes, and file
    control room-wide with exact-once delivery and late-joiner replay
-   (`mesh-wire.js` 159, `onGossip` dispatch `meet.html` 2294). App-state deltas
+   (`mesh-wire.js` 159, `onGossip` dispatch `run.html` 2294). App-state deltas
    are the same *shape* of traffic — this lane is the natural home for them.
 
 So today an app "in a meeting" runs **two relay sessions at once**: the
@@ -104,7 +104,7 @@ with `dropDeepSocket` on and no `mesh-media` wired.
 App-state deltas travel as `seat.gossip(payload)` floods (`mesh.js` 278),
 exact-once and room-wide, over the tree's own bounded links (DC → sponsor-
 forward → relay-bootstrap). Namespace them the way meeting traffic already is:
-today `{a:1, msg}` carries meeting app-traffic (`meet.html` 2295); add an
+today `{a:1, msg}` carries meeting app-traffic (`run.html` 2295); add an
 `{app:<sid>, m:<delta>}` shape so one room can host several apps and each
 client filters by the app sid it mounted. `onGossip` (`mesh-wire.js` 97)
 dispatches to the runtime's delta handler instead of a relay `db-change`.
@@ -251,7 +251,7 @@ Everything above builds a live room with no camera. "Turning the meeting on" is
    control mesh or the gossip lane — it reads the same occ-map the healing laws
    maintain.
 3. **The meeting UI.** The stadium scroll, tiles, blur/consent, admin controls
-   — all `meet.html` chrome, layered over the app pane that already exists
+   — all `run.html` chrome, layered over the app pane that already exists
    (`showAppPane` 5101).
 
 The proof that it is additive: the app-on-Stage feature already treats an app
@@ -288,7 +288,7 @@ Combine the two trust models:
 - **The sandbox is untouched.** Whether app state arrives over a relay `bcast`
   or a mesh gossip flood, the app still runs in the opaque-origin iframe with
   `connect-src 'none'` and neutered WebRTC (Boundary A). The mesh node lives in
-  the *trusted meet.html/runtime origin*, never in the app — the app calls
+  the *trusted run.html/runtime origin*, never in the app — the app calls
   `gifos.db()` and the runtime mediates, exactly as now. **A joiner of a
   hostile app still crosses Boundary A + B** (`threat-model.md` Boundary E) —
   unchanged.
@@ -368,13 +368,13 @@ runtime is *reused*, not deleted:
   socket (zero behaviour change); injected binding = `bcast →
   meshNode.gossip({app:sid,m})`, `to → directed mesh send to the host seat`,
   `onMessage → onGossip` filtered by `app:sid`.
-- App-in-meeting stops opening a second session: `mountClientApp` (`meet.html`
+- App-in-meeting stops opening a second session: `mountClientApp` (`run.html`
   5142) binds the runtime client to the *meeting's* meshNode instead of calling
   `bootClient` with a separate `{s,k,relay}`.
 - Standalone app-share gets a headless meshNode via a new reusable module
-  (`app-mesh.md` calls it `site/js/mesh-app.js`) that `run.html` and `meet.html`
+  (`app-mesh.md` calls it `site/js/mesh-app.js`) that `run.html` and `run.html`
   both consume — factoring the node bring-up + DC signaling glue out of
-  `meet.html`.
+  `run.html`.
 
 **Deleted once baked:**
 - The relay's app-broadcast: `{t:'bcast'}` fan-out and the mesh `{t:'gossip'}`
@@ -472,7 +472,7 @@ S4** before the host-heal step ships.
 
 The open decisions above are now **made and built** (branch `app-mesh-unify`).
 The unified model shipped as a runtime-side adapter over the existing `sga`
-Stage DATA lane — `meet.html` and the mesh control plane were NOT touched.
+Stage DATA lane — `run.html` and the mesh control plane were NOT touched.
 
 ### The model, settled
 
@@ -525,7 +525,7 @@ Stage DATA lane — `meet.html` and the mesh control plane were NOT touched.
 
 Snapshot, as decided — not replay. The host's `snap` frame carries the app
 bytes + the full visibility-filtered state and is **retained by the sga lane**,
-which replays it to any subscriber on join (`meet.html`'s `sgaSnap`). Live
+which replays it to any subscriber on join (`run.html`'s `sgaSnap`). Live
 deltas keep it current after that.
 
 ### Verification
@@ -554,7 +554,7 @@ code).
   the lane could be pinned. This is the same first-pin/S4 exposure the meeting
   mesh already carries. The verifier ALREADY closes it for any sid that commits
   to the pubkey (`room.<sha256(pk)>`, tested). The clean close for the meeting
-  path is a small **`meet.html`** change (below).
+  path is a small **`run.html`** change (below).
 - **Heavy apps re-send app bytes in each retained snap.** Fine for the small
   sample apps; a per-record delta stream + a separate app-bytes frame is the
   optimization when a multi-MB app rides the lane.
@@ -563,13 +563,13 @@ code).
 
 ### Changes OUTSIDE my files — BOTH NOW MADE (2026-08-01)
 
-- **pk in the ad (DONE):** `meet.html` `runApp` carries the owner pubkey in the
+- **pk in the ad (DONE):** `run.html` `runApp` carries the owner pubkey in the
   app ad (`myStatus.app.pk`) and `mountClientApp` passes it into
   `bootClientBus` params, so the client pins the owner key from the
   **authenticated ad** instead of TOFU — the first-frame race for healing-link
   sids is closed. (`runtime.js` seeds `makeVerifier(sid, params.pk)`.)
 - **`noRelay` (DONE 2026-08-01):** `becomeHost({ noRelay: true })` skips
-  `openHostSocket` entirely; `meet.html` `runApp` passes it, so a
+  `openHostSocket` entirely; `run.html` `runApp` passes it, so a
   meeting-hosted app never registers even a momentary relay app-session.
   Guarded by `e2e-meeting-app.js` ("sharing opened NO relay app-session" —
   asserts no `role=host` socket ever existed on the host page).

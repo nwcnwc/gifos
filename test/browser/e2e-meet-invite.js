@@ -31,7 +31,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const open = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html#' + hash);
+    await pg.goto(BASE + '/run.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 12000 });
     return pg;
   };

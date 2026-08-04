@@ -39,7 +39,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','S${i}')}catch(e){}` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`  [S${i}] PAGEERROR`, String(e).slice(0, 200)));
-    await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on');
+    await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
     pages.push(page);
     await sleep(1200);
   }

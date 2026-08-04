@@ -1,8 +1,8 @@
 /*
  * gifos-net.js — the shared transport fabric for GifOS multiplayer.
  *
- * Every room shape rides this one module: app rooms and meetings (meet.html /
- * runtime.js — a host browser serving clients) and meetings (meet.html — a
+ * Every room shape rides this one module: app rooms and meetings (run.html /
+ * runtime.js — a host browser serving clients) and meetings (run.html — a
  * host-less mesh). It owns everything that is about MOVING BYTES, so the two
  * never fork on transport behavior again:
  *
@@ -50,7 +50,7 @@
     // NO TURN — EVER. GifOS media goes peer-to-peer, NEVER through a server
     // (the meeting footer's promise). When a direct path fails, media relays
     // through a MUTUAL FRIEND's browser (P1 friend-relay: relayVia / relay-req
-    // in meet.html, {t:'fwd'} in gifos-net) — a peer, not a server.
+    // in run.html, {t:'fwd'} in gifos-net) — a peer, not a server.
   ];
   const hasP2P = () => typeof root.RTCPeerConnection === 'function';
 

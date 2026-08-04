@@ -91,7 +91,7 @@ const pfx = (id) => String(id || '').slice(0, 12);
   const first = await newUser('E0');
   // DEBUG=on: forceSeat is gated on it. Every user loads with it so a
   // force-placed seat and its neighbours share the same diagnostics surface.
-  await first.page.goto(BASE + '/meet.html#DEBUG=on', GOTO);
+  await first.page.goto(BASE + '/run.html#DEBUG=on', GOTO);
   await first.page.locator('#lob-open').click();
   await first.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 20000 });
   const link = (await first.page.evaluate(() => document.getElementById('share-url').value)) + '&DEBUG=on';

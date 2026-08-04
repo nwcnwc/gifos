@@ -80,12 +80,13 @@ export default {
     out.headers.set('x-gifos-computer', sub);
 
     // Per-theme link previews. A meeting invite made on this computer is a
-    // <sub>.gifos.app URL (meet.html builds it from location.origin), so the
+    // <sub>.gifos.app URL (run.html builds it from location.origin), so the
     // subdomain — and thus the theme — travels with the link. A messaging-app
     // scraper runs no JS, so we swap the static card for this computer's themed
     // one (site/themes/<sub>/meet-og.png) right here at the edge.
     //
-    //   /meet.html            → meet.html (has the base card) — rewrite the image
+    //   /run.html, /meet.html → the runtime and its legacy shim (both carry the
+    //                           base card) — rewrite the image
     //   /meet/…               → the pretty invite, served by 404.html (200) with
     //                           the neutral "Join on GifOS" card — rewrite it to
     //                           the themed MEETING card AND flip 404→200 so strict
@@ -97,7 +98,7 @@ export default {
     // "TO ADD A COMPUTER") so the themed URL never 404s.
     const isHtml = (out.headers.get('content-type') || '').includes('text/html');
     const p = url.pathname;
-    const meetHtml = /^\/meet\.html$/i.test(p);
+    const meetHtml = /^\/(?:run|meet)\.html$/i.test(p);   // the runtime, and its legacy shim
     const meetPretty = /^\/meet(?:\/|$)/i.test(p);
     if (ro && isHtml && (meetHtml || meetPretty)) {
       const card = ORIGIN + '/themes/' + sub + '/meet-og.png';

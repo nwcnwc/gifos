@@ -59,8 +59,8 @@ const PROSE = 2.5; // soft "muted" secondary prose: catch dark-on-dark, allow th
     await page.addInitScript((th) => { window.GIFOS_THEME = th === 'home' ? '' : th; }, t);
     await page.addInitScript(CONTRAST_FN);
 
-    // --- meet.html: tile status overlays + accent modal button ---
-    await page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded' });
+    // --- run.html: tile status overlays + accent modal button ---
+    await page.goto(BASE + '/run.html', { waitUntil: 'domcontentloaded' });
     const vid = await page.evaluate(() => {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
@@ -95,7 +95,7 @@ const PROSE = 2.5; // soft "muted" secondary prose: catch dark-on-dark, allow th
     // --- the room page's app chrome: permission chip, accent modal button ---
     // (run.html died — one-runtime; the perms chip lives in the app bar now.
     // The signature chip did not migrate — identity shows on the desktop.)
-    await page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded' });
+    await page.goto(BASE + '/run.html', { waitUntil: 'domcontentloaded' });
     const run = await page.evaluate(() => {
       const per = document.getElementById('appperms'); per.style.display = ''; per.className = 'perms unsafe'; per.textContent = 'any site';
       const btn = document.querySelector('.name-box button');

@@ -1,6 +1,6 @@
 // e2e-pip.js — LEAVING THE APP LEAVES A FACE ON SCREEN (Picture-in-Picture).
 //
-// Stepping out to another phone app must not mean leaving the room: meet.html
+// Stepping out to another phone app must not mean leaving the room: run.html
 // floats the meeting's best video in a PiP overlay on visibilitychange, the
 // way native call apps do. Entry is best-effort per browser (Chrome auto-PiP
 // via the MediaSession action, Safari via autoPictureInPicture, plus a direct
@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => { errs.push(name + ': ' + e.message); console.log('  [' + name + '] pageerror: ' + e.message); });
-    await pg.goto(BASE + '/meet.html#v=' + room);
+    await pg.goto(BASE + '/run.html#v=' + room);
     return pg;
   };
 

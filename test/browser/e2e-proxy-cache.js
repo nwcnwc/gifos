@@ -64,7 +64,7 @@ function startProxy() {
     if (!bibleId) await sleep(300);
   }
   check('Bible Browser is seeded', !!bibleId);
-  await page.goto(BASE + '/meet.html#id=' + bibleId);
+  await page.goto(BASE + '/run.html#id=' + bibleId);
   await page.waitForSelector('iframe', { timeout: 8000 });
   await page.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {});
   const fr = page.frameLocator('iframe');

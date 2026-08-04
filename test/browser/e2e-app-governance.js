@@ -91,14 +91,14 @@ const LED_APP = {
   const room = 'gov' + Math.floor(Math.random() * 1e9).toString(36);
   const A = await newUser('Ada'); const aPage = await (A).newPage();
   aPage.on('pageerror', (e) => console.log('  [a pageerror]', e.message));
-  await aPage.goto(BASE + '/meet.html#v=' + room);
+  await aPage.goto(BASE + '/run.html#v=' + room);
   await aPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 }); // meeting boot is CPU-heavy under a saturated box
   const B = await newUser('Ben'); const bPage = await B.newPage();
   bPage.on('pageerror', (e) => console.log('  [b pageerror]', e.message));
-  await bPage.goto(BASE + '/meet.html#v=' + room);
+  await bPage.goto(BASE + '/run.html#v=' + room);
   const C = await newUser('Cyd'); const cPage = await C.newPage();
   cPage.on('pageerror', (e) => console.log('  [c pageerror]', e.message));
-  await cPage.goto(BASE + '/meet.html#v=' + room);
+  await cPage.goto(BASE + '/run.html#v=' + room);
   for (const pg of [aPage, bPage, cPage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 40000 });
 
   // A shares; everyone mounts
@@ -186,7 +186,7 @@ const LED_APP = {
   const admRoom = 'govadm' + Math.floor(Math.random() * 1e9).toString(36);
   const D = await newUser('Dana'); const dPage = await D.newPage();
   dPage.on('pageerror', (e) => console.log('  [d pageerror]', e.message));
-  await dPage.goto(BASE + '/meet.html');
+  await dPage.goto(BASE + '/run.html');
   // derive the admin key + verifier exactly like the lobby does (§SIG: V
   // commits to the PUBLIC key K seeds, NOT to K itself — the old SHA-256(K)
   // form predates the signature-authority port), and stash the key so Dana
@@ -202,7 +202,7 @@ const LED_APP = {
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, admRoom);
-  await dPage.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
+  await dPage.goto(BASE + '/run.html#v=' + admRoom + '&av=' + av);
   await dPage.reload(); // hash-only navigation doesn't re-boot the page
   // 45s: admin boot = meeting boot + a 310k-round PBKDF2 + Ed25519 key
   // adoption, CPU-heavy and slow on a saturated shared box.
@@ -211,7 +211,7 @@ const LED_APP = {
 
   const E = await newUser('Eve'); const ePage = await E.newPage();
   ePage.on('pageerror', (e) => console.log('  [e pageerror]', e.message));
-  await ePage.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
+  await ePage.goto(BASE + '/run.html#v=' + admRoom + '&av=' + av);
   for (const pg of [dPage, ePage]) await pg.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 40000 });
 
   // Guest may NOT run an app

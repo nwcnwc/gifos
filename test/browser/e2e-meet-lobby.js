@@ -1,5 +1,5 @@
 // The Meeting front door (lobby). A COLD open — the desktop icon → bare
-// meet.html, no room and no app in the URL — no longer dumps you into a random
+// run.html, no room and no app in the URL — no longer dumps you into a random
 // room with the camera already on. It shows a lobby that asks your intent:
 //   * Start a meeting (open, random id)   * Start a room you run (name+password)
 //   * Join a link (paste a URL or id)     * Recent & saved (history + bookmarks)
@@ -23,7 +23,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const coldOpen = async (label) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html');
+    await pg.goto(BASE + '/run.html');
     await pg.waitForSelector('#lobby.show', { timeout: 10000 });
     return pg;
   };
@@ -88,7 +88,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await gctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Gus')}catch(e){}" });
   const g = await gctx.newPage();
   g.on('pageerror', () => {});
-  await g.goto(BASE + '/meet.html#v=' + tkRoom + '&av=' + av2);
+  await g.goto(BASE + '/run.html#v=' + tkRoom + '&av=' + av2);
   await g.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
   await g.waitForFunction(() => document.getElementById('pw-modal').style.display === 'flex'
     && /locked/i.test(document.getElementById('pw-title').textContent), null, { timeout: 30000 });

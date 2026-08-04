@@ -111,7 +111,7 @@ const fakeCam = `
     fakeCam });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('[squat] pageerror: ' + e.message));
-  await p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : ''));
+  await p.goto(BASE + '/run.html#v=' + ROOM + (AV ? '&av=' + AV : ''));
   await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.participants() >= 1, null, { timeout: 60000 });
   console.log('[squat] joined "' + ROOM + '" as "' + NAME + '" — taking a stage seat (pid ' + process.pid + ')');
   console.log('[squat] release: Enter here · kill -USR1 ' + process.pid + (RELEASE ? ' · touch ' + RELEASE : ''));

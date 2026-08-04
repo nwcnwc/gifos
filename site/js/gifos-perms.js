@@ -1,17 +1,18 @@
 /*
  * gifos-perms.js — the app "Abilities / Internet" acknowledgement + opt-out UI.
  *
- * Shared by BOTH places an app can run: its own tab (run.html) and inside a
- * meeting (meet.html), so the challenge — and the per-app opt-out checkboxes —
- * look and behave identically wherever the app is mounted. The runtime calls
+ * Used by every way an app can run — solo in its own tab, in an app room, or
+ * inside a meeting (all one page now: run.html) — so the challenge, and the
+ * per-app opt-out checkboxes, look and behave identically wherever the app is
+ * mounted. The runtime calls
  * window.__gifosPermissions(policy, manifest) on every mount; this module wires
  * that hook to a chip button in the host page's header.
  *
  *   GifOS.perms.attach(chipEl, { onLeave })
  *     chipEl  — the header button to use as the Abilities/Internet chip.
  *     onLeave — called if the user closes a REQUIRED-capabilities gate without
- *               setting things up (run.html closes the tab; meet.html stops the
- *               shared app). Defaults to a best-effort close/back.
+ *               setting things up (a solo tab closes itself; a shared app stops).
+ *               Defaults to a best-effort close/back.
  *
  * Capability opt-out is persisted per app under gifos_capoff_<appId> and the
  * runtime's brokers (brokerAI/brokerApi/brokerAgentChat/brokerCapture, motion at

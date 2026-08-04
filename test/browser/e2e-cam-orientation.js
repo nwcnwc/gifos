@@ -96,7 +96,7 @@ const orient = (k) => { const m = /^(\d+)x(\d+)[@x]?/.exec(k || ''); if (!m) ret
     await ctx.addInitScript(shapedCameraInit, cam);
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('  [' + label.slice(0, 12) + '] ' + e.message));
-    await p.goto(BASE + '/meet.html');
+    await p.goto(BASE + '/run.html');
     await p.locator('#lob-open').click();
     await p.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.camConstraint && window.__gifosVideo.camConstraint(), null, { timeout: 15000 });
     await p.evaluate(() => { if (window.__gifosVideo.camOff()) document.getElementById('cam').click(); });

@@ -434,7 +434,7 @@ details.adv h4 { margin-top: .8rem; }
 .modal.wide .api-row .api-status { min-height: 1rem; font-size: .78rem; margin-bottom: 0; }
 
 /* THE standard row-delete control — same class and trash glyph everywhere in
-   GifOS (settings/invite rows here; lobby + pinned files in meet.html).
+   GifOS (settings/invite rows here; lobby + pinned files in run.html).
    Borderless, inherits the row's muted color, danger-red on hover. */
 button.row-del { flex: 0 0 auto; background: none; border: none; color: var(--muted); cursor: pointer; padding: .2rem .3rem; line-height: 0; border-radius: .35rem; }
 button.row-del:hover { color: #e0574a; }

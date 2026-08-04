@@ -61,7 +61,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cid = await host.evaluate(async () => { const it = (await GifOS.store.allItems()).find((x) => /^Chat\.gif/i.test(x.name || '')); return it ? it.fileId : null; });
   check('owner seeded the Chat app', !!cid, cid);
   if (!cid) { await browser.close(); process.exit(1); }
-  await host.goto(BASE + '/meet.html#id=' + encodeURIComponent(cid));
+  await host.goto(BASE + '/run.html#id=' + encodeURIComponent(cid));
   await host.waitForSelector('iframe', { timeout: 30000 });
   await host.locator('.perm-modal .done').click({ timeout: 6000 }).catch(() => {});
   await host.waitForSelector('.perm-modal', { state: 'detached', timeout: 6000 }).catch(() => {});

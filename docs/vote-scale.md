@@ -2,7 +2,7 @@
 
 Status: DESIGN (sim-first — nothing here ships to the wire until the C++
 reference sim proves it, like every mesh law). The shipped implementation
-(meet.html, 2026-07-25) is the SECTION-SCALE leaf mechanism plus a scale
+(run.html, 2026-07-25) is the SECTION-SCALE leaf mechanism plus a scale
 guard; see §6.
 
 ## 1. The problem
@@ -98,14 +98,14 @@ under-count the room.
 
 ## 5. Sim-first gate (before any wire port)
 
-mesh.cpp + mesh.js harness scenarios, all green before meet.html learns V2-V4:
+mesh.cpp + mesh.js harness scenarios, all green before run.html learns V2-V4:
 vote storm (everyone votes everyone), liar head (inflate/censor), mirror
 mismatch audit, churn mid-vote (heads die between fold and fan), decay
 (voters leave en masse), and the C-sweep (C=2..5).
 
 ## 6. What ships today (section scale)
 
-meet.html tallies EXACT leaves — every fresh status it can see — and takes
+run.html tallies EXACT leaves — every fresh status it can see — and takes
 `need` from the aggregated participantCount. In a one-section room that IS
 the exact protocol (statuses reach everyone; leaves = room). Beyond section
 scale the guard makes votes inert-but-honest: tallies can only undercount,

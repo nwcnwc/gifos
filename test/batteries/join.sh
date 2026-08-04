@@ -5,7 +5,7 @@
 #   test/batteries/join.sh --quick    # skip the slow browser ladders
 #
 # Run this before pushing anything that touches how a seat is admitted or how
-# a frame is carried — site/js/mesh-wire.js, site/js/mesh.js, site/meet.html,
+# a frame is carried — site/js/mesh-wire.js, site/js/mesh.js, site/run.html,
 # test/sim/mesh*.  site/ AUTO-DEPLOYS on push, so an untested change to those files
 # is a change to production; this script exists so that is never an excuse.
 #

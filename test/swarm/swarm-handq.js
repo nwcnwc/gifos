@@ -2,7 +2,7 @@
 /*
  * swarm-handq.js — hand-queue scale check (docs/meeting.md, "The hand queue").
  *
- * Launches N quiet bots (real meet.html clients — no camera turned on, no
+ * Launches N quiet bots (real run.html clients — no camera turned on, no
  * mosaic painting to pay for: the bots exist to exercise STATUS GOSSIP) plus
  * TWO observer pages, staggers a `#hand` click across K of the bots, and then
  * asserts, from the outside:
@@ -62,7 +62,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
       "localStorage.setItem('gifos_meet_bar','0');" });
     const pg = await ctx.newPage();
     pg.on('pageerror', () => {});
-    await pg.goto(BASE + '/meet.html#v=' + ROOM, { timeout: 90000, waitUntil: 'domcontentloaded' });
+    await pg.goto(BASE + '/run.html#v=' + ROOM, { timeout: 90000, waitUntil: 'domcontentloaded' });
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 90000 });
     return pg;
   };

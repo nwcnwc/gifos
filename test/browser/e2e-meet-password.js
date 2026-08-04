@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const open = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html#' + hash);
+    await pg.goto(BASE + '/run.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
     return pg;
   };
@@ -106,7 +106,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const admRoom = 'pwadm' + Math.floor(Math.random() * 1e9).toString(36);
   const D = await newUser('Dana'); const d = await D.newPage();
   d.on('pageerror', () => {});
-  await d.goto(BASE + '/meet.html');
+  await d.goto(BASE + '/run.html');
   const av = await d.evaluate(async (roomId) => {
     const km = await crypto.subtle.importKey('raw', new TextEncoder().encode('adm-secret-9'), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
@@ -115,7 +115,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, admRoom);
-  await d.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
+  await d.goto(BASE + '/run.html#v=' + admRoom + '&av=' + av);
   await d.reload();
   await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
 

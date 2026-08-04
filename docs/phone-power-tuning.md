@@ -9,7 +9,7 @@ cut should be chosen by MEASUREMENT on the real phone, not by guess.
 ## Shipped with this doc
 
 - **Phones are power-tier floor 2 in every state** (was 1): one more LADDER
-  rung down, plugged or not. meet.html `adapt()`.
+  rung down, plugged or not. run.html `adapt()`.
 - **The `gifos_tune` override surface**: `localStorage gifos_tune =
   '{"shift":1,"fps":15,"aux":500,"kbps":300}'` (or `window.GIFOS_TUNE`) —
   extra ladder shift, hard fps cap, aux/composite ship budget (default 900

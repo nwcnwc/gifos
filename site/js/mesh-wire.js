@@ -1,6 +1,6 @@
 /*
  * mesh-wire.js — binds the mesh control plane (mesh.js, the ported sim brain)
- * to the REAL transports. This is the layer meet.html consumes: it owns the
+ * to the REAL transports. This is the layer run.html consumes: it owns the
  * relay socket (knock/greeters + sealed peer-message fallback) and prefers the
  * caller's DataChannel layer for seat-to-seat control traffic.
  *
@@ -190,7 +190,7 @@
     //     believes in a neighbour it cannot actually talk to, and healing
     //     (H1/H2/E2) — which exists to notice exactly that — is blinded.
     //  2. IT HID A REAL BUG FOR AS LONG AS IT EXISTED. Column links were not
-    //     being dialled at all (see meet.html renderFromOcc: a peer was only
+    //     being dialled at all (see run.html renderFromOcc: a peer was only
     //     dialled once it was already `alive`, which a column mate never is
     //     until it is dialled). The fallback carried their heartbeats, so the
     //     room limped instead of failing, and nobody saw the broken link layer.
@@ -720,9 +720,9 @@
       // App access to the wire's relay socket (the ONE socket): signaling
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.
-      // (5) FIRST-CONTACT SIGNALING for the app layer (meet.html). A WebRTC
+      // (5) FIRST-CONTACT SIGNALING for the app layer (run.html). A WebRTC
       // pair cannot bootstrap over a DataChannel it does not have yet, so the
-      // offer/answer that CREATES the first channel needs some path. meet.html
+      // offer/answer that CREATES the first channel needs some path. run.html
       // applies §FWD before it ever reaches here — its own DataChannel, then a
       // sponsor forward through the mesh, and only then this — so what arrives
       // is traffic with no peer path at all. It is named and listed here rather

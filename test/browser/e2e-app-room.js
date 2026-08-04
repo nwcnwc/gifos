@@ -50,7 +50,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await d.close();
   const h = await hCtx.newPage();
   h.on('pageerror', (e) => console.log('  [host] ' + e.message));
-  await h.goto(BASE + '/meet.html#id=' + appId);
+  await h.goto(BASE + '/run.html#id=' + appId);
   await h.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('solo app boots', true);
 
@@ -135,7 +135,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   });
   await od.close();
   const o = await oCtx.newPage();
-  await o.goto(BASE + '/meet.html#id=' + appId2);
+  await o.goto(BASE + '/run.html#id=' + appId2);
   await o.waitForSelector('#appmount iframe', { timeout: 30000 });
   await o.evaluate(() => document.getElementById('appinvite').click());
   await o.waitForSelector('#inv-go', { timeout: 10000 });

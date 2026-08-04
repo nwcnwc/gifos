@@ -13,7 +13,7 @@
   if (location.pathname.indexOf('/versions/') !== -1) return;   // immutable build — never redirect
   var q; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
   // Flags may arrive IN THE HASH: the 404 pretty-URL router folds the query
-  // into the hash it builds (/meet/<room>?edge -> /meet.html#v=<room>&edge),
+  // into the hash it builds (/meet/<room>?edge -> /run.html#v=<room>&edge),
   // so a channel flag must be honored from either place.
   function has(k) { return !!(q && q.has(k)) || new RegExp('[#&]' + k + '(&|=|$)').test(location.hash || ''); }
   try {

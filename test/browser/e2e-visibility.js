@@ -60,7 +60,7 @@ const MANIFEST = JSON.stringify({
     return id;
   }, MANIFEST);
   check('host seeded the Vis Test app', !!fid, fid);
-  await hostPage.goto(BASE + '/meet.html#id=' + fid);
+  await hostPage.goto(BASE + '/run.html#id=' + fid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   await ackPerms(hostPage);
   const hostFr = hostPage.frameLocator('iframe');

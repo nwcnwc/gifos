@@ -17,7 +17,7 @@ Today they are two different transports; they must become one.
 
 ## Where we are (two transports — the problem)
 
-1. **App INSIDE a meeting** (`site/meet.html` `runApp`/`stopApp`): the meeting
+1. **App INSIDE a meeting** (`site/run.html` `runApp`/`stopApp`): the meeting
    already runs a real mesh node (`mesh.js`+`mesh-wire.js`), and app control
    (`appstop`, host handoff) rides `sendSig` — so it already prefers DC →
    sponsor-forward → relay-bootstrap (R2-clean). BUT the app's shared **state**
@@ -90,9 +90,9 @@ unverified at the tail of an autonomous run.
    `onGossip(delta)`. Keep the collection CRDT/merge logic untouched — only the
    transport swaps. Behind a flag so both paths coexist during rollout.
 2. **A headless mesh node for standalone apps.** Factor the meeting's node
-   bring-up (`createMeshNode` + the DC signaling glue in meet.html: `sendSig`,
+   bring-up (`createMeshNode` + the DC signaling glue in run.html: `sendSig`,
    the `k:'sig'|'fsig'|'mesh'|'fmesh'` DC dispatch, `connsOf`/sponsor picking)
-   into a reusable module — call it `site/js/mesh-app.js` — that meet.html and a
+   into a reusable module — call it `site/js/mesh-app.js` — that run.html and a
    standalone app page both consume. No media, no packer.
 3. **Point app-in-meeting at the meeting's own node.** When an app runs inside a
    meeting, its deltas gossip over the EXISTING meeting mesh (no second session)

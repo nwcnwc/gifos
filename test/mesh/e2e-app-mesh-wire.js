@@ -1,7 +1,7 @@
 /*
  * e2e-app-mesh-wire.js — validates the EXACT frame shapes runtime.js's
  * attachStageBus (host) and bootClientBus (client) put on the mesh Stage DATA
- * lane, through a faithful simulation of meet.html's sga lane (broadcast +
+ * lane, through a faithful simulation of run.html's sga lane (broadcast +
  * dedup + retained-snap replay to late subscribers). No browser: the host's
  * store and the client's iframe are stubbed; the wire contract is real.
  *
@@ -16,7 +16,7 @@ let failed = 0;
 const ok = (c, m) => { if (c) console.log('  PASS — ' + m); else { failed++; console.log('  FAIL — ' + m); } };
 const eq = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m);
 
-// A faithful mini-copy of meet.html's sga lane (broadcast/subscribe/retain).
+// A faithful mini-copy of run.html's sga lane (broadcast/subscribe/retain).
 function makeLane() {
   const subs = new Set();
   let retainedSnap = null;

@@ -2,7 +2,7 @@
 /*
  * swarm.js — a stripped-down phone-congregation simulator.
  *
- * Spins up N headless Chromium pages, each running the REAL meet.html client
+ * Spins up N headless Chromium pages, each running the REAL run.html client
  * (real walk, real folds, real gossip — nothing mocked but the camera). Each
  * bot's "camera" is a portrait canvas painting ONE solid color with the
  * bot's number on it — plus a random simple object (circle, ring, square,
@@ -94,7 +94,7 @@ const LITE = args.lite !== undefined || !!process.env.SWARM_LITE;
 // ---- browser resolution ----------------------------------------------------
 // The single most expensive failure this harness has ever produced: a STRIPPED
 // browser (playwright's headless_shell, and some of its older chromium builds)
-// loads meet.html perfectly but never gets as far as taking a seat. Every bot
+// loads run.html perfectly but never gets as far as taking a seat. Every bot
 // then reports "up" with section "?" — indistinguishable from a mesh seating
 // bug, which is exactly how it burned most of a session.
 // It fails specifically on the MEDIA path: the same stripped build seats fine
@@ -285,7 +285,7 @@ const fakeCamSolid = (idx, fps, lite) => `
       } catch (e) {}
       return stream;
     };
-    navigator.mediaDevices.getUserMedia = mk;           // meet.html's camera
+    navigator.mediaDevices.getUserMedia = mk;           // run.html's camera
     navigator.mediaDevices.getDisplayMedia = mk;        // just in case
     // GifOS joins QUIET (camera+mic acquired but disabled) — a bot switches
     // its own on through the real buttons, and picks blur None (with a room
@@ -364,7 +364,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   let closing = false;
   const shutdown = async () => { if (closing) return; closing = true; try { await browser.close(); } catch (e) {} process.exit(0); };
   process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
-  // meet.html reads the room password from localStorage at join (loadPw:
+  // run.html reads the room password from localStorage at join (loadPw:
   // 'gifos_vpw_' + room[.av]) and derives the relay proof from it — seeding
   // that key makes a bot indistinguishable from a returning member, so a
   // locked room's gate is exercised for real, no UI driving needed.
@@ -398,7 +398,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     if (process.env.SWARM_BOT_CONSOLE && (process.env.SWARM_BOT_CONSOLE === 'all' || String(idx) === process.env.SWARM_BOT_CONSOLE)) {
       p.on('console', (m) => console.log('[bot ' + idx + ' con] ' + m.text().slice(0, 500)));
     }
-    p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
+    p.goto(BASE + '/run.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message)); // bots answer census probes (DEBUG-TREE gate)
     pages.push({ idx, p });
     // PREFLIGHT (first bot only): a shard whose very first bot cannot seat is
     // broken at the environment level — wrong browser, wrong base, unreachable
@@ -410,7 +410,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
     if (i === 0 && !process.env.SWARM_NO_PREFLIGHT) {
       const probe = async () => p.evaluate(() => {
         const V = window.__gifosVideo;
-        if (!V) return { stage: 'no-client' };            // meet.html never booted
+        if (!V) return { stage: 'no-client' };            // run.html never booted
         let c = null; try { c = V.meshCoord(); } catch (e) {}
         return { stage: c ? 'seated' : 'unseated', coord: c ? c.pc + '/' + c.r + '.' + c.i : null };
       }).catch((e) => ({ stage: 'page-error', err: String(e.message || e).slice(0, 120) }));
@@ -460,7 +460,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
       const p = await ctx.newPage();
       p.on('pageerror', (e) => console.log('[bot ' + idx + '] pageerror: ' + e.message));
     p.on('crash', () => console.log('[bot ' + idx + '] RENDERER CRASHED'));
-      p.goto(BASE + '/meet.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
+      p.goto(BASE + '/run.html#v=' + ROOM + (AV ? '&av=' + AV : '') + '&DEBUG=on').catch((e) => console.log('[bot ' + idx + '] goto failed: ' + e.message));
       return p;
     };
     try { fs2.writeFileSync(CTRL, ''); } catch (e) {}
@@ -626,7 +626,7 @@ const sentence = (idx) => Math.random() < 0.4 ? pick(STOCK)
   // direct-face grid tiles vs folded stadium tiles are actually painting video
   // (black-screen hunt), and whether the stadium fold panel is up. One line per
   // bot + a shard aggregate. Runs entirely off the existing window.__gifosVideo
-  // test hook — no meet.html change needed.
+  // test hook — no run.html change needed.
   const diagInPage = () => {
     const V = window.__gifosVideo;
     if (!V) return { err: 'no __gifosVideo' };

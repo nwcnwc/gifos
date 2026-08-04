@@ -1,5 +1,5 @@
 // Owned-app-room link minting (one-runtime, docs/one-runtime.md). The ROOM
-// mints link identity now (meet.html's Invite), not the runtime: an OWNED
+// mints link identity now (run.html's Invite), not the runtime: an OWNED
 // room folds slug(shortname[-anon]) + verifier into the room string; the
 // owner secret lives only in this desktop's store, never in the link.
 // 'Let a friend keep it going' mints an anyone-owns #j= room (the succession
@@ -26,7 +26,7 @@ let fail = 0; const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + '
 
   const mint = async (fileId, owned) => {
     const p = await ctx.newPage();
-    await p.goto(BASE + '/meet.html#id=' + fileId);
+    await p.goto(BASE + '/run.html#id=' + fileId);
     await p.waitForSelector('#appmount iframe', { timeout: 20000 });
     await p.evaluate(() => document.getElementById('appinvite').click());
     await p.waitForSelector('input[name="rmcls"]', { timeout: 8000 });
@@ -42,7 +42,7 @@ let fail = 0; const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + '
   };
 
   const boot = await ctx.newPage();
-  await boot.goto(BASE + '/meet.html'); // load the runtime once for seeding
+  await boot.goto(BASE + '/run.html'); // load the runtime once for seeding
   const unsignedId = await seedApp(boot, 'Sync Test', 'st');
   const healId = await seedApp(boot, 'Party', 'st2');
   await boot.close();

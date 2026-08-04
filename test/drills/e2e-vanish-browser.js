@@ -1,6 +1,6 @@
 // e2e-vanish-browser.js — the BROWSER half of the D5 vanish measurement
 // (test/mesh/e2e-vanish.js measures the mesh+wire stack; THIS measures the full
-// meet.html plumbing: pagehide/beforeunload -> instant LEAVE, and dc.onclose /
+// run.html plumbing: pagehide/beforeunload -> instant LEAVE, and dc.onclose /
 // pc-hard-state -> seat.transportLost -> probe-gated early confirm).
 //
 // Scenario: 4 survivors in one shared chromium + 1 victim in its OWN chromium
@@ -43,11 +43,11 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
 
   const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
   const GOTO = { timeout: 120000, waitUntil: 'domcontentloaded' };
-  // DEBUG=on lights meet.html's clog transport-forensics channel — survivor 0's
+  // DEBUG=on lights run.html's clog transport-forensics channel — survivor 0's
   // console then carries 'translost <pid> <why>' / 'gone <pid> <why>' lines, the
   // timeline that says WHY a D5 confirm took 2-3 probe-hold rounds instead of 1
   // (the 6.5/12.2/18.7s quantized crash measures, 2026-07-28).
-  const roomUrl = BASE + '/meet.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
+  const roomUrl = BASE + '/run.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
 
   const mainBrowser = await chromium.launch({ executablePath: CHROME, headless: true, args: LAUNCH_ARGS });
   const users = [];

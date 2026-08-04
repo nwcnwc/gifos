@@ -58,14 +58,14 @@
   // demand the first time owner-authority is needed (and caches it), so runtime.js
   // never requires an HTML edit to function.
   // Anchor the on-demand load to THIS script's own URL, captured now — at
-  // static-load time, before anything runs. Both pages that host app-state
-  // rewrite their address after boot (meet.html → the pretty /meet/<room> form,
-  // run.html → /join/<…>, via history.replaceState), which moves the document's
+  // static-load time, before anything runs. The page that hosts app-state
+  // rewrites its address after boot (run.html → the pretty /meet/<room> form for
+  // a meeting, /join/<…> for an app room, via history.replaceState), moving the
   // base URL; a bare relative 'js/app-owner.js' then resolves to
   // /meet/js/app-owner.js (or /join/js/…) and 404s, the signer never builds,
   // and the shared app tears straight back down (~1s after it mounts). runtime.js
   // is always a sibling of app-owner.js, so resolving against our own src is
-  // correct in every deploy — subpath, pretty URL, or bare /meet.html.
+  // correct in every deploy — subpath, pretty URL, or bare /run.html.
   const _selfSrc = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || '';
   let _appOwnerP = null;
   function appOwnerLib() {
@@ -103,22 +103,24 @@
     const onProd = /(^|\.)gifos\.app$/.test(location.hostname) && relay === root.GIFOS_RELAY;
     if (meet) {
       return onProd ? location.origin + '/meet/' + sid
-        : location.origin + '/meet.html#v=' + sid + '&relay=' + encodeURIComponent(relay);
+        : location.origin + '/run.html#v=' + sid + '&relay=' + encodeURIComponent(relay);
     }
     // lastIndexOf so this can never diverge from the relay's split (which also
     // takes the verifier after the LAST dot), even if a room ever held a dot.
-    // The fallback is meet.html, NOT run.html — the one-runtime flag day deleted
-    // run.html, and these hashes are exactly what /404.html's router rewrites the
-    // pretty /join/… links into. This was not merely a local-dev wart: `onProd`
-    // also requires the DEFAULT relay, so a user on gifos.app with a CUSTOM RELAY
-    // took this branch and handed out a link that 404s.
+    // The fallback names run.html — the ONE runtime, and the file these hashes
+    // are exactly what /404.html's router rewrites the pretty /join/… links into.
+    // Get the name wrong here and the link 404s: this branch is not merely a
+    // local-dev wart, because `onProd` also requires the DEFAULT relay, so a user
+    // on gifos.app with a CUSTOM RELAY takes it and hands the link to real people.
+    // (Links already minted as meet.html#… keep working — that file is a
+    // permanent shim to run.html, see site/meet.html.)
     const dot = String(sid || '').lastIndexOf('.');
     if (dot > 0) {
       if (onProd) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1) + '/' + lsec;
-      return location.origin + '/meet.html#s=' + sid + '&k=' + lsec + '&relay=' + encodeURIComponent(relay);
+      return location.origin + '/run.html#s=' + sid + '&k=' + lsec + '&relay=' + encodeURIComponent(relay);
     }
     if (onProd) return location.origin + '/join/' + lsec;
-    return location.origin + '/meet.html#j=' + lsec + '&relay=' + encodeURIComponent(relay);
+    return location.origin + '/run.html#j=' + lsec + '&relay=' + encodeURIComponent(relay);
   }
   GifOS.links = { shortCode, buildJoinUrl };
 
@@ -1380,7 +1382,7 @@
       // System apps run as trusted first-party pages, not in the sandbox —
       // live media (camera/mic + WebRTC) is impossible from an opaque origin.
       // Whitelist only; a manifest can't route to arbitrary URLs.
-      const SYSTEM_PAGES = { meet: 'meet.html', video: 'meet.html', broadcast: 'meet.html#bc=1', store: 'store.html' }; // 'video' = pre-rename seeds; 'broadcast' = the meet page's broadcast skin
+      const SYSTEM_PAGES = { meet: 'run.html', video: 'run.html', broadcast: 'run.html#bc=1', store: 'store.html' }; // 'video' = pre-rename seeds; 'broadcast' = the meet page's broadcast skin
       if (manifest.system && SYSTEM_PAGES[manifest.system]) {
         // The store installs INTO a computer, so it has to land on the one this
         // app was opened from — a booted computer image (boot.html) keeps its
@@ -1389,8 +1391,8 @@
           ? '?db=' + encodeURIComponent(store.dbName) : '';
         const target = SYSTEM_PAGES[manifest.system] + ns;
         location.replace(target);
-        // A hash-carrying target (broadcast → meet.html#bc=1) from THIS page
-        // (the app host is meet.html too) is a same-document fragment hop —
+        // A hash-carrying target (broadcast → run.html#bc=1) from THIS page
+        // (the app host is run.html too) is a same-document fragment hop —
         // it never re-boots on its own, so force the reload. Hash-less
         // targets are real navigations already; reloading those would race
         // the replace and re-boot the OLD url.
@@ -1512,7 +1514,7 @@
             setStatus('Ready — waiting for the room mesh');
 
             // ---- MESH Stage DATA lane (attachStageBus) ----------------------
-            // meet.html calls this after becomeHost when the app is shared INTO
+            // run.html calls this after becomeHost when the app is shared INTO
             // a meeting: app-state then rides the meeting's mesh (the sga lane),
             // and this host's OWN relay session (the "second session") is torn
             // down — app-state is no longer duplicated over the relay. The host
@@ -1567,7 +1569,7 @@
             // asks while the owner's ledger read asks=0.
             //
             // Now the bytes are broadcast ONCE and RETAINED on every node they
-            // reach (meet.html sgaApp), so a latecomer pulls them from whichever
+            // reach (run.html sgaApp), so a latecomer pulls them from whichever
             // PEER already holds them (sga-appreq / sga-app pull-through). The
             // owner seeds itself in the same call and is then just the first
             // seeder — one holder among many.
@@ -1674,7 +1676,7 @@
               leadCount: leadTargets.length,
               setLead: setLead,
               // Present iff the runtime can drive the mesh Stage DATA lane;
-              // meet.html feature-detects this to pick the mesh bus over the
+              // run.html feature-detects this to pick the mesh bus over the
               // relay app-session (and to advertise mesh:true in the app ad).
               attachStageBus: attachStageBus,
             }));
@@ -1717,7 +1719,7 @@
   // sga lane. It VERIFIES every frame's owner signature (site/js/app-owner.js),
   // rejecting anything unsigned / impostor-signed / tampered, and sends the
   // user's writes back as `act` PROPOSALS the owner validates and re-signs.
-  // meet.html calls this (mountClientApp) when the shared app advertises mesh
+  // run.html calls this (mountClientApp) when the shared app advertises mesh
   // and this runtime exposes bootClientBus.
   //   params = { s: <sid namespace>, send(kind,d), subscribe(cb)->unsub }
   function bootClientBus(mountEl, params, statusEl, hooks) {
@@ -1863,7 +1865,7 @@
       // would be served by the mesh anyway.
       //
       // The app bytes are retained on every node that holds them and pulled
-      // peer-to-peer (meet.html: sga-appreq / sga-app, mirroring the retained
+      // peer-to-peer (run.html: sga-appreq / sga-app, mirroring the retained
       // snap's pull-through, re-driven the instant a channel opens). Mounting
       // therefore needs nothing from the owner specifically — this subscriber
       // just waits for the frame to arrive from ANY peer, which is the only

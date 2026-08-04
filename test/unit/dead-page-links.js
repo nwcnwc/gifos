@@ -40,7 +40,7 @@ function shippedFiles() {
 // URL-shaped only: the name must be quoted as a path, or carry a hash/query, or
 // sit in an href/src. A bare mention inside a sentence is not a link.
 const URLISH = [
-  /['"`](?:\.{0,2}\/)?([a-z0-9-]+)\.html(?=[#?'"`])/gi,  // '/run.html#…'  "meet.html"
+  /['"`](?:\.{0,2}\/)?([a-z0-9-]+)\.html(?=[#?'"`])/gi,  // '/run.html#…'  "run.html"
   /(?:href|src)\s*=\s*['"`](?:\.{0,2}\/)?([a-z0-9-]+)\.html/gi,
   /\/([a-z0-9-]+)\.html[#?]/gi,                          // /run.html#s=…  in a template
 ];
@@ -66,7 +66,7 @@ for (const file of shippedFiles()) {
 }
 
 check('the scan found the shipped site (root pages present)',
-  rootPages.has('index.html') && rootPages.has('meet.html'));
+  rootPages.has('index.html') && rootPages.has('run.html'));
 // If the corpus is empty the scan proves nothing — assert it actually read code.
 check('the scan read the shipped JS', shippedFiles().filter((f) => f.endsWith('.js')).length > 5);
 
