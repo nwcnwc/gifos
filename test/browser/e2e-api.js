@@ -55,9 +55,30 @@ const API_CFG = JSON.stringify({
   await page.locator('.api-test').first().click();
   await page.waitForFunction(() => /rejected/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 8000 });
   check('Test & save flags a rejected key (and refuses to save)', /rejected/.test(await page.locator('.api-status').first().textContent()));
+  // ---- the password-reveal EYE, desktop half ----
+  // run.html grew the generic eye (every input[type=password] wears one) and
+  // e2e-video guards it there; this is the DESKTOP's copy — Settings' AI/API
+  // key fields. It once sat uncommitted while the run.html half shipped, so the
+  // desktop looked done in a diff nobody could see. Assert the sweep dressed
+  // every password field, and that the eye actually reveals and re-hides.
+  const eyed = await page.evaluate(() => {
+    const pws = [...document.querySelectorAll('.modal input[type=password], .modal input[type=text].ai-f[data-f=key], .modal input[type=text].api-f[data-f=key]')];
+    return { fields: pws.length, withEye: pws.filter((i) => i.__pwEye).length };
+  });
+  check('every Settings key field wears the password eye', eyed.fields > 0 && eyed.withEye === eyed.fields, JSON.stringify(eyed));
+  const keyInp = page.locator('.api-f[data-f="key"]').first();
+  await keyInp.locator('xpath=following-sibling::button').click();
+  check('the eye reveals the key', (await keyInp.getAttribute('type')) === 'text');
+  await keyInp.locator('xpath=following-sibling::button').first().click();
+  check('...and re-hides it', (await keyInp.getAttribute('type')) === 'password');
+
   // ＋ Add makes a fresh, empty row.
   await page.locator('#api-add').click();
   check('＋ Add creates another API row', (await page.locator('.api-row').count()) === 3);
+  // A row minted AFTER the load-time sweep still gets its eye (focusin delegate).
+  const freshKey = page.locator('.api-row').last().locator('.api-f[data-f="key"]');
+  await freshKey.focus();
+  check('a freshly added row\'s key field grows an eye on focus', await freshKey.evaluate((i) => !!i.__pwEye));
   // Advanced holds an optional custom-proxy field (no manual proxy checkbox).
   check('there is no manual proxy checkbox anymore', (await page.locator('.api-proxy-ck').count()) === 0);
   await page.locator('.api-row').last().locator('.api-adv summary').click();

@@ -1671,6 +1671,43 @@
   // The one standard row-delete glyph (see button.row-del in desktop.css).
   const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
+  // The password-reveal EYE — same helper the meet page carries (kept
+  // copy-identical, like the entry-page routers): every password field gets a
+  // tap-to-show / tap-to-hide toggle. The focusin delegate catches fields
+  // built after any explicit sweep (an api-add row) with no per-site wiring.
+  const PWEYE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21" style="display:none"/></svg>';
+  function pwEye(inp) {
+    if (!inp || inp.__pwEye || inp.type !== 'password') return;
+    inp.__pwEye = true;
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'position:relative;display:block;flex:1 1 auto';
+    wrap.style.marginBottom = getComputedStyle(inp).marginBottom;
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    inp.style.marginBottom = '0';
+    inp.style.paddingRight = '2rem';
+    inp.style.width = '100%';
+    inp.style.boxSizing = 'border-box';
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (inp.id) b.id = 'pweye-' + inp.id;
+    b.title = 'Show password'; b.setAttribute('aria-label', 'Show password');
+    b.style.cssText = 'position:absolute;right:.3rem;top:50%;transform:translateY(-50%);background:none;border:none;padding:.2rem;margin:0;color:var(--muted,#8888aa);cursor:pointer;line-height:0';
+    b.innerHTML = PWEYE_SVG;
+    b.onclick = () => {
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      b.querySelector('.slash').style.display = show ? '' : 'none';
+      b.title = show ? 'Hide password' : 'Show password';
+      b.setAttribute('aria-label', b.title);
+    };
+    wrap.appendChild(b);
+  }
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (t && t.type === 'password' && !t.__pwEye) { pwEye(t); t.focus(); } // re-focus: the wrap reparents (and so blurs) the field
+  });
+
   // ---------- storage ----------
   // Persistent storage is requested automatically at boot — normal people
   // shouldn't have to know eviction exists. Details live in Settings→Advanced.
@@ -2243,6 +2280,7 @@
       '</details>' +
       '<div class="modal-actions"><button id="set-save">Save</button><button class="ghost" id="set-close">Close</button></div>';
     bg.appendChild(box); document.body.appendChild(bg);
+    for (const i of box.querySelectorAll('input[type=password]')) pwEye(i); // API-key fields wear the reveal eye
     wireAiSection(box);
     wireApiSection(box);
 
