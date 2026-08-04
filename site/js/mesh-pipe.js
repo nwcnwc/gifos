@@ -81,10 +81,12 @@ function pipeFor(id) {
 onmessage = (e) => {
   const m = e.data;
   if (m.op === 'route') { let s = taps.get(m.srcId); if (!s) { s = new Set(); taps.set(m.srcId, s); } s.add(m.pipeId); }
+  else if (m.op === 'pause') { const p = pipeFor(m.pipeId); p.paused = true; p.q.length = 0; }
+  else if (m.op === 'unpause') { const p = pipeFor(m.pipeId); p.paused = false; p.needKey = true; p.nkDrop = 0; postMessage({ op: 'kf-need', pipeId: m.pipeId }); }
   else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) taps.delete(m.srcId); } pipes.delete(m.pipeId); }
   else if (m.op === 'stats') {
     const out = {};
-    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime };
+    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime };
     postMessage({ op: 'stats', stats: out });
   }
 };
@@ -104,16 +106,26 @@ onrtctransform = (e) => {
           try { bytes = frame.data.slice(0); const md = frame.getMetadata(); ts = md.rtpTimestamp; mime = md.mimeType || null; } catch (err) {}
           if (bytes) for (const pid of routed) {
             const p = pipeFor(pid);
+            if (p.paused) continue; // a parked job's minted frames die at its detached track — queueing is waste and trips the watchdog
+            p.seen = (p.seen || 0) + 1;
             p.mime = mime;
             if (p.q.length >= QMAX) { p.q.length = 0; p.needKey = true; p.dropped++; } // overflow: restart clean at the next key
-            if (p.needKey && frame.type !== 'key') { p.dropped++; }
-            else { if (frame.type === 'key') p.needKey = false; p.q.push({ bytes, ts, type: frame.type });
+            if (p.needKey && frame.type !== 'key') {
+              p.dropped++;
+              // THE BLACK HOLE FIX: a pipe routed mid-GOP waits for key content
+              // that may be thousands of frames away — REQUEST it. 3 drops in,
+              // then every 30, until a key arrives (needKey clears).
+              p.nkDrop = (p.nkDrop || 0) + 1;
+              if (p.nkDrop === 3 || p.nkDrop % 30 === 0) postMessage({ op: 'kf-need', pipeId: pid });
+            }
+            else { if (frame.type === 'key') { p.needKey = false; p.nkDrop = 0; } p.q.push({ bytes, ts, type: frame.type });
               postMessage({ op: 'want', pipeId: pid, key: p.q[0].type === 'key' }); } // DEMAND-MINT: one template per queued frame, typed by the head
           }
         }
         writer.write(frame); // local decode unaffected
       } else if (o.role === 'pipe') {
         const p = pipeFor(o.pipeId);
+        p.tmpl = (p.tmpl || 0) + 1;
         p.writer = p.writer || writer;
         try { const md = frame.getMetadata(); p.tmplMime = md.mimeType || null; } catch (err) {}
         if (p.mime && p.tmplMime && p.mime !== p.tmplMime) { // codec mismatch — this pipe can never work
@@ -143,8 +155,15 @@ onrtctransform = (e) => {
           if (p.kfAsk === 30 || p.kfAsk % 120 === 0) postMessage({ op: 'kf-need', pipeId: o.pipeId });
           continue;
         }
-        if (head.type !== 'key' && frame.type === 'key') continue; // key template, delta content — hold the template line, wait
-        p.q.shift(); p.kfAsk = 0;
+        if (head.type !== 'key' && frame.type === 'key') {
+          // key template + delta-only queue = the CONSUMER's PLI, tunneled
+          // through the carrier encoder — it wants key content we don't have.
+          // Walk the need upstream (rate-limited by the counter shape).
+          p.kdrop = (p.kdrop || 0) + 1;
+          if (p.kdrop === 3 || p.kdrop % 30 === 0) postMessage({ op: 'kf-need', pipeId: o.pipeId });
+          continue;
+        }
+        p.q.shift(); p.kfAsk = 0; p.kdrop = 0;
         try { frame.data = head.bytes; writer.write(frame).then(() => { p.wrote++; p.lastWriteAt = Date.now(); }, () => { p.swapErr++; }); }
         catch (err) { p.swapErr++; }
       } else writer.write(frame);
@@ -156,6 +175,7 @@ onrtctransform = (e) => {
   let worker = null, statsSeq = 0;
   const statsWaiters = [];
   const carriers = new Map(); // pipeId -> carrier (the demand mint 'want' resolves against)
+  const wantN = new Map();    // pipeId -> want messages received (chain forensics)
   const listeners = { 'kf-need': [], 'codec-mismatch': [] };
   function ensureWorker() {
     if (worker) return worker;
@@ -163,7 +183,7 @@ onrtctransform = (e) => {
     worker.onmessage = (e) => {
       const m = e.data;
       if (m.op === 'stats') { const w = statsWaiters.shift(); if (w) w(m.stats); }
-      else if (m.op === 'want') { const cr = carriers.get(m.pipeId); if (cr) cr.mint(m.key); }
+      else if (m.op === 'want') { const cr = carriers.get(m.pipeId); if (cr) cr.mint(m.key); wantN.set(m.pipeId, (wantN.get(m.pipeId) || 0) + 1); }
       else if (listeners[m.op]) for (const fn of listeners[m.op]) { try { fn(m); } catch (err) {} }
     };
     return worker;
@@ -206,6 +226,7 @@ onrtctransform = (e) => {
     return {
       track,
       mint(key) {
+        this.mints = (this.mints || 0) + 1;
         if (key) { kside = kside === 48 ? 47 : 48; c.width = kside; c.height = kside; }
         paint();
         try { track.requestFrame ? track.requestFrame() : stream.requestFrame(); } catch (e) {}
@@ -224,11 +245,13 @@ onrtctransform = (e) => {
       return true;
     } catch (e) { return false; }
   }
+  function pausePipe(pipeId, paused) { if (worker) worker.postMessage({ op: paused ? 'pause' : 'unpause', pipeId }); }
   function unpipe(srcId, pipeId) {
     const cr = carriers.get(pipeId);
     if (cr) { carriers.delete(pipeId); try { cr.stop(); } catch (e) {} }
     if (worker) worker.postMessage({ op: 'unroute', srcId, pipeId });
   }
+  function chain(pipeId) { const cr = carriers.get(pipeId); return { wants: wantN.get(pipeId) || 0, mints: cr ? (cr.mints || 0) : -1 }; }
   function stats() {
     return new Promise((res) => {
       if (!worker) { res({}); return; }
@@ -249,5 +272,5 @@ onrtctransform = (e) => {
     return null;
   }
 
-  GifOS.meshPipe = { supported, tapReceiver, pipeSender, unpipe, makeCarrier, receiverForTrack, stats, on };
+  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
 })(typeof window !== 'undefined' ? window : globalThis);
