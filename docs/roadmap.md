@@ -1566,3 +1566,149 @@ the GifOS payload inside it is ciphertext.
 - **Per-file vs a vault.** Lock individual icons, or a "locked folder" that
   unlocks for a session? Per-open unlock vs unlock-for-session, and what the lock
   badge/relock timeout is.
+
+## 9. Media plane: stop transcoding every hop (mushiness, log N latency, watts)
+
+Everything in this section follows from **one fact**, established 2026-08-04
+while asking whether the Settings video-quality knob reaches the Stage:
+
+> **A browser cannot forward video without re-encoding it.** There is no RTP
+> passthrough in the MediaStream API. `ontrack` hands you a `MediaStreamTrack`,
+> which means exactly one thing — *a source of raw, decoded frames*; the
+> compressed bitstream is already gone. So when a seat forwards a feed
+> (`shipMos('sgs', …, sgs.stream, …)` in the mosaic sweep, and the `stg:` relay
+> beside it), the outgoing sender does the only thing it can with a raw source:
+> **encodes it again, from scratch.** Every hop of the tree is a transcode, and
+> nothing in our code says so — it reads like a forward.
+
+That single fact is charged to us three separate times.
+
+**1. Mushiness (quality).** Lossy compression is not idempotent: the decoder
+returns an approximation, and re-encoding it quantizes on top of what is already
+gone. Worse and less obviously, **compression artifacts are noise, and noise is
+expensive to compress** — the blocking and ringing in a decoded frame were never
+in the original image, but the next encoder cannot tell, so it spends real bits
+faithfully reproducing the previous generation's mistakes. Each generation, a
+larger share of the budget goes to preserving errors instead of faces.
+*Calibration, so this is not overstated:* deep hops forward the strip **verbatim**
+rather than re-compositing it (the strip is built once, in Section 1), so
+resolution and macroblock alignment are preserved and the decay is gradual, not
+a cliff. The honest headline is that ~log_C(N) gentle generations of a **small**
+picture is still a small picture — which is why giving the Stage its own cell
+size and budget lane (SHIPPED 2026-08-04: `STAGE_CELL`/`STAGE_MAXW` and
+`stageCeilingKbps`, replacing the 110px secondary-tile default and the flat 900k
+aux constant) mattered more than the generations do.
+
+**2. log N latency.** Every hop pays encoder latency **on the critical path**,
+on top of its jitter buffer. Depth is ~log_C(N), so a stadium's deepest seats
+carry a stack of encode delays that grows with the log of the room. Nothing about
+the tree is wrong here — the transcode is simply sitting in a place that should
+have been a pipe.
+
+**3. Watts — and this is the big one.** **Each `RTCPeerConnection` owns its own
+encoder for a given sender; the browser will not share one across two PCs, and
+there is no API to ask it to.** So a seat fanning a composite to its C down-links
+runs **C encoders producing the same picture**. `docs/phone-power-tuning.md`
+already named this as a top unclaimed lever — *"fans to N row-mates re-encode per
+PC; RTCRtpSender cloning the SAME encoded stream (simulcast-style) would collapse
+N encoder sessions to 1 — the MediaCodec session ceiling measured on the g24"* —
+and the g24 measurements put a phone's meeting load at ~2.2W against a 2.5W USB
+budget. Encoding one picture C times is the single largest avoidable burn in the
+whole media plane.
+
+### 9a. Encoded passthrough with local decode (the fix for all three)
+
+**What.** Forward the **compressed bytes**, and decode **once, locally, only to
+put pixels on this seat's screen**. A seat's job becomes: decode for display
+(one decode, unavoidable — it is showing the picture), and hand the *untouched*
+encoded frames to its down-links. No re-encode anywhere in the tree.
+
+**Why it fits.** This is an SFU's verbatim forwarding — done peer-side, with no
+media server, so healing-laws R2 is untouched and the relay stays a
+zero-knowledge greeter. It changes **nothing** about the C-nary tree, seating,
+healing, or mix-minus geometry: the same bytes traverse the same edges. It is
+purely the removal of a transcode that the browser API forced on us.
+**Explicitly NOT in scope: shortening the stage's path by flooding wider.**
+That was considered and rejected 2026-08-04 — *the C-nary tree is gospel*; we
+buy back quality and latency by making each hop free, not by removing hops.
+
+**Sketch.**
+- **`RTCRtpScriptTransform`** (the standardized encoded-transform hook; built for
+  E2EE, where an SFU routes media it cannot read). It inserts into the RTP
+  pipeline *before* the decoder on the receive side and *after* the encoder on
+  the send side, and what flows through it is `RTCEncodedVideoFrame` — the actual
+  compressed payload.
+- **Receive side:** capture each encoded frame for the feeds this seat forwards
+  (`sgs`, `stg:*`, and the `sd*` mix-minus family).
+- **Send side:** inject the same bytes into each down-link's sender. This is
+  the awkward half — a sender's transform is designed as a *filter over its own
+  encoder's output*, not as a source — so expect a dummy/idle encoder whose
+  payloads are substituted, with frame metadata (timestamps, dependencies,
+  keyframe markers) kept coherent.
+- **Local decode is unchanged and still wanted:** every seat already decodes the
+  strip to display it. That decode stays; only the *encode* leaves.
+- **Falls out for free:** with one set of bytes going to all C down-links, **9b
+  is the same change** — the C encoders collapse to zero for forwarded media.
+
+**Open questions.**
+- **Per-hop adaptation is lost.** Today each hop re-encodes to its own budget, so
+  a weak downstream link automatically gets a cheaper stream (`stageCeilingKbps`,
+  the aux budgets, the power tiers). Verbatim forwarding hands everyone exactly
+  what the source encoded. The SFU answer is **simulcast / SVC**: the source
+  encodes layers and each forwarder **drops** layers instead of re-encoding —
+  dropping is free and lossless. That means layered encode at the stager and
+  layer-selection logic at every seat, and it needs to compose with the existing
+  ladder rather than replace it. **This is the main design work of 9a**, not the
+  transform plumbing.
+- **Keyframes without a back-channel.** A seat joining deep in the tree needs an
+  IDR to start decoding; an SFU sends a PLI upstream to the original encoder, and
+  propagating that up ~log_C(N) levels is exactly the kind of long-range RPC the
+  mesh avoids. **Nathan's proposal (2026-08-04): just pulse a keyframe every ~2s
+  and delete the back-channel entirely.** This is standard live-streaming
+  practice (a fixed ~2s GOP); WebRTC exposes no GOP knob from JS, but
+  `RTCRtpSender.generateKeyFrame()` on a timer is the same thing. Cost is that
+  keyframes are ~5-10x an inter-frame, so at low budgets there is a visible
+  quality pulse after each one — comfortable at stage-grade bitrates, needs
+  measuring at the ladder's floor rungs. Open: does the pulse period want to
+  follow depth or room size, and does a fresh joiner get an out-of-band immediate
+  keyframe request for its first second?
+- **Codec coherence across every hop.** The forwarded bitstream carries a
+  specific codec/profile/resolution; every link it crosses must have negotiated
+  something compatible. Interacts with the H.264-first `setCodecPreferences`
+  already shipped for phone hardware encode (§3/G2) — which helps, since it
+  pushes the room toward one codec anyway.
+- **Browser support and fallback.** Chrome/Safari/Firefox all ship encoded
+  transforms, but details differ; a seat that cannot do passthrough must fall
+  back to today's transcode path without splitting the tree.
+- **Does the mix-minus family qualify at all?** `sgs` and `stg:*` are pure
+  forwards and are the clean case. The `sd*` mixes are genuinely *composited*
+  (a packer draws them), so they must still be encoded once by their producer —
+  9a removes the *re*-encode on their onward hops, not the original.
+
+### 9b. One-encoder fan (encode once, send C times)
+
+**What.** A seat that ships the same picture to several peers should run **one**
+encoder, not one per peer.
+
+**Status: not independently reachable.** This was originally scoped as the cheap
+sibling of 9a — "no change to the forwarding model, pure power and latency win."
+That is wrong, and the reason is worth recording so it is not re-scoped that way
+again: since each `RTCPeerConnection` owns its encoder and there is no
+cross-PC sharing API, "collapse N encoders to 1" *means* encoding once and
+injecting the same encoded frames into N senders — **which is the 9a machinery,
+exactly.** The `phone-power-tuning.md` phrasing ("RTCRtpSender cloning the SAME
+encoded stream") is already describing an encoded transform.
+
+So 9b is not a separate project: **it is what 9a delivers for free on the send
+side.** Sequence it as one piece of work, and expect the power win (C encoders →
+1, or → 0 for pure forwards) to arrive with the quality and latency wins rather
+than before them.
+
+**The one genuinely independent scrap:** for media a seat *composites itself*
+(the `sd*` packers, the Stage strip at Section 1), the encode is real work that
+must happen once regardless — but it is still being done once **per down-link**.
+Even without full 9a, capturing that single composite's encoded output and
+fanning the bytes is the same trick applied to one producer. If 9a proves slow to
+land, this is the sliver worth extracting first, because compositor duty already
+falls on whichever seat holds the coordinate — including a phone (§3/G2's
+"compositor duty on phones", still open).
