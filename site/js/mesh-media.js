@@ -200,7 +200,10 @@
   function createPacker(opts) {
     opts = opts || {};
     const shape = opts.shape || 'grid';
-    const cellPref = opts.cell || 110; // composite face cell px — small secondary tiles, keep encode/ship cheap (was COMP_W/C=151)
+    // SECONDARY-TILE defaults: right for the stadium's tapestry of onlookers,
+    // wrong for a feed the room is looking AT. The Stage strip passes its own
+    // (run.html, "THE STAGE IS NOT A SECONDARY TILE"); everything else inherits.
+    let cellPref = opts.cell || 110; // composite face cell px — small secondary tiles, keep encode/ship cheap (was COMP_W/C=151)
     const maxW = opts.maxW || 640; // cap composite canvas width — bounds encode CPU + bandwidth at scale (was 1080)
     const fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
     const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
@@ -350,6 +353,13 @@
       label(id, lbl) { const t = tiles.get(id); if (t) t.lbl = lbl; },
       delTile(id) { if (fold) fold.remove('t' + id); tiles.delete(id); },
       setActive(on) { active = on !== false; }, // run.html gates a composite that has no consumer (not shipped, not displayed)
+      // Resize the face cell on a LIVE packer. The power tier moves under a
+      // long-lived composite (the Stage strip outlives many battery events), and
+      // rebuilding the packer to change one number would mint a new stream id —
+      // re-shipping to every receiver and resetting their decoders. paint()
+      // re-derives the canvas from cellPref each frame, so this is enough; a
+      // no-op guard keeps a per-sweep call from touching anything.
+      setCell(px) { const v = Math.max(6, px | 0); if (v && v !== cellPref) { cellPref = v; lastSig = ''; } },
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],
       count: total, cols: () => G, rows: () => R,
