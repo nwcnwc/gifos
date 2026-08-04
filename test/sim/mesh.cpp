@@ -218,6 +218,7 @@ struct Seat {
   long long compactAt=0;                       // Q2: next tick this leaf may probe for a shallower seat
   int lastChurn=0;                             // Q2 hysteresis: last tick my neighbourhood churned (a LEAVE/heal/move nearby) — compaction waits for local quiescence
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
+  int greetersAt=-1, resumeTries=0;           // ENTRY RESUME: when lastGreeters landed; consecutive knockless retries (mesh.js parity)
   unordered_set<int> triedSilent;             // per-join-attempt silent-target marks (pickRoster) — sim parity with mesh.js
   int lastAsked=-1;                            // the target of my outstanding FIND — ANY answer to the ask proves ITS chain alive, not just the chain-tail that authored the reply
   uint32_t rs;
@@ -355,7 +356,26 @@ struct Seat {
   // consumes reJoin, so the seat wedged forever: seated-looking, coordless,
   // knocking never (behavior 04a: a 20s radio blip left one phone solo for 3.5
   // minutes until the NEXT blip re-fired the rescue at a fresh tick).
-  void join(){ if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1.
+  void join(){ if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
+  // ENTRY RESUME (2026-08-04 plane incident; mesh.js resumeAsk is the origin,
+  // this is its sim twin — test/tools/seat-flap-repro.js measures it). The
+  // dance is three door round trips and a retry used to restart from the
+  // knock, so a socket whose continuous up-windows were shorter than the
+  // WHOLE dance never seated. A retry that still holds a registry-fresh
+  // greeter list re-enters at WHOHOME: one round trip per window. Bounds:
+  // list trusted RELAY_TTL only; at most 6 consecutive knockless retries
+  // (mirrors seatTries<=6) — then the knock refreshes list and budget.
+  bool resumeAsk(){
+    if(lastGreeters.empty()) return false;
+    if(greetersAt<0 || TICK-greetersAt>RELAY_TTL) return false;
+    if(resumeTries>=6) return false;
+    vector<int> pool; for(int g:lastGreeters) if(g>=0&&g!=id) pool.push_back(g);
+    if(pool.empty()) return false;
+    resumeTries++;
+    int g=pool[(int)(rng()*pool.size())]; gateway=g;
+    Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w);
+    state=1; retryAt=(int)TICK; wake(id); return true;
+  }
   void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
