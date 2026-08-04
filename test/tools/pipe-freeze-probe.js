@@ -115,47 +115,90 @@ const ev = (o) => console.log(JSON.stringify(Object.assign({ t: new Date().toISO
   const tEnd = now() + DURATION;
   while (now() < tEnd) {
     for (let i = 0; i < N; i++) {
-      const s = await pages[i].evaluate(async () => {
+      const s = await pages[i].evaluate(async (kfCur) => {
         const g = window.__gifosVideo;
         const pi = g.pipeInfo();
         const st = await g.pipeStats();
         const chains = {};
         for (const jk of pi.jobs) { try { chains[jk] = GifOS.meshPipe.chain(jk); } catch (e) {} }
+        let kf = [];
+        try { kf = (await g.kfStats()).filter((r) => (r.slot && (r.slot.indexOf('stg') >= 0 || r.slot.indexOf('sgs') >= 0)) || (r.dir === 'out' && r.kenc > 0)); } catch (e) {}
+        // the dormancy/claim picture for the stg lane: which of MY jobs are
+        // parked, whose copy I claim (via+sid), what standby I hold, and the
+        // demand state I broadcast — the park/wake flap discriminator
+        let mon = null;
+        try {
+          const m = g.monInfo();
+          const isStg = (s) => s.indexOf('stg') >= 0 || s.indexOf('sgs') >= 0;
+          mon = {
+            jobs: m.jobs.filter((j) => isStg(j.jk)).map((j) => j.jk.slice(0, 24) + (j.active ? ' ON' : ' PARKED')),
+            claims: m.claims.filter((cl) => isStg(cl.rk)).map((cl) => cl.rk.slice(0, 18) + ' via=' + cl.via.slice(0, 6) + ' sid=' + cl.sid),
+            standby: m.standby.filter((s) => isStg(s.rk)).map((s) => s.rk.slice(0, 18) + ' via=' + s.via.slice(0, 6) + ' sid=' + s.sid),
+            demand: m.demand.filter((d) => isStg(d.k)).map((d) => d.k.slice(0, 26) + '=' + d.v),
+          };
+        } catch (e) {}
+        const kl = (window.__kfLog || []);
+        const dog = (window.__dogLog || []).slice(-2);
         return {
           coord: g.meshCoord(), parts: g.participants(),
           stage: g.stageInfo().stagers.map((x) => x.id),
           feeds: g.feedsInfo().filter((f) => f.key.indexOf('stg:') === 0 || f.key === 'sgs'),
           pipes: pi.jobs, deny: pi.deny, stats: st, chains,
+          kf, mon, dog, kflog: kl.slice(kfCur), kfTot: kl.length,
         };
-      }).catch((e) => ({ err: String(e).slice(0, 120) }));
+      }, (lastAdvance.get('kfcur:' + i) || { frames: 0 }).frames).catch((e) => ({ err: String(e).slice(0, 120) }));
       if (s.err) { ev({ ev: 'SAMPLE-ERR', i, err: s.err }); continue; }
+      lastAdvance.set('kfcur:' + i, { frames: s.kfTot || 0 });
       const line = {
         i, coord: s.coord ? s.coord.pc + '/' + s.coord.r + '.' + s.coord.i : '?', parts: s.parts,
         stage: s.stage.length,
         feeds: s.feeds.map((f) => f.key.slice(0, 14) + ' ' + f.vw + 'x' + f.vh + ' fr=' + f.frames + (f.vMuted ? ' MUTED' : '')),
-        deny: s.deny, pipes: {},
+        deny: s.deny, pipes: {}, mon: s.mon || null,
+        kf: (s.kf || []).map((r) => (r.dir === 'in'
+          ? 'in ' + (r.slot || '?').slice(0, 22) + '<' + r.pid + ' fdec=' + r.fdec + ' kdec=' + r.kdec + ' pliTx=' + r.pliTx + ' nackTx=' + r.nackTx + ' drop=' + r.drop + ' lost=' + r.lost + ' ' + r.fw + 'x' + r.fh + '@' + r.fps
+          : 'out ' + (r.slot || '?').slice(0, 22) + '>' + r.pid + ' fenc=' + r.fenc + ' kenc=' + r.kenc + ' pliRx=' + r.pliRx + ' nackRx=' + r.nackRx + ' ' + r.fw + 'x' + r.fh + '@' + r.fps + (r.qlim && r.qlim !== 'none' ? ' QLIM=' + r.qlim : ''))),
+        kflog: s.kflog || [],
+        dog: s.dog || [],
       };
       for (const jk of s.pipes) {
         const w = s.stats[jk] || {};
         const ch = s.chains[jk] || {};
         line.pipes[jk] = 'seen=' + (w.seen || 0) + ' q=' + (w.q || 0) + ' tmpl=' + (w.tmpl || 0) + ' wrote=' + (w.wrote || 0)
           + ' primed=' + (w.primed || 0) + ' drop=' + (w.dropped || 0) + ' kfAsk=' + (w.kfAsk || 0)
+          + ' kdrop=' + (w.kdrop || 0) + ' nkDrop=' + (w.nkDrop || 0) + ' skr=' + (w.skr || 0) + (w.paused ? ' PAUSED' : '') + (w.needKey ? ' NEEDKEY' : '')
           + ' want=' + (ch.wants || 0) + ' mint=' + (ch.mints == null ? '?' : ch.mints);
       }
       ev(line);
-      // freeze detection on receive-side stg/sgs feeds
+      // freeze detection on receive-side stg/sgs feeds — KEYED BY THE CLAIM
+      // IDENTITY (via+sid from mon.claims): a claim switch installs a
+      // different <video> whose cumulative frame counter sits below the old
+      // high-water, which read as 12s of phantom stall. A switch resets the
+      // baseline (and is reported as its own CLAIM-SWITCH event — steady-
+      // state flapping is a defect in its own right, frza9).
+      const claimId = (fkey) => {
+        for (const c of ((s.mon && s.mon.claims) || [])) {
+          if (c.slice(0, fkey.slice(0, 18).length) === fkey.slice(0, 18)) return c.slice(c.indexOf('via=')); // 'via=… sid=…'
+        }
+        return '?';
+      };
       for (const f of s.feeds) {
         const k = i + ':' + f.key;
-        const rec = lastAdvance.get(k) || { frames: -1, at: now(), frozen: false };
+        const cid = claimId(f.key);
+        const rec = lastAdvance.get(k) || { frames: -1, at: now(), frozen: false, cid };
         const bright = f.vw > 0 && f.vState === 'live' && f.vMuted === false;
+        if (rec.cid !== cid) {
+          if (rec.cid && rec.cid !== '?') ev({ ev: 'CLAIM-SWITCH', i, key: f.key.slice(0, 18), from: rec.cid, to: cid, frozenBefore: !!rec.frozen });
+          lastAdvance.set(k, { frames: f.frames, at: now(), frozen: false, cid });
+          continue;
+        }
         if (f.frames > rec.frames) {
           if (rec.frozen) { ev({ ev: 'UNFREEZE', i, key: f.key, stuckMs: now() - rec.at }); }
-          lastAdvance.set(k, { frames: f.frames, at: now(), frozen: false });
+          lastAdvance.set(k, { frames: f.frames, at: now(), frozen: false, cid });
         } else if (bright && !rec.frozen && now() - rec.at > FREEZE_S * 1000) {
           rec.frozen = true; rec.frozeAt = now();
           lastAdvance.set(k, rec);
           freezes.push({ i, key: f.key, at: new Date().toISOString() });
-          ev({ ev: 'FREEZE', i, key: f.key, feed: f, pipes: line.pipes, deny: s.deny });
+          ev({ ev: 'FREEZE', i, key: f.key, feed: f, claim: cid, pipes: line.pipes, deny: s.deny });
         }
       }
     }

@@ -6389,7 +6389,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if ((relayVia.get(m.target) || {}).via === p.id) stopRelayFor(m.target, false);
       } else if (m.k === 'mx' && typeof m.key === 'string' && m.streamId) {
         // Mosaic ship announced (idempotent, re-sent every sweep) — claim by id.
-        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, at: Date.now() });
+        mosAnn.set(p.id + '|' + m.key, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), at: Date.now() });
         claimMos();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -7055,40 +7055,83 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // keyframe trigger). A camera source has no canvas — its direct receivers'
     // ordinary PLI is the lever there, so the walk simply ends.
     const kfLast = new Map(); // key -> last relay ms (loop + storm guard)
+    // Forensics: every kfNeed decision, ring-buffered (window.__kfLog — the
+    // trail that caught the blur-canvas nudge stalling the self encoder)
+    const kfLog = (window.__kfLog = []);
+    const kfEv = (key, act, x) => { kfLog.push(Object.assign({ t: Date.now(), key: String(key).slice(0, 18), act }, x || {})); if (kfLog.length > 300) kfLog.shift(); };
     function kfNeed(key) {
       const now = Date.now();
-      if (now - (kfLast.get(key) || 0) < 2000) return;
+      if (now - (kfLast.get(key) || 0) < 2000) { kfEv(key, 'rl'); return; }
       kfLast.set(key, now);
       const cl = mosIn.get(key) || mosIn.get(key + '^x');
       if (cl && cl.via) {
         const vp = peers.get(cl.via);
-        if (vp && vp.dc && vp.dc.readyState === 'open') { dcSend(vp, { k: 'mx-kf', key }); return; }
+        if (vp && vp.dc && vp.dc.readyState === 'open') { kfEv(key, 'relay', { via: String(cl.via).slice(0, 6) }); dcSend(vp, { k: 'mx-kf', key }); return; }
       }
-      // no upstream claim — I am the producer (or the chain is broken; a nudge is harmless)
+      // No upstream claim — I am the producer (or the chain is broken). Force
+      // a keyframe at the SENDER, never at the source: a brief
+      // scaleResolutionDownBy jiggle makes the encoder open a new GOP (key in
+      // 21-72ms, measured on camera, canvas and carrier tracks alike, encoder
+      // flow unbroken). The old levers touched the CAPTURE pipeline — a 1px
+      // canvas resize, an applyConstraints width nudge — and the canvas
+      // resize on the BLUR pipe's canvas (which is the self stream whenever
+      // blur is on, i.e. the privacy steady state) stalled its encoder
+      // 10-20s per hit: THAT oscillation was the stg freeze (frza runs,
+      // 2026-08-04, multi-device). This path is now fallback-only anyway —
+      // the worker's hop-local sendKeyFrameRequest answers key starvation
+      // before any mx-kf walk reaches a producer (mesh-pipe.js header).
       for (const [jk2, job2] of mosJobs) {
         if (job2.key !== key || pipeJobs.has(jk2)) continue;
-        for (const t of job2.trackList) {
-          if (t && t.canvas) { const c = t.canvas; try { c.width = c.width > 2 ? c.width - 1 : c.width + 1; } catch (e) {} return; }
-          // CAMERA producer (a stager's stg feed): no canvas to resize. The one
-          // JS-reachable keyframe lever is a capture-constraint change — a ±2px
-          // width ideal, restored a beat later. This is the op class adapt()
-          // itself performs on every rung move (and unlike the 2026-08-01
-          // transpose saga it never reads the answer back — no feedback loop);
-          // it is DEMAND-driven and rate-limited by kfLast, never a standing
-          // pulse. trackQ keeps following the track, so the next adapt() simply
-          // re-applies the rung's own constraints — self-consistent.
-          if (t && t.kind === 'video' && t.readyState === 'live' && t.applyConstraints && t.getSettings) {
-            try {
-              const w = (t.getSettings().width | 0) || 640;
-              t.applyConstraints({ width: { ideal: w - 2 } }).catch(() => {});
-              setTimeout(() => { try { t.applyConstraints({ width: { ideal: w } }).catch(() => {}); } catch (e) {} }, 350);
-            } catch (e) {}
+        for (const sd of job2.senders || []) {
+          if (!sd || !sd.track || sd.track.kind !== 'video') continue;
+          try {
+            const prm = sd.getParameters();
+            if (!prm.encodings || !prm.encodings.length) continue; // unnegotiated — the setParameters FATAL class, skip
+            const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
+            kfEv(key, 'jiggle', { sr0 });
+            prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
+            sd.setParameters(prm).then(() => setTimeout(() => {
+              try {
+                const p2 = sd.getParameters();
+                if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); }
+              } catch (e) {}
+            }, 250)).catch(() => {});
             return;
-          }
+          } catch (e) {}
         }
       }
     }
     if (MPipe) MPipe.on('kf-need', (m) => { const job = mosJobs.get(m.pipeId); if (job && pipeJobs.has(m.pipeId)) kfNeed(job.key); });
+    // THE STG KEY PULSE (frza20, closing the lane). REACTIVE key recovery
+    // measured 14-20s at healthy fps across piped chains: SKR dies at the
+    // first demand-minted carrier (Chromium doesn't latch PLIs into it), and
+    // the mx-kf walk pays a 2s-per-hop rate limit — a consumer that misses a
+    // key is bright-frozen the whole wait. While MY camera is on the Stage
+    // its keys are PULSED instead: a sender-side jiggle every 3s bounds any
+    // consumer's worst-case key wait to one pulse — roadmap §9a's "pulse a
+    // keyframe and delete the back-channel", scoped to the one lane whose
+    // producer has no cheap demand lever (packer canvases keep the 1px
+    // demand resize). Cost: a key is ~5-10x a delta, so ~+30% stg bitrate
+    // while staged — stage-grade budgets absorb it (§9a's own calibration).
+    setInterval(() => {
+      if (!myStatus.stg) return;
+      for (const [jk2, job2] of mosJobs) {
+        if (job2.key.indexOf('stg:' + myId) !== 0 || pipeJobs.has(jk2) || !job2.active) continue;
+        for (const sd of job2.senders || []) {
+          if (!sd || !sd.track || sd.track.kind !== 'video') continue;
+          try {
+            const prm = sd.getParameters();
+            if (!prm.encodings || !prm.encodings.length) break;
+            const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
+            prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
+            sd.setParameters(prm).then(() => setTimeout(() => {
+              try { const p2 = sd.getParameters(); if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); } } catch (e) {}
+            }, 250)).catch(() => {});
+          } catch (e) {}
+          break; // one video sender carries the job
+        }
+      }
+    }, 3000);
     // DEAD-PIPE WATCHDOG. A pipe that writes nothing while its SOURCE is
     // flowing is broken plumbing, not a quiet room — fall back to transcode.
     // "Flowing" reads the remote track's muted flag: still-frame skip upstream
@@ -7104,8 +7147,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (pj.w0 == null) { pj.w0 = wrote; pj.stale = 0; continue; }
           const advanced = wrote > pj.w0; pj.w0 = wrote;
           const flowing = pj.srcTrack && pj.srcTrack.readyState === 'live' && pj.srcTrack.muted === false;
-          if (!advanced && flowing) { if (++pj.stale >= 3) { pipeDeny.add(jk); unshipMos(jk, true); } }
+          if (!advanced && flowing) { if (++pj.stale >= 3) { pipeDeny.add(jk); unshipMos(jk, true); continue; } }
           else pj.stale = 0;
+          // THE PLI TUNNEL, PAGE-SIDE (frza18). A consumer that missed a
+          // pipe's birth key PLIs forever and Chromium never latches those
+          // PLIs into the demand-minted carrier encoder (measured: 1305
+          // PLIs, zero key templates), so the stream stays keyless while
+          // bytes flow — invisible to every byte rail. The sender CAN see
+          // them: outbound-rtp pliCount. A rise on this beat = the consumer
+          // wants a key = kick (ask upstream for key content + mint the key
+          // template that pairs with it).
+          const sd = job.senders && job.senders[0];
+          if (sd && sd.getStats) {
+            sd.getStats().then((rep) => {
+              let pli = -1;
+              rep.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'video') pli = r.pliCount || 0; });
+              if (pli >= 0) {
+                if (pj.pli != null && pli > pj.pli) { try { MPipe.keyKick(jk); } catch (e) {} }
+                pj.pli = pli;
+              }
+            }).catch(() => {});
+          }
         }
       }).catch(() => {});
     }, 5000);
@@ -7165,19 +7227,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // trackList holds the CARRIER — dormancy (setJobActive) replaceTracks
         // it back on wake; re-attaching the remote track would re-enter the
         // transcode path with the pipe transform still on the sender.
-        // stg:* (CAMERA-origin) DELIBERATELY EXCLUDED for now (2026-08-04).
-        // Piping the S1 stage flood produced a real, moving-target freeze: one
-        // receiver per run stuck bright-and-frozen for 120s+ (e2e-mosaic's
-        // stage-pixels leg, seat different every run) while every packer-origin
-        // lane stayed green through every gate. The camera keyframe lever
-        // (applyConstraints nudge) is the least-proven link in that chain, and
-        // a 6-browser box at ~1fps cannot separate its failure modes further —
-        // the ONE-BOX law. The flood is 1-2 hops of bounded transcode, so the
-        // cost of keeping it stock is small; the multi-level chains where
-        // generation loss and latency actually compound (sgs, the sd* family)
-        // are all canvas-origin and ride the pipe. Re-scope stg once the freeze
-        // is understood across DEVICES (test/README.md).
-        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk) && String(key).indexOf('stg:') !== 0) {
+        // stg:* (CAMERA-origin) rides the pipe lane too — RE-SCOPED 2026-08-04
+        // after the freeze was decomposed across devices (pipe-freeze-probe,
+        // frza runs; the 9bf885d scope-out records the original observation).
+        // What the freeze actually was: WebRTC emits NO periodic keyframes, so
+        // a pipe going hot mid-GOP starved for key content; the mx-kf DC walk
+        // answered by NUDGING THE PRODUCER'S CAPTURE, and when the producer
+        // was a blur pipe (the self stream's privacy steady state) the 1px
+        // canvas resize stalled its encoder 10-20s — freezing every receiver
+        // of every copy at once, recurring as each starving hop re-fired the
+        // walk. Camera-origin content only ever surfaced it because stg is
+        // the one lane whose producer isn't a self-restoring packer canvas.
+        // The fix is structural, not stg-specific: keyframe recovery is now
+        // hop-local RTCP (the tap's sendKeyFrameRequest, chaining hop-by-hop
+        // to the producer's real encoder — mesh-pipe.js header), and the
+        // fallback mx-kf producer lever is a sender-side
+        // scaleResolutionDownBy jiggle that never touches capture.
+        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk)) {
           try {
             const rcv = MPipe.receiverForTrack(tr, [...peers.values()].map((q) => q.pc).filter(Boolean));
             const srcId = rcv && 'rx:' + tr.id;
@@ -7370,7 +7436,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
     const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sdn' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
-    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt });
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h });
+    // Hop count of a held stg copy for re-flooding: my copy's announced h + 1.
+    // A copy with NO h (an old client's announce) re-floods as far (998+1) —
+    // claimable when it is the only path, always outranked by a counted chain.
+    const stgHop = (f) => ((f && f.meta && typeof f.meta.h === 'number') ? f.meta.h : 998) + 1;
     // Send a want/idle demand to a redundant feed's announcer, debounced so the
     // message only rides the DC on a state flip — but RE-ASSERTED every few
     // seconds even without one: a demand that raced a closed DC or a transport
@@ -7439,7 +7509,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!isRedun(rk)) continue;
           const fb = mosFb.get(rk); if (!fb) continue; // claimRedun mints it; no claim, no watch
           const bytes = await pipeBytes(pri);
-          if (bytes < 0) continue; // no video receiver on this pipe right now — nothing to judge
+          // Forensics ring (frza17: a husk claim's standby was never woken and
+          // no theory survived — record what each sample actually SAW)
+          if (rk.indexOf('stg:') === 0 || rk === 'sgs') {
+            const dl = (window.__dogLog = window.__dogLog || []);
+            dl.push({ t: now, rk: rk.slice(0, 14), b: (bytes < 0 ? -1 : bytes.b), q: fb.q || 0,
+              la: fb.lastAdvanceAt ? now - fb.lastAdvanceAt : -1, ca: fb.claimAt ? now - fb.claimAt : -1,
+              dark: !!fb.dark, wk: !!fb.wakeAt, std: !!mosStandby.get(rk) });
+            if (dl.length > 400) dl.shift();
+          }
+          if (bytes < 0) {
+            // NO STATS ROW AT ALL: an inbound-rtp row only exists after the
+            // FIRST packet, so a hot primary that has never delivered even
+            // one packet is invisible to every rail below — frza12: a seat
+            // sat 4+ minutes on such a husk (fdec 0, 786 PLIs) with a parked
+            // standby, because this bail skipped the void rail. A claim this
+            // old with NO stats row is the deepest void there is.
+            if (!fb.dark && fb.claimAt && now - fb.claimAt > HOT_VOID_MS) {
+              const std0 = mosStandby.get(rk);
+              if (std0 && std0.key) { fb.dark = true; demand(std0.via, std0.key, std0.streamId, true); schedReconcile(); }
+            }
+            continue;
+          }
           if (fb.lastBytes === -1 || bytes.b > fb.lastBytes) {
             fb.lastBytes = bytes.b; fb.lastAdvanceAt = now;
             fb.q = Math.min(64, (fb.q || 0) + 1);
@@ -7480,6 +7571,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // backed darkness or a dead transport may move a claim.)
           } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && fb.q) {
             fb.q = 0; // frozen past the horizon without a fire — re-earn from zero
+          } else if (!fb.dark && !(fb.q || 0) && fb.claimAt
+              && now - fb.claimAt > HOT_VOID_MS
+              && now - Math.max(fb.lastAdvanceAt || 0, fb.claimAt) > HOT_VOID_MS) {
+            // HOT-AND-VOID (frza5: p16 sat 262s on a husk that delivered 6
+            // frames then nothing — never qualified, so the dark rail above
+            // could never arm, and the standby stayed parked forever). This
+            // is NOT the 2026-07-29 "born dark" rail returning: that one
+            // fired on SLOW pipes under load and spiraled. A merely-starved
+            // pipe ships SOMETHING inside 12s; a piped husk is RTP-silent —
+            // zero bytes for HOT_VOID_MS with a live standby is death.
+            const std = mosStandby.get(rk);
+            if (std && std.key) {
+              fb.dark = true;
+              demand(std.via, std.key, std.streamId, true); // wake NOW — don't wait for the sweep
+              schedReconcile();
+            }
           }
           // While a wake/failback overlap runs, sample the STANDBY too: its
           // framesDecoded (decode path — render throttling can't touch it) is
@@ -7535,7 +7642,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const vt = ent.stream.getVideoTracks()[0]; if (!vt) return -1;
         const rcv = p.pc.getReceivers().find((r) => r.track === vt); if (!rcv) return -1;
         const rep = await rcv.getStats();
-        let out = -1;
+        // A receiver with NO inbound-rtp row yet has received NOTHING — that
+        // is a judgeable ZERO, not an unjudgeable absence. Returning -1 here
+        // made the watchdog skip never-delivered pipes entirely, so a seat
+        // claiming a husk ship sat hot-and-blind forever: every rail
+        // (hot-void included) lived behind the -1 skip (frza14/16: single
+        // seats frozen 4.5min with 1000+ unanswered PLIs and a live parked
+        // standby that was never woken).
+        let out = { b: 0, d: 0 };
         rep.forEach((s) => { if (s.type === 'inbound-rtp' && s.kind === 'video') out = { b: s.bytesReceived || 0, d: s.framesDecoded || 0 }; });
         return out;
       } catch (e) { return -1; }
@@ -7572,6 +7686,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const MOS_DARK_MS = 700;   // no byte advance on a previously-flowing hot pipe = dark
     const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
     const MOS_QUALIFY = 8;     // consecutive advancing ~300ms samples (~2.4s of continuous flow) before a pipe earns the watchdog
+    const HOT_VOID_MS = 12000; // hot-and-VOID: a hot primary with ZERO bytes this long is a husk, not a slow pipe (frza5)
     const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec, claimAt } (wake/failback/watchdog state)
     const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1, claimAt: 0 });
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
@@ -7602,7 +7717,50 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return (srcPid && cand.find((x) => x.live && x.key === rk && x.from === srcPid))
           || cand.find((x) => x.live && x.key === rk) || null;
       }
-      if (rk.indexOf('stg:') === 0) return cand.find((x) => x.live && x.key.indexOf('^') < 0) || null; // an on-tree copy over the '^x' cross copy
+      if (rk.indexOf('stg:') === 0) {
+        // IDENTITY, NOT JUST KEY — the stg edition (2026-08-04, frza runs).
+        // The key literally names the producer: stg:<pid>. When the OWNER
+        // announces to me I am a direct receiver, and the owner's leg is the
+        // one true source — preferring "first live non-^x" (Map insertion
+        // order) let a RELAYED flood copy win, so direct receivers mx-idled
+        // the producer's only real encode. On the pipe lane a relayed copy of
+        // a parked source still LOOKS live (the carrier never mutes), so the
+        // whole fabric starved behind a parked producer, dark-woke it, and
+        // re-idled it — the 14-24s room-wide stg freeze oscillation.
+        const owner = rk.slice(4).split('^')[0];
+        const own = cand.find((x) => x.live && x.from === owner && x.key.indexOf('^') < 0);
+        if (own) return own;
+        // Not a direct receiver: prefer the SHORTEST live chain (min announced
+        // hop count, frza4). "First live non-^x" was Map insertion order, and
+        // the failback machinery treated that order as tree-truth — nva1 was
+        // dragged back onto a husk copy (fdec 0, 105 unanswered PLIs) for the
+        // rest of the run. A husk CYCLE's members re-announce each other's
+        // copies with h growing every sweep, so min-h escapes to the real
+        // chain by itself; an old client's h-less announce ranks as far (999)
+        // — claimable when it is the only path. ^x cross copies stay the last
+        // resort as before.
+        const hOf = (x) => (x.ann && typeof x.ann.h === 'number') ? x.ann.h : 999;
+        // TIES ARE STICKY (frza9). mosAnn ages entries out at 12s and re-adds
+        // them, so Map order SHUFFLES — "min-h, first found" flipped between
+        // h-tied candidates every few sweeps, and each flip ran the whole
+        // failback dance: swap, re-park, and a fresh container id shipped to
+        // every downstream seat (measured: one seat saw 8 sid changes from
+        // ONE via in 3 minutes — each a decoder teardown). At equal h the
+        // CURRENT PRIMARY wins; with no primary among the ties, the lowest
+        // pid does (deterministic on every seat, immune to Map order).
+        const cur = mosIn.get(rk);
+        let best = null;
+        for (const x of cand) {
+          if (!x.live || x.key.indexOf('^') >= 0) continue;
+          if (!best || hOf(x) < hOf(best)) { best = x; continue; }
+          if (hOf(x) > hOf(best)) continue;
+          const bestIsCur = !!(cur && best.from === cur.via && best.sid === cur.streamId);
+          const xIsCur = !!(cur && x.from === cur.via && x.sid === cur.streamId);
+          if (xIsCur && !bestIsCur) best = x;
+          else if (!xIsCur && !bestIsCur && String(x.from) < String(best.from)) best = x;
+        }
+        return best || null;
+      }
       let co = null;
       if (rk === 'sdm') co = { pc: c.pc, r: c.r, i: 0 };                                        // my head's own fan
       else if (rk === 'sgs') co = c.i === 0 ? net.topo.up(c) : { pc: c.pc, r: c.r, i: 0 };      // the tree hop (my head, or a head's parent)
@@ -8153,25 +8311,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Same owner rule as the S1 flood: a stager already HAS its own face —
         // shipping it back is waste at best, and (before the mosResolve guard)
         // the echo that thrashed the whole lane.
-        const relayStg = (key, stream, via) => {
+        const relayStg = (key, stream, via, h) => {
           const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
           const skip = (t) => !t || t === via || (owner && t === owner);
-          if (upTgt && !skip(upTgt)) { const jk = shipMos(key, upTgt, stream, null); if (jk) wanted.add(jk); }
-          if (xUpPid && xUpPid !== upTgt && !skip(xUpPid)) { const jk = shipMos(key + '^x', xUpPid, stream, null); if (jk) wanted.add(jk); }
+          const hm = { h }; // hop count from the producer — claims prefer min-h (see prefCand)
+          if (upTgt && !skip(upTgt)) { const jk = shipMos(key, upTgt, stream, hm); if (jk) wanted.add(jk); }
+          if (xUpPid && xUpPid !== upTgt && !skip(xUpPid)) { const jk = shipMos(key + '^x', xUpPid, stream, hm); if (jk) wanted.add(jk); }
           // and DOWN: the strip is video-only — the per-stager feeds must
           // reach EVERY subtree so Stage audio can fold at each ear.
           const dnP = occPid(T.down(c));
-          if (dnP && !skip(dnP) && dnP !== upTgt) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
+          if (dnP && !skip(dnP) && dnP !== upTgt) { const jk = shipMos(key, dnP, stream, hm); if (jk) wanted.add(jk); }
         };
-        if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null); }
-        for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via); }
+        if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null, 0); }
+        for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via, stgHop(f)); }
         if (iAmHead) for (const k of heldStg) { // my row folds at its ears too
           const f = mosIn.get(k);
           const owner = k.slice(4).split('^')[0];
           for (let j = 1; j < C; j++) {
             const mate = occPid({ pc: c.pc, r: c.r, i: j });
             if (!mate || mate === f.via || mate === owner) continue; // never back to the sender, never to the stager itself
-            const jm = shipMos(k, mate, f.stream, null); if (jm) wanted.add(jm);
+            const jm = shipMos(k, mate, f.stream, { h: stgHop(f) }); if (jm) wanted.add(jm);
           }
         }
       } else {
@@ -8192,16 +8351,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Skipping it silently deleted the stage lane's redundancy, and
         // redun-drill caught it as "no receiver holding a relayed stg primary
         // + standby".
-        const floodOne = (key, stream, via) => {
+        const floodOne = (key, stream, via, h) => {
           if (!stream || flooded.has(stream.id)) return; flooded.add(stream.id);
           const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
           const skip = (t) => !t || (owner && t === owner);
-          for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, null); if (jk) wanted.add(jk); }
+          const hm = { h }; // hop count from the producer — claims prefer min-h (see prefCand)
+          for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, hm); if (jk) wanted.add(jk); }
           const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
-          if (!skip(dnP)) { const jk = shipMos(key, dnP, stream, null); if (jk) wanted.add(jk); }
+          if (!skip(dnP)) { const jk = shipMos(key, dnP, stream, hm); if (jk) wanted.add(jk); }
         };
-        if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st, null); }
-        for (const k of heldStg) { const hf = mosIn.get(k); floodOne(k, hf.stream, hf.via); }
+        if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st, null, 0); }
+        for (const k of heldStg) { const hf = mosIn.get(k); floodOne(k, hf.stream, hf.via, stgHop(hf)); }
         // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
@@ -10861,6 +11021,47 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // avStats(): per-receiver WebRTC inbound stats (frames/packets/audio
       // energy) + per-sender outbound frames, each labeled with the mosaic
       // slot / job / tile it feeds, so a stall is attributable to ONE pipe.
+      // Keyframe-level truth per RTP flow — the instrument that decomposed
+      // the stg freeze (frza runs, 2026-08-04; e2e-pipe LEG 3 gates on it).
+      // Inbound video: frames/keyframes decoded, PLIs WE sent, NACKs, drops,
+      // losses, current dims. Outbound video: frames/keyframes encoded, PLIs
+      // RECEIVED, dims, qualityLimitationReason. Slot labels as in avStats.
+      kfStats: async () => {
+        const trkLbl = new Map(), idLbl = new Map();
+        const tag = (stream, lbl) => { if (!stream) return; for (const t of stream.getTracks()) { trkLbl.set(t, lbl); idLbl.set(t.id, lbl); } };
+        for (const [rk, f] of mosIn) tag(f.stream, 'in:' + rk);
+        for (const [rk, f] of mosStandby) tag(f.stream, 'std:' + rk);
+        const sndLbl = new Map();
+        for (const [jk, j] of mosJobs) for (const sd of j.senders || []) sndLbl.set(sd, 'out:' + j.key + '>' + String(j.to).slice(0, 6));
+        const out = [];
+        for (const [pid, p] of peers) {
+          if (!p.pc) continue;
+          let rep; try { rep = await p.pc.getStats(); } catch (e) { continue; }
+          const midIn = new Map(), midOut = new Map();
+          try { for (const t of p.pc.getTransceivers()) if (t.mid != null) {
+            if (t.receiver && t.receiver.track) midIn.set(String(t.mid), trkLbl.get(t.receiver.track) || null);
+            if (t.sender) midOut.set(String(t.mid), sndLbl.get(t.sender) || (t.sender.track ? trkLbl.get(t.sender.track) : null) || null);
+          } } catch (e) {}
+          rep.forEach((s) => {
+            if (s.type === 'inbound-rtp' && s.kind === 'video') {
+              out.push({ pid: String(pid).slice(0, 6), dir: 'in',
+                slot: (s.mid != null ? midIn.get(String(s.mid)) : null) || idLbl.get(s.trackIdentifier) || null,
+                fdec: s.framesDecoded || 0, kdec: s.keyFramesDecoded || 0,
+                pliTx: s.pliCount || 0, nackTx: s.nackCount || 0,
+                drop: s.framesDropped || 0, lost: s.packetsLost || 0,
+                fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0 });
+            } else if (s.type === 'outbound-rtp' && s.kind === 'video') {
+              out.push({ pid: String(pid).slice(0, 6), dir: 'out',
+                slot: (s.mid != null ? (midOut.get(String(s.mid)) || null) : null),
+                fenc: s.framesEncoded || 0, kenc: s.keyFramesEncoded || 0,
+                pliRx: s.pliCount || 0, nackRx: s.nackCount || 0,
+                fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0,
+                qlim: s.qualityLimitationReason || null });
+            }
+          });
+        }
+        return out;
+      },
       avStats: async () => {
         // Labels are keyed by track/sender OBJECT and resolved per-m-line via
         // the stats row's mid — never by trackIdentifier alone. A forwarded

@@ -160,6 +160,49 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       return v ? { w: v.videoWidth, h: v.videoHeight } : null;
     }).catch(() => null);
     check('a deep seat decodes CONTENT-sized pixels (not the 48px carrier)', !!dims && dims.w > 100, dims);
+
+    // ---- LEG 3: THE FREEZE SHAPE (the stg re-scope's reproducing guard) ----
+    // The 2026-08-04 stg freeze (frza runs, multi-device): a piped stg copy
+    // going hot mid-GOP starved for key content (WebRTC emits no periodic
+    // keyframes), the mx-kf walk answered by nudging the producer's CAPTURE,
+    // and the blur-canvas nudge stalled the self-stream encoder 10-20s —
+    // every receiver of every copy bright-frozen at once, recurring. The fix
+    // is hop-local sendKeyFrameRequest in the worker + a sender-side jiggle
+    // fallback. THIS LEG IS THE SHAPE: watch every seat's stg:*/sgs feeds for
+    // 36s; a feed whose decoded-frame counter stalls >=12s while its track is
+    // live and unmuted is the freeze (old code: recurring 14-20s stalls at
+    // healthy fps, 120s+ at crawl fps — either trips this).
+    {
+      const stalls = [];
+      const last = new Map(); // `${i}:${key}` -> { fr, at }
+      const tW0 = Date.now();
+      while (Date.now() - tW0 < 36000) {
+        for (let i = 0; i < N; i++) {
+          const feeds = await pages[i].evaluate(() =>
+            __gifosVideo.feedsInfo().filter((f) => f.key.indexOf('stg:') === 0 || f.key === 'sgs')
+              .map((f) => ({ key: f.key, fr: f.frames, vw: f.vw, muted: f.vMuted, state: f.vState }))).catch(() => []);
+          for (const f of feeds) {
+            const k = i + ':' + f.key;
+            const rec = last.get(k);
+            const bright = f.vw > 0 && f.state === 'live' && f.muted === false;
+            if (!rec || f.fr > rec.fr) { last.set(k, { fr: f.fr, at: Date.now() }); continue; }
+            if (bright && Date.now() - rec.at >= 12000 && !rec.hit) {
+              rec.hit = true;
+              stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at });
+            }
+          }
+        }
+        await sleep(2000);
+      }
+      check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0, { stalls });
+      // and the stager's own stg encode never parks into silence while staged
+      const stEnc = await pages[deepIdx0].evaluate(async () => {
+        const rows = (await __gifosVideo.kfStats()).filter((r) => r.dir === 'out' && r.slot && r.slot.indexOf('out:stg:') === 0);
+        return rows.map((r) => ({ slot: r.slot.slice(0, 20), fenc: r.fenc, kenc: r.kenc }));
+      }).catch(() => null);
+      check('the stager is still encoding its stg feed (fenc > 0 on a live stg sender)',
+        !!stEnc && stEnc.some((r) => r.fenc > 0), stEnc);
+    }
   }
 
   await browser.close();
