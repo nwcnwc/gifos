@@ -172,7 +172,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.evaluate(() => document.getElementById('blur-none').click());
   check('you can select None, but with no password the status explains the block',
     await bPage.evaluate(() => window.__gifosVideo.myBlur() === 0
-      && /Password must be set for unblurred video/.test(document.getElementById('status').textContent)));
+      && /blurred until this room has a password/i.test(document.getElementById('status').textContent)));
   await sleep(400);
   check('and with no password the tile stays blurred everywhere', await aPage.evaluate(() => {
     const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
