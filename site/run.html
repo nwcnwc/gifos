@@ -613,9 +613,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="lob-admin-btn" class="lob-action">Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
       <div id="lob-admin" class="lob-expand" style="display:none">
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
-        <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone, <b>never share it</b><small id="lob-admin-pass-note">This is the key to RUNNING the room. Guests never need it — sending it to anyone hands them your admin powers.</small></label>
+        <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone, <b>never share it</b><small id="lob-admin-pass-note">This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>
         <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off">
-        <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional — but clear (unblurred) video needs one. Guests type it to get in, for this session. It never rides the invite link — you send it to your guests yourself, and the room’s Password button changes or clears it.</small></label>
+        <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself. The Password button changes it later.</small></label>
         <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off">
         <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
         <div id="lob-admin-err" class="lob-err"></div>
@@ -5708,7 +5708,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         : location.origin + MEET_PATH + '#v=' + room + avPart + (relay ? '&relay=' + encodeURIComponent(relay) : '');
       if (!params.get('v')) share.classList.add('show'); // fresh room → surface the link
       else recordMeetingInvite(room, shareUrl.value); // joined someone's link → log it in the desktop's Invites
-      recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined
+      recordMeetHistory(room, shareUrl.value, av); // lobby's "Recent" — every room, created OR joined, in ITS OWN surface's list
       // Derive the relay-facing identity + the room key from the room code
       // ("derive, don't send"), then connect. The relay never sees the code.
       // The device tag is ROOM-SALTED here too: the relay only ever receives a
@@ -5732,7 +5732,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try {
         let h = JSON.parse(localStorage.getItem('gifos_invite_history') || '[]'); if (!Array.isArray(h)) h = [];
         h = h.filter(function (e) { return e && e.url !== url; });
-        h.unshift({ url: url, name: 'Meeting: ' + name, ts: Date.now() });
+        h.unshift({ url: url, name: (BROADCAST ? 'Broadcast: ' : 'Meeting: ') + name, ts: Date.now() });
         localStorage.setItem('gifos_invite_history', JSON.stringify(h.slice(0, 50)));
       } catch (e) { /* private mode / quota */ }
     }
@@ -5746,9 +5746,49 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // in the URL) is a person who hasn't said what they came to do — so ask,
     // and start NO camera until they pick. Any link (#v=) or an app's Meeting
     // toggle (#app=) already states the intent and skips straight in.
-    const MEET_HIST = 'gifos_meet_history', MEET_MARKS = 'gifos_meet_bookmarks';
+    // "Recent & saved" is PER SURFACE. Meeting and Broadcast are one page wearing
+    // two skins, and they shared one pair of storage keys — so broadcasts you had
+    // hosted turned up under Meeting's Recent list, and tapping one there reopened
+    // it as a plain meeting (the /cast/ link, stripped of its skin). They are
+    // separate namespaces now: Meeting shows meetings, Broadcast shows broadcasts.
+    // Which surface THIS page is: a room is what its link says (BROADCAST); a
+    // lobby is what you came in wanting (BC_INTENT).
+    const CAST_SURFACE = params.get('v') ? BROADCAST : BC_INTENT;
+    const SURFACE_NAME = CAST_SURFACE ? 'Broadcast' : 'Meeting';
+    const MEET_HIST = CAST_SURFACE ? 'gifos_cast_history' : 'gifos_meet_history';
+    const MEET_MARKS = CAST_SURFACE ? 'gifos_cast_bookmarks' : 'gifos_meet_bookmarks';
     function loadList(key) { try { const a = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
     function saveList(key, a) { try { localStorage.setItem(key, JSON.stringify(a)); } catch (e) {} }
+    // An entry's home is read from the LINK, not from which list it happens to be
+    // sitting in — both forms a broadcast link can take (the pretty /cast/ path,
+    // the hash's bc flag) say so plainly.
+    function isCastEntry(e) {
+      const u = (e && e.url) || '';
+      return /\/cast\//i.test(u) || /[#&]bc=/.test(u);
+    }
+    // Everything written before the split went into the meeting keys, so sort the
+    // two lists on every boot: broadcasts out of Meeting, meetings out of
+    // Broadcast. A no-op once clean (and it writes nothing when nothing moved).
+    function splitSurfaceLists() {
+      for (const [meetKey, castKey, byTime] of [
+        ['gifos_meet_history', 'gifos_cast_history', true],
+        ['gifos_meet_bookmarks', 'gifos_cast_bookmarks', false],
+      ]) {
+        const was = [loadList(meetKey), loadList(castKey)];
+        const seen = new Set(), meet = [], cast = [];
+        for (const e of was[0].concat(was[1])) {
+          if (!e || !e.url || seen.has(e.url)) continue;
+          seen.add(e.url);
+          (isCastEntry(e) ? cast : meet).push(e);
+        }
+        // History is a "recent" list, so a merge must re-sort by time; bookmarks
+        // are in the order their owner put them in, and keep it.
+        if (byTime) for (const l of [meet, cast]) l.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        if (JSON.stringify(meet) !== JSON.stringify(was[0])) saveList(meetKey, meet);
+        if (JSON.stringify(cast) !== JSON.stringify(was[1])) saveList(castKey, cast);
+      }
+    }
+    splitSurfaceLists();
     function recordMeetHistory(name, url, avv) {
       if (!url) return;
       let h = loadList(MEET_HIST).filter((e) => e && e.url !== url);
@@ -5767,16 +5807,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function lobRow(e, marked) {
       return '<div class="lob-item" data-url="' + esc(e.url) + '">' +
         '<button class="lob-star" data-star="' + esc(e.url) + '" title="' + (marked ? 'Remove bookmark' : 'Save as bookmark') + '">' + (marked ? '★' : '☆') + '</button>' +
-        '<div class="li-main"><span class="li-name">' + esc(e.name || 'Meeting') +
+        '<div class="li-main"><span class="li-name">' + esc(e.name || SURFACE_NAME) +
           (e.av ? '<span class="li-badge">admin</span>' : '') + '</span>' +
           '<span class="li-sub">' + agoLabel(e.ts) + '</span></div>' +
         '<button class="row-del" data-del="' + esc(e.url) + '" title="Remove from this list">' + DEL_ICON + '</button>' +
       '</div>';
     }
     function renderLobbyList() {
-      const marks = loadList(MEET_MARKS);
+      // Filtered by surface as well as read from the surface's own key: the list
+      // you are looking at can NEVER show the other one's links, whatever ends up
+      // in storage.
+      const mine = (e) => e && e.url && isCastEntry(e) === CAST_SURFACE;
+      const marks = loadList(MEET_MARKS).filter(mine);
       const markSet = new Set(marks.map((m) => m.url));
-      const recents = loadList(MEET_HIST).filter((e) => e && e.url && !markSet.has(e.url));
+      const recents = loadList(MEET_HIST).filter((e) => mine(e) && !markSet.has(e.url));
       const html = marks.map((m) => lobRow(m, true)).join('') + recents.map((e) => lobRow(e, false)).join('');
       document.getElementById('lob-list').innerHTML = html;
       document.getElementById('lob-empty').style.display = html ? 'none' : '';
@@ -5785,7 +5829,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       let marks = loadList(MEET_MARKS);
       if (marks.some((m) => m.url === url)) marks = marks.filter((m) => m.url !== url);
       else {
-        const src = loadList(MEET_HIST).find((e) => e.url === url) || loadList(MEET_MARKS).find((e) => e.url === url) || { url, name: 'Meeting', av: '', ts: Date.now() };
+        const src = loadList(MEET_HIST).find((e) => e.url === url) || loadList(MEET_MARKS).find((e) => e.url === url) || { url, name: SURFACE_NAME, av: '', ts: Date.now() };
         marks.unshift(src);
       }
       saveList(MEET_MARKS, marks);
@@ -5919,10 +5963,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         document.getElementById('lob-admin-pass-head').textContent = 'Host password';
         document.getElementById('lob-guest-pass-head').textContent = 'Viewer password';
         document.getElementById('lob-admin-pass').placeholder = 'Host password (keep to yourself)';
-        document.getElementById('lob-admin-pass-note').textContent = 'This is the key to RUNNING your broadcast. Viewers never need it — sending it to anyone hands them your host powers.';
+        document.getElementById('lob-admin-pass-note').textContent = 'This is what puts you in charge of the broadcast. Viewers don’t need it. Anyone you give it to can run your broadcast too.';
         document.getElementById('lob-guest-pass').placeholder = 'Viewer password (optional — share with viewers)';
-        document.getElementById('lob-guest-pass-note').textContent = 'Optional — but clear (unblurred) video needs one. Viewers type it to watch, for this session. It never rides the broadcast link — you send it to your audience yourself, and the room’s Password button changes or clears it.';
+        document.getElementById('lob-guest-pass-note').textContent = 'Optional, but the picture stays blurred until you set one. Viewers type it to watch. It is not part of the link — send it to your audience yourself. The Password button changes it later.';
         document.getElementById('lob-join-btn').innerHTML = 'Watch a broadcast<small>Paste a broadcast link someone shared</small>';
+        document.getElementById('lob-empty').textContent = 'Broadcasts you start or watch will show up here.';
       }
       document.getElementById('lob-name').textContent = myName();
       renderLobbyList();
@@ -9863,6 +9908,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // copy: "mute/blur" and "create a room you control" are meeting concepts,
       // meaningless for a shared app — so we don't show them here.
       const isApp = document.body.classList.contains('app-room');
+      // Say which thing you are sharing — a broadcast is not a meeting.
+      document.querySelector('#inv-modal h3').textContent =
+        isApp ? 'Share this app' : BROADCAST ? 'Share this broadcast' : 'Share this meeting';
       if (isApp) {
         body.innerHTML =
           '<p style="color:#aab">Anyone with this link joins you <b>live inside this app</b>, and it works forever.</p>' +
@@ -9870,7 +9918,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           '<div style="display:flex;justify-content:flex-end;margin-top:.9rem"><button id="inv-done" style="' + surfaceBtn + '">Close</button></div>';
       } else if (hasAdminRoom()) {
         body.innerHTML =
-          '<p style="color:#aab">This room is <b>admin-controlled</b>. The link is safe to hand to everyone — admin power is the password, which is never in the link.</p>' +
+          // The old line here said the admin password "is never in the link". A
+          // password FINGERPRINT is in the link (the verifier — it is what makes
+          // this a room you run), so the sentence was both untrue and more detail
+          // than anyone wants. What a person actually needs to know: the link lets
+          // people IN, it does not hand them the room.
+          '<p style="color:#aab"><b>You run this room.</b> The link is safe to send to anyone — it lets people join, it does not let them run the room. Your admin password is what does that, so keep it to yourself.</p>' +
           linkRowHtml() +
           '<div style="display:flex;justify-content:flex-end;margin-top:.4rem"><button id="inv-done">Done</button></div>';
       } else {
@@ -9884,9 +9937,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This always makes a <b>new, separate room</b> that you run — so <b>name it anything you like</b>. ' +
               (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically, so leave the box ticked to drop the new link into this room\'s chat and they can follow you over.' : 'You\'ll switch to it now.') + '</div>' +
             '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
-            '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone, <b>never share it</b><small>The key to RUNNING the room. Guests never need it — sending it to anyone hands them your admin powers.</small></label>' +
+            '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone, <b>never share it</b><small>This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>' +
             '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
-            '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional — but clear (unblurred) video needs one. Guests type it to get in, for this session; it never rides the link.</small></label>' +
+            '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself.</small></label>' +
             '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             (others ? '<label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer;margin-bottom:.7rem;font-size:.9rem"><input type="checkbox" id="inv-adm-post" checked style="margin-top:.2rem"><span>Post the new link to this room\'s chat so the ' + others + ' ' + ppl + ' here can follow me over.</span></label>' : '') +
             '<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="inv-adm-back" style="' + surfaceBtn + '">Back</button><button id="inv-adm-go">Create &amp; switch</button></div>' +
@@ -9899,7 +9952,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         try { document.execCommand('copy'); } catch (e) {}
         if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
         copyBtn.textContent = 'Copied ✓';
-        if (navigator.share) navigator.share({ title: isApp ? 'Join me on GifOS' : 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value }).catch(() => {});
+        if (navigator.share) navigator.share({ title: isApp ? 'Join me on GifOS' : BROADCAST ? 'Watch my GifOS broadcast' : 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value }).catch(() => {});
       };
       const done = document.getElementById('inv-done');
       if (done) done.onclick = () => { invModal.style.display = 'none'; };
