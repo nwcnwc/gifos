@@ -39,6 +39,27 @@ mkdir -p "$DATA"
 # user's close-and-reopen already exercises.
 RECYCLE_SECS="${MEET_RECYCLE_SECS:-86400}"
 
+# THE PHONE IS PART OF THE ROOM (Nathan, 2026-08-04). A USB-tethered moto sits
+# in the monitored meeting as the real-hardware peer — the only participant
+# with a real camera, a real radio and a real battery. But the monitor LOCKS
+# the room (--ensure-pass) and meet.html takes no password URL param, so every
+# time that tab reloads — Chrome restart, OOM, or our own daily recycle — the
+# phone lands on "This room is locked" and stays there, silently, forever.
+# Found exactly that way: Chrome force-stopped at ~00:00, phone parked at the
+# door, room read occ=1 for hours with nothing in the forensics to say why.
+#
+# So each spawn also runs a keeper pass against the phone: present the
+# password, then turn the camera on. Both idempotent — a healthy phone is a
+# no-op. It is ADVISORY: it never touches the monitor's own lifecycle, and a
+# host with no phone plugged in skips it silently.
+#   MEET_MOTO=0        turn the keeper off entirely
+#   MEET_MOTO_EVERY    seconds between passes (default 120)
+#   MEET_MOTO_LAUNCH=1 also relaunch Chrome when NO meet tab exists at all
+#                      (default OFF — cdp-moto.js's rule holds: Nathan placed
+#                      that tab, and a keeper that re-navigates on its own
+#                      fights a human who parked the phone on purpose)
+MOTO_EVERY="${MEET_MOTO_EVERY:-120}"
+
 while true; do
   # Fresh code for the driver and the next page load. --ff-only: a monitor
   # host never mints merges; a diverged checkout is reported loudly and the
@@ -50,6 +71,18 @@ while true; do
   # buffer, so racing the prompt is harmless.
   ( sleep 25; tmux send-keys -t "$SESSION" 'watch 5 info' Enter 2>/dev/null ) &
   KICK=$!
+  # The keeper's FIRST pass waits out the bot's own join+lock: presenting the
+  # password at a door the monitor has not locked yet just races it.
+  MOTO=""
+  if [ "${MEET_MOTO:-1}" != "0" ]; then
+    ( sleep 40
+      while true; do
+        MEET_PASS="${MEET_PASS:-}" MEET_ROOM="$ROOM" MEET_EDGE="${MEET_EDGE:-1}" \
+          node "$REPO/test/swarm/monitor/moto-keeper.js" >> "$DATA/moto-keeper.log" 2>&1
+        sleep "$MOTO_EVERY"
+      done ) &
+    MOTO=$!
+  fi
   # --foreground keeps the REPL interactive on the tty; at RECYCLE_SECS the
   # child gets TERM (exit 124) and the loop respawns it onto current code.
   timeout --foreground "$RECYCLE_SECS" \
@@ -58,6 +91,10 @@ while true; do
     --every 5 --jsonl "$DATA/snapshots-%d.jsonl" \
     2>> "$DATA/stderr.log"
   RC=$?
+  # Reap the keeper with the page it was keeping — a pass that outlives its
+  # meet.js would drive the phone against a room the bot has already left.
+  # Children first: killing the subshell alone orphans an in-flight node/sleep.
+  if [ -n "$MOTO" ]; then pkill -P "$MOTO" 2>/dev/null; kill "$MOTO" 2>/dev/null; fi
   if [ "$RC" = 124 ]; then
     echo "[run.sh] daily recycle — pulling and reloading onto the current build"
   else
