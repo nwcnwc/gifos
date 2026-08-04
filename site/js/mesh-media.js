@@ -183,6 +183,21 @@
   // Overlay threshold: past STAD_CAP each square is too small for a burned
   // name/frame — drop the overlay, show the raw tapestry + a small audio dot.
   function stadiumTiny(T) { return T > STAD_CAP; }
+  // cellSize(shape, cellPref, maxW, cols): the square edge a packed grid draws
+  // each face at. PURE — extracted from paint() so the sizing law is Node-
+  // testable like packGrid/stadiumGrid (paint() itself needs a canvas, so the
+  // one number that decides whether a feed is a portrait or a thumbnail was
+  // unreachable from the unit tier — which is how the Stage strip sat at the
+  // 110px secondary-tile default for as long as it did).
+  //   'stad' — square sized against a FIXED footprint (STAD_COLS·cellPref), so
+  //            ≤STAD_COLS columns render at full cellPref and denser grids
+  //            shrink the square (footprint fixed, pixels/person fall).
+  //   else   — cellPref, capped so the whole canvas fits in maxW.
+  function cellSize(shape, cellPref, maxW, cols) {
+    const G = Math.max(1, cols | 0);
+    if (shape === 'stad') return Math.max(6, Math.min(cellPref, Math.floor((STAD_COLS * cellPref) / G)));
+    return Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
+  }
   // faceSrcRect(j, n, cols, sw, sh): source rect of face j inside a packed block
   // (row-major). Cells are square by construction; derive size from the block.
   function faceSrcRect(j, n, cols, sw, sh) {
@@ -303,9 +318,7 @@
       // so ≤STAD_COLS columns render at full cellPref and a denser grid shrinks the
       // square (footprint fixed, pixels/person fall — the cap/densify rule). Other
       // shapes keep the plain maxW cap.
-      const cell = (shape === 'stad')
-        ? Math.max(6, Math.min(cellPref, Math.floor((STAD_COLS * cellPref) / G)))
-        : Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
+      const cell = cellSize(shape, cellPref, maxW, G);
       const W = Math.max(1, G * cell), H = Math.max(1, R * cell);
       if (canvas.width !== W) canvas.width = W;
       if (canvas.height !== H) canvas.height = H;
@@ -527,5 +540,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
 })(typeof window !== 'undefined' ? window : globalThis);
