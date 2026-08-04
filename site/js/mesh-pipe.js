@@ -32,13 +32,20 @@
  *     skip); key content waits for a key template. The far end's normal PLI
  *     reaches THIS hop's dummy encoder and mints key templates on demand, so
  *     the wait is one RTCP round trip, not a policy.
- *   - transformer.generateKeyFrame() DOES NOT EXIST here (kfA: 'absent'), and
- *     a deep receiver's PLI stops at the nearest hop — it can never reach the
- *     content's origin. When key content starves for a key template, or a
- *     consumer reports an undecodable stream, the page is told ('kf-need') so
- *     run.html can relay the need hop-by-hop to the producer, who forces a
- *     keyframe by nudging its source (a 1px canvas resize — packers own their
- *     canvases, so this is safe and invisible).
+ *   - Sender-side transformer.generateKeyFrame() DOES NOT EXIST here (kfA:
+ *     'absent'), but receiver-side transformer.sendKeyFrameRequest() DOES
+ *     (measured 2026-08-04: a key lands in 21-72ms from camera, canvas and
+ *     carrier upstreams alike) — and WebRTC emits NO periodic keyframes at
+ *     all (1 key in 20s of healthy flow: the initial one), so every key must
+ *     be ASKED for. The tap asks its own upstream hop-locally whenever a
+ *     routed pipe needs key content (route, unpause, overflow, drop streaks,
+ *     the consumer-PLI tunnel); at a piped upstream the resulting key
+ *     template against a delta-only queue re-fires the same ask THERE, so
+ *     the request chains hop-by-hop to the producer's real encoder entirely
+ *     in RTCP + worker logic. The 'kf-need' page event remains as fallback
+ *     (no-SKR browsers) — its old primary role, a DC walk up the claim chain
+ *     ending in a producer-side capture nudge, is what FROZE whole rooms
+ *     when the producer was a blur pipe (the stg freeze, frza runs).
  *   - CODEC GUARD at runtime, not SDP: every encoded frame's metadata carries
  *     mimeType. The worker compares content vs template per-pipe and reports a
  *     mismatch so the page can fall back to the transcode path for that job.
@@ -71,6 +78,8 @@
   // 'pipe' (sender-side: template-paced, type-matched payload swap).
   const WORKER_SRC = `
 const taps = new Map();   // srcId -> Set(pipeId)
+const tapTs = new Map();  // srcId -> the tap's transformer (the SKR handle)
+const skrLast = new Map();// srcId -> last sendKeyFrameRequest ms (rate limit)
 const pipes = new Map();  // pipeId -> { writer, q, needKey, mime, tmplMime, wrote, dropped, swapErr, kfAsk, lastWriteAt, misreported }
 const QMAX = 40;          // frames of content buffered per pipe; overflow drops to next key (reference chains)
 function pipeFor(id) {
@@ -78,20 +87,82 @@ function pipeFor(id) {
   if (!p) { p = { writer: null, q: [], needKey: true, mime: null, tmplMime: null, wrote: 0, dropped: 0, swapErr: 0, kfAsk: 0, lastWriteAt: 0, misreported: false }; pipes.set(id, p); }
   return p;
 }
+// ASK THE UPSTREAM FOR A KEY, HOP-LOCALLY (the stg-freeze fix, measured
+// 2026-08-04 across devices). The tap is a RECEIVER transform, and the spec
+// gives it sendKeyFrameRequest(): one RTCP PLI to whatever feeds THIS hop —
+// the producer's real encoder (camera or canvas, both answer in <100ms,
+// measured) or an upstream hop's carrier mint (whose key template against a
+// delta-only queue re-fires this same ask at THAT hop — the request chains
+// to the producer entirely in RTCP + worker logic). This replaces the mx-kf
+// DC walk as the primary lever: the walk needed every hop's claim chain
+// healthy and ended in a producer-side capture nudge that could stall the
+// blur pipe's encoder for 10-20s (the freeze's engine). The kf-need message
+// remains as the fallback when SKR is absent.
+function askKey(srcId, pipeId) {
+  // BOTH LEVERS, ALWAYS (frza19). SKR is one RTCP PLI to whatever feeds this
+  // hop — which only works when that is a REAL encoder (the producer's
+  // camera/canvas): Chromium does not latch a PLI into a demand-minted
+  // captureStream(0) carrier, so across PIPED hops the SKR chain dies at the
+  // first carrier (measured: startup stalls healed in 145-185s instead of
+  // seconds — the ask never crossed the first piped upstream). The kf-need
+  // page walk (mx-kf over the DC, hop-by-hop to the producer, resolved by
+  // the sender-side jiggle) is the mechanism that crosses piped hops — it is
+  // NOT a fallback, it is the primary for deep chains. Fire both; the page
+  // rate-limits the walk per key (2s) and skrLast bounds the RTCP side.
+  const now = Date.now();
+  if (now - (skrLast.get(srcId) || 0) < 250) return;
+  skrLast.set(srcId, now);
+  const p = pipeId && pipes.get(pipeId); if (p) p.skr = (p.skr || 0) + 1;
+  const t = tapTs.get(srcId);
+  if (t && t.sendKeyFrameRequest) { try { const pr = t.sendKeyFrameRequest(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {} }
+  if (pipeId) postMessage({ op: 'kf-need', pipeId });
+}
+// THE DARK-TAP HOLE (frza4): every ask site below is FRAME-driven, so a pipe
+// whose tap receives NOTHING asked exactly once (at route) and then fell
+// silent forever — nva1 sent 105 PLIs into a husk pipe whose upstream was
+// never re-asked. A starving pipe re-asks on a timer until key content lands.
+setInterval(() => {
+  for (const [id, p] of pipes) if (!p.paused && p.needKey && p.srcId) askKey(p.srcId, id);
+}, 2000);
 onmessage = (e) => {
   const m = e.data;
-  if (m.op === 'route') { let s = taps.get(m.srcId); if (!s) { s = new Set(); taps.set(m.srcId, s); } s.add(m.pipeId); }
+  if (m.op === 'route') {
+    let s = taps.get(m.srcId); if (!s) { s = new Set(); taps.set(m.srcId, s); } s.add(m.pipeId);
+    const p = pipeFor(m.pipeId); p.srcId = m.srcId;
+    askKey(m.srcId, m.pipeId); // a fresh pipe is mid-GOP by construction — don't wait for the drop streak
+  }
   else if (m.op === 'pause') { const p = pipeFor(m.pipeId); p.paused = true; p.q.length = 0; }
-  else if (m.op === 'unpause') { const p = pipeFor(m.pipeId); p.paused = false; p.needKey = true; p.nkDrop = 0; postMessage({ op: 'kf-need', pipeId: m.pipeId }); }
-  else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) taps.delete(m.srcId); } pipes.delete(m.pipeId); }
+  else if (m.op === 'unpause') { const p = pipeFor(m.pipeId); p.paused = false; p.needKey = true; p.nkDrop = 0; askKey(p.srcId, m.pipeId); }
+  else if (m.op === 'keykick') {
+    // THE CONSUMER'S PLIs, SEEN FROM THE PAGE (frza18). A consumer that
+    // missed a pipe's birth key can never recover through the carrier
+    // encoder: Chromium does NOT latch a PLI into a demand-minted
+    // captureStream(0) encoder (measured in vivo — 1305 PLIs, 1655 written
+    // templates, ZERO key templates minted), so the kdrop tunnel never
+    // fires and the stream stays keyless forever while bytes flow. The page
+    // polls the sender's outbound pliCount instead and kicks: force a key
+    // ask upstream so key CONTENT arrives, and the page mints the key
+    // template to pair with it.
+    const p = pipes.get(m.pipeId);
+    if (p && !p.paused && p.srcId) { p.kick = (p.kick || 0) + 1; askKey(p.srcId, m.pipeId); }
+  }
+  else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) { taps.delete(m.srcId); tapTs.delete(m.srcId); } } pipes.delete(m.pipeId); }
   else if (m.op === 'stats') {
     const out = {};
-    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime };
+    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, kdrop: p.kdrop || 0, nkDrop: p.nkDrop || 0, skr: p.skr || 0, paused: !!p.paused, needKey: !!p.needKey, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime };
     postMessage({ op: 'stats', stats: out });
   }
 };
 onrtctransform = (e) => {
   const t = e.transformer, o = t.options || {};
+  if (o.role === 'tap' && o.srcId) {
+    tapTs.set(o.srcId, t);
+    // pipes routed before this tap's transformer arrived asked into the void —
+    // re-ask now that the SKR handle exists (attach-time, not first-frame: a
+    // fully starved upstream delivers no frames to hang the re-ask on)
+    const rt = taps.get(o.srcId);
+    if (rt) for (const pid of rt) { const rp = pipes.get(pid); if (rp && rp.needKey && !rp.paused) { askKey(o.srcId, pid); break; } }
+  }
   const reader = t.readable.getReader();
   const writer = t.writable.getWriter();
   (async () => {
@@ -109,17 +180,37 @@ onrtctransform = (e) => {
             if (p.paused) continue; // a parked job's minted frames die at its detached track — queueing is waste and trips the watchdog
             p.seen = (p.seen || 0) + 1;
             p.mime = mime;
-            if (p.q.length >= QMAX) { p.q.length = 0; p.needKey = true; p.dropped++; } // overflow: restart clean at the next key
+            if (p.q.length >= QMAX) {
+              // OVERFLOW, key-preserving (frza12): clearing the WHOLE queue
+              // burned any key already queued and forced a full SKR round
+              // trip — at 8fps the refill-clear cycle ran ~1Hz and the room
+              // froze in 16-31s waves. If a key is in the queue, restart from
+              // the LATEST one (reference chains stay whole, no ask needed);
+              // only a keyless queue pays the clear + ask.
+              let ki = -1;
+              for (let qi = p.q.length - 1; qi >= 0; qi--) if (p.q[qi].type === 'key') { ki = qi; break; }
+              if (ki >= 0) { p.q.splice(0, ki); p.dropped++; }
+              else { p.q.length = 0; p.needKey = true; p.dropped++; askKey(o.srcId, pid); }
+            }
             if (p.needKey && frame.type !== 'key') {
               p.dropped++;
               // THE BLACK HOLE FIX: a pipe routed mid-GOP waits for key content
               // that may be thousands of frames away — REQUEST it. 3 drops in,
-              // then every 30, until a key arrives (needKey clears).
+              // then every 30, until a key arrives (needKey clears). WebRTC
+              // emits NO periodic keyframes at all (measured: 1 key in 20s of
+              // healthy flow, the initial one), so an unanswered ask is a
+              // permanent freeze, not a delay.
               p.nkDrop = (p.nkDrop || 0) + 1;
-              if (p.nkDrop === 3 || p.nkDrop % 30 === 0) postMessage({ op: 'kf-need', pipeId: pid });
+              if (p.nkDrop === 3 || p.nkDrop % 30 === 0) askKey(o.srcId, pid);
             }
             else { if (frame.type === 'key') { p.needKey = false; p.nkDrop = 0; } p.q.push({ bytes, ts, type: frame.type });
-              postMessage({ op: 'want', pipeId: pid, key: p.q[0].type === 'key' }); } // DEMAND-MINT: one template per queued frame, typed by the head
+              // DEMAND-MINT: one template per queued frame, typed by the head.
+              // q rides along so the page can CATCH UP: at healthy fps the
+              // want->postMessage->main-thread->requestFrame round trip lags
+              // content by a fraction of a frame, the backlog compounds, and
+              // QMAX overflow re-keys the whole downstream every ~15s (frza10
+              // — the steady-state freeze cycle; invisible at crawl fps).
+              postMessage({ op: 'want', pipeId: pid, key: p.q[0].type === 'key', q: p.q.length }); }
           }
         }
         writer.write(frame); // local decode unaffected
@@ -133,17 +224,26 @@ onrtctransform = (e) => {
           continue; // drop templates; page falls back to transcode
         }
         if (!p.q.length) {
-          // COLD-START PRIMER (measured deadlock, module-probe 2026-08-04):
-          // with nothing ever shipped, the consumer never starts decoding, so
-          // it never sends the PLI that mints key templates — and the carrier
-          // encoder's ONE initial keyframe arrives exactly now, while the
-          // content queue is still empty. Dropping it deadlocks the pipe
-          // forever (kfAsk 145, wrote 0). So an idle-queue KEY template passes
-          // through unmodified: one near-black 48px frame primes the far
-          // decoder and its RTCP loop; content overwrites it within a frame or
-          // two. Idle-queue DELTA templates still drop — still-frame quiet
-          // stays free, and no junk ever interleaves into flowing content.
-          if (frame.type === 'key') { p.primed = (p.primed || 0) + 1; writer.write(frame).catch(() => {}); }
+          // NO PRIMER, EVER (frza12 closed the loop the primer opened). The
+          // original cold-start deadlock ("nothing ever shipped -> consumer
+          // never decodes -> never PLIs -> no key templates -> kfAsk 145,
+          // wrote 0") predates the demand KEY MINT: today key content heading
+          // the queue posts want{key:true} and the carrier's 1px resize mints
+          // a key template on demand — no consumer RTCP required. The primer
+          // that papered over it shipped a 48px CARRIER-JUNK keyframe to the
+          // consumer, and on a freshly (re)shipped pipe that junk key ARRIVED
+          // FIRST, so the consumer's decoder started life at 48x48 and the
+          // real content stream behind it decoded 1-2 frames and wedged
+          // (frza12: fdec 2, kdec 1, four minutes bright-frozen; frza6: the
+          // same junk leaking MID-stream froze half the room for 120s).
+          // A template on an idle queue — any type — is either the consumer's
+          // tunneled PLI (ask upstream for real key content) or carrier
+          // noise (drop free). The FIRST WRITE of every pipe is now always a
+          // PAIRED REAL CONTENT KEY.
+          if (frame.type === 'key') {
+            p.kdrop = (p.kdrop || 0) + 1;
+            if (p.kdrop === 3 || p.kdrop % 30 === 0) askKey(o.srcId, o.pipeId);
+          }
           continue;
         }
         const head = p.q[0];
@@ -158,9 +258,11 @@ onrtctransform = (e) => {
         if (head.type !== 'key' && frame.type === 'key') {
           // key template + delta-only queue = the CONSUMER's PLI, tunneled
           // through the carrier encoder — it wants key content we don't have.
-          // Walk the need upstream (rate-limited by the counter shape).
+          // Ask THIS hop's upstream (rate-limited by the counter shape); at a
+          // piped upstream the ask re-tunnels the same way, hop by hop to the
+          // producer's real encoder.
           p.kdrop = (p.kdrop || 0) + 1;
-          if (p.kdrop === 3 || p.kdrop % 30 === 0) postMessage({ op: 'kf-need', pipeId: o.pipeId });
+          if (p.kdrop === 3 || p.kdrop % 30 === 0) askKey(o.srcId, o.pipeId);
           continue;
         }
         p.q.shift(); p.kfAsk = 0; p.kdrop = 0;
@@ -176,6 +278,22 @@ onrtctransform = (e) => {
   const statsWaiters = [];
   const carriers = new Map(); // pipeId -> carrier (the demand mint 'want' resolves against)
   const wantN = new Map();    // pipeId -> want messages received (chain forensics)
+  const lastWant = new Map(); // pipeId -> { q, at } — the worker-reported backlog (drainer input)
+  // THE DRAINER (frza11): demand-minting is 1-for-1 and the want->postMessage->
+  // requestFrame round trip occasionally loses a beat, so a STANDING deficit
+  // accumulates (+1 queued frame per ~16 content frames, measured) until QMAX
+  // overflow re-keys the whole downstream. Extra mints must live in SEPARATE
+  // tasks (same-task requestFrames coalesce into one capture), so a 33ms tick
+  // mints one catch-up template per backlogged pipe until the report drains.
+  // Idle safety: a report older than 1s is stale (content stopped — its wants
+  // stopped too); an over-minted delta template is dropped free at the
+  // worker's idle-queue gate.
+  setInterval(() => {
+    const now = Date.now();
+    for (const [pid, w] of lastWant) {
+      if (w.q > 2 && now - w.at < 1000) { const cr = carriers.get(pid); if (cr) { cr.mint(false); w.q--; } }
+    }
+  }, 33);
   const listeners = { 'kf-need': [], 'codec-mismatch': [] };
   function ensureWorker() {
     if (worker) return worker;
@@ -183,7 +301,17 @@ onrtctransform = (e) => {
     worker.onmessage = (e) => {
       const m = e.data;
       if (m.op === 'stats') { const w = statsWaiters.shift(); if (w) w(m.stats); }
-      else if (m.op === 'want') { const cr = carriers.get(m.pipeId); if (cr) cr.mint(m.key); wantN.set(m.pipeId, (wantN.get(m.pipeId) || 0) + 1); }
+      else if (m.op === 'want') {
+        const cr = carriers.get(m.pipeId);
+        if (cr) cr.mint(m.key);
+        // CATCH-UP (frza10/11): record the backlog for the drainer below. A
+        // synchronous mint BURST here does nothing — captureStream coalesces
+        // every requestFrame inside one task into a single captured frame at
+        // the next compositor tick (measured: 2-4x burst mints left the climb
+        // at exactly +1 queued frame per ~16 content frames, then QMAX).
+        lastWant.set(m.pipeId, { q: m.q | 0, at: Date.now() });
+        wantN.set(m.pipeId, (wantN.get(m.pipeId) || 0) + 1);
+      }
       else if (listeners[m.op]) for (const fn of listeners[m.op]) { try { fn(m); } catch (err) {} }
     };
     return worker;
@@ -246,9 +374,19 @@ onrtctransform = (e) => {
     } catch (e) { return false; }
   }
   function pausePipe(pipeId, paused) { if (worker) worker.postMessage({ op: paused ? 'pause' : 'unpause', pipeId }); }
+  // The page-side half of the keykick (see the worker's 'keykick' comment):
+  // ask upstream for key content AND mint a key-typed template to pair with
+  // it when it lands. Rate-limit at the caller (the pipe watchdog's 5s beat).
+  function keyKick(pipeId) {
+    if (!worker) return;
+    worker.postMessage({ op: 'keykick', pipeId });
+    const cr = carriers.get(pipeId);
+    if (cr) cr.mint(true);
+  }
   function unpipe(srcId, pipeId) {
     const cr = carriers.get(pipeId);
     if (cr) { carriers.delete(pipeId); try { cr.stop(); } catch (e) {} }
+    lastWant.delete(pipeId);
     if (worker) worker.postMessage({ op: 'unroute', srcId, pipeId });
   }
   function chain(pipeId) { const cr = carriers.get(pipeId); return { wants: wantN.get(pipeId) || 0, mints: cr ? (cr.mints || 0) : -1 }; }
@@ -272,5 +410,5 @@ onrtctransform = (e) => {
     return null;
   }
 
-  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
+  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, keyKick, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
 })(typeof window !== 'undefined' ? window : globalThis);

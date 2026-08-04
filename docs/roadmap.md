@@ -1630,15 +1630,77 @@ frame-object identity, not provenance — even constructor-clones of its own
 frames are silently discarded), so the mechanism is a payload SWAP on the
 sender's own frames, template-minted on demand by a 48px `captureStream(0)` +
 `requestFrame()` canvas; `transformer.generateKeyFrame()` DOES NOT EXIST, so
-the keyframe pulse below is dead — replaced by an on-demand `mx-kf` walk up the
-claim chain (fired by the worker on key starvation, and by the consumer's PLI
-tunneling through the carrier encoder as key-templates-against-a-delta-queue),
-resolved at the producer by a 1px canvas resize. STILL OUT: `stg:*`
-(camera-origin) forwards — piping the S1 stage flood produced a real one-seat
-bright-freeze (moving target, 120s+) that a one-box rig cannot decompose
-further; the flood is 1-2 hops of bounded transcode, so it stays stock until
-the freeze is understood across devices. §9b's fan collapse shipped with this
-for free (one tap fans to N pipes).
+the keyframe pulse below is dead — and the `mx-kf` DC walk that first replaced
+it is now itself demoted to a no-SKR fallback. SECOND WAVE 2026-08-04, after
+decomposing the stg freeze across five devices (test/tools/pipe-freeze-probe.js,
+the frza runs): **`stg:*` NOW RIDES THE PIPE — the scope-out is closed.** What
+the freeze actually was — NINE defects, each measured in the act:
+(1) WebRTC emits NO periodic keyframes (1 key in 20s of healthy flow — the
+initial one), so any hole in the ask path is a permanent freeze, not a delay;
+(2) the mx-kf walk answered key starvation by nudging the producer's CAPTURE,
+and the 1px canvas resize on the BLUR pipe's canvas (the self stream's
+privacy steady state) stalled its encoder 10-20s per hit;
+(3) every ask was frame-driven, so a pipe whose tap received NOTHING asked
+exactly once (105 unanswered PLIs into a husk);
+(4) `stg:*` claim preference was key-only Map-insertion order, so direct
+receivers idled the producer's only real encode and failback dragged seats
+onto husk copies — the same IDENTITY-NOT-KEY class as the 2026-08-01 sdx/sdn
+fix — and a hot-but-byte-void husk primary never qualified for the dark
+watchdog, blocking the standby swap forever (262s measured);
+(5) the deepest: the pipe worker's cold-start primer was JUNK IN THE STREAM —
+an idle-queue key template passed through as a 48px carrier frame; mid-stream
+it reference-broke every decoder downstream (a healthy queue is empty most of
+the time, so consumer-PLI-minted key templates usually landed on one), whose
+recovery PLIs minted more junk (self-sustaining 120s room-half freezes;
+partial fixes made it WORSE because SKR multiplied PLIs) — and even gated to
+cold-start-only it wedged fresh decoders at 48x48 at (re)ship time (frza14:
+two seats frozen 4.5min, 1100+ unanswered PLIs each);
+(6) demand-minting was 1-for-1 with a round trip that occasionally loses a
+beat, so hot pipes accumulated a STANDING queue deficit (pinned at q=21-38 —
+a 5-8s latency tax one frame from the overflow cliff) and QMAX overflow
+re-keyed the whole downstream in ~1Hz waves — and a synchronous mint burst
+cannot fix it, because captureStream coalesces same-task requestFrames into
+ONE capture (measured);
+(7) claim ties broke by Map insertion order, which SHUFFLES as mosAnn ages
+entries, so h-tied candidates flip-flopped and every flip re-shipped a fresh
+container id down the whole tree (8 sid changes from one via in 3 minutes);
+(8) the mos watchdog was BLIND on never-delivered pipes — a receiver with no
+packets yet has no inbound-rtp stats row, pipeBytes returned -1, and every
+rail (hot-void included) lived behind the -1 skip, so a seat claiming a husk
+ship sat hot-and-blind whole runs (fdec 0, 1000+ unanswered PLIs, a live
+parked standby never woken — a no-stats-row receiver is now a judgeable ZERO);
+(9) the PLI tunnel was DEAD IN VIVO — a consumer that misses a pipe's birth
+key (packets racing its transceiver setup) PLIs forever, but Chromium does
+not latch a PLI into a demand-minted captureStream(0) encoder (1305 PLIs,
+zero key templates; the module probe had measured the tunnel working, but
+only at idle), so the stream stays keyless while bytes flow at full rate —
+invisible to every byte rail. The sender page polls its piped senders'
+outbound pliCount on the watchdog's 5s beat; a rise KICKS the pipe (ask
+upstream for key content + mint the pairing key template).
+The fixes: receiver-side `transformer.sendKeyFrameRequest()` EXISTS on this
+Chromium (measured: key in 21-72ms from camera, canvas and carrier upstreams)
+— the worker asks hop-locally on every starvation path AND re-asks starving
+pipes on a 2s timer, chaining to the producer entirely in RTCP; the primer is
+REMOVED outright (the demand KEY MINT guarantees every pipe's first write is
+a paired real content key, making the original cold-start deadlock
+unreachable) and an idle-queue key template is always the PLI tunnel (drop +
+ask upstream); a 33ms DRAINER mints catch-up templates in separate tasks
+until a backlogged pipe drains, and overflow is KEY-PRESERVING (restart from
+a key already in the queue — no ask round trip); the producer-side fallback
+lever is a sender `scaleResolutionDownBy` jiggle (key in ~30ms, zero
+capture-pipeline contact); stg slots anchor their claim to the feed's OWNER
+when direct, else the shortest live chain by announced hop count (h=0 at the
+producer, +1 per relay — husk cycles' h grows every sweep, so min-h escapes
+them) with STICKY ties (current primary, then lowest pid); and the watchdog
+gained HOT-AND-VOID (zero bytes for 12s on a hot primary with a live standby
+= husk, not a slow pipe); and the STG KEY PULSE — reactive key recovery
+floors at 14-20s across deep piped chains (rate limits x hops), so while my
+camera is on the Stage a ~3s sender-side jiggle bounds any consumer's key
+wait to one pulse, making the wait invisible. Verdict at healthy fps across
+5 devices: frza21/frza22 ZERO freeze events at every receiver seat for the
+full runs, pipe queues at 0-4 frames (were pinned at 21-38). Gate: e2e-pipe LEG 3
+watches every seat's stg/sgs feeds for the exact bright-stall shape. §9b's
+fan collapse shipped with the first wave for free (one tap fans to N pipes).
 
 **What.** Forward the **compressed bytes**, and decode **once, locally, only to
 put pixels on this seat's screen**. A seat's job becomes: decode for display
@@ -1682,18 +1744,26 @@ buy back quality and latency by making each hop free, not by removing hops.
   layer-selection logic at every seat, and it needs to compose with the existing
   ladder rather than replace it. **This is the main design work of 9a**, not the
   transform plumbing.
-- **Keyframes without a back-channel.** A seat joining deep in the tree needs an
-  IDR to start decoding; an SFU sends a PLI upstream to the original encoder, and
-  propagating that up ~log_C(N) levels is exactly the kind of long-range RPC the
-  mesh avoids. **Nathan's proposal (2026-08-04): just pulse a keyframe every ~2s
-  and delete the back-channel entirely.** This is standard live-streaming
-  practice (a fixed ~2s GOP); WebRTC exposes no GOP knob from JS, but
-  `RTCRtpSender.generateKeyFrame()` on a timer is the same thing. Cost is that
-  keyframes are ~5-10x an inter-frame, so at low budgets there is a visible
-  quality pulse after each one — comfortable at stage-grade bitrates, needs
-  measuring at the ladder's floor rungs. Open: does the pulse period want to
-  follow depth or room size, and does a fresh joiner get an out-of-band immediate
-  keyframe request for its first second?
+- **Keyframes without a back-channel — ANSWERED (2026-08-04, second wave),
+  and Nathan's pulse won the lane that matters.** Three levers, each with a
+  measured domain: receiver-side `transformer.sendKeyFrameRequest()` works
+  ONLY when the upstream is a real encoder (Chromium does not latch a PLI
+  into a demand-minted captureStream(0) carrier — measured, defect 9), so it
+  covers producer-adjacent hops; the `mx-kf` DC walk crosses piped hops but
+  floors at 14-20s across deep chains (2s-per-hop rate limits — it is the
+  PRIMARY for packer lanes, not a fallback); and for the STG lane the answer
+  is the original proposal: a ~3s sender-side keyframe pulse (the
+  scaleResolutionDownBy jiggle) while staged, bounding any consumer's key
+  wait to one pulse. ~+30% stg bitrate while staged — exactly the "quality
+  pulse comfortable at stage-grade bitrates" this bullet predicted.
+- **The convergence window — closed by the pulse.** At stage-up a seat could
+  claim a copy whose chain was still establishing and bright-stall 15-185s
+  (frza14-19: the birth-key race + reactive recovery's floor). The 3s stg key
+  pulse bounds the wait to one pulse: frza21/22 saw ZERO freeze events at
+  every receiver seat, stage-up included. If a future lane needs the reactive
+  path to be fast (a pulse-less producer), the candidate remains: suppress
+  re-flooding a copy until it has decoded its own first frame, so
+  establishing chains are never claim candidates.
 - **Codec coherence across every hop.** The forwarded bitstream carries a
   specific codec/profile/resolution; every link it crosses must have negotiated
   something compatible. Interacts with the H.264-first `setCodecPreferences`
