@@ -109,12 +109,8 @@ V1–V3 collapse together if the pulse is fixed:
 
 1. **Scope the status pulse**: unicast/DC to row + up/down + door-adjacent;
    remove the GSP ride. O(C) per period.
-2. **Resurrect hierarchical aggregation** for what the flood was carrying:
-   per-section rollups (count, consent bitmap, liveness digest) flowing up
-   the tree, signed at each level, O(C) per node per level, O(log N) depth.
-   The unanimous-consent gate becomes "my section's AND, AND'd upward" —
-   same UX, tree-shaped truth. This is the deck machinery reborn on the
-   mesh tree.
+2. **Resurrect hierarchical aggregation** for what the flood was carrying —
+   the ROLLUP design, sketched in full below.
 3. **Gate the dial set**: seated → row ∪ mosaic up/down ∪ S1-duty;
    unseated or small-room → door-adjacency (preserves the 2-person and
    plane behaviors exactly). Cap `statusOf` with eviction.
@@ -124,6 +120,92 @@ V1–V3 collapse together if the pulse is fixed:
    the sim at N=5000+ so the ceiling can never re-creep. The gates-stop-at-
    N=800 lesson is the release-gate lesson again, at scale: an untested N
    is a dead suite wearing a green badge.
+
+## The rollup design (sketch)
+
+The deck machinery reborn on the mesh tree: every fact the room-wide flood
+carries today becomes either **near-field first-hand** (row-scoped, already
+O(C)) or a **per-section digest** aggregated along the up/down links that
+already exist. Nothing new is routed; only new payloads ride old edges.
+
+### The digest
+
+Each seat that owns a down-link maintains, for its subtree:
+
+```
+digest = {
+  n:        live participants in my subtree (me + my rows + children's n)
+  consent:  count of n whose camera-consent is TRUE (the clear-video gate)
+  epoch:    max lock-epoch seen (the §LOCK floor already gossiped today)
+  at:       tick of computation
+  sig:      S4 signature by the aggregating seat
+}
+```
+
+Fixed size — a few dozen bytes — regardless of subtree population.
+
+### The flow
+
+- **Up**: every pulse period, a seat folds its own row's FIRST-HAND state
+  (the E2 signals that already exist: PHONE/PONG/HELLO ages, DC liveness)
+  with its children's latest digests and sends ONE digest up. Per node per
+  period: C row observations + up to C child digests in, one digest out —
+  **O(C)**, N never appears.
+- **Down**: S1 folds the root digest and floods it DOWN the tree — one
+  tiny frame per period per node. Every seat then knows the global count
+  and the global consent verdict at staleness O(depth × period): at 1M
+  (depth ≈ 8, period ≈ 5s) the global number is ≤ ~40s stale — fine for a
+  count; the near field it gates hardest (your own row's tiles, your
+  consent) stays first-hand and real-time.
+
+### Who migrates where (every current consumer of the flood)
+
+| today's consumer of room-wide status | after |
+|---|---|
+| participant count (`knownTotal`) | root digest `n`, flooded down |
+| clear-video consent gate | `consent == n` at the root — same UX, tree-shaped truth; my own ROW's consent stays first-hand so local UI reacts instantly |
+| roster liveness / 15s rule | near-field only: tiles are row ∪ mosaic partners ∪ composites, all first-hand or carried by the composite pipe |
+| ghost / corpse suppression | local: E2 evicts the seat; the digest's `n` drops one level per period — no global gossip needed to un-count a corpse |
+| mod table re-gossip | signature-authorized already (§9); distribute on CHANGE via tree flood, not per-heartbeat |
+| chat | unchanged — irreducible per-message, already O(1)/node |
+
+### Laws it must not bend
+
+- **E2 untouched**: digests inform DISPLAY and COUNTS, never evict, never
+  resurrect — the exact rule S1SYNC gossip already obeys ("informs
+  routing, NEVER evicts"). A wrong digest can misreport a number; it can
+  never take a seat.
+- **R2 untouched**: digests ride mesh edges, sealed like everything else;
+  the relay never sees one.
+- **Small rooms degrade to today**: below C² participants everyone is in
+  Section 1, the tree has one level, near field = the whole room — rollup
+  and flood coincide, UX byte-identical. The 2-person room and the plane
+  guest behave exactly as they do now.
+
+### The honest open problem: a lying aggregator
+
+A section head signs its digest, so a forge is attributable — but a head
+can still MISREPORT its subtree (inflate n, fake consent). Mitigations in
+the same spirit as existing laws, none yet argued to the healing-laws bar:
+row-mates of the aggregating seat see the same children and can cross-
+check (C3-style fixed designation of ONE checker avoids vote chaos);
+consent inflation is the dangerous direction (it can unblur cameras) so
+the consent bit specifically may need to stay unanimous-by-construction —
+e.g. carry a count of REFUSALS instead, where lying can only keep the room
+MORE blurred, making the failure mode safe. This needs its own law in
+`healing-laws.md` before implementation.
+
+### Sequencing
+
+1. V4 diagnosed and the sim gated at N≥5000 (nothing above matters if
+   seating stalls at 5k).
+2. Sim grows the digest machinery + gauges (per-node frames/tick asserted
+   O(C) at N≥5000 under churn) — the design proves itself where failure is
+   cheap and deterministic.
+3. `healing-laws.md` gets the digest law (including the lying-aggregator
+   argument) — the same path every structural mechanism has taken.
+4. Browser lands it behind a flag; the flood is removed only when the
+   digest's gates are green at scale AND small-room e2e is byte-identical.
 
 ## Guardrails to add with any fix
 
