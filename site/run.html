@@ -2917,6 +2917,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         trackQ.t = track; trackQ.k = ckey;
         track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
       }
+      // ONCE per sweep, not once per sender: stageCeilingKbps walks the roster
+      // through participantCount(), and adapt() runs on every connect and every
+      // sweep — evaluating it inside the sender loop is quadratic in a big room.
+      const stageBudget = Math.round(stageCeilingKbps() * (tier >= 3 ? 0.6 : 1)) * 1000;
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
@@ -2939,7 +2943,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // async, so the track pointer lags the toggle by a beat)
           const blurred = !!blurPipe && sender === p.mainV;
           const auxBudget = (tune && tune.aux ? +tune.aux * 1000 : 900000);
-          const want = auxSenders.has(sender) ? auxBudget : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
+          // THE STAGE HAS ITS OWN LANE, and it is deliberately NOT budgeted from
+          // `q` — q is MY camera rung, which says what my own face is worth on
+          // this device, and has nothing whatever to do with the picture I am
+          // FORWARDING for someone else. Budgeting a forward from q is how one
+          // 144p phone in the middle of the tree would starve every seat below
+          // it. The ceiling is the room's; the stager's own choice then flows
+          // through it untouched, because maxBitrate is a CAP, not a target —
+          // a stager who picks 720p simply never reaches a 3500k ceiling, while
+          // one who deliberately picked 1080p is no longer squeezed to 900k.
+          // That is "stage quality follows the person on the stage", with the
+          // room type as the "within reason".
+          // The deepest power tiers still trim it: a phone forwarding the stage
+          // is still a phone, and tier 3 is the state where it has already
+          // decided that frames and pixels are what it is spending.
+          const want = stageSenders.has(sender) ? stageBudget
+            : auxSenders.has(sender) ? auxBudget
+            : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
           if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
           prm.encodings[0].maxBitrate = want;
           sender.setParameters(prm).catch(() => {});
@@ -2965,6 +2985,42 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!IS_MOBILE) return base;
       const deep = battTier >= 3 || drainTier >= 3 || idleNow;
       return deep ? Math.max(4, Math.round(base * 0.6)) : base;
+    }
+    // ---- THE STAGE IS NOT A SECONDARY TILE (2026-08-04) ----------------------
+    // The Stage is the ONE feed the whole stadium is looking AT, and both of the
+    // constants that sized it were inherited from machinery built for the things
+    // nobody looks at:
+    //   * THE STRIP took createPacker's default cell (110px) and maxW (640) —
+    //     documented in mesh-media.js as "small secondary tiles, keep encode/ship
+    //     cheap", which is exactly right for the stadium's tapestry of onlookers
+    //     and exactly wrong for the broadcast. reconcileMosaic switches the strip
+    //     on the moment a room reaches beyond ONE ROW, so from the 6th person
+    //     onward the stage rendered as a 110px thumbnail — downscaled, in a
+    //     single section, from full-resolution feeds the seat was already holding
+    //     in memory.
+    //   * THE BUDGET was the flat 900k aux constant, the CARRIED-media number. A
+    //     broadcaster who deliberately picked 1080p in Settings had it squeezed
+    //     to 900k on the first hop and re-squeezed on every hop below.
+    // So the Stage gets its own cell size and its own budget lane (stageSenders,
+    // see shipMos). The ceiling is set by ROOM TYPE, and deliberately NOT by
+    // headcount: a seat's stage cost is decode-one + forward-to-≤C, which is
+    // bounded at EVERY scale — a stadium of a million costs a node exactly what
+    // a full section does. What actually differs between room types is who else
+    // competes for that node's budget: a Broadcast viewer carries no camera at
+    // all, an admin room has ≤C chosen stagers over a room of real tiles, and an
+    // open room lets anyone step up while everyone carries a full section.
+    const STAGE_MAXW = 1280; // strip canvas width cap — with G stagers each cell is maxW/G
+    const STAGE_CELL = 480;  // per-stager square at 1-2 stagers; maxW governs above that
+    function stageCell() {
+      if (!IS_MOBILE) return STAGE_CELL;
+      const deep = battTier >= 3 || drainTier >= 3 || idleNow;
+      return deep ? Math.round(STAGE_CELL * 0.5) : STAGE_CELL;
+    }
+    function stageCeilingKbps() {
+      if (BROADCAST) return 3500;      // viewers bring NO media — the whole local budget is the stage's, at any scale
+      if (hasAdminRoom()) return 1800; // ≤C admin-granted stagers, over a room that also carries its own tiles
+      const n = participantCount();    // open: self step-up, and the stage competes with a full section of tiles
+      return n <= 8 ? 1500 : n <= 25 ? 1100 : 800;
     }
     // ---- power forensics -----------------------------------------------
     // The Moto died ON THE CHARGER in a 3-person room — power work needs
@@ -6664,6 +6720,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Senders that carry OTHER people's media (relay jobs, composites, forwarded
     // folds) — refreshOutbound must never replaceTrack these with my camera.
     const auxSenders = new Set();
+    // The STAGE budget lane (see stageCeilingKbps). Every aux sender is carried
+    // media, but the Stage is the carried media the room is actually WATCHING,
+    // so it is capped by the room's stage ceiling instead of the flat 900k fold
+    // constant. Membership is by job key — the per-stager feeds ('stg:<id>', and
+    // the '^x' cross-link copy of one) and the composited strip ('sgs').
+    const stageSenders = new Set();
+    // (isStageJob, not isStageKey — that name is taken further down by the mixer's
+    // ROW-key test ('s:' prefix). This one classifies a mosaic JOB key.)
+    const isStageJob = (k) => k === 'sgs' || String(k).indexOf('stg:') === 0;
     // Aux media ALWAYS opens a fresh m-line. addTrack would happily reuse an
     // already-negotiated free transceiver — and a reused m-line delivers its
     // media WITHOUT a new ontrack (the original fired with streams:[] and was
@@ -6975,6 +7040,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const tr of stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); trackList.push(tr); } catch (e) {} }
       if (!senders.length) return null;
       mosJobs.set(jk, { senders, trackList, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
+      if (isStageJob(key)) for (const sd of senders) stageSenders.add(sd); // budget lane — adapt() caps these at the room's stage ceiling, not the fold constant
       if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
       // Mirror-chain hops are BORN PARKED (Phase 2): the whole sdn mirror is
       // negotiated end-to-end at zero media and only demand-woken on failure.
@@ -7011,7 +7077,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const job = mosJobs.get(jk); if (!job) return;
       mosJobs.delete(jk);
       const p = peers.get(job.to);
-      for (const sd of job.senders) auxSenders.delete(sd);
+      for (const sd of job.senders) { auxSenders.delete(sd); stageSenders.delete(sd); }
       if (p && p.pc) {
         for (const sd of job.senders) {
           try { p.pc.removeTrack(sd); } catch (e) {}
@@ -7974,7 +8040,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // composite the strip in stage order; fan 'sgs' down my subtree
         if (!stagers.length) { paintStageStrip(null); }
         else {
-        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', fps: compFps() }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus)
+        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', fps: compFps(), cell: stageCell(), maxW: STAGE_MAXW }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus). NOT the secondary-tile default — see "THE STAGE IS NOT A SECONDARY TILE"
+        else stripPack.setCell(stageCell()); // the power tier moves under a long-lived strip; track it without a teardown (a rebuild would mint a new stream id and re-ship to everyone)
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
