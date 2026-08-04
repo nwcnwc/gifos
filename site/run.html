@@ -1019,6 +1019,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <script src="js/mesh-identity.js"></script>
   <script src="js/mesh-wire.js"></script>
   <script src="js/mesh-media.js"></script>
+  <script src="js/mesh-pipe.js"></script>
   <script src="js/relay-config.js"></script>
   <script src="js/runtime.js"></script>
   <script src="js/gifos-perms.js"></script>
@@ -3615,6 +3616,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pc.ontrack = (ev) => {
         const stream = ev.streams[0];
         if (typeof clog === 'function') clog('trk ' + String(p.id).slice(0, 6) + ' ' + (stream ? String(stream.id).slice(0, 8) : 'NOSTREAM') + ' mid=' + (ev.transceiver && ev.transceiver.mid));
+        // ENCODED-PASSTHROUGH TAP, ATTACHED HERE OR NEVER (§9a). A receiver
+        // transform set after RTP has begun delivers NO frames on this Chromium
+        // — measured 2026-08-04: shipMos attached taps at forward time (seconds
+        // after flow), every tap stayed dark, every hot pipe wrote 0, and the
+        // watchdog dutifully denied them all back to transcode. So every
+        // inbound video receiver is tapped preemptively, at the only moment
+        // that works. An unrouted tap is an identity pipe (frames pass through
+        // untouched, nothing is copied) until shipMos routes a forward to it.
+        try {
+          if (ev.track && ev.track.kind === 'video' && GifOS.meshPipe && GifOS.meshPipe.supported()) {
+            GifOS.meshPipe.tapReceiver(ev.receiver, 'rx:' + ev.track.id);
+          }
+        } catch (e) {}
         if (!stream) return;
         p.incoming = p.incoming || [];
         if (!p.incoming.includes(stream)) p.incoming.push(stream);
@@ -6403,6 +6417,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (ji && (!m.streamId || ji.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, false);
         // …and a re-parked mirror hop re-parks its upstream the same way.
         if (m.key.indexOf('sdnm:') === 0) { const up = mosIn.get('sdnmr:' + m.key.slice(5)); if (up) demand(up.via, m.key, up.streamId, false); }
+      } else if (m.k === 'mx-kf' && typeof m.key === 'string') {
+        // ENCODED-PASSTHROUGH keyframe walk (§9a): a downstream pipe starves
+        // for key content. Relay toward the producer (kfNeed forwards to my
+        // own claim's via, or nudges my source canvas if the feed is mine).
+        // Rate-limited per key inside kfNeed, so storms and loops die there.
+        kfNeed(m.key);
       } else if (m.k === 'vis') {
         // HIDDEN-VIEWER DORMANCY (the demand law applied to mains): the far
         // side is a hidden tab that isn't showing my face (its PiP floats
@@ -6995,6 +7015,84 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
       return v;
     }
+    // ---- ENCODED PASSTHROUGH (roadmap §9a, mesh-pipe.js) --------------------
+    // A forwarded feed's video used to be re-encoded at every hop — the browser
+    // gives ontrack only raw frames, so addAux(remoteTrack) silently runs a
+    // full encoder per down-link. Now a forward whose video track belongs to a
+    // REMOTE receiver ships the received COMPRESSED bytes instead: the sender
+    // carries a tiny demand-minted template canvas (48px — the entire encode
+    // cost) and mesh-pipe's worker swaps each template's payload for the tapped
+    // content bytes. Byte-identical forwarding: no generation loss, no encoder
+    // latency on the hop, and a seat fanning one feed to C links runs C
+    // template mints and ZERO content encodes (§9b for free).
+    // WHO PIPES is decided by one rule with no key-list to rot: a video track
+    // with a local receiver among my pcs is CARRIED media (pipe it); a track
+    // without one is LOCAL (my camera, my packer canvases) — its owner runs the
+    // real content encoder, which is the origin of the stream (never piped).
+    // FAILBACK is per-job and automatic: a codec mismatch (worker-detected from
+    // frame metadata — production Chrome can negotiate H264 on one hop and VP8
+    // on the next; the pinned test Chromium is VP8-only) or a watchdog-caught
+    // dead pipe adds the job to pipeDeny and unships; the next sweep re-ships
+    // it down the old transcode path. Old clients need nothing: a piped hop's
+    // output is ordinary RTP, and unknown DC verbs are ignored.
+    const MPipe = GifOS.meshPipe;
+    const pipeJobs = new Map(); // jk -> { srcId, carrier, srcTrack, w0, stale }
+    const pipeDeny = new Set(); // jobs that must use the transcode path (mismatch / dead pipe)
+    const pipeEnabled = () => !!(MPipe && MPipe.supported()) && (() => { try { return localStorage.getItem('gifos_pipe') !== 'off'; } catch (e) { return true; } })();
+    if (MPipe) MPipe.on('codec-mismatch', (m) => {
+      const jk = m.pipeId;
+      if (pipeJobs.has(jk)) { pipeDeny.add(jk); unshipMos(jk, true); } // next sweep re-ships transcoded
+    });
+    // KEYFRAME NEED, RELAYED TO THE PRODUCER (mx-kf). A deep consumer's PLI
+    // only reaches the nearest hop's template mint — it can never reach the
+    // content's origin, and transformer.generateKeyFrame does not exist on
+    // this Chromium (measured, pipe-probe 2026-08-04). So when a pipe starves
+    // for key content, the need walks the claim chain upstream over the DC —
+    // each hop forwards to its own via — until the producer, who forces a
+    // fresh GOP by nudging its source canvas 1px (packers restore their size
+    // on the next paint; the resolution change is the one JS-reachable
+    // keyframe trigger). A camera source has no canvas — its direct receivers'
+    // ordinary PLI is the lever there, so the walk simply ends.
+    const kfLast = new Map(); // key -> last relay ms (loop + storm guard)
+    function kfNeed(key) {
+      const now = Date.now();
+      if (now - (kfLast.get(key) || 0) < 2000) return;
+      kfLast.set(key, now);
+      const cl = mosIn.get(key) || mosIn.get(key + '^x');
+      if (cl && cl.via) {
+        const vp = peers.get(cl.via);
+        if (vp && vp.dc && vp.dc.readyState === 'open') { dcSend(vp, { k: 'mx-kf', key }); return; }
+      }
+      // no upstream claim — I am the producer (or the chain is broken; a nudge is harmless)
+      for (const [jk2, job2] of mosJobs) {
+        if (job2.key !== key || pipeJobs.has(jk2)) continue;
+        for (const t of job2.trackList) {
+          if (t && t.canvas) { const c = t.canvas; try { c.width = c.width > 2 ? c.width - 1 : c.width + 1; } catch (e) {} return; }
+        }
+      }
+    }
+    if (MPipe) MPipe.on('kf-need', (m) => { const job = mosJobs.get(m.pipeId); if (job && pipeJobs.has(m.pipeId)) kfNeed(job.key); });
+    // DEAD-PIPE WATCHDOG. A pipe that writes nothing while its SOURCE is
+    // flowing is broken plumbing, not a quiet room — fall back to transcode.
+    // "Flowing" reads the remote track's muted flag: still-frame skip upstream
+    // mutes the track within a beat, so legitimate quiet never trips this.
+    setInterval(() => {
+      if (!pipeJobs.size || !MPipe) return;
+      MPipe.stats().then((st) => {
+        for (const [jk, pj] of [...pipeJobs]) {
+          const job = mosJobs.get(jk);
+          if (!job || !job.active) { pj.w0 = null; continue; }
+          const s = st[jk];
+          const wrote = s ? (s.wrote + (s.primed || 0)) : 0;
+          if (pj.w0 == null) { pj.w0 = wrote; pj.stale = 0; continue; }
+          const advanced = wrote > pj.w0; pj.w0 = wrote;
+          const flowing = pj.srcTrack && pj.srcTrack.readyState === 'live' && pj.srcTrack.muted === false;
+          if (!advanced && flowing) { if (++pj.stale >= 3) { pipeDeny.add(jk); unshipMos(jk, true); } }
+          else pj.stale = 0;
+        }
+      }).catch(() => {});
+    }, 5000);
+
     function shipMos(key, to, stream, meta) {
       if (!to || !stream) return null;
       const p = peers.get(to);
@@ -7044,7 +7142,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const container = new MediaStream();
       const senders = [];
       const trackList = [];
-      for (const tr of stream.getTracks()) { try { senders.push(addAux(p.pc, tr, container)); trackList.push(tr); } catch (e) {} }
+      for (const tr of stream.getTracks()) {
+        // PASSTHROUGH lane: remote video forwards ship a template carrier and
+        // the worker swaps in the tapped content bytes (see the block above).
+        // trackList holds the CARRIER — dormancy (setJobActive) replaceTracks
+        // it back on wake; re-attaching the remote track would re-enter the
+        // transcode path with the pipe transform still on the sender.
+        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk)) {
+          try {
+            const rcv = MPipe.receiverForTrack(tr, [...peers.values()].map((q) => q.pc).filter(Boolean));
+            const srcId = rcv && 'rx:' + tr.id;
+            if (rcv && MPipe.tapReceiver(rcv, srcId)) {
+              const carrier = MPipe.makeCarrier();
+              const sd = addAux(p.pc, carrier.track, container);
+              if (MPipe.pipeSender(sd, srcId, jk, carrier)) {
+                pipeJobs.set(jk, { srcId, carrier, srcTrack: tr, w0: null, stale: 0 });
+                senders.push(sd); trackList.push(carrier.track);
+                continue;
+              }
+              carrier.stop();
+            }
+          } catch (e) {}
+        }
+        try { senders.push(addAux(p.pc, tr, container)); trackList.push(tr); } catch (e) {}
+      }
       if (!senders.length) return null;
       mosJobs.set(jk, { senders, trackList, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
       if (isStageJob(key)) for (const sd of senders) stageSenders.add(sd); // budget lane — adapt() caps these at the room's stage ceiling, not the fold constant
@@ -7085,6 +7206,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       mosJobs.delete(jk);
       const p = peers.get(job.to);
       for (const sd of job.senders) { auxSenders.delete(sd); stageSenders.delete(sd); }
+      const pj = pipeJobs.get(jk);
+      if (pj) { pipeJobs.delete(jk); try { MPipe.unpipe(pj.srcId, jk); } catch (e) {} } // unroutes the worker + stops the carrier mint
       if (p && p.pc) {
         for (const sd of job.senders) {
           try { p.pc.removeTrack(sd); } catch (e) {}
@@ -10195,6 +10318,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Test hook: lets the e2e suite observe mesh + quality state.
     window.__gifosVideo = {
       participants: participantCount,
+      // ENCODED PASSTHROUGH (§9a) forensics: which jobs ride the pipe lane vs
+      // were denied back to transcode, and the worker's per-pipe counters
+      // (wrote/primed/dropped/kfAsk/mimes) — the proof a hop is forwarding
+      // bytes instead of re-encoding them.
+      pipeInfo: () => ({ enabled: pipeEnabled(), jobs: [...pipeJobs.keys()], deny: [...pipeDeny] }),
+      pipeStats: () => (MPipe ? MPipe.stats() : Promise.resolve({})),
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       // ICE AND an open DataChannel — the gate every data-path assertion must
       // use: a half-open pair passes liveLinks and carries nothing (pair-probe.js).
