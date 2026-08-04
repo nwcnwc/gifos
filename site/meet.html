@@ -3378,7 +3378,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!notTomb(pid)) return;
         staleHealAt.set(pid, now);
         if (typeof clog === 'function') clog('grant-heal ' + String(pid).slice(0, 6) + ' (prev-key frame)');
-      try { window.__pwLog && window.__pwLog.push(Date.now() + ' grant-heal→' + String(pid).slice(0, 6) + ' ep=' + pwEpoch); } catch (e) {}
+      pwLog('grant-heal→' + String(pid).slice(0, 6) + ' ep=' + pwEpoch);
         txm(() => net.seal(prevRoomE2E, retainedGrant).then((env) => {
           const pd = peers.get(pid);
           if (pd && pd.dc && pd.dc.readyState === 'open') net.sendChunked(env, (piece, str) => { try { pd.dc.send(str); } catch (e) {} });
@@ -4486,10 +4486,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // roomPw re-keys; frames sealed under the other side of a rotation drop
     // silently (open() → null) and the next heartbeat re-mints them — the
     // same eventual consistency every other room state already rides.
-    // __pwLog: an always-on 16-entry ring of password/key lifecycle events
-    // (adoption, rotation, grant-heal) — the fork key-divergence forensics
-    // must work in suite pages that run WITHOUT DEBUG.
-    const pwLog = (ev) => { try { const L = (window.__pwLog = window.__pwLog || []); L.push(Date.now() + ' ' + ev); if (L.length > 16) L.shift(); } catch (e) {} };
+    // __pwLog: an always-on 64-entry ring of password/key lifecycle AND
+    // REFUSAL events (adoption, rotation, grant-heal, door rejections, the
+    // R6 prompt) — the fork key-divergence forensics must work in suite
+    // pages that run WITHOUT DEBUG, and a real-world "correct password
+    // refused for a minute" (Nathan, 2026-08-03, during relay churn) must be
+    // attributable after the fact. 64 entries: a reconnect loop emits
+    // ~2 errors/s, so the ring must span a minute-long incident, not 8s.
+    const pwLog = (ev) => { try { const L = (window.__pwLog = window.__pwLog || []); L.push(Date.now() + ' ' + ev); if (L.length > 64) L.shift(); } catch (e) {} };
     function rekeyRoom() {
       pwLog('rekey ep=' + pwEpoch + ' pw=' + (roomPw ? 'set' : ''));
       return net.deriveMeetKey(room, av, roomPw).then((k) => {
@@ -4596,7 +4600,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (g.msg.kind) onSignal(src, g.msg);
           else if (g.msg.k) onRemote(src, g.msg);
         },
-        onLocked: () => { try { window.__pwLog && window.__pwLog.push(Date.now() + ' R6-LOCKED → pw modal'); } catch (e) {} pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
+        onLocked: () => { pwLog('R6-LOCKED → pw modal'); pwBlocked = true; showPwModal(true); },  // R6: sealed list I cannot read
         // THE DOOR SAID NO, IN A CLOSE CODE (2026-07-29): a policy-cut socket
         // is the ONLY way a re-seeded ban reaches a squatter who was already
         // inside when the admin returned — the {t:'ban'} broadcast died with
@@ -4820,7 +4824,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         for (const p of peers.values()) if (p.id !== m.peer && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'tlhint', peer: m.peer });
       }
       else if (m.t === 'error') {
-        try { window.__pwLog && window.__pwLog.push(Date.now() + ' relay-error: ' + String(m.error || '?').slice(0, 60)); } catch (e) {}
+        pwLog('relay-error: ' + String(m.error || '?').slice(0, 60));
         // Password gate is handled by the wire (onLocked / R6 sealing); bans
         // and vote-offs land here. No walk \u2014 the session cap is the greeter
         // pool\u2019s, and newcomers drop their socket after seating anyway.
