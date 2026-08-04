@@ -26,7 +26,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   const room='ls'+Math.random().toString(36).slice(2,7); const pages=[];
   for(let i=0;i<N;i++){const ctx=await browser.newContext({permissions:['camera','microphone']});
     await ctx.addInitScript({content:`try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; window.GIFOS_SCALE={C:2};`});
-    const p=await ctx.newPage(); await p.goto(BASE+'/meet.html#v='+room+'&DEBUG=on'); pages.push(p); await sleep(1200);}
+    const p=await ctx.newPage(); await p.goto(BASE+'/run.html#v='+room+'&DEBUG=on'); pages.push(p); await sleep(1200);}
   let coords=[]; const t0=Date.now();
   while(Date.now()-t0<90000){coords=await Promise.all(pages.map(p=>p.evaluate(()=>window.__gifosVideo&&__gifosVideo.meshCoord()).catch(()=>null)));
     if(coords.every(Boolean)&&coords.filter(c=>c.pc!==0).length>=2)break; await sleep(1500);}
@@ -67,7 +67,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   const room='ls'+Math.random().toString(36).slice(2,7); const pages=[];
   for(let i=0;i<N;i++){const ctx=await browser.newContext({permissions:['camera','microphone']});
     await ctx.addInitScript({content:`try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; window.GIFOS_SCALE={C:2};`});
-    const p=await ctx.newPage(); await p.goto(BASE+'/meet.html#v='+room+'&DEBUG=on'); pages.push(p); await sleep(1200);}
+    const p=await ctx.newPage(); await p.goto(BASE+'/run.html#v='+room+'&DEBUG=on'); pages.push(p); await sleep(1200);}
   let coords=[]; const t0=Date.now();
   while(Date.now()-t0<90000){coords=await Promise.all(pages.map(p=>p.evaluate(()=>window.__gifosVideo&&__gifosVideo.meshCoord()).catch(()=>null)));
     if(coords.every(Boolean)&&coords.filter(c=>c.pc!==0).length>=2)break; await sleep(1500);}

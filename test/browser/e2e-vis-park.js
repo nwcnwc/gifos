@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => { errs.push(name + ': ' + e.message); console.log('  [' + name + '] pageerror: ' + e.message); });
-    await pg.goto(BASE + '/meet.html#v=' + room);
+    await pg.goto(BASE + '/run.html#v=' + room);
     return pg;
   };
   const fakeVisibility = (pg, hidden) => pg.evaluate((h) => {

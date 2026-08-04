@@ -64,7 +64,7 @@ const check = (n, c, d) => {
       '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const room = 'blip' + Math.random().toString(36).slice(2, 10);
-  const url = BASE + '/meet.html#v=' + room + '&relay=' + encodeURIComponent(RELAY);
+  const url = BASE + '/run.html#v=' + room + '&relay=' + encodeURIComponent(RELAY);
 
   const users = [];
   const newUser = async (name) => {

@@ -22,7 +22,7 @@
  *   18s      A[live=0 roster=0 pairs=0]   B[live=1 roster=1 pairs=1]
  *
  * Eight seconds of a "connected" pair with ZERO clock samples means ICE came up
- * and the DataChannel never did — the half-open pair meet.html already names
+ * and the DataChannel never did — the half-open pair run.html already names
  * ("its ondatachannel never fired"). Then the link collapses, and the two sides
  * end up disagreeing about whether the other is even present.
  *
@@ -69,7 +69,7 @@ const fmt = (s) => 'live=' + s.live + ' dl=' + s.dl + ' roster=' + s.roster + ' 
 
   const aCtx = await newUser('Ada');
   const a = await aCtx.newPage();
-  await a.goto(BASE + '/meet.html');
+  await a.goto(BASE + '/run.html');
   await a.locator('#lob-open').click();
   await a.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
   const link = await a.evaluate(() => document.getElementById('share-url').value);

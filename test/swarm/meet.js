@@ -140,7 +140,7 @@ const cfg = {
   relay: args.relay || '',
   base: (args.base || 'https://gifos.app').replace(/\/$/, ''),
   av: args.av || '',
-  // --bc: join wearing the BROADCAST skin (meet.html#bc=1 — the Broadcast
+  // --bc: join wearing the BROADCAST skin (run.html#bc=1 — the Broadcast
   // app). Only meaningful with an admin room (av); a viewer joining with it
   // never calls getUserMedia at all.
   bc: !!args.bc,
@@ -171,7 +171,7 @@ const cfg = {
   // can hand the V to guests (their `join <room> --av <V>`).
   adminPw: args['admin-pw'] || '',
   // --profile phone|desktop: what DEVICE this participant is. phone = mobile
-  // UA (IS_MOBILE true in meet.html), 390×844 touch viewport, fake battery
+  // UA (IS_MOBILE true in run.html), 390×844 touch viewport, fake battery
   // defaulting to 90% ON BATTERY (tier ≥1 — a phone is never tier 0 by
   // policy). desktop (default) = 1280×820, battery charging.
   profile: args.profile || 'desktop',
@@ -274,7 +274,7 @@ function parseBattery(spec, profile) {
 const lever = { hidden: false, frozen: false, radioOff: false, batt: parseBattery(cfg.battery, cfg.profile) };
 let cdp = null; // CDP session for the web-lifecycle freeze lever
 
-// The fake navigator.getBattery — installed at init so meet.html's tier
+// The fake navigator.getBattery — installed at init so run.html's tier
 // machinery subscribes to US. window.__bbBatt.set(level, charging) fires the
 // same events a real battery does.
 function batteryInitScript() {
@@ -528,7 +528,7 @@ async function join(room, opts) {
     // derive the admin verifier in a bootstrap page of THIS context, so the
     // signed-in key stash lands in the localStorage the room page will read
     const boot = await ctx.newPage();
-    await boot.goto(cfg.base + '/meet.html' + (cfg.edge ? '?edge' : ''), { waitUntil: 'domcontentloaded' });
+    await boot.goto(cfg.base + '/run.html' + (cfg.edge ? '?edge' : ''), { waitUntil: 'domcontentloaded' });
     await boot.waitForFunction(() => window.GifOS && GifOS.net && GifOS.net.edKeysFromSeedHex, null, { timeout: 20000 });
     cfg.av = await boot.evaluate(async ([roomId, pw]) => {
       const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
@@ -559,7 +559,7 @@ async function join(room, opts) {
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
-  const url = cfg.base + '/meet.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
+  const url = cfg.base + '/run.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
   console.error('[meet] joining ' + url + ' as "' + cfg.name + '"' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});

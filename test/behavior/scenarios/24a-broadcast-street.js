@@ -1,6 +1,6 @@
 'use strict';
 // USE CASE 24 — the street broadcaster. Pattern (a): the whole show.
-// Hana broadcasts live from her phone-rig (the Broadcast app: meet.html#bc=1,
+// Hana broadcasts live from her phone-rig (the Broadcast app: run.html#bc=1,
 // an admin room worn as a one-to-many skin). Viewers bring NOTHING — no
 // camera, no mic, no permissions — and the show still reaches every one of
 // them. The Stage is admin+grantee only; the hand queue is the on-ramp; chat

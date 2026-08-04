@@ -2,7 +2,7 @@
 // when the meeting page runs at the pretty /meet/<room> URL.
 //
 // THE REGRESSION THIS GUARDS (prod-only, ~1s teardown):
-//   meet.html#app=<fileId> auto-hosts a desktop app in a meeting (one-runtime).
+//   run.html#app=<fileId> auto-hosts a desktop app in a meeting (one-runtime).
 //   On gifos.app the meeting rewrites its address to the pretty /meet/<room>
 //   form (history.replaceState). That moves the document's BASE URL. The
 //   runtime then loads its owner-authority module with a bare relative path
@@ -10,12 +10,12 @@
 //   With no signer the mesh Stage-bus host can't attach, becomeHost's share
 //   fails, and the app tears straight back down ~1s after it flashed up.
 //   Local dev never hits it: the pretty rewrite is gifos.app-only, so the base
-//   stays at /meet.html and the relative path resolves fine. It shipped to
+//   stays at /run.html and the relative path resolves fine. It shipped to
 //   production unseen for exactly that reason.
 //
 // HOW THIS REPRODUCES IT OFFLINE:
-//   * serviceWorkers:'block' so Playwright can rewrite the served meet.html.
-//   * a context route forces `const pretty = true` in meet.html, so the local
+//   * serviceWorkers:'block' so Playwright can rewrite the served run.html.
+//   * a context route forces `const pretty = true` in run.html, so the local
 //     run does the SAME /meet/<room> replaceState as prod (it is otherwise
 //     gated on the gifos.app hostname AND a default relay — and we use a local
 //     relay, so both gates are off without this).
@@ -63,7 +63,7 @@ const check = (n, c, d) => {
       '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
 
-  // serviceWorkers:'block' — the dev SW would serve meet.html from its own
+  // serviceWorkers:'block' — the dev SW would serve run.html from its own
   // cache and bypass the route rewrite below (and mask the real base-URL path).
   const ctx = await browser.newContext({
     permissions: ['camera', 'microphone'], viewport: { width: 1100, height: 800 },
@@ -75,7 +75,7 @@ const check = (n, c, d) => {
   // Force the gifos.app-only pretty /meet/<room> rewrite to run locally, so the
   // document base moves exactly as it does on production.
   let patched = false;
-  await ctx.route('**/meet.html**', async (route) => {
+  await ctx.route('**/run.html**', async (route) => {
     const resp = await route.fetch();
     let body = await resp.text();
     const before = body;
@@ -102,7 +102,7 @@ const check = (n, c, d) => {
   run.on('response', (r) => { if (r.status() >= 400 && /app-owner/.test(r.url())) owner404.push(r.url()); });
   run.on('console', (m) => { if (/Could not run|app-owner/i.test(m.text())) console.log('  [run] ' + m.text().slice(0, 160)); });
   run.on('pageerror', (e) => console.log('  [run] pageerror: ' + e.message));
-  await run.goto(BASE + '/meet.html#app=' + appId);
+  await run.goto(BASE + '/run.html#app=' + appId);
   await run.waitForSelector('#appmount iframe', { timeout: 40000 });
   const t0 = Date.now();
 

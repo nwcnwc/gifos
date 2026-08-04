@@ -2,7 +2,7 @@
 // delivers the Stadium to EVERY seat, over the tree's own links, with no
 // browsers. It converges a real topology with the ported mesh brain (mesh.js
 // over the harness fabric), then checks the three GRAPH INVARIANTS that make
-// meet.html's reconcileMosaic deliver — because the mosaic's correctness is a
+// run.html's reconcileMosaic deliver — because the mosaic's correctness is a
 // property of the tree, not of the wire:
 //   (A) every seat's up-chain reaches a Section-1 head (product flows up; the
 //       Stadium fans back DOWN the same links) — no seat is stranded below;

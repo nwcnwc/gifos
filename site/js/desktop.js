@@ -1162,7 +1162,7 @@
     // after any await, which is why double-tap and "Open" did nothing on iPhone.
     // (render() stashed it._isApp so we don't need to read the file first here.)
     if (it._isApp) {
-      root.open('meet.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='), '_blank');
+      root.open('run.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='), '_blank');
       return;
     }
     // Non-app files (a plain image, or a whole-computer backup GIF) need the
@@ -1174,7 +1174,7 @@
     store.getFile(it.fileId).then(async (file) => {
       if (!file) { bail(); return; }
       if (file.kind === 'gif' && file.isApp) {
-        go('meet.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='));
+        go('run.html#id=' + encodeURIComponent(it.fileId) + nsParam('&db='));
         return;
       }
       const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
@@ -2458,7 +2458,7 @@
     if (s < 86400) return Math.floor(s / 3600) + 'h ago';
     return Math.floor(s / 86400) + 'd ago';
   }
-  function shortInviteUrl(u) { try { const x = new URL(u); return (x.pathname.replace(/^\//, '') || 'meet.html') + x.hash; } catch (e) { return u; } }
+  function shortInviteUrl(u) { try { const x = new URL(u); return (x.pathname.replace(/^\//, '') || 'run.html') + x.hash; } catch (e) { return u; } }
   function showHistory() {
     closeContext();
     const bg = document.createElement('div'); bg.className = 'modal-bg';
@@ -2636,7 +2636,7 @@
     await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
     await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
     await load();
-    if (isApp) { location.href = 'meet.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
+    if (isApp) { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
     render();
     showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
   }
@@ -2672,7 +2672,7 @@
     showConfirm(name + ' is installed',
       'It’s on your Home Screen now — a GIF file you own. Copy it anywhere; it runs anywhere.',
       [
-        { label: 'Open ' + name, fn: () => { location.href = 'meet.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); } },
+        { label: 'Open ' + name, fn: () => { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); } },
         from === 'store' ? { label: 'Back to the Store', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } } : null,
       ].filter(Boolean));
   }

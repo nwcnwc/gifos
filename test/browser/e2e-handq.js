@@ -37,7 +37,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
     // a loaded box can take a while to boot a page — patient, in two stages
-    await pg.goto(BASE + '/meet.html#' + hash, { timeout: 90000, waitUntil: 'domcontentloaded' });
+    await pg.goto(BASE + '/run.html#' + hash, { timeout: 90000, waitUntil: 'domcontentloaded' });
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 60000 });
     return pg;
   };
@@ -172,7 +172,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ADMIN_PW = 'hunter2!';
   const D = await newUser('Dana'); const d = await D.newPage();
   d.on('pageerror', () => {});
-  await d.goto(BASE + '/meet.html');
+  await d.goto(BASE + '/run.html');
   const av = await d.evaluate(async ([roomId, pw]) => {
     const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gifos-admin:' + roomId), iterations: 310000 }, km, 256);
@@ -181,7 +181,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, [admRoom, ADMIN_PW]);
-  await d.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
+  await d.goto(BASE + '/run.html#v=' + admRoom + '&av=' + av);
   await d.reload(); // hash-only navigation doesn't re-boot the page
   await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 90000 });
   const E = await newUser('Eve'); const e = await open(E, 'e', 'v=' + admRoom + '&av=' + av);

@@ -8,7 +8,7 @@
 // lingers and that seat's face is composed into the row product at BOTH
 // coords, forever.
 //
-// The guard under test (meet.html prodPack loop): a peer's own heartbeat
+// The guard under test (run.html prodPack loop): a peer's own heartbeat
 // carries its seat (myStatus.seat); a FRESH self-report that disowns a seat
 // vetoes the draw at that seat. occ itself is untouched (E2 stands) — the
 // packer just declines to paint a disowned seat.
@@ -40,7 +40,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','D${i}')}catch(e){}; window.GIFOS_SCALE={C:2}; window.GIFOS_COMPACTION=false;` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`  [D${i}] PAGEERROR`, String(e).slice(0, 200)));
-    await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on');
+    await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
     pages.push(page);
     await sleep(1200);
   }

@@ -18,7 +18,7 @@ holds. That is **not** infrastructure GifOS pays for and **not** a Durable
 Object carrying A/V — it is another browser in the room. Healing-laws **E5**:
 use friend-relay among co-members; a **new joiner who can see two meetings
 must pick one (R5), never auto-bridge/merge them** (attacker-shaped sole
-common witness). Implementation: `site/meet.html` peer-relay; gate:
+common witness). Implementation: `site/run.html` peer-relay; gate:
 `test/drills/e2e-peer-relay-reunion.js` (ICE-split co-members, then a third
 co-member joins the **same** room and relays — not a two-meeting merge).
 
@@ -63,7 +63,7 @@ flipping your own flag.
 **Assembly — the Stage is a "row fold" assembled at Section 1, not down-tree:**
 1. **Collect.** Each stager's raw feed relays **up the tree** to Section 1 — a
    deep stager ships it to its row-head, a head ships it up its up-link, hop by
-   hop (`shipMos('stg:<id>', upTgt)` in `meet.html`) — until it reaches Section 1.
+   hop (`shipMos('stg:<id>', upTgt)` in `run.html`) — until it reaches Section 1.
    (An earlier design had the stager open one direct off-tree link to a known S1
    seat; the deployed code relays it up the tree instead, so the collect leg is a
    single up-chain, not a 1-hop link.)
@@ -297,7 +297,7 @@ Every link in the claim→paint chain flickers for benign reasons: a
 renegotiation glare, a transport rebuild (which resets the peer's incoming
 list), a gossip beat where a seat's occ entry is transiently unknown. The
 rule everywhere is **grace before teardown** (`MOS_GRACE`, ~5s in
-`meet.html`): a claimed primary that goes dark with no live replacement keeps
+`run.html`): a claimed primary that goes dark with no live replacement keeps
 its LAST stream painted (a frozen beat — always the viewer's own legitimate
 mix, never a neighbour's); an outbound ship stays up until it has been
 unwanted for the full grace (occ transients never rip a live pipe); the

@@ -22,12 +22,20 @@ mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
 #
 # REQUIRED pages are load-bearing: index.html and boot.html get GIFOS_VERSION
-# stamped into them below, and meet.html IS the room. A missing one is a broken
+# stamped into them below, and run.html IS the runtime (the room, the app runner
+# and the broadcast skin — one page since one-runtime). A missing one is a broken
 # snapshot, so say which file and why rather than dying on a bare `cp` error.
-# (run.html was in this list until the one-runtime flag day DELETED it — the
-# stale entry then aborted the whole cut under `set -e`, after mkdir had already
-# left a half-built versions/<V>/ behind. Hence the accounting check below.)
-REQUIRED=(index.html meet.html boot.html)
+#
+# meet.html is REQUIRED TOO, and is now the run.html SHIM: every archived build
+# before this rename ships its runtime as meet.html, and the channel loaders send
+# a pinned user to /versions/<V>/meet.html for EVERY version. Snapshotting the
+# shim keeps that one address correct inside new snapshots as well — drop it and
+# every pinned invite link into this release 404s.
+# (An entry here must exist: run.html was once listed after the one-runtime flag
+# day DELETED it, and the stale entry aborted the whole cut under `set -e`, after
+# mkdir had already left a half-built versions/<V>/ behind. Hence the accounting
+# check below.)
+REQUIRED=(index.html run.html meet.html boot.html)
 OPTIONAL=(sign.html about.html store.html)
 # NOT snapshotted: 404.html is Pages' root error page — it is never served from
 # under /versions/, and a copy would just collect a meaningless <base> stamp.
@@ -89,7 +97,7 @@ BUILD=$(( ANCHOR_BUILD + $(git -C "$ROOT" rev-list --count ${ANCHOR_SHA}..HEAD -
 for f in "$DEST"/*.html; do
   [ -e "$f" ] || continue
   # Match a REAL injected base, not any mention of one. A loose '<base ' grep
-  # matched prose inside meet.html's own comments and silently skipped the file
+  # matched prose inside run.html's own comments and silently skipped the file
   # — producing a snapshot with no pin and no warning, the exact failure this
   # whole change exists to prevent.
   grep -q '<base href="/versions/' "$f" && continue

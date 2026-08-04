@@ -102,7 +102,7 @@ const check = (n, c, d) => {
   // mesh names, so it opens on most runs. Names are known before any page
   // loads — no window, and the block stays narrow (Hub must ICE to both).
   const left = await newUser('LeftIsle');
-  await left.page.goto(BASE + '/meet.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await left.page.goto(BASE + '/run.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await left.page.locator('#lob-open').click();
   await left.page.waitForFunction(() => {
     const el = document.getElementById('share-url');

@@ -446,7 +446,7 @@ sections, sponsor forwarding, anchors rooting subtrees.
 ### 24. The street broadcaster — the Broadcast app (one-to-many)
 **Cast:** Hana (desktop, `adminPw` + `bc: true` + `ensurePass` — the host),
 four phone viewers joining with `bc: true` + the ticket (`pass`).
-**Story:** the Broadcast app is meet.html wearing its one-to-many skin
+**Story:** the Broadcast app is run.html wearing its one-to-many skin
 (`#bc=1` on an admin room): one host live on the Stage, viewers who bring
 NOTHING — no camera, no mic, no permission prompts — a hand queue as the
 only on-ramp to the Stage, and chat as a back-channel the host can silence,

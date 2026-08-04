@@ -115,7 +115,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   the focused gate. Media-plane investigation if that drill fails.
 
 - **V1 — Relay-detected stale client (version gate on knock).** A tab that has
-  had `meet.html` open across a deploy keeps running the old wire/derivation
+  had `run.html` open across a deploy keeps running the old wire/derivation
   code; today nothing tells it. Add `ver: GIFOS_VERSION` to the `knock` frame
   (a build string, not room content — no zero-knowledge cost, R2 still
   arbitrates nothing) and have the relay compare it against the version it is
@@ -123,7 +123,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   relay answers the knock with a `stale` flag (still returning the greeter list
   — the relay must not *refuse* anyone, it only reports), and the client shows a
   modal: **Reload to the current version** or **Join anyway**. Reload does a
-  cache-busting reload of `meet.html`; join-anyway proceeds unchanged so a
+  cache-busting reload of `run.html`; join-anyway proceeds unchanged so a
   pinned `/versions/<x.y.z>/` build is never locked out.
   Design notes / open questions:
   - Distinguish *incompatible* (DS derivation tag changed → old and new clients
@@ -138,7 +138,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
 - **V2 — Operator system message (banner from the greeter package).** A
   hard-coded notice string in the relay source (`relay/src/relay.js`, changed by
   redeploying the relay — no dashboard, no storage, no API), returned in the
-  `greeters` answer alongside `list` / `founded` / `admitted`. `meet.html`
+  `greeters` answer alongside `list` / `founded` / `admitted`. `run.html`
   renders it as a dismissible banner at the top of the meeting page; the user
   ✕'s it to acknowledge and it goes away.
   - Payload: `{ id, text, level }` — `id` is a short slug the operator bumps
@@ -180,7 +180,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   dismissible top-of-page banner as **V2**, but sourced from a **static JSON
   file in `/site`** (e.g. `/site/notice.json`) instead of the relay greeter
   package, and shown on **every first-party surface: the desktop/home
-  (`index.html` / `boot.html`), `meet.html`, and `run.html`.** Nathan
+  (`index.html` / `boot.html`), `run.html`, and `run.html`.** Nathan
   edits/commits that file (a push auto-deploys via Pages) to raise a notice;
   **when the file is missing (404), no banner is shown** — that is the normal
   state.
@@ -192,7 +192,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - Fetched cache-busted on load; a 404 or parse error is silent (no banner, no
     console noise beyond a debug line) — a missing/broken notice must never
     break any page.
-  - **`meet.html` therefore carries TWO notice sources:** the relay operator
+  - **`run.html` therefore carries TWO notice sources:** the relay operator
     notice (V2, from the greeter package — meeting-scoped, may differ per relay
     deploy) *and* the static site notice (V4, from `/site` — platform-wide). Two
     independent banners (independent `id` namespaces / dismissal keys). If both
@@ -213,7 +213,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
 
 - **G1 — Presence holdover for throttled phones (SHIPPED to edge 2026-07-25,
   commit 61dfc80; gate `test/browser/e2e-away-holdover.js` — 12 checks green).**
-  As built: `stHold(pid)` in meet.html — fresh <15s stays the rule everywhere,
+  As built: `stHold(pid)` in run.html — fresh <15s stays the rule everywhere,
   then a 60s holdover while the last pulse said `away: true` or transport
   vouches (`p.connected`); applied to roster/in-meeting and to consent
   (**Nathan's call 2026-07-25: an away phone's prior deliberate consent
@@ -234,7 +234,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   the **15s freshness rule** gates roster/tiles (`freshConsent`), the
   in-meeting id set, stage-seat validity, and vote counting, and it assumes
   the hidden-tab heartbeat (12s — "still inside every 15s freshness window",
-  `meet.html` heartbeat comment) always lands inside it — but Android
+  `run.html` heartbeat comment) always lands inside it — but Android
   lock-screen intensive throttling defers page timers into 25-60s chunks, so
   every pulse gap evicts the phone: tile churn for everyone, the consent
   `(x/n)` line bounces, and since `rosterIds` feeds `leafCount()` the count
@@ -834,12 +834,12 @@ Stage path as a face, and reverts to the camera on stop. Rendered in a
 strip.
 
 **Why it fits.** The Stage feed is already **source-agnostic** — a stager's
-outbound is built by `mySelfStream()` (`site/meet.html:6135`) wrapping
+outbound is built by `mySelfStream()` (`site/run.html:6135`) wrapping
 `sentVideoTrack()` (`:2433`) plus the mic, shipped up-tree as `stg:<myId>`
 (`:7105`/`:7142`), composited at Section 1 and fanned down. Nothing on that path
 cares whether the video track came from a camera, and a `getDisplayMedia` track
 is structurally identical to a `getUserMedia` one. Three pieces already exist:
-- **`getDisplayMedia` is wired up** for the recorder (`site/meet.html:8022`,
+- **`getDisplayMedia` is wired up** for the recorder (`site/run.html:8022`,
   `scope:'app'`) — capture/permission/`onended` handling to copy.
 - **The ship re-fires on track change** by design (`shipMos`, `:6161`;
   media-plane doc: "re-ships exactly when a track actually changes"), so a
@@ -1295,7 +1295,7 @@ paced drip ~1475): direct DC → friend-hop (P1) → **paced relay (P2)**.
 Half of this is already built and proves the shape works: **app-in-a-meeting**
 was migrated onto the mesh's Stage DATA lane with owner-signed (Ed25519)
 snap/delta frames and its second relay session **deleted** (`site/js/app-owner.js`,
-`runtime.js attachStageBus` / `bootClientBus`, `meet.html:8184,8212`). What was
+`runtime.js attachStageBus` / `bootClientBus`, `run.html:8184,8212`). What was
 never built is `docs/app-mesh-unification.md` **phase 3** — the headless
 media-less mesh room (`site/js/mesh-app.js`) that would put *standalone*
 app-shares on the same footing. That doc's §6 notes the relay app-broadcast is
@@ -1304,8 +1304,8 @@ app-shares on the same footing. That doc's §6 notes the relay app-broadcast is
 
 **Sketch.**
 - **Basic runtime = a media-less room.** Factor the mesh node bring-up + DC
-  signaling glue out of `meet.html` into a reusable `site/js/mesh-app.js` that
-  BOTH `run.html` and `meet.html` consume. Opens no camera, never loads
+  signaling glue out of `run.html` into a reusable `site/js/mesh-app.js` that
+  BOTH `run.html` and `run.html` consume. Opens no camera, never loads
   `mesh-media.js` — control mesh + gossip lane only. Seats, C=5, healing laws,
   greeter registry all identical to a meeting.
 - **Components are opt-in, not separate products:** A/V (media plane on), chat
@@ -1320,7 +1320,7 @@ app-shares on the same footing. That doc's §6 notes the relay app-broadcast is
   forward and the `role:'host'`/`role:'client'` session shapes; keep `knock`,
   `peer`, and the signed door verbs. Also delete the **already-dead `gossip`
   handler** (`relay.js:565–574`) — mesh gossip has floated over WebRTC since the
-  chokepoint (`meet.html:2940`: *"relay `{t:'gossip'}` no longer reaches the room
+  chokepoint (`run.html:2940`: *"relay `{t:'gossip'}` no longer reaches the room
   and is gone"*; `mesh-wire.js:641` → `mesh.js:1301`). That one is a free
   cleanup and can land first, independently.
 - **Retire the bespoke host machinery** the star needed: `AUTO_TAKEOVER`
@@ -1341,9 +1341,9 @@ Current formats, unchanged (router: `site/404.html:55–74`, mirrored in
 | App | `/join/<code>` | `run.html#j=<code>` | app; A/V off, chat off |
 | App (owned) | `/join/<app-shortname>/<verifier>/<code>` | `run.html#s=<shortname>.<verifier>&k=<code>` | app, owner-authoritative; A/V off |
 | App (own desktop) | — | `run.html#id=<fileId>` | app, solo — no room until Invite |
-| Meeting | `/meet/<room>` | `meet.html#v=<room>` | A/V + chat; no app until "Run app" |
-| Meeting (admin) | `/meet/<room>/<verifier>` | `meet.html#v=<room>&av=<verifier>` | A/V + chat + admin authority |
-| Meeting (fresh) | `/meet` (bare) | `meet.html` — mints a room | A/V + chat |
+| Meeting | `/meet/<room>` | `run.html#v=<room>` | A/V + chat; no app until "Run app" |
+| Meeting (admin) | `/meet/<room>/<verifier>` | `run.html#v=<room>&av=<verifier>` | A/V + chat + admin authority |
+| Meeting (fresh) | `/meet` (bare) | `run.html` — mints a room | A/V + chat |
 
 **DO NOT LOSE: the app's shortname IS the room segment.** An owned app link reads
 `gifos.app/join/chess/<verifier>/<code>` — the room is `slug(manifest.shortName)`
@@ -1386,7 +1386,7 @@ rule above:
   and chat may still be switched on freely; only the app slot is fixed.
 - **Meeting entry (`/meet/…`) — the app slot is FREE.** Mount, unmount, and swap
   apps at will over the life of the room, exactly as today (`runApp` /
-  `clearAppView` / `mountClientApp`, `meet.html:8136,8152,8205`). The room's
+  `clearAppView` / `mountClientApp`, `run.html:8136,8152,8205`). The room's
   identity is the *meeting*; an app is a component passing through it, so
   successive apps over one call is the normal case. Stopping a share returns to
   a plain meeting rather than ending the room.
@@ -1418,7 +1418,7 @@ obligation.** Pinning A/V must mean *the media plane stays available* — tiles,
 Stage, the ability to turn a camera on — and must NEVER mean a participant has to
 transmit. Per-person mute, camera-off, and blur stay freely controllable on every
 entry point, always. That is a privacy invariant, not a component toggle:
-participants **arrive blurred by default** (`meet.html:2293` — "blurred-by-default
+participants **arrive blurred by default** (`run.html:2293` — "blurred-by-default
 is the privacy"; `:7800` — "they arrive blurred"), and a camera nobody chose to
 enable is the normal resting state of a meeting. A rule that read "cannot unmount
 A/V" as "cannot stop transmitting" would invert the consent doctrine outright, so
@@ -1451,14 +1451,14 @@ meetings use `deriveMeet` (`gifos-net.js:299,321`), so moving `/join/…` onto a
 mesh room is a `DS`-tagged **flag day** — old and new clients land in different
 relay sessions. Sequence it as one, do not straddle.
 
-Longer term `run.html` and `meet.html` collapse into one page that reads its
+Longer term `run.html` and `run.html` collapse into one page that reads its
 starting component set from the hash; until then, keep both files thin wrappers
 over the shared `mesh-app.js` node so the divergence stays cosmetic.
 
 **Ordering (each step shippable).**
 1. ~~Delete the dead relay `gossip` handler.~~ **DONE 2026-08-01** (both
    `relay/src/relay.js` and `test/servers/relay-local.js`; relay tier green).
-2. `mesh-app.js` — extract the headless node; `meet.html` consumes it unchanged.
+2. `mesh-app.js` — extract the headless node; `run.html` consumes it unchanged.
 3. Point `run.html` at it: standalone app-share = media-less room. Retires the
    app-session bus's only remaining caller.
 4. Strip the Worker to greeter + door; drop host/client roles.

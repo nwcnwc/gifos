@@ -132,7 +132,7 @@ app.gif
 - `capabilities.ai` — the app may call `gifos.ai.chat/tts/stt/image/imageToVideo/video` and `gifos.ai.models()`. Declare it as an **array of the AI types the app actually uses** — `"ai": ["smartest","cheapest","image"]` — from `smartest`/`cheapest` (text), `tts`, `stt`, `image`, `image_to_video`, `video`; the runtime **gates calls to the declared types**, the acknowledgement lists them by their Settings label, and a missing one produces a specific prompt ("*Text → image isn't set up yet*"). A bare `true` is the legacy generic form (any type, unnamed). The user configures OpenAI-shaped endpoints + keys per type in **Settings → AI models** (stored in `localStorage`, per-origin, and excluded from a shareable backup GIF). The runtime attaches the key and returns the result; **the app never sees a key** and is portable across providers.
 - `capabilities.api` — an **array of named third-party APIs** the app uses (`"api": ["deepgram"]`), for keyed services that aren't OpenAI-shaped. The user names each API in **Settings → Third-party APIs** with a base URL, an auth scheme (`bearer` / `token` / custom `header` / `query` param) and a key (again `localStorage`, per-origin, out of any backup GIF). The app calls `gifos.api(name, { method, path, query, headers, body, as })`; the runtime attaches the credential per the configured scheme and **pins it to the API's own origin** — a request whose resolved URL leaves that host is refused, so an app can never redirect the key elsewhere. Same broker pattern as `ai`, generalised to any key. **Browser reachability:** these are direct `fetch`es from the page origin, so the target must return permissive CORS headers. Providers that only serve server-to-server (e.g. Deepgram's REST API sends no `Access-Control-Allow-*`) are handled by an **optional CORS proxy** the user toggles per-API in Settings: the runtime then sends the request to `cors-proxy.gifos.app` (a stateless Cloudflare Worker in `cors-proxy/`) with the true destination in an `x-gifos-target` header, and the Worker forwards it and adds the CORS headers. The proxy stores nothing, is gated to `gifos.app` origins, and only forwards to an allow-list of API hosts; users can point at their own copy (widening the allow-list) via an Advanced field. Because Workers bill by request/CPU and never by bandwidth, running it is effectively free — the metered API cost stays on the user's own key.
 - `requires` (optional) — an **array of required capabilities**. Capabilities are **optional by default**: an app launches even if the user hasn't set up an AI model or a third-party key, so they can look around and see what it is. Listing a capability key (e.g. `"ai"`) or a third-party API name (e.g. `"deepgram"`) in `requires` makes it **mandatory** — the runtime (`runtime.js`, hosted by the room page) checks the user's config on launch and, if a required item isn't set up, shows a **blocking gate** ("<App> needs setup to run") instead of letting the app run, with a re-check that clears once configured. Only settings-backed capabilities are gated (an AI model; a named third-party account); device permissions (`microphone`/`camera`/`motion`) and `network` are granted at use, so requiring them never blocks. Prefer optional; require only what the app is useless without.
-- `system` (optional) — names a **system app**. Live camera/microphone can't run in the sandbox (WebRTC is neutered there and an opaque origin can't be granted camera permission), so a manifest like `{ "system": "meet" }` makes the runtime route the icon to a trusted first-party page instead of mounting the sandbox. The mapping is a **whitelist in the runtime** (`meet → meet.html`); a manifest cannot route to arbitrary URLs. The icon is still a real GIF — shareable, downloadable, with its own artwork — and carries a fallback `index.html` for non-GifOS environments.
+- `system` (optional) — names a **system app**. Live camera/microphone can't run in the sandbox (WebRTC is neutered there and an opaque origin can't be granted camera permission), so a manifest like `{ "system": "meet" }` makes the runtime route the icon to a trusted first-party page instead of mounting the sandbox. The mapping is a **whitelist in the runtime** (`meet → run.html`); a manifest cannot route to arbitrary URLs. The icon is still a real GIF — shareable, downloadable, with its own artwork — and carries a fallback `index.html` for non-GifOS environments.
 
 ## GIF Format: How a Filesystem is Stored
 
@@ -250,8 +250,8 @@ Two session shapes share the same Durable Object: **host/client app sessions** (
 ### Apps inside meetings
 
 Since the one-runtime flag day there is only ONE entrance. `run.html` and its
-star bus are DELETED; `meet.html` is the room page, and it holds **live media
-and a shared app at once**. An app opened alone (`meet.html#id=<fileId>`) is
+star bus are DELETED; `run.html` is the room page, and it holds **live media
+and a shared app at once**. An app opened alone (`run.html#id=<fileId>`) is
 simply that same room with nobody else in it yet — which is why inviting someone
 into a running app needs no migration, only a link. It composes the two session
 shapes above rather than merging them:
@@ -263,7 +263,7 @@ shapes above rather than merging them:
   **client**, so all faces share one live app session (its own sid, separate
   from the media mesh). Late joiners pick it up on the next heartbeat; when the
   sharer stops or leaves, the pane tears down everywhere.
-- **Meeting** in an app tab hands the same app off to `meet.html#app=<fileId>`
+- **Meeting** in an app tab hands the same app off to `run.html#app=<fileId>`
   — same browser, same saved state — which auto-hosts it and lights the media
   up. Both doors land on the identical layout: the app on the stage, participant
   tiles as a filmstrip, meeting controls in the bar.
@@ -300,8 +300,8 @@ control in admin rooms:
 When an app opens in a tab, that tab has a URL that can be handed to friends. The URL carries a **link secret** — and everything the relay needs is a one-way derivation of it ("derive, don't send", `site/js/gifos-net.js`):
 
 ```
-https://gifos.app/meet.html#j=<code>&relay=<relay-url>                       (self-healing)
-https://gifos.app/meet.html#s=<room>.<verifier>&k=<code>&relay=<relay-url>   (owned)
+https://gifos.app/run.html#j=<code>&relay=<relay-url>                       (self-healing)
+https://gifos.app/run.html#s=<room>.<verifier>&k=<code>&relay=<relay-url>   (owned)
 ```
 
 - `j` / `k` — the **link secret**. The client derives from it: the session id (self-healing links), the join token the relay equality-checks, and the **end-to-end AES-GCM key** that seals every content frame. The secret itself never reaches the relay in any form.
@@ -320,7 +320,7 @@ delivery through.
 `https://gifos.app/?run=<url-to-a-gif>` is a shareable "open this app" link. On
 load the desktop fetches that GIF, files it into the user's **Stolen Apps**
 folder (so it persists), and — if it's a real app GIF — runs it (a same-tab
-redirect to `meet.html#id=…`, avoiding a popup-blocked `window.open`). The `?run=`
+redirect to `run.html#id=…`, avoiding a popup-blocked `window.open`). The `?run=`
 query is stripped from the address bar first, so a refresh never re-runs it.
 The fetch is a direct browser request, so the GIF's host must allow CORS
 (GitHub raw and most CDNs do); if it doesn't, the user gets a clear error and
@@ -410,7 +410,7 @@ Properties of a booted image:
   database; its cross-tab sync and per-app channels are namespaced, so a booted
   computer never repaints — or leaks state into — the host desktop.
 - **Apps work normally.** Icons inside the VM open through
-  `meet.html#id=…&db=gifos_vm_…`, so app files and saved state resolve inside
+  `run.html#id=…&db=gifos_vm_…`, so app files and saved state resolve inside
   the image. Multiplayer, snapshots, everything works.
 - **It persists.** Re-opening the same image resumes that computer exactly
   where it left off. **⏏ Reboot fresh** wipes the namespace and re-hydrates

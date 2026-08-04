@@ -61,7 +61,7 @@ async function openBible(b, port) {
   await page.waitForSelector('.icon');
   let id = null;
   for (let i = 0; i < 40 && !id; i++) { id = await page.evaluate(async () => { const it = (await GifOS.store.allItems()).find((x) => x.name === 'Bible Browser.gif'); return it ? it.fileId : null; }); if (!id) await sleep(300); }
-  await page.goto(BASE + '/meet.html#id=' + id);
+  await page.goto(BASE + '/run.html#id=' + id);
   await page.waitForSelector('iframe', { timeout: 8000 });
   await page.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {});
   return { ctx, page, id, fr: page.frameLocator('iframe'), flags };
@@ -123,7 +123,7 @@ async function openBible(b, port) {
     // (IndexedDB persists) — and confirm it lands back where we were, not the top.
     const page2 = await ctx.newPage();
     await page2.addInitScript((p) => { window.GIFOS_CORS_PROXY = 'http://127.0.0.1:' + p; }, port);
-    await page2.goto(BASE + '/meet.html#id=' + id);
+    await page2.goto(BASE + '/run.html#id=' + id);
     await page2.waitForSelector('iframe', { timeout: 8000 });
     await page2.locator('.perm-modal .done').click({ timeout: 3000 }).catch(() => {});
     const fr2 = page2.frameLocator('iframe');

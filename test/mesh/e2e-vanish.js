@@ -3,9 +3,9 @@
 // (mesh.js + mesh-wire.js + the real relay + real AES-GCM sealing + real S4
 // identities), with an in-process DC bus standing in for WebRTC DataChannels —
 // reliable, ordered, black-holes to dead peers, and (like the real browser
-// plumbing in meet.html) OBSERVES a peer's death: ~2 ticks after an ungraceful
+// plumbing in run.html) OBSERVES a peer's death: ~2 ticks after an ungraceful
 // crash every survivor that "held a channel" gets seat.transportLost(dead),
-// exactly what meet.html's dc.onclose / failed-persist handlers feed.
+// exactly what run.html's dc.onclose / failed-persist handlers feed.
 //
 // Modes measured (ticks; 1 production tick = 500ms — tickMs shrinks time, not
 // tick counts, so ticks x 0.5s IS the production-equivalent wall time):

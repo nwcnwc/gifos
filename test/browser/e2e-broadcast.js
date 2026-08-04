@@ -1,4 +1,4 @@
-// Broadcast e2e — the Broadcast skin of meet.html (#bc=1 on an admin room):
+// Broadcast e2e — the Broadcast skin of run.html (#bc=1 on an admin room):
 //   the host boots as admin, auto-steps onto the Stage; the stage stays
 //   BLURRED until the host LOCKS the room (the meeting password rule applies
 //   unchanged — the room password is the broadcast's ticket: a pre-lock
@@ -34,7 +34,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const open = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html#' + hash);
+    await pg.goto(BASE + '/run.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
     return pg;
   };
@@ -47,7 +47,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const H = await newUser('Hana', ['camera', 'microphone']);
   let h = await H.newPage();
   h.on('pageerror', () => {});
-  await h.goto(BASE + '/meet.html');
+  await h.goto(BASE + '/run.html');
   // derive K + V exactly like the lobby and stash the key (host arrives signed in)
   const av = await h.evaluate(async ([roomId, pw]) => {
     const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
@@ -57,7 +57,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, [room, PW]);
-  await h.goto(BASE + '/meet.html#v=' + room + '&av=' + av + '&bc=1');
+  await h.goto(BASE + '/run.html#v=' + room + '&av=' + av + '&bc=1');
   await h.reload(); // hash-only navigation doesn't re-boot the page
   await h.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
   check('broadcast room up; creator arrives as its signed-in host (admin)', true);

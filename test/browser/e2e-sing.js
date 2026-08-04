@@ -25,7 +25,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const aCtx = await newUser('Ada');
   const a = await aCtx.newPage();
   a.on('pageerror', (e) => console.log('  [a] ' + e.message));
-  await a.goto(BASE + '/meet.html');
+  await a.goto(BASE + '/run.html');
   await a.locator('#lob-open').click();
   await a.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
   const link = await a.evaluate(() => document.getElementById('share-url').value);

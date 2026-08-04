@@ -44,7 +44,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const aMeet = await aCtx.newPage();
   aMeet.on('pageerror', (e) => console.log('  [a meet pageerror]', e.message));
-  await aMeet.goto(BASE + '/meet.html');
+  await aMeet.goto(BASE + '/run.html');
   await aMeet.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 }); // meeting boot is CPU-heavy under a saturated box
   check('meeting page loaded the app runtime', await aMeet.evaluate(() => !!(window.GifOS && window.GifOS.runtime)));
@@ -111,7 +111,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   // ONE RUNTIME: run.html's Meeting toggle died with run.html — #app= is now a
   // direct meeting entry: boot a meeting and auto-host this desktop app in it.
-  await dRun.goto(BASE + '/meet.html#app=' + dAppId);
+  await dRun.goto(BASE + '/run.html#app=' + dAppId);
   await dRun.waitForSelector('#appmount iframe', { timeout: 40000 });
   check('the #app= entry boots a meeting with the app already running', await dRun.evaluate(() => window.__gifosVideo.appActive()));
 

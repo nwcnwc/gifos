@@ -577,7 +577,7 @@ confirmation rides frames the seating already produces.)*
   already holds. GifOS will **not** pay for a media/data server path (R2,
   media-plane). When such a mutual friend exists among co-members, use it —
   that is ordinary path recovery, not meeting politics. Direct routes, when
-  they later form, drop the relay path. LIVE: `site/meet.html` peer-relay;
+  they later form, drop the relay path. LIVE: `site/run.html` peer-relay;
   `test/browser/e2e-video.js` / `test/drills/e2e-peer-relay-reunion.js`.
 
   **(2) A newcomer who can see TWO rooms at the door — human picks ONE; never

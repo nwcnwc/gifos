@@ -28,7 +28,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const A = await newUser('Ann');
   const a = await A.newPage();
   a.on('pageerror', (e) => console.log('  [a pageerror]', e.message));
-  await a.goto(BASE + '/meet.html#v=' + room);
+  await a.goto(BASE + '/run.html#v=' + room);
   await a.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
 
   // ---- the modal: Mix moved in, the bar button moved out ---------------------
@@ -61,7 +61,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const B = await newUser('Ben');
   const b = await B.newPage();
   b.on('pageerror', () => {});
-  await b.goto(BASE + '/meet.html#v=' + room);
+  await b.goto(BASE + '/run.html#v=' + room);
   await b.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   await a.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   await a.evaluate(() => window.__gifosVideo.forceAdapt());

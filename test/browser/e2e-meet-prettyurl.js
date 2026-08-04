@@ -1,6 +1,6 @@
 // The address bar stays the PRETTY link. On prod (gifos.app, default relay) a
 // meeting page rewrites location to /meet/<room>[/<verifier>] — the same link it
-// hands out — instead of the internal meet.html#v=… form it loads via. We fake
+// hands out — instead of the internal run.html#v=… form it loads via. We fake
 // prod by resolving gifos.app to localhost and NOT setting a custom relay (so the
 // pretty branch is taken). The relay socket won't actually connect (its real host
 // is unreachable here), but the address-bar rewrite happens before that and is
@@ -39,12 +39,12 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const room = 'pretty' + Math.floor(Math.random() * 1e6).toString(36);
   const p1 = await ctx.newPage();
   p1.on('pageerror', (e) => console.log('  [p1 pageerror]', e.message));
-  await p1.goto(base + '/meet.html#v=' + room);           // as if 404 already routed here
+  await p1.goto(base + '/run.html#v=' + room);           // as if 404 already routed here
   await p1.waitForFunction((r) => window.__gifosVideo && window.__gifosVideo.room() === r, room, { timeout: 12000 });
   check('a plain meeting rewrites the address bar to the pretty /meet/<room> path',
     (await p1.evaluate(() => location.pathname)) === '/meet/' + room);
-  check('there is no meet.html#v= left in the address bar',
-    !(await p1.evaluate(() => location.href)).includes('meet.html'));
+  check('there is no run.html#v= left in the address bar',
+    !(await p1.evaluate(() => location.href)).includes('run.html'));
   check('the share link matches the address bar (both pretty)',
     (await p1.locator('#share-url').inputValue()) === base + '/meet/' + room);
 
@@ -53,7 +53,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const averify = 'a1b2c3d4e5f6a1b2c3d4e5f6'; // any 24-hex — we're only checking URL shaping
   const p2 = await ctx.newPage();
   p2.on('pageerror', (e) => console.log('  [p2 pageerror]', e.message));
-  await p2.goto(base + '/meet.html#v=' + aroom + '&av=' + averify);
+  await p2.goto(base + '/run.html#v=' + aroom + '&av=' + averify);
   await p2.waitForFunction((r) => window.__gifosVideo && window.__gifosVideo.room() === r, aroom, { timeout: 12000 });
   check('an admin meeting rewrites to the pretty /meet/<room>/<verifier> path',
     (await p2.evaluate(() => location.pathname)) === '/meet/' + aroom + '/' + averify);

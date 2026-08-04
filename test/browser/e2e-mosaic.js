@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; window.GIFOS_SCALE={C:2};` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
-    await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on'); // DEBUG=on: the stage legs sever pairs
+    await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on'); // DEBUG=on: the stage legs sever pairs
     pages.push(page);
     await sleep(1200);
   }
@@ -233,7 +233,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const small = await browser.newContext({ permissions: ['camera', 'microphone'] });
   await small.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','Solo')}catch(e){}` });
   const sp = await small.newPage();
-  await sp.goto(BASE + '/meet.html#v=solo' + Math.random().toString(36).slice(2, 6));
+  await sp.goto(BASE + '/run.html#v=solo' + Math.random().toString(36).slice(2, 6));
   await sleep(6000);
   const mSolo = await sp.evaluate(() => __gifosVideo.mosaic()).catch(() => null);
   check('single-section room keeps the mosaic OFF', !!(mSolo && !mSolo.multi && !mSolo.jobs.length), mSolo);

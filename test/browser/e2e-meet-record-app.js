@@ -42,7 +42,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
 
   const m = await ctx.newPage();
   m.on('pageerror', (e) => console.log('  [meet pageerror]', e.message));
-  await m.goto(BASE + '/meet.html#v=recroom' + Math.floor(Math.random() * 1e6).toString(36));
+  await m.goto(BASE + '/run.html#v=recroom' + Math.floor(Math.random() * 1e6).toString(36));
   await m.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 12000 });
 
   // ---- 1. Record always opens the options popup (scope + quality) --------------

@@ -102,7 +102,7 @@ On the **server**, writes hit the local DB and the runtime **broadcasts** the ch
 When an app opens, its tab URL can be shared. It encodes what a new client needs:
 
 ```
-https://gifos.app/meet.html#s=<session-id>&k=<join-token>&relay=<relay-url>
+https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
 ```
 
 ```
@@ -206,7 +206,7 @@ degenerate case — and larger rooms scale by the tree
 
 ## Meetings — strictly P2P mesh over permanent rooms
 
-The Meeting system app (`meet.html`) is the proof of the guard:
+The Meeting system app (`run.html`) is the proof of the guard:
 
 - **The room IS its URL — host-less and permanent.** The relay's `mesh` role
   has no host: whoever opens the link joins whoever is there, and the room

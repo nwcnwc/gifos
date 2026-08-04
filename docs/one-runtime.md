@@ -82,7 +82,7 @@ to build now; the relay host-race is deleted.
 
 ## One page
 
-`run.html` and `meet.html` collapse into ONE room page backed by one runtime.
+`run.html` and `run.html` collapse into ONE room page backed by one runtime.
 The `404.html` router maps both URL families to it; the entry decides only
 `{appPinned, mediaPinned}` and the starting component set. The old pages die.
 No thin-shell interim — the collapse happens now, pre-launch.
@@ -113,8 +113,8 @@ in `test/servers/relay-local.js`.
 
 ## Deliverables
 
-1. **The room page IS the evolved `meet.html`** (reframed 2026-08-01, after
-   tracing the seam). meet.html already runs the whole room core — mesh node,
+1. **The room page IS the evolved `run.html`** (reframed 2026-08-01, after
+   tracing the seam). run.html already runs the whole room core — mesh node,
    peer/DC machinery, §FWD sponsor forwarding, gossip, the app pane on the
    Stage lane, invite. Extracting its peer machinery into a separate
    `mesh-app.js` library for run.html to consume would be motion, not
@@ -137,7 +137,7 @@ in `test/servers/relay-local.js`.
    - `become-host`/Take Over DIES — replaced by succession.
    The runtime pieces these drive (stealApp, mirrors, lifetimeToSpec,
    sessionInfo, snapshots) already live page-agnostic in `runtime.js`.
-2. The one room page + router rewrite; `run.html` deleted, `meet.html`
+2. The one room page + router rewrite; `run.html` deleted, `run.html`
    renamed/kept as the room page (router maps both URL families to it).
 3. Runtime: solo boot with no auto-rehost; Invite = room mint + owner lane
    (reusing `attachStageBus` / `bootClientBus` / `app-owner.js`); star-bus
@@ -157,7 +157,7 @@ in `test/servers/relay-local.js`.
 
 Every commit on the branch green; the product cut only lands on main whole.
 
-1. **Traits + entries on the room page:** meet.html learns
+1. **Traits + entries on the room page:** run.html learns
    `{appPinned, mediaPinned}` and the app-entry hashes (`#id=`, `#j=`,
    `#s=&k=`). `#id=` boots the app SOLO — no room, no relay, no mesh, no
    auto-rehost.

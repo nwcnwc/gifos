@@ -53,7 +53,7 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   const cid = await chatId(hostPage);
   check('host seeded the Chat app', !!cid, cid);
   await hostPage.evaluate((c) => localStorage.setItem('gifos_ai_config', c), aiCfg('sk-ADA'));
-  await hostPage.goto(BASE + '/meet.html#id=' + cid);
+  await hostPage.goto(BASE + '/run.html#id=' + cid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   // Host acks its own abilities, and we wait for that panel to fully close so it
   // can't intercept the Invite click.
@@ -133,7 +133,7 @@ function aiCfg(key) { return JSON.stringify({ cheapest: { url: AI_URL, key: key,
   const mChat = await chatId(mPage);
   const meet = await mPage.context().newPage();
   meet.on('pageerror', (e) => console.log('  [meet pageerror] ' + e.message));
-  await meet.goto(BASE + '/meet.html');
+  await meet.goto(BASE + '/run.html');
   await meet.locator('#lob-open').click();
   await meet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room() && window.__gifosVideo.canRunApp(), null, { timeout: 15000 });
   await meet.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Chat'), mChat);

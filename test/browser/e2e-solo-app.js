@@ -1,6 +1,6 @@
 // ONE RUNTIME step 1 (docs/one-runtime.md): the solo app entry.
 //
-// meet.html#id=<fileId> is an app from MY desktop running on MY device —
+// run.html#id=<fileId> is an app from MY desktop running on MY device —
 // stage 1 of the app lifecycle. The contract: NO network object exists and no
 // consent surface appears. No relay socket, no mesh, no getUserMedia ask, no
 // lobby, no meeting chrome — the room is minted later, by Invite, or never.
@@ -44,7 +44,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // the solo entry
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('  [solo] ' + e.message));
-  await p.goto(BASE + '/meet.html#id=' + appId);
+  await p.goto(BASE + '/run.html#id=' + appId);
   await p.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('the app boots and mounts from the desktop store', true);
   check('solo layout: meeting chrome hidden (body.solo-app)', await p.evaluate(() => document.body.classList.contains('solo-app')));

@@ -32,7 +32,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const open = async (ctx, label, hash) => {
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
-    await pg.goto(BASE + '/meet.html#' + hash);
+    await pg.goto(BASE + '/run.html#' + hash);
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 30000 });
     return pg;
   };
@@ -148,7 +148,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ADMIN_PW = 'hunter2!';
   const D = await newUser('Dana'); let d = await (await D.newPage());
   d.on('pageerror', () => {});
-  await d.goto(BASE + '/meet.html');
+  await d.goto(BASE + '/run.html');
   // derive K + V exactly like the lobby (V commits to the PUBLIC key K seeds,
   // meet-security §SIG) and stash the key so Dana arrives signed in.
   const av = await d.evaluate(async ([roomId, pw]) => {
@@ -159,7 +159,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     localStorage.setItem('gifos_vadm_' + roomId + '.' + V, K);
     return V;
   }, [admRoom, ADMIN_PW]);
-  await d.goto(BASE + '/meet.html#v=' + admRoom + '&av=' + av);
+  await d.goto(BASE + '/run.html#v=' + admRoom + '&av=' + av);
   await d.reload(); // hash-only navigation doesn't re-boot the page
   await d.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
   check('admin room up; creator arrives as its signed-in admin', true);

@@ -47,16 +47,16 @@
     return;
   }
   // Bare /meet, no room = START A FRESH MEETING, identical to double-clicking
-  // the Meeting app on the Home Screen (which loads meet.html with no room and
+  // the Meeting app on the Home Screen (which loads run.html with no room and
   // mints one). Keeps the two entry points equal.
   if (/^\/meet\/?$/i.test(location.pathname)) {
-    location.replace('/meet.html');
+    location.replace('/run.html');
     return;
   }
-  // Bare /cast, no room = the Broadcast app's lobby (meet.html's broadcast
-  // skin — see the BROADCAST block in meet.html).
+  // Bare /cast, no room = the Broadcast app's lobby (run.html's broadcast
+  // skin — see the BROADCAST block in run.html).
   if (/^\/cast\/?$/i.test(location.pathname)) {
-    location.replace('/meet.html#bc=1');
+    location.replace('/run.html#bc=1');
     return;
   }
   // /meet/<room>/<verifier> is an ADMIN-MANAGED room — a DIFFERENT room from
@@ -81,12 +81,12 @@
       // no &k= (the app branch below still needs it: an owned app carries one).
       // /cast/<room>/<V> is the SAME admin room worn as the Broadcast skin —
       // the flag rides the hash, like everything that must survive a redirect.
-      location.replace('/meet.html#v=' + code + (verifier ? '&av=' + verifier : '')
+      location.replace('/run.html#v=' + code + (verifier ? '&av=' + verifier : '')
         + (/^\/cast\//i.test(location.pathname) ? '&bc=1' : '') + extra);
     } else if (verifier && lsec) {
-      location.replace('/meet.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
+      location.replace('/run.html#s=' + code + '.' + verifier + '&k=' + lsec + extra);
     } else if (!verifier) {
-      location.replace('/meet.html#j=' + code + extra);
+      location.replace('/run.html#j=' + code + extra);
     } else {
       location.replace('/'); // an owned link without its secret opens nothing
       return;

@@ -1,6 +1,6 @@
 // Video-call e2e: three "machines" (separate contexts, fake cameras) meet in a
 // P2P mesh. The relay carries ONLY signaling; media flows browser-to-browser.
-// Verifies: system-app routing (icon → meet.html), mesh connect, adaptive
+// Verifies: system-app routing (icon → run.html), mesh connect, adaptive
 // quality stepping down as participants join, and peer-leave cleanup.
 const { chromium, CHROME } = require('../lib/pw');
 const fs = require('fs');
@@ -42,8 +42,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     desk.locator('.icon', { hasText: 'Meeting.gif' }).dblclick(),   // root icon, top-right
   ]);
   aPage.on('console', (m) => { if (m.type() === 'error') console.log('  [ada]', m.text()); });
-  await aPage.waitForURL(/meet\.html/, { timeout: 8000 });
-  check('Meeting icon routes to the trusted system page', /meet\.html/.test(aPage.url()));
+  await aPage.waitForURL(/run\.html/, { timeout: 8000 });
+  check('Meeting icon routes to the trusted system page', /run\.html/.test(aPage.url()));
 
   // A cold open lands on the lobby now — start an open meeting to get a room.
   await aPage.locator('#lob-open').click();
@@ -723,7 +723,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const hubCtx = await newUser('Hub');
   const hubPage = await hubCtx.newPage();
   hubPage.on('console', (m) => { if (m.type() === 'error') console.log('  [hub]', m.text()); });
-  await hubPage.goto(BASE + '/meet.html');
+  await hubPage.goto(BASE + '/run.html');
   await hubPage.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await hubPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const islandLink = await hubPage.locator('#share-url').inputValue();
@@ -833,7 +833,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rexCtx = await newUser('Rex');
   const rexPage = await rexCtx.newPage();
   rexPage.on('console', (m) => { if (m.type() === 'error') console.log('  [rex]', m.text()); });
-  await rexPage.goto(BASE + '/meet.html');
+  await rexPage.goto(BASE + '/run.html');
   await rexPage.locator('#lob-open').click(); // cold open → lobby → start an open meeting
   await rexPage.waitForFunction(() => document.getElementById('share-url') && document.getElementById('share-url').value, null, { timeout: 15000 });
   const meshLink = await rexPage.locator('#share-url').inputValue();
@@ -894,7 +894,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
     // DEBUG=on: the admin scenario needs the raw relay-send hook to prove the
     // SERVER's gate independently of the client's (see the setpw legs below).
-    await pg.goto(BASE + '/meet.html#' + hash + '&DEBUG=on');
+    await pg.goto(BASE + '/run.html#' + hash + '&DEBUG=on');
     await pg.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 10000 });
     return pg;
   };
@@ -927,7 +927,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the room link carries only the verifier — never the password',
     /^[a-f0-9]{24}$/.test(admV) && !(await adam.evaluate(() => location.href)).includes('sesame'));
   // The whole point: (name, password) reconstruct the SAME room from scratch.
-  // Independent reimplementation of the CURRENT scheme (§SIG, meet.html
+  // Independent reimplementation of the CURRENT scheme (§SIG, run.html
   // deriveAdminKey → net.edKeysFromSeedHex): V commits to the Ed25519 PUBLIC
   // key that K seeds — V = SHA-256(base64(pub)).slice(0,24). The old
   // V = SHA-256(K-hex) died with the relay adm stamp; this leg still computed
@@ -1209,7 +1209,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
     await pg.addInitScript(({ k, v }) => { try { localStorage.setItem(k, v); } catch (e) {} }, { k: key, v: pw });
-    await pg.goto(BASE + '/meet.html#' + hash);
+    await pg.goto(BASE + '/run.html#' + hash);
     return pg;
   };
   const lockCtx = await newUser('Cara'), memCtx = await newUser('Dan'), rogCtx = await newUser('Rogue'), strCtx = await newUser('Stray');

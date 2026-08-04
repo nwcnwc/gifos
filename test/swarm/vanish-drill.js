@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * vanish-drill.js — swarm-scale measurement of the HUMAN-visible vanish
- * (docs/healing-laws.md D2/D5 + the event-driven removal in meet.html).
+ * (docs/healing-laws.md D2/D5 + the event-driven removal in run.html).
  *
  * Topology: a swarm shard of N bots (test/swarm/swarm.js, solid-swatch cams) plus
  * TWO real observer clients in a separate chromium. One bot is CRASHED
@@ -65,7 +65,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   swarm.stdout.on('data', (d) => { swarmLog += d; process.stdout.write('[swarm] ' + d); });
   swarm.stderr.on('data', (d) => { swarmLog += d; });
 
-  // ---- two observers (a separate chromium — real meet.html clients) ---------
+  // ---- two observers (a separate chromium — real run.html clients) ---------
   const browser = await chromium.launch({ executablePath: CHROME, headless: true,
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
@@ -75,7 +75,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
     await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
     const page = await ctx.newPage();
-    await page.goto(BASE + '/meet.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on', { timeout: 120000, waitUntil: 'domcontentloaded' });
+    await page.goto(BASE + '/run.html#v=' + ROOM + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on', { timeout: 120000, waitUntil: 'domcontentloaded' });
     observers.push({ name, page });
   }
 

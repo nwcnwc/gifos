@@ -57,7 +57,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (!cid) { console.log('HOST-ERROR no Chat.gif in the seeded store'); process.exit(1); }
   console.log('HOST chat fileId=' + cid);
 
-  await page.goto(BASE + '/meet.html#id=' + cid);
+  await page.goto(BASE + '/run.html#id=' + cid);
   await page.waitForSelector('iframe', { timeout: 60000 });
   // Clear the host's own Abilities panel so it cannot swallow the Invite click.
   await page.locator('.perm-modal .done').click({ timeout: 6000 }).catch(() => {});

@@ -24,7 +24,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await aCtx.addInitScript(setup('Ada'));
   const aPage = await aCtx.newPage();
   aPage.on('console', (m) => { if (m.type() === 'error') console.log('  [ada]', m.text()); });
-  await aPage.goto(BASE + '/meet.html');
+  await aPage.goto(BASE + '/run.html');
   await aPage.locator('#lob-open').click();
   await aPage.waitForFunction(() => {
     const el = document.getElementById('share-url');

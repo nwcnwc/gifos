@@ -15,7 +15,7 @@ points at the four canonical docs that specify each layer:
 - **Security** (the door lock, admin authority, sponsor forwarding) — [`meet-security.md`](meet-security.md).
 - **Apps in a meeting** (a shared app on the mesh) — [`app-mesh.md`](app-mesh.md).
 
-The page itself is `site/meet.html`, a **system app** (trusted first-party code,
+The page itself is `site/run.html`, a **system app** (trusted first-party code,
 not a sandboxed GIF app) because live camera/mic + WebRTC cannot run in the app
 sandbox. Its control brain is `site/js/mesh.js` (a line-for-line port of the C++
 reference sim in `test/sim/`), bound to real WebRTC transports by
@@ -177,7 +177,7 @@ list to keep and nobody keeps it — like the Stage and the rows, the queue is
   coordinator, and the flag is strictly **self-owned**: only your own client
   ever sets or clears your hand.
 - **One order, derived everywhere.** Every phone sorts the gossiped raised
-  hands by **raise time, then id** (`handQueue()` in `site/meet.html`) — a
+  hands by **raise time, then id** (`handQueue()` in `site/run.html`) — a
   pure function of shared status, so however deep the tree, every device
   shows the same line in the same order. A same-millisecond tie breaks on the
   id, deterministically; nothing is elected and nothing is synced.

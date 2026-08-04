@@ -608,7 +608,7 @@ async function openApp(page, ctx, folder, label) {
       await touchPage.touchscreen.tap(tttBox.x + tttBox.width / 2, tttBox.y + tttBox.height / 2);
     })(),
   ]);
-  check('double-TAP launches an app (touch devices)', /meet\.html#id=/.test(touchApp.url()));
+  check('double-TAP launches an app (touch devices)', /run\.html#id=/.test(touchApp.url()));
   await touchApp.close();
   await touchCtx.close();
   await page.locator('.icon', { hasText: 'Studio' }).click({ button: 'right' });
@@ -878,7 +878,7 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await routed.goto(BASE + '/join/wkm4tr7q2x');
-  await routed.waitForURL(/meet\.html#j=wkm4tr7q2x/, { timeout: 5000, waitUntil: 'commit' });
+  await routed.waitForURL(/run\.html#j=wkm4tr7q2x/, { timeout: 5000, waitUntil: 'commit' });
   check('/join/<code> routes into the app runner with the code', true);
   await routed.close();
   const called = await routerCtx.newPage();
@@ -886,7 +886,7 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await called.goto(BASE + '/meet/wkm4tr7q2x');
-  await called.waitForURL(/meet\.html#v=wkm4tr7q2x$/, { timeout: 5000, waitUntil: 'commit' });
+  await called.waitForURL(/run\.html#v=wkm4tr7q2x$/, { timeout: 5000, waitUntil: 'commit' });
   check('/meet/<code> routes into the meeting page with the code', true);
   await called.close();
   const admRouted = await routerCtx.newPage();
@@ -894,10 +894,10 @@ async function openApp(page, ctx, folder, label) {
     status: 404, contentType: 'text/html', body: fs.readFileSync('site/404.html', 'utf8'),
   }));
   await admRouted.goto(BASE + '/meet/wkm4tr7q2x/0123456789abcdef0123456789abcdef');
-  await admRouted.waitForURL(/meet\.html#v=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000, waitUntil: 'commit' });
+  await admRouted.waitForURL(/run\.html#v=wkm4tr7q2x&av=0123456789abcdef0123456789abcdef/, { timeout: 5000, waitUntil: 'commit' });
   check('/meet/<code>/<verifier> routes an ADMIN room (a distinct room identity)', true);
   await admRouted.goto(BASE + '/meet/a');
-  await admRouted.waitForURL(/meet\.html#v=a$/, { timeout: 5000, waitUntil: 'commit' });
+  await admRouted.waitForURL(/run\.html#v=a$/, { timeout: 5000, waitUntil: 'commit' });
   check('single-character rooms route (the low channels are open to the world)', true);
   await admRouted.close();
   await routerCtx.close();
@@ -1164,7 +1164,7 @@ async function openApp(page, ctx, folder, label) {
   await backApp.goBack().catch(() => {});
   await backApp.frameLocator('iframe').locator('#out').filter({ hasText: 'BACK' }).waitFor({ timeout: 5000 });
   check('an app receives Back through gifos.onBack', true);
-  check('...and the app tab never unloads', backApp.url().includes('/meet.html'));
+  check('...and the app tab never unloads', backApp.url().includes('/run.html'));
   await backApp.close();
   await backPage.close();
 

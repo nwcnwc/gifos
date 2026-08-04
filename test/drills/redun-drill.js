@@ -65,7 +65,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         + `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','${name}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}` });
       const page = await ctx.newPage();
       try {
-        await page.goto(BASE + '/meet.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: 90000 });
         return page;
       } catch (e) {
         try { await ctx.close(); } catch (e2) {}

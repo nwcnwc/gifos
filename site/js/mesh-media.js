@@ -1,6 +1,6 @@
 /*
  * mesh-media.js — the compositing core of the media plane (docs/media-plane.md).
- * Pure engine, no transport: meet.html feeds it sources (video elements) and
+ * Pure engine, no transport: run.html feeds it sources (video elements) and
  * ships its output tracks over the links the mesh already holds.
  *
  * THE MODEL (media-plane "concrete rendering recursion"): every mosaic frame
@@ -349,7 +349,7 @@
       // — called every tick from status/audio so the frame tracks speech live.
       label(id, lbl) { const t = tiles.get(id); if (t) t.lbl = lbl; },
       delTile(id) { if (fold) fold.remove('t' + id); tiles.delete(id); },
-      setActive(on) { active = on !== false; }, // meet.html gates a composite that has no consumer (not shipped, not displayed)
+      setActive(on) { active = on !== false; }, // run.html gates a composite that has no consumer (not shipped, not displayed)
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],
       count: total, cols: () => G, rows: () => R,

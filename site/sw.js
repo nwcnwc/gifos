@@ -41,7 +41,7 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v8';
+var SHELL_VERSION = 'v9';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
@@ -51,7 +51,7 @@ var CACHE = 'gifos-shell-' + SHELL_VERSION;
 // App GIFs are not — /apps/index.json, the covers and an 8 MB app are content
 // that must never be dragged into a precache on someone's phone.
 var CORE = [
-  '/', '/index.html', '/boot.html', '/meet.html', '/sign.html', '/about.html', '/store.html', '/404.html',
+  '/', '/index.html', '/boot.html', '/run.html', '/meet.html', '/sign.html', '/about.html', '/store.html', '/404.html',
   '/css/desktop.css',
   '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js', '/js/store.js',

@@ -67,7 +67,7 @@ const check = (n, c, d) => {
       '--disable-features=WebRtcHideLocalIpsWithMdns,LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests'],
   });
   const room = 'adv' + Math.random().toString(36).slice(2, 10);
-  const url = BASE + '/meet.html#v=' + room + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
+  const url = BASE + '/run.html#v=' + room + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
 
   // profile: null = healthy; 'dark' = can never complete a P2P connection
   const users = [];

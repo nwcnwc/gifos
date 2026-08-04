@@ -228,7 +228,7 @@
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
       '<div class="actions">' +
         (installedId
-          ? '<a class="btn" href="' + BASE + 'meet.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
+          ? '<a class="btn" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
             '<button class="btn ghost" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install again</button>'
           : '<button class="btn" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install — free</button>') +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download</span>' +

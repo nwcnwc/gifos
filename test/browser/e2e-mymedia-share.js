@@ -27,7 +27,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await hostPage.goto(BASE + '/index.html'); await hostPage.waitForSelector('.icon', { timeout: 20000 });
   const fid = await mmId(hostPage);
   check('My Media seeded', !!fid, fid);
-  await hostPage.goto(BASE + '/meet.html#id=' + fid);
+  await hostPage.goto(BASE + '/run.html#id=' + fid);
   await hostPage.waitForSelector('iframe', { timeout: 15000 });
   await ackPerms(hostPage);
   const hostFr = hostPage.frameLocator('iframe');

@@ -1,7 +1,7 @@
 // phone-tune-drive.js — drive ONE power-tuning knob-set on a real phone.
 //
 // The tuning loop (docs/phone-power-tuning.md): a knob-set is applied via the
-// gifos_tune override surface (meet.html adapt()), the phone joins a
+// gifos_tune override surface (run.html adapt()), the phone joins a
 // DEDICATED tuning room in its OWN tab (a human's placed tab is never
 // touched), and the phone-power-log.sh JSONL is the oracle. Repeat per knob.
 //
@@ -41,7 +41,7 @@ if (!cmd || !room) { console.error('usage: phone-tune-drive.js open|state|close 
       if (t) localStorage.setItem('gifos_tune', t); else localStorage.removeItem('gifos_tune');
       localStorage.setItem('gifos_name', 'TunePhone');
     }, tuneJson || '');
-    await page.goto(BASE + '/meet.html' + (EDGE ? '?edge' : '') + '#v=' + room + '&DEBUG=on', { timeout: 60000 });
+    await page.goto(BASE + '/run.html' + (EDGE ? '?edge' : '') + '#v=' + room + '&DEBUG=on', { timeout: 60000 });
     console.log(JSON.stringify({ ok: true, room, tune: tuneJson || null }));
   } else if (cmd === 'state') {
     const page = findTab();

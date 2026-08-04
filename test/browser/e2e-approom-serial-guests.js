@@ -13,7 +13,7 @@
 //
 // 1. FIXED — the star. App bytes were broadcast only in reply to a client's
 //    'need-app', so every joiner dialled the owner for the file. They are now
-//    retained on every node and pulled peer-to-peer (meet.html sga-appreq /
+//    retained on every node and pulled peer-to-peer (run.html sga-appreq /
 //    sga-app). The blocker had been the verifier's monotonic n: a RETAINED
 //    frame always carries its mint-time n, so a retained app read as 'stale'
 //    forever — 'app' is now exempt from ordering as immutable content.
@@ -81,7 +81,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('owner seeded the Chat app', !!cid, cid);
   if (!cid) { await browser.close(); process.exit(1); }
 
-  await host.goto(BASE + '/meet.html#id=' + encodeURIComponent(cid));
+  await host.goto(BASE + '/run.html#id=' + encodeURIComponent(cid));
   await host.waitForSelector('iframe', { timeout: 30000 });
   await host.locator('.perm-modal .done').click({ timeout: 6000 }).catch(() => {});
   await host.waitForSelector('.perm-modal', { state: 'detached', timeout: 6000 }).catch(() => {});

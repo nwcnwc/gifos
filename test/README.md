@@ -261,7 +261,7 @@ Touching heal/LEAVE/scooch/loss/D5/compaction → at least `mesh-churn.sh --quic
 Flag-day mesh work → both full batteries on the 8-core box.
 
 `site/` AUTO-DEPLOYS on push, so an untested change to `site/js/mesh-wire.js`,
-`site/js/mesh.js` or `site/meet.html` is a change to production. Prefer the
+`site/js/mesh.js` or `site/run.html` is a change to production. Prefer the
 8-core box — a weak host invents failures above N=10 from its own exhaustion.
 
 The join battery brings the dev stack up itself (site 8099 + relay 8790,
@@ -424,7 +424,7 @@ afterwards. A local run needs none of that, which is the main reason to
 prefer it while iterating.
 
 `swarm.js` runs N headless bots as real
-`meet.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,
+`run.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,
 `swarm-videos/` talking-head packs). `swarm-handq.js` is the hand-queue scale
 check. `vanish-drill.js` measures human-visible vanish at swarm scale.
 `meet.js` is the meeting command line — join a real room as a participant and

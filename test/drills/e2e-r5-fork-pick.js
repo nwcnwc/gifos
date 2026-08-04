@@ -100,7 +100,7 @@ const check = (n, c, d) => {
   }).catch(() => null);
 
   const room = 'r5f' + Math.random().toString(36).slice(2, 10);
-  const link = BASE + '/meet.html#v=' + room + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
+  const link = BASE + '/run.html#v=' + room + '&relay=' + encodeURIComponent(RELAY) + '&DEBUG=on';
   console.log('room: ' + link);
 
   // ── A. a HEALTHY door never shows the pick-one modal ──────────────────────

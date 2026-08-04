@@ -1,4 +1,4 @@
-// mosaic-rook.js — static verification of meet.html's Section-1 ROOK media
+// mosaic-rook.js — static verification of run.html's Section-1 ROOK media
 // routing (healing-laws W7, docs/media-plane.md). Replicates the exact routing
 // rules coded in reconcileMosaic + the sga Stage data lane, against the W7
 // topo contract: colMates(c) = {pc, r', i} for r' != r (pc==0 only; no
@@ -11,7 +11,7 @@
 //   - the stg flood covers all 25 seats, and 24 under any single death;
 //   - the sga data flood covers a 2-level room and strands nobody outside a
 //     dead seat's own subtree.
-// If meet.html's routing rules change, change the mirrored rules here too.
+// If run.html's routing rules change, change the mirrored rules here too.
 const C = 5;
 let fails = 0;
 const check = (n, c, x) => { console.log((c ? 'PASS' : 'FAIL') + ' - ' + n + (x !== undefined ? '  ' + JSON.stringify(x) : '')); if (!c) fails++; };

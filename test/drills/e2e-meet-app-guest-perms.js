@@ -67,7 +67,7 @@ const check = (n, c, d) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'], serviceWorkers: 'block' });
     await ctx.addInitScript({ content:
       "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
-    await ctx.route('**/meet.html**', async (route) => {
+    await ctx.route('**/run.html**', async (route) => {
       const resp = await route.fetch();
       let body = await resp.text();
       body = body.replace('const pretty = /(^|\\.)gifos\\.app$/.test(location.hostname) && !custom;', 'const pretty = true;');
@@ -91,21 +91,21 @@ const check = (n, c, d) => {
 
   const aMeet = await aCtx.newPage();
   aMeet.on('pageerror', (e) => { if (!/serviceWorker/.test(e.message)) console.log('  [A] ' + e.message.slice(0, 140)); });
-  await aMeet.goto(BASE + '/meet.html');
+  await aMeet.goto(BASE + '/run.html');
   await aMeet.locator('#lob-open').click();
   await aMeet.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 });
   const atPath = await aMeet.evaluate(() => location.pathname);
   check('host rewrote to the pretty /meet/<room> form', /^\/meet\//.test(atPath), atPath);
   const room = await aMeet.evaluate(() => window.__gifosVideo.room());
 
-  // ---- guest joins via a #v= link (loads locally; meet.html then replaceStates
+  // ---- guest joins via a #v= link (loads locally; run.html then replaceStates
   //      its base to /meet/<room>, the prod condition without a /meet/ route) ----
   const bCtx = await newUser('Ben');
   const bMeet = await bCtx.newPage();
   const guest404 = [];
   bMeet.on('response', (r) => { if (r.status() >= 400 && /app-owner/.test(r.url())) guest404.push(r.url()); });
   bMeet.on('pageerror', (e) => { if (!/serviceWorker/.test(e.message)) console.log('  [B] ' + e.message.slice(0, 140)); });
-  await bMeet.goto(BASE + '/meet.html#v=' + room + '&relay=' + encodeURIComponent(RELAY));
+  await bMeet.goto(BASE + '/run.html#v=' + room + '&relay=' + encodeURIComponent(RELAY));
   await aMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
   await bMeet.waitForFunction(() => window.__gifosVideo.liveLinks() >= 1, null, { timeout: 40000 });
   check('both participants are meshed', true);

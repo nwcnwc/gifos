@@ -19,7 +19,7 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
   ok('My Media app seeds', !!info.id, info.id);
   ok('My Media is loose on the Home Screen (same level as Welcome)', info.mmParent===info.wParent, 'mm='+info.mmParent+' welcome='+info.wParent);
 
-  await page.goto(BASE+'/meet.html#id='+info.id); await page.waitForSelector('iframe',{timeout:15000});
+  await page.goto(BASE+'/run.html#id='+info.id); await page.waitForSelector('iframe',{timeout:15000});
   await page.locator('.perm-modal .done').click({timeout:4000}).catch(()=>{}); // mic+camera abilities ack
   const fr=page.frameLocator('iframe');
   await fr.locator('#add').waitFor({timeout:6000});
