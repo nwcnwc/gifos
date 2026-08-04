@@ -360,9 +360,9 @@ async function openApp(page, ctx, folder, label) {
   await adv.locator('> summary').click();
   await page.locator('#set-relay').fill('ws://127.0.0.1:8790');
   await page.locator('#set-relay-test').click();
-  await page.waitForFunction(() => /reachable|Could not|No answer|Error/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
+  await page.waitForFunction(() => /Connected|Could not|No answer|Error/.test(document.getElementById('set-relay-status').textContent), null, { timeout: 10000 });
   const relayStatus = await page.locator('#set-relay-status').textContent();
-  check('Settings can test relay reachability', /^Relay is reachable/.test(relayStatus.trim()));
+  check('Settings can test relay reachability', /^Connected/.test(relayStatus.trim()));
   await page.locator('#set-relay').fill('');
   await page.locator('#set-close').click();
   await sleep(200);

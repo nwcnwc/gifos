@@ -851,7 +851,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <div class="name-modal" id="who-modal" style="display:none">
     <div class="name-box" style="max-width:480px;text-align:left">
       <h3>Who is on this meeting</h3>
-      <p style="color:#889;font-size:.85rem">Meetings connect people directly, so everyone here can see everyone's network address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
+      <p style="color:#889;font-size:.85rem">Because phones connect straight to each other here, everyone in the meeting can see everyone's internet address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
       <div id="who-list"></div>
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.8rem">
         <button id="who-dl">Download this list</button>
@@ -970,23 +970,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         media controls.</p>
 
         <h4>Your privacy</h4>
-        <p><b>Everything happens directly between the people in the room — there is no
-        company in the middle.</b> Your video and audio travel <b>peer-to-peer</b>, straight
-        from your device to the others', and <b>never pass through a server</b>: GifOS runs no
-        media servers, and the one small relay that introduces browsers to each other is
-        throttled so audio and video simply can't flow through it — it's peer-to-peer or
-        nothing.</p>
-        <p><b>It's encrypted end to end.</b> Every link between devices is encrypted
-        (the same WebRTC/DTLS-SRTP encryption a bank uses), and that relay is
-        <b>zero-knowledge</b>: it never sees your video, your audio, your name, the room's
-        password, or even <i>which</i> room you're in — your device derives all of that
-        locally and never sends it. The only people who can ever see or hear you are the
-        <b>people in the room with you</b>. (In a big room, to save everyone's data, some of
-        the far-away faces are combined and passed along by <i>other people in the same
-        room</i> — still never a server, and never anyone outside the room.)</p>
-        <p>The one honest trade for having no middleman: because devices connect directly,
-        everyone on a call can see everyone's <b>network address</b> — nobody here is
-        anonymous. Tap the status text to see the list.</p>
+        <p><b>Your picture and your voice go straight to the other people in the room —
+        there is no company in the middle.</b> They never pass through a computer of ours:
+        we run none for video, and the one small helper that introduces phones to each
+        other is deliberately too slow to carry a picture or a sound.</p>
+        <p><b>Everything is scrambled on the way</b>, with the same kind of lock a bank
+        uses, so the only people who can see or hear you are the <b>people in the room with
+        you</b>. That little helper is told as little as possible: never your video, your
+        voice, your name, the room's password, or even <i>which</i> room you are in. (In a
+        very big room, to save everyone's data, some of the far-away faces are bundled
+        together and passed along by <i>other people in the same room</i> — still never a
+        company's computer, and never anyone outside the room.)</p>
+        <p>The one honest trade for having no middleman: because phones connect straight to
+        each other, everyone on a call can see everyone's <b>internet address</b> — nobody
+        here is anonymous. Tap the status text to see the list.</p>
       </div>
       <div style="display:flex;justify-content:center;margin-top:1rem">
         <button id="help-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Got it</button>
@@ -2230,7 +2227,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const chips = [];
       if (!isMe && peerAway(id)) chips.push('<span>⏾ stepped away — screen off or in another app; waiting for them</span>');
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
-      else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 no direct path — a firewall here blocks peer-to-peer video (common on work networks)</span>');
+      else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 can’t connect straight to them — something on this network blocks video (common at work)</span>');
       if (stageIds().includes(isMe ? myId : id)) chips.push('<span>🎙 on stage</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
@@ -4158,7 +4155,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
       } else if (waited > 20000) {
         joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
-        joinVeilEl.querySelector('#jv-p').textContent = 'The meeting door isn’t answering — this can be your network or the room’s relay. Retrying automatically; you’ll join the moment it answers.';
+        joinVeilEl.querySelector('#jv-p').textContent = 'Nobody is answering the door of this meeting yet — it may be your internet connection. We keep knocking, and you’ll be in the moment it answers.';
       }
     }, 1000);
 
@@ -4642,7 +4639,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function startMesh() {
       const relay = relayUrl();
-      if (!relay) { setStatus('No relay configured \u2014 cannot exchange invitations.'); return; }
+      if (!relay) { setStatus('No connection service is set up, so nobody can be invited in.'); return; }
       if (meshNode) { try { meshNode.stop(); } catch (e) {} meshNode = null; }
       ensureIdentity().then((identity) => {
       myId = identity.peerId; // S4: peer id = H(pubkey), unforgeable
@@ -4704,7 +4701,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           try { meshNode && meshNode.stop(); } catch (e) {}
           setStatus(code === 4007 ? '⛔ The people on this meeting voted you off.' : '⛔ You were banned from this room.');
         },
-        onStranded: () => setStatus('\ud83d\udce1 This meeting is taking place, but your network settings aren\u2019t allowing you to connect.'), // R6
+        onStranded: () => setStatus('\ud83d\udce1 The meeting is happening, but this network will not let you connect to it.'), // R6
         // FRAGMENT SELF-RESCUE: the wire proved the door knows members my
         // solo room view doesn't. Same clean lever as the freeze self-heal \u2014
         // a full re-entry \u2014 throttled, and only while the app agrees we look
@@ -4917,9 +4914,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Password gate is handled by the wire (onLocked / R6 sealing); bans
         // and vote-offs land here. No walk \u2014 the session cap is the greeter
         // pool\u2019s, and newcomers drop their socket after seating anyway.
-        if (/voted-off/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 The people in this room have voted not to let this device in.'); }
+        if (/voted-off/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 The people in this room voted not to let this device in.'); }
         else if (/banned/.test(m.error || '')) { bannedOut = true; setStatus('\u26d4 This device was banned from the room by its admin.'); }
-        else if (!/password required|session is full/.test(m.error || '')) setStatus('Relay: ' + m.error);
+        else if (!/password required|session is full/.test(m.error || '')) setStatus('Connection trouble: ' + m.error);
       }
     }
     // The steady socket kicks itself on visibility/online; only the camera
@@ -5434,7 +5431,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // does exactly that to prove the relay refuses — but a client must
         // never eject itself on an order it knows it cannot issue.)
         if (hasAdminRoom() && !amAdmin) {
-          setStatus('⛔ admins only: this room’s password is managed by its admin'); // same words the relay refuses with — one message for one rule
+          setStatus('⛔ Only the person who runs this room can change its password.'); // same words the relay refuses with — one message for one rule
           pwModal.style.display = 'none';
           return;
         }
@@ -5606,7 +5603,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           + '<li>Chat has a <b>Turn chat off</b> switch (your messages still land) and per-message delete. Ban lives on each tile’s controls.</li>'
           + '<li>A broadcast lives while its host is present: leave, and it winds down after a countdown.</li>'
           + '</ul>'
-          + '<p>Under the hood this is the same engine as a GifOS Meeting — peer-to-peer, no accounts, no servers holding your video.</p>';
+          + '<p>Underneath it is the same thing as a GifOS Meeting: everything goes straight between the people here, no accounts, no company keeping your video.</p>';
       } else if (ROOM.kind === 'app') {
         hb.title = 'How this app room works — the shared app, the optional call, invites';
         h3.textContent = 'How this app room works';
@@ -5628,7 +5625,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           + '<li><b>Files</b> can be pinned once the room has a password.</li>'
           + '<li><b>Invite</b> copies the one link that brings a friend straight in. The link is the whole key — share it deliberately.</li>'
           + '</ul>'
-          + '<p>Under the hood this is the same engine as a GifOS Meeting — peer-to-peer, no accounts, no size limit.</p>';
+          + '<p>Underneath it is the same thing as a GifOS Meeting: everything goes straight between the people here, no accounts, no limit on how many.</p>';
       }
     }
     applyRoomHelp();
@@ -5645,7 +5642,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     };
     statusEl.style.cursor = 'pointer';
-    statusEl.title = 'Who is on this meeting — names and network addresses';
+    statusEl.title = 'Who is on this meeting — names and internet addresses';
     statusEl.onclick = showWhoModal;
 
     function joinRoom() {
@@ -9170,7 +9167,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function speechRunning() { return !!speech; }
     function startSpeech() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { setStatus('Transcription is not available in this browser.'); return false; }
+      if (!SR) { setStatus('This browser cannot write down what people say.'); return false; }
       try {
         speech = new SR();
         speech.continuous = true;
@@ -9187,7 +9184,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             stopSpeech();
             myStatus.cc = false;
             document.getElementById('ccbtn').classList.remove('on');
-            setStatus('Transcription is not available here (' + e.error + ').');
+            setStatus('Captions are not working here (' + e.error + ').');
             broadcastStatus();
           }
         };
@@ -9382,7 +9379,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // along; the others composite the received tiers on a canvas.
     async function startRec(opts) {
       opts = opts || { scope: 'all', quality: 'std', matchMix: true };
-      if (!ensureAc()) { setStatus('Recording needs audio support.'); return; }
+      if (!ensureAc()) { setStatus('This browser cannot record sound.'); return; }
       const scope = opts.scope || 'all';
       recMatchMix = opts.matchMix !== false;
       recQuality = REC_QUALITY[opts.quality] ? opts.quality : 'std';
@@ -9738,11 +9735,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (v !== 0) return;
       const blocked = !!(modOf('me').blur && modOf('me').blur.on);
       if (!roomPw) {
-        setStatus('Password must be set for unblurred video. ' + (hasAdminRoom()
+        setStatus('Faces stay blurred until this room has a password. ' + (hasAdminRoom()
           ? (amAdmin ? 'Set one with the Password button.' : 'Only this room’s admin can set one.')
           : 'Anyone here can set one with the Password button.'));
       } else if (blocked) {
-        setStatus('A moderator has blurred you for everyone — your video stays blurred until it is lifted.');
+        setStatus('Someone in the room has blurred you for everyone — you stay blurred until that is lifted.');
       } else if (myStatus.camOff) {
         setStatus('No blur picked — turn your camera on to be ready for clear video.');
       } else if (hasAdminRoom() && !adminPresent()) {
@@ -9871,7 +9868,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const set = myStageVotes[voteMode];
       if (set.has(dev)) set.delete(dev);
       else {
-        if (set.size >= STAGE_VOTE_CAP) { setStatus('You already carry ' + STAGE_VOTE_CAP + ' standing ' + (voteMode === 'up' ? 'stage' : 'step-down') + ' votes — withdraw one first.'); return; }
+        if (set.size >= STAGE_VOTE_CAP) { setStatus('You can only vote for ' + STAGE_VOTE_CAP + ' people at a time — take one of your votes back first.'); return; }
         set.add(dev);
       }
       stgTallyCache.at = 0;  // my own vote shows instantly

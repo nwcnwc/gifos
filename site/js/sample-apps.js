@@ -1525,9 +1525,8 @@
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
   h2{color:#5ca0ff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#5ca0ff}
 </style><div class="card"><h2>Meeting</h2>
-<p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
-app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
-opens the built-in meeting page when opened in GifOS.</p>
+<p>This one is built into GifOS. Ordinary apps are never allowed near your camera or
+microphone, so this icon opens the built-in meeting page instead of running here.</p>
 <p>Open this GIF on your Home Screen at <code>gifos.app</code> to start a meeting.</p></div>`;
 
   // Same idea for Broadcast: the Meet page wearing its broadcast skin — one
@@ -1537,9 +1536,8 @@ opens the built-in meeting page when opened in GifOS.</p>
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
   h2{color:#ff5c78;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#ff5c78}
 </style><div class="card"><h2>Broadcast</h2>
-<p>This is a GifOS <b>system app</b>. Live camera and microphone can't run inside the
-app sandbox (media is strictly peer-to-peer and needs trusted WebRTC), so this icon
-opens the built-in broadcast page when opened in GifOS.</p>
+<p>This one is built into GifOS. Ordinary apps are never allowed near your camera or
+microphone, so this icon opens the built-in broadcast page instead of running here.</p>
 <p>Open this GIF on your Home Screen at <code>gifos.app</code> to go live.</p></div>`;
 
   // Same idea for the App Store: the icon is a real GIF, but installing an app
@@ -1550,9 +1548,8 @@ opens the built-in broadcast page when opened in GifOS.</p>
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
   h2{color:#7b5cff;margin-top:0} p{color:#9a9ab5;line-height:1.5} code{color:#7b5cff}
 </style><div class="card"><h2>App Store</h2>
-<p>This is a GifOS <b>system app</b>. Installing an app writes to your Home Screen,
-which no sandboxed app may do, so this icon opens the built-in store page when
-opened in GifOS.</p>
+<p>This one is built into GifOS. Ordinary apps are never allowed to put things on your
+Home Screen, so this icon opens the built-in store page instead of running here.</p>
 <p>Open this GIF on your Home Screen at <code>gifos.app</code> to browse apps.</p></div>`;
 
   // A real app now: friendly onboarding for non-technical people, with a live

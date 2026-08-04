@@ -25,10 +25,10 @@
   // sandbox (runtime.js SYSTEM_PAGES). They wear a SYSTEM badge, and the value
   // here is the tooltip explaining what extra power that page holds.
   const SYSTEM_LAUNCHERS = {
-    meet: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
-    video: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
-    broadcast: 'System app — opens a trusted GifOS page with camera, microphone and WebRTC access. Regular apps run sandboxed with none of these.',
-    appstore: 'System app — opens the trusted GifOS store page, which can install an app onto this Home Screen. Regular apps run sandboxed and can never write to it.',
+    meet: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
+    video: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
+    broadcast: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
+    appstore: 'Built into GifOS — it may put new apps on your Home Screen. Apps you install never can.',
   };
 
   let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
@@ -2261,8 +2261,8 @@
       (persisted ? '' : '<button class="widebtn" id="set-persist">Protect this Home Screen now</button>') +
       '<h4 id="set-version-h">Version</h4>' +
       '<div id="set-version"><p class="add-help">Running <b>v' + escapeHtml(VERSION) + '</b>. Checking gifos.app for the latest…</p></div>' +
-      '<h4>Multiplayer relay</h4>' +
-      '<p class="add-help">Custom relay (leave blank for the default <span class="mono">wss://relay.gifos.app</span>). Applies to apps you launch afterward.</p>' +
+      '<h4>Connection service</h4>' +
+      '<p class="add-help">The little service that introduces people to each other when you share an invite. Leave this blank unless you run your own (the default is <span class="mono">wss://relay.gifos.app</span>). A change applies to apps you open afterwards.</p>' +
       '<input id="set-relay" placeholder="wss://relay.gifos.app" value="' + escapeHtml(relay) + '">' +
       '<button class="widebtn" id="set-relay-test">Test connection</button>' +
       '<p class="add-help" id="set-relay-status"></p>' +
@@ -2332,15 +2332,15 @@
     box.querySelector('#set-relay-test').onclick = () => {
       const out = box.querySelector('#set-relay-status');
       let url = box.querySelector('#set-relay').value.trim() || root.GIFOS_RELAY || '';
-      if (!url) { out.textContent = 'No relay configured.'; return; }
+      if (!url) { out.textContent = 'Nothing to test — no address is set.'; return; }
       out.textContent = 'Testing ' + url + ' …';
       let done = false;
       const finish = (msg) => { if (!done) { done = true; out.textContent = msg; } };
       try {
         const ws = new WebSocket(url.replace(/\/$/, '') + '/s/connection-test?role=client');
-        const timer = setTimeout(() => { finish('No answer after 8 seconds — the relay is unreachable from here.'); try { ws.close(); } catch (e) {} }, 8000);
-        ws.onmessage = () => { clearTimeout(timer); finish('Relay is reachable — invites will work.'); try { ws.close(); } catch (e) {} };
-        ws.onerror = () => { clearTimeout(timer); finish('Could not connect. If this is the default relay, its Worker may not be deployed on this domain (see relay/ in the repo).'); };
+        const timer = setTimeout(() => { finish('No answer after 8 seconds — this address cannot be reached from here.'); try { ws.close(); } catch (e) {} }, 8000);
+        ws.onmessage = () => { clearTimeout(timer); finish('Connected — invites will work.'); try { ws.close(); } catch (e) {} };
+        ws.onerror = () => { clearTimeout(timer); finish('Could not connect. If you did not set this yourself, try again in a moment; if you run your own service, check that it is live on this domain.'); };
       } catch (e) { finish('Error: ' + (e.message || e)); }
     };
     const perfBtn = box.querySelector('#set-perf-refresh');
