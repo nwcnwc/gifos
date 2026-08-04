@@ -174,6 +174,61 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
   check('edge-channel erase also wiped user data', dataGone);
   check('edge-channel erase also purged shell cache', cacheGone);
 
+  // ---- "What's new" actually shows what's new -------------------------------
+  // The update bar's action used to deep-link to the Version panel and stop:
+  // the click landed on a list of FOLDED rows — and for 0.9.1, on a bare row
+  // with no notes at all, because the release was cut without a changelog
+  // entry. Two guards: (1) the live release always HAS notes; (2) the deep-link
+  // unfolds the notes of the new release, and only those.
+  const vinfo = await page.evaluate(async (b) => {
+    const v = await (await fetch(b + '/version.json?ts=' + Date.now(), { cache: 'no-store' })).json();
+    const cl = await (await fetch(b + '/changelog.json?ts=' + Date.now(), { cache: 'no-store' })).json();
+    const cur = (cl.entries || []).find((e) => e && e.version === v.current);
+    return { current: v.current, prev: (v.versions || [])[1], curHasNotes: !!(cur && Array.isArray(cur.notes) && cur.notes.length) };
+  }, BASE);
+  check('the live release (' + vinfo.current + ') has changelog notes — a release is never cut without them', vinfo.curHasNotes);
+
+  // Run the EDGE code as a behind snapshot: serve the root tree at a fake
+  // /versions/ path (runningEdge() is path-based) and trap GIFOS_VERSION to the
+  // PREVIOUS release, so exactly one release is news. The frozen real snapshots
+  // can't test today's code — they are last release's code by definition.
+  const upCtx = await browser.newContext({ serviceWorkers: 'block' });
+  const upPage = await upCtx.newPage();
+  await upPage.addInitScript((prev) => {
+    Object.defineProperty(window, 'GIFOS_VERSION', { get: () => prev, set: () => {}, configurable: true });
+  }, vinfo.prev);
+  await upPage.route('**/versions/99.0.0/**', (r) => {
+    const u = new URL(r.request().url());
+    r.continue({ url: BASE + u.pathname.replace('/versions/99.0.0', '') + u.search });
+  });
+  await upPage.goto(BASE + '/versions/99.0.0/index.html');
+  await upPage.waitForSelector('.icon', { timeout: 20000 });
+  await upPage.locator('#update-bar').waitFor({ state: 'visible', timeout: 8000 });
+  await upPage.locator('#update-action').click();
+  await upPage.waitForSelector('#set-version .vlist .vrow', { timeout: 8000 });
+  await sleep(600); // the live re-check repaints the panel; the reveal re-runs after it
+  const whatsNew = await upPage.evaluate((v) => {
+    const modal = document.querySelector('.modal');
+    const adv = document.querySelector('#set-advanced');
+    const h = document.querySelector('#set-version-h');
+    const rows = [...document.querySelectorAll('#set-version .vrow')];
+    const rowFor = (ver) => rows.find((r) => { const l = r.querySelector('.vlabel'); return l && l.textContent.indexOf('v' + ver + ' ') === 0; });
+    const latest = rowFor(v.current), prev = rowFor(v.prev);
+    const mr = modal.getBoundingClientRect(), hr = h && h.getBoundingClientRect();
+    return {
+      advOpen: !!(adv && adv.open),
+      headingInView: !!(hr && hr.top >= mr.top && hr.top < mr.bottom),
+      latestOpen: !!(latest && latest.tagName === 'DETAILS' && latest.open),
+      latestNotes: !!(latest && latest.querySelector('.vnotes') && latest.querySelector('.vnotes').textContent.trim()),
+      prevClosed: !prev || prev.tagName !== 'DETAILS' || !prev.open,
+    };
+  }, vinfo);
+  check('What\'s new opens the Advanced disclosure', whatsNew.advOpen);
+  check('What\'s new scrolls the Version panel into view', whatsNew.headingInView);
+  check('What\'s new UNFOLDS the new release\'s notes (' + vinfo.current + ')', whatsNew.latestOpen && whatsNew.latestNotes);
+  check('...and only the news — the already-running release stays folded', whatsNew.prevClosed);
+  await upCtx.close();
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

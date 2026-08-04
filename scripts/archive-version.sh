@@ -18,6 +18,20 @@ DEST="$SITE/versions/$V"
 
 if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwrite"; exit 1; fi
 
+# A release without release notes is a "What's new" that shows nothing: 0.9.1
+# shipped with no changelog entry, so the update bar's deep-link landed on a
+# bare version row with nothing to read. Refuse to cut until changelog.json has
+# an entry (with at least one note) for the version being cut.
+V="$V" SITE="$SITE" node -e '
+  const cl = JSON.parse(require("fs").readFileSync(process.env.SITE + "/changelog.json", "utf8"));
+  const e = (cl.entries || []).find((e) => e && e.version === process.env.V);
+  if (!e || !Array.isArray(e.notes) || !e.notes.length) {
+    console.error("archive-version.sh: changelog.json has no entry (with notes) for " + process.env.V +
+      " — write the release notes first; the update bar’s “What’s new” shows them.");
+    process.exit(1);
+  }
+' || exit 1
+
 mkdir -p "$DEST"
 # Copy only the runtime site — never version.json, CNAME, .nojekyll, or versions/.
 #
