@@ -140,6 +140,10 @@ const cfg = {
   relay: args.relay || '',
   base: (args.base || 'https://gifos.app').replace(/\/$/, ''),
   av: args.av || '',
+  // --bc: join wearing the BROADCAST skin (meet.html#bc=1 — the Broadcast
+  // app). Only meaningful with an admin room (av); a viewer joining with it
+  // never calls getUserMedia at all.
+  bc: !!args.bc,
   name: args.name || 'meet-cli',
   videoIdx: args.video === true ? -1 : (args.video !== undefined ? parseInt(args.video, 10) : null), // null=no video
   solidCam: !!args.cam,
@@ -498,6 +502,7 @@ async function join(room, opts) {
   if (opts.pass !== undefined) cfg.pass = opts.pass;
   if (opts.relay !== undefined) cfg.relay = opts.relay;
   if (opts.av !== undefined) cfg.av = opts.av;
+  if (opts.bc !== undefined) cfg.bc = opts.bc;
   if (opts.video) { cfg.videoIdx = -1; }
   cfg.room = room;
   await ensureBrowser();
@@ -554,7 +559,7 @@ async function join(room, opts) {
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
-  const url = cfg.base + '/meet.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
+  const url = cfg.base + '/meet.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
   console.error('[meet] joining ' + url + ' as "' + cfg.name + '"' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
@@ -737,7 +742,7 @@ async function runCmd(line) {
   if (cmd === 'join') {
     const o = {}; let room = null;
     for (let i = 0; i < rest.length; i++) { const w = rest[i];
-      if (w === '--pass') o.pass = rest[++i]; else if (w === '--relay') o.relay = rest[++i]; else if (w === '--av') o.av = rest[++i]; else if (w === '--video') o.video = true; else if (!w.startsWith('--')) room = w; }
+      if (w === '--pass') o.pass = rest[++i]; else if (w === '--relay') o.relay = rest[++i]; else if (w === '--av') o.av = rest[++i]; else if (w === '--bc') o.bc = true; else if (w === '--video') o.video = true; else if (!w.startsWith('--')) room = w; }
     if (!room) { console.log('  usage: join <room> [--pass x] [--relay ws(s)://…] [--video]'); return true; }
     await join(room, o); console.log('  joined "' + room + '" — give it a few seconds, then `state`'); return true;
   }

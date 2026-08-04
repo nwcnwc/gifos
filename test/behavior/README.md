@@ -1,4 +1,4 @@
-# The behavior battery — 23 use cases, real people, real phones
+# The behavior battery — 24 use cases, real people, real phones
 
 Launch truth: there will be **no monitors in production**. Billions of rooms,
 zero pis, nobody watching. Every problem a meeting can have must be one the
@@ -7,7 +7,7 @@ to *rehearse the actual meetings people will hold* — not protocol fragments,
 but whole stories: who these people are, what devices they hold, what their
 phones do to the call while life happens around it.
 
-This battery is that rehearsal. Twenty-three use cases of 2–8-person meetings, each
+This battery is that rehearsal. Twenty-four use cases of 2–8-person meetings, each
 with named personas and 1–3 **interaction patterns** (a pattern = one runnable
 scenario script). Every role is played by a real `test/swarm/meet.js` instance
 — a full Playwright participant recording debug state — orchestrated by
@@ -443,6 +443,25 @@ sections, sponsor forwarding, anchors rooting subtrees.
   tree (no orphaned section), every survivor holds a real seat — the
   E-laws' promotion, first time in the battery with real browsers.
 
+### 24. The street broadcaster — the Broadcast app (one-to-many)
+**Cast:** Hana (desktop, `adminPw` + `bc: true` + `ensurePass` — the host),
+four phone viewers joining with `bc: true` + the ticket (`pass`).
+**Story:** the Broadcast app is meet.html wearing its one-to-many skin
+(`#bc=1` on an admin room): one host live on the Stage, viewers who bring
+NOTHING — no camera, no mic, no permission prompts — a hand queue as the
+only on-ramp to the Stage, and chat as a back-channel the host can silence,
+line-delete and reopen. The viewer password is the ticket: it clears the
+blur and never rides the link.
+
+- **24a `24a-broadcast-street.js`** — the whole show: host auto-stages and
+  goes CLEAR once the ticket is set; three viewers arrive (no gUM, no row
+  grid) and the stage feed paints; hand-raise → signed grant calls a viewer
+  up (Stage = {host, guest} room-wide) and revocation pulls her down by
+  arithmetic; chat flows, chat-off silences everyone but the host (a
+  DOM-hacked heckle lands nowhere), a signed per-line delete removes a
+  message on every device; a LATE ticket-holder walks straight into the
+  painted show; the full house holds steady.
+
 ---
 
 ## Script index → what reality each covers
@@ -464,8 +483,9 @@ sections, sponsor forwarding, anchors rooting subtrees.
 | shared app (`app run`, --seed-desktop) | 21c |
 | multi-row rooms (6+ people) | 22a 22b |
 | multi-section trees (`--mesh-c 2`) | 23a 23b |
+| the Broadcast skin (`bc`, ticket, call-up, chat-off) | 24a |
 
-55 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+56 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
 whether the lever machinery or the app broke). The three open bugs this
 battery once carried as expected-RED scenarios are all FIXED and their

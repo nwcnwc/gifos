@@ -282,9 +282,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.broadcast.notadmin #appbtn,
   body.broadcast.notadmin #recbtn,
   body.broadcast.notadmin #ccbtn,
-  body.broadcast.notadmin #mixbtn,
   body.broadcast.notadmin #pwbtn,
-  body.broadcast #votebtn { display: none !important; }
+  body.broadcast #votebtn,
+  /* Nobody mixes in a broadcast: Stage audio is the only bus there is. And
+     the host's guest-video hammers (Blur guests / Video off) moderate a
+     row tier a broadcast doesn't have — viewers bring no camera at all. */
+  body.broadcast #mixbtn,
+  body.broadcast #blurall,
+  body.broadcast #camall { display: none !important; }
   #appbar { display: flex; align-items: center; gap: .5rem; padding: .25rem .6rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #appbar #appname { font-weight: 700; }
@@ -781,9 +786,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <p id="pw-hint">Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
       <div id="pw-cur-row" style="display:flex;gap:.5rem;margin-bottom:.8rem">
         <input id="pw-cur" type="password" readonly>
-        <button id="pw-show" style="white-space:nowrap;background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Show current password</button>
       </div>
-      <input id="pw-new" maxlength="64" placeholder="New password" autocomplete="off">
+      <input id="pw-new" type="password" maxlength="64" placeholder="New password" autocomplete="off">
       <div style="display:flex;gap:.5rem;justify-content:center">
         <button id="pw-save">Save</button>
         <button id="pw-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
@@ -5180,6 +5184,51 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // DEBUG/tests: inject a fork pick UI
     window.__gifosShowForkPick = showForkPick;
 
+    // ---- the password-reveal EYE (every password field wears one) ------------
+    // Typing a password you cannot see is how typos mint wrong rooms. Tap to
+    // show, tap to hide; a revealed field re-hides when its modal reopens
+    // (pwEyeHide). The focusin delegate catches dynamically built fields
+    // (the Invite modal's mint) with no per-site wiring.
+    const PWEYE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21" style="display:none"/></svg>';
+    function pwEye(inp) {
+      if (!inp || inp.__pwEye || inp.type !== 'password') return;
+      inp.__pwEye = true;
+      const wrap = document.createElement('span');
+      wrap.style.cssText = 'position:relative;display:block;flex:1 1 auto';
+      wrap.style.marginBottom = getComputedStyle(inp).marginBottom;
+      inp.parentNode.insertBefore(wrap, inp);
+      wrap.appendChild(inp);
+      inp.style.marginBottom = '0';
+      inp.style.paddingRight = '2rem';
+      inp.style.width = '100%';
+      inp.style.boxSizing = 'border-box';
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (inp.id) b.id = 'pweye-' + inp.id;
+      b.title = 'Show password'; b.setAttribute('aria-label', 'Show password');
+      b.style.cssText = 'position:absolute;right:.3rem;top:50%;transform:translateY(-50%);background:none;border:none;padding:.2rem;margin:0;color:var(--muted,#8888aa);cursor:pointer;line-height:0';
+      b.innerHTML = PWEYE_SVG;
+      b.onclick = () => {
+        const show = inp.type === 'password';
+        inp.type = show ? 'text' : 'password';
+        b.querySelector('.slash').style.display = show ? '' : 'none';
+        b.title = show ? 'Hide password' : 'Show password';
+        b.setAttribute('aria-label', b.title);
+      };
+      wrap.appendChild(b);
+    }
+    function pwEyeHide(inp) { // re-hide on modal reopen: the field + its eye reset together
+      if (!inp) return;
+      inp.type = 'password';
+      const b = inp.id && document.getElementById('pweye-' + inp.id);
+      if (b) { b.querySelector('.slash').style.display = 'none'; b.title = 'Show password'; b.setAttribute('aria-label', 'Show password'); }
+    }
+    for (const i of document.querySelectorAll('input[type=password]')) pwEye(i);
+    document.addEventListener('focusin', (e) => {
+      const t = e.target;
+      if (t && t.type === 'password' && !t.__pwEye) { pwEye(t); t.focus(); } // re-focus: the wrap reparents (and so blurs) the field
+    });
+
     // ---- room password UI: one modal, two moods -------------------------------
     const pwModal = document.getElementById('pw-modal');
     function showPwModal(locked) {
@@ -5189,8 +5238,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         : 'Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
       document.getElementById('pw-cur-row').style.display = locked ? 'none' : 'flex';
       document.getElementById('pw-cur').value = roomPw;
-      document.getElementById('pw-cur').type = 'password';
-      document.getElementById('pw-show').textContent = 'Show current password';
+      pwEyeHide(document.getElementById('pw-cur')); // every open starts hidden — the eye reveals on demand
+      pwEyeHide(document.getElementById('pw-new'));
       const inp = document.getElementById('pw-new');
       inp.value = ''; inp.placeholder = locked ? 'Password' : 'New password';
       document.getElementById('pw-save').textContent = locked ? 'Join' : 'Save';
@@ -5201,12 +5250,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     document.getElementById('pwbtn').onclick = () => showPwModal(false);
     document.getElementById('pw-cancel').onclick = () => { pwModal.style.display = 'none'; };
-    document.getElementById('pw-show').onclick = (e) => {
-      const cur = document.getElementById('pw-cur');
-      const showing = cur.type === 'text';
-      cur.type = showing ? 'password' : 'text';
-      e.target.textContent = showing ? 'Show current password' : 'Hide password';
-    };
     document.getElementById('pw-save').onclick = () => {
       const v = document.getElementById('pw-new').value.trim();
       if (pwModal.dataset.mode === 'join') {
@@ -5380,6 +5423,63 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const helpModal = document.getElementById('help-modal');
     document.getElementById('helpbtn').onclick = () => { helpModal.style.display = 'flex'; helpModal.querySelector('.help-scroll').scrollTop = 0; };
     document.getElementById('help-close').onclick = () => { helpModal.style.display = 'none'; };
+    // The Help screen matches WHAT THIS PAGE IS: a meeting keeps the authored
+    // stadium explainer in the markup; a BROADCAST and an APP ROOM each swap
+    // in their own story (one page, three products — the traits decide).
+    function applyRoomHelp() {
+      const h3 = document.querySelector('#help-modal h3');
+      const hs = document.querySelector('#help-modal .help-scroll');
+      const hb = document.getElementById('helpbtn');
+      if (BROADCAST) {
+        hb.title = 'How this broadcast works — the Stage, the viewer password, raising your hand';
+        h3.textContent = 'How this broadcast works';
+        hs.innerHTML =
+          '<p class="help-lead">This is a <b>live broadcast</b>: one host (and anyone they call up) on the <b>Stage</b>, and an <b>unlimited audience</b> watching. Two viewers or two million, it runs the same — every phone talks only to a handful of neighbors, and the show reaches everyone.</p>'
+          + '<h4>Watching</h4>'
+          + '<ul class="help-list">'
+          + '<li>The link is all you need. Your <b>camera and microphone are never used</b> — watching asks no permissions at all.</li>'
+          + '<li>The video stays <b>blurred</b> until the host sets a <b>viewer password</b>. If you’re asked for one, the host shares it separately — it’s the ticket, and it never rides the link.</li>'
+          + '<li><b>Chat</b> is live to everyone here, never stored on any server, and gone when the broadcast ends.</li>'
+          + '</ul>'
+          + '<h4>Speaking up</h4>'
+          + '<ul class="help-list">'
+          + '<li>Tap <b>Hand</b> to ask for the Stage. The host can call you up — your own phone then asks for your camera and mic (your choice to grant), and you join the host on Stage for the whole room.</li>'
+          + '<li>Stepping down is always your right; the host can also revoke the Stage.</li>'
+          + '</ul>'
+          + '<h4>For the host</h4>'
+          + '<ul class="help-list">'
+          + '<li>Your <b>host password</b> is yours alone — it IS your control of this broadcast. Never send it to viewers.</li>'
+          + '<li>The <b>Password</b> button sets or changes the <b>viewer password</b>: without one the broadcast stays blurred; with one, whoever you give it to sees you clear.</li>'
+          + '<li>The hand queue floats to the top — tap a name to call them up on Stage. Revoking their grant pulls them back down.</li>'
+          + '<li>Chat has a <b>Turn chat off</b> switch (your messages still land) and per-message delete. Ban lives on each tile’s controls.</li>'
+          + '<li>A broadcast lives while its host is present: leave, and it winds down after a countdown.</li>'
+          + '</ul>'
+          + '<p>Under the hood this is the same engine as a GifOS Meeting — peer-to-peer, no accounts, no servers holding your video.</p>';
+      } else if (ROOM.kind === 'app') {
+        hb.title = 'How this app room works — the shared app, the optional call, invites';
+        h3.textContent = 'How this app room works';
+        hs.innerHTML =
+          '<p class="help-lead">This room exists around a <b>shared app</b>: everyone here sees and uses the <b>same live app together</b> — moves, edits and state flow between every phone directly.</p>'
+          + '<h4>The app is the show</h4>'
+          + '<ul class="help-list">'
+          + '<li>The app fills the screen. One person <b>hosts</b> it (their device runs its engine); everyone else interacts live.</li>'
+          + '<li>If the host drops off, what happens is the room’s choice at creation: an <b>owned</b> app pauses until its owner returns; a <b>resilient</b> one lets a friend still here take over hosting.</li>'
+          + '</ul>'
+          + '<h4>The call is optional</h4>'
+          + '<ul class="help-list">'
+          + '<li>Joining costs nothing: <b>no camera or microphone until YOU join the call</b> (the banner, or the camera/mic buttons). You can use the app and chat without ever being seen or heard.</li>'
+          + '<li>Once on the call, it works like a GifOS Meeting: blur by default, clear video only in a password-locked room with everyone consenting.</li>'
+          + '</ul>'
+          + '<h4>Chat, files, invites</h4>'
+          + '<ul class="help-list">'
+          + '<li><b>Chat</b> stays between the people here — no server ever sees it; it’s gone when the room empties.</li>'
+          + '<li><b>Files</b> can be pinned once the room has a password.</li>'
+          + '<li><b>Invite</b> copies the one link that brings a friend straight in. The link is the whole key — share it deliberately.</li>'
+          + '</ul>'
+          + '<p>Under the hood this is the same engine as a GifOS Meeting — peer-to-peer, no accounts, no size limit.</p>';
+      }
+    }
+    applyRoomHelp();
     helpModal.onclick = (e) => { if (e.target === helpModal) helpModal.style.display = 'none'; }; // tap the backdrop to dismiss
     document.getElementById('who-dl').onclick = () => {
       const stamp = new Date().toISOString();
@@ -9350,6 +9450,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         invModal.style.display = 'none';
         await createAdminRoom(chosen, pass, post, guest);
       };
+      for (const i of body.querySelectorAll('input[type=password]')) pwEye(i); // the mint's two fields get their eyes before first focus
       invModal.style.display = 'flex';
     }
     invModal.addEventListener('click', (e) => { if (e.target === invModal) invModal.style.display = 'none'; });
