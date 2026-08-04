@@ -67,9 +67,13 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await p2b.locator('#lob-admin-btn').click();
   check('the mint screen labels the ADMIN password "never share it"',
     /never share it/i.test(await p2b.locator('#lob-admin .lob-pwlab').first().textContent()));
-  check('…and the GUEST password as the one you DO share, optional but needed for clear video',
+  // The note is written for someone who has never heard the word "unblurred":
+  // it must still say WHAT it buys (faces stop being blurred) and the one thing
+  // a host can get wrong — that it is not carried by the link.
+  const guestNote = (await p2b.locator('#lob-guest-pass-note').textContent()) || '';
+  check('…and the GUEST password as the one you DO share — blurred until it is set, and not part of the link',
     /do\s*share/i.test((await p2b.locator('#lob-admin .lob-pwlab').nth(1).textContent()) || '')
-    && /clear \(unblurred\) video/i.test(await p2b.locator('#lob-guest-pass-note').textContent()));
+    && /blur/i.test(guestNote) && /not part of the link/i.test(guestNote));
   const tkRoom = 'show' + Math.floor(Math.random() * 1e6).toString(36);
   const TICKET = 'row-g-7';
   await p2b.locator('#lob-admin-name').fill(tkRoom);
@@ -122,6 +126,54 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const p5 = await coldOpen('p5');
   const star = await p5.locator('.lob-item', { hasText: adminName }).locator('.lob-star').textContent();
   check('a bookmarked meeting persists, shown starred (★), on the next visit', (star || '').includes('★'));
+
+  // ---- 7. Meeting and Broadcast are SEPARATE lists ----------------------------
+  // One page wearing two skins, but "Recent & saved" is per surface. They shared
+  // one pair of storage keys, so broadcasts you had hosted turned up under the
+  // Meeting lobby's Recent — and tapping one there reopened it as a plain
+  // meeting, since the click just follows the /cast/ link with its skin dropped.
+  const coldCast = async (label) => {
+    const pg = await ctx.newPage();
+    pg.on('pageerror', (e) => console.log('  [' + label + ' pageerror]', e.message));
+    await pg.goto(BASE + '/run.html#bc=1');
+    await pg.waitForSelector('#lobby.show', { timeout: 10000 });
+    return pg;
+  };
+  const c1 = await coldCast('c1');
+  check('the Broadcast lobby shows NONE of the meetings in Meeting’s list',
+    (await c1.locator('#lob-list .lob-item').count()) === 0);
+  const castRoom = 'onair' + Math.floor(Math.random() * 1e6).toString(36);
+  await c1.locator('#lob-admin-btn').click();
+  await c1.locator('#lob-admin-name').fill(castRoom);
+  await c1.locator('#lob-admin-pass').fill('onair-topsecret');
+  await c1.locator('#lob-admin-go').click();
+  await c1.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 20000 });
+  check('a broadcast started from the Broadcast lobby opens as a broadcast',
+    (await c1.evaluate(() => window.__gifosVideo.broadcast())) === true);
+
+  const c2 = await coldCast('c2');
+  check('…and it is remembered in the BROADCAST list',
+    (await c2.locator('.lob-item', { hasText: castRoom }).count()) === 1);
+  const p6 = await coldOpen('p6');
+  check('the Meeting lobby never shows a broadcast',
+    (await p6.locator('.lob-item', { hasText: castRoom }).count()) === 0);
+  check('…and still shows the meetings it always did',
+    (await p6.locator('#lob-list .lob-item').count()) >= 2);
+
+  // Everything written before the split went into the meeting keys, so a boot
+  // re-sorts them — otherwise the broadcasts already in there stay forever.
+  const legacy = 'oldcast' + Math.floor(Math.random() * 1e6).toString(36);
+  await p6.evaluate((n) => {
+    const h = JSON.parse(localStorage.getItem('gifos_meet_history') || '[]');
+    h.unshift({ url: location.origin + '/cast/' + n + '/0123456789abcdef', name: n, av: '0123456789abcdef', ts: Date.now() });
+    localStorage.setItem('gifos_meet_history', JSON.stringify(h));
+  }, legacy);
+  const p7 = await coldOpen('p7');
+  check('a broadcast recorded before the split is swept out of the Meeting lobby',
+    (await p7.locator('.lob-item', { hasText: legacy }).count()) === 0);
+  const c3 = await coldCast('c3');
+  check('…and turns up in the Broadcast lobby instead',
+    (await c3.locator('.lob-item', { hasText: legacy }).count()) === 1);
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
