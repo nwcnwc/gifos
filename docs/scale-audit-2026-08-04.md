@@ -80,18 +80,33 @@ The C++ sim (`--det`, join only, no churn):
 | N | result |
 |---|---|
 | 2000 | converges @ 5,504 ticks (76s) |
-| 5000 | **INCOMPLETE** — 2113/5000 seated at the 210k-tick cap (48 min) |
-| 10000 | **INCOMPLETE** — 2352/10000 seated at the 360k-tick cap |
+| 3000 | **INCOMPLETE** — 1915/3000 at the 150k-tick cap |
+| 4000 | **INCOMPLETE** — 2010/4000 at the 180k-tick cap |
+| 5000 | **INCOMPLETE** — 2113/5000 at the 210k-tick cap (48 min) |
+| 10000 | **INCOMPLETE** — 2352/10000 at the 360k-tick cap |
 
-S1 fills (25/25), roughly the first ~2k seat, then admission grinds while
-thousands of entrants burn tens of millions of bootstrap frames at the
-door. **Pre-existing, not the entry-resume change** — a paired A/B at
-N=5000 stalls both arms (baseline 2113 vs resume 1907; the ~10% single-
-seed gap is noted, unproven either way). Invisible until now because the
-gates stop at N=800 (`sweep.sh`) / N=1000 (JS harness). Cliff bisection
-(N=3000/4000) in progress. Suspects, unverified: admission funnel
-serialization at the frontier, FIND ttl vs tree depth under contention,
-retry-storm congestion at the door.
+The signature is a **congestion collapse, not a capacity bound**. The
+seated plateau sits near ~2,000 regardless of N (1915, 2010, 2113, 2352
+across a 3.3× range), progress never stops — it CRAWLS (~200 seats per
+100k ticks) — and the sharpest fact is this pair:
+
+- N=2000 entrants → **2000 seated**, converged in 5,504 ticks
+- N=3000 entrants → **1915 seated** in 150,000 ticks
+
+More seekers produce FEWER filled seats in 27× the time. The tree itself
+holds 3,900 through depth 3 (25 + 125 + 625 + 3,125), and N=2000 happily
+seats 1,225 of its members into depth 3 — so depth is not the wall.
+Unadmitted-seeker CONTENTION is: every waiting entrant retries into the
+same S1 funnel every ~20 ticks, and past some seeker-to-admitter ratio
+the funnel spends its throughput on NOROOMs and re-walks instead of
+admissions. Classic queueing collapse. (Suspects for the mechanism inside
+the funnel: designation-chain re-walks from S1 per retry, frontier
+serialization, retry pacing with no backoff under contention. FIND
+ttl=200 is not binding at these depths.) **Pre-existing, not the
+entry-resume change** — a paired A/B at N=5000 stalls both arms (baseline
+2113 vs resume 1907; the ~10% single-seed gap is noted, unproven either
+way). Invisible until now because the gates stop at N=800 (`sweep.sh`) /
+N=1000 (JS harness), below the collapse threshold.
 
 ## Deliberate and KEPT — the relay bootstrap path
 
