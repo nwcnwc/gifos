@@ -389,7 +389,14 @@ struct Seat {
   // V) is already filling it, so a newcomer there would double-book. Skip it; the
   // caller forwards the FIND deeper (serveFind), keeping healers and newcomers
   // disjoint by construction.
-  bool firstFreeInRoster(Coord&f){ if(pcDepth(coord.pc)>=12) return false; /* THE DEPTH WALL: children would overflow the uint32 path — see the NOROOM wall in serveFind */ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(cellTaken(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0||softSitting(ckey(down(rc[c])))) continue; { auto ht=healTry.find(ckey(rc[c])); if(ht!=healTry.end() && TICK-ht->second<=45) continue; }   /* V4: deep admissions honor the same 45-tick cooling as S1 — a silence-freed chair is not "admissible NOW" */ f=rc[c]; return true; } return false; }
+  // V4: deep admission reads the same PHANTOM-AWARE reservation as the S1 scan
+  // (cellReserved, not raw cellTaken). Raw occ let stale dup-war echoes block a
+  // parent's own child row FOREVER — the deep path has no s1Fill sweep and no
+  // designated-arm phantom clear, so once minting stopped, 120 depth-1 parents
+  // sat on ~360 free cells they believed taken while joiners funneled past
+  // them into the depth wall (the N=2000 plateau at 1907: the 03c livelock
+  // reborn one layer down).
+  bool firstFreeInRoster(Coord&f){ if(pcDepth(coord.pc)>=12) return false; /* THE DEPTH WALL: children would overflow the uint32 path — see the NOROOM wall in serveFind */ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ uint64_t k=ckey(rc[c]); if(cellReserved(k)) continue; uint64_t dk=ckey(down(rc[c])); if(cellReserved(dk)&&!occIsPhantom(dk)) continue; if(softSitting(dk)) continue; { auto ht=healTry.find(k); if(ht!=healTry.end() && TICK-ht->second<=45) continue; }   /* V4: deep admissions honor the same 45-tick cooling as S1 — a silence-freed chair is not "admissible NOW" */ f=rc[c]; return true; } return false; }
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
@@ -949,6 +956,15 @@ int main(int argc,char**argv){
       printf("TRANSIT moves=%d leases=%d %s\n",ntr,nls,ex.c_str()); }
     else if(op=="bad"){ int cnt=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3){ cnt++; if(cnt<=8){ const char* st[]={"joining","asking","searching","seated"}; char b[64]; snprintf(b,64,"%d(%s) ",q,st[seats[q]->state]); ex+=b; } } printf("BAD unseated=%d %s\n",cnt,ex.c_str()); }
     else if(op=="dups"){ unordered_map<uint64_t,int> at; int d=0; string ex; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord){ uint64_t k=ckey(seats[q]->coord); auto it=at.find(k); if(it!=at.end()){ d++; if(d<=8){ char b[64]; snprintf(b,64,"%s:%d,%d ",coordStr(seats[q]->coord).c_str(),it->second,q); ex+=b;} } else at[k]=q; } printf("DUPS %d %s\n",d,ex.c_str()); }
+    // V4 forensics: heal-owed MID-TREE HOLES — an empty owner cell above a live
+    // row head. These block admission (the down-child rule) AND compaction;
+    // if they pile up, the room livelocks with a free-looking frontier.
+    else if(op=="holes"){ unordered_map<uint64_t,int> at; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->hasCoord&&seats[q]->state==3) at[ckey(seats[q]->coord)]=q;
+      int n=0; string ex;
+      for(int q=0;q<nextId;q++){ if(!(alive[q]&&seats[q]->hasCoord&&seats[q]->state==3)) continue; Seat*s=seats[q]; if(s->coord.pc==0||s->coord.i!=0) continue;
+        Coord o; if(!up(s->coord,o)) continue;
+        if(!at.count(ckey(o))){ n++; if(n<=10){ char b[96]; snprintf(b,96,"%s(head=%d)->hole %s  ",coordStr(s->coord).c_str(),q,coordStr(o).c_str()); ex+=b; } } }
+      printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
     else if(op=="compact"){   // Q2 diagnostic: tree-depth & lone-row fragmentation. depth(pc)=path length.

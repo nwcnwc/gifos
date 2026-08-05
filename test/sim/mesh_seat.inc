@@ -135,8 +135,12 @@ void Seat::admit(Coord c,Msg& f){
     emit(nc,m);
   }
 }
+// V4 forensics (env MESH_FINDLOG=<seekerId>): every serveFind decision for one
+// seeker's FINDs, printed by the SERVING seat — the tool that pins where a
+// forever-searching joiner's asks go to die.
+#define FINDLOG(fmt,...) do{ const char* _f=getenv("MESH_FINDLOG"); if(_f&&atoi(_f)==mm.nc) fprintf(stderr,"FINDLOG t=%lld me=%d@%u/%d.%d ttl=%d " fmt "\n",(long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,mm.ttl,##__VA_ARGS__); }while(0)
 void Seat::serveFind(Msg& mm){
-  if(!hasCoord||mm.ttl<=0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(!hasCoord||mm.ttl<=0){ FINDLOG("NOROOM ttl-or-unseated"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   if(coord.pc==0){
     // H7 ROW-FILL seating (replaces the old column backfill): Section 1 fills
     // ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first C people
@@ -333,7 +337,7 @@ void Seat::serveFind(Msg& mm){
           // admittees still in flight). The 60-tick window outlives any
           // in-flight vouch's confirm; past it a silent assigner is dead and
           // its vouches died with it.
-          if(coord.i==0 && cell.r==coord.r && !rowLedger && TICK-seatedAt<=60) continue;
+          if(coord.i==0 && cell.r==coord.r && !rowLedger && TICK-seatedAt<=60){ FINDLOG("skip cell 0/%d.%d ledger-gate",(int)cell.r,(int)cell.i); continue; }
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){
             healTry[k]=(int)TICK;
             if(occIsPhantom(k)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)cell.pc,(int)cell.r,(int)cell.i,occGet(k),findNc); occDrop(k,"phantomclr"); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
@@ -349,6 +353,7 @@ void Seat::serveFind(Msg& mm){
         // Hand off to a reachable real admitter. Never emit to a corpse id.
         // Silent-but-real heads stay reachable (headless-row C / hchain D).
         if(admitterReachable(ckey(adm))){
+          FINDLOG("handoff -> %d@0/%d.%d for cell 0/%d.%d",occGet(ckey(adm)),(int)adm.r,(int)adm.i,(int)cell.r,(int)cell.i);
           Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(occGet(ckey(adm)),m); return;
         }
         // admitter unknown/dead/phantom: keep scanning
@@ -368,11 +373,15 @@ void Seat::serveFind(Msg& mm){
     // path when home's free cells look unservable FAST-TRACKS SILENT DEATH past
     // the H1-S1 ring-hold (headless-row leg C), and it buys nothing: the
     // partitioned half recovers on the reachable-forward fix below alone.
-    if(s1admFree>0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+    if(s1admFree>0){ FINDLOG("NOROOM s1admFree=%d",s1admFree); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){
     if(getenv("MESH_DUPLOG")) fprintf(stderr,"DEEPADM t=%lld me=%d my=%u/%d.%d cell=%u/%d.%d seeker=%d\n",
       (long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,(unsigned)f.pc,(int)f.r,(int)f.i,mm.nc);
+    FINDLOG("ADMIT deep %u/%d.%d",(unsigned)f.pc,(int)f.r,(int)f.i);
+    // Phantom occ on the admitted cell: clear it first-hand, exactly as the S1
+    // designated arm does (a stale echo must not survive under a fresh admit).
+    { uint64_t fk=ckey(f); if(occIsPhantom(fk)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR-DEEP t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)f.pc,(int)f.r,(int)f.i,occGet(fk),mm.nc); occDrop(fk,"phantomclr-deep"); live.erase(fk); s1seen.erase(fk); kidful.erase(fk); tlForget(fk); } }
     ADMIT_SITE="deep-firstFree"; admit(f,mm); return; }
   // Descend — but NEVER into the void. The S1 hand-off above is careful to pick
   // a reachable admitter; this forward used raw occ, so it happily emitted the
@@ -398,11 +407,12 @@ void Seat::serveFind(Msg& mm){
   // would be depth 13 must not forward the FIND downward — NOROOM is honest
   // (a depth-12 stadium is ~2 billion sections; admission never legitimately
   // needs the 13th floor — reaching it IS the dup-war signature).
-  if(pcDepth(coord.pc)>=12){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(pcDepth(coord.pc)>=12){ FINDLOG("NOROOM depth-wall"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
-      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+  FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
 }
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
