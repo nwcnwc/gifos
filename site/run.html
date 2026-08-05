@@ -10911,6 +10911,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Test hook: lets the e2e suite observe mesh + quality state.
     window.__gifosVideo = {
       participants: participantCount,
+      // Strip-teardown forensics (e2e-mosaic): whose status holds a stage
+      // seat, and which stg pipes this page still holds. Read-only peeks.
+      statusPeekForTest: (id) => { const st = statusOf.get(id); return st ? { stg: st.stg || 0, ageMs: Date.now() - (st.at || 0), rxAgeMs: Date.now() - (st.rx || 0) } : null; },
+      mosInKeysForTest: () => [...mosIn.keys()].filter((k) => k.indexOf('stg') === 0 || k === 'sgs'),
       // ENCODED PASSTHROUGH (§9a) forensics: which jobs ride the pipe lane vs
       // were denied back to transcode, and the worker's per-pipe counters
       // (wrote/primed/dropped/kfAsk/mimes) — the proof a hop is forwarding
