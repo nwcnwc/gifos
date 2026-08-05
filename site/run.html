@@ -6,6 +6,261 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
+<!-- ════ PREFLIGHT: can this browser actually hold a meeting? ════════════════════
+     A browser that cannot run the meeting used to find that out the slow way:
+     it booted, knocked, never seated, and after four seconds got the joining
+     veil — "Reaching the meeting…" — forever. That is the worst possible
+     answer, because it is a lie of omission: nothing was ever going to reach
+     anything. A phone that cannot come needs to be TOLD, in words, in the
+     first instant.
+
+     So this runs FIRST — before the channel loader, before the theme gate,
+     before one line of app code — and it is written in ES5 on purpose: a
+     browser old enough to fail the check is old enough to choke on an arrow
+     function, and a preflight that dies of a SyntaxError explains nothing.
+
+     THE DECISION IS FEATURE DETECTION, NEVER THE USER-AGENT. UA sniffing is
+     wrong twice over: it blocks new browsers it has never heard of, and it
+     waves through old ones wearing a fashionable string. The UA is read for
+     exactly one purpose — to put a friendly NAME and NUMBER in the copy
+     ("Safari 14 … needs Safari 17") — and never touches the verdict.
+
+     THE REQUIRED SET, derived from the code, not from a wishlist:
+       WebSocket .................. the relay socket (gifos-net.js)
+       crypto.subtle + getRandomValues .. derive-don't-send: PBKDF2/HKDF-shaped
+                                    derivation, AES-GCM sealed frames, SHA-256
+       WebCrypto Ed25519 .......... S4 per-participant identity. MANDATORY —
+                                    mesh-wire.js mints one at every join and
+                                    has no off switch, and every FINDLEAF /
+                                    PLACE / CLAIM / HELLO is signed with it.
+                                    This is the LATEST-arriving requirement by
+                                    a wide margin and it sets the whole table.
+       RTCPeerConnection + createDataChannel .. the mesh links themselves
+       TextEncoder / TextDecoder .. the byte<->string boundary everywhere
+       Promise / Map / Set ........ the ES6 floor the runtime is written on
+
+     NOT required, deliberately:
+       getUserMedia ............... view-only join is a supported, first-class
+                                    state (the knock never waits on media —
+                                    see e2e-knock-first.js). A browser with no
+                                    camera API still joins and still watches.
+       canvas.captureStream ....... same reason; it is a sending capability.
+       Insecure-origin http:// .... reported as ITS OWN problem (the link needs
+                                    https), never as "your browser is old".
+
+     Ed25519 is async to probe (importKey returns a promise), so the verdict
+     lands in two halves: the synchronous half blocks here and now, and the
+     Ed25519 half resolves through GifOSPreflight.whenSupported(), which the
+     runtime's entry dispatch waits on before it boots a room. Nothing knocks,
+     no socket opens, and `room` is never set — so the joining veil, which
+     early-returns without a room, can never arm behind this screen.
+
+     Known gap, named honestly: a visitor on gifos.app whose channel loader
+     redirects to a FROZEN /versions/<x.y.z>/ snapshot cut before this landed
+     runs a build with no preflight. Snapshots are immutable by design; the
+     next release carries it and the gap closes itself.
+-->
+<script>
+(function () {
+  'use strict';
+
+  /* THE VERSION TABLE — ONE PLACE, and it is set by WebCrypto Ed25519, which
+     every one of these engines shipped LAST of the required set. Verified
+     against MDN browser-compat-data (api/SubtleCrypto.json, ed25519 sign /
+     verify / importKey / exportKey) and caniuse, 2026-08-05:
+         Chrome / Edge  137   (2025-05, the last engine to ship it)
+         Firefox        129   (2024-08)
+         Safari          17   (2023-09, desktop and iOS alike)
+     Chromium-derived browsers (Opera, Samsung Internet, and the rest) are NOT
+     given a number of their own — their release numbering is theirs and we
+     have not verified it — but their UA carries the Chrome build they are
+     made of, so we quote THAT and stay truthful. */
+  var MIN = {
+    chrome:  { label: 'Chrome',           min: '137' },
+    edge:    { label: 'Microsoft Edge',   min: '137' },
+    firefox: { label: 'Firefox',          min: '129' },
+    safari:  { label: 'Safari',           min: '17'  }
+  };
+  var GENERIC_MINS = 'Safari 17, Chrome 137 or Firefox 129 — and up';
+
+  /* ---- the checks. Each returns a plain-language name for what is missing,
+     used in the small print so a support conversation has something to go on. */
+  function fn(o, k) { try { return typeof o[k] === 'function'; } catch (e) { return false; } }
+
+  function syncGaps() {
+    var g = [], w = window;
+    if (!fn(w, 'Promise') || !fn(w, 'Map') || !fn(w, 'Set')) g.push('modern JavaScript (Promise/Map/Set)');
+    if (typeof w.WebSocket === 'undefined') g.push('WebSocket');
+    if (!fn(w, 'TextEncoder') || !fn(w, 'TextDecoder')) g.push('TextEncoder/TextDecoder');
+    var c = w.crypto;
+    if (!c || !fn(c, 'getRandomValues')) g.push('crypto.getRandomValues');
+    var s = c && c.subtle;
+    if (!s) g.push('WebCrypto (crypto.subtle)');
+    else {
+      var missing = [];
+      for (var i = 0, need = ['importKey', 'exportKey', 'sign', 'verify', 'encrypt', 'decrypt', 'digest', 'deriveBits']; i < need.length; i++) {
+        if (!fn(s, need[i])) missing.push(need[i]);
+      }
+      if (missing.length) g.push('WebCrypto ' + missing.join('/'));
+    }
+    if (typeof w.RTCPeerConnection === 'undefined') g.push('WebRTC (RTCPeerConnection)');
+    else if (!w.RTCPeerConnection.prototype || !fn(w.RTCPeerConnection.prototype, 'createDataChannel')) g.push('WebRTC data channels (createDataChannel)');
+    return g;
+  }
+
+  /* An http:// page that is not localhost has NO crypto.subtle at all, in every
+     browser ever made. That is not an old browser, it is a bad address, and
+     saying "update your browser" to someone holding a working one is the kind
+     of wrong answer that ends the call. Detected separately, worded separately. */
+  function insecure() {
+    try {
+      if (window.isSecureContext) return false;
+      return !(window.crypto && window.crypto.subtle);
+    } catch (e) { return false; }
+  }
+
+  /* ---- who are you? COPY ONLY. Never consulted for the verdict. ------------ */
+  function ua() {
+    var u = '';
+    try { u = navigator.userAgent || ''; } catch (e) {}
+    var m;
+    // In-app browsers first: the same WKWebView/WebView wearing an app's name.
+    // When one of these fails, "open it in Safari" is the actual fix, so the
+    // copy changes shape entirely.
+    var inApp = /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Snapchat|Twitter|TikTok|Pinterest|GSA\//.test(u);
+    if ((m = u.match(/Edg(?:iOS|A)?\/(\d+)/))) return { key: 'edge', label: MIN.edge.label, ver: m[1], min: MIN.edge.min, inApp: inApp };
+    if ((m = u.match(/(?:OPR|OPiOS|Opera)\/(\d+)/))) return chromiumSkin('Opera', m[1], u, inApp);
+    if ((m = u.match(/SamsungBrowser\/(\d+)/))) return chromiumSkin('Samsung Internet', m[1], u, inApp);
+    if ((m = u.match(/(?:Firefox|FxiOS)\/(\d+)/))) return { key: 'firefox', label: MIN.firefox.label, ver: m[1], min: MIN.firefox.min, inApp: inApp };
+    if ((m = u.match(/CriOS\/(\d+)/))) return { key: 'chrome', label: MIN.chrome.label, ver: m[1], min: MIN.chrome.min, inApp: inApp };
+    if ((m = u.match(/Chrome\/(\d+)/))) return { key: 'chrome', label: MIN.chrome.label, ver: m[1], min: MIN.chrome.min, inApp: inApp };
+    if (/Safari\//.test(u) || /iPhone|iPad|iPod|Macintosh/.test(u)) {
+      m = u.match(/Version\/(\d+)/);
+      return { key: 'safari', label: MIN.safari.label, ver: m ? m[1] : '', min: MIN.safari.min, inApp: inApp };
+    }
+    return { key: '', label: '', ver: '', min: '', inApp: inApp };
+  }
+  // A Chromium skin: name the browser the person is holding, but state the
+  // requirement in the only number we can honestly stand behind — the Chrome
+  // build its own UA admits to being.
+  function chromiumSkin(label, ver, u, inApp) {
+    var c = u.match(/Chrome\/(\d+)/);
+    return { key: 'chromium-skin', label: label, ver: ver, min: '', chromeVer: c ? c[1] : '', inApp: inApp };
+  }
+
+  /* ---- the screen ---------------------------------------------------------- */
+  var CSS = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;' +
+    'padding:1.25rem;background:#0a0a0f;color:#e0e0f0;overflow:auto;' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function paint(kind, gaps) {
+    var who = ua(), head, body, extra = '';
+    if (kind === 'insecure') {
+      head = 'This link needs to start with https';
+      body = 'Meetings are scrambled from end to end, and a browser will only do that on a secure address. ' +
+             'Open the same link with <b>https://</b> at the front and it will work.';
+    } else if (who.inApp) {
+      head = 'Open this in your browser';
+      body = 'You are looking at this inside another app, and the little browser built into it cannot run meetings. ' +
+             'Tap the <b>⋯</b> or <b>share</b> button on this page and choose <b>Open in Safari</b> or <b>Open in Chrome</b> — ' +
+             'the meeting will work there.';
+    } else {
+      var youAre = who.label ? (who.ver ? who.label + ' ' + who.ver : who.label) : 'This browser';
+      var needs;
+      if (who.key === 'chromium-skin') {
+        needs = who.chromeVer
+          ? 'Meetings need a version built on Chrome ' + MIN.chrome.min + ' or newer, and this one is built on Chrome ' + esc(who.chromeVer) + '.'
+          : 'Meetings need ' + GENERIC_MINS + '.';
+      } else if (who.min) {
+        needs = 'Meetings need ' + who.label + ' ' + who.min + ' or newer.';
+      } else {
+        needs = 'Meetings need ' + GENERIC_MINS + '.';
+      }
+      head = (who.label ? 'Your ' + esc(who.label) + ' is too old for meetings' : 'This browser is too old for meetings');
+      body = '<b>' + esc(youAre) + '</b> cannot do meetings. ' + needs +
+             ' Updating your phone or computer is usually all it takes, and it costs nothing.';
+      extra = 'On a phone or tablet, meetings work in <b>Safari</b> (Apple) or <b>Chrome</b> (Android). ' +
+              'If someone sent you this link, they can still meet without you until you are updated — nothing is broken on their end.';
+    }
+    var small = gaps && gaps.length
+      ? '<p id="oldbrowser-gaps" style="margin:1.4rem 0 0;font-size:.72rem;line-height:1.5;color:#6a6a86">' +
+        'For anyone helping you fix this, the missing piece is: <span style="font-family:ui-monospace,Menlo,Consolas,monospace">' +
+        esc(gaps.join(', ')) + '</span>.</p>'
+      : '';
+    var el = document.createElement('div');
+    el.id = 'oldbrowser';
+    el.setAttribute('role', 'alert');
+    el.setAttribute('data-gaps', gaps ? gaps.join(', ') : '');
+    el.setAttribute('style', CSS);
+    el.innerHTML =
+      '<div style="max-width:30rem;text-align:left">' +
+      '<div style="font-size:2.4rem;line-height:1;margin-bottom:.9rem">🙁</div>' +
+      '<h1 id="oldbrowser-head" style="font-size:1.35rem;line-height:1.3;margin:0 0 .8rem;font-weight:600;color:#fff">' + head + '</h1>' +
+      '<p style="margin:0 0 .9rem;font-size:.98rem;line-height:1.6;color:#c8c8dc">' + body + '</p>' +
+      (extra ? '<p style="margin:0;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + extra + '</p>' : '') +
+      small +
+      '</div>';
+    // The theme gate hides <body> until the theme cascade lands; a screen that
+    // says "your browser is too old" must never itself be invisible.
+    try { document.documentElement.className = String(document.documentElement.className).replace(/\bgifos-booting\b/g, ''); } catch (e) {}
+    try { document.documentElement.style.background = '#0a0a0f'; } catch (e) {}
+    if (document.body) document.body.appendChild(el);
+    else if (document.addEventListener) document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(el); });
+    try { if (document.title) document.title = 'Meetings need a newer browser — GifOS'; } catch (e) {}
+  }
+
+  /* ---- run it -------------------------------------------------------------- */
+  var API = { ok: true, gaps: [], ready: null, MIN: MIN, syncGaps: syncGaps, ua: ua };
+  window.GifOSPreflight = API;
+
+  if (insecure()) {
+    API.ok = false; API.gaps = ['secure context (https)'];
+    paint('insecure', API.gaps);
+  } else {
+    var gaps = syncGaps();
+    if (gaps.length) {
+      API.ok = false; API.gaps = gaps;
+      paint('old', gaps);
+    } else {
+      // The Ed25519 probe, shaped exactly like the real thing: the same PKCS#8
+      // wrapper gifos-net.js builds around a 32-byte seed, imported and then
+      // exported as JWK (that export is how the public half is obtained). If
+      // either step is unsupported, this rejects — which is precisely what
+      // Safari 16, Firefox 128 and Chrome 136 do.
+      API.ready = new Promise(function (resolve) {
+        var settled = false;
+        var done = function (good) {
+          if (settled) return; settled = true;
+          if (!good) { API.ok = false; API.gaps = ['WebCrypto Ed25519']; paint('old', API.gaps); }
+          resolve(good);
+        };
+        // Fail OPEN on a hang: a probe that never answers is not evidence of an
+        // old browser, and blocking a working browser is the worse mistake.
+        setTimeout(function () { done(true); }, 1500);
+        try {
+          var pkcs8 = new Uint8Array(48);
+          pkcs8.set([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20], 0);
+          for (var i = 16; i < 48; i++) pkcs8[i] = (i * 7) & 0xff;
+          window.crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign'])
+            .then(function (k) { return window.crypto.subtle.exportKey('jwk', k); })
+            .then(function (jwk) { done(!!(jwk && jwk.x)); }, function () { done(false); });
+        } catch (e) { done(false); }
+      });
+    }
+  }
+
+  /* The one gate the runtime calls. `fn` runs only if this browser can really
+     hold a meeting — so a blocked browser never knocks, never opens a socket,
+     never sets `room`, and therefore can never reach the joining veil. */
+  API.whenSupported = function (f) {
+    if (!API.ok) return;
+    if (!API.ready) { f(); return; }
+    API.ready.then(function (good) { if (good) f(); });
+  };
+})();
+</script>
 <!-- CHANNEL LOADER — see index.html. Resolves the release pointer before any app
      code so a meeting link opens on the right build. Identical across entry pages. -->
 <script>
@@ -6213,10 +6468,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // An app entry never runs the meeting boot: no lobby, no camera consent
     // flow, and for SOLO no network object at all. The meeting entry keeps its
     // exact flow.
+    //
+    // THE PREFLIGHT GATE (see the top of this file): anything that opens a
+    // socket and knocks runs ONLY if the browser can actually hold a meeting.
+    // A blocked browser therefore never sets `room`, so the joining veil —
+    // which early-returns without one — can never arm behind the explanation.
+    // SOLO is deliberately ungated: a solo app is one tab and no network, and
+    // it works fine on a browser that could never meet.
+    const preflighted = (f) => {
+      const P = window.GifOSPreflight;
+      if (P && typeof P.whenSupported === 'function') P.whenSupported(f); else f();
+    };
     if (ROOM.solo) bootSoloApp();
-    else if (ROOM.kind === 'app') bootAppRoom();
+    else if (ROOM.kind === 'app') preflighted(bootAppRoom);
     else if (!params.get('v') && !params.get('app')) showLobby();
-    else bootIntoRoom();
+    else preflighted(bootIntoRoom);
 
     // ---- chat + pinned files: pure P2P over DataChannels ----------------------
     // No server ever sees a byte of this. State lives only in the open tabs of
