@@ -85,7 +85,34 @@ The C++ sim (`--det`, join only, no churn):
 | 5000 | **INCOMPLETE** — 2113/5000 at the 210k-tick cap (48 min) |
 | 10000 | **INCOMPLETE** — 2352/10000 at the 360k-tick cap |
 
-The signature is a **congestion collapse, not a capacity bound**. The
+**Diagnosis revised (same day, sim REPL forensics):** the earlier
+"congestion collapse" framing was wrong — the root is a CORRECTNESS
+failure under concurrent admission, in three stacked defects:
+
+1. **Duplicate seats mint immediately, even shallow.** By tick 500 of an
+   N=3000 join, 122 cells hold two occupants (consecutive arrivals 142,143
+   both seated at depth-2 cell 20/1.0). Peaks at 597 dups by tick 1000.
+   Eliminated as causes: compaction (OFF still mints 308) and arrival
+   pacing (slow batches still mint 161).
+2. **Contention converts into depth.** Dup locations over time: depth 2-5
+   at t500, 6-10 at t1000, 12-13 by t2000 and stable there. When the
+   frontier looks taken (sitting reservations + stale views + dup wars),
+   the admission walk falls THROUGH to child sections instead of waiting —
+   a room that fits in depth 3 seats people at depth 12.
+3. **The depth-13 wall is a uint32 overflow.** The sim's section path is
+   pc = pc*6+digit in a uint32; 6^12 fits, 6^13 does not. Distinct deep
+   paths silently alias to the same cell, poisoning occupancy — and the JS
+   twin (plain Numbers) has no such wall, so THE TWINS DIVERGE exactly
+   where the storm goes.
+
+The steady state: dup races -> E2 eviction wars -> evicted seats rejoin
+the storm -> frontiers look full -> deeper descent -> overflow aliasing ->
+more dups. Seated flatlines (~1,900) while internal moves churn at ~2,600
+per 1,000 ticks, forever. Progress-crawl and the N-independent plateau are
+this equilibrium, not queueing.
+
+The original (superseded) framing, kept for the record:
+the signature LOOKED like a congestion collapse, not a capacity bound. The
 seated plateau sits near ~2,000 regardless of N (1915, 2010, 2113, 2352
 across a 3.3× range), progress never stops — it CRAWLS (~200 seats per
 100k ticks) — and the sharpest fact is this pair:
