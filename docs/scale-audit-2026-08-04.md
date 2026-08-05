@@ -121,6 +121,20 @@ a CLAIM or take lands on an occupied cell: both ids, placer, tick):
     child row (this one amplifies but cannot be first).
 The depth clamp for the uint32 wall stands regardless of which mints.
 
+**Experiment log (2026-08-04, evening):** MESH_DUPLOG take()-conflict
+instrumentation landed (env-gated, kept). First mints are ORDINARY
+admission with two different placers (t=27 cell 0/1.4 placers 5 vs 0;
+t=40 0/2.1 placers 7 vs 5) — not resurrection, not packs. Three
+S5-strict gates (resurrection requires a fully-lived row; never resurrect
+into sitting/fresh; packs only into ever-seen holes) were tried and
+REVERTED: early dups got WORSE (344 vs 155 at t600), equilibrium only
+marginally better. Next suspect, untested: stale in-flight FINDs meeting
+the 03c knock-is-evidence phantom clearing — a seeker's forwarded FIND
+that arrives AFTER it seated makes a greeter clear the seeker's own
+fresh occ entry as phantom and re-admit its cell. Next experiment: tag
+each PLACE with its admit call-site, and log the phantom-clear events
+alongside DUPMINT to correlate.
+
 The steady state: dup races -> E2 eviction wars -> evicted seats rejoin
 the storm -> frontiers look full -> deeper descent -> overflow aliasing ->
 more dups. Seated flatlines (~1,900) while internal moves churn at ~2,600

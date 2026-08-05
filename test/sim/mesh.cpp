@@ -201,6 +201,7 @@ struct Seat {
   int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
   unordered_map<int,int> strangeSeen;   // two-ring reconciliation: pool-listed ids absent from my occ, by consecutive E3 sightings
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
+  int myPlacer=-2;   // DUPMINT forensics: the owner argument of my last take() (-1 = genesis/self, -2 = never seated)
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
