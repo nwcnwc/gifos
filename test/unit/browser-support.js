@@ -106,9 +106,40 @@ check('…and it READS the json rather than repeating it', page.includes('browse
 check('…and it hard-codes no version numbers of its own',
   !/\b(?:Safari|Chrome|Firefox|Edge)\s+1[0-9]{1,2}\b/.test(page.replace(/<!--[\s\S]*?-->/g, '')));
 
+// ---- A SNAPSHOT MUST ANSWER FOR ITSELF --------------------------------------
+// This is the one that is easy to get backwards, and it was: the App Store
+// catalog is CONTENT a pinned build should see grow, so a frozen build reads
+// the live one. This file is a DESCRIPTION OF THE FROZEN CODE BESIDE IT. What
+// a build requires stops changing the moment the build does, so the matrix
+// freezes with it — otherwise raising the floor at the root tells a pinned
+// user to update a browser that runs their build perfectly, and lowering it
+// tells them they are fine when their frozen code still needs more. Both are
+// the page lying with authority.
+//
+// Mechanically that means three things, each guarded here: the page fetches
+// RELATIVELY (a snapshot injects <base href="/versions/<v>/">, so a relative
+// fetch lands inside the snapshot), everything that LINKS to the page links
+// relatively for the same reason, and archive-version.sh actually copies the
+// json into the snapshot — a relative fetch at a path that was never
+// snapshotted is just a 404 with extra steps.
+const bodyOnly = page.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/[^\n]*/g, '');
+check('the page fetches its data RELATIVELY, so a frozen build reads ITS OWN matrix',
+  /fetch\(\s*'browser-support\.json'/.test(bodyOnly) && !/fetch\(\s*'\/browser-support\.json'/.test(bodyOnly));
+
+const archive = fs.readFileSync(path.join(ROOT, 'scripts', 'archive-version.sh'), 'utf8');
+check('archive-version.sh accounts for the page (or the next release cut aborts)',
+  /OPTIONAL=\([^)]*browser-support\.html/.test(archive) || /REQUIRED=\([^)]*browser-support\.html/.test(archive));
+check('…and copies the json in beside it, so the relative fetch resolves',
+  /cp\s+"\$SITE\/browser-support\.json"\s+"\$DEST/.test(archive));
+
 // ---- and something links to it ----------------------------------------------
 const about = fs.readFileSync(path.join(ROOT, 'site', 'about.html'), 'utf8');
 check('the About page links to it (a matrix nobody can reach is a private note)', /browser-support\.html/.test(about));
+const desktop = fs.readFileSync(path.join(ROOT, 'site', 'js', 'desktop.js'), 'utf8');
+check("the desktop's About panel links to it too", /browser-support\.html/.test(desktop));
+const absLinks = [['about.html', about], ['desktop.js', desktop]]
+  .filter(([, src]) => /href="\/browser-support\.html/.test(src)).map(([n]) => n);
+check('…and every link to it is RELATIVE, so a pinned build reaches its own copy', absLinks.length === 0, absLinks);
 
 console.log(failures === 0 ? 'ALL PASS' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);

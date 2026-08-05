@@ -51,11 +51,12 @@ mkdir -p "$DEST"
 # check below.)
 REQUIRED=(index.html run.html meet.html boot.html)
 OPTIONAL=(sign.html about.html store.html browser-support.html)
-# browser-support.html reads /browser-support.json with an ABSOLUTE path, so a
-# frozen build shows the CURRENT matrix rather than the one that happened to be
-# true on cut day — same reasoning as site/apps/ below, and the right answer
-# here too: an "we have not checked" that later becomes a real version number
-# should reach a pinned computer, not be frozen as ignorance forever.
+# browser-support.html ships WITH ITS DATA (browser-support.json, copied below).
+# It reads that file RELATIVELY, so inside a snapshot it answers for the
+# snapshot. Do not "improve" this into an absolute path: the App Store catalog
+# is content a pinned build should see grow, but a support matrix is a
+# DESCRIPTION OF THE FROZEN CODE BESIDE IT, and what a build requires stops
+# changing the moment the build does.
 # NOT snapshotted: 404.html is Pages' root error page — it is never served from
 # under /versions/, and a copy would just collect a meaningless <base> stamp.
 NOT_SNAPSHOT=(404.html)
@@ -77,6 +78,16 @@ done
 # store reads the live catalog (absolute /apps/… paths), so a pinned computer
 # still sees apps published after its cut, and no snapshot carries an 8 MB copy
 # of every App GIF.
+#
+# browser-support.json IS frozen, and it is the opposite case — worth spelling
+# out, because the two look alike and are not. It states which browsers can run
+# THIS BUILD, which is a fact about code that has just been frozen, so it must
+# be frozen with it. A snapshot reading the live matrix would lie in both
+# directions: raise the floor at the root and a pinned user is told to update a
+# browser that runs their build fine; add a fallback that lowers it and a pinned
+# user is told their browser is fine when their frozen code still needs more.
+# It rides with browser-support.html, which fetches it relatively.
+[ -f "$SITE/browser-support.json" ] && cp "$SITE/browser-support.json" "$DEST/"
 cp -r "$SITE/js" "$SITE/css" "$DEST/"
 # Freeze the themes too, so a pinned build is a pixel-perfect time capsule — its
 # chrome, icon packs, eggs, and wallpapers as they were at the cut. The frozen

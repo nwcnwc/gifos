@@ -151,13 +151,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 (function () {
   var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
 
-  // ABSOLUTE on purpose. A frozen /versions/<x.y.z>/ snapshot injects
-  // <base href="/versions/<v>/">, so a relative fetch would read a copy frozen
-  // on cut day — and this file's whole value is being current: a "we have not
-  // checked" that later becomes a real version number must reach a pinned
-  // computer too. Same reasoning archive-version.sh already applies to the App
-  // Store catalog.
-  fetch('/browser-support.json', { cache: 'no-cache' })
+  // RELATIVE on purpose — this is NOT the App Store catalog, and the
+  // difference matters. The catalog is CONTENT: apps published after a release
+  // was cut are still installable by a pinned computer, so a frozen build
+  // reading the live catalog is right. THIS FILE IS A DESCRIPTION OF THE CODE
+  // SITTING NEXT TO IT. What a build requires is fixed the moment that build
+  // is frozen, so a snapshot must answer for ITSELF: /versions/<v>/ injects
+  // <base href="/versions/<v>/">, this fetch resolves inside the snapshot, and
+  // the page states that build's real requirements.
+  //
+  // Reading the live matrix from a frozen build would be wrong in both
+  // directions. Raise the floor at the root — a new mandatory API — and a
+  // pinned user is told to update a browser that runs their build perfectly.
+  // Lower it — add a fallback so Ed25519 is no longer required — and a pinned
+  // user is told their browser is fine when their frozen code still needs it.
+  // Either way the page lies with authority, which is the one thing a support
+  // matrix must never do.
+  fetch('browser-support.json', { cache: 'no-cache' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(render)
     .catch(function () {
