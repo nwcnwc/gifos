@@ -3,6 +3,17 @@ static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; re
 
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
+  // DUPMINT forensics (MESH_DUPLOG=1): the moment a take() lands on a cell
+  // another live seat already holds, print BOTH sides with their placers —
+  // this is the mint site of the V4 dup wars (scale-audit 2026-08-04), and
+  // which placer pair shows up names the mechanism (expiry re-place: same
+  // placer twice; dual-hold/cascade: two different placers).
+  if(getenv("MESH_DUPLOG")){ uint64_t kk=ckey(c);
+    for(size_t q=0;q<seats.size();q++) if((int)q!=id&&alive[q]&&seats[q]->hasCoord&&seats[q]->state==3&&ckey(seats[q]->coord)==kk)
+      fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d)\n",
+        (long long)TICK,(unsigned)c.pc,(int)c.r,(int)c.i,id,owner,(int)q,seats[q]->myPlacer,seats[q]->seatedAt);
+  }
+  myPlacer=owner;
   coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false;   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
