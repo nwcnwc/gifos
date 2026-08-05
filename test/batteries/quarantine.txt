@@ -83,9 +83,12 @@ redun-drill  NONDETERMINISTIC known-unfixed: re-park lag behind the drill's wind
 e2e-stadium-dup  NONDETERMINISTIC known-unfixed: manufactured rotation exposes the pre-existing FIND/PLACE searching-livelock (ledger #2, V4 family). Fix rides the V4 pursuit; promote on a measured rate after it lands.
 # MEASURED 2026-08-05 after the V4 waves landed (healing-laws § V): 10/10
 # ALL PASS on a loaded 4-core box (was ~50% flaky). The livelock the entry
-# names is the exact family V5 (phantom-aware deep admission) killed. RATE IS
-# MEASURED — the promotion is the standing human call; on YES, delete this
-# entry (the list only shrinks) and e2e-stadium-dup gates again.
+# names is the exact family V5 (phantom-aware deep admission) killed.
+# COUNTER-EVIDENCE same day: the release gate on the 8-core gate host scored
+# it RED TWICE on a DIFFERENT leg ("the moved face is carried at its NEW
+# row") — so the searching-livelock is plausibly dead but the suite is not
+# clean box-independently. DO NOT promote yet; next session should chase the
+# moved-face leg on the gate host before the call.
 
 # ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
 # e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane
