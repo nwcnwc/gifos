@@ -1043,6 +1043,52 @@ int main(int argc,char**argv){
       printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    // freemap — G7 MEASUREMENT ONLY (nothing reads freeC; see healing-laws § G7).
+    // For each of the C^2 Section-1 cells: what its subtree digest BELIEVES about
+    // free space vs the GROUND TRUTH of that subtree, plus the subtree's depth.
+    // This is the instrument for the question "would the digest's free-space
+    // summary have told a seeker which branch to descend?" — it must be answered
+    // with an accuracy number and a discrimination number, not a hunch.
+    else if(op=="freemap"){
+      unordered_map<uint64_t,int> at; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) at[ckey(seats[q]->coord)]=q;
+      auto depthOf=[](uint32_t pc){ int d=0; while(pc){ pc=parentPath(pc); d++; } return d; };
+      // ground truth per TOP section (the S1 cell whose subtree it is): seats,
+      // maxDepth, and TRUE admissible frontier cells (free cell whose down-child
+      // is also free — what an admitter could actually hand a seeker).
+      unordered_map<uint64_t,int> tSeats,tFree,tDepth;
+      unordered_set<uint32_t> pcs; for(auto&kv:at) pcs.insert(unck(kv.first).pc);
+      // map every occupied section path back to the S1 cell that roots it:
+      // walking up from (pc,r,i) lands on (0,r,lastDigit-chain) — do it per seat.
+      auto rootCellOf=[&](Coord c)->uint64_t{ while(c.pc!=0){ Coord o; if(!up({c.pc,c.r,0},o)) return (uint64_t)-1; c=o; } return ckey(c); };
+      for(auto&kv:at){ Coord c=seats[kv.second]->coord; uint64_t rc=rootCellOf(c); if(rc==(uint64_t)-1) continue;
+        tSeats[rc]++; int d=depthOf(c.pc); if(d>tDepth[rc]) tDepth[rc]=d;
+        // this seat's own owned child row contributes its free cells
+        if(d<12){ Coord row[C]; Coord h=down(c); for(int j=0;j<C;j++) row[j]={h.pc,h.r,(uint8_t)j};
+          for(int j=0;j<C;j++){ if(at.count(ckey(row[j]))) continue; if(at.count(ckey(down(row[j])))) continue; tFree[rc]++; } } }
+      printf("FREEMAP cell | digest_n true_n | digest_free true_free | err%% | maxDepth\n");
+      long long sN=0,sTN=0,sF=0,sTF=0; int cells=0, discOK=0, discTot=0;
+      for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
+        auto it=at.find(k); if(it==at.end()){ printf("  %d.%d  EMPTY\n",r0,i0); continue; }
+        Seat* s=seats[it->second]; int dn=s->myDig.n, df=s->myDig.freeC;
+        int tn=tSeats.count(k)?tSeats[k]:0, tf=tFree.count(k)?tFree[k]:0, td=tDepth.count(k)?tDepth[k]:0;
+        double err = tf? 100.0*(df-tf)/(double)tf : (df?100.0:0.0);
+        printf("  %d.%d  %6d %6d | %7d %7d | %+7.1f | %d\n",r0,i0,dn,tn,df,tf,err,td);
+        sN+=dn; sTN+=tn; sF+=df; sTF+=tf; cells++;
+        // DISCRIMINATION: does the digest agree with the truth about whether this
+        // branch has ANY room? That, not the exact number, is what a descent
+        // decision would use.
+        discTot++; if((df>0)==(tf>0)) discOK++; }
+      printf("FREETOT sections=%d digest_n=%lld true_n=%lld digest_free=%lld true_free=%lld free_err=%+.1f%% discriminates=%d/%d\n",
+        cells,sN,sTN,sF,sTF, sTF? 100.0*(sF-sTF)/(double)sTF : 0.0, discOK,discTot);
+      // The jam's shape: unseated seekers, and where the room's free space IS.
+      int unseated=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3) unseated++;
+      unordered_map<int,int> freeByDepth;
+      for(auto&kv:at){ Coord c=seats[kv.second]->coord; int d=depthOf(c.pc); if(d>=12) continue;
+        Coord h=down(c); for(int j=0;j<C;j++){ Coord cc={h.pc,h.r,(uint8_t)j};
+          if(at.count(ckey(cc))||at.count(ckey(down(cc)))) continue; freeByDepth[d+1]++; } }
+      printf("FREEDEPTH unseated=%d freeFrontierByDepth=",unseated);
+      for(int d=1;d<=13;d++) if(freeByDepth.count(d)) printf("%s%d:%d",d>1?",":"",d,freeByDepth[d]);
+      printf("\n"); }
     // ---- V1 ROLLUP DIGEST verbs (healing-laws § G) --------------------------
     else if(op=="digeston"){ DIGEST=(tk.size()<2)||(tk[1]!="0"); printf("OK digest=%d\n",(int)DIGEST); }
     // refuse <id|all|frac F> [0|1] — set a participant's OWN first-hand consent
