@@ -46,6 +46,12 @@
  *   --name <label>    my display name               (default: meet-cli)
  *   --videos <dir>    override the clip pack dir
  *   --chrome <path>   chromium binary               (env MEET_CHROME also works)
+ *   --engine <name>   chromium|webkit|firefox       (env MEET_ENGINE) — which
+ *                     BROWSER ENGINE this participant is. chromium (default) is
+ *                     also Android Chrome and Edge; webkit is Safari's engine;
+ *                     firefox is Gecko. webkit/firefox launch bare (no Chromium
+ *                     switches) — see the engine resolution block for what that
+ *                     costs. Binary overrides: MEET_WEBKIT / MEET_FIREFOX.
  *   --headful         show the browser window
  *   --edge            pin the EDGE channel (?edge) — without it gifos.app
  *                     redirects to the frozen release snapshot
@@ -186,14 +192,68 @@ const cfg = {
 const MODE = args.drive ? 'drive' : args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
 
-// ---- playwright + chromium resolution -------------------------------------
-let chromium;
+// ---- playwright + engine resolution ---------------------------------------
+// --engine chromium|webkit|firefox (or MEET_ENGINE). Chromium is the default
+// and the ONLY engine that takes the Chromium switch set in ensureBrowser();
+// webkit/firefox launch BARE, because their launchers reject/ignore Chromium
+// command-line switches. Everything the switches bought has an engine-neutral
+// substitute, or is not needed off chromium:
+//   - the fake camera is injected JS (canvas.captureStream — present in all
+//     three), so --use-fake-ui-for-media-stream buys nothing: the page never
+//     reaches a real permission prompt.
+//   - newContext permissions ['camera','microphone'] is CHROMIUM's permission
+//     vocabulary. WebKit THROWS on the name ('camera' unknown) and Firefox
+//     does not implement those two either — non-chromium contexts skip it.
+//   - the drive-mode --bb-actor cleanup marker is a chromium-only trick
+//     (chromium ignores unknown switches; the others do not). Every engine
+//     instead carries BB_ACTOR=1 in the browser process ENVIRONMENT, which is
+//     engine-neutral and inherited by every child process, so fleet reaping is
+//       for p in /proc/[0-9]*; do grep -qz BB_ACTOR=1 "$p/environ" 2>/dev/null && kill "${p##*/}"; done
+//   - --unsafely-treat-insecure-origin-as-secure has no equivalent: a
+//     webkit/firefox actor pointed at a plain-http NON-localhost harness is
+//     not a secure context and gUM/WebRTC will not run. Say so, loudly.
+let pwmod = null;
 for (const m of ['/opt/node22/lib/node_modules/playwright', 'playwright', 'playwright-core']) {
-  try { ({ chromium } = require(m)); if (chromium) break; } catch (e) {}
+  try { pwmod = require(m); if (pwmod && pwmod.chromium) break; } catch (e) {}
 }
-if (!chromium) { console.error('playwright not found — npm i playwright && npx playwright install chromium'); process.exit(1); }
-const CHROME = cfg.chrome
-  || (fs.existsSync('/opt/pw-browsers/chromium-1194/chrome-linux/chrome') ? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' : undefined);
+if (!pwmod || !pwmod.chromium) { console.error('playwright not found — npm i playwright && npx playwright install chromium'); process.exit(1); }
+const ENGINE = String(args.engine || process.env.MEET_ENGINE || 'chromium').toLowerCase();
+if (!['chromium', 'webkit', 'firefox'].includes(ENGINE)) { console.error('--engine must be chromium|webkit|firefox (got ' + ENGINE + ')'); process.exit(1); }
+const IS_CR = ENGINE === 'chromium';
+const launcher = pwmod[ENGINE];
+if (!launcher) { console.error('playwright has no ' + ENGINE + ' launcher'); process.exit(1); }
+const chromium = pwmod.chromium; // kept: the name the rest of the file grew up with
+// Only chromium takes an explicit executablePath by default — the other two
+// resolve through playwright's own registry (~/.cache/ms-playwright or
+// PLAYWRIGHT_BROWSERS_PATH). MEET_WEBKIT / MEET_FIREFOX override if a box
+// needs a specific build.
+// Chromium by SEARCH, newest build first — never one hardcoded path. The old
+// single guess (/opt/pw-browsers/chromium-1194/chrome-linux/chrome) was a
+// DANGLING SYMLINK on this box (it pointed at a ~/.cache chromium-1228 that no
+// longer exists), and the fallthrough was silent: playwright then launched its
+// own default channel, chromium_headless_shell, which is not installed either,
+// so every actor died with "Executable doesn't exist" AFTER the harness had
+// already declared itself ready. Same lesson as test/lib/pw.js — a stale
+// hardcoded path does not announce itself.
+function findChromium() {
+  if (cfg.chrome) return cfg.chrome;
+  const out = [];
+  for (const root of ['/opt/pw-browsers', path.join(process.env.HOME || '', '.cache/ms-playwright')]) {
+    let names = [];
+    try { names = fs.readdirSync(root); } catch (e) { continue; }
+    names.filter((n) => /^chromium-\d+$/.test(n))
+      .sort((a, b) => parseInt(b.split('-')[1], 10) - parseInt(a.split('-')[1], 10))
+      .forEach((n) => { out.push(path.join(root, n, 'chrome-linux', 'chrome'), path.join(root, n, 'chrome-linux64', 'chrome')); });
+  }
+  // a real Chrome is a fine fallback — and for a bot it is PREFERRED over
+  // chrome-headless-shell, which can load the page yet never open the relay socket
+  out.push('/opt/google/chrome/chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable');
+  for (const c of out) { try { if (fs.existsSync(c) && fs.statSync(c).isFile()) return c; } catch (e) {} }
+  return undefined;
+}
+const CHROME = findChromium();
+if (IS_CR && !CHROME) console.error("[meet] WARNING: no chromium/chrome binary found by search — falling back to playwright's default channel (chrome-headless-shell), which is frequently NOT installed. Set --chrome / MEET_CHROME.");
+const ENGINE_EXE = IS_CR ? CHROME : (ENGINE === 'webkit' ? process.env.MEET_WEBKIT : process.env.MEET_FIREFOX) || undefined;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (s, n) => (String(s == null ? '' : s) + ' '.repeat(n)).slice(0, n);
@@ -373,10 +433,14 @@ function procTree() {
   const isDesc = (p) => { let cur = ppid[p], hops = 0; while (cur && hops++ < 15) { if (+cur === process.pid) return true; cur = ppid[cur]; } return false; };
   return { ppid, cmd, isDesc };
 }
-// the freeze lever's target: every --type=renderer under OUR tree
+// the freeze lever's target: every content/renderer process under OUR tree.
+// Each engine names it differently — chromium `--type=renderer`, firefox
+// `-contentproc`, webkit `WebKitWebProcess`.
+const RENDERER_MARK = { chromium: '--type=renderer', firefox: '-contentproc', webkit: 'WebKitWebProcess' };
 function rendererPids() {
   const t = procTree();
-  return Object.keys(t.cmd).filter((p) => t.cmd[p] && t.cmd[p].includes('--type=renderer') && t.isDesc(p)).map(Number);
+  const mark = RENDERER_MARK[ENGINE];
+  return Object.keys(t.cmd).filter((p) => t.cmd[p] && t.cmd[p].includes(mark) && t.isDesc(p)).map(Number);
 }
 // the die lever's target: the whole browser tree under us
 function browserTreePids() {
@@ -470,9 +534,31 @@ function armForkAuto() {
   }, 4000);
 }
 let intentionalKill = false; // die/quit set this — an EXPECTED browser death
+// BB_ACTOR=1 rides in the browser process environment in drive mode — the
+// engine-neutral replacement for the --bb-actor marker switch (see the engine
+// resolution block). Inherited by every renderer/content child.
+function launchEnv() {
+  return MODE === 'drive' ? Object.assign({}, process.env, { BB_ACTOR: '1' }) : undefined;
+}
 async function ensureBrowser() {
   if (browser) return;
+  if (!IS_CR) {
+    if (process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS) {
+      console.error('[meet] WARNING: --engine ' + ENGINE + ' has no insecure-origin escape hatch (that is a chromium switch). '
+        + 'A plain-http non-localhost base is NOT a secure context here — gUM and WebRTC will not run.');
+    }
+    browser = await launcher.launch(Object.assign({ headless: !cfg.headful },
+      ENGINE_EXE ? { executablePath: ENGINE_EXE } : {},
+      launchEnv() ? { env: launchEnv() } : {}));
+    browser.on('disconnected', () => {
+      if (MODE === 'drive' || intentionalKill) return;
+      console.error('[meet] browser died unexpectedly — exiting so the supervisor respawns');
+      process.exit(1);
+    });
+    return;
+  }
   browser = await chromium.launch({ headless: !cfg.headful, executablePath: CHROME,
+    ...(launchEnv() ? { env: launchEnv() } : {}),
     // Playwright injects --disable-dev-shm-usage by default; dropping it from
     // args below is not enough, it has to be suppressed here too.
     ignoreDefaultArgs: ['--disable-dev-shm-usage'], args: [
@@ -517,8 +603,15 @@ async function join(room, opts) {
   if (ctx) { try { await ctx.close(); } catch (e) {} }
   const phone = cfg.profile === 'phone';
   ctx = await browser.newContext(Object.assign(
-    { viewport: phone ? { width: 390, height: 844 } : { width: 900, height: 820 }, permissions: ['camera', 'microphone'] },
-    phone ? { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36', isMobile: true, hasTouch: true, deviceScaleFactor: 3 } : {}));
+    { viewport: phone ? { width: 390, height: 844 } : { width: 900, height: 820 } },
+    // 'camera'/'microphone' are CHROMIUM permission names: WebKit throws
+    // "Unknown permission: camera" and Firefox does not implement them. The
+    // injected gUM (camInitScript) never triggers a prompt anyway.
+    IS_CR ? { permissions: ['camera', 'microphone'] } : {},
+    // isMobile is unsupported in Firefox (playwright throws); the rest of the
+    // phone shape (viewport, UA, touch) carries fine.
+    phone ? Object.assign({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36', hasTouch: true, deviceScaleFactor: 3 },
+      ENGINE === 'firefox' ? {} : { isMobile: true }) : {}));
   const roomKey = room + (cfg.av ? '.' + cfg.av : '');
   const seed = "localStorage.setItem('gifos_name'," + JSON.stringify(cfg.name) + ");localStorage.setItem('gifos_meet_bar','1');"
     + (cfg.relay ? "localStorage.setItem('gifos_relay'," + JSON.stringify(cfg.relay) + ");" : '')
@@ -568,7 +661,7 @@ async function join(room, opts) {
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
   const url = cfg.base + '/run.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
-  console.error('[meet] joining ' + url + ' as "' + cfg.name + '"' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
+  console.error('[meet] joining ' + url + ' as "' + cfg.name + '" [' + ENGINE + ']' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
   joined = true;
