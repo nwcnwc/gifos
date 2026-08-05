@@ -1152,16 +1152,17 @@ void Seat::rollup(){
   // cellReserved) — the reservation helpers lazily expire soft marks, and a
   // display fold must not be able to mutate admission state at all.
   if(pcDepth(coord.pc)<12){ Coord rc[C]; rosterCells(rc);
-    for(int c2=0;c2<C;c2++){ uint64_t k=ckey(rc[c2]); if(occ.count(k)||sitting.count(k)) continue; uint64_t dk2=ckey(down(rc[c2])); if(occ.count(dk2)||sitting.count(dk2)) continue; d.freeC++; } }
+    for(int c2=0;c2<C;c2++){ uint64_t k=ckey(rc[c2]); if(occ.count(k)||sitting.count(k)) continue; uint64_t dk2=ckey(down(rc[c2])); if(occ.count(dk2)||sitting.count(dk2)) continue; d.freeC++; }
+    if(d.freeC) d.dmin=pcDepth(coord.pc)+1; }
   uint64_t dk=ckey(down(coord)); digGap=0; downUsed=Dig();
-  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ d.n+=downDig.n; d.refuse+=downDig.refuse; d.freeC+=downDig.freeC; if(downDig.part)d.part=1; downUsed=downDig; }
+  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ d.n+=downDig.n; d.refuse+=downDig.refuse; d.freeC+=downDig.freeC; if(downDig.dmin<d.dmin)d.dmin=downDig.dmin; if(downDig.part)d.part=1; downUsed=downDig; }
   else if(scopeGap(dk)){ d.part=1; d.refuse+=1; digGap=1; }   // G3 FAIL-CLOSED: a subtree I believe populated but cannot currently hear counts as REFUSING, never as zero
   myDig=d;
   // --- (2) deep ROW HEAD: fold my row (my owner is linked only to me) --------
   if(coord.pc!=0 && coord.i==0){
     Dig r=myDig; r.at=(int)TICK; r.by=id; rowUsed.clear();
     for(int j=1;j<C;j++){ uint64_t rk=ckey({coord.pc,coord.r,(uint8_t)j}); auto it=rowKids.find(rk);
-      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ r.n+=it->second.n; r.refuse+=it->second.refuse; r.freeC+=it->second.freeC; if(it->second.part)r.part=1; rowUsed[rk]=it->second; }
+      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ r.n+=it->second.n; r.refuse+=it->second.refuse; r.freeC+=it->second.freeC; if(it->second.dmin<r.dmin)r.dmin=it->second.dmin; if(it->second.part)r.part=1; rowUsed[rk]=it->second; }
       else if(scopeGap(rk)){ r.part=1; r.refuse+=1; digGap|=2; } }
     rowDig=r;
   }
@@ -1171,9 +1172,9 @@ void Seat::rollup(){
   if(coord.pc==0){
     Dig R; R.at=(int)TICK; R.by=id;
     for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
-      if(hasCoord && k==ckey(coord)){ R.n+=myDig.n; R.refuse+=myDig.refuse; R.freeC+=myDig.freeC; if(myDig.part)R.part=1; continue; }
+      if(hasCoord && k==ckey(coord)){ R.n+=myDig.n; R.refuse+=myDig.refuse; R.freeC+=myDig.freeC; if(myDig.dmin<R.dmin)R.dmin=myDig.dmin; if(myDig.part)R.part=1; continue; }
       auto it=s1tab.find(k);
-      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL){ R.n+=it->second.n; R.refuse+=it->second.refuse; R.freeC+=it->second.freeC; if(it->second.part)R.part=1; }
+      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL){ R.n+=it->second.n; R.refuse+=it->second.refuse; R.freeC+=it->second.freeC; if(it->second.dmin<R.dmin)R.dmin=it->second.dmin; if(it->second.part)R.part=1; }
       else if(scopeGap(k)){ R.part=1; R.refuse+=1; digGap|=4; } }
     rootDig=R;
   }
