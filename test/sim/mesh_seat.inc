@@ -13,6 +13,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
       fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d)\n",
         (long long)TICK,(unsigned)c.pc,(int)c.r,(int)c.i,id,owner,(int)q,seats[q]->myPlacer,seats[q]->seatedAt);
   }
+  {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
   coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false;   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
@@ -544,7 +545,7 @@ void Seat::rollbackMove(){
   announce(); wake(id);
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(){ if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::requeue(const char* why){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d REQUEUE why=%s coord=%u/%d.%d hasCoord=%d state=%d\n",(long long)TICK,id,(why&&*why)?why:"?",(unsigned)coord.pc,(int)coord.r,(int)coord.i,(int)hasCoord,state);} if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
@@ -553,7 +554,7 @@ void Seat::drainOrReenter(){
   // drain branch and thus UNREACHABLE for a seat holding a STALE roster (branch
   // 1 returned every tick), stranding it forever phoning a ghost owner. Drop the
   // dead roster and requeue → join() re-knocks the relay for fresh greeters.
-  if(TICK-lastAck>220){ haveRoster=false; roster.clear(); drainAt=0; requeue(); return; }
+  if(TICK-lastAck>220){ haveRoster=false; roster.clear(); drainAt=0; requeue("E1-stale-roster"); return; }
   if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
 }
@@ -712,8 +713,33 @@ void Seat::onPhone(Msg& m){
 }
 void Seat::phoneHome(){
   Coord tc; bool have=false; if(hasCoord){ if(coord.i!=0){ tc={coord.pc,coord.r,0}; have=true; } else have=ownerCoord(tc); }
+  {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id){ int _tid=have?occGet(ckey(tc)):-2; fprintf(stderr,"TRACE t=%lld #%d phoneHome have=%d tc=%u/%d.%d tid=%d lastAckAge=%lld\n",(long long)TICK,id,(int)have,have?(unsigned)tc.pc:0,have?(int)tc.r:-1,have?(int)tc.i:-1,_tid,(long long)(TICK-lastAck));} }
   if(!have) return; int tid=occGet(ckey(tc)); if(tid<0) return;
 Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m);
+  // A GHOST PHONE TARGET MUST BE FALSIFIABLE (2026-08-05, churn-combos leg C).
+  // The gap: an occupant that MOVED before I arrived (its LEAVE went to a cell
+  // that was empty at the time, so nobody could address it to me) leaves a
+  // ghost occ entry no rule could falsify — occGet never goes <0, no transport
+  // event ever fires (we never shared a live DC), so the VERTICAL/HORIZONTAL
+  // healers' guards stay shut while my lastAck rots to E1's 220-tick last
+  // resort: a healthy deep seat E1-suicides out of a healthy room, exactly the
+  // "waiting for a seat" a bystander sees after somebody ELSE's link blipped.
+  // The remedy is a VIEW-ONLY delete at the healers' OWN horizons, probe-gated:
+  // past OWNER_SILENT (5 silent beats) I probe the cell across the mesh every
+  // beat — a live-but-severed occupant answers HELLO, becomes first-hand, and
+  // this branch resets; only a target silent through the SAME confirm horizon
+  // the healers use (60 deep, RING_HOLD in Section 1 — H1-S1 conservatism
+  // unchanged) has its occ entry erased, which is what lets the EXISTING
+  // occGet<0 healer branches finally fire, with all their own pacing intact.
+  // (First cut of this registered a translost observation instead — that
+  // borrows the DC-death EARLY_HOLD confirm, and a mass-kill storm then minted
+  // a duplicate: probe loss under storm is not death evidence. Measured, and
+  // the horizons went back to the healers' own.)
+  { uint64_t tk=ckey(tc);
+    if(TICK-lastAck>OWNER_SILENT && !firstHandLive(tk)){
+      routeTo(tc,1);
+      long long confirmH=(tc.pc==0)?RING_HOLD:60;
+      if(TICK-lastAck>confirmH && occ.count(tk)){ occ.erase(tk); live.erase(tk); kidful.erase(tk); s1seen.erase(tk); } } }
 }
 // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live rook
 // neighbour — its whole row AND whole column — each beat, so first-hand liveness is
@@ -873,7 +899,7 @@ void Seat::recv(Msg& m){
       // sparse rook mesh makes the seating race and the isolation both likely.)
       if(state==3 && coord.pc==0 && TICK-rookSeenAt>STRAND_TTL){
         bool other=false; for(int g:m.list) if(g!=id && g>=0){ other=true; break; }
-        if(other){ requeue(); return; }
+        if(other){ requeue("rook-silent-split"); return; }
       }
       // TWO-RING RECONCILIATION (2026-08-02): the lone-fragment rescue above
       // needs a seat hearing NOBODY — but a churn can rebuild TWO complete
@@ -962,7 +988,7 @@ void Seat::recv(Msg& m){
       // A: HELLO from the soft-sit joiner self-confirms the seat.
       clearSoft(m.ck);
       return; }
-    case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue(); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
+    case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue("T1-yield"); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
     case CLAIM:
       // A: joiner self-confirm — upgrade sitting-down → seated.
       confirmSeated(m.ck, m.id);
@@ -1047,7 +1073,7 @@ void Seat::recv(Msg& m){
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
       roster=m.roster; haveRoster=true; Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg d;d.t=DRAIN;d.roster=m.roster; emit(x,d);} } drainAt=(int)TICK+6+(int)(rng()*12); wake(id); return; }
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
-    case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue(); } return;
+    case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue("CONFIRM-lower-id"); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
       if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
@@ -1140,7 +1166,7 @@ void Seat::tick(){
   // neighbourhood, learned from O's PONG). This is the primary heal for every cell
   // that owns a subtree; the row-mate LEFT-PACK covers only childless holes.
   bool didHeal=false;
-  if(coord.i==0 && !cousins.empty() && TICK-healAt>20){ Coord oc;   // TICK-lastAck>confirm (horizon branch): POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
+  if(coord.i==0 && TICK-healAt>20){ Coord oc;   // cousins may be EMPTY: a head whose owner never PONGed (ghost owner) has no heir neighbourhood — it still must heal; nbrs fall back to the hole's owned-link occupants below   // TICK-lastAck>confirm (horizon branch): POSITIVE DEATH CONFIRMATION — the owner is not just occ-cleared but has stopped PONGing me for a settled window, so I don't promote a leaf on a transient occ glitch (that manufactures split-brains during a mass-heal)
     // H1-S1 CONSERVATISM: promoting into a SECTION-1 owner (oc.pc==0) is the one
     // move that can mint a divergent home, so it waits the full ring-hold window —
     // far longer than a deep hole (60). Under the rook, an owner unreachable this
@@ -1156,6 +1182,7 @@ void Seat::tick(){
       if(ownEarly){ occ.erase(ok); live.erase(ok); s1seen.erase(ok); kidful.erase(ok); }
       healTry[ok]=(int)TICK; healAt=(int)TICK; didHeal=true;
       vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
+      if(nb.empty()){ Coord ol2[MAXLINKS]; int n2=ownedLinks(oc,ol2); for(int q2=0;q2<n2;q2++){ int x2=occGet(ckey(ol2[q2])); if(x2>=0&&x2!=id) nb.push_back({ckey(ol2[q2]),x2}); } }
       Coord rc[C]; rosterCells(rc); vector<int> ix=shufCols();
       bool sent=false; for(int q:ix){ int x=occGet(ckey(rc[q])); if(x>=0&&x!=id){ Msg m;m.t=FINDLEAF;m.hole=oc;m.nbrs=nb;m.ttl=40; emit(x,m); sent=true; break; } }
       if(!sent) promoteInto(oc,nb);   // I'm childless => I AM the leaf
