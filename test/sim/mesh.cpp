@@ -4,6 +4,7 @@
 //   ./mesh N [leaveFraction] [--workers=W]
 #include "topo.h"
 #include <cstdio>
+#include <cstring>
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
@@ -137,7 +138,8 @@ static unordered_map<uint64_t,long long> severedUntil;  // pairKey -> tick the l
 // V4 forensics (handoff 2026-08-04): which CALL-SITE admitted into each cell,
 // and when — read by the DUPMINT logger so a conflict names its minting path.
 static const char* ADMIT_SITE="?";
-static unordered_map<uint64_t,std::pair<const char*,long long>> ADMIT_LOG;
+struct AdmitRec{ const char* site; long long t; int admitter; const char* prevSite; long long prevT; int prevAdmitter; };
+static unordered_map<uint64_t,AdmitRec> ADMIT_LOG;
 static inline bool reachable(int sa,int sb){ return (int)reachMx.size()<=sa || (int)reachMx.size()<=sb ? true : reachMx[sa][sb]!=0; }
 static void buildReach(){
   reachMx.assign(NUM_SUBNETS, vector<char>(NUM_SUBNETS,0));
@@ -234,6 +236,13 @@ struct Seat {
   template<class T> void shuf(vector<T>&a){ for(int k=(int)a.size()-1;k>0;k--){ int j=(int)(rng()*(k+1)); T tmp=a[k];a[k]=a[j];a[j]=tmp; } }
 
   inline int occGet(uint64_t k){ auto it=occ.find(k); return it==occ.end()?-1:it->second; }
+  // V4 forensics (env MESH_CELLLOG="pc/r.i"): who erases a given cell's occ, when, why.
+  inline void occDrop(uint64_t k,const char* why){
+    const char* cl=getenv("MESH_CELLLOG");
+    if(cl && occ.count(k)){ char buf[32]; snprintf(buf,sizeof buf,"%u/%d.%d",(unsigned)(k>>16),(int)((k>>8)&0xff),(int)(k&0xff));
+      if(!strcmp(buf,cl)) fprintf(stderr,"OCC- t=%lld me=%d cell=%s was=%d why=%s\n",(long long)TICK,id,buf,occGet(k),why); }
+    occ.erase(k);
+  }
   inline void tlForget(uint64_t k){ translost.erase(k); tlProbeAt.erase(k); probeAck.erase(k); }
   inline void tlClear(){ translost.clear(); tlProbeAt.clear(); probeAck.clear(); }
   inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v){ tlForget(k); born[k]=(int)TICK; } occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
@@ -258,7 +267,7 @@ struct Seat {
   // A three-state helpers (empty / sitting-down / seated) --------------------
   inline bool softSitting(uint64_t k){
     auto it=sitting.find(k); if(it==sitting.end()) return false;
-    if(TICK-it->second.at>SIT_TTL){ sitting.erase(it); return false; }
+    if(TICK-it->second.at>SIT_TTL){ sitLog("SIT-",k,it->second.joiner,"ttl-lazy"); sitting.erase(it); return false; }
     return true;
   }
   // Cell is not free for a new admit: confirmed occ OR unexpired soft sit.
@@ -318,11 +327,14 @@ struct Seat {
     if(hasCoord && ckey(coord)==k) return true;
     return firstHandLive(k) && occ.count(k);
   }
-  inline void clearSoft(uint64_t k){ sitting.erase(k); }
-  inline void markSitting(uint64_t k,int joiner){ sitting[k]={joiner,id,(int)TICK}; }
+  inline void sitLog(const char* ev,uint64_t k,int joiner,const char* why){
+    if(getenv("MESH_SITLOG")) fprintf(stderr,"%s t=%lld me=%d cell=%u/%d.%d joiner=%d why=%s\n",ev,(long long)TICK,id,(unsigned)(k>>16),(int)((k>>8)&0xff),(int)(k&0xff),joiner,why);
+  }
+  inline void clearSoft(uint64_t k,const char* why="?"){ auto it=sitting.find(k); if(it==sitting.end()) return; sitLog("SIT-",k,it->second.joiner,why); sitting.erase(it); }
+  inline void markSitting(uint64_t k,int joiner){ sitLog("SIT+",k,joiner,"place"); sitting[k]={joiner,id,(int)TICK}; }
   // Confirm seated for joiner at k (CLAIM/HELLO/take path).
   inline void confirmSeated(uint64_t k,int joiner){
-    clearSoft(k); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
+    clearSoft(k,"confirm"); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
   }
   void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
