@@ -27,7 +27,11 @@
 set -u
 cd "$(dirname "$0")/../.."
 
-CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a"
+# 25a is in CORE deliberately: "every real room is one browser" is the kind of
+# assumption that rots silently, and it is a 3-minute scenario. On a box with no
+# playwright firefox it prints one SKIP line naming the install command — loud,
+# and never a red pretending to be a product bug.
+CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a 25a"
 LOGDIR=/tmp/behavior-battery
 mkdir -p "$LOGDIR"
 

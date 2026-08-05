@@ -181,9 +181,15 @@ class Actor {
         { stdio: ['pipe', 'pipe', 'pipe'] });
     }
     this.alive = true;
-    this.child.on('exit', (code) => {
+    // Name the SIGNAL. "actor exited null" is what a killed actor reports, and
+    // it reads exactly like a product join failure — the two things that
+    // actually kill one are a memory-squeezed orchestrator (SIGKILL from the
+    // kernel/VM manager) and another cast's stale-actor sweep, neither of which
+    // is the mesh. Measured 2026-08-05: a 5-actor fleet scenario lost its first
+    // actor to a SIGKILL while the box was at loadavg 26 on 4 cores.
+    this.child.on('exit', (code, signal) => {
       this.alive = false;
-      this._resolvePending({ err: 'actor exited ' + code });
+      this._resolvePending({ err: 'actor exited ' + code + (signal ? ' [killed: ' + signal + ']' : '') });
       this._readyRes(); // an ssh/spawn failure must fail FAST, not hang up()
     });
     this._pending = null; this._payload = undefined; this._out = []; this._staleDone = 0;
