@@ -64,24 +64,36 @@
 (function () {
   'use strict';
 
-  /* THE VERSION TABLE — ONE PLACE, and it is set by WebCrypto Ed25519, which
-     every one of these engines shipped LAST of the required set. Verified
-     against MDN browser-compat-data (api/SubtleCrypto.json, ed25519 sign /
-     verify / importKey / exportKey) and caniuse, 2026-08-05:
-         Chrome / Edge  137   (2025-05, the last engine to ship it)
-         Firefox        129   (2024-08)
-         Safari          17   (2023-09, desktop and iOS alike)
-     Chromium-derived browsers (Opera, Samsung Internet, and the rest) are NOT
-     given a number of their own — their release numbering is theirs and we
-     have not verified it — but their UA carries the Chrome build they are
-     made of, so we quote THAT and stay truthful. */
+  /* THE VERSION TABLE lives in site/browser-support.json — the single source of
+     truth for every browser × feature cutoff, rendered for humans at
+     /browser-support.html. This inline copy is GENERATED from it (the preflight
+     is ES5 and runs before anything: it cannot await a fetch, and the browser
+     it is talking to may have no Promise to fetch WITH). Same
+     generated-but-committed doctrine as the App Store catalog; the gate fails
+     on drift. Edit the JSON, never this block.
+
+     Chromium-derived browsers (Opera, Samsung Internet, …) deliberately get NO
+     number of their own here — their release numbering is theirs and we have
+     not verified it. Their UA carries the Chrome build they are made of, so we
+     quote THAT and stay truthful. */
+  /* ==== BEGIN GENERATED from site/browser-support.json — scripts/build-browser-support.mjs ==== */
+  /* Source of truth: site/browser-support.json (updated 2026-08-05).
+     DO NOT EDIT BY HAND — edit the JSON and re-run the script; the release
+     gate fails on drift (test/unit/browser-support.js).
+     These numbers are set by WebCrypto Ed25519 signatures:
+       Chrome            137   (2025-05)
+       Microsoft Edge    137   (2025-05)
+       Firefox           129   (2024-08)
+       Safari            17   (2023-09)
+     COPY ONLY. The verdict below is feature detection and never this table. */
   var MIN = {
-    chrome:  { label: 'Chrome',           min: '137' },
-    edge:    { label: 'Microsoft Edge',   min: '137' },
-    firefox: { label: 'Firefox',          min: '129' },
-    safari:  { label: 'Safari',           min: '17'  }
+    chrome:   { label: "Chrome",         min: "137" },
+    edge:     { label: "Microsoft Edge", min: "137" },
+    firefox:  { label: "Firefox",        min: "129" },
+    safari:   { label: "Safari",         min: "17" }
   };
-  var GENERIC_MINS = 'Safari 17, Chrome 137 or Firefox 129 — and up';
+  var GENERIC_MINS = "Safari 17, Chrome 137 or Firefox 129 — and up";
+  /* ==== END GENERATED ==== */
 
   /* ---- the checks. Each returns a plain-language name for what is missing,
      used in the small print so a support conversation has something to go on. */
