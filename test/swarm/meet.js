@@ -236,7 +236,15 @@ function camInitScript() {
     return `(() => { const mk = async () => {
       const vid=document.createElement('video');vid.src=${JSON.stringify(dataUrl(person.clip, 'video/mp4'))};vid.muted=false;vid.playsInline=true;vid.preload='auto';vid.style.cssText='position:fixed;left:-9999px;width:2px;height:2px;opacity:0';document.documentElement.appendChild(vid);
       const img=new Image();img.src=${JSON.stringify(dataUrl(person.portrait, 'image/jpeg'))};await new Promise(r=>{img.complete?r():(img.onload=img.onerror=r);});
-      await new Promise(r=>{vid.readyState>=1?r():(vid.onloadedmetadata=r);});
+      // NEVER HANG ON THE CLIP (2026-08-05): a Chromium without proprietary
+      // codecs (the gate pin chromium-1193 answers canPlayType('avc1')='') never
+      // fires loadedmetadata for the mp4, and an unresolved mk() is a
+      // getUserMedia that never settles — the page joins camera-less (knock
+      // first, correctly) and every later cam tap joins the hung boot ask:
+      // behavior 24a's host sat blurred forever on exactly the boxes whose
+      // build lacks H.264, and passed on the one whose build has it. 3s, then
+      // the portrait canvas IS the camera (draw() already falls back to img).
+      await new Promise(r=>{if(vid.readyState>=1)return r();vid.onloadedmetadata=r;setTimeout(r,3000);});
       const W=vid.videoWidth||400,H=vid.videoHeight||736;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');let mode='portrait';
       const draw=()=>{try{(mode==='video'&&vid.readyState>=2)?x.drawImage(vid,0,0,W,H):x.drawImage(img,0,0,W,H);}catch(e){}};draw();setInterval(draw,60);
       let dst=null;try{const ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();dst=ac.createMediaStreamDestination();ac.createMediaElementSource(vid).connect(dst);window.__botAC=ac;}catch(e){}
