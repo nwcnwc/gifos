@@ -289,6 +289,22 @@ e.g. carry a count of REFUSALS instead, where lying can only keep the room
 MORE blurred, making the failure mode safe. This needs its own law in
 `healing-laws.md` before implementation.
 
+**RESOLVED 2026-08-05 — see `healing-laws.md` § G (G0-G8), and note the
+refutation.** The refusal-count argument as written above is WRONG: a plain
+integer sum is symmetric, so an aggregator can drive a refusal count DOWN as
+easily as up, and renaming consent to refusal creates no asymmetry. The
+asymmetry is elsewhere, in three parts that are only sufficient together —
+(G3) fail-closed defaults, so loss/silence/staleness read as refusal;
+(G4) every author of a digest input is directly LINKED to the aggregator that
+folds it and receives the published fold back on a frame that already exists,
+so the only dangerous direction (suppression) is refutable by its own victim
+at a fixed, unique, structural checker — the down-child, which is already the
+C3-designated healer — never by a vote; and (G1) actuation is always local and
+first-hand, so the worst a fully-complicit path achieves is a wrong BADGE, not
+a released camera. `epoch` is REMOVED from the digest (an inflated max is a
+lockout, not a fail-safe direction). Built in the sim (`repro-digest.sh`);
+browser port deliberately deferred.
+
 ### Sequencing
 
 1. V4 diagnosed and the sim gated at N≥5000 (nothing above matters if
