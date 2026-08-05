@@ -102,17 +102,29 @@ echo "--- a LOSS blurs, then clears (the fail-safe direction) ---"
 # A mass silent kill: the fold must go PARTIAL (=> blurred badge) while the room
 # does not know what happened, and recover once the heal completes. Blur-then-
 # clear is the whole of G3; a loss that read as consent would be the bug.
+# The blur is a TRANSIENT, so sample the whole window rather than one instant —
+# pinning a single tick would make this leg a timing coin-flip the first time an
+# unrelated horizon moves. The claim is "somewhere in the loss the room blurs,
+# and refusals NEVER fall below the truth anywhere in it".
 out=$(run "det on" "seed 4" "init 600 0" "converge 60000" "tick 200" "digest" \
-          "kill 0.2 silent" "tick 60" "digest" "converge 60000" "tick 400" "digest" "check")
+          "kill 0.2 silent" \
+          "tick 20" "digest" "tick 20" "digest" "tick 20" "digest" \
+          "tick 40" "digest" "tick 40" "digest" "tick 60" "digest" \
+          "converge 60000" "tick 400" "digest" "check")
 mapfile -t dl < <(grep '^DIGEST' <<<"$out")
+last=$(( ${#dl[@]} - 1 ))
 chk "before the kill: nothing partial" "$(fld "${dl[0]}" partial)" "0"
-p2=$(fld "${dl[1]}" partial); r2=$(fld "${dl[1]}" refuseMax); t2=$(fld "${dl[1]}" trueRefuse)
-[ "$p2" -gt 0 ] && ok "during the loss the fold is PARTIAL ($p2 observers blurred)" \
-                || bad "a silent mass death did not blur the room (partial=$p2)"
-[ "$r2" -ge "$t2" ] && ok "…and refusals only rose ($r2 >= true $t2)" \
-                    || bad "refusals fell during a loss ($r2 < true $t2) — WRONG DIRECTION"
-chk "after the heal the blur clears" "$(fld "${dl[2]}" partial)" "0"
-chk "…and the count is true again" "$(fld "${dl[2]}" rootExact)" "$(fld "${dl[2]}" obs)"
+maxPart=0; dropped=0
+for i in $(seq 1 $((last-1))); do
+  p=$(fld "${dl[$i]}" partial); r=$(fld "${dl[$i]}" refuseMin); t=$(fld "${dl[$i]}" trueRefuse)
+  [ "$p" -gt "$maxPart" ] && maxPart=$p
+  [ "$r" -lt "$t" ] && dropped=$((dropped+1))
+done
+[ "$maxPart" -gt 0 ] && ok "during the loss the fold goes PARTIAL (peak $maxPart observers blurred)" \
+                     || bad "a silent mass death never blurred the room"
+chk "refusals NEVER fell below the truth anywhere in the loss" "$dropped" "0"
+chk "after the heal the blur clears" "$(fld "${dl[$last]}" partial)" "0"
+chk "…and the count is true again" "$(fld "${dl[$last]}" rootExact)" "$(fld "${dl[$last]}" obs)"
 grep -q 'CHECK PASS' <<<"$(grep '^CHECK' <<<"$out")" && ok "mesh healthy after the silent kill" || bad "mesh: $(grep '^CHECK' <<<"$out")"
 
 # ---------------------------------------------------------------------------
