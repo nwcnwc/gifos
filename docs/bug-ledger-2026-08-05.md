@@ -79,3 +79,16 @@ and gets the honest view-only note — but a camera in Messages/WhatsApp
 webviews may be structurally unavailable. The "open in Safari/Chrome" copy
 exists on the lateMedia failure path; whether the JOIN page should proactively
 offer an escape-to-browser affordance on iOS webviews is a product question.
+
+## 8. The standby re-park lag (redun-drill, quarantined at the 0.9.2 cut)
+
+A woken spare pipe re-parks slower than redun-drill's two measurement windows
+— forensics show it DECAYING (2332→643 B/s), so the ONE-PIPE choreography
+works but lags. The interleaved 12-run matrix (idle 8-core box): 3/3 red only
+with knock-first AND the ghost-falsification law combined; 1/3 in every other
+arm (the drill's pre-existing flake band). The two demo-blocker fixes shift
+early-room link timing enough to trip a wake; the lag does the rest. Standby
+pipes exist only at stage scale — no small room touches this. Quarantine
+entry (c8466ba) carries the full argument. Diagnose WITH the rest of the
+redundancy-lane cluster: mirror-drill's claim-ordering flake and
+docs/bug-pipe-stg-freeze-2026-08-05.md. Likely one investigation, not three.
