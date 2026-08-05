@@ -105,6 +105,18 @@ failure under concurrent admission, in three stacked defects:
    twin (plain Numbers) has no such wall, so THE TWINS DIVERGE exactly
    where the storm goes.
 
+**The mint, pinned (mesh.js serveFind deep path):** `firstFreeInRoster()
+-> admit()` — ANY seated seat receiving a descending FIND admits into a
+free cell of its own row, with only a markSitting reservation LOCAL to
+that admitter. Section 1 has C3 one-designated-admitter-per-cell; the deep
+join path does not. Two seats of one row serving two seekers concurrently
+both see the same free cell and both PLACE — a duplicate. serveCompact
+directly below already states the needed rule ("Only a ROW HEAD decides —
+it holds the whole row FIRST-HAND"); the join path never got it. Fix
+shape: deep admission head-only (non-heads hand the FIND to their head, a
+direct link), plus a LOUD depth clamp so the uint32 overflow wall can
+never again be crossed silently.
+
 The steady state: dup races -> E2 eviction wars -> evicted seats rejoin
 the storm -> frontiers look full -> deeper descent -> overflow aliasing ->
 more dups. Seated flatlines (~1,900) while internal moves churn at ~2,600
