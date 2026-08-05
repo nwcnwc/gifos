@@ -1117,7 +1117,26 @@ bool Seat::upRefuted(const Dig& pub,const Dig& echo,int base){
 // (V5's "ONE reservation semantics at every site"): a requeued/moved echo is not
 // a member, while a SILENTLY DEAD occupant — occ entry held, alive[] false, no
 // LEAVE — still is, and still blurs. Pure read: occIsPhantom mutates nothing.
-bool Seat::scopeGap(uint64_t k){ return occ.count(k) && !occIsPhantom(k); }
+// ...and BOUNDED BY THE HEALING HORIZON. Even phantom-aware, a raw occ read
+// blurs forever: after a 20% churn at N=2000 two heads still hold occ for row
+// cells `find` reports EMPTY whose occupants died with no deliverable LEAVE
+// (alive[x]==false, so occIsPhantom deliberately says "not a free chair" —
+// silent death must stay ring-hold conservative). Nothing owns those entries,
+// so partial stuck at 100% and refuse at +3 over truth, permanently. A member
+// blurs the room only while its loss is ACTIONABLE: I heard it first-hand
+// within the horizon its cell's healer works to (DIG_LOSS_H spans RING_HOLD,
+// the longest confirm window in the system) and now cannot hear its digest.
+// Past that the cell is either healed — a new occupant publishes and is counted
+// — or it is a ghost nobody owns, and a ghost may not hold a room blurred for
+// the rest of its life. Same shape as firstHandLive's decay and E1's
+// falsifiable-ghost amendment: evidence has a horizon.
+// Residual, honest: a member alive, refusing, and severed from its aggregator
+// for longer than DIG_LOSS_H drops out of both n and refuse. That is the mesh's
+// own "we have lost that subtree" case (E3 partition), not a digest fact.
+bool Seat::scopeGap(uint64_t k){
+  if(!occ.count(k) || occIsPhantom(k)) return false;
+  auto it=live.find(k); return it!=live.end() && TICK-it->second<=DIG_LOSS_H;
+}
 void Seat::rollup(){
   if(!DIGEST || !hasCoord || state!=3) return;
   // --- (1) my SUBTREE = me + the child row I own -----------------------------
