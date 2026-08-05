@@ -5983,38 +5983,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // ---- boot ------------------------------------------------------------------
     // Camera trouble must never lock anyone out of the room: no permission →
     // join view-only. The room doesn't care what you bring.
+    //
+    // THE KNOCK WAITS FOR NOBODY (2026-08-05). getUserMedia used to gate
+    // joinRoom(): on a desktop the prompt settles in seconds either way, so
+    // the ordering looked harmless — but a permission prompt is allowed to
+    // NEVER settle. iOS leaves it pending until a human decides, and a link
+    // opened inside another app's in-app viewer can hang it indefinitely — and
+    // a joiner wedged there never sends the FIRST entry frame. The monitor
+    // bot watched three straight hours of demo-night join attempts in which
+    // not one knock reached the room (door counters frozen end to end) while
+    // phones sat on a page that looked like it was connecting. View-only join
+    // is already a fully supported state — a denied camera lands there — so
+    // the entry dance and the camera have no ordering dependency at all:
+    // knock NOW, and media attaches whenever it lands, through the same
+    // transceiver path lateMedia uses for a camera granted mid-call.
     function bootIntoRoom() {
       return ensureName()
         .then(() => {
-          // BROADCAST viewers bring no media at all — never even ASK for the
-          // camera (an audience of thousands must not see a permission prompt
-          // to watch). The null-localStream path below is the same fully
-          // supported view-only join a denied camera lands in; a viewer the
-          // host later calls up gets media through lateMedia (a user gesture),
-          // exactly like any view-only guest tapping the mic button.
-          if (BROADCAST && !bcHostStored()) { localStream = null; return; }
-          // getUserMedia is absent on an insecure context (no HTTPS) — don't let
-          // that crash the boot; join view-only, exactly as for a denied camera.
-          const md = navigator.mediaDevices;
-          const gum = (md && md.getUserMedia)
-            ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
-            : Promise.reject(new Error('no media devices'));
-          return gum.then((stream) => { localStream = stream; maybeShowFlip(); }, (e) => {
-            localStream = null;
-            // Breadcrumb for the harness: WHY did boot capture fail? (A failed
-            // boot gUM is silent by design — view-only join — which made the
-            // per-launch no-video flake unattributable from the outside.)
-            try { window.__gumBootErr = (e && e.name ? e.name + ': ' : '') + String(e && e.message || e); } catch (e2) {}
-          });
-        })
-        .then(() => {
-          // Join QUIET by default: mic and camera acquired (permission granted,
-          // instant to switch on) but disabled until you choose to be seen/heard.
-          if (localStream) for (const tr of localStream.getTracks()) tr.enabled = false;
           meTile = makeTile('me', myName() + ' (you)', true);
-          if (localStream) { meTile.video.srcObject = localStream; meterFor('me', localStream); }
-          else if (BROADCAST) tileNote(meTile, 'You’re watching this broadcast.'); // the grid is hidden in the skin; this only shows to a stripped-URL client
-          else tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone — tap the mic or camera button above to ask again.');
           updateTile('me');
           joinRoom();
           updateStatus();
@@ -6042,6 +6028,54 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               }, 250);
             }
           }
+          // ---- media, in PARALLEL with the entry dance ---------------------
+          // BROADCAST viewers bring no media at all — never even ASK for the
+          // camera (an audience of thousands must not see a permission prompt
+          // to watch). The null-localStream path is the same fully supported
+          // view-only join a denied camera lands in; a viewer the host later
+          // calls up gets media through lateMedia (a user gesture), exactly
+          // like any view-only guest tapping the mic button.
+          if (BROADCAST && !bcHostStored()) {
+            localStream = null;
+            tileNote(meTile, 'You\u2019re watching this broadcast.'); // the grid is hidden in the skin; this only shows to a stripped-URL client
+            updateTile('me');
+            return;
+          }
+          // getUserMedia is absent on an insecure context (no HTTPS) — don't
+          // let that crash the boot; join view-only, exactly as for a denied
+          // camera. While the prompt is PENDING the tile shows the same quiet
+          // dark square a granted-but-disabled camera shows — no special state.
+          const md = navigator.mediaDevices;
+          const gum = (md && md.getUserMedia)
+            ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
+            : Promise.reject(new Error('no media devices'));
+          gum.then((stream) => {
+            localStream = stream;
+            // Join QUIET by default: mic and camera acquired (permission
+            // granted, instant to switch on) but disabled until you choose to
+            // be seen/heard.
+            for (const tr of localStream.getTracks()) tr.enabled = false;
+            maybeShowFlip();
+            const n = meTile.tile.querySelector('.note'); if (n) n.remove();
+            meTile.video.style.display = '';
+            meTile.video.srcObject = localStream;
+            meterFor('me', localStream);
+            updateTile('me');
+            // Any pc born between the knock and the grant was built recvonly —
+            // give it the tracks now, same rules as a mid-call grant.
+            attachLocalTracks();
+            refreshOutbound();
+            broadcastStatus();
+          }, (e) => {
+            localStream = null;
+            // Breadcrumb for the harness: WHY did boot capture fail? (A failed
+            // boot gUM is silent by design — view-only join — which made the
+            // per-launch no-video flake unattributable from the outside.)
+            try { window.__gumBootErr = (e && e.name ? e.name + ': ' : '') + String(e && e.message || e); } catch (e2) {}
+            tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone \u2014 tap the mic or camera button above to ask again.');
+            updateTile('me');
+          });
+          // The boot promise deliberately does NOT wait on the prompt.
         });
     }
     // ---- ONE RUNTIME entry dispatch (docs/one-runtime.md) -------------------
@@ -9597,6 +9631,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // prompt (DuckDuckGo, links opened inside other apps), or a hasty "Deny".
     // View-only must be an antechamber, not a sentence.
     let lateAsk = false;
+    // The mesh may have been built recvonly (we had nothing to offer when the
+    // pc was born) — add our tracks to every live pc and re-offer; perfect
+    // negotiation absorbs it, and the fresh m-lines guarantee an ontrack on
+    // the far side. Tracks register as MAIN senders (p.mainV/p.mainA), the set
+    // refreshOutbound owns — a late-added track obeys the same rules
+    // (row-mates only; parked while staged) as a join-time one. Shared by
+    // lateMedia (a camera granted mid-call by a tap) and the boot path (a
+    // camera granted AFTER the knock — the knock never waits on the prompt).
+    function attachLocalTracks() {
+      for (const [pid, p] of peers) {
+        if (!p.pc) continue;
+        let added = false;
+        for (const tr of localStream.getTracks()) {
+          if (tr.kind === 'video' ? p.mainV : p.mainA) continue;
+          try {
+            const t = p.pc.addTransceiver(tr, { streams: [localStream] });
+            if (tr.kind === 'video') p.mainV = t.sender; else p.mainA = t.sender;
+            added = true;
+          } catch (e) {}
+        }
+        if (added) { if (p.dc && p.dc.readyState === 'open') compKick(pid); else renegotiate(p); }
+      }
+    }
     function lateMedia(kind) {
       if (lateAsk) return;
       const md = navigator.mediaDevices;
@@ -9628,25 +9685,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           }
           myStatus.muted = kind !== 'mic';
           myStatus.camOff = kind !== 'cam';
-          // The mesh was built recvonly (we had nothing to offer) — add our
-          // tracks to every live pc and re-offer; perfect negotiation absorbs
-          // it, and the fresh m-lines guarantee an ontrack on the far side.
-          for (const [pid, p] of peers) {
-            if (!p.pc) continue;
-            let added = false;
-            for (const tr of localStream.getTracks()) {
-              // Register as MAIN senders (p.mainV/p.mainA), the set
-              // refreshOutbound owns — a late-added track must obey the same
-              // rules (row-mates only; parked while staged) as a join-time one.
-              if (tr.kind === 'video' ? p.mainV : p.mainA) continue;
-              try {
-                const t = p.pc.addTransceiver(tr, { streams: [localStream] });
-                if (tr.kind === 'video') p.mainV = t.sender; else p.mainA = t.sender;
-                added = true;
-              } catch (e) {}
-            }
-            if (added) { if (p.dc && p.dc.readyState === 'open') compKick(pid); else renegotiate(p); }
-          }
+          attachLocalTracks();
           paintControls();
           refreshOutbound();
           broadcastStatus();
