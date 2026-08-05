@@ -180,7 +180,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('   MEASURE manufacture dissolved (mover ' + (topo && topo.mC ? 'back in section 0' : 'mid-re-entry') + ') — waiting for a seat, then re-manufacturing once');
     const t3 = Date.now();
     let seated = null;
-    while (Date.now() - t3 < 60000) {
+    // The wait must cover the LAWFUL worst case, not a hunch: a rotated
+    // identity's old self still corpse-holds its cells, and Section-1 frees a
+    // corpse only through the probe-gated ring window (RING_HOLD = 220 ticks
+    // = 110s of wall clock) — H1-S1 conservatism, a law, not a lag. Measured:
+    // a rotated node still state-2/occ=0 at tick 160 (80s) is NORMAL, and the
+    // monitor bot's 3m25s re-seat on demo night is the same arithmetic. 150s
+    // = RING_HOLD + entry + margin. (Whether rotation SHOULD cost a ring
+    // window is a real design question — bug ledger #9 — but the suite must
+    // not fail the room for obeying its own conservatism laws.)
+    while (Date.now() - t3 < 150000) {
       seated = await pages[mIdx].evaluate(() => window.__gifosVideo.meshCoord()).catch(() => null);
       if (seated) break;
       await sleep(2000);

@@ -92,3 +92,18 @@ pipes exist only at stage scale — no small room touches this. Quarantine
 entry (c8466ba) carries the full argument. Diagnose WITH the rest of the
 redundancy-lane cluster: mirror-drill's claim-ordering flake and
 docs/bug-pipe-stg-freeze-2026-08-05.md. Likely one investigation, not three.
+
+## 9. Identity rotation costs a full ring window to re-seat (~110-210s)
+
+When dup/fork resolution rotates a device's identity, the OLD identity's
+cells stay corpse-held until the probe-gated ring window frees them
+(RING_HOLD = 220 ticks = 110s) — the narrowed falsification law deliberately
+does not touch once-heard occupants, so the new identity re-enters against a
+room that still looks full and seats only after the ring frees the corpses.
+Measured: a rotated node at state 2 / occ=0 for 80s+ on an idle box
+(e2e-stadium-dup forensics, tick 160); the monitor bot's 3m25s "Waiting for a
+seat…" at 00:35:51Z is the same arithmetic. Within the veil's 210s promise,
+but a bad 2 minutes. Design question, not a patch: should a rotation carry a
+signed "my old self is dead" so the corpses free instantly (a LEAVE the new
+identity can prove), instead of waiting out the ring? Needs a healing-laws
+argument (a forgeable early-free is an eviction weapon).
