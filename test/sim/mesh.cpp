@@ -90,6 +90,7 @@ static const long long SIT_RECHECK=25;   // assigner recheck cadence
 // remains the backstop when no transport event fired; an answered probe clears
 // the observation entirely — no eviction, E2 stands.
 static const long long EARLY_HOLD=12;
+static const long long OWNER_SILENT=40;  // UP-EDGE D5: 5 unanswered 8-tick phone beats => register the translost observation (probe-gated from there; an answering owner clears it)
 static const long long HELD_BEATS=24;    // 3 D1 rook beats (heartbeat every 8): "the occupant is answering me RIGHT NOW", as opposed to firstHandLive's 60-tick decay window
 // T — the mover's lease (atomic seat switching, law T in healing-laws.md).
 // A self-move TAKES its new seat FIRST and vacates the old one only when the
@@ -357,7 +358,7 @@ struct Seat {
   // consumes reJoin, so the seat wedged forever: seated-looking, coordless,
   // knocking never (behavior 04a: a 20s radio blip left one phone solo for 3.5
   // minutes until the NEXT blip re-fired the rescue at a fresh tick).
-  void join(){ if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
+  void join(){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d join() state=%d haveRoster=%d resumeTries=%d\n",(long long)TICK,id,state,(int)haveRoster,resumeTries);} if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
   // ENTRY RESUME (2026-08-04 plane incident; mesh.js resumeAsk is the origin,
   // this is its sim twin — test/tools/seat-flap-repro.js measures it). The
   // dance is three door round trips and a retry used to restart from the
@@ -367,6 +368,7 @@ struct Seat {
   // list trusted RELAY_TTL only; at most 6 consecutive knockless retries
   // (mirrors seatTries<=6) — then the knock refreshes list and budget.
   bool resumeAsk(){
+    {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d resumeAsk? greeters=%zu age=%lld tries=%d state=%d\n",(long long)TICK,id,lastGreeters.size(),greetersAt<0?-1:(long long)(TICK-greetersAt),resumeTries,state);}
     if(lastGreeters.empty()) return false;
     if(greetersAt<0 || TICK-greetersAt>RELAY_TTL) return false;
     if(resumeTries>=6) return false;
@@ -410,7 +412,7 @@ struct Seat {
   void confirmMove();                                    // T1/T3: vacate the old seat (LEAVE carries mvd) + start the tombstone
   void rollbackMove();                                   // T1: contradiction at the new cell — go home to the still-held old seat
   bool moveEvidence(const Msg& m);                       // does this frame evidence my NEW neighbourhood?
-  void requeue();
+  void requeue(const char* why="");
   void serveFind(Msg& m);
   void serveCompact(Msg& m);   // Q2: the up-chain compaction walk (tag==1 FINDs)
   void admit(Coord c,Msg& f);   // f = the FIND being served (nc/ttl, and Q2: tag==1 ⇒ seeker is a SEATED compactor, route the PLACE back)
