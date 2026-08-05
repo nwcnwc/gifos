@@ -32,7 +32,8 @@ scenario('24a-broadcast-street', {
   await check.until('the host auto-steps onto the Stage', async () =>
     (await ev('hana', 'window.__gifosVideo.onStage()')) === true, { within: 30 });
   // go visibly live: camera on, No blur — with the ticket set, this CLEARS
-  await ev('hana', "(function(){var V=window.__gifosVideo;if(V.camOff())document.getElementById('cam').click();V.setBlur(0);return true})()");
+  const _ck = await ev('hana', "(function(){var V=window.__gifosVideo;var was=V.camOff();if(was)document.getElementById('cam').click();V.setBlur(0);var vv=document.querySelector('video');return {was:was,now:V.camOff(),haveVideo:!!(vv&&vv.srcObject),stat:(document.querySelector('.status')||{}).textContent||''}})()");
+  console.log('  [cam act] ' + JSON.stringify(_ck));
   // The probe carries its own forensics: a bare blurClassOf gave a red that
   // read "— null" (check.until stringifying `false`) with no way to tell WHICH
   // term of the clear verdict (ticket, camera, blur choice, admin presence)
