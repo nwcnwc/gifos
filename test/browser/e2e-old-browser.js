@@ -23,6 +23,10 @@
 //   (4) THE NON-REGRESSION HALF: a browser missing only getUserMedia is NOT
 //       too old. View-only join is a first-class state (see e2e-knock-first),
 //       so a camera-less browser must sail through the preflight and SEAT.
+//   (5) the public support matrix (/browser-support.html, rendered from
+//       site/browser-support.json) quotes the SAME numbers the too-old screen
+//       does. A published matrix that disagrees with the product is worse than
+//       no matrix — it teaches people the wrong thing with authority.
 //
 // Ed25519 is the requirement that actually sets the version table — every
 // participant mints an Ed25519 identity at join (mesh-wire.js, S4, no off
@@ -204,6 +208,43 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     let seated = null;
     for (let t = 0; t < 30 && !seated; t++) { await sleep(1000); seated = await p.evaluate(() => window.__gifosVideo && window.__gifosVideo.meshCoord()).catch(() => null); }
     check('…and it JOINS view-only — the knock never needed a camera', !!seated, { seated });
+    await ctx.close();
+  }
+
+  // ---- (5) THE MATRIX IS PUBLIC, AND IT AGREES WITH THE PREFLIGHT ----------
+  // site/browser-support.json is the source of truth; run.html carries a
+  // GENERATED copy of its numbers (the preflight is ES5 and cannot fetch), and
+  // browser-support.html renders the same file for humans. test/unit
+  // guards the drift statically. Here we assert the thing a reader actually
+  // gets: the page loads the JSON and paints a row per browser with the SAME
+  // numbers the too-old screen quotes — because a support matrix that
+  // disagrees with the product is worse than no matrix.
+  {
+    const ctx = await newContext({});
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => console.log('  [matrix] ' + e.message));
+    await p.goto(BASE + '/browser-support.html');
+    await p.waitForFunction(() => document.querySelectorAll('#matrix tbody tr').length > 0, null, { timeout: 15000 }).catch(() => {});
+    const m = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('#matrix tbody tr')].map((tr) => ({
+        name: tr.querySelector('th').textContent,
+        cells: [...tr.querySelectorAll('td .v')].map((v) => v.textContent),
+      }));
+      return { rows, reqs: document.getElementById('reqs').textContent, cols: [...document.querySelectorAll('#matrix thead th')].map((t) => t.textContent) };
+    }).catch(() => null);
+    check('the support matrix page renders a row per browser from the JSON', !!m && m.rows.length >= 8, m && m.rows.length);
+    check('…with a column for meetings, broadcast and the Home Screen',
+      !!m && /Meetings/.test(m.cols.join('|')) && /Broadcast/.test(m.cols.join('|')) && /Home Screen/.test(m.cols.join('|')), m && m.cols);
+    const safari = m && m.rows.find((r) => /^Safari$/.test(r.name.trim()));
+    check('…and it quotes the SAME minimum the too-old screen quotes (Safari 17)',
+      !!safari && safari.cells[0] === '17 and up', safari && safari.cells);
+    const chrome = m && m.rows.find((r) => /^Chrome$/.test(r.name.trim()));
+    check('…and Chrome 137, the number Ed25519 actually sets', !!chrome && chrome.cells[0] === '137 and up', chrome && chrome.cells);
+    const skin = m && m.rows.find((r) => /Samsung/.test(r.name));
+    check('…and an unmeasured browser says so rather than guessing',
+      !!skin && skin.cells.every((c) => c === 'We have not checked'), skin && skin.cells);
+    check('…and the page explains WHY the numbers are what they are (Ed25519)', !!m && /Ed25519/.test(m.reqs));
+    check('…and says a camera is not needed to be in the room', !!m && /camera/i.test(m.reqs));
     await ctx.close();
   }
 

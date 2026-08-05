@@ -1769,6 +1769,7 @@
       'Your GIF-powered computer, right in your browser. Apps are GIFs. Data is GIFs.<br><br>' +
       'Everything on this Home Screen lives in this browser — nothing on our servers.<br><br>' +
       '<a href="about.html" target="_blank" rel="noopener">What is GifOS?</a> · ' +
+      '<a href="browser-support.html" target="_blank" rel="noopener">Which browsers work</a> · ' +
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
       '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
     'sep',

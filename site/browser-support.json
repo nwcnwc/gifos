@@ -1,0 +1,225 @@
+{
+  "schema": "gifos-browser-support/1",
+  "updated": "2026-08-05",
+  "note": "THE SINGLE SOURCE OF TRUTH for which browsers can run which parts of GifOS. Two things read this file and nothing else may hard-code these numbers: (1) scripts/build-browser-support.mjs generates the ES5 copy table inlined in site/run.html's preflight — run it after any edit here, `--check` fails the gate on drift; (2) site/browser-support.html renders this file for humans. THE PREFLIGHT'S DECISION IS ALWAYS FEATURE DETECTION AND NEVER THIS TABLE — these numbers only choose the WORDS. A version here that is wrong makes a message slightly off; it can never wrongly admit or wrongly turn away a browser.",
+  "states": {
+    "supported": "Measured or verified against browser-compat data: this version and later work.",
+    "unsupported": "Verified NOT to work at any version — the engine never shipped what is needed.",
+    "unknown": "We have genuinely not measured it, and we say so rather than guess. For Chromium skins the honest answer lives in their own user-agent, which names the Chrome build they are made of — compare THAT against the Chrome row."
+  },
+  "confidence": {
+    "verified": "Checked against MDN browser-compat-data and caniuse on the `updated` date.",
+    "derived": "Read off the requirement list and the engine's own history, not run.",
+    "unmeasured": "Nobody has run it. Reported as unknown."
+  },
+  "sources": [
+    "MDN browser-compat-data api/SubtleCrypto.json — ed25519 sign/verify/importKey/exportKey",
+    "caniuse.com/mdn-api_subtlecrypto_sign_ed25519"
+  ],
+
+  "requirements": {
+    "es6-baseline": {
+      "label": "Modern JavaScript (Promise, Map, Set)",
+      "why": "The whole runtime is written on it. Missing means the page cannot even parse."
+    },
+    "websocket": {
+      "label": "WebSocket",
+      "why": "The one socket to the relay, which introduces browsers to each other (site/js/gifos-net.js)."
+    },
+    "webcrypto-subtle": {
+      "label": "WebCrypto (crypto.subtle)",
+      "why": "Derive-don't-send: the room key is derived on the device from the link, and every frame is sealed with AES-GCM. Nothing about a room is ever sent to the relay."
+    },
+    "webcrypto-ed25519": {
+      "label": "WebCrypto Ed25519 signatures",
+      "why": "THE ONE THAT SETS THE TABLE. Every participant mints an Ed25519 identity the moment they join (site/js/mesh-wire.js, healing-laws S4 — there is no off switch) and signs every seat-authoring frame with it. It is by years the newest thing GifOS needs, so it, not WebRTC, decides the minimum version of every browser below."
+    },
+    "webrtc-peerconnection": {
+      "label": "WebRTC (RTCPeerConnection)",
+      "why": "Pictures and voice go straight between people. There is no media server to fall back to."
+    },
+    "webrtc-datachannel": {
+      "label": "WebRTC data channels",
+      "why": "The mesh talks to itself over them — seating, chat, files, shared apps."
+    },
+    "text-encoder": {
+      "label": "TextEncoder / TextDecoder",
+      "why": "The bytes-to-text boundary every sealed frame crosses."
+    },
+    "secure-context": {
+      "label": "A secure (https) address",
+      "why": "No browser will hand out crypto.subtle or a camera on a plain http:// page. This is about the LINK, not the browser — an http:// link fails on a brand-new browser too."
+    },
+    "indexeddb": {
+      "label": "IndexedDB",
+      "why": "Your Home Screen and every app's saved data live here, in your own browser. Nothing is on a server to fall back to."
+    },
+    "canvas2d": {
+      "label": "Canvas 2D",
+      "why": "Every app icon is a real GIF, decoded and drawn in the page."
+    }
+  },
+
+  "features": {
+    "meet": {
+      "label": "Meetings",
+      "plain": "Seeing and hearing each other on a shared link.",
+      "where": "run.html — /meet/<room>, or run.html#v=<room>",
+      "gatedBy": "webcrypto-ed25519",
+      "requires": [
+        "es6-baseline", "websocket", "webcrypto-subtle", "webcrypto-ed25519",
+        "webrtc-peerconnection", "webrtc-datachannel", "text-encoder", "secure-context"
+      ],
+      "notRequired": {
+        "getUserMedia": "A camera is optional. Joining to watch and listen is a supported, first-class state — the knock never waits on a camera prompt.",
+        "canvas-captureStream": "Only needed to SEND a picture, never to be in the room."
+      }
+    },
+    "cast": {
+      "label": "Broadcast",
+      "plain": "One person on stage, everyone else watching.",
+      "where": "run.html wearing its broadcast skin — /cast/<room>, or run.html#v=<room>&bc=1",
+      "gatedBy": "webcrypto-ed25519",
+      "sameAs": "meet",
+      "requires": [
+        "es6-baseline", "websocket", "webcrypto-subtle", "webcrypto-ed25519",
+        "webrtc-peerconnection", "webrtc-datachannel", "text-encoder", "secure-context"
+      ],
+      "note": "Broadcast is the SAME page as a meeting wearing a different skin, so it has exactly the same requirements. It is listed separately because people ask about it separately, not because the answer differs."
+    },
+    "desktop": {
+      "label": "Home Screen and App Store",
+      "plain": "Your computer of GIFs, and installing apps onto it.",
+      "where": "index.html, store.html",
+      "gatedBy": null,
+      "requires": ["es6-baseline", "indexeddb", "canvas2d"],
+      "note": "The Home Screen needs NONE of the meeting stack — no WebRTC, no Ed25519 — so it keeps working on browsers that could never hold a meeting, and GifOS deliberately does not block it. Its true floor is much older than anything in this table, but nobody has measured it, so every row below says so honestly instead of inventing a number."
+    }
+  },
+
+  "copy": {
+    "genericOrder": ["safari", "chrome", "firefox"],
+    "genericFeature": "meet",
+    "note": "The order and set used when we cannot name the browser in hand: 'Meetings need Safari 17, Chrome 137 or Firefox 129 — and up.'"
+  },
+
+  "browsers": [
+    {
+      "id": "chrome",
+      "label": "Chrome",
+      "engine": "Blink",
+      "copyKey": "chrome",
+      "support": {
+        "meet":    { "state": "supported", "min": "137", "since": "2025-05", "why": "webcrypto-ed25519", "confidence": "verified", "note": "Chrome was the LAST major engine to ship Ed25519 in WebCrypto, so it has the highest minimum of the three. Chrome 136 and older cannot join a meeting at all." },
+        "cast":    { "state": "supported", "min": "137", "since": "2025-05", "why": "webcrypto-ed25519", "confidence": "verified" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured", "note": "Works on every Chrome we have ever run it on; the oldest that still works has never been measured." }
+      }
+    },
+    {
+      "id": "edge",
+      "label": "Microsoft Edge",
+      "engine": "Blink",
+      "copyKey": "edge",
+      "support": {
+        "meet":    { "state": "supported", "min": "137", "since": "2025-05", "why": "webcrypto-ed25519", "confidence": "verified", "note": "Edge follows Chrome's engine version for version." },
+        "cast":    { "state": "supported", "min": "137", "since": "2025-05", "why": "webcrypto-ed25519", "confidence": "verified" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "edge-legacy",
+      "label": "Edge (the old one, before 2020)",
+      "engine": "EdgeHTML",
+      "support": {
+        "meet":    { "state": "unsupported", "min": null, "confidence": "derived", "note": "EdgeHTML was retired in 2020 and never shipped Ed25519 in WebCrypto. No version of it can hold a meeting. Today's Edge is a different engine entirely — updating is the whole fix." },
+        "cast":    { "state": "unsupported", "min": null, "confidence": "derived" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "firefox",
+      "label": "Firefox",
+      "engine": "Gecko",
+      "copyKey": "firefox",
+      "support": {
+        "meet":    { "state": "supported", "min": "129", "since": "2024-08", "why": "webcrypto-ed25519", "confidence": "verified", "note": "Firefox for Android tracks the same version numbers." },
+        "cast":    { "state": "supported", "min": "129", "since": "2024-08", "why": "webcrypto-ed25519", "confidence": "verified" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "safari",
+      "label": "Safari",
+      "engine": "WebKit",
+      "copyKey": "safari",
+      "support": {
+        "meet":    { "state": "supported", "min": "17", "since": "2023-09", "why": "webcrypto-ed25519", "confidence": "verified", "note": "On a Mac, Safari's version comes with the system update." },
+        "cast":    { "state": "supported", "min": "17", "since": "2023-09", "why": "webcrypto-ed25519", "confidence": "verified" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "safari-ios",
+      "label": "Safari on iPhone and iPad",
+      "engine": "WebKit",
+      "support": {
+        "meet":    { "state": "supported", "min": "17", "since": "2023-09", "why": "webcrypto-ed25519", "confidence": "verified", "note": "Safari's version IS the iPhone's version: updating iOS to 17 or later is the whole fix, and every other browser on an iPhone uses the same engine underneath, so they all move together." },
+        "cast":    { "state": "supported", "min": "17", "since": "2023-09", "why": "webcrypto-ed25519", "confidence": "verified" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "opera",
+      "label": "Opera",
+      "engine": "Blink",
+      "chromiumSkin": true,
+      "support": {
+        "meet":    { "state": "unknown", "min": null, "confidence": "unmeasured", "note": "Opera is Chrome underneath but numbers its releases its own way, and we have not checked which Opera carries which Chrome. Its own user-agent says which Chrome build it is made of — compare that against the Chrome row, which is what the message on the page does." },
+        "cast":    { "state": "unknown", "min": null, "confidence": "unmeasured" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "samsung",
+      "label": "Samsung Internet",
+      "engine": "Blink",
+      "chromiumSkin": true,
+      "support": {
+        "meet":    { "state": "unknown", "min": null, "confidence": "unmeasured", "note": "Chrome underneath, with its own version numbers we have not mapped. Its user-agent names the Chrome build it is made of; compare that against the Chrome row." },
+        "cast":    { "state": "unknown", "min": null, "confidence": "unmeasured" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "uc",
+      "label": "UC Browser",
+      "engine": "varies",
+      "chromiumSkin": true,
+      "support": {
+        "meet":    { "state": "unknown", "min": null, "confidence": "unmeasured", "note": "Never tested, and its engine differs by platform and release. If it cannot hold a meeting the page will say exactly which piece is missing." },
+        "cast":    { "state": "unknown", "min": null, "confidence": "unmeasured" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "in-app",
+      "label": "The browser inside another app (Facebook, Instagram, WhatsApp, Line, WeChat…)",
+      "engine": "borrowed from the phone",
+      "support": {
+        "meet":    { "state": "unknown", "min": null, "confidence": "unmeasured", "note": "These use whatever engine the phone provides, and each app cuts something different out of it. When one cannot hold a meeting, the page says so and offers the fix that actually works: open the same link in Safari or Chrome." },
+        "cast":    { "state": "unknown", "min": null, "confidence": "unmeasured" },
+        "desktop": { "state": "unknown", "min": null, "confidence": "unmeasured" }
+      }
+    },
+    {
+      "id": "ie",
+      "label": "Internet Explorer",
+      "engine": "Trident",
+      "support": {
+        "meet":    { "state": "unsupported", "min": null, "confidence": "derived", "note": "No version of Internet Explorer has WebRTC or the modern crypto GifOS needs, and Microsoft retired it in 2022." },
+        "cast":    { "state": "unsupported", "min": null, "confidence": "derived" },
+        "desktop": { "state": "unsupported", "min": null, "confidence": "derived", "note": "Not even the Home Screen: the site is written in JavaScript that Internet Explorer cannot read." }
+      }
+    }
+  ]
+}
