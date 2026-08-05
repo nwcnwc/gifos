@@ -15,7 +15,7 @@ differs between them.
 | `browser/` | site on 8099 + relay on 8790 | Playwright suites |
 | `drills/` | nothing | self-contained: spawn their OWN relay + site |
 | `swarm/` | the production site | scale bots + live meeting tools |
-| `behavior/` | site 8099 + relay (auto-spawned); relay-dev for deploys | the BEHAVIOR battery: 20 real-life use cases as persona-driven scenarios — see `behavior/README.md` |
+| `behavior/` | site 8099 + relay (auto-spawned); relay-dev for deploys | the BEHAVIOR battery: 25 real-life use cases as persona-driven scenarios, spreadable over a FLEET of boxes — see `behavior/README.md` |
 | `tools/` | varies | utilities, not assertion tests |
 | `batteries/` | everything below it | cross-environment GATES — run before pushing |
 
@@ -637,6 +637,16 @@ chromium):
   registry resolves it, which is usually what you want.
 * **ARM64 is fine** — playwright ships `firefox-debian-12-arm64`, so the small
   ARM clients can be firefox actors too (installed and verified 2026-08-05).
+* **An ALL-Gecko room works** (2026-08-05): `BEHAVIOR_ENGINE=firefox` on
+  01a-household-rolling, three firefox actors spread over two ARM cores and an
+  x86 box — founding, serial arrivals, ONE tree of 3, a clean leave with no
+  ghost, and a rejoin into the same room. But the SAME run with two of those
+  firefox actors CO-LOCATED on one box (which was simultaneously running
+  another session's browser suite) had both actors seated and each reporting
+  `participants=1` — a room that never saw itself. Not reproduced once the pair
+  was split across boxes, so it is filed as contention, not as a Gecko-pair
+  defect; if you meet it again, the discriminator is exactly that — move the
+  two actors apart before believing anything about firefox↔firefox.
 * Firefox is SLOWER to become a participant, and the cost is in launch, not in
   the mesh. Same 3-role scenario, per actor: on one idle box chromium
   launch→seat ≈ 3s and firefox ≈ 11s; across the farm, chromium ≈ 13s and
