@@ -738,7 +738,7 @@ Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.chi
   { uint64_t tk=ckey(tc);
     if(TICK-lastAck>OWNER_SILENT && !firstHandLive(tk)){
       routeTo(tc,1);
-      long long confirmH=(tc.pc==0)?RING_HOLD:60;
+      long long confirmH=(tc.pc==0)?RING_HOLD:90;   // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE, and 60 measurably degraded post-mass-kill packing (compaction leg 1); 120 still beats E1 by half
       if(TICK-lastAck>confirmH && occ.count(tk)){ occ.erase(tk); live.erase(tk); kidful.erase(tk); s1seen.erase(tk); } } }
 }
 // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live rook
