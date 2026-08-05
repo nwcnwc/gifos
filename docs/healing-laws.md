@@ -875,23 +875,155 @@ broad form (any silent target) minted dups under mass-kill and killed
 severed-but-alive neighbours under adversary churn — both in the commit
 messages of the fix.
 
-## G — the rollup digest (LAW PENDING — designed, argued, NOT built)
+## G — the rollup digest (ARGUED 2026-08-05; built in the SIM, browser port gated)
 
-The O(N)-per-node status flood is still live (scale-audit V1-V3: rollups →
-statusOf cap → dial gate). The design is in the audit doc: O(C) per node per
-period, digests fold UP the tree and flood DOWN, staleness O(depth × period).
-Its laws-to-be, recorded so implementation cannot start without them being
-argued to this file's bar:
+The O(N)-per-node status flood (scale-audit V1) is what this replaces: every
+participant's heartbeat rides the room-wide GSP flood today, so every node
+receives every node's pulse every period — the one per-node cost in the system
+that grows with N. The rollup folds that traffic onto the tree that already
+exists: every fact the flood carried becomes either **near-field first-hand**
+(row-scoped, already O(C)) or a **per-section digest** aggregated along the
+up/down links a seat already holds.
 
-- **Digests inform DISPLAY and COUNTS — never evict, never resurrect** (E2
-  untouched; a wrong digest can misreport a number, never take a seat).
-- **R2 untouched** — digests ride sealed mesh edges only.
-- **Small rooms degrade to today** — one-level tree, rollup ≡ flood,
-  byte-identical UX.
-- **The lying-aggregator problem is OPEN**: a section head can misreport its
-  subtree. Consent inflation is the dangerous direction (it can unblur
-  cameras); the candidate shape is carrying REFUSAL counts so a lie can only
-  keep the room MORE blurred. This argument must land here before V1 ships.
+**The shape, stated precisely.** Every seat's parent in the digest tree is the
+owner of its row — `up({pc,r,0})` — so the C seats of a row share one parent and
+reach it only through their head, and the 25 Section-1 seats are the forest
+roots (their subtrees partition the room exactly: walk up from any seat and you
+reach exactly one Section-1 cell). Therefore:
+
+- **UP** — each period, a non-head seat publishes its own subtree digest to its
+  head; a head folds its C-1 row-mates' digests with its own and publishes ONE
+  row digest to its owner; an owner folds that single row report with itself.
+  Per node per period: ≤ C reports in, ONE out.
+- **ROOT** — Section 1 has no owner, so its 25 seats fold the room between
+  themselves over the rook (diameter 2, so two hops), each holding a C²-entry
+  section table.
+- **DOWN** — the room fold rides back down the same links, one level per period.
+  Staleness is O(depth × period) — at 10⁶ (depth ≈ 8, period ≈ 5s) the global
+  number is ≤ ~40s old, which is fine for a *number*; everything the near field
+  gates hardest stays first-hand and real-time.
+
+**G0. Digests ride EXISTING frames — a digest that needs its own frame is not
+this design.** Up rides the PHONE beat, down rides its PONG, the Section-1 fold
+rides S1SYNC. This is not an optimization; it is what makes the rest of § G
+checkable. Because the rollup adds no frame, no timer and no decision, a
+digests-ON run must be **trajectory-identical** to a digests-OFF run at the same
+seed — same convergence tick, same moves, same evictions, same seating. That
+equality is the mechanical form of G1, and `repro-digest.sh` asserts it.
+
+**G1. Digests inform DISPLAY, never ACTUATION.** This is E2's discipline
+("gossip informs routing, NEVER evicts") generalized one level up: a digest may
+never evict, resurrect, seat, move, admit, heal, or release any privacy-bearing
+state. Note what follows for the consent gate specifically — the room-wide
+verdict does not, and must not, *unblur a camera*. Blur is released by its
+OWNER'S client from its owner's first-hand consent; the digest paints a badge
+that says whether everyone has agreed. A digest is by construction **gossip**
+(it is a fold of folds, second-hand at every level), and that is safe for
+exactly one reason: it can never actuate. The moment any digest field actuates
+anything, every argument below is void.
+
+**G2. `n` is a LABEL.** The participant count may be displayed and may never
+gate behaviour. `n` is a plain sum, so an aggregator at depth d can shift the
+room's count by any amount up to the geometric capacity of its subtree, and *no
+counting shape fixes that* — a signature proves who computed a number, never
+that the number is true. An aggregator's claim is clamped to the geometric
+maximum its remaining depth allows (V6's depth wall makes that finite), which
+stops a leaf claiming a billion, but near the top the clamp is vacuous. So the
+law is the label rule, not the clamp: nothing may depend on `n`. (Today's
+`knownTotal` already only displays. It must stay that way.)
+
+**G3. Consent rides as REFUSALS, and the default is FAIL-CLOSED.** The digest
+carries a count of scope members who have NOT consented; the badge clears only
+on a fresh, complete, all-zero chain. Missing, stale (older than the staleness
+bound), partial, or unparseable ⇒ **refusing** ⇒ blurred. A subtree whose head
+we believe occupied but cannot currently hear contributes a refusal, not a zero.
+Loss, churn and silence therefore all fail toward MORE blur, with no special
+case.
+
+**G4. The counting shape alone is NOT what makes a lie safe — the AUTHOR'S
+REFUTATION is.** This is the audit's open problem, and its candidate answer does
+not survive as stated. The audit proposed carrying refusals "so lying can only
+keep the room MORE blurred." That is false: a plain integer is symmetric, and an
+aggregator can drive a refusal count DOWN as easily as up. Renaming consent to
+refusal relabels the field; it does not create an asymmetry. The asymmetry has
+to come from somewhere else, and it does:
+
+  1. Inflating refusals is fail-safe by G3 — the room stays blurred. The harm is
+     denial of a feature, bounded, visible, and no worse than one honest refuser.
+  2. Deflating refusals to zero is the only dangerous direction, and it requires
+     **suppressing a contribution that some specific node authored**. A sum
+     cannot lose a refusal by accident; it loses one because an aggregator
+     dropped or rewrote an input.
+  3. **Every author of a digest input is DIRECTLY LINKED to the aggregator that
+     folds it, and receives that aggregator's published fold back over the same
+     link, on a frame the aggregator already sends.** A row-mate publishes its
+     subtree digest to its head and receives the head's published ROW digest in
+     the PONG; a head publishes its row digest to its owner and receives the
+     owner's published SUBTREE claim in the PONG. So each author can check the
+     one thing it is uniquely qualified to check: *is my own contribution still
+     in there?*
+  4. That checker is **fixed, unique and structural — never a vote**. The
+     checker of a seat's subtree claim is its DOWN-CHILD, which is already that
+     seat's C3-designated healer (VERTICAL Rule V) and is the only node that
+     authored the claim's sole input. The checker of a head's row sum is each
+     ROW-MATE, for its own contribution only. No quorum, no election, no new
+     designation, and no frame that did not already exist.
+  5. By induction the corruption is confined: a liar can hide facts inside its
+     own subtree, and only for as long as **every aggregator on the path from
+     the refuser to the root is complicit**; the first honest aggregator's
+     fail-closed contribution survives. This is the § S bound restated — an
+     attacker's harm ≈ its FANOUT — and the fanout of a digest lie is the
+     liar's own ancestor path, never a sibling's subtree and never a seat.
+
+  So the honest verdict on the refusal shape: **keep it, but not for the reason
+  the audit gave.** Refusals + fail-closed defaults (G3) make loss and silence
+  safe; the author's refutation (G4) makes deliberate suppression detectable;
+  and G1 — actuation is always local and first-hand — is what makes the residual
+  (a wrong badge inside a fully-complicit subtree) a misleading label rather
+  than a released camera. Any one of the three alone is insufficient.
+
+**G5. A detected lie may only BLUR.** The remedy for a refuted digest is
+fail-closed display plus a diagnostic — never an eviction, never a seat change,
+never a demotion. This is not squeamishness: an eviction lever attached to
+digest disagreement would hand an attacker precisely the power G1 denies it, and
+would do it through a value that is second-hand by construction. A room whose
+digest is contested displays "consent unknown", which is already the safe state.
+
+**G6. No security-AUTHORITATIVE field may ride a digest.** The audit's sketch
+carried `epoch` (the max lock-epoch seen). It is REMOVED here: a max is
+trivially inflated, and an inflated epoch floor is a LOCKOUT — it makes clients
+reject legitimate authority. That is not a fail-safe direction and no counting
+trick makes it one. Lock epoch and the mod table stay on the signed-authority
+path (§ S, docs/meet-security.md), distributed **on CHANGE** via a tree flood,
+never as a per-heartbeat aggregate. A digest may carry a POINTER ("someone
+claims something newer — go verify") but never a VERDICT.
+
+**G7. Free-space hints bias ORDER, never DECISION.** (Applies IF the digest's
+per-subtree free-space summary is ever wired into seeker routing — measured, not
+built, see the 0.9.3/0.9.4 handoffs.) A digest may reorder which branch a FIND
+descends first; it may never decide that a seeker is admitted, and it may never
+override the V-laws' local admission evidence. A liar advertising free space it
+does not have attracts seekers who then NOROOM — an availability nuisance
+identical to today's full-spine descent, not a correctness failure — and a liar
+advertising fullness merely repels them. First-hand refutation applies as
+everywhere else: a seeker that NOROOMs a branch the digest called free marks
+that hint stale locally. A hint that can seat someone is not a hint.
+
+**G8. R2 untouched; small rooms are byte-identical.** Digests ride mesh edges
+only, sealed like everything else — the relay never sees one, and no digest
+field is added to any relay-carried frame. Below C² participants everyone is in
+Section 1, the tree is one level, the near field is the whole room, and rollup ≡
+flood: the 2-person room and the plane guest behave exactly as they do today.
+
+**Where it is checked.** `test/sim/repro-digest.sh` — root convergence to the
+true count at N=2000 det within the staleness bound, refusal propagation,
+fail-closed partiality, the ON≡OFF trajectory identity (G1/G0), the designated
+checker firing on a lying aggregator *and only there* (G4) with the seating
+trajectory unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb
+is `digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs. **The browser
+port is deliberately NOT done** — the twins diverge here on purpose until the
+sim gates are green at scale AND small-room e2e is byte-identical (scale-audit
+sequencing step 4).
 
 ## The two hard cases — one closed, one open
 
