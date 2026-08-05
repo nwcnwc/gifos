@@ -298,7 +298,14 @@ function d5Scenario() {
   fireTranslost(env, victim.id);
   let healedAt = -1; const t0 = env.TICK;
   for (let t = 0; t < 400 && healedAt < 0; t++) { doTick(env); const h = coordSeat(env, vc); if (h && h.id !== victim.id) healedAt = env.TICK - t0; }
-  check(`D5 crash: seat healed in ~probe-time (${healedAt} ticks, horizon would be 220+)`, healedAt > 0 && healedAt <= 40, { healedAt });
+  // The bound separates the PROBE-CLASS heal from the 220+ horizon fallback —
+  // it is not a fixed path-length pin. Pre-V4 the join left the healer
+  // childless and it scooched itself in ~19 ticks; the V4 admission fixes pack
+  // the room properly, the right-neighbour healer now has a subtree, and the
+  // left-pack designee correctly FINDLEAFs a leaf up instead (measured 65
+  // ticks, deterministic). 120 keeps daylight under the horizon while
+  // accepting either probe-triggered shape; a broken probe reads 220+.
+  check(`D5 crash: seat healed in probe-class time (${healedAt} ticks, horizon would be 220+)`, healedAt > 0 && healedAt <= 120, { healedAt });
   // Column-pack / left-pack after a crash can requeue a deep leaf that must
   // re-enter via greeters + deep FIND; 600 ticks was short under three-state.
   for (let t = 0; t < 5000; t++) doTick(env);

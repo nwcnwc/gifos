@@ -790,6 +790,109 @@ path exists, never by identity authority at first contact.
 
 ---
 
+## V — seats are minted once (the admission-evidence laws, V4, 2026-08-05)
+
+The V4 audit (scale-audit 2026-08-04, bug-ledger #2 family) found that under a
+mass join the room minted DUPLICATE seats by the hundred and then converted the
+contention into pathological depth — N=3000 stalled at 1915 seated after 150k
+ticks. Every seed traced to the same disease in different clothes: **an
+authority acting on occupancy evidence it never owned or never confirmed.**
+The laws that closed it, each measured against a named seed family:
+
+- **V1. Clears are ATTRIBUTABLE.** A soft vouch (sitting-down mark) may be
+  cleared only by evidence NAMING ITS OWNER: the vouched joiner's own CLAIM /
+  HELLO / LEAVE. A prior tenant's departure echo or a rival claimant's HELLO
+  clears nothing it does not own. (Seed: a LEAVE echo wiped a fresh in-flight
+  vouch and the same head re-placed the cell every ~3 ticks — 10 of 19 S1
+  seed pairs at N=3000 det.)
+- **V2. Silence is not death: the check-back is PROBE-GATED.** "Never heard
+  from the admittee in 25 ticks" is a lagged view under storm (a j>0 child
+  has no owned up-link; its CLAIM rides the mesh and dies there). The
+  assigner now SITPINGs the admittee itself; the pong is a re-CLAIM for
+  exactly the vouched cell and nothing else (the 2026-08-02 probe was
+  rejected for re-seeding occ and fanning HELLOs — this one can only confirm
+  or extend its own vouch). A killed tab stays silent and frees at 40 ticks,
+  inside the ghost-churn budget. And a chair freed on SILENCE (ping timeout,
+  TTL) re-enters the 45-tick admission cooling — never "admissible NOW" —
+  at EVERY admission site, deep included.
+- **V3. Authority transfer carries the LEDGER (SITXFER).** Admission
+  authority over a row moves WITH the reservations and confirmed occupancy
+  it governs. An assigner that confirms a vouched-in row head hands it the
+  row's outstanding vouches AND its confirmed row occ in the same breath;
+  the head may not admit into its own row until the ledger arrives (or its
+  assigner has been silent past the handover window — a dead assigner's
+  vouches die with it). Two authorities with mutually invisible ledgers was
+  the FIRST mint of every storm run.
+- **V4. Devolution only over FALSIFIABLE ghosts.** The H-CHAIN devolution
+  arms may inherit admission duty only over an admitter cell the devolvee
+  has AT SOME POINT heard first-hand (a monotone first-hand-ever set — NOT
+  the live map, whose entries are erased by attributed clears; the sole
+  survivor of a row must still be able to devolve after its neighbours'
+  graceful LEAVEs). A frontier seat reading a mere gossip gap may not mint
+  itself an admitter. Same discipline as the E1 ghost-falsification
+  amendment below.
+- **V5. ONE reservation semantics at every admission site.** The deep path
+  reads the same phantom-aware reservation (cellReserved + the 03c
+  local-evidence phantom rules) as the Section-1 scan, and clears a phantom
+  echo first-hand before admitting, exactly like the designated arm. Raw occ
+  down there let stale dup-war echoes block parents' own child rows FOREVER
+  once the mints stopped — 120 depth-1 parents sat on ~360 free cells while
+  94 seekers NOROOM-cycled to the depth wall (the 03c livelock reborn one
+  layer down).
+- **V6. THE DEPTH WALL.** The C++ path is a uint32 of base-6 digits: 6^12
+  fits, 6^13 aliases another cell silently — and the JS twin (plain Numbers)
+  has no wall, so the twins would diverge exactly where a dup storm goes.
+  BOTH twins refuse to admit into or forward a FIND toward the 13th floor.
+  A depth-12 stadium is ~2 billion sections; a FIND reaching the wall is a
+  dup-war signature, never a need.
+
+Result, deterministic runs: N=2000 converges @ ~2600 ticks (pre-V4 baseline
+5504), N=3000 @ 6976 ticks / 74 s (pre-V4: stalled at 1915/3000 after 150k),
+both with dups=0, and the S1 seed mints are 0 end-to-end.
+
+**The open frontier: N=5000 still stalls** (~3076 seated at a 60k-tick cap) —
+a THIRD defect family, diagnosed 2026-08-05, not yet fixed: the join storm
+builds lone-row SPINES down to the depth wall; the heal/compaction layer then
+runs a bucket-brigade conveyor (seats admitted deep, scooched up level by
+level — 113k moves by t=60k) while ~1900 war-loser requeues descend full
+spines and NOROOM at the wall (MESH_FINDLOG traces in the 2026-08-05
+handoff). The fix front is heal-layer PROMOTION EXCLUSIVITY under storm
+(promo-vs-promo at head cells — C1/C3's designation is view-dependent there)
+plus spine re-absorption. `test/sim/scale-frontier.sh` is the ready-made
+gate, tracked expected-RED in known-unfixed.sh; the day it converges it is
+renamed `repro-scale.sh` and the release battery globs it forever. Known
+residual alongside it: the storm leaves the TREE deep even when it converges
+(maxDepth 12 with a free depth-2 frontier — tree shape, not correctness).
+
+### E1 amendment recorded: a ghost phone target must be FALSIFIABLE (0.9.2)
+
+Live in both twins since `0c7f93d`→`ec06c46`, previously unrecorded here: a
+seat may E1-drain on a dead-anchor verdict only if the anchor is a target it
+could ever have FALSIFIED — heard first-hand within the 90-tick horizon. An
+inheritance ghost the seat has NEVER heard (a stale occ handed down at
+seating) cannot kill it. The narrowing matters and is the measured shape: the
+broad form (any silent target) minted dups under mass-kill and killed
+severed-but-alive neighbours under adversary churn — both in the commit
+messages of the fix.
+
+## G — the rollup digest (LAW PENDING — designed, argued, NOT built)
+
+The O(N)-per-node status flood is still live (scale-audit V1-V3: rollups →
+statusOf cap → dial gate). The design is in the audit doc: O(C) per node per
+period, digests fold UP the tree and flood DOWN, staleness O(depth × period).
+Its laws-to-be, recorded so implementation cannot start without them being
+argued to this file's bar:
+
+- **Digests inform DISPLAY and COUNTS — never evict, never resurrect** (E2
+  untouched; a wrong digest can misreport a number, never take a seat).
+- **R2 untouched** — digests ride sealed mesh edges only.
+- **Small rooms degrade to today** — one-level tree, rollup ≡ flood,
+  byte-identical UX.
+- **The lying-aggregator problem is OPEN**: a section head can misreport its
+  subtree. Consent inflation is the dangerous direction (it can unblur
+  cameras); the candidate shape is carrying REFUSAL counts so a lie can only
+  keep the room MORE blurred. This argument must land here before V1 ships.
+
 ## The two hard cases — one closed, one open
 
 1. **Two nodes claim the same seat (CLOSED).** Only the one designated healer
