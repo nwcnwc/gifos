@@ -561,6 +561,15 @@ class Check {
 // box without firefox report "actor exited 1" as a mesh regression.
 function engineAvailable(engine) {
   if (engine === 'chromium') return true;
+  // The per-box pin (MEET_FIREFOX / MEET_WEBKIT) is what meet.js LAUNCHES
+  // with, so it is what presence means. Without this, a box whose repo
+  // playwright pins an older revision reports "not installed" for a perfectly
+  // good newer build — and the suggested `npx playwright install` would
+  // reinstall the exact revision the too-old-browser preflight refuses
+  // (Ed25519 predates it). The circular trap that SKIPped 25a on the gate
+  // host, 2026-08-05.
+  const envP = process.env['MEET_' + engine.toUpperCase()];
+  if (envP && fs.existsSync(envP)) return true;
   if (FLEET && FLEET.hosts && FLEET.hosts.some((h) => (h.engines || []).includes(engine))) return true;
   let pw = null;
   for (const m of ['/opt/node22/lib/node_modules/playwright', 'playwright', 'playwright-core']) {
