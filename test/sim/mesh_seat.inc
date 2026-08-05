@@ -1139,6 +1139,12 @@ bool Seat::scopeGap(uint64_t k){
 }
 void Seat::rollup(){
   if(!DIGEST || !hasCoord || state!=3) return;
+  // occIsPhantom's 03c knock-is-evidence rule is scoped to the FIND scan in
+  // progress — a display fold is not that scan. Clearing findNc for the fold
+  // keeps the rollup's phantom read independent of a mid-flight FIND, and stops
+  // it emitting spurious KNOCKCLR lines into the V4 dup forensics.
+  int svFind=findNc; findNc=-1;
+  struct R{ int* p; int v; ~R(){ *p=v; } } _r{&findNc,svFind};
   // --- (1) my SUBTREE = me + the child row I own -----------------------------
   Dig d; d.n=1; d.refuse=refuses?1:0; d.at=(int)TICK; d.by=id; d.part=0; d.freeC=0;
   // G7 free-space, MEASURED ONLY: how many of my owned child row's cells look
