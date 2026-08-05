@@ -1038,8 +1038,13 @@ never as a per-heartbeat aggregate. A digest may carry a POINTER ("someone
 claims something newer — go verify") but never a VERDICT.
 
 **G7. Free-space hints bias ORDER, never DECISION.** (Applies IF the digest's
-per-subtree free-space summary is ever wired into seeker routing — measured, not
-built, see the 0.9.3/0.9.4 handoffs.) A digest may reorder which branch a FIND
+per-subtree free-space summary is ever wired into seeker routing. **Measured
+2026-08-05 and NOT worth building for the N=5000 jam** — the fold is accurate to
+-3.2% and agrees with ground truth 25/25, but all 25 sections report room at the
+same depth, so the hint is unanimous and steers nothing. The storm leaves a
+uniformly HOLEY tree, not full branches beside empty ones. Full numbers and the
+refutation in docs/handoff-2026-08-05-093.md. The law below still governs the
+day someone finds a case where it does discriminate.) A digest may reorder which branch a FIND
 descends first; it may never decide that a seeker is admitted, and it may never
 override the V-laws' local admission evidence. A liar advertising free space it
 does not have attracts seekers who then NOROOM — an availability nuisance
