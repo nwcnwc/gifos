@@ -432,6 +432,62 @@ egress IPs first — `scripts/swarm-test-mode.sh on <ip,ip>`, and `off`
 afterwards. A local run needs none of that, which is the main reason to
 prefer it while iterating.
 
+### Other ENGINES — `meet.js --engine chromium|webkit|firefox`
+
+On a Linux fleet the attainable diversity axis is ENGINES, not OSes: Chromium
+(also Android Chrome and Edge), WebKit (Safari's engine) and Firefox (Gecko).
+`meet.js --engine` (env `MEET_ENGINE`) puts a participant on one of them;
+webkit/firefox launch BARE because their launchers reject Chromium switches
+(see the engine block at the top of `meet.js` for what each dropped switch
+bought and its engine-neutral substitute — notably `BB_ACTOR=1` in the browser
+process environment replaces the `--bb-actor` marker flag for fleet reaping).
+
+**Measure the engine before wiring scenarios to it.** `test/tools/engine-smoke.js`
+is the measurement: a 2-party room, judged from BOTH sides (seat, links, mutual
+roster sight, video liveness, DC gossip, chat over DC, and with `APP=1` an app
+share mounting on the far side); `DIAG=1` adds the forensics that tell "no
+media arrived" from "media arrived and decoded, but the element never started".
+
+Measured 2026-08-05 on a 4-core Linux box, playwright 1.61.1, local site+relay:
+
+- **Firefox (firefox-1532 / Firefox 151) — FULL PASS**, every assertion
+  including the app lane (guest mounted the shared app in 5s). It has
+  `RTCRtpScriptTransform` (Gecko does; playwright's WebKit port does not). It
+  has **no H.264** (no OpenH264 in the playwright build) — VP8/VP9/AV1 only, so
+  a firefox↔chromium call negotiates VP8. Playwright throws on `isMobile` for
+  firefox, so the `--profile phone` shape drops that one property.
+- **WebKit (webkit-2311, UA Safari 26.5) — JOINS, but is NOT a full
+  participant.** Control plane is perfect: seated, links up, mutual sight,
+  DC gossip both ways, chat crosses. Two hard limits:
+  1. *Remote tiles never render.* getStats on the WebKit side shows inbound
+     H.264 arriving and DECODING (`framesDecoded` climbing, `frameWidth`/
+     `frameHeight` set), yet the tile's `<video>` stays `readyState 0`,
+     `videoWidth 0`, and `play()` never settles. Not autoplay and not the
+     silent audio track — removing the audio track from the stream changes
+     nothing (tested). Its own local canvas-captureStream preview plays fine,
+     and chromium peers see ITS video, so WebKit is a working SENDER and a
+     working decoder that cannot paint a remote MediaStream. Consequence: a
+     WebKit role may assert control-plane/DC facts, and may be the peer whose
+     video someone else checks, but must never be the OBSERVER of video
+     liveness — `roster[].vid` is false there for harness reasons.
+  2. *The app share KILLS it.* Within ~5s of a host running an app into the
+     room, the WebKit web process CRASHES ("the renderer process died") and the
+     page is gone. Reproduced twice, with and without the diagnostic probes.
+  Also, as previously measured: no `RTCRtpScriptTransform` (so
+  `GifOS.meshPipe.supported()` correctly returns false and the pipe lane
+  self-disables — verified, do not "fix" it), and `newContext` rejects the
+  Chromium permission name `'camera'`.
+- Both engines ship **no fake capture device**: real `getUserMedia` fails
+  (`OverconstrainedError` on webkit, `NotFoundError` on firefox). The injected
+  canvas-captureStream camera is therefore REQUIRED off chromium, not a
+  convenience — but it is pure page JS and carries across all three unchanged.
+- Chromium binaries are found by SEARCH (both `chrome-linux`/`chrome-linux64`
+  spellings under `/opt/pw-browsers` and `~/.cache/ms-playwright`, then a real
+  Chrome). The single hardcoded path this replaced had become a dangling
+  symlink, and the fallthrough was silent — playwright launched its default
+  `chrome-headless-shell`, which was not installed either, so actors died with
+  "Executable doesn't exist" *after* the harness said it was ready.
+
 `swarm.js` runs N headless bots as real
 `run.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,
 `swarm-videos/` talking-head packs). `swarm-handq.js` is the hand-queue scale
@@ -444,7 +500,10 @@ seat until its owner arrives.
 
 `browser-image-check.js` (renders a GIF in a browser), `overlay-render.js`
 (mesh-media overlay compositing), `shot-fluence.js` (screenshots the Fluence
-app README image).
+app README image), `approom-host.js` + `approom-join.js` (app-room join
+latency, per-leg TRACE), `engine-smoke.js` + its `engine-smoke-pcrec.js`
+init-script (can a given browser ENGINE be in a meeting at all — see
+"Other ENGINES" above).
 
 ## Known state
 
