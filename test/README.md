@@ -266,6 +266,24 @@ Fleet traps beyond the ones above:
   the same actor on an idle fleet client. Everything still passed — but that
   90s would have been read as a mesh join stall by anyone reading the timings.
   Give the orchestrator no actors when you care about latency.
+* **A squeezed orchestrator KILLS ACTORS, and it looks like a join failure.**
+  The ssh pipes are cheap in CPU but they are processes: at loadavg 26 on a
+  4-core VM (with `virtio_balloon: Out of puff` in `dmesg` the same minute) a
+  5-actor scenario lost its first actor outright and reported `ana failed to
+  join: actor exited null`. The exit handler now names the signal
+  (`[killed: SIGKILL]`) — read that as environment, and re-run before believing
+  anything about the mesh.
+* **Two casts on ONE orchestrator fight.** `cast.up()`'s stale-actor sweep
+  pkills `meet.js --drive`, and a REMOTE actor's ssh command line contains
+  `.bb-meet.js --drive` — so starting a second scenario on the same box reaps
+  the first one's whole fleet mid-run. Run scenarios serially per orchestrator
+  (the battery does), and never start an ad-hoc scenario "just to check" while
+  a fleet run is live.
+* **`BB_ACTOR=1` makes cleanup co-tenant-safe.** On a box shared with another
+  session's suite, `for d in /proc/[0-9]*; do grep -qz BB_ACTOR=1 "$d/environ"
+  && kill -9 "${d##*/}"; done` killed exactly this battery's actors (both
+  engines) and left the co-tenant's 32 chrome processes alone — verified
+  2026-08-05. Prefer it to any chrome-name pattern when the box is not yours.
 
 ## Running
 
