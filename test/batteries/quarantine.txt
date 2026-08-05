@@ -81,6 +81,11 @@ redun-drill  NONDETERMINISTIC known-unfixed: re-park lag behind the drill's wind
 # gate host 2/3+2/3 green across fixture revisions; clawbox 3/3; penguin 4/4.
 # NONDETERMINISTIC — promotion is a human call on a measured rate, after V4.
 e2e-stadium-dup  NONDETERMINISTIC known-unfixed: manufactured rotation exposes the pre-existing FIND/PLACE searching-livelock (ledger #2, V4 family). Fix rides the V4 pursuit; promote on a measured rate after it lands.
+# MEASURED 2026-08-05 after the V4 waves landed (healing-laws § V): 10/10
+# ALL PASS on a loaded 4-core box (was ~50% flaky). The livelock the entry
+# names is the exact family V5 (phantom-aware deep admission) killed. RATE IS
+# MEASURED — the promotion is the standing human call; on YES, delete this
+# entry (the list only shrinks) and e2e-stadium-dup gates again.
 
 # ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
 # e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane
