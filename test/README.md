@@ -410,6 +410,15 @@ Local-swarm gotchas:
 - Use a **real Chrome** build, not `chrome-headless-shell`: a stripped build
   loads the page but may never open the relay socket. `SWARM_CHROME=<path>`
   (swarm) / `MEET_CHROME` or `--chrome` (meet) picks the binary.
+- **Playwright chromium builds may lack H.264** (2026-08-05: the gate pin
+  chromium-1193 answers `canPlayType('avc1')` EMPTY; the standalone
+  chromium-1194 under /opt has it). Anything decoding an mp4 in-page — the
+  talking-head clip pack above all — silently never fires `loadedmetadata`
+  there. meet.js's shim now times out to the portrait canvas instead of
+  hanging, but if a camera mysteriously never turns on under one binary and
+  works under another, CHECK THE CODEC before anything else: one missing
+  decoder produced a night-long cross-box "flake" (behavior 24a) that was
+  really deterministic per-build.
 - Pointing bots at a relay on another box (tailnet/LAN, plain HTTP, no cert)
   needs `SWARM_INSECURE_ORIGINS=<origin>` so the page still counts as a secure
   context for getUserMedia/WebRTC. Chromium's local-network-access checks are
