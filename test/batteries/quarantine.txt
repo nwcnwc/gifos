@@ -81,3 +81,19 @@ redun-drill  NONDETERMINISTIC known-unfixed: re-park lag behind the drill's wind
 # gate host 2/3+2/3 green across fixture revisions; clawbox 3/3; penguin 4/4.
 # NONDETERMINISTIC — promotion is a human call on a measured rate, after V4.
 e2e-stadium-dup  NONDETERMINISTIC known-unfixed: manufactured rotation exposes the pre-existing FIND/PLACE searching-livelock (ledger #2, V4 family). Fix rides the V4 pursuit; promote on a measured rate after it lands.
+
+# ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
+# e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane
+# actually RUNS — which it only does since ec06c46 gave this suite a real
+# engine (the gate pin Chrome 140 has no RTCRtpScriptTransform; the suite now
+# takes the newest build, Chrome 149, where the lane is live). The freeze is
+# the OPEN, FILED product bug docs/bug-pipe-stg-freeze-2026-08-05.md — proven
+# to belong to the lane by an interleaved A/B (3/3 on, 0/3 off, load excluded)
+# and explicitly split into its own work item on 2026-08-04. The suite's other
+# 17 assertions (module chain, seating, pipe routing, passthrough, no-transcode)
+# were green in this same red run — the ONE red leg is the dossier's bug.
+# Deliberately deferred WITH mirror-drill and redun-drill: one redundancy-lane
+# cluster, one post-0.9.2 investigation. Small rooms never touch this lane.
+# NONDETERMINISTIC — the freeze is intermittent per the dossier; promotion is
+# a human call after the stg-freeze fix lands.
+e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md), reachable only since the suite got a real engine. Fix rides the redundancy-lane cluster; promote after it lands.
