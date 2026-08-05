@@ -529,7 +529,7 @@ guards for exactly those fixes.
 test/servers/relay-dev.sh                    # only for the [relay-dev] scenarios
 
 node test/behavior/scenarios/01a-household-rolling.js       # one scenario
-test/batteries/behavior.sh --core            # the CORE set (21 scripts, ~1.5h)
+test/batteries/behavior.sh --core            # the CORE set (24 scripts, ~1.5h)
 test/batteries/behavior.sh                   # everything (several hours)
 ```
 
