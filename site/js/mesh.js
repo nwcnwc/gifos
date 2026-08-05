@@ -506,13 +506,21 @@
       // they cannot diverge there (a depth-12 stadium is ~2 billion sections
       // — reaching the 13th floor is a dup-war signature, not a need).
       if (topo.pcDepth(this.coord.pc) >= 12) return null;
+      // V4 wave 2: deep admission reads the SAME phantom-aware reservation as
+      // the S1 scan (cellReserved, not raw cellTaken) — stale dup-war occ
+      // echoes are never falsified down here (no s1Fill, no designated-arm
+      // phantom clear), and raw occ let parents sit on free child rows
+      // forever while joiners funneled into the depth wall (the N=2000
+      // plateau livelock).
       for (const rc of this.rosterCells()) {
-        if (this.cellTaken(ck(rc))) continue;
+        const k = ck(rc);
+        if (this.cellReserved(k)) continue;
         const dk = ck(topo.down(rc));
-        if (this.occGet(dk) != null || this.softSitting(dk)) continue;
+        if (this.cellReserved(dk) && !this.occIsPhantom(dk)) continue;
+        if (this.softSitting(dk)) continue;
         // V4: deep admissions honor the same 45-tick cooling as S1 — a
         // silence-freed chair is not "admissible NOW".
-        const ht = this.healTry.get(ck(rc));
+        const ht = this.healTry.get(k);
         if (ht != null && this.TICK - ht <= 45) continue;
         return rc;
       }
@@ -1059,7 +1067,14 @@
         // half recovers on the reachable-forward fix below alone.
         if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
       }
-      const f = this.firstFreeInRoster(); if (f) { this.admit(f, mm); return; }
+      const f = this.firstFreeInRoster();
+      if (f) {
+        // Phantom occ on the admitted cell: clear it first-hand before the
+        // admit, exactly as the S1 designated arm does.
+        const fk = ck(f);
+        if (this.occIsPhantom(fk)) { this.occ.delete(fk); this.live.delete(fk); this.s1seen.delete(fk); this.kidful.delete(fk); this.tlForget(fk, 'phantom-deep'); }
+        this.admit(f, mm); return;
+      }
       // Descend — but NEVER into the void. This forward used raw occ, so it
       // emitted the FIND at an occupant on the far side of a partition (or a
       // corpse), where it is silently swallowed and the seeker burns its whole
