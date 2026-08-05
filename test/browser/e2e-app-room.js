@@ -17,6 +17,10 @@
 //
 // Needs RELAY + BASE.
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
+
+// A SYSTEM launcher navigates instead of mounting — never pick one here.
+const SYS = systemAppIds();
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -43,10 +47,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const d = await hCtx.newPage();
   await d.goto(BASE + '/index.html');
   await d.waitForSelector('.icon', { timeout: 30000 });
-  const appId = await d.evaluate(async () => {
-    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && !/^(meet|video)$/.test(x.appId));
+  const appId = await d.evaluate(async (SYS) => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     return f ? f.id : null;
-  });
+  }, SYS);
   await d.close();
   const h = await hCtx.newPage();
   h.on('pageerror', (e) => console.log('  [host] ' + e.message));
@@ -129,10 +133,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const od = await oCtx.newPage();
   await od.goto(BASE + '/index.html');
   await od.waitForSelector('.icon', { timeout: 30000 });
-  const appId2 = await od.evaluate(async () => {
-    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && !/^(meet|video)$/.test(x.appId));
+  const appId2 = await od.evaluate(async (SYS) => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     return f ? f.id : null;
-  });
+  }, SYS);
   await od.close();
   const o = await oCtx.newPage();
   await o.goto(BASE + '/run.html#id=' + appId2);

@@ -28,6 +28,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
+
+// A SYSTEM launcher navigates instead of mounting — never pick one here.
+const SYS = systemAppIds();
 
 
 const RELAY_PORT = parseInt(process.env.MAPRETTY_RELAY_PORT || '8845', 10);
@@ -89,11 +93,11 @@ const check = (n, c, d) => {
   desk.on('pageerror', (e) => console.log('  [desk] pageerror: ' + e.message));
   await desk.goto(BASE + '/index.html');
   await desk.waitForSelector('.icon', { timeout: 90000 });
-  const appId = await desk.evaluate(async () => {
+  const appId = await desk.evaluate(async (SYS) => {
     const fs = await window.GifOS.store.allFiles();
-    const a = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
+    const a = fs.find((f) => f.isApp && !SYS.includes(f.appId));
     return a ? a.id : null;
-  });
+  }, SYS);
   check('seeded desktop exposes a runnable app fileId', !!appId, appId);
 
   // ---- boot a meeting auto-hosting the desktop app (#app= entry) ----
