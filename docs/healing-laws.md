@@ -940,6 +940,28 @@ we believe occupied but cannot currently hear contributes a refusal, not a zero.
 Loss, churn and silence therefore all fail toward MORE blur, with no special
 case.
 
+  **Amendment, forced by measurement: the fail-closed contribution must be
+  FALSIFIABLE and BOUNDED BY THE HEALING HORIZON.** Written as a raw "occ says
+  occupied and I hear no digest", G3 blurs the room *forever*: a settled N=600
+  room carries a couple of inheritance-ghost occ entries for cells that are
+  demonstrably EMPTY, and after a 20% churn at N=2000 two heads hold occ for
+  row cells whose occupants died with no deliverable LEAVE — which
+  `occIsPhantom` deliberately does not free (silent death stays ring-hold
+  conservative, § H1-S1). Both pinned `partial` at 100% and `refuse` above truth
+  permanently. **A permanent unclearable blur is the "one lost message splits
+  the room's view of reality forever" bug the flood was invented to fix, wearing
+  new clothes.** So the fold reads the same phantom-aware evidence the admission
+  layer reads (V5's one-reservation-semantics), AND a member blurs the room only
+  while its loss is ACTIONABLE — heard first-hand within the horizon its cell's
+  designated healer works to. Past that the cell is either healed (a new
+  occupant publishes and is counted) or it is a ghost nobody owns, and a ghost
+  may not hold a room blurred for the rest of its life. Same shape as
+  `firstHandLive`'s decay and E1's falsifiable-ghost amendment: evidence has a
+  horizon. Honest residual: a member alive, refusing, and severed from its
+  aggregator for longer than that horizon drops out of both `n` and `refuse` —
+  that is the mesh's own "we have lost that subtree" case (E3), not a digest
+  fact.
+
 **G4. The counting shape alone is NOT what makes a lie safe — the AUTHOR'S
 REFUTATION is.** This is the audit's open problem, and its candidate answer does
 not survive as stated. The audit proposed carrying refusals "so lying can only
@@ -968,6 +990,23 @@ to come from somewhere else, and it does:
      authored the claim's sole input. The checker of a head's row sum is each
      ROW-MATE, for its own contribution only. No quorum, no election, no new
      designation, and no frame that did not already exist.
+     **The aggregator must ECHO the report it folded**, and the check is against
+     the author's own record of what it sent: (a) echo fidelity — what you say
+     you took from me is what I sent; (b) fold monotonicity — the fold you
+     published contains what you echoed; (c) omission — you have acknowledged
+     nothing from me across a full staleness window of folds. A bound on the
+     author's own recent history CANNOT do this job, and the sim proved it:
+     loose enough to survive a settling aggregator (which folds a value stamped
+     before your first report arrived) and it is blind to a shrinking scope
+     (where the aggregator legitimately folds a newer, smaller value than your
+     window minimum). The fact that decides it is *which* report was used, so
+     the aggregator has to say. Back-stamping is not an escape: a stale stamp is
+     exactly what G3 fail-closes on, so the dodge blurs the room the lie was
+     trying to clear. Corollaries the implementation had to learn: the echo is
+     the value FOLDED, not the value currently held (one beat of lag reads as
+     suppression); a report is identified by its AUTHOR as well as its stamp,
+     because a cell handover makes two authors stamp the same tick; and every
+     digest relationship restarts on a seat change, at both ends.
   5. By induction the corruption is confined: a liar can hide facts inside its
      own subtree, and only for as long as **every aggregator on the path from
      the refuser to the root is complicit**; the first honest aggregator's

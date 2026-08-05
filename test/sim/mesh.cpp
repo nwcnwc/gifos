@@ -86,6 +86,11 @@ static bool DIGEST=true;
 // firstHandLive horizon: a peer I no longer hear first-hand publishes nothing I
 // should still be counting.
 static const long long DIG_TTL=60;
+// G3's fail-closed contribution is bounded by the HEALING horizon: a member
+// blurs the room only while its loss is actionable. Spans RING_HOLD (220), the
+// longest confirm window in the system, so every cell's designated healer has
+// had its full window before the blur decays. See scopeGap.
+static const long long DIG_LOSS_H=300;
 static long long DIG_MISMATCH=0;   // G4: designated-checker refutations raised, room-wide
 static long long GAUGE_T0=0;       // `digest reset` window base — frames/node/tick is a RATE, so it needs a window
 static const int GREET_PERIOD=800;
