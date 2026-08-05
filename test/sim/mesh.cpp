@@ -43,7 +43,13 @@ struct KV { uint64_t k; int v; };
 //            Without it a tick stamp is ambiguous across a cell handover (my
 //            cell's PREVIOUS occupant published at the same tick I did, and its
 //            report read as a forged echo of mine).
-struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1; uint8_t part=0; };
+//   dmin   — the SHALLOWEST tree depth in the scope that holds an admissible
+//            frontier cell (99 = none). G7, measured only. freeC answers "does
+//            this branch have room", which turned out to be useless in the
+//            N=5000 jam (every branch has room); dmin answers "does it have
+//            room NEAR THE TOP", which is the question the jam actually poses.
+//            Folds in O(1): min over children, so it costs nothing extra.
+struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1, dmin=99; uint8_t part=0; };
 struct DigE { uint64_t k; Dig d; };
 struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
 struct Msg {
@@ -1055,7 +1061,7 @@ int main(int argc,char**argv){
       // ground truth per TOP section (the S1 cell whose subtree it is): seats,
       // maxDepth, and TRUE admissible frontier cells (free cell whose down-child
       // is also free — what an admitter could actually hand a seeker).
-      unordered_map<uint64_t,int> tSeats,tFree,tDepth;
+      unordered_map<uint64_t,int> tSeats,tFree,tDepth,tDmin;
       unordered_set<uint32_t> pcs; for(auto&kv:at) pcs.insert(unck(kv.first).pc);
       // map every occupied section path back to the S1 cell that roots it:
       // walking up from (pc,r,i) lands on (0,r,lastDigit-chain) — do it per seat.
@@ -1064,22 +1070,35 @@ int main(int argc,char**argv){
         tSeats[rc]++; int d=depthOf(c.pc); if(d>tDepth[rc]) tDepth[rc]=d;
         // this seat's own owned child row contributes its free cells
         if(d<12){ Coord row[C]; Coord h=down(c); for(int j=0;j<C;j++) row[j]={h.pc,h.r,(uint8_t)j};
-          for(int j=0;j<C;j++){ if(at.count(ckey(row[j]))) continue; if(at.count(ckey(down(row[j])))) continue; tFree[rc]++; } } }
-      printf("FREEMAP cell | digest_n true_n | digest_free true_free | err%% | maxDepth\n");
-      long long sN=0,sTN=0,sF=0,sTF=0; int cells=0, discOK=0, discTot=0;
+          int nf=0; for(int j=0;j<C;j++){ if(at.count(ckey(row[j]))) continue; if(at.count(ckey(down(row[j])))) continue; tFree[rc]++; nf++; }
+          if(nf){ if(!tDmin.count(rc)||tDmin[rc]>d+1) tDmin[rc]=d+1; } } }
+      printf("FREEMAP cell | digest_n true_n | digest_free true_free | err%% | digest_dmin true_dmin | maxDepth\n");
+      long long sN=0,sTN=0,sF=0,sTF=0; int cells=0, discOK=0, discTot=0, dminOK=0;
+      int bestTrueDmin=99, bestDigDmin=99; vector<int> trueDmins;
       for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
         auto it=at.find(k); if(it==at.end()){ printf("  %d.%d  EMPTY\n",r0,i0); continue; }
         Seat* s=seats[it->second]; int dn=s->myDig.n, df=s->myDig.freeC;
         int tn=tSeats.count(k)?tSeats[k]:0, tf=tFree.count(k)?tFree[k]:0, td=tDepth.count(k)?tDepth[k]:0;
         double err = tf? 100.0*(df-tf)/(double)tf : (df?100.0:0.0);
-        printf("  %d.%d  %6d %6d | %7d %7d | %+7.1f | %d\n",r0,i0,dn,tn,df,tf,err,td);
+        int dd=s->myDig.dmin, tdm=tDmin.count(k)?tDmin[k]:99;
+        printf("  %d.%d  %6d %6d | %7d %7d | %+7.1f | %11d %9d | %d\n",r0,i0,dn,tn,df,tf,err,dd,tdm,td);
         sN+=dn; sTN+=tn; sF+=df; sTF+=tf; cells++;
+        if(dd==tdm) dminOK++;
+        if(tdm<bestTrueDmin) bestTrueDmin=tdm; if(dd<bestDigDmin) bestDigDmin=dd; trueDmins.push_back(tdm);
         // DISCRIMINATION: does the digest agree with the truth about whether this
         // branch has ANY room? That, not the exact number, is what a descent
         // decision would use.
         discTot++; if((df>0)==(tf>0)) discOK++; }
-      printf("FREETOT sections=%d digest_n=%lld true_n=%lld digest_free=%lld true_free=%lld free_err=%+.1f%% discriminates=%d/%d\n",
-        cells,sN,sTN,sF,sTF, sTF? 100.0*(sF-sTF)/(double)sTF : 0.0, discOK,discTot);
+      // DISCRIMINATION IS THE WHOLE QUESTION. A hint that says the same thing
+      // about every branch cannot steer a descent, however accurate it is. So
+      // report the SPREAD of the truth as well as the digest's agreement with
+      // it: hasRoom (does the branch have any room at all) and shallowest
+      // (does it have room NEAR THE TOP).
+      { int hasRoomYes=0; for(int q=0;q<(int)trueDmins.size();q++) if(trueDmins[q]<99) hasRoomYes++;
+        int distinct=0; { unordered_set<int> u(trueDmins.begin(),trueDmins.end()); distinct=(int)u.size(); }
+        printf("FREETOT sections=%d digest_n=%lld true_n=%lld digest_free=%lld true_free=%lld free_err=%+.1f%% hasRoom_agree=%d/%d dmin_agree=%d/%d | SPREAD hasRoom_true=%d/%d dmin_distinct=%d best_true=%d best_digest=%d\n",
+          cells,sN,sTN,sF,sTF, sTF? 100.0*(sF-sTF)/(double)sTF : 0.0, discOK,discTot, dminOK,discTot,
+          hasRoomYes,(int)trueDmins.size(),distinct,bestTrueDmin,bestDigDmin); }
       // The jam's shape: unseated seekers, and where the room's free space IS.
       int unseated=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state!=3) unseated++;
       unordered_map<int,int> freeByDepth;
