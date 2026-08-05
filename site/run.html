@@ -8748,13 +8748,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // up-link, an INDEPENDENT second source. Dedup: skip the peer I received it
       // from (via); sticky claimMos keeps one live source and fails over in ~2s.
       const sgs = mosIn.get('sgs');
-      if (sgs && c.pc !== 0) {
+      if (sgs && c.pc !== 0 && stagers.length) {
         paintStageStrip(sgs.stream);
         const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
         if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
         const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
         if (xgPid && xgPid !== sgs.via) { const xj = shipMos('sgs', xgPid, sgs.stream, blockMeta(sgs)); if (xj) wanted.add(xj); }
-      } else if (!sgs && c.pc !== 0 && stagers.length === 0) paintStageStrip(null);
+      } else if (c.pc !== 0 && stagers.length === 0) {
+        // THE STAGE IS MEMBERSHIP, NOT A PIPE. A deep seat used to paint (and
+        // re-fan) the composited strip for as long as its inbound 'sgs' pipe
+        // lived — gated only on the PIPE, so after a step-down the last strip
+        // frames kept a live tile up for 20s+ on whichever seat's pipe
+        // drained slowest (e2e-mosaic "step-down clears the strip everywhere"
+        // 5/6-cleared, gate red 2026-08-05 — forensics: ids=[] with a
+        // readyState-4 sgs video still playing). Membership empty ⇒ clear NOW
+        // and stop re-fanning, exactly as the S1 branch above already does;
+        // the pipe then dies quietly on its own. The S1 seats' own clear is
+        // untouched (they composite locally and clear on membership).
+        paintStageStrip(null);
+      }
 
       // Non-heads: my head's finished row view ('sdm') IS my Stadium — it
       // already excludes my row. Per-branch mixes are single-producer by
