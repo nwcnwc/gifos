@@ -2,6 +2,17 @@
  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
  "entries": [
   {
+   "version": "0.9.3",
+   "date": "2026-08-05",
+   "headline": "Old browsers get a straight answer, and big rooms seat far more reliably",
+   "notes": [
+    "A browser that's too old for meetings now gets told exactly that — which browser, which version it needs, and how to open the link in a newer one — instead of a spinner that never ends. It turns out the real minimums are Chrome 137, Firefox 129 and Safari 17 (the meeting security layer needs them), and a new Browsers page linked from About lays out what works, what doesn't, and what we haven't measured yet.",
+    "Seating in large, fast-filling rooms is much more reliable: several ways a room could hand the same seat to two people at once are fixed at the root, and a room of thousands that used to jam partway through a mass join now fills completely in our tests.",
+    "A seat vouched for someone still walking in can no longer be stolen out from under them by a stale goodbye from the previous occupant.",
+    "Firefox is now a first-class citizen in our test fleet — a Firefox participant joins, sees video both ways, and runs shared apps."
+   ]
+  },
+  {
    "version": "0.9.2",
    "date": "2026-08-05",
    "critical": true,
