@@ -1569,6 +1569,15 @@ the GifOS payload inside it is ciphertext.
 
 ## 9. Media plane: stop transcoding every hop (mushiness, log N latency, watts)
 
+> **OPEN BUG blocking §9a's guard:** with the encoded-passthrough lane actually
+> running, one staged feed bright-freezes at every receiver at once for ≥12s while
+> the producer keeps encoding — `e2e-pipe` leg 3, the guard `87f57e6` left behind.
+> Proven to belong to the lane (interleaved A/B, 3/3 on, 0/3 off, load excluded)
+> and NOT to a busy box. It was invisible until 2026-08-05 because the gate's
+> pinned Chrome 140 has no `RTCRtpScriptTransform`, so the lane disabled itself
+> and the guard never exercised it. Full evidence and what is still unknown:
+> **`docs/bug-pipe-stg-freeze-2026-08-05.md`**.
+
 Everything in this section follows from **one fact**, established 2026-08-04
 while asking whether the Settings video-quality knob reaches the Stage:
 
