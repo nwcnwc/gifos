@@ -66,6 +66,24 @@ else red "$frozen/20 splits froze a half"; fi
 # green, so there is no low-C entry to keep here. If it ever regresses, that
 # battery — not this graveyard — is where it shows.)
 
+hdr "N=5000 MASS-JOIN STALLS  (decided: cut 0.9.3 without it, 2026-08-05)"
+why "the V4 admission-evidence waves took N=3000 from 1915-stuck-forever to a
+                 clean 74s convergence with dups=0, but a 5000-seat single-storm join
+                 still plateaus (~3076 seated at the 60k-tick cap). This is a THIRD
+                 defect family, diagnosed but not fixed, and it predates 0.9.2: no
+                 release has ever converged N=5000. Real rooms sit orders of magnitude
+                 below the pathology; every real-shape gate is green."
+cost "the join storm builds lone-row SPINES to the depth wall; the heal/compaction
+                 layer then runs a bucket-brigade conveyor (seats admitted deep, pulled
+                 up level-by-level — 113k moves by t=60k) while ~1900 war-loser
+                 requeues descend full spines and NOROOM at the wall (MESH_FINDLOG
+                 evidence in the 2026-08-05 handoff). The fix front is heal-layer
+                 promotion exclusivity + spine re-absorption — test/sim/scale-frontier.sh
+                 is the ready-made gate: the day it goes green, rename it
+                 repro-scale.sh so the release battery globs it forever."
+echo "    running test/sim/scale-frontier.sh (~20 min of sim compute) ..."
+if bash test/sim/scale-frontier.sh > /tmp/known-scale.log 2>&1; then green "N=5000 converges — RENAME scale-frontier.sh to repro-scale.sh NOW"; else red "N=5000 mass-join stalls ($(grep -oE 'seated=[0-9]+/5000' /tmp/known-scale.log | tail -1))"; fi
+
 # ----------------------------------------------------------------- browsers --
 if [ "$BROWSERS" = 1 ]; then
   export MEET_CHROME="${MEET_CHROME:-/opt/google/chrome/chrome}"
