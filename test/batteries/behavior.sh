@@ -46,11 +46,20 @@ match() { # does scenario basename $1 match any requested prefix?
 # box. A scenario that dies of the PREVIOUS scenario's residue reports as a
 # product regression, which is the one thing this battery must never do.
 # Both binaries, both bracketed — see the note in release.sh's reap_browsers.
+# A non-chromium actor is invisible to the chromium patterns, so the sweep is
+# ALSO engine-neutral: every actor browser carries BB_ACTOR=1 in its process
+# environment (meet.js sets it in drive mode; children inherit it), which is
+# the one marker that works for chromium, firefox AND webkit at once. A missed
+# firefox is not harmless — it holds the relay socket and the seat.
 reap_browsers() {
   for p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null) \
            $(pgrep -f '[h]eadless_shel' 2>/dev/null); do
     kill -9 "$p" 2>/dev/null
   done
+  for d in /proc/[0-9]*; do
+    grep -qz 'BB_ACTOR=1' "$d/environ" 2>/dev/null && kill -9 "${d##*/}" 2>/dev/null
+  done
+  return 0
 }
 
 pass=0; fail=0; skip=0; failed=""
