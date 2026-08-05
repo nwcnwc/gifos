@@ -10,8 +10,10 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   // placer twice; dual-hold/cascade: two different placers).
   if(getenv("MESH_DUPLOG")){ uint64_t kk=ckey(c);
     for(size_t q=0;q<seats.size();q++) if((int)q!=id&&alive[q]&&seats[q]->hasCoord&&seats[q]->state==3&&ckey(seats[q]->coord)==kk)
-      fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d)\n",
-        (long long)TICK,(unsigned)c.pc,(int)c.r,(int)c.i,id,owner,(int)q,seats[q]->myPlacer,seats[q]->seatedAt);
+      { auto al=ADMIT_LOG.find(kk);
+        fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d) lastAdmit=%s@%lld\n",
+          (long long)TICK,(unsigned)c.pc,(int)c.r,(int)c.i,id,owner,(int)q,seats[q]->myPlacer,seats[q]->seatedAt,
+          al!=ADMIT_LOG.end()?al->second.first:"?",al!=ADMIT_LOG.end()?al->second.second:-1); }
   }
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
@@ -79,6 +81,7 @@ void Seat::recheckSitting(){
 void Seat::admit(Coord c,Msg& f){
   int nc=f.nc;
   uint64_t k=ckey(c);
+  ADMIT_LOG[k]={ADMIT_SITE,(long long)TICK};
   tlForget(k);   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int i=0;i<n;i++){ int x=occGet(ckey(ol[i])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[i]),x}); }
@@ -178,7 +181,7 @@ void Seat::serveFind(Msg& mm){
         // rows resolve bottom-up (the scan just moves to the next row), the
         // same upward cascade the old H7 wrap produced.
         if(coord.r==(uint8_t)((t+1)%C)){ uint64_t k=ckey({0,(uint8_t)t,coord.i});
-          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit({0,(uint8_t)t,coord.i},mm); return; }
+          if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; ADMIT_SITE="s1-assigner-rowfill"; admit({0,(uint8_t)t,coord.i},mm); return; }
           continue; }
         // Forward toward the admitter row below ONLY over a FIRST-HAND-LIVE link.
         // Using raw occGet here was a bug: when the admitter row is ALSO wholly
@@ -253,7 +256,7 @@ void Seat::serveFind(Msg& mm){
         if(softSitting(ckey(adm)) && !occ.count(ckey(adm)) && j>0){
           auto it=sitting.find(ckey({0,(uint8_t)t,0}));
           if(it!=sitting.end() && it->second.assigner==id){
-            if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; admit(cell,mm); return; }
+            if(TICK-(healTry.count(k)?healTry[k]:-999)>45){ healTry[k]=(int)TICK; ADMIT_SITE="s1-headless-soft"; admit(cell,mm); return; }
             continue;
           }
         }
@@ -276,8 +279,8 @@ void Seat::serveFind(Msg& mm){
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){
             healTry[k]=(int)TICK;
-            if(occIsPhantom(k)){ occ.erase(k); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
-            admit(cell,mm); return;
+            if(occIsPhantom(k)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)cell.pc,(int)cell.r,(int)cell.i,occGet(k),findNc); occ.erase(k); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
+            ADMIT_SITE="s1-designated"; admit(cell,mm); return;
           }
           continue;                                    // admit gate cooling — consider the next cell
         }
@@ -305,7 +308,7 @@ void Seat::serveFind(Msg& mm){
     // partitioned half recovers on the reachable-forward fix below alone.
     if(s1admFree>0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   }
-  Coord f; if(firstFreeInRoster(f)){ admit(f,mm); return; }
+  Coord f; if(firstFreeInRoster(f)){ ADMIT_SITE="deep-firstFree"; admit(f,mm); return; }
   // Descend — but NEVER into the void. The S1 hand-off above is careful to pick
   // a reachable admitter; this forward used raw occ, so it happily emitted the
   // FIND at an occupant on the far side of a partition (or a corpse), where it
@@ -354,7 +357,7 @@ void Seat::serveCompact(Msg& mm){
     for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
       if(occ.count(ckey(cell))) continue;                 // occupied (I know my row first-hand)
       if(occGet(ckey(down(cell)))>=0) continue;           // internal hole — its down-child heals it (C1)
-      admit(cell,mm); return;                             // densify: seat the seeker beside me, PLACE routed back (tag==1)
+      ADMIT_SITE="compact-densify"; admit(cell,mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
     }
   }
   // My row is full or not shallower than the seeker — climb one level toward the

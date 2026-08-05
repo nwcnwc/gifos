@@ -121,6 +121,28 @@ a CLAIM or take lands on an occupied cell: both ids, placer, tick):
     child row (this one amplifies but cannot be first).
 The depth clamp for the uint32 wall stands regardless of which mints.
 
+**Experiment log (2026-08-05, morning) — the call-site ledger lands:** every
+admit() now records its call-site (ADMIT_SITE/ADMIT_LOG, printed by DUPMINT),
+and the 03c knock-is-evidence clears log as KNOCKCLR/PHANTOMCLR. N=3000 det,
+converge 600:
+
+  DUPMINT 1791   KNOCKCLR 46   PHANTOMCLR 5
+  site histogram: deep-firstFree 1772, s1-designated 17, s1-headless-soft 2
+
+Two verdicts. (1) The knock-is-evidence suspect is REFUTED — 5 clear-then-
+admits cannot drive 1791 mints. (2) The mint has the two-stage shape the
+cascade hypothesis predicted: the FIRST mints are all s1-designated — e.g.
+t=27 cell 0/1.4, incumbent seated@16 by placer 0, re-admitted@19 by placer 5:
+TWO LIVE ADMITTERS for one cell, because the H-CHAIN DEVOLUTION arm fires on
+a propagation-lagged read (the designated admitter's cell looks empty/phantom
+to a peer for a few ticks) while the designated admitter also serves. The S1
+seed pair then duplicates the PARENT cells, and deep-firstFree amplifies 100x
+— each duplicated parent hands the same owned child row to two seats. The
+next experiment: log WHICH guard let the devolution arm fire (the
+cellReserved read on the admitter's cell at devolution time) and whether the
+seed pair is always devolution-vs-designated or ever designated-vs-designated
+across a healTry window.
+
 **Experiment log (2026-08-04, evening):** MESH_DUPLOG take()-conflict
 instrumentation landed (env-gated, kept). First mints are ORDINARY
 admission with two different placers (t=27 cell 0/1.4 placers 5 vs 0;
