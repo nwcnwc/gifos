@@ -308,23 +308,22 @@
     // translate a pretty path to its real target instead of decorating it. Room case
     // is PRESERVED: the room id is the capability the key derives from.
     //
-    // A SNAPSHOT IS ALWAYS ADDRESSED AS meet.html, never run.html. This root was
-    // renamed meet.html -> run.html, but a rename cannot reach back into a FROZEN
-    // /versions/<x.y.z>/ build: every snapshot ever cut ships its runtime as
-    // meet.html, and 0.8.x additionally ships an OLD, unrelated run.html (the
-    // pre-one-runtime app runner) — so emitting run.html here would 404 on 0.9.x
-    // and load the WRONG PAGE on 0.8.x. Snapshots cut from here on ship the
-    // meet.html->run.html shim, so meet.html stays the correct address for every
-    // version, past and future. `here` is only ever used by to() below, which
-    // always prefixes /versions/<v>.
+    // FLAG DAY 2026-08-05 (prelaunch, NO SHIMS): snapshots are addressed as
+    // run.html, PERIOD. The runtime was renamed meet.html -> run.html on
+    // 2026-08-04 and the compat shim is DELETED — snapshots cut before 0.9.3
+    // ship their runtime as meet.html and are therefore NO LONGER
+    // loader-addressable (deliberate: prelaunch, nobody real is pinned, and a
+    // per-version filename table is exactly the compat rot we refuse to
+    // carry). Old meet.html#... links are dead the same way.
+
     var pm = pathname.match(/^\/(?:join|meet|cast)\/([a-zA-Z0-9-]{1,64})(?:\/([a-fA-F0-9]{16,64})(?:\/([a-zA-Z0-9]{1,64}))?)?\/?$/);
     var here;
     if (pm) {
       here = /^\/(?:meet|cast)\//.test(pathname)
-        ? '/meet.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
-        : '/meet.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
+        ? '/run.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
+        : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {
-      here = pathname.replace(/\/run\.html$/, '/meet.html') + hash; // carry the page + invite hash across
+      here = pathname + hash; // carry the page + invite hash across (snapshots ship run.html too — flag day above)
     }
     function to(v) { return { redirect: '/versions/' + v + here }; }
     if (pin && pin !== window.GIFOS_VERSION) return to(pin);  // pinned to a DIFFERENT snapshot
@@ -1375,7 +1374,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
     const params = new URLSearchParams(location.hash.slice(1));
     // The real file we're served from (/run.html at load — a pretty /meet/<room>
-    // link 404-routes here, and the legacy /meet.html shim redirects here). We
+    // link 404-routes here; the legacy meet.html shim is DELETED, no-shims flag
+    // day 2026-08-05). We
     // keep this because on prod we rewrite the address bar to the pretty path, so
     // location.pathname stops being a reliable base for building runtime URLs;
     // MEET_PATH always is.

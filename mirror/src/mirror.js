@@ -85,8 +85,9 @@ export default {
     // scraper runs no JS, so we swap the static card for this computer's themed
     // one (site/themes/<sub>/meet-og.png) right here at the edge.
     //
-    //   /run.html, /meet.html → the runtime and its legacy shim (both carry the
-    //                           base card) — rewrite the image
+    //   /run.html             → the runtime (carries the base card) — rewrite
+    //                           the image. (meet.html died on the 2026-08-05
+    //                           no-shims flag day.)
     //   /meet/…               → the pretty invite, served by 404.html (200) with
     //                           the neutral "Join on GifOS" card — rewrite it to
     //                           the themed MEETING card AND flip 404→200 so strict
