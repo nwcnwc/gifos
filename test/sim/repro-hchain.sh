@@ -71,7 +71,11 @@ echo "=== E) vertical: kill down-child then owner — LEFT-PACK heals without lo
 # Need a live down-child under /0.0 (0/0.0). N=100 keeps a dense home so
 # column-0 always has a vertical heir after three-state + H7 dense fill
 # (N=80 can leave 0/0.0 empty while other columns hold the deep seats).
-outE=$(run "seed 2" "init 100 0" "converge 20000" \
+# Re-seeded 2->1 (2026-08-05): ghost-target falsification (0c7f93d) legally
+# changed the seed-2 converged ARRANGEMENT (faster convergence, 0/0.0 empty),
+# breaking only this PRECONDITION — the leg's assertion is untouched. Seeds
+# 1,3,5,6,7,8 all satisfy it under the new dynamics.
+outE=$(run "seed 1" "init 100 0" "converge 20000" \
   "find 0/0.0" "find /0.0" \
   "killat 0/0.0" "tick 30" \
   "killat /0.0" "tick 400" \
