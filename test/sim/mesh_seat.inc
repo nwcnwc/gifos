@@ -310,7 +310,7 @@ void Seat::serveFind(Msg& mm){
         // beats; a fresh frontier seat that has NEVER coexisted with the
         // admitter is reading a gossip gap, and devolving on it minted the
         // second seed of every run (DEVOLVE guard=no-occ).
-        if(!cellReserved(ckey(adm)) && live.count(ckey(adm)) && rowLive[adm.r]){
+        if(!cellReserved(ckey(adm)) && fhEver.count(ckey(adm)) && rowLive[adm.r]){
           devGuard=freeReason(ckey(adm));
           Coord d={0,adm.r,0};
           for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; devArm="rowmate"; break; } }
@@ -319,7 +319,7 @@ void Seat::serveFind(Msg& mm){
         // admitter (s1seen) and it is not reserved — never when simply unknown.
         // Devolve only to STRICTLY DEEPER same-column seats (no wrap into denser
         // upper rows). Gossip-lag wrap dual-PLACE'd /1.2 (N=9 serial → /0.4 hole).
-        if(!cellReserved(ckey(adm)) && live.count(ckey(adm)) && s1seen.count(ckey(adm))){
+        if(!cellReserved(ckey(adm)) && fhEver.count(ckey(adm)) && s1seen.count(ckey(adm))){
           if(!devGuard) devGuard=freeReason(ckey(adm));
           for(int rr=cell.r+1;rr<C;rr++){
             Coord d={0,(uint8_t)rr,cell.i};
@@ -771,7 +771,7 @@ void Seat::onPhone(Msg& m){
   // answered probe erases the observation, restoring full tenure protection
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
   if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
-  setOcc(ck,m.id); live[ck]=(int)TICK; noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  setOcc(ck,m.id); liveMark(ck); noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -1067,7 +1067,7 @@ void Seat::recv(Msg& m){
       bool prevFresh = (prev>=0) && firstHandLive(m.ck) && !translost.count(m.ck);
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
-      live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
+      liveMark(m.ck);   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck);
       // A, ATTRIBUTABLE (V4): HELLO from THE SOFT-SIT JOINER ITSELF self-
       // confirms the seat — but a HELLO from any OTHER claimant (a dup-war
@@ -1172,7 +1172,7 @@ void Seat::recv(Msg& m){
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue("CONFIRM-lower-id"); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
       if(occGet(m.ck)==m.id){ occDrop(m.ck,"moved"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
-      if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
+      if(m.mvd){ setOcc(m.mvd,m.id); liveMark(m.mvd); noteS1(m.mvd); }
       wake(id); return; }
     case SITXFER: {
       // V4: my assigner hands me my row's outstanding vouch ledger — I am now
@@ -1201,7 +1201,7 @@ void Seat::recv(Msg& m){
       }
       return; }
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
+    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); liveMark(ckey(m.coord)); noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;

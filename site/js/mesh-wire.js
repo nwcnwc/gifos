@@ -58,7 +58,7 @@
   // Occupancy-authoring frames + the announce: signed on the way out, verified
   // on the way in when S4 is active. FINDLEAF/PLACE/CLAIM are the verifyFill-
   // gated fills; HELLO carries the announce (pubkey exchange + move recognition).
-  const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO']);
+  const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER']);   // V4: SITPONG is a re-CLAIM (confirms occupancy), SITXFER grants a row's admission ledger — both author occupancy and are S4-signed; SITPING is a question and rides unsigned like PHONE
 
   // createMeshNode(opts):
   //   relayUrl        ws(s)://host:port of the relay (no path)

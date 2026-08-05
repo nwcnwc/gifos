@@ -66,6 +66,10 @@
   const OWNER_SILENT = 40;   // test/sim/mesh.cpp OWNER_SILENT — 5 unanswered 8-tick phone beats arms the ghost-target probe
   // A three-state occupancy: soft sitting-down TTL + assigner recheck (loss wedge).
   const SIT_TTL = 90, SIT_RECHECK = 25;
+  // V4 probe window: free a silent vouch only after a SITPING went unanswered
+  // this long (delivery is bounded per leg, so 15 covers the round trip; a
+  // killed tab frees at 25+15=40 — inside the ghost-churn budget).
+  const SIT_PING_WAIT = 15;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
   // (DataChannel close / hard pc failure — a FIRST-HAND observation, never
   // gossip), the confirm probe may start immediately instead of waiting out the
@@ -117,6 +121,11 @@
       this.kidful = new Map(); this.childOf = new Map();
       // A three-state: soft sitting-down marks {joiner, assigner, at} by cell key.
       this.sitting = new Map();
+      this.rowLedger = true;   // V4: false only while a vouched-in S1 row head awaits its assigner's SITXFER
+      // V4: MONOTONE first-hand-ever — `live` entries are erased by attributed
+      // clears (current-liveness semantics); "have I EVER heard this cell
+      // first-hand" must survive them (the devolution-narrowing predicate).
+      this.fhEver = new Set();
       // holeSince: when a Section-1 cell I don't hear first-hand first looked
       // like a hole (H1-S1 confirm-window timer, probe-gated ringConfirmDead)
       this.holeSince = new Map();
@@ -279,9 +288,23 @@
       return this.firstHandLive(k) && this.occ.has(k);
     }
     clearSoft(k) { this.sitting.delete(k); }
-    markSitting(k, joiner) { this.sitting.set(k, { joiner, assigner: this.id, at: this.TICK }); }
+    markSitting(k, joiner) { this.sitting.set(k, { joiner, assigner: this.id, at: this.TICK, pingAt: -1 }); }
     confirmSeated(k, joiner) {
-      this.clearSoft(k); this.setOcc(k, joiner); this.live.set(k, this.TICK); this.noteS1(k);
+      // V4 SITXFER: confirming a Section-1 row HEAD I vouched hands it the
+      // row's outstanding vouch ledger AND my confirmed row occ — the head
+      // becomes its row's admitter the moment it seats, and without the
+      // ledger it re-admits cells my in-flight (or already-confirmed)
+      // admittees hold (the designated-vs-headless-soft V4 seed pair).
+      const sit = this.sitting.get(k);
+      const c0 = unck(k);
+      const xfer = !!sit && sit.assigner === this.id && sit.joiner === joiner && c0.pc === 0 && c0.i === 0;
+      this.clearSoft(k); this.setOcc(k, joiner); this.liveMark(k); this.noteS1(k);
+      if (xfer) {
+        const vouches = [], rowOcc = [];
+        for (const [sk, ss] of this.sitting) { const sc = unck(sk); if (sc.pc === 0 && sc.r === c0.r && ss.assigner === this.id) vouches.push({ k: sk, v: ss.joiner }); }
+        for (let j = 0; j < C(); j++) { const rk = ck({ pc: 0, r: c0.r, i: j }); const x = this.occGet(rk); if (x != null && rk !== k) rowOcc.push({ k: rk, v: x }); }
+        this.emit(joiner, { t: 'SITXFER', ck: k, id: joiner, vouches, rowOcc });   // an EMPTY ledger is still the authority-handover signal
+      }
     }
     // CHECK-BACK (law A tightened, 2026-08-02 — the ghost-churn fix): the
     // recheck at SIT_RECHECK now actually FREES a vouch that was never
@@ -300,23 +323,27 @@
         if (s.assigner !== this.id) continue;
         if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
         if (this.TICK - s.at < SIT_RECHECK) continue;
-        // The check-back: never heard from the joiner at this cell — free it.
-        // (A PROBE GATE was tried here — ask the mesh before freeing, so an
-        // admitter that cannot HEAR does not evict what it admitted. Both
-        // shapes were measured and REJECTED: freeing late, at 50 ticks,
-        // missed the ghost-churn budget; probing early, from 8 ticks, made
-        // every unconfirmed sit emit a routed probe whose ROUTED answer
-        // re-seeds occ and fans a HELLO — that perturbed partition healing,
-        // sweep.sh went partition-bad=1 and mesh-harness red. The deaf-
-        // admitter case it aimed at costs a rejoin, not a room: the guest is
-        // seated and reachable, and the room converges — adversary-room
-        // measures exactly that and is green.)
+        // V4 PROBE-GATED CHECK-BACK (confirmed absence, the ghost-law
+        // discipline): "never heard in 25 ticks" is NOT evidence of death —
+        // at the mass-join storm a live admittee's CLAIM to a deep placer is
+        // routinely lost or slow (a j>0 child has no owned up-link, so CLAIM
+        // rides the mesh), and freeing on that lagged view let the SAME
+        // placer re-place the cell. So falsify first-hand: SITPING the
+        // admittee itself. A live one answers (its pong is a re-CLAIM for
+        // exactly the vouched cell, no other payload — the 2026-08-02 probe
+        // was rejected because its ROUTED answer re-seeded occ and fanned
+        // HELLOs); a killed tab never does, and the chair frees at
+        // 25+15=40 ticks — inside the ghost-churn budget that the rejected
+        // free-at-50 missed. Freed on SILENCE ⇒ the chair re-enters the
+        // 45-tick admission cooling instead of "admissible NOW".
         if (this.occGet(k) !== s.joiner && !this.firstHandLive(k)) {
-          del.push(k); this.healTry.delete(k);
+          if (s.pingAt == null || s.pingAt < 0) { s.pingAt = this.TICK; this.emit(s.joiner, { t: 'SITPING', ck: k, id: s.joiner, from: this.id }); continue; }
+          if (this.TICK - s.pingAt < SIT_PING_WAIT) continue;
+          del.push(k); this.healTry.set(k, this.TICK);
           continue;
         }
         if (this.TICK - s.at >= SIT_TTL) {
-          del.push(k);
+          del.push(k); this.healTry.set(k, this.TICK);   // V4: TTL is also a silence-free — cool before re-admission
           if (this.occGet(k) === s.joiner && !this.firstHandLive(k)) {
             this.occ.delete(k); this.live.delete(k); this.s1seen.delete(k);
             this.kidful.delete(k); this.tlForget(k, 'sit-ttl'); this.healTry.delete(k);
@@ -331,6 +358,7 @@
     // signal that may evict/tie-break: a phantom (a stale gossip echo of a seat
     // that has moved) is NOT first-hand live, so it can never yield a live
     // healer out of a hole. Echo-immune — gossip informs routing, never liveness.
+    liveMark(k) { this.live.set(k, this.TICK); this.fhEver.add(k); }
     firstHandLive(k) { const it = this.live.get(k); return it !== undefined && this.TICK - it <= 60; }
     // ---- D5 EARLY-PROBE intake (transport loss is FIRST-HAND evidence) ------
     // transportLost(pid): MY DataChannel / peer connection to `pid` just died —
@@ -473,10 +501,19 @@
     // double-book, lose the race, requeue OUT, and leave a gossip phantom
     // permanently blocking refill (bug #2). Skip it; serveFind forwards deeper.
     firstFreeInRoster() {
+      // V4 THE DEPTH WALL: the C++ twin's uint32 path overflows at depth 13
+      // and silently aliases cells; the wall is enforced in BOTH twins so
+      // they cannot diverge there (a depth-12 stadium is ~2 billion sections
+      // — reaching the 13th floor is a dup-war signature, not a need).
+      if (topo.pcDepth(this.coord.pc) >= 12) return null;
       for (const rc of this.rosterCells()) {
         if (this.cellTaken(ck(rc))) continue;
         const dk = ck(topo.down(rc));
         if (this.occGet(dk) != null || this.softSitting(dk)) continue;
+        // V4: deep admissions honor the same 45-tick cooling as S1 — a
+        // silence-freed chair is not "admissible NOW".
+        const ht = this.healTry.get(ck(rc));
+        if (ht != null && this.TICK - ht <= 45) continue;
         return rc;
       }
       return null;
@@ -761,6 +798,7 @@
 
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
+      this.rowLedger = !(c.pc === 0 && c.i === 0 && owner != null);   // V4: an admitted S1 row head waits for its assigner's SITXFER
       this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false; this.reAsk = false; this.reJoin = false; // seated: any deferred entry retry is moot
       // A: self-confirm sitting-down → seated (only the joiner upgrades).
       this.confirmSeated(ck(c), this.id);
@@ -964,7 +1002,12 @@
               }
             }
             // H-CHAIN: devolve when admitter not reserved; prefer real row-mates.
-            if (!this.cellReserved(ck(adm)) && rowLive[adm.r]) {
+            // V4 NARROWING (both arms): devolve ONLY over a cell I have AT SOME
+            // POINT heard first-hand (live ever set — the falsifiable-ghost
+            // discipline of the E1 narrowing). A genuine row-mate always heard
+            // its admitter within a couple of D1 beats; a frontier seat reading
+            // a gossip gap may not inherit admission authority.
+            if (!this.cellReserved(ck(adm)) && this.fhEver.has(ck(adm)) && rowLive[adm.r]) {
               for (let dj = 1; dj < C(); dj++) {
                 const d = { pc: 0, r: adm.r, i: dj };
                 if (this.cellReserved(ck(d)) && !this.occIsPhantom(ck(d))) { adm = d; break; }
@@ -973,13 +1016,19 @@
             // S1 column-clique admission: only when primary was known (s1seen)
             // and is not reserved — never when simply unknown. Devolve only to
             // STRICTLY DEEPER same-column seats (no wrap into denser upper rows).
-            if (!this.cellReserved(ck(adm)) && this.s1seen.has(ck(adm))) {
+            if (!this.cellReserved(ck(adm)) && this.fhEver.has(ck(adm)) && this.s1seen.has(ck(adm))) {
               for (let rr = cell.r + 1; rr < C(); rr++) {
                 const d = { pc: 0, r: rr, i: cell.i };
                 if (this.cellReserved(ck(d)) && !this.occIsPhantom(ck(d))) { adm = d; break; }
               }
             }
             if (ck(this.coord) === ck(adm)) {            // I am the designated (or devolved) admitter
+              // V4 LEDGER GATE: as a vouched-in head I may not admit into MY
+              // OWN row before my assigner's SITXFER arrives — my empty view
+              // of the row is definitionally lagged (its cells may be promised
+              // to admittees still in flight). Past 60 ticks a silent assigner
+              // is dead and its vouches died with it.
+              if (this.coord.i === 0 && cell.r === this.coord.r && !this.rowLedger && TICK - this.seatedAt <= 60) continue;
               if (TICK - (this.healTry.has(k) ? this.healTry.get(k) : -999) > 45) {
                 this.healTry.set(k, TICK);
                 if (this.occIsPhantom(k)) {
@@ -1020,6 +1069,10 @@
       //       what the starved half of a split needs)
       //   1 — any reachable-by-occ hop (what a silent head needs; gating those
       //       on liveness fast-tracks silent death past H1-S1 ring-hold)
+      // V4 THE DEPTH WALL (twin of the sim's uint32 guard): never forward a
+      // FIND toward the 13th floor — NOROOM is honest, and the twins must
+      // refuse at the same depth or they diverge exactly where a dup storm goes.
+      if (topo.pcDepth(this.coord.pc) >= 12) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
       for (let pass = 0; pass < 2; pass++)
         for (const q of idx) {
@@ -1367,7 +1420,7 @@
       // occupant's full tenure protection (S5: "has itself, first-hand,
       // stopped hearing the prior occupant").
       if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
-      this.setOcc(kk, m.id); this.live.set(kk, TICK); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
+      this.setOcc(kk, m.id); this.liveMark(kk); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
       const row = [];
       if (this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) { row.push({ k: ck(this.coord), v: this.id, age: this.occGet(ck(topo.down(this.coord))) }); for (let c = 1; c < C(); c++) { const rc = { pc: this.coord.pc, r: this.coord.r, i: c }; const x = this.occGet(ck(rc)); if (x != null && x !== m.id) row.push({ k: ck(rc), v: x, age: this.childOf.has(ck(rc)) ? this.childOf.get(ck(rc)) : null }); } }
@@ -1746,9 +1799,13 @@
           const prevFresh = (prev != null) && this.firstHandLive(m.ck) && !this.translost.has(m.ck);
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
-          this.live.set(m.ck, TICK); // first-hand: I just heard m.id directly at m.ck
+          this.liveMark(m.ck); // first-hand: I just heard m.id directly at m.ck
           this.noteS1(m.ck);
-          this.clearSoft(m.ck); // A: HELLO from soft-sit joiner self-confirms
+          // A, ATTRIBUTABLE (V4): only THE SOFT-SIT JOINER's own HELLO
+          // self-confirms — a rival claimant or a promoted healer announcing
+          // must not wipe a vouch it does not own (the wipe plus a LEAVE echo
+          // read the cell FREE and the same head re-placed it every ~3 ticks).
+          { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
           return;
         }
         case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
@@ -1760,7 +1817,11 @@
         case 'LEAVE': {
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); this.healTry.delete(m.ck); } // freed ⇒ admissible now
-          this.clearSoft(m.ck); // A: LEAVE clears soft sitting-down
+          // A, ATTRIBUTABLE (V4): only the LEAVER'S OWN vouch clears — a soft
+          // sit exists only for a cell that read FREE at admit time, so a
+          // LEAVE naming this cell from anyone else is a PRIOR tenant's
+          // departure echo arriving after the cell was re-vouched.
+          { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
           // H-CHAIN vertical: vacated down-child clears childOf on its owner
           // so LEFT-PACK can devolve (childOf otherwise never expired).
@@ -1845,15 +1906,46 @@
         case 'GSP': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
-          if (m.mvd) { this.setOcc(m.mvd, m.id); this.live.set(m.mvd, TICK); this.noteS1(m.mvd); }
+          if (m.mvd) { this.setOcc(m.mvd, m.id); this.liveMark(m.mvd); this.noteS1(m.mvd); }
           this.wake(); return;
+        }
+        case 'SITXFER': {
+          // V4: my assigner hands me my row's ledger — outstanding vouches
+          // and its confirmed row occ. I am now the row's admitter, and these
+          // cells are already promised or held.
+          if (this.hasCoord && this.coord.pc === 0 && this.coord.i === 0 && ck(this.coord) === m.ck) {
+            for (const kv of (m.vouches || [])) if (!this.occ.has(kv.k) && !this.sitting.has(kv.k)) this.sitting.set(kv.k, { joiner: kv.v, assigner: this.id, at: this.TICK, pingAt: -1 });
+            for (const e of (m.rowOcc || [])) if (!this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); }
+            this.rowLedger = true;
+          }
+          return;
+        }
+        case 'SITPING': {
+          // V4: my assigner asks whether its vouch for me at m.ck is live.
+          // Answer ONLY about the vouched cell: seated there (tag=1, a
+          // re-CLAIM) or still seeking with the PLACE possibly in flight
+          // (tag=0). Seated ELSEWHERE = silence — the vouch should free.
+          if (m.id === this.id) {
+            if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'SITPONG', ck: m.ck, id: this.id, tag: 1 });
+            else if (!this.hasCoord && this.state === 2) this.emit(m.from, { t: 'SITPONG', ck: m.ck, id: this.id, tag: 0 });
+          }
+          return;
+        }
+        case 'SITPONG': {
+          if (!this.verifyFill(m)) return;
+          const sit = this.sitting.get(m.ck);
+          if (sit && sit.joiner === m.id) {
+            if (m.tag === 1) this.confirmSeated(m.ck, m.id);            // the lost CLAIM, replayed first-hand
+            else { sit.at = this.TICK; sit.pingAt = -1; }               // alive and still seeking: restart the clock
+          }
+          return;
         }
         case 'PHONE': this.onPhone(m); return;
         case 'PONG': {
           this.lastAck = TICK;
           // FIRST-HAND: the responder spoke to me directly on our rook link.
           const pid = (m.id != null) ? m.id : m.from;
-          if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.live.set(ck(m.coord), TICK); this.noteS1(ck(m.coord)); }
+          if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.liveMark(ck(m.coord)); this.noteS1(ck(m.coord)); }
           if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
           for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
           for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); // W: learn the heirs at my future owned-links for relay-free promote-up
