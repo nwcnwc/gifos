@@ -24,6 +24,13 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
   drainAt=0; seatTries=0; seatedAt=(int)TICK; rookSeenAt=(int)TICK;   // grace: don't call a just-seated seat isolated
+  // § G: a seat change re-parents me — new aggregator, new scope, new child row.
+  // Every digest relationship starts over, including G4's grace window; carrying
+  // the old one over would accuse a brand-new aggregator of suppressing reports
+  // it never received. (Display state only — nothing here can move a seat.)
+  upLogI=0; upSince=-1; lastAgg=-1; for(int q=0;q<16;q++) upLog[q]=UpRec();   // the ring's CONTENTS too: a retained pre-move record collides with my cell's PREVIOUS occupant's stamp and reads as a forged echo (10 false fires at N=600)
+  downDig=Dig(); downUsed=Dig(); myDig=Dig(); rowDig=Dig(); rootDig=Dig();
+  rowKids.clear(); rowUsed.clear(); if(c.pc!=0) s1tab.clear();
   lastAck=(int)TICK; lastPhone=(int)TICK;
   if(owner>=0){ Msg m; m.t=CLAIM; m.ck=ckey(c); m.id=id; emit(owner,m); }
   if(c.pc==0){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3: a Section-1 seat registers as a greeter on seating (present the MEETING genesis key)
@@ -774,6 +781,15 @@ void Seat::onPhone(Msg& m){
   if(hasCoord && leaseUntil>=0 && TICK<=leaseUntil && m.tock==leaseCk && m.tock!=ckey(coord)){   // T3: a call to my just-vacated cell — answer MOVED so the caller confirms the vacancy NOW (no silent-decay wait)
     Msg r;r.t=MOVED;r.ck=leaseCk;r.mvd=ckey(coord);r.id=id; emit(m.id,r); return; }
   if(!hasCoord || m.tock!=ckey(coord)) return;   // tock is always set for a PHONE; ckey(0,0,0)==0 is a REAL coord, so never skip the check
+  // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it already
+  // sends (G0). Which scope it names is decided by the phoner's RELATION to me,
+  // which I read from its coord — never from anything it asserts.
+  if(DIGEST && state==3 && m.dgUp.at>=0){ uint64_t pk=ckey(m.coord);
+    if(pk==ckey(down(coord)))                                                        downDig=m.dgUp;                 // my down-child head published MY OWNED CHILD ROW
+    else if(coord.pc==0 && m.coord.pc==0){ auto it=s1tab.find(pk);                                                   // a rook peer published ITS SECTION
+      if(it==s1tab.end() || it->second.at<=m.dgUp.at) s1tab[pk]=m.dgUp; }
+    else if(coord.pc!=0 && coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r) rowKids[pk]=m.dgUp;             // a row-mate published ITS SUBTREE
+  }
   uint64_t ck=ckey(m.coord); int prev=occGet(ck);
   // D5: my first-hand hearing of prev ENDS at my own transport loss (an
   // unanswered translost) — a corpse whose last PHONE is still inside the
@@ -794,14 +810,43 @@ void Seat::onPhone(Msg& m){
   } else if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){   // a ROW-MATE phoned me (the head): share MY cousins, so if it scooches/heals into head (H2/C2) it inherits the relay-free promote-up neighborhood
     for(auto&c:cousins) cous.push_back({c.first,c.second});
   }
-  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous;p.coord=coord; emit(m.id,p);   // p.coord: my coord, so the phoner gains FIRST-HAND liveness for me (bidirectional heartbeat)
+  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous;p.coord=coord;
+  // § G DOWN-LEG (rides the PONG I already send, G0): the room fold, plus the
+  // fold I PUBLISH BACK TO THIS PEER. The published fold is the whole of G4 —
+  // it hands every author the one value it is uniquely qualified to refute:
+  //   to my DOWN-CHILD  -> my SUBTREE claim, whose sole input is the row digest
+  //                        that child authored (checker = the down-child, which
+  //                        is already its owner's C3-designated healer)
+  //   to a ROW-MATE     -> my ROW fold, which must contain that mate's own
+  //                        contribution (checker = each mate, for itself only)
+  if(DIGEST && state==3){ p.dgRoot=rootDig;
+    bool isDownKid = ckey(m.coord)==ckey(down(coord));
+    p.dgPub  = pubDig( isDownKid ? myDig : ((coord.pc!=0&&coord.i==0)?rowDig:myDig) );
+    // ...and the ECHO: the report I actually folded FROM THIS PEER. A liar that
+    // strips its fold strips this too (that is the strongest adversary, and it
+    // is what `lie 1` models) — which is precisely what check (1) catches, since
+    // the peer holds the original.
+    // NB: the echo is what I FOLDED (downUsed/rowUsed, snapshotted at rollup),
+    // not what I currently hold. My fold ran on my own beat and a newer report
+    // may have landed since; echoing the newer one accuses me of suppression I
+    // did not commit (measured: 3,310 false fires at N=600 with the live-value
+    // echo — always pub.refuse == echo.refuse-1, one beat of lag).
+    if(isDownKid) p.dgEcho=pubDig(downUsed);
+    else if(coord.pc!=0 && coord.i==0){ auto it=rowUsed.find(ckey(m.coord)); if(it!=rowUsed.end()) p.dgEcho=pubDig(it->second); } }
+  emit(m.id,p);   // p.coord: my coord, so the phoner gains FIRST-HAND liveness for me (bidirectional heartbeat)
   if(prev>=0&&prev!=m.id){ Msg y;y.t=YIELD;y.ck=ck; emit(prev,y); }
 }
 void Seat::phoneHome(){
   Coord tc; bool have=false; if(hasCoord){ if(coord.i!=0){ tc={coord.pc,coord.r,0}; have=true; } else have=ownerCoord(tc); }
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id){ int _tid=have?occGet(ckey(tc)):-2; fprintf(stderr,"TRACE t=%lld #%d phoneHome have=%d tc=%u/%d.%d tid=%d lastAckAge=%lld\n",(long long)TICK,id,(int)have,have?(unsigned)tc.pc:0,have?(int)tc.r:-1,have?(int)tc.i:-1,_tid,(long long)(TICK-lastAck));} }
   if(!have) return; int tid=occGet(ckey(tc)); if(tid<0) return;
-Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m);
+Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord)));
+  // § G UP-LEG (payload on the beat, G0): a deep HEAD contributes its whole ROW
+  // fold (its owner is linked to it and to nobody else in that row); everyone
+  // else contributes its own subtree. Section-1 rows do NOT roll up — every S1
+  // seat is a forest root — so an S1 seat always publishes its subtree.
+  if(DIGEST && state==3){ m.dgUp=pubDig((coord.pc!=0 && coord.i==0) ? rowDig : myDig); noteUp(m.dgUp); }
+  emit(tid,m);
   // A GHOST PHONE TARGET MUST BE FALSIFIABLE (2026-08-05, churn-combos leg C).
   // The gap: an occupant that MOVED before I arrived (its LEAVE went to a cell
   // that was empty at the time, so nobody could address it to me) leaves a
@@ -846,7 +891,9 @@ void Seat::s1Heartbeat(){
   Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
   for(int k=0;k<n;k++){ Coord t=ol[k]; if(t.pc!=0) continue;   // rook (Section-1) links only
     int tid=occGet(ckey(t)); if(tid<0||tid==id) continue;
-    Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(t);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord))); emit(tid,m); }
+    Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(t);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord)));
+    if(DIGEST && state==3) m.dgUp=pubDig(myDig);   // § G: rook peers exchange SECTION digests (no row fold in Section 1 — every S1 seat is a forest root)
+    emit(tid,m); }
 }
 void Seat::s1Sync(){
   vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord))), born.count(ckey(coord))?born[ckey(coord)]:(int)TICK});   // carry MY heir (my down-child)
@@ -856,7 +903,18 @@ void Seat::s1Sync(){
   // roster consistent across the richly-meshed section.
   unordered_set<int> tg; Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){int t=occGet(ckey(rm[q])); if(t>=0&&t!=id)tg.insert(t);}
   Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++){int t=occGet(ckey(cm[q])); if(t>=0&&t!=id)tg.insert(t);}
-  for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent; emit(t,m); }
+  // § G ROOT FOLD: the rook has diameter 2, so a Section-1 seat hears 2(C-1) of
+  // the C^2 sections first-hand and needs ONE relay hop for the rest. S1SYNC is
+  // already that relay (it carries the C^2 occupancy table), so the digest table
+  // rides it — no new frame (G0), and the fold completes in two beats. Relaying
+  // another section's digest is second-hand BY CONSTRUCTION; that is safe for
+  // exactly one reason (G1): a digest can never actuate. Entries carry their
+  // AUTHOR's stamp, relayed unchanged, so a relayed fold can never look fresher
+  // than it is.
+  vector<DigE> digs;
+  if(DIGEST && state==3){ digs.push_back({ckey(coord),pubDig(myDig)});
+    for(auto&e:s1tab) if(e.first!=ckey(coord) && TICK-e.second.at<=DIG_TTL) digs.push_back({e.first,e.second}); }
+  for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent;m.digs=digs; emit(t,m); }
 }
 void Seat::rowSweep(){
   // 11a: the head no longer HEALS its row cells (each is healed by its own
@@ -968,8 +1026,137 @@ bool Seat::translostConfirmed(uint64_t k){
   return TICK-at>EARLY_HOLD;
 }
 
+// ============================================================================
+// V1 ROLLUP DIGEST — healing-laws.md § G. Kill the O(N) status flood by folding
+// the room along the tree that already exists.
+//
+// THE TREE. A seat's aggregator is the owner of its ROW — up({pc,r,0}) — so the
+// C seats of a row share one parent and reach it only through their head, and
+// the C^2 Section-1 seats are the forest roots (walk up from anywhere and you
+// land on exactly one of them, so their subtrees PARTITION the room).
+//
+// THE FLOW, per pulse period, per node:
+//   deep i>0  : publish MY subtree digest to my head            (rides my PHONE)
+//   deep i==0 : fold C-1 row-mates + myself -> ONE row digest    (rides my PHONE)
+//               to my owner; my owner folds that single report.
+//   S1        : fold my subtree; exchange the C^2 section table over the rook
+//               (rides S1SYNC, diameter 2 => two beats to a complete room fold)
+//   down      : the room fold rides every PONG back down, one level per period
+// => <= C reports in, ONE out. N never appears. G0: not one new frame.
+// ============================================================================
+Dig Seat::pubDig(const Dig& d){
+  Dig o=d;
+  // The adversary knob. Mode 1 SUPPRESSES — it publishes a fold with the
+  // refusals (and the partial flag) stripped. That is the ONE dangerous
+  // direction (G4.2) and the only one the checker needs to catch; mode 2
+  // inflates n, which G2 makes harmless by construction.
+  if(lie==1){ o.refuse=0; o.part=0; }
+  else if(lie==2){ o.n+=1000; }
+  return o;
+}
+// G4: remember every report I published upward, keyed by its own stamp. The
+// aggregator must ECHO the report it folded, and this ring is the ground truth
+// that echo is checked against.
+void Seat::noteUp(const Dig& d){ upLog[upLogI&15]={d.at,d.n,d.refuse}; upLogI++; if(upSince<0) upSince=TICK; }
+// (the ring is keyed by stamp; echo.by==id is checked by the caller before lookup)
+// G4, THE AUTHOR'S REFUTATION — the only check any node performs, and it is over
+// a value that node itself authored. No votes (G4.4), no adjudication (G5).
+//
+// WHY AN ECHO AND NOT A WINDOW. The first cut compared the published fold
+// against a sliding minimum of my own recent reports, and that cannot be made
+// to work. Guarding it tightly enough to survive a SETTLING aggregator — which
+// legitimately publishes a fold stamped before my first report ever reached it
+// (me n=1, it n=1, base 1 => "short by one"; 473 false fires in one clean N=600
+// join) — makes it blind to a SHRINKING scope, where the aggregator legitimately
+// folds a NEWER, SMALLER value than my window minimum (the residual family that
+// survived the first fix). Both directions cannot be covered by any bound on my
+// own history, because the fact that decides it is WHICH of my reports the
+// aggregator used. So it has to say. That is one more small field on a frame it
+// already sends (G0), and it makes the check exact:
+//
+//   (1) ECHO FIDELITY     — what it says it took from me IS what I sent.
+//   (2) FOLD MONOTONICITY — the fold it published contains what it echoed.
+//   (3) ECHO FRESHNESS    — it is not acknowledging an ancient report of mine
+//       while quietly ignoring every newer one (suppression by omission).
+//
+// A liar cannot dodge by back-stamping either: a stale stamp is exactly what G3
+// fail-closes on, so the dodge blurs the room the lie was trying to clear.
+// `base` is what the aggregator legitimately adds atop my report — 1 for an
+// owner folding itself with my row digest, 0 for a head folding my subtree into
+// its row.
+bool Seat::upRefuted(const Dig& pub,const Dig& echo,int base){
+  digArm=0;
+  if(upLogI==0) return false;
+  // (3) OMISSION. "I folded nothing from you" (echo.at<0) is honest for a beat —
+  // my report lands between the aggregator's folds, so the very PONG that
+  // acknowledges it still echoes the previous fold — and a standing lie if it
+  // persists. The evidence is therefore CONSECUTIVE empty echoes, not elapsed
+  // time: a wall-clock window fires on the one-fold lag of a first report
+  // (measured, seed 5 at N=600). One full staleness window of folds, and the
+  // counter resets the moment anything is acknowledged or the aggregator
+  // changes.
+  if(echo.at<0){ emptyEcho++; digArm=3; return emptyEcho>2*DIG_TTL/8; }
+  emptyEcho=0;
+  if(TICK-echo.at>2*DIG_TTL){ digArm=3; return true; }
+  if(echo.by!=id) return false;   // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
+  const UpRec* r=nullptr; for(int q=0;q<16;q++) if(upLog[q].at==echo.at){ r=&upLog[q]; break; }
+  if(!r) return false;                                     // older than my ring — no record, so no accusation
+  if(echo.n!=r->n || echo.refuse!=r->refuse){ digArm=1; return true; }  // (1)
+  if(pub.n < base+echo.n || pub.refuse < echo.refuse){ digArm=2; return true; }  // (2)
+  return false;
+}
+// G3's fail-closed predicate, FALSIFIABLE (the E1/V4 amendment restated for the
+// fold): is this scope member a PERSON I have lost, or just a stale occ entry?
+// The first must blur the room; the second must NEVER, because it never clears —
+// a permanent unclearable blur would be exactly the "one lost message splits the
+// room's view of reality forever" bug the flood was invented to fix, wearing new
+// clothes. Measured: a settled N=600 room carries a couple of inheritance ghosts
+// (occ entries for cells `find` says are EMPTY) that no sweep owns; the raw
+// occ.count() form pinned refuse>=2 and partial=100% forever.
+// So the fold reads the SAME phantom-aware evidence the admission layer reads
+// (V5's "ONE reservation semantics at every site"): a requeued/moved echo is not
+// a member, while a SILENTLY DEAD occupant — occ entry held, alive[] false, no
+// LEAVE — still is, and still blurs. Pure read: occIsPhantom mutates nothing.
+bool Seat::scopeGap(uint64_t k){ return occ.count(k) && !occIsPhantom(k); }
+void Seat::rollup(){
+  if(!DIGEST || !hasCoord || state!=3) return;
+  // --- (1) my SUBTREE = me + the child row I own -----------------------------
+  Dig d; d.n=1; d.refuse=refuses?1:0; d.at=(int)TICK; d.by=id; d.part=0; d.freeC=0;
+  // G7 free-space, MEASURED ONLY: how many of my owned child row's cells look
+  // admissible. Deliberately a PURE read (occ/sitting membership, no
+  // cellReserved) — the reservation helpers lazily expire soft marks, and a
+  // display fold must not be able to mutate admission state at all.
+  if(pcDepth(coord.pc)<12){ Coord rc[C]; rosterCells(rc);
+    for(int c2=0;c2<C;c2++){ uint64_t k=ckey(rc[c2]); if(occ.count(k)||sitting.count(k)) continue; uint64_t dk2=ckey(down(rc[c2])); if(occ.count(dk2)||sitting.count(dk2)) continue; d.freeC++; } }
+  uint64_t dk=ckey(down(coord)); digGap=0; downUsed=Dig();
+  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ d.n+=downDig.n; d.refuse+=downDig.refuse; d.freeC+=downDig.freeC; if(downDig.part)d.part=1; downUsed=downDig; }
+  else if(scopeGap(dk)){ d.part=1; d.refuse+=1; digGap=1; }   // G3 FAIL-CLOSED: a subtree I believe populated but cannot currently hear counts as REFUSING, never as zero
+  myDig=d;
+  // --- (2) deep ROW HEAD: fold my row (my owner is linked only to me) --------
+  if(coord.pc!=0 && coord.i==0){
+    Dig r=myDig; r.at=(int)TICK; r.by=id; rowUsed.clear();
+    for(int j=1;j<C;j++){ uint64_t rk=ckey({coord.pc,coord.r,(uint8_t)j}); auto it=rowKids.find(rk);
+      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ r.n+=it->second.n; r.refuse+=it->second.refuse; r.freeC+=it->second.freeC; if(it->second.part)r.part=1; rowUsed[rk]=it->second; }
+      else if(scopeGap(rk)){ r.part=1; r.refuse+=1; digGap|=2; } }
+    rowDig=r;
+  }
+  // --- (3) SECTION 1: fold the ROOT from the C^2 section digests -------------
+  // Section 1 has no owner, so the room fold happens HERE, C^2 times over (each
+  // S1 seat computes it independently — there is no root to fight over, § P).
+  if(coord.pc==0){
+    Dig R; R.at=(int)TICK; R.by=id;
+    for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
+      if(hasCoord && k==ckey(coord)){ R.n+=myDig.n; R.refuse+=myDig.refuse; R.freeC+=myDig.freeC; if(myDig.part)R.part=1; continue; }
+      auto it=s1tab.find(k);
+      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL){ R.n+=it->second.n; R.refuse+=it->second.refuse; R.freeC+=it->second.freeC; if(it->second.part)R.part=1; }
+      else if(scopeGap(k)){ R.part=1; R.refuse+=1; digGap|=4; } }
+    rootDig=R;
+  }
+}
+
 void Seat::recv(Msg& m){
   if(!alive[id]) return;
+  framesIn++;   // GAUGE only (the V1 law's actual subject: frames per node per tick must not grow with N)
   if(m.routing && !routeStep(m)) return;   // Option A: in-transit routing frame — forward it (or drop); only fall through when it is FOR me
   if(moving && state==3 && moveEvidence(m)) confirmMove();   // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
   switch(m.t){
@@ -1149,6 +1336,11 @@ void Seat::recv(Msg& m){
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
+      // § G root fold: merge the relayed section table, freshest AUTHOR stamp
+      // wins. Purely additive display state — it touches nothing below.
+      if(DIGEST && state==3 && hasCoord && coord.pc==0)
+        for(auto&e:m.digs){ if((e.k>>16)!=0) continue; if(hasCoord && e.k==ckey(coord)) continue;   // never take a relayed claim about MY OWN section — I fold that first-hand
+          if(TICK-e.d.at>DIG_TTL) continue; auto it=s1tab.find(e.k); if(it==s1tab.end()||it->second.at<e.d.at) s1tab[e.k]=e.d; }
       // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts a seat
       // and NEVER overwrites a cell I hold FIRST-HAND. (E2: gossip may inform
       // routing, but liveness is first-hand only. The old gossip-requeue and
@@ -1212,7 +1404,37 @@ void Seat::recv(Msg& m){
       return; }
     case PHONE: onPhone(m); return;
     case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); liveMark(ckey(m.coord)); noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
-      if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
+      if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v;
+      // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION ----------------------------
+      if(DIGEST && state==3 && hasCoord && coord.pc!=0){
+        if(m.dgRoot.at>=0 && m.dgRoot.at>rootDig.at) rootDig=m.dgRoot;   // the room fold, one level per period (staleness O(depth x period))
+        if(m.dgPub.at>=0){
+          Coord oc; bool isOwner = coord.i==0 && ownerCoord(oc) && ckey(m.coord)==ckey(oc);
+          bool isHead  = coord.i>0 && m.coord.pc==coord.pc && m.coord.r==coord.r && m.coord.i==0;
+          // G4: I check ONE thing — that the fold my aggregator published still
+          // contains the contribution I authored. An owner's subtree is exactly
+          // 1 + the row digest I (its down-child) sent it; a head's row fold must
+          // contain my subtree digest. A SHORTFALL below my recent minimum is
+          // suppression; anything else is staleness or growth, never evidence.
+          // G5: the remedy is to raise it and blur. It evicts NOTHING — an
+          // eviction lever here would hand an attacker exactly what G1 denies.
+          // G4 grace on a CHANGED AGGREGATOR. A healer that has just promoted
+          // into my owner's or my head's cell has folded nothing from me yet
+          // and legitimately echoes nothing; my own upSince is old, so without
+          // this the omission arm accuses every fresh aggregator (115 false
+          // fires at N=600). The relationship, not my history, is what has to
+          // be 2*DIG_TTL old.
+          if((isOwner||isHead) && m.from!=lastAgg){ lastAgg=m.from; upSince=TICK; emptyEcho=0; }
+          else if((isOwner && upRefuted(m.dgPub,m.dgEcho,1)) || (isHead && upRefuted(m.dgPub,m.dgEcho,0))){
+            digMismatch++; if(!PAR) DIG_MISMATCH++;
+            if(getenv("MESH_DIGLOG")){ int mn=-1,mr=-1; for(int q=0;q<16;q++) if(upLog[q].at==m.dgEcho.at){ mn=upLog[q].n; mr=upLog[q].refuse; break; }
+              fprintf(stderr,"DIGMISMATCH arm=%d t=%lld me=%d(%u/%d.%d) aggregator=%d(%u/%d.%d) pub{n=%d refuse=%d} echo{at=%d n=%d refuse=%d} isent{n=%d refuse=%d}\n",
+                digArm,(long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,m.from,(unsigned)m.coord.pc,(int)m.coord.r,(int)m.coord.i,
+                m.dgPub.n,m.dgPub.refuse,m.dgEcho.at,m.dgEcho.n,m.dgEcho.refuse,mn,mr); }
+          }
+        }
+      }
+      return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
     case ROUTE: {
       if(!hasCoord) return;
       if(ckey(coord)==ckey(m.target)){
@@ -1257,7 +1479,7 @@ void Seat::tick(){
   recheckSitting();   // A: assigner frees soft sitting-down if PLACE never confirmed
   if(coord.pc==0){
     if(anyRookLive()) rookSeenAt=(int)TICK;   // fragment detector: reset while I hear anyone
-    if(TICK-lastPhone>=8){ lastPhone=(int)TICK; s1Heartbeat(); s1Sync(); }   // D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
+    if(TICK-lastPhone>=8){ lastPhone=(int)TICK; rollup(); s1Heartbeat(); s1Sync(); }   // § G: ONE fold per node per period, O(C) work, before the beat carries it. D1 over the rook: phone every live row+column neighbour (maintains first-hand liveness across all redundant paths)
     tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
     if(coord.i==0 && ((TICK%12)==0 || !translost.empty())){ rowSweep(); s1Fill(); }   // 11a: every Section-1 cell {0,r,i} is refilled by its down-child {i+1,r,0} (VERTICAL Rule V); s1Fill is the LAST-RESORT backstop only for a cell whose own subtree is gone (hasDownChild==false), so the two never race. D5: while a transport-loss observation is pending, check every beat — heal()'s cooldowns keep it storm-free
     // H2 LEFT-PACK backstop (probe-gated): when my row has NO live head, the head
@@ -1274,7 +1496,7 @@ void Seat::tick(){
     if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
     wake(id); return;
   }
-  if(TICK-lastPhone>=8){ lastPhone=(int)TICK; phoneHome(); }
+  if(TICK-lastPhone>=8){ lastPhone=(int)TICK; rollup(); phoneHome(); }   // § G: ONE fold per node per period (<= C reports in, ONE out), then the beat carries it up
   tlSweep();   // D5: a confirmed corpse leaves my view early (cleanup, not healing)
   if(coord.i==0 && (TICK%12)==0) rowSweep();
   // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its row

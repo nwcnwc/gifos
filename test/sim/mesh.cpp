@@ -20,6 +20,31 @@ typedef unordered_map<uint64_t,int> Occ;
 // ---- message ----
 enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
 struct KV { uint64_t k; int v; };
+// ---- V1 ROLLUP DIGEST (healing-laws.md § G) ---------------------------------
+// A fixed-size summary of a SCOPE (a seat's subtree, a head's row, or the whole
+// room), folded along the up/down links that already exist. G0: a digest never
+// gets its OWN frame — it rides PHONE (up), its PONG (down), and S1SYNC (the
+// Section-1 root fold) as payload. So the rollup adds no frame, no timer and no
+// decision, and a digests-ON run is trajectory-identical to digests-OFF.
+//   n      — live participants in the scope. G2: a LABEL. Never gates anything.
+//   refuse — scope members NOT consenting to clear video. G3: FAIL-CLOSED —
+//            missing / stale / unheard-but-occupied all contribute a refusal.
+//   part   — 1 if any member of the scope could not be folded (informs G3).
+//   freeC  — admissible frontier cells in the scope. G7: MEASURED ONLY here;
+//            it may bias a FIND's descent ORDER if ever wired, never a decision.
+//   at     — the AGGREGATOR's stamp (re-stamped at every fold, so staleness is
+//            per-hop, not cumulative). Sim uses global TICK; production needs a
+//            relative age (a stamp is not a clock you can trust across peers).
+// NOTE what is NOT here: `epoch`. The audit's sketch carried the max lock-epoch;
+// G6 removed it — an inflated max is a LOCKOUT, which is not a fail-safe
+// direction. Nothing security-authoritative may ride a digest.
+//   by     — the AUTHOR. Production signs a digest (S4), so an echo names who
+//            wrote the report it folded; the sim carries the id to model that.
+//            Without it a tick stamp is ambiguous across a cell handover (my
+//            cell's PREVIOUS occupant published at the same tick I did, and its
+//            report read as a forged echo of mine).
+struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1; uint8_t part=0; };
+struct DigE { uint64_t k; Dig d; };
 struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
 struct Msg {
   MT t; int to=-1;
@@ -28,6 +53,14 @@ struct Msg {
   Coord coord{0,0,0},hole{0,0,0},target{0,0,0};
   bool kids=false;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
+  // § G digest payloads. dgUp rides PHONE (what I contribute to my aggregator);
+  // dgPub + dgRoot ride PONG (what I publish back to you — the G4 checker's
+  // input — and the room fold flooding down); digs rides S1SYNC (the C^2
+  // Section-1 table, so the rook's diameter-2 fold completes in two beats).
+  // dgEcho: G4 — the report the ponger says it FOLDED FROM YOU. The author holds
+  // the ground truth for exactly this value, which is what makes the refutation
+  // exact instead of a heuristic on its own history.
+  Dig dgUp,dgPub,dgEcho,dgRoot; vector<DigE> digs;
   // ---- mesh routing (Option A) ----------------------------------------------
   // A frame with routing=true travels hop-by-hop over LINKS (nextHopToward)
   // until it reaches rdst. If rfinal>=0, the occupant of rdst hands it to rfinal
@@ -43,6 +76,18 @@ static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
 static long long COMPACT_PROBES=0, COMPACT_MOVES=0, COMPACT_ADMITS=0, COMPACT_PLACES=0, COMPACT_ATS1=0, COMPACT_SWEEP=0;   // Q2 diagnostics
 static bool HEALING=true;
 static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
+// V1 ROLLUP (healing-laws § G). `digeston 0|1`. The A/B exists to PROVE G1: the
+// rollup adds no frame and no decision, so ON and OFF must produce identical
+// seating trajectories — if they ever diverge, something in the digest actuated.
+static bool DIGEST=true;
+// A fold is fresh only within this window. Every aggregator RE-STAMPS its own
+// fold, so this bounds one hop, not the whole chain (the chain's staleness is
+// O(depth x period) and is a separate, structural bound). Sized at the
+// firstHandLive horizon: a peer I no longer hear first-hand publishes nothing I
+// should still be counting.
+static const long long DIG_TTL=60;
+static long long DIG_MISMATCH=0;   // G4: designated-checker refutations raised, room-wide
+static long long GAUGE_T0=0;       // `digest reset` window base — frames/node/tick is a RATE, so it needs a window
 static const int GREET_PERIOD=800;
 static uint32_t GSEED=20260714;
 static uint32_t SEED0=20260714;   // the seed a run STARTS from; `seed N` sets it, initSim restores GSEED to it (reproducible sweeps)
@@ -219,6 +264,32 @@ struct Seat {
   int lastReach=-1;   // R6: last tick I REACHED a greeter (a HOME roster came back). Stranding requires having reached NONE for a full TTL — a busy room where I keep getting NOROOM is not "stranded".
   int strandedAt=0;   // R6: when I gave up. Stranding is RECOVERABLE — after a backoff I re-knock (the client's manual retry); if a greeter is now reachable I seat. Only a genuinely-cut-off seat stays stranded across retries.
   bool auditPend=false; bool evil=false;
+  // ---- V1 ROLLUP DIGEST state (healing-laws § G) ----------------------------
+  // All of it is DISPLAY state (G1): nothing below is read by any admission,
+  // heal, routing, liveness or E2 predicate. That is enforced by the ON/OFF
+  // trajectory-identity leg of repro-digest.sh, not by good intentions.
+  bool refuses=false;      // MY OWN first-hand consent state (has NOT consented). Local, never derived from a digest.
+  int  lie=0;              // adversary knob: 1 = publish refuse=0/part=0 (SUPPRESS — the one dangerous direction), 2 = inflate n
+  Dig  myDig, rowDig, rootDig;              // my subtree fold / my row fold (deep heads) / the room fold
+  Dig  downDig;                             // the ROW digest my down-child head published up to me (my whole owned child row)
+  unordered_map<uint64_t,Dig> rowKids;      // head only: each row-mate's subtree digest   (<= C-1)
+  unordered_map<uint64_t,Dig> s1tab;        // Section 1 only: per-S1-cell subtree digests (<= C^2)
+  // G4 the AUTHOR'S REFUTATION: a ring of every report I published upward,
+  // keyed by its own stamp. My aggregator must ECHO the report it folded; this
+  // ring is the ground truth that echo is checked against. (A sliding-minimum
+  // window was tried first and cannot work — see upRefuted's comment.)
+  struct UpRec{ int at=-1,n=0,refuse=0; };
+  UpRec upLog[16]; int upLogI=0; long long upSince=-1; int lastAgg=-1, emptyEcho=0;   // upSince: first publish since my last seat change (grace window for a fresh aggregator)
+  Dig  downUsed; unordered_map<uint64_t,Dig> rowUsed;   // G4: the reports I actually FOLDED this period (echoed back to their authors) — NOT what I currently hold
+  long long digMismatch=0;                  // refutations I have raised (mine only — no votes, G4)
+  int digArm=0;   // G4 diagnostic: which refutation arm last fired (1 echo fidelity, 2 fold monotonicity, 3 omission)
+  int digGap=0;                             // WHICH scope member I had to fail-closed on this fold: 1=my child row, 2=a row-mate, 4=a Section-1 cell (diagnostic; the `digest` verb names them)
+  long long framesIn=0, framesIn0=0;        // GAUGE: frames delivered to me (all types); framesIn0 = window base
+  void rollup();                            // fold my scopes — once per pulse period, O(C) work, N never appears
+  bool scopeGap(uint64_t k);                // G3: is this scope member a PERSON I have lost (=> blur), or a stale occ echo (=> never)?
+  Dig  pubDig(const Dig& d);                // what I publish (identity unless `lie`)
+  void noteUp(const Dig& d);                              // remember what I published upward (G4 ground truth)
+  bool upRefuted(const Dig& pub,const Dig& echo,int base);// G4: does this published fold + its echo contradict what I actually sent?
   // ---- T: atomic seat switching (mover's lease) ----
   bool moving=false; int moveAt=-1;           // transit: NEW seat taken, OLD not yet vacated (dual-hold)
   Coord oldCoord{0,0,0}; uint64_t oldCk=0;    // the still-held old seat
@@ -967,6 +1038,66 @@ int main(int argc,char**argv){
       printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    // ---- V1 ROLLUP DIGEST verbs (healing-laws § G) --------------------------
+    else if(op=="digeston"){ DIGEST=(tk.size()<2)||(tk[1]!="0"); printf("OK digest=%d\n",(int)DIGEST); }
+    // refuse <id|all|frac F> [0|1] — set a participant's OWN first-hand consent
+    // state. G1: this is local truth, the only place a refusal is ever born.
+    else if(op=="refuse"){
+      string who=tk.size()>1?tk[1]:"all"; int val=tk.size()>2?atoi(tk[2].c_str()):1; long long n=0;
+      if(who=="all"){ for(int q=0;q<nextId;q++) if(alive[q]){ seats[q]->refuses=val!=0; n++; } }
+      else if(who=="frac"){ double f=tk.size()>2?atof(tk[2].c_str()):0.1; val=1;
+        for(int q=0;q<nextId;q++) if(alive[q]){ bool r=grnd()<f; seats[q]->refuses=r; if(r)n++; } }
+      else { int q=atoi(who.c_str()); if(q>=0&&q<nextId&&alive[q]){ seats[q]->refuses=val!=0; n=1; } }
+      long long tot=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->refuses) tot++;
+      printf("OK refuse set=%lld trueRefuse=%lld\n",n,tot); }
+    // lie <id|coord> <mode> — the adversary knob. mode 1 = SUPPRESS (publish
+    // refuse=0, part=0: the ONE dangerous direction, G4.2); mode 2 = inflate n
+    // (harmless by G2); 0 = honest.
+    else if(op=="lie"){
+      string who=tk.size()>1?tk[1]:""; int mode=tk.size()>2?atoi(tk[2].c_str()):1; int q=-1;
+      if(who.find('/')!=string::npos){ size_t sl=who.find('/'),dt=who.find('.',sl); string ps=who.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-'0');
+        uint64_t k=ckey({pc,(uint8_t)atoi(who.substr(sl+1,dt-sl-1).c_str()),(uint8_t)atoi(who.substr(dt+1).c_str())});
+        for(int z=0;z<nextId;z++) if(alive[z]&&seats[z]->hasCoord&&ckey(seats[z]->coord)==k){q=z;break;} }
+      else q=atoi(who.c_str());
+      if(q<0||q>=nextId||!alive[q]) printf("ERR lie: no such live seat %s\n",who.c_str());
+      else { seats[q]->lie=mode; printf("OK lie seat=%d coord=%s mode=%d\n",q,seats[q]->hasCoord?coordStr(seats[q]->coord).c_str():"-",mode); } }
+    // digest [reset] — the § G gauge. Two lines:
+    //   DIGEST   — does the fold TELL THE TRUTH: root n/refuse vs ground truth,
+    //              spread across observers, partiality, checker refutations.
+    //   DIGGAUGE — does it COST O(C): frames per node per tick and peak per-node
+    //              digest state, both of which must be flat in N. This is the V1
+    //              law's actual subject; a number that grows with N is the flood.
+    else if(op=="digest"){
+      if(tk.size()>1 && tk[1]=="reset"){ for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->framesIn0=seats[q]->framesIn; GAUGE_T0=TICK; DIG_MISMATCH=0; for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->digMismatch=0; printf("OK digest gauge reset at tick=%lld\n",TICK); continue; }
+      long long trueSeated=0,trueRefuse=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ trueSeated++; if(seats[q]->refuses) trueRefuse++; }
+      int rmin=1<<30,rmax=-1,fmin=1<<30,fmax=-1,exact=0,obs=0,part=0,stale=0;
+      long long mism=0; int freeMin=1<<30,freeMax=-1;
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; Seat*s=seats[q]; mism+=s->digMismatch;
+        if(s->rootDig.at<0){ stale++; continue; }
+        obs++; int rn=s->rootDig.n, rf=s->rootDig.refuse;
+        if(rn<rmin)rmin=rn; if(rn>rmax)rmax=rn; if(rf<fmin)fmin=rf; if(rf>fmax)fmax=rf;
+        if(s->rootDig.freeC<freeMin)freeMin=s->rootDig.freeC; if(s->rootDig.freeC>freeMax)freeMax=s->rootDig.freeC;
+        if(rn==trueSeated) exact++; if(s->rootDig.part) part++; }
+      printf("DIGEST on=%d true=%lld trueRefuse=%lld obs=%d noroot=%d rootMin=%d rootMax=%d rootExact=%d refuseMin=%d refuseMax=%d partial=%d freeMin=%d freeMax=%d mismatch=%lld\n",
+        (int)DIGEST,trueSeated,trueRefuse,obs,stale,obs?rmin:-1,rmax,exact,obs?fmin:-1,fmax,part,obs?freeMin:-1,freeMax,mism);
+      // WHO fail-closed, and on WHICH scope member (G3 diagnostic — a settled
+      // room should have NO gaps; a gap that never clears is a stale occ entry
+      // for a cell nobody occupies, which is a mesh fact, not a digest fact).
+      { int g1=0,g2=0,g4=0; string ex;
+        for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3||!seats[q]->digGap) continue; Seat*s=seats[q];
+          if(s->digGap&1)g1++; if(s->digGap&2)g2++; if(s->digGap&4)g4++;
+          if((int)ex.size()<220){ char b[128]; snprintf(b,128,"%s[%s%s%s] ",coordStr(s->coord).c_str(),(s->digGap&1)?"child":"",(s->digGap&2)?"row":"",(s->digGap&4)?"s1":""); ex+=b; } }
+        printf("DIGGAP childRow=%d rowMate=%d s1cell=%d  %s\n",g1,g2,g4,ex.c_str()); }
+      // --- the O(C) gauges ---
+      long long win=max(1LL,TICK-GAUGE_T0); vector<double> fr; double fmx=0; int fmxId=-1;
+      int dmax=0,dmaxId=-1; vector<int> ds; size_t occMax=0;
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; Seat*s=seats[q];
+        double f=(double)(s->framesIn-s->framesIn0)/(double)win; fr.push_back(f); if(f>fmx){fmx=f;fmxId=q;}
+        int d=(int)(s->rowKids.size()+s->s1tab.size())+3; ds.push_back(d); if(d>dmax){dmax=d;dmaxId=q;}
+        if(s->occ.size()>occMax) occMax=s->occ.size(); }
+      sort(fr.begin(),fr.end()); sort(ds.begin(),ds.end());
+      printf("DIGGAUGE win=%lld nodes=%zu framesPerTick_max=%.4f framesPerTick_p50=%.4f framesPerTick_maxAt=%d digState_max=%d digState_p50=%d digState_maxAt=%d occ_max=%zu C=%d bound=%d\n",
+        win,fr.size(),fmx,fr.empty()?0.0:fr[fr.size()/2],fmxId,dmax,ds.empty()?0:ds[ds.size()/2],dmaxId,occMax,C,C*C+2*C+4); }
     else if(op=="compact"){   // Q2 diagnostic: tree-depth & lone-row fragmentation. depth(pc)=path length.
       auto depthOf=[](uint32_t pc){ int d=0; while(pc){ pc=parentPath(pc); d++; } return d; };
       // per-section: which rows are occupied, and how many seats
