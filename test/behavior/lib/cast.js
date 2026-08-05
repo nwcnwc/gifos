@@ -24,12 +24,22 @@
  * Role spec: profile phone|desktop, battery "<lvl>[,charging|drain]",
  * video <n> (talking-head clip), cam (solid swatch; DEFAULT unless observe),
  * observe (camera off), pass, adminPw (create/enter an admin room as admin),
- * name (display name; default = capitalized role key).
+ * name (display name; default = capitalized role key),
+ * engine chromium|webkit|firefox (default chromium; see "OTHER ENGINES" below).
  *
  * Scenario opts (4th arg): relayDev true = REQUIRES the real relay under
  * wrangler dev (test/servers/relay-dev.sh, :8794) — SKIPs (exit 0, loud) if
  * absent; 'opportunistic' = use it if up, else the default relay.
  * timeoutMin (default 15) = hard watchdog.
+ *
+ * OTHER ENGINES: a role may set `engine: 'firefox'` (or 'webkit'), and
+ * BEHAVIOR_ENGINE forces every unpinned role onto one engine. Measured facts
+ * per engine live in test/README § "Other ENGINES" — the short version:
+ * firefox is a FULL participant (VP8 only, so a firefox↔chromium call
+ * negotiates VP8, and playwright throws on isMobile so the phone profile drops
+ * that one property); webkit joins but cannot PAINT a remote tile and dies on
+ * an app share, so it may never be the observer of video liveness. In FLEET
+ * mode a host only takes engines it declares (hosts-file `engines`).
  *
  * Env: BEHAVIOR_BASE / BEHAVIOR_RELAY redirect the stack (defaults
  * http://127.0.0.1:8099 + ws://127.0.0.1:8790, auto-spawned if idle);
@@ -54,9 +64,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 //     "hosts": [ { "name": "local", "weight": 1 },
 //                { "name": "big", "ssh": "bighost", "dir": "/home/u/gifos",
 //                  "node": "/path/to/node22", "chrome": "/path/chrome",
+//                  "firefox": "/path/firefox", "webkit": "/path/pw_run.sh",
+//                  "engines": ["chromium","firefox"],
 //                  "nodePath": "/extra/node_modules", "weight": 3 } ] }
 // Remote hosts need: the dir (test/swarm/meet.js is PUSHED there fresh at
 // cast.up), playwright resolvable (nodePath if staged elsewhere), a browser.
+// `engines` (optional) lists what that box can actually launch — a role asking
+// for an engine the box lacks is placed on one that has it, instead of dying
+// with "Executable doesn't exist" after the harness said it was ready.
 // Absent file = everything local (the default).
 const HOSTS_FILE = process.env.BEHAVIOR_HOSTS || path.join(process.env.HOME || '/root', '.gifos-behavior-hosts.json');
 let FLEET = null;
@@ -109,6 +124,9 @@ class Actor {
     this.av = null; this.alive = false; this.joined = false;
     this._q = Promise.resolve();
   }
+  // BEHAVIOR_ENGINE forces every unpinned role onto one engine (a sweep lever:
+  // run the same scenario all-firefox). A role's own `engine` always wins.
+  engine() { return String(this.spec.engine || process.env.BEHAVIOR_ENGINE || 'chromium').toLowerCase(); }
   spawnChild() {
     const h = this.host || { name: 'local' };
     const a = ['--drive', '--name', this.name, '--profile', this.spec.profile || 'desktop',
@@ -121,10 +139,16 @@ class Actor {
     if (this.spec.ensurePass) a.push('--ensure-pass', this.spec.ensurePass);
     if (this.spec.seedDesktop) a.push('--seed-desktop');
     if (this.spec.meshC) a.push('--mesh-c', String(this.spec.meshC));
+    // ENGINE: chromium (default) | firefox | webkit. meet.js owns every engine
+    // difference (bare launch, BB_ACTOR env marker, permission vocabulary,
+    // isMobile, the firefox securecontext-allowlist hatch) — this is only the
+    // pass-through. See "OTHER ENGINES" in test/README before wiring a role.
+    const engine = this.engine();
+    if (engine !== 'chromium') a.push('--engine', engine);
     if (HEADFUL && !h.ssh) a.push('--headful');
     if (!h.ssh) {
       const env = Object.assign({}, process.env,
-        CHROME ? { MEET_CHROME: CHROME } : {},
+        CHROME && engine === 'chromium' ? { MEET_CHROME: CHROME } : {},
         INSECURE_ORIGINS ? { MEET_INSECURE_ORIGINS: INSECURE_ORIGINS } : {});
       this.child = spawn(process.execPath, [MEET].concat(a), { env, stdio: ['pipe', 'pipe', 'pipe'] });
     } else {
@@ -132,7 +156,9 @@ class Actor {
       // inline; meet.js was pushed fresh to h.dir by cast.up().
       const envParts = [];
       if (INSECURE_ORIGINS) envParts.push('MEET_INSECURE_ORIGINS=' + shq(INSECURE_ORIGINS));
-      if (h.chrome) envParts.push('MEET_CHROME=' + shq(h.chrome));
+      if (h.chrome && engine === 'chromium') envParts.push('MEET_CHROME=' + shq(h.chrome));
+      if (h.firefox && engine === 'firefox') envParts.push('MEET_FIREFOX=' + shq(h.firefox));
+      if (h.webkit && engine === 'webkit') envParts.push('MEET_WEBKIT=' + shq(h.webkit));
       if (h.nodePath) envParts.push('NODE_PATH=' + shq(h.nodePath));
       // actors run the PUSHED .bb-meet.js — never the repo's own meet.js,
       // which other services on that box (e.g. a resident monitor) may run
@@ -237,9 +263,21 @@ class Cast {
       .flatMap((h) => Array.from({ length: h.weight || 1 }, (_, i) => ({ h, pos: (i + 1) / (h.weight || 1) })))
       .sort((a, b) => a.pos - b.pos).map((x) => x.h);
     let ci = 0;
+    // A host that declares `engines` only takes roles it can actually launch;
+    // a host that declares none is assumed chromium-only EXCEPT for `local`
+    // (the orchestrator, whose engines cast.js cannot enumerate). Placement
+    // still round-robins — the engine filter only skips hosts that would die.
+    const canRun = (h, eng) => eng === 'chromium'
+      ? !(h.engines && !h.engines.includes('chromium'))
+      : (h.engines ? h.engines.includes(eng) : !h.ssh);
     for (const a of this.all()) {
-      a.host = a.spec.host ? hosts.find((h) => h.name === a.spec.host) || cycle[ci++ % cycle.length]
-        : cycle[ci++ % cycle.length];
+      const eng = a.engine();
+      if (a.spec.host) { a.host = hosts.find((h) => h.name === a.spec.host); if (a.host) continue; }
+      let picked = null;
+      for (let k = 0; k < cycle.length; k++) { const h = cycle[(ci + k) % cycle.length]; if (canRun(h, eng)) { picked = h; ci += k + 1; break; } }
+      if (!picked) throw new Error('no fleet host can run engine "' + eng + '" for role ' + a.role
+        + ' — add "engines" to a host in the hosts file, or install it there');
+      a.host = picked;
     }
     this.children = []; // spawned stack servers
     this.relay = DEFAULT_RELAY;
@@ -315,7 +353,9 @@ class Cast {
     await this.syncFleet();
     for (const a of this.all()) a.spawnChild();
     await Promise.all(this.all().map((a) => a._ready));
-    this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop') + '@' + (a.host && a.host.name || 'local') + ')').join(', ') + '  room=' + this.room + '  relay=' + this.relay);
+    this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop')
+      + (a.engine() === 'chromium' ? '' : '/' + a.engine()) + '@' + (a.host && a.host.name || 'local') + ')').join(', ')
+      + '  room=' + this.room + '  relay=' + this.relay);
   }
 
   // join everyone; roles = subset (default all), av auto-shared from the
@@ -483,6 +523,29 @@ class Check {
   }
 }
 
+// ------------------------------------------------------- engine presence ----
+// A missing BROWSER is an environment fact, not a product failure — the same
+// doctrine the [relay-dev] scenarios already follow. needEngines() SKIPs
+// loudly (exit 0, one 'SKIP:' line the battery reports) instead of letting a
+// box without firefox report "actor exited 1" as a mesh regression.
+function engineAvailable(engine) {
+  if (engine === 'chromium') return true;
+  if (FLEET && FLEET.hosts && FLEET.hosts.some((h) => (h.engines || []).includes(engine))) return true;
+  let pw = null;
+  for (const m of ['/opt/node22/lib/node_modules/playwright', 'playwright', 'playwright-core']) {
+    try { pw = require(m); if (pw && pw[engine]) break; } catch (e) {}
+  }
+  try { const p = pw && pw[engine] && pw[engine].executablePath(); return !!p && fs.existsSync(p); } catch (e) { return false; }
+}
+function needEngines() {
+  const missing = [...arguments].filter((e) => !engineAvailable(e));
+  if (missing.length) {
+    console.log('SKIP: browser engine not installed here: ' + missing.join(', ')
+      + ' — `npx playwright install ' + missing.join(' ') + '` (or declare a fleet host with "engines")');
+    process.exit(0);
+  }
+}
+
 // -------------------------------------------------------------- scenario ----
 function scenario(name, spec, fn, opts) {
   opts = opts || {};
@@ -510,4 +573,4 @@ function scenario(name, spec, fn, opts) {
   })().catch((e) => { console.error('FATAL ' + (e && e.stack || e)); process.exit(1); });
 }
 
-module.exports = { scenario, Cast, Check, sleep, BASE };
+module.exports = { scenario, Cast, Check, sleep, BASE, needEngines, engineAvailable };

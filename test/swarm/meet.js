@@ -211,9 +211,14 @@ const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
 //     instead carries BB_ACTOR=1 in the browser process ENVIRONMENT, which is
 //     engine-neutral and inherited by every child process, so fleet reaping is
 //       for p in /proc/[0-9]*; do grep -qz BB_ACTOR=1 "$p/environ" 2>/dev/null && kill "${p##*/}"; done
-//   - --unsafely-treat-insecure-origin-as-secure has no equivalent: a
-//     webkit/firefox actor pointed at a plain-http NON-localhost harness is
-//     not a secure context and gUM/WebRTC will not run. Say so, loudly.
+//   - --unsafely-treat-insecure-origin-as-secure: FIREFOX HAS AN EQUIVALENT
+//     (measured 2026-08-05, correcting the first cut of this comment) — the
+//     `dom.securecontext.allowlist` pref takes a comma-separated HOST list
+//     (hosts, NOT origins: no scheme, no port) and is set through playwright's
+//     firefoxUserPrefs. Off: isSecureContext false, crypto.subtle undefined,
+//     no navigator.mediaDevices. On: all three, and Ed25519 generateKey works
+//     — i.e. a firefox actor CAN take part in a cross-box fleet run over plain
+//     http. WEBKIT still has no equivalent, so it gets the loud warning.
 let pwmod = null;
 for (const m of ['/opt/node22/lib/node_modules/playwright', 'playwright', 'playwright-core']) {
   try { pwmod = require(m); if (pwmod && pwmod.chromium) break; } catch (e) {}
@@ -545,12 +550,23 @@ function launchEnv() {
 async function ensureBrowser() {
   if (browser) return;
   if (!IS_CR) {
-    if (process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS) {
-      console.error('[meet] WARNING: --engine ' + ENGINE + ' has no insecure-origin escape hatch (that is a chromium switch). '
+    const insecure = process.env.MEET_INSECURE_ORIGINS || process.env.SWARM_INSECURE_ORIGINS || '';
+    let ffPrefs = null;
+    if (insecure && ENGINE === 'firefox') {
+      // Gecko's escape hatch: a HOST allowlist (no scheme, no port). The two
+      // media prefs are belt-and-braces — the allowlist alone already restores
+      // navigator.mediaDevices, but an older Gecko wants them.
+      const hosts = insecure.split(',').map((o) => { try { return new URL(o.trim()).hostname; } catch (e) { return o.trim().replace(/^\w+:\/\//, '').split(':')[0]; } })
+        .filter(Boolean).join(',');
+      ffPrefs = { 'dom.securecontext.allowlist': hosts, 'media.devices.insecure.enabled': true, 'media.getusermedia.insecure.enabled': true };
+      console.error('[meet] firefox: dom.securecontext.allowlist=' + hosts + ' (plain-http origin treated as secure)');
+    } else if (insecure) {
+      console.error('[meet] WARNING: --engine ' + ENGINE + ' has no insecure-origin escape hatch (chromium has a switch, firefox has a pref, webkit has neither). '
         + 'A plain-http non-localhost base is NOT a secure context here — gUM and WebRTC will not run.');
     }
     browser = await launcher.launch(Object.assign({ headless: !cfg.headful },
       ENGINE_EXE ? { executablePath: ENGINE_EXE } : {},
+      ffPrefs ? { firefoxUserPrefs: ffPrefs } : {},
       launchEnv() ? { env: launchEnv() } : {}));
     browser.on('disconnected', () => {
       if (MODE === 'drive' || intentionalKill) return;
