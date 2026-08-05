@@ -188,6 +188,8 @@ const cfg = {
   // it automatically — a headless client parked at the modal is
   // indistinguishable from a dead door (the 2026-07-26 monitor wedge).
   forkAuto: !args['fork-ask'],
+  // --init-script <file>: extra addInitScript, injected last (see join()).
+  initScript: args['init-script'] || '',
 };
 const MODE = args.drive ? 'drive' : args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
@@ -625,6 +627,13 @@ async function join(room, opts) {
   await ctx.addInitScript({ content: radioInitScript() });
   await ctx.addInitScript({ content: camInitScript() });
   if (cfg.meshC) await ctx.addInitScript({ content: 'window.GIFOS_SCALE = Object.assign(window.GIFOS_SCALE || {}, { C: ' + cfg.meshC + ' });' });
+  // --init-script <file>: one extra page-init script, injected LAST (after the
+  // cam/battery/radio shims, before any page code runs). The reason it exists:
+  // measuring an engine sometimes needs a hook the page does not export —
+  // per-peer getStats, for instance, needs the RTCPeerConnection objects, and
+  // run.html keeps them in a closure. `eval` runs too late to wrap a
+  // constructor. One file, any engine, no fork of the tool.
+  if (cfg.initScript) await ctx.addInitScript({ content: fs.readFileSync(cfg.initScript, 'utf8') });
   if (cfg.adminPw && !cfg.av) {
     // derive the admin verifier in a bootstrap page of THIS context, so the
     // signed-in key stash lands in the localStorage the room page will read
