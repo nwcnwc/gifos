@@ -419,6 +419,18 @@ Local-swarm gotchas:
   works under another, CHECK THE CODEC before anything else: one missing
   decoder produced a night-long cross-box "flake" (behavior 24a) that was
   really deterministic per-build.
+- **A box with no playwright chromium falls through to real Chrome — and
+  headless real-Chrome 137 stalls the DESKTOP boot on plain-http origins**
+  (2026-08-05, measured): pw.js's search walks /opt/pw-browsers and
+  ~/.cache/ms-playwright, and on a box where those chromium dirs are empty
+  shells it lands on /opt/google/chrome. Under that binary, headless, the
+  desktop's load()→seed chain never completes on http://127.0.0.1 — e2e.js
+  reads ZERO icons and times out on `.icon` (looks exactly like a seeder
+  regression). Discriminators before believing such a red: the same tree via
+  playwright-firefox paints all 12 icons; the same Chrome against the https
+  production origin paints all 12; the frozen last-release snapshot fails
+  identically. If all three hold, it is the box's browser resolution, not the
+  tree — install a real playwright chromium or pin MEET_CHROME.
 - Pointing bots at a relay on another box (tailnet/LAN, plain HTTP, no cert)
   needs `SWARM_INSECURE_ORIGINS=<origin>` so the page still counts as a secure
   context for getUserMedia/WebRTC. Chromium's local-network-access checks are
