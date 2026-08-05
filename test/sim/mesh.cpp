@@ -257,6 +257,14 @@ struct Seat {
   // NOT first-hand live, so it can never yield a live healer out of a hole. This
   // is the echo-immune fix — gossip informs routing, never liveness.
   inline bool firstHandLive(uint64_t ck){ auto it=live.find(ck); return it!=live.end() && TICK-it->second<=60; }
+  // V4: MONOTONE first-hand-ever — the falsifiable-ghost predicate for the
+  // devolution narrowing. `live` entries are erased by attributed clears
+  // (LEAVE/MOVED), which speak to CURRENT liveness only; "have I ever heard
+  // this cell first-hand" must survive them (atomic-move leg A: the mover's
+  // graceful LEAVE erased live[/0.0] and the sole survivor could no longer
+  // devolve admission for its own row).
+  unordered_set<uint64_t> fhEver;
+  inline void liveMark(uint64_t k){ live[k]=(int)TICK; fhEver.insert(k); }
   // HELD RIGHT NOW — a much tighter read of the same evidence, for the one
   // question a MOVER must answer before taking a chair: is someone sitting in
   // it at this instant? The D1 rook heartbeat is every 8 ticks, so a reachable
@@ -345,7 +353,7 @@ struct Seat {
     bool xfer=false; { auto it=sitting.find(k);
       xfer = it!=sitting.end() && it->second.assigner==id && it->second.joiner==joiner
              && (k>>16)==0 && (k&0xff)==0; }
-    clearSoft(k,"confirm"); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
+    clearSoft(k,"confirm"); setOcc(k,joiner); liveMark(k); noteS1(k);
     if(xfer){
       Msg m; m.t=SITXFER; m.ck=k; m.id=joiner;
       uint8_t r=(uint8_t)((k>>8)&0xff);
