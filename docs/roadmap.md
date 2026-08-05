@@ -1851,3 +1851,97 @@ fanning the bytes is the same trick applied to one producer. If 9a proves slow t
 land, this is the sliver worth extracting first, because compositor duty already
 falls on whichever seat holds the coordinate — including a phone (§3/G2's
 "compositor duty on phones", still open).
+
+## 10. Optical app transfer — pass a GifOS app phone-to-phone with NO network (flashing QR)
+
+**What.** Hand a GifOS app from one device to another **over the air gap**: the
+sending phone displays a stream of **rapidly-flashing QR codes** and the
+receiving phone's **camera reads them**, reconstructing the App GIF byte-for-byte
+with **no network, no relay, no link, no pairing** — just screen-to-camera. The
+sender picks an app off its Home Screen, taps **Beam**, and holds the two phones
+facing each other; a live HUD shows lock, decode rate, and progress until the
+whole GIF lands and the app drops onto the receiver's desktop. Inspiration is the
+"airgapped file transfer" fountain-QR POCs (a dense QR video streams a file at
+~100–150 KB/s between two phones that share no network) — the same trick, scoped
+to GifOS's native unit of exchange: the **App GIF**.
+
+**Why it fits.**
+- **It is the purest possible expression of the two non-negotiables.** No
+  accounts and no server that sees plaintext — here there is *no server and no
+  network at all*. The bytes never leave the two devices; the "relay" is a beam of
+  light across a few inches of air. Nothing to eavesdrop, nothing to log, nothing
+  to derive — R2 taken to its limit.
+- **Apps are already files.** An App GIF is a self-contained file (that is the
+  whole "apps are GIFs" premise, and why Steal App / remix works). Transferring a
+  file is the natural primitive, and GifOS already has everything to *produce* the
+  bytes (desktop file store) and *ingest* them (the same import path a downloaded
+  or AirDropped GIF takes). Optical transfer is a new **transport** under an
+  existing model, not a new object.
+- **On-brand and demoable.** It is visceral in exactly the way GifOS likes — two
+  phones, a shimmer of QR, an app appears — and it works on a plane, in a SCIF, at
+  a table with no Wi-Fi, across two phones on hostile networks that can't route to
+  each other. "Pass me that app" becomes a physical gesture.
+- **Complements, doesn't replace, the link path.** Sharing via `/join/<code>` (a
+  secret capability link) stays the default for remote and multiplayer. Optical
+  transfer is the **in-person, zero-infrastructure** cousin: not a session you
+  join, a **copy of the file** you now own and can run, remix, or re-share.
+
+**Sketch.**
+- **Payload = the App GIF bytes, chunked + fountain-coded.** Split the file into
+  fixed-size source blocks and emit an **endless stream of fountain-coded frames**
+  (LT / RaptorQ-style rateless code) so the receiver never needs a specific frame,
+  only *enough* frames — no back-channel, no retransmit requests, robust to
+  dropped/blurred frames and to the two phones running at different frame rates.
+  Each frame is one QR: `{ session, k, degree, xor-of-blocks, crc }`.
+- **Sender UI (`site/…`):** a full-screen QR presenter that cycles frames at a
+  device-appropriate rate (cap by the receiver's decode feedback if a return
+  channel exists; otherwise a safe fixed cadence). Header line names the app +
+  total size; a progress bar tracks frames emitted. Reuse desktop file access to
+  read the selected GIF.
+- **Receiver UI:** camera capture → QR decode loop (WASM/`BarcodeDetector` where
+  available) → fountain **decoder** accumulating blocks until the file is whole,
+  then verify a **content hash** and drop the GIF through the **normal import
+  path** (same as a downloaded App GIF — so signature/`-anon` handling, Home
+  Screen placement, and the identity pill all come for free). HUD mirrors the POC:
+  capture FPS, decode FPS, lock, dropped, goodput, elapsed, % complete.
+- **Integrity + identity, not secrecy.** The channel is already private (it's
+  light between two phones the users are holding), so the crypto job is
+  **authenticity/integrity, not confidentiality**: verify the reconstructed bytes
+  against a hash carried in the frames, and preserve any **maker signature** baked
+  into the GIF so a beamed signed app still shows its identity pill and an unsigned
+  one still lands as `-anon`. No new key system — inherit the app-signature
+  doctrine wholesale.
+- **Direction + optional duplex.** v1 is one-way (display → camera). If both
+  phones show and watch, a slow **back-channel** (receiver flashes acks/decode
+  progress) lets the sender pace or stop early once the decoder signals "done" —
+  optional, since fountain coding already tolerates a pure blind stream.
+- **Where it lives:** a small self-contained transfer surface reachable from the
+  Home Screen (**Beam this app** on a GIF's menu; **Receive an app** action that
+  opens the camera). Pure client — no relay code, no Worker, nothing in
+  `relay/src`. Fits the "runtime is the client" posture.
+
+**Open questions.**
+- **Throughput vs. app size.** Fountain-QR field rates are ~100–150 KB/s; a
+  lightweight App GIF beams in seconds but a multi-MB app is a minute-plus of
+  holding phones still. Decide a **soft size ceiling** for the optical path (and a
+  clear "this is a big one, ~90s" affordance), and whether to **pre-compress** the
+  GIF payload before coding.
+- **Decoder availability.** `BarcodeDetector` support is uneven; a WASM QR decoder
+  (ZXing/quirc) is the portable floor. Frame density (QR version / ECC level) vs.
+  camera resolution and hold-steadiness is a tuning problem — expose the same
+  live HUD the POC uses so it's debuggable in the field, and pick conservative
+  defaults (lower density, higher ECC) over peak goodput.
+- **Return-channel or purely blind?** Blind (no ack) is simplest and needs only
+  one camera; duplex pacing is faster and can end early but needs both phones
+  presenting and watching. Likely ship blind v1, add opt-in duplex later.
+- **Trust on receipt.** Beaming bypasses the store's curation entirely — a signed
+  app keeps its pill, but an `-anon` app arrives with only its bytes. Same
+  posture as any sideloaded GIF (import already sandboxes + shows provenance), but
+  worth stating in the receive UI: "you're installing an app handed to you
+  in person; it's unsigned."
+- **Multi-file / desktop beam?** Scope v1 to **one App GIF**. A later
+  generalization (beam a themed desktop, a pack of apps, or any GifOS file) is the
+  same transport over a larger payload — note it, don't build it yet.
+- **Relation to §6/§7.** This is a **transport**, orthogonal to the store
+  (§6, catalog + download) and the ONE-runtime unification (§7, sessions). It
+  neither needs nor blocks them; it can ship as a standalone client feature.
