@@ -151,7 +151,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 (function () {
   var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
 
-  fetch('browser-support.json', { cache: 'no-cache' })
+  // ABSOLUTE on purpose. A frozen /versions/<x.y.z>/ snapshot injects
+  // <base href="/versions/<v>/">, so a relative fetch would read a copy frozen
+  // on cut day — and this file's whole value is being current: a "we have not
+  // checked" that later becomes a real version number must reach a pinned
+  // computer too. Same reasoning archive-version.sh already applies to the App
+  // Store catalog.
+  fetch('/browser-support.json', { cache: 'no-cache' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(render)
     .catch(function () {

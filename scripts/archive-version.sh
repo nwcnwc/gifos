@@ -50,7 +50,12 @@ mkdir -p "$DEST"
 # mkdir had already left a half-built versions/<V>/ behind. Hence the accounting
 # check below.)
 REQUIRED=(index.html run.html meet.html boot.html)
-OPTIONAL=(sign.html about.html store.html)
+OPTIONAL=(sign.html about.html store.html browser-support.html)
+# browser-support.html reads /browser-support.json with an ABSOLUTE path, so a
+# frozen build shows the CURRENT matrix rather than the one that happened to be
+# true on cut day — same reasoning as site/apps/ below, and the right answer
+# here too: an "we have not checked" that later becomes a real version number
+# should reach a pinned computer, not be frozen as ignorance forever.
 # NOT snapshotted: 404.html is Pages' root error page — it is never served from
 # under /versions/, and a copy would just collect a meaningless <base> stamp.
 NOT_SNAPSHOT=(404.html)
