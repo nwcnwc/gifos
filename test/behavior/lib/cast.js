@@ -124,9 +124,22 @@ class Actor {
     this.av = null; this.alive = false; this.joined = false;
     this._q = Promise.resolve();
   }
-  // BEHAVIOR_ENGINE forces every unpinned role onto one engine (a sweep lever:
-  // run the same scenario all-firefox). A role's own `engine` always wins.
-  engine() { return String(this.spec.engine || process.env.BEHAVIOR_ENGINE || 'chromium').toLowerCase(); }
+  // BEHAVIOR_ENGINE re-engines a scenario WITHOUT editing it — the lever that
+  // lets any of the 60 existing scenarios be asked the cross-engine question:
+  //   BEHAVIOR_ENGINE=firefox        every unpinned role (an all-firefox room)
+  //   BEHAVIOR_ENGINE=maya=firefox   just that role (one non-chromium viewer)
+  // A role's own `engine:` in the spec always wins.
+  engine() {
+    if (this.spec.engine) return String(this.spec.engine).toLowerCase();
+    const e = String(process.env.BEHAVIOR_ENGINE || '').toLowerCase().trim();
+    if (!e) return 'chromium';
+    if (!e.includes('=')) return e;
+    for (const part of e.split(',')) {
+      const [r, v] = part.split('=');
+      if (r && r.trim() === this.role) return (v || '').trim() || 'chromium';
+    }
+    return 'chromium';
+  }
   spawnChild() {
     const h = this.host || { name: 'local' };
     const a = ['--drive', '--name', this.name, '--profile', this.spec.profile || 'desktop',
@@ -349,6 +362,11 @@ class Cast {
   }
 
   async up() {
+    // Engines placed on THIS box must exist on THIS box. A fleet host was
+    // already filtered by its declared `engines`; local is the one that can
+    // still surprise us (BEHAVIOR_ENGINE re-engines a scenario that never
+    // called needEngines). SKIP loudly rather than spawn a doomed actor.
+    needEngines(...new Set(this.all().filter((a) => !(a.host && a.host.ssh)).map((a) => a.engine())));
     await this.ensureStack();
     await this.syncFleet();
     for (const a of this.all()) a.spawnChild();
