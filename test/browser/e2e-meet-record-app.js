@@ -5,6 +5,10 @@
 // the recorder is warned to restart to capture it. getDisplayMedia is stubbed
 // here (a fake canvas stream) so app-mode recording is deterministic headless.
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
+
+// A SYSTEM launcher navigates instead of mounting — never pick one here.
+const SYS = systemAppIds();
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -33,11 +37,11 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   const desk = await ctx.newPage();
   await desk.goto(BASE + '/index.html');
   await desk.waitForSelector('.icon');
-  const appId = await desk.evaluate(async () => {
+  const appId = await desk.evaluate(async (SYS) => {
     const fs = await window.GifOS.store.allFiles();
-    const app = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
+    const app = fs.find((f) => f.isApp && !SYS.includes(f.appId));
     return app ? app.id : null;
-  });
+  }, SYS);
   check('seeded desktop exposes a runnable app', !!appId);
 
   const m = await ctx.newPage();

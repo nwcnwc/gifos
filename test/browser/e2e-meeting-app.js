@@ -4,6 +4,10 @@
 //  * stopping the app tears the shared pane down for everyone,
 //  * an app tab's "Meeting" toggle lands on the same meeting page with the app.
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
+
+// A SYSTEM launcher navigates instead of mounting — never pick one here.
+const SYS = systemAppIds();
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -35,11 +39,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // legitimately slow on a saturated shared box (measured ~60s at load 40).
   await aDesk.waitForSelector('.icon', { timeout: 90000 });
   // grab a normal (non-system) app fileId from the seeded store
-  const appId = await aDesk.evaluate(async () => {
+  const appId = await aDesk.evaluate(async (SYS) => {
     const fs = await window.GifOS.store.allFiles();
-    const app = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
+    const app = fs.find((f) => f.isApp && !SYS.includes(f.appId));
     return app ? app.id : null;
-  });
+  }, SYS);
   check('seeded desktop exposes a runnable app fileId', !!appId);
 
   const aMeet = await aCtx.newPage();
@@ -104,11 +108,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const dDesk = await dCtx.newPage();
   await dDesk.goto(BASE + '/index.html');
   await dDesk.waitForSelector('.icon', { timeout: 90000 }); // same seed cost as above
-  const dAppId = await dDesk.evaluate(async () => {
+  const dAppId = await dDesk.evaluate(async (SYS) => {
     const fs = await window.GifOS.store.allFiles();
-    const app = fs.find((f) => f.isApp && !['meet', 'video', 'appstore'].includes(f.appId));
+    const app = fs.find((f) => f.isApp && !SYS.includes(f.appId));
     return app ? app.id : null;
-  });
+  }, SYS);
   // ONE RUNTIME: run.html's Meeting toggle died with run.html — #app= is now a
   // direct meeting entry: boot a meeting and auto-host this desktop app in it.
   await dRun.goto(BASE + '/run.html#app=' + dAppId);

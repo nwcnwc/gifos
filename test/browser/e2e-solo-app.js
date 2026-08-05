@@ -7,6 +7,10 @@
 //
 // Needs BASE only (no relay — that's the point).
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
+
+// A SYSTEM launcher navigates instead of mounting — never pick one here.
+const SYS = systemAppIds();
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 let failures = 0;
@@ -33,10 +37,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   d.on('pageerror', (e) => console.log('  [desk] ' + e.message));
   await d.goto(BASE + '/index.html');
   await d.waitForSelector('.icon', { timeout: 30000 });
-  const appId = await d.evaluate(async () => {
-    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && !/^(meet|video)$/.test(x.appId));
+  const appId = await d.evaluate(async (SYS) => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     return f ? f.id : null;
-  });
+  }, SYS);
   check('seeded desktop exposes a runnable app fileId', !!appId);
   if (!appId) { await browser.close(); process.exit(1); }
   await d.close();
