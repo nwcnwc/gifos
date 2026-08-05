@@ -11,9 +11,10 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(getenv("MESH_DUPLOG")){ uint64_t kk=ckey(c);
     for(size_t q=0;q<seats.size();q++) if((int)q!=id&&alive[q]&&seats[q]->hasCoord&&seats[q]->state==3&&ckey(seats[q]->coord)==kk)
       { auto al=ADMIT_LOG.find(kk);
-        fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d) lastAdmit=%s@%lld\n",
+        fprintf(stderr,"DUPMINT t=%lld cell=%u/%d.%d new=%d(placer %d) incumbent=%d(placer %d, seatedAt %d) lastAdmit=%s@%lld by=%d prevAdmit=%s@%lld by=%d\n",
           (long long)TICK,(unsigned)c.pc,(int)c.r,(int)c.i,id,owner,(int)q,seats[q]->myPlacer,seats[q]->seatedAt,
-          al!=ADMIT_LOG.end()?al->second.first:"?",al!=ADMIT_LOG.end()?al->second.second:-1); }
+          al!=ADMIT_LOG.end()?al->second.site:"?",al!=ADMIT_LOG.end()?al->second.t:-1,al!=ADMIT_LOG.end()?al->second.admitter:-1,
+          al!=ADMIT_LOG.end()?al->second.prevSite:"?",al!=ADMIT_LOG.end()?al->second.prevT:-1,al!=ADMIT_LOG.end()?al->second.prevAdmitter:-1); }
   }
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
@@ -54,7 +55,7 @@ void Seat::recheckSitting(){
     SoftSit& s=e.second;
     if(s.assigner!=id) continue;
     // Confirmed seated by first-hand contact with the joiner at this cell.
-    if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ del.push_back(e.first); continue; }
+    if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ sitLog("SIT-",e.first,s.joiner,"recheck-confirmed"); del.push_back(e.first); continue; }
     if(TICK-s.at < SIT_RECHECK) continue;
     // The check-back: never heard from the joiner at this cell — free it.
     // (A PROBE GATE was tried here and REJECTED both ways: freeing late, at
@@ -63,15 +64,17 @@ void Seat::recheckSitting(){
     // re-seeds occ and fans a HELLO, which perturbed partition healing —
     // sweep.sh partition-bad=1, mesh-harness red.)
     if(occGet(e.first)!=s.joiner && !firstHandLive(e.first)){
+      sitLog("SIT-",e.first,s.joiner,"checkback-free");
       del.push_back(e.first); healTry.erase(e.first);
       continue;
     }
     // Soft TTL backstop: mark cannot live forever if recheck is skipped.
     if(TICK-s.at >= SIT_TTL){
+      sitLog("SIT-",e.first,s.joiner,"ttl-backstop");
       del.push_back(e.first);
       // Ghost occ left by an older admit path or partial confirm: clear if not live.
       if(occGet(e.first)==s.joiner && !firstHandLive(e.first)){
-        occ.erase(e.first); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first); healTry.erase(e.first);
+        occDrop(e.first,"sit-ttl-ghost"); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first); healTry.erase(e.first);
       }
     }
   }
@@ -81,7 +84,9 @@ void Seat::recheckSitting(){
 void Seat::admit(Coord c,Msg& f){
   int nc=f.nc;
   uint64_t k=ckey(c);
-  ADMIT_LOG[k]={ADMIT_SITE,(long long)TICK};
+  { auto al=ADMIT_LOG.find(k);
+    if(al!=ADMIT_LOG.end()) ADMIT_LOG[k]={ADMIT_SITE,(long long)TICK,id,al->second.site,al->second.t,al->second.admitter};
+    else ADMIT_LOG[k]={ADMIT_SITE,(long long)TICK,id,"-",-1,-1}; }
   tlForget(k);   // the cell genuinely refills — any standing D5 observation of the old occupant ends here
   vector<KV> nbrs; Coord ol[MAXLINKS]; int n=ownedLinks(c,ol);
   for(int i=0;i<n;i++){ int x=occGet(ckey(ol[i])); if(x>=0&&x!=nc) nbrs.push_back({ckey(ol[i]),x}); }
@@ -138,6 +143,22 @@ void Seat::serveFind(Msg& mm){
     // row and seat a 2-person room as COLUMN-mates (the headless-row repro,
     // leg A). Computed up front for all rows: the headless-row devolution
     // below needs the liveness of the ADMITTER's row too.
+    // V4 forensics (env MESH_DUPLOG): WHY does a cell read as free at the
+    // devolution decision? A no-side-effect re-derivation of cellReserved's
+    // internals — occIsPhantom's KNOCKCLR print must not double-fire here.
+    auto freeReason=[&](uint64_t ak)->const char*{
+      if(softSitting(ak)) return "RESERVED-soft";
+      if(!occ.count(ak)) return "no-occ";
+      if(firstHandLive(ak)) return "RESERVED-fhl";
+      int x=occGet(ak);
+      if(findNc>=0 && x==findNc) return "phantom-knock";
+      for(auto& kv:occ) if(kv.second==x && kv.first!=ak && firstHandLive(kv.first)) return "phantom-moved";
+      if(x>=(int)alive.size()) return "phantom-oob";
+      if(!alive[x]) return "RESERVED-deadhold";
+      Seat* s=(x<(int)seats.size())?seats[x]:nullptr;
+      if(!s||!s->hasCoord||ckey(s->coord)!=ak) return "phantom-requeued";
+      return "RESERVED-live-silent";
+    };
     bool rowLive[C], rowSeen[C], rowHeld[C];
     for(int t=0;t<C;t++){ rowLive[t]=(coord.r==(uint8_t)t); rowSeen[t]=rowLive[t]; rowHeld[t]=false;
       for(int j=0;j<C;j++){ uint64_t k=ckey({0,(uint8_t)t,(uint8_t)j}); if(s1Fresh(k)) rowLive[t]=true; if(s1seen.count(k)) rowSeen[t]=true; if(cellReserved(k)) rowHeld[t]=true; } }
@@ -249,6 +270,7 @@ void Seat::serveFind(Msg& mm){
         //    an admission target (C1: an admission must not race a healer).
         if(j==0 && rowLive[t]) continue;
         Coord adm = (j>0)? Coord{0,(uint8_t)t,0} : Coord{0,(uint8_t)((t-1+C)%C),0};
+        Coord adm0=adm; const char* devArm=nullptr; const char* devGuard=nullptr;
         // A: soft-only primary (sitting-down, no occ yet) — not a FIND peer.
         // Assigner who wrote the soft head may fill the rest of the row.
         // NEVER devolve on mere silence of an occ occupant (that is the
@@ -263,24 +285,31 @@ void Seat::serveFind(Msg& mm){
         // H-CHAIN: devolve when admitter is not reserved (empty or phantom).
         // Prefer first-hand live row-mates as the devolved admitter.
         if(!cellReserved(ckey(adm)) && rowLive[adm.r]){
+          devGuard=freeReason(ckey(adm));
           Coord d={0,adm.r,0};
-          for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; break; } }
+          for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; devArm="rowmate"; break; } }
         }
         // S1 column-clique admission: ONLY when we once knew the primary
         // admitter (s1seen) and it is not reserved — never when simply unknown.
         // Devolve only to STRICTLY DEEPER same-column seats (no wrap into denser
         // upper rows). Gossip-lag wrap dual-PLACE'd /1.2 (N=9 serial → /0.4 hole).
         if(!cellReserved(ckey(adm)) && s1seen.count(ckey(adm))){
+          if(!devGuard) devGuard=freeReason(ckey(adm));
           for(int rr=cell.r+1;rr<C;rr++){
             Coord d={0,(uint8_t)rr,cell.i};
-            if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; break; }
+            if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; devArm="col-deeper"; break; }
           }
         }
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){
             healTry[k]=(int)TICK;
-            if(occIsPhantom(k)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)cell.pc,(int)cell.r,(int)cell.i,occGet(k),findNc); occ.erase(k); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
-            ADMIT_SITE="s1-designated"; admit(cell,mm); return;
+            if(occIsPhantom(k)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)cell.pc,(int)cell.r,(int)cell.i,occGet(k),findNc); occDrop(k,"phantomclr"); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
+            if(devArm){
+              if(getenv("MESH_DUPLOG")) fprintf(stderr,"DEVOLVE t=%lld me=%d cell=0/%d.%d adm0=0/%d.%d guard=%s arm=%s seeker=%d\n",
+                (long long)TICK,id,(int)cell.r,(int)cell.i,(int)adm0.r,(int)adm0.i,devGuard?devGuard:"?",devArm,findNc);
+              ADMIT_SITE="s1-devolved";
+            } else ADMIT_SITE="s1-designated";
+            admit(cell,mm); return;
           }
           continue;                                    // admit gate cooling — consider the next cell
         }
@@ -308,7 +337,10 @@ void Seat::serveFind(Msg& mm){
     // partitioned half recovers on the reachable-forward fix below alone.
     if(s1admFree>0){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   }
-  Coord f; if(firstFreeInRoster(f)){ ADMIT_SITE="deep-firstFree"; admit(f,mm); return; }
+  Coord f; if(firstFreeInRoster(f)){
+    if(getenv("MESH_DUPLOG")) fprintf(stderr,"DEEPADM t=%lld me=%d my=%u/%d.%d cell=%u/%d.%d seeker=%d\n",
+      (long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,(unsigned)f.pc,(int)f.r,(int)f.i,mm.nc);
+    ADMIT_SITE="deep-firstFree"; admit(f,mm); return; }
   // Descend — but NEVER into the void. The S1 hand-off above is careful to pick
   // a reachable admitter; this forward used raw occ, so it happily emitted the
   // FIND at an occupant on the far side of a partition (or a corpse), where it
@@ -750,7 +782,7 @@ Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.chi
     if(TICK-lastAck>OWNER_SILENT && !live.count(tk)){
       routeTo(tc,1);
       long long confirmH=(tc.pc==0)?RING_HOLD:90;   // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE, and 60 measurably degraded post-mass-kill packing (compaction leg 1); 120 lost the E1 race (leg C s5)
-      if(TICK-lastAck>confirmH && occ.count(tk)){ occ.erase(tk); kidful.erase(tk); s1seen.erase(tk); } } }
+      if(TICK-lastAck>confirmH && occ.count(tk)){ occDrop(tk,"ack-horizon"); kidful.erase(tk); s1seen.erase(tk); } } }
 }
 // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live rook
 // neighbour — its whole row AND whole column — each beat, so first-hand liveness is
@@ -793,7 +825,7 @@ void Seat::rowSweep(){
   // head's own 45-tick admission pace — so the window is closed; every
   // EXPLICIT free (LEAVE, MOVED, D5 confirm, check-back) still clears healTry
   // and stays instantly admissible.
-  for(auto k:del){ live.erase(k); occ.erase(k); kidful.erase(k); s1seen.erase(k); tlForget(k); healTry[k]=(int)TICK; }
+  for(auto k:del){ live.erase(k); occDrop(k,"drain-sweep"); kidful.erase(k); s1seen.erase(k); tlForget(k); healTry[k]=(int)TICK; }
   // (D5's early corpse-forget lives in tlSweep — every observer, not just
   // heads — so a confirmed corpse stops riding rosters in ~probe-time.)
 }
@@ -808,7 +840,7 @@ void Seat::tlSweep(){
   if(translost.empty()) return;
   vector<uint64_t> tl; for(auto&e:translost) tl.push_back(e.first);
   for(auto k:tl){ if(!translostConfirmed(k)) continue;
-    if(occ.count(k)){ occ.erase(k); live.erase(k); kidful.erase(k); s1seen.erase(k); healTry.erase(k); } }   // freed ⇒ admissible now
+    if(occ.count(k)){ occDrop(k,"tlsweep"); live.erase(k); kidful.erase(k); s1seen.erase(k); healTry.erase(k); } }   // freed ⇒ admissible now
 }
 void Seat::s1Fill(){
   // Section 1 must stay full (25). A cell {0,r,j} is normally refilled from below
@@ -829,7 +861,7 @@ void Seat::s1Fill(){
     // (the translost observation deliberately STANDS after the clear — it keeps
     // S1SYNC echoes from re-seating the corpse in my occ until the cell
     // genuinely refills; setOcc/admit clear it on an occupant change)
-    if(ringConfirmDead(c)){ if(occ.count(ck)){occ.erase(ck);live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} holeSince.erase(ck); heal(c); return; }
+    if(ringConfirmDead(c)){ if(occ.count(ck)){occDrop(ck,"ring-dead");live.erase(ck);s1seen.erase(ck);kidful.erase(ck);} holeSince.erase(ck); heal(c); return; }
   }
 }
 // H1-S1 RING-HEAL CONSERVATISM, probe-gated (NOT gossip-gated). A home cell I don't
@@ -996,8 +1028,13 @@ void Seat::recv(Msg& m){
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       live[m.ck]=(int)TICK;   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck);
-      // A: HELLO from the soft-sit joiner self-confirms the seat.
-      clearSoft(m.ck);
+      // A, ATTRIBUTABLE (V4): HELLO from THE SOFT-SIT JOINER ITSELF self-
+      // confirms the seat — but a HELLO from any OTHER claimant (a dup-war
+      // rival, a promoted healer announcing) must not wipe a vouch it does
+      // not own: the wipe plus a LEAVE echo read the cell FREE and the same
+      // head re-placed it every ~3 ticks (SIT+ joiner=120 killed same-tick
+      // by why=hello at N=3000 det — the deep-firstFree feedstock).
+      { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id) clearSoft(m.ck,"hello"); }
       return; }
     case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue("T1-yield"); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
     case CLAIM:
@@ -1006,8 +1043,15 @@ void Seat::recv(Msg& m){
       return;
     case LEAVE: {
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
-      clearSoft(m.ck);   // A: LEAVE clears any soft sitting-down on that cell
+      if(occGet(m.ck)==m.id){ occDrop(m.ck,"leave"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
+      // A, ATTRIBUTABLE (V4): only the LEAVER'S OWN vouch clears. A soft sit
+      // exists only for a cell that read FREE at admit time, so a LEAVE naming
+      // this cell from anyone else is a PRIOR tenant's departure echo (MOVED/
+      // LEAVE double-report, cascade scoot) arriving after the cell was
+      // re-vouched — clearing on it wiped the fresh vouch mid-flight and the
+      // same admitter re-placed the cell 3 ticks later (the V4 same-admitter
+      // double-place, 10 of 19 S1 seed pairs at N=3000 det).
+      { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id){ sitLog("SIT-",m.ck,m.id,"leave-own"); sitting.erase(sit); } }
       if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
       // H-CHAIN vertical: when a DOWN-CHILD vacates, clear childOf on its
       // owner. childOf never expired before, so hasDownChild stayed true
@@ -1086,7 +1130,7 @@ void Seat::recv(Msg& m){
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue("CONFIRM-lower-id"); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
-      if(occGet(m.ck)==m.id){ occ.erase(m.ck); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
+      if(occGet(m.ck)==m.id){ occDrop(m.ck,"moved"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
       wake(id); return; }
     case PHONE: onPhone(m); return;
@@ -1147,7 +1191,7 @@ void Seat::tick(){
     // head's s1Fill. This is what rebuilds an all-heads-dead column-0.
     if(coord.i>=1 && TICK-healAt>20 && (!firstHandLive(ckey({0,coord.r,0})) || translost.count(ckey({0,coord.r,0})))){ Coord lft={0,coord.r,(uint8_t)(coord.i-1)}; uint64_t lk=ckey(lft);   // head NOT first-hand alive (phantom-proof) ⇒ headless row ⇒ rebuild leftward. D5: a pending transport-loss for the head counts as "no live head" (my own link to it died; firstHandLive may linger up to 60 ticks)
       bool defer = translost.count(lk) && occGet(ckey(down(lft)))>=0;   // D5: defer to VERTICAL only when down-child OCC present (not stale childOf)
-      if(!defer && ringConfirmDead(lft)){ if(occ.count(lk)){occ.erase(lk);live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
+      if(!defer && ringConfirmDead(lft)){ if(occ.count(lk)){occDrop(lk,"ring-dead-left");live.erase(lk);s1seen.erase(lk);kidful.erase(lk);} holeSince.erase(lk); heal(lft); } }
     if(TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord cm[C-1]; colMates(coord,cm); for(int q=0;q<C-1;q++) if(occGet(ckey(cm[q]))<0) routeTo(cm[q],1); }   // W7: keep column links live — re-ping any vacant column-mate (standby path, cross-links heal fast)
     if(s1CheckAt<0) s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD);
     if(TICK>=s1CheckAt){ s1CheckAt=TICK+E3_PERIOD+(long long)(rng()*E3_PERIOD); emitRelay(genKey); }   // E3 (folds H6): re-knock each ~E3_PERIOD to refresh my greeter entry. Section-1 seats ARE the greeter pool.
@@ -1165,7 +1209,7 @@ void Seat::tick(){
   if(coord.i==1 && TICK-healAt>20){ Coord hd={coord.pc,coord.r,0}; uint64_t hdk=ckey(hd);
     bool hdEarly=translostConfirmed(hdk);
     if((hdEarly || (TICK-lastAck>60 && occGet(hdk)<0)) && !hasDownChild(hd)){
-      if(hdEarly){ occ.erase(hdk); live.erase(hdk); s1seen.erase(hdk); kidful.erase(hdk); }
+      if(hdEarly){ occDrop(hdk,"head-early"); live.erase(hdk); s1seen.erase(hdk); kidful.erase(hdk); }
       heal(hd); } }
   if(coord.i>0 && TICK>=xlinkAt){ xlinkAt=(int)TICK+150+(int)(rng()*100); Coord x; if(crossLink(coord,x)&&occGet(ckey(x))<0) routeTo(x,1); }
   if(drainAt && TICK>=drainAt){ reseatViaRoster(); return; }
@@ -1190,7 +1234,7 @@ void Seat::tick(){
     long long confirm = (haveOc&&oc.pc==0) ? RING_HOLD : 60;
     bool ownEarly = haveOc && translostConfirmed(ok);
     if(haveOc && (ownEarly || (occGet(ok)<0 && TICK-lastAck>confirm)) && TICK-(healTry.count(ok)?healTry[ok]:-999)>45){
-      if(ownEarly){ occ.erase(ok); live.erase(ok); s1seen.erase(ok); kidful.erase(ok); }
+      if(ownEarly){ occDrop(ok,"owner-early"); live.erase(ok); s1seen.erase(ok); kidful.erase(ok); }
       healTry[ok]=(int)TICK; healAt=(int)TICK; didHeal=true;
       vector<KV> nb; for(auto&c:cousins) nb.push_back({c.first,c.second});
       if(nb.empty()){ Coord ol2[MAXLINKS]; int n2=ownedLinks(oc,ol2); for(int q2=0;q2<n2;q2++){ int x2=occGet(ckey(ol2[q2])); if(x2>=0&&x2!=id) nb.push_back({ckey(ol2[q2]),x2}); } }
