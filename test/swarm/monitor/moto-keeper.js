@@ -1,7 +1,7 @@
 // moto-keeper.js — keep the USB-tethered phone SEATED in the monitored room.
 //
 // WHY THIS EXISTS (Nathan, 2026-08-04): the monitor locks the room with
-// --ensure-pass, and meet.html accepts no password URL param (by design — a
+// --ensure-pass, and run.html accepts no password URL param (by design — a
 // password in a link is a password in every history, log and referrer). So the
 // moment the phone's tab reloads — Chrome restart, OOM, or run.sh's own DAILY
 // RECYCLE — it lands on "This room is locked" and sits there forever. The bot
@@ -57,7 +57,7 @@ function adb(args, opts) {
   catch (e) { log('adb forward failed (Chrome not running?) —', String(e.message || e).trim()); }
 
   function roomUrl() {
-    return `https://gifos.app/meet.html${EDGE ? '?edge' : ''}#v=${ROOM}&DEBUG=on`;
+    return `https://gifos.app/run.html#v=${ROOM}${EDGE ? '&edge' : ''}&DEBUG=on`; // the 404-router's canonical shape; meet.html died on the no-shims flag day
   }
   function launchChrome() {
     const url = roomUrl();

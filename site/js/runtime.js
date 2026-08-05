@@ -112,8 +112,8 @@
     // Get the name wrong here and the link 404s: this branch is not merely a
     // local-dev wart, because `onProd` also requires the DEFAULT relay, so a user
     // on gifos.app with a CUSTOM RELAY takes it and hands the link to real people.
-    // (Links already minted as meet.html#… keep working — that file is a
-    // permanent shim to run.html, see site/meet.html.)
+    // (Links minted as meet.html#… before the 2026-08-04 rename are DEAD —
+    // the shim was deleted on the 2026-08-05 no-shims flag day.)
     const dot = String(sid || '').lastIndexOf('.');
     if (dot > 0) {
       if (onProd) return location.origin + '/join/' + sid.slice(0, dot) + '/' + sid.slice(dot + 1) + '/' + lsec;

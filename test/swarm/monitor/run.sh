@@ -42,7 +42,7 @@ RECYCLE_SECS="${MEET_RECYCLE_SECS:-86400}"
 # THE PHONE IS PART OF THE ROOM (Nathan, 2026-08-04). A USB-tethered moto sits
 # in the monitored meeting as the real-hardware peer — the only participant
 # with a real camera, a real radio and a real battery. But the monitor LOCKS
-# the room (--ensure-pass) and meet.html takes no password URL param, so every
+# the room (--ensure-pass) and run.html takes no password URL param, so every
 # time that tab reloads — Chrome restart, OOM, or our own daily recycle — the
 # phone lands on "This room is locked" and stays there, silently, forever.
 # Found exactly that way: Chrome force-stopped at ~00:00, phone parked at the

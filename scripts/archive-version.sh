@@ -40,16 +40,7 @@ mkdir -p "$DEST"
 # and the broadcast skin — one page since one-runtime). A missing one is a broken
 # snapshot, so say which file and why rather than dying on a bare `cp` error.
 #
-# meet.html is REQUIRED TOO, and is now the run.html SHIM: every archived build
-# before this rename ships its runtime as meet.html, and the channel loaders send
-# a pinned user to /versions/<V>/meet.html for EVERY version. Snapshotting the
-# shim keeps that one address correct inside new snapshots as well — drop it and
-# every pinned invite link into this release 404s.
-# (An entry here must exist: run.html was once listed after the one-runtime flag
-# day DELETED it, and the stale entry aborted the whole cut under `set -e`, after
-# mkdir had already left a half-built versions/<V>/ behind. Hence the accounting
-# check below.)
-REQUIRED=(index.html run.html meet.html boot.html)
+REQUIRED=(index.html run.html boot.html)   # NO SHIMS (flag day 2026-08-05): the runtime is run.html, and snapshots are addressed as run.html by every channel loader
 OPTIONAL=(sign.html about.html store.html browser-support.html)
 # browser-support.html ships WITH ITS DATA (browser-support.json, copied below).
 # It reads that file RELATIVELY, so inside a snapshot it answers for the
