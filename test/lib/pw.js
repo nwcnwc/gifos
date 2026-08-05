@@ -48,10 +48,12 @@ function loadPlaywright() {
 // ---- chromium ---------------------------------------------------------------
 // Playwright renamed the unpacked directory between builds (chrome-linux ->
 // chrome-linux64), so try both spellings for every build we find.
-function chromeCandidates() {
+function chromeCandidates(opts) {
   const out = [];
-  for (const v of ['MEET_CHROME', 'SWARM_CHROME', 'GIFOS_CHROME']) {
-    if (process.env[v]) out.push(process.env[v]);
+  if (!(opts && opts.ignorePins)) {
+    for (const v of ['MEET_CHROME', 'SWARM_CHROME', 'GIFOS_CHROME']) {
+      if (process.env[v]) out.push(process.env[v]);
+    }
   }
   const roots = ['/opt/pw-browsers', path.join(HOME, '.cache/ms-playwright')];
   for (const root of roots) {
@@ -71,8 +73,25 @@ function chromeCandidates() {
   return out;
 }
 
-function findChrome() {
-  const cands = chromeCandidates();
+/*
+ * findChrome({ ignorePins }) — the binary to launch.
+ *
+ * `ignorePins: true` skips MEET_CHROME/SWARM_CHROME/GIFOS_CHROME and takes the
+ * NEWEST installed build. Exactly one kind of suite may want this: one testing a
+ * platform API too new for the pinned build, where inheriting the pin does not
+ * test the feature — it just reports the feature missing.
+ *
+ * That is not hypothetical. The release gate pins MEET_CHROME to chromium-1193
+ * because browser/e2e and e2e-media-recovery red on newer builds. chromium-1193
+ * is Chrome 140, which has NO `RTCRtpScriptTransform` (only the legacy
+ * createEncodedStreams); the encoded-passthrough pipe lane needs it, so under
+ * the pin browser/e2e-pipe reported `unsupported:true` and failed 8 assertions
+ * that were never about the product (gate, 2026-08-05). The pin is right for the
+ * suites it was added for and wrong for that one — so the requirement belongs on
+ * the SUITE, not on the gate's single global pin.
+ */
+function findChrome(opts) {
+  const cands = chromeCandidates(opts);
   for (const c of cands) {
     try { if (fs.existsSync(c) && fs.statSync(c).isFile()) return c; } catch (e) { /* next */ }
   }

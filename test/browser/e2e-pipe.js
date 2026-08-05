@@ -19,7 +19,14 @@
 // and a deep seat's Stadium pixels must be CONTENT-sized, not carrier-sized.
 //
 // Needs: python3 -m http.server 8099 -d site ; node test/servers/relay-local.js
-const { chromium, CHROME } = require('../lib/pw');
+// This suite IGNORES the MEET_CHROME pin on purpose. The encoded-passthrough
+// lane is built on RTCRtpScriptTransform, which the gate's pinned chromium-1193
+// (Chrome 140) does not have at all — under the pin every assertion here failed
+// on `unsupported:true`, reporting the browser's age as a product defect. The
+// pin exists for browser/e2e and e2e-media-recovery and is right for them; this
+// suite needs the newest build installed, and says so itself.
+const { chromium, findChrome } = require('../lib/pw');
+const CHROME = findChrome({ ignorePins: true });
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -29,6 +36,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME, args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+
+  // Say WHICH engine is under test, and refuse up front if it cannot host the
+  // feature — 8 assertions failing on `unsupported:true` reads as a broken pipe
+  // lane when it means "this browser is too old", and that misread cost a gate
+  // triage already. Loud and specific, never a silent skip.
+  {
+    const p = await (await browser.newContext()).newPage();
+    const cap = await p.evaluate(() => ({
+      ua: (navigator.userAgent.match(/Chrome\/[0-9.]+/) || ['?'])[0],
+      scriptTransform: typeof RTCRtpScriptTransform !== 'undefined',
+    }));
+    console.log('  engine: ' + cap.ua + '  RTCRtpScriptTransform=' + cap.scriptTransform + '\n  binary: ' + CHROME);
+    if (!cap.scriptTransform) {
+      console.log('FAIL — this browser has no RTCRtpScriptTransform, so the encoded-passthrough');
+      console.log('       lane cannot be tested here. That is an ENGINE gap, not a product bug:');
+      console.log('       install a newer chromium (Chrome 141+; 149 verified) — note this suite');
+      console.log('       deliberately ignores MEET_CHROME, so the pin is not what is limiting it.');
+      console.log('1 FAILED');
+      await browser.close();
+      process.exit(1);
+    }
+    await p.context().close();
+  }
 
   // ---- LEG 1: the module chain ---------------------------------------------
   {
