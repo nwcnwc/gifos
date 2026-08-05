@@ -134,6 +134,10 @@ static uint32_t FSEED=20260714;
 static inline double frnd(){ FSEED=(uint32_t)((FSEED*1103515245u+12345u)&0x7fffffff); return FSEED/2147483648.0; }
 static vector<vector<char>> reachMx;                    // reachMx[a][b]: subnets a<->b directly reachable
 static unordered_map<uint64_t,long long> severedUntil;  // pairKey -> tick the link recovers
+// V4 forensics (handoff 2026-08-04): which CALL-SITE admitted into each cell,
+// and when — read by the DUPMINT logger so a conflict names its minting path.
+static const char* ADMIT_SITE="?";
+static unordered_map<uint64_t,std::pair<const char*,long long>> ADMIT_LOG;
 static inline bool reachable(int sa,int sb){ return (int)reachMx.size()<=sa || (int)reachMx.size()<=sb ? true : reachMx[sa][sb]!=0; }
 static void buildReach(){
   reachMx.assign(NUM_SUBNETS, vector<char>(NUM_SUBNETS,0));
@@ -274,7 +278,9 @@ struct Seat {
     // seat can SEE first-hand:
     //  (1) knock-is-evidence: the seeker of the serveFind scan in progress is
     //      AT THE DOOR by construction — an occ entry naming it is stale.
-    if(findNc>=0 && x==findNc) return true;
+    if(findNc>=0 && x==findNc){
+      if(getenv("MESH_DUPLOG")) fprintf(stderr,"KNOCKCLR t=%lld me=%d cell=%u/%d.%d holder=%d(=seeker at door)\n",(long long)TICK,id,(unsigned)(k>>16),(int)((k>>8)&0xff),(int)(k&0xff),x);
+      return true; }
     //  (2) moved-elsewhere: x is first-hand-live at a DIFFERENT cell, so the
     //      entry at k is its pre-move/pre-requeue echo. First-hand only —
     //      gossip never evicts (E2).
