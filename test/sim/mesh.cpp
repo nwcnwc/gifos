@@ -18,7 +18,7 @@ using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
 // ---- message ----
-enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went.
+enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
 struct KV { uint64_t k; int v; };
 struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
 struct Msg {
@@ -82,6 +82,7 @@ static const long long RING_HOLD=220;
 // firstHandLive hand-off gate and never PLACE-TTL alone as the sole fix.
 static const long long SIT_TTL=90;       // soft sitting-down backstop (ticks)
 static const long long SIT_RECHECK=25;   // assigner recheck cadence
+static const long long SIT_PING_WAIT=15; // V4 probe window: free a silent vouch only after a SITPING went unanswered this long (delivery is bounded ≤9 ticks/leg, so 15 covers the round trip; a killed tab frees at 25+15=40 — inside the ghost-churn budget that the rejected free-at-50 missed)
 // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies (a
 // FIRST-HAND observation — the modelled DataChannel close, never gossip), the
 // confirm probe may start immediately instead of waiting out the silence
@@ -189,7 +190,7 @@ struct Seat {
   Occ occ, live, s1seen, healTry, cousins, holeSince, born; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   // A three-state soft marks: cell → {joiner, assigner, at}. Empty = no entry in
   // occ/sitting; sitting-down = sitting[]; seated = occ + firstHandLive (or self).
-  struct SoftSit { int joiner; int assigner; int at; };
+  struct SoftSit { int joiner; int assigner; int at; int pingAt=-1; };   // pingAt: V4 probe-gated check-back — when I SITPINGed the silent admittee (-1 = not yet)
   unordered_map<uint64_t, SoftSit> sitting;
   // D5 early-probe state (keyed by coord ckey): translost = when MY transport to
   // that coord's occupant died (edge-triggered); tlProbeAt = last re-probe tick;
@@ -209,6 +210,7 @@ struct Seat {
   unordered_map<int,int> strangeSeen;   // two-ring reconciliation: pool-listed ids absent from my occ, by consecutive E3 sightings
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int myPlacer=-2;   // DUPMINT forensics: the owner argument of my last take() (-1 = genesis/self, -2 = never seated)
+  bool rowLedger=true;   // V4: a VOUCHED-IN Section-1 row head holds its row's admissions until its assigner hands over the row's vouch ledger (SITXFER) — or the handover window passes (a dead assigner's vouches die with it)
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
@@ -334,7 +336,30 @@ struct Seat {
   inline void markSitting(uint64_t k,int joiner){ sitLog("SIT+",k,joiner,"place"); sitting[k]={joiner,id,(int)TICK}; }
   // Confirm seated for joiner at k (CLAIM/HELLO/take path).
   inline void confirmSeated(uint64_t k,int joiner){
+    // V4 SITXFER: confirming a Section-1 row HEAD I vouched hands it the row's
+    // outstanding vouch ledger. The head becomes its row's admitter the moment
+    // it seats — several ticks before my confirm-lagged view stops row-filling
+    // — and without the ledger it re-admits cells my in-flight admittees
+    // already hold (the designated-vs-headless-soft seed pair, first mint of
+    // every N=3000 det run).
+    bool xfer=false; { auto it=sitting.find(k);
+      xfer = it!=sitting.end() && it->second.assigner==id && it->second.joiner==joiner
+             && (k>>16)==0 && (k&0xff)==0; }
     clearSoft(k,"confirm"); setOcc(k,joiner); live[k]=(int)TICK; noteS1(k);
+    if(xfer){
+      Msg m; m.t=SITXFER; m.ck=k; m.id=joiner;
+      uint8_t r=(uint8_t)((k>>8)&0xff);
+      for(auto&e:sitting) if((e.first>>16)==0 && (uint8_t)((e.first>>8)&0xff)==r && e.second.assigner==id)
+        m.nbrs.push_back({e.first,e.second.joiner});
+      // The ledger is vouches AND my confirmed occ for the row: an admittee I
+      // confirmed BEFORE the head seated announced itself to nbrs computed
+      // before the head existed — the head can learn it from nobody else in
+      // time (the t=52/61/64 seed: vouch confirmed@57, head confirmed@61 with
+      // an empty vouch list, head re-admitted the confirmed cell@64).
+      for(int j=0;j<C;j++){ uint64_t rk=(uint64_t)0<<16 | (uint64_t)r<<8 | (uint64_t)j; int x=occGet(rk);
+        if(x>=0 && rk!=k) m.row.push_back({rk,x,-1}); }
+      emit(joiner,m);   // an EMPTY ledger is still the authority-handover signal
+    }
   }
   void recheckSitting();   // assigner recheck + soft TTL (mesh_seat.inc)
   Coord ownedRowHead(){ return { childPath(coord.pc,coord.i), coord.r, 0 }; }
@@ -356,7 +381,7 @@ struct Seat {
   // V) is already filling it, so a newcomer there would double-book. Skip it; the
   // caller forwards the FIND deeper (serveFind), keeping healers and newcomers
   // disjoint by construction.
-  bool firstFreeInRoster(Coord&f){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(cellTaken(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0||softSitting(ckey(down(rc[c])))) continue; f=rc[c]; return true; } return false; }
+  bool firstFreeInRoster(Coord&f){ if(pcDepth(coord.pc)>=12) return false; /* THE DEPTH WALL: children would overflow the uint32 path — see the NOROOM wall in serveFind */ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ if(cellTaken(ckey(rc[c]))) continue; if(occGet(ckey(down(rc[c])))>=0||softSitting(ckey(down(rc[c])))) continue; { auto ht=healTry.find(ckey(rc[c])); if(ht!=healTry.end() && TICK-ht->second<=45) continue; }   /* V4: deep admissions honor the same 45-tick cooling as S1 — a silence-freed chair is not "admissible NOW" */ f=rc[c]; return true; } return false; }
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
@@ -471,7 +496,7 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
-static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST","MOVED"}; return (t>=0&&t<23)?NM[t]:"?"; }
+static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST","MOVED","SITPING","SITPONG","SITXFER"}; return (t>=0&&t<26)?NM[t]:"?"; }
 // A TELEPORT must be IMPOSSIBLE. If a frame is ever about to be delivered to a
 // seat the sender has no honest path to (no owned link, not a socketed greeting
 // pair), the mesh has a routing bug — so we do NOT quietly count it: we detonate,
