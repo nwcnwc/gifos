@@ -13,9 +13,20 @@ let failures = 0;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
 
 (async () => {
+  // THE ORIGIN MUST BE TRUSTWORTHY. Faking prod by mapping gifos.app to
+  // localhost gives an origin Chrome does NOT trust (only literal
+  // localhost/127.0.0.1 get the free pass), and an untrusted origin has no
+  // crypto.subtle at all — so this suite was driving a page that could never
+  // hold a meeting, and only got away with it because the address-bar rewrite
+  // happens before any crypto. The browser preflight (run.html, 2026-08-05)
+  // now stops that page up front and says so, which is right for a visitor and
+  // wrong for this suite. So we make the origin genuinely secure, the same way
+  // the swarm and app-room harnesses already do.
   const browser = await chromium.launch({
     executablePath: CHROME,
-    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1',
+      '--unsafely-treat-insecure-origin-as-secure=http://gifos.app:' + PORT,
+      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
   });
   const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
   // Set a name but NOT gifos_relay → the page keeps its default relay, so

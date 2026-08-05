@@ -13,9 +13,17 @@ let failures = 0;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
 
 (async () => {
+  // THE ORIGIN MUST BE TRUSTWORTHY — see the same note in e2e-meet-prettyurl.js.
+  // Mapping gifos.app to localhost does not make it a secure context (only the
+  // literal localhost/127.0.0.1 get that), and an insecure origin has no
+  // crypto.subtle, so this suite was driving a page that could never join
+  // anything. The browser preflight now stops such a page and says why, which
+  // is correct for a visitor and useless for a URL-shaping test — so make the
+  // origin genuinely secure instead of testing around it.
   const browser = await chromium.launch({
     executablePath: CHROME,
-    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1'],
+    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1',
+      '--unsafely-treat-insecure-origin-as-secure=http://gifos.app:' + PORT],
   });
   const ctx = await browser.newContext();
   await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_name','Pat');localStorage.setItem('gifos_channel','edge')}catch(e){}" });
@@ -24,7 +32,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   // ---- a self-healing app join → /join/<code> ----------------------------------
   const code = 'heal' + Math.floor(Math.random() * 1e6).toString(36);
   const p1 = await ctx.newPage();
-  p1.on('pageerror', () => {}); // client boot may hit crypto.subtle on insecure ctx; we only check the URL rewrite
+  p1.on('pageerror', () => {}); // there is no live host here; we only check the URL rewrite
   await p1.goto(base + '/run.html#j=' + code);
   await p1.waitForFunction(() => location.pathname.startsWith('/join/'), null, { timeout: 10000 });
   check('a self-healing join rewrites the bar to /join/<code>',
