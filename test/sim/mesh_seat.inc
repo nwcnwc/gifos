@@ -18,6 +18,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   }
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
+  rowLedger = !(c.pc==0 && c.i==0 && owner>=0);   // V4: an admitted S1 row head waits for its assigner's SITXFER
   coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false;   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
@@ -63,15 +64,33 @@ void Seat::recheckSitting(){
     // made every unconfirmed sit emit a routed probe whose ROUTED answer
     // re-seeds occ and fans a HELLO, which perturbed partition healing —
     // sweep.sh partition-bad=1, mesh-harness red.)
+    // V4 PROBE-GATED CHECK-BACK (confirmed absence, the ghost-law discipline):
+    // "never heard in 25 ticks" is NOT evidence of death — at the N=3000 join
+    // storm a live admittee's CLAIM to a deep placer is routinely lost/slow,
+    // and freeing on that lagged view let the SAME placer re-place the cell
+    // (578 deep same-admitter mints, the largest non-cascade seed family).
+    // So falsify first-hand: SITPING the admittee itself. A live one answers
+    // (its pong is a re-CLAIM, no other payload — the 2026-08-02 probe was
+    // rejected because its ROUTED answer re-seeded occ and fanned HELLOs);
+    // a killed tab never does, and the chair frees at 25+15=40 ticks.
     if(occGet(e.first)!=s.joiner && !firstHandLive(e.first)){
+      if(s.pingAt<0){ s.pingAt=(int)TICK; Msg m;m.t=SITPING;m.ck=e.first;m.id=s.joiner; emit(s.joiner,m); continue; }
+      if(TICK-s.pingAt<SIT_PING_WAIT) continue;
       sitLog("SIT-",e.first,s.joiner,"checkback-free");
-      del.push_back(e.first); healTry.erase(e.first);
+      // Freed on SILENCE, not on attributed evidence — so the chair re-enters
+      // the standard 45-tick admission cooling instead of "admissible NOW".
+      // Deep routes break under the dup war (a j>0 child has no owned up-link,
+      // so its CLAIM and my ping ride the mesh), and this admitter re-placing
+      // the same cell 7 ticks after a silence-free was the surviving deep mint
+      // (52→99 same-placer pairs). Real evidence (HELLO/phone/gossip) arrives
+      // within the cooling and blocks the re-place honestly.
+      del.push_back(e.first); healTry[e.first]=(int)TICK;
       continue;
     }
     // Soft TTL backstop: mark cannot live forever if recheck is skipped.
     if(TICK-s.at >= SIT_TTL){
       sitLog("SIT-",e.first,s.joiner,"ttl-backstop");
-      del.push_back(e.first);
+      del.push_back(e.first); healTry[e.first]=(int)TICK;   // V4: TTL is also a silence-free — cool before re-admission
       // Ghost occ left by an older admit path or partial confirm: clear if not live.
       if(occGet(e.first)==s.joiner && !firstHandLive(e.first)){
         occDrop(e.first,"sit-ttl-ghost"); live.erase(e.first); s1seen.erase(e.first); kidful.erase(e.first); tlForget(e.first); healTry.erase(e.first);
@@ -284,7 +303,14 @@ void Seat::serveFind(Msg& mm){
         }
         // H-CHAIN: devolve when admitter is not reserved (empty or phantom).
         // Prefer first-hand live row-mates as the devolved admitter.
-        if(!cellReserved(ckey(adm)) && rowLive[adm.r]){
+        // V4 NARROWING (both devolution arms): devolve ONLY over a cell I have
+        // AT SOME POINT heard first-hand (live[] ever set — the same
+        // falsifiable-ghost discipline as the E1 inheritance narrowing). A
+        // genuine row-mate always hears its admitter within a couple of D1
+        // beats; a fresh frontier seat that has NEVER coexisted with the
+        // admitter is reading a gossip gap, and devolving on it minted the
+        // second seed of every run (DEVOLVE guard=no-occ).
+        if(!cellReserved(ckey(adm)) && live.count(ckey(adm)) && rowLive[adm.r]){
           devGuard=freeReason(ckey(adm));
           Coord d={0,adm.r,0};
           for(int dj=1;dj<C;dj++){ d.i=(uint8_t)dj; if(cellReserved(ckey(d))&&!occIsPhantom(ckey(d))){ adm=d; devArm="rowmate"; break; } }
@@ -293,7 +319,7 @@ void Seat::serveFind(Msg& mm){
         // admitter (s1seen) and it is not reserved — never when simply unknown.
         // Devolve only to STRICTLY DEEPER same-column seats (no wrap into denser
         // upper rows). Gossip-lag wrap dual-PLACE'd /1.2 (N=9 serial → /0.4 hole).
-        if(!cellReserved(ckey(adm)) && s1seen.count(ckey(adm))){
+        if(!cellReserved(ckey(adm)) && live.count(ckey(adm)) && s1seen.count(ckey(adm))){
           if(!devGuard) devGuard=freeReason(ckey(adm));
           for(int rr=cell.r+1;rr<C;rr++){
             Coord d={0,(uint8_t)rr,cell.i};
@@ -301,6 +327,13 @@ void Seat::serveFind(Msg& mm){
           }
         }
         if(ckey(coord)==ckey(adm)){                    // I am the designated (or devolved) admitter
+          // V4 LEDGER GATE: as a vouched-in head I may not admit into MY OWN
+          // row before my assigner's SITXFER arrives — my empty view of the
+          // row is definitionally lagged (its cells may be promised to
+          // admittees still in flight). The 60-tick window outlives any
+          // in-flight vouch's confirm; past it a silent assigner is dead and
+          // its vouches died with it.
+          if(coord.i==0 && cell.r==coord.r && !rowLedger && TICK-seatedAt<=60) continue;
           if(TICK-(healTry.count(k)?healTry[k]:-999)>45){
             healTry[k]=(int)TICK;
             if(occIsPhantom(k)){ if(getenv("MESH_DUPLOG")) fprintf(stderr,"PHANTOMCLR t=%lld me=%d cell=%u/%d.%d holder=%d seeker=%d\n",(long long)TICK,id,(unsigned)cell.pc,(int)cell.r,(int)cell.i,occGet(k),findNc); occDrop(k,"phantomclr"); live.erase(k); s1seen.erase(k); kidful.erase(k); tlForget(k); }
@@ -358,6 +391,14 @@ void Seat::serveFind(Msg& mm){
   //            head needs (headless-row C, hchain D: gating those on liveness
   //            fast-tracks silent death past H1-S1 ring-hold).
   // Only when neither pass finds anyone is it honestly NOROOM.
+  // THE DEPTH WALL (scale-audit defect 3): pc is a uint32 of base-6 digits —
+  // 6^12 fits, 6^13 does not, and an overflowed path SILENTLY ALIASES another
+  // cell (poisoned occupancy; and the JS twin on plain Numbers has no wall, so
+  // the twins diverge exactly where the storm goes). A seat whose child row
+  // would be depth 13 must not forward the FIND downward — NOROOM is honest
+  // (a depth-12 stadium is ~2 billion sections; admission never legitimately
+  // needs the 13th floor — reaching it IS the dup-war signature).
+  if(pcDepth(coord.pc)>=12){ Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
@@ -1133,6 +1174,32 @@ void Seat::recv(Msg& m){
       if(occGet(m.ck)==m.id){ occDrop(m.ck,"moved"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       if(m.mvd){ setOcc(m.mvd,m.id); live[m.mvd]=(int)TICK; noteS1(m.mvd); }
       wake(id); return; }
+    case SITXFER: {
+      // V4: my assigner hands me my row's outstanding vouch ledger — I am now
+      // the row's admitter, and these cells are already promised.
+      if(hasCoord&&coord.pc==0&&coord.i==0&&ckey(coord)==m.ck){
+        for(auto&kv:m.nbrs) if(!occ.count(kv.k) && !sitting.count(kv.k)) sitting[kv.k]={kv.v,id,(int)TICK,-1};
+        for(auto&e:m.row) if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); }   // the assigner's CONFIRMED row occ — first-hand at the assigner, ledger-grade here
+        rowLedger=true;
+      }
+      return; }
+    case SITPING: {
+      // V4: my assigner asks whether its vouch for me at m.ck is still live.
+      // Answer ONLY about the vouched cell: seated there (tag=1, a re-CLAIM),
+      // or still seeking with the PLACE possibly in flight (tag=0, hold the
+      // chair). Seated ELSEWHERE = stay silent — the vouch should free.
+      if(m.id==id){
+        if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg p;p.t=SITPONG;p.ck=m.ck;p.id=id;p.tag=1; emit(m.from,p); }
+        else if(!hasCoord&&state==2){ Msg p;p.t=SITPONG;p.ck=m.ck;p.id=id;p.tag=0; emit(m.from,p); }
+      }
+      return; }
+    case SITPONG: {
+      auto sit=sitting.find(m.ck);
+      if(sit!=sitting.end() && sit->second.joiner==m.id){
+        if(m.tag==1){ confirmSeated(m.ck,m.id); }               // the lost CLAIM, replayed first-hand
+        else { sit->second.at=(int)TICK; sit->second.pingAt=-1; } // alive and still seeking: restart the clock
+      }
+      return; }
     case PHONE: onPhone(m); return;
     case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); live[ckey(m.coord)]=(int)TICK; noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v; return; }   // W: learn the heirs at my future owned-links (cousins) for relay-free promote-up
