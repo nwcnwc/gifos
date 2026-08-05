@@ -47,28 +47,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .topbar { display: flex; align-items: center; gap: .5rem; padding: .8rem 1.2rem;
             border-bottom: 1px solid var(--border, #2a2a3f); background: var(--surface, #14141f); }
   .topbar a { text-decoration: none; font-size: 1.05rem; }
-  .scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: .6rem 0 1.2rem; }
-  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: .95rem; }
-  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--border, #2a2a3f); vertical-align: top; }
-  thead th { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #8a8aa8); font-weight: 600; }
-  tbody th { color: var(--text, #e0e0f0); font-weight: 600; white-space: nowrap; }
-  tbody th small { display: block; font-weight: 400; font-size: .74rem; color: var(--muted, #7a7a96); }
-  .cell { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
-  .dot { width: .55rem; height: .55rem; border-radius: 50%; flex: none; transform: translateY(-.05rem); }
+  /* One CARD per browser, not a table. A matrix wide enough for three features
+     plus a sentence of explanation cannot be read on a phone, and the version
+     numbers are the part people came for — so they sit at the top of each card
+     and the explanation sits under them, where it can be long without pushing
+     anything off the side of the screen. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18.5rem, 1fr)); gap: .8rem; margin: .8rem 0 1rem; }
+  .bcard { border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; padding: .85rem 1rem 1rem;
+           background: var(--surface, #14141f); }
+  .bcard h3 { margin: 0 0 .5rem; font-size: 1.02rem; color: var(--text, #e0e0f0); }
+  .bcard h3 small { display: block; font-weight: 400; font-size: .75rem; color: var(--muted, #7a7a96); margin-top: .1rem; }
+  .row { display: flex; align-items: baseline; gap: .45rem; padding: .22rem 0; font-size: .9rem; }
+  .row dt { flex: 1 1 auto; color: var(--muted, #8a8aa8); }
+  .row dd { margin: 0; flex: none; text-align: right; }
+  .dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; display: inline-block; }
   .ok   .dot { background: #3fbf7f; }
   .no   .dot { background: #e2564c; }
   .huh  .dot { background: #8a8aa8; }
-  .ok   .v { color: var(--text, #e0e0f0); font-weight: 600; }
-  .no   .v { color: #e2564c; }
-  .huh  .v { color: #8a8aa8; }
-  .why { font-size: .78rem; line-height: 1.45; color: var(--muted, #7a7a96); margin-top: .2rem; }
-  .key { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .85rem; margin: .4rem 0 0; }
+  .ok  .v { color: var(--text, #e0e0f0); font-weight: 600; }
+  .no  .v { color: #e2564c; }
+  .huh .v { color: #8a8aa8; }
+  .why { font-size: .79rem; line-height: 1.5; color: var(--muted, #7a7a96); margin-top: .55rem;
+         padding-top: .55rem; border-top: 1px solid var(--border, #2a2a3f); }
+  .why + .why { border-top: 0; padding-top: 0; margin-top: .4rem; }
+  .key { display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .82rem; margin: .2rem 0 0; color: var(--muted, #8a8aa8); }
   .key span { display: flex; align-items: center; gap: .4rem; }
+  .glance { border: 1px solid var(--border, #2a2a3f); border-left: 3px solid var(--accent, #7b5cff);
+            border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0 .2rem; background: var(--surface, #14141f); }
+  .glance b { font-size: 1.02rem; }
   .card { border: 1px solid var(--border, #2a2a3f); border-radius: .7rem; padding: .9rem 1.1rem; margin: .8rem 0; background: var(--surface, #14141f); }
   .card h3 { margin-top: 0; }
   .req { font-size: .9rem; }
   .req li { margin-bottom: .5rem; }
-  .stamp { font-size: .8rem; color: var(--muted, #7a7a96); margin-top: .4rem; }
+  .stamp { font-size: .8rem; color: var(--muted, #7a7a96); margin-top: .6rem; }
   .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border, #2a2a3f); font-size: .85rem; color: var(--muted, #667); }
   code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; }
 </style>
@@ -150,41 +161,53 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     });
 
   function stateClass(s) { return s === 'supported' ? 'ok' : s === 'unsupported' ? 'no' : 'huh'; }
-
-  function cellHTML(entry, feature) {
-    var cls = stateClass(entry.state), v;
-    if (entry.state === 'supported') v = esc(entry.min) + ' and up';
-    else if (entry.state === 'unsupported') v = 'No version works';
-    else v = 'We have not checked';
-    var out = '<div class="cell ' + cls + '"><span class="dot"></span><span class="v">' + v + '</span></div>';
-    if (entry.note) out += '<div class="why">' + esc(entry.note) + '</div>';
-    return out;
+  function stateWords(entry) {
+    if (entry.state === 'supported') return esc(entry.min) + ' and up';
+    if (entry.state === 'unsupported') return 'Never';
+    return 'Not checked';
   }
 
   function render(data) {
     var featIds = Object.keys(data.features);
 
-    var h = '';
-    h += '<div class="scroller"><table><thead><tr><th scope="col">Browser</th>';
-    featIds.forEach(function (f) {
-      h += '<th scope="col">' + esc(data.features[f].label) + '<br>' +
-           '<span style="font-weight:400;text-transform:none;letter-spacing:0">' + esc(data.features[f].plain) + '</span></th>';
+    // AT A GLANCE, before anything else: the three numbers almost everybody
+    // came here for, in the order the too-old screen itself says them.
+    var glance = data.copy.genericOrder.map(function (id) {
+      var b = data.browsers.filter(function (x) { return x.id === id; })[0];
+      return '<b>' + esc(b.label) + ' ' + esc(b.support[data.copy.genericFeature].min) + '</b>';
     });
-    h += '</tr></thead><tbody>';
+    var h = '<div class="glance">Meetings and broadcasts need ' +
+      glance.slice(0, -1).join(', ') + ' or ' + glance[glance.length - 1] +
+      ' — or newer. Your Home Screen and your apps need none of that and keep working either way.</div>';
 
+    h += '<div class="grid">';
     data.browsers.forEach(function (b) {
-      h += '<tr><th scope="row">' + esc(b.label);
-      if (b.chromiumSkin) h += '<small>Chrome underneath</small>';
-      h += '</th>';
-      featIds.forEach(function (f) { h += '<td>' + cellHTML(b.support[f], f) + '</td>'; });
-      h += '</tr>';
+      h += '<article class="bcard" data-browser="' + esc(b.id) + '">';
+      h += '<h3>' + esc(b.label) + (b.chromiumSkin ? '<small>Chrome underneath</small>' : '') + '</h3><dl>';
+      featIds.forEach(function (f) {
+        var e = b.support[f];
+        h += '<div class="row ' + stateClass(e.state) + '" data-feature="' + esc(f) + '">' +
+             '<dt>' + esc(data.features[f].label) + '</dt>' +
+             '<dd><span class="dot"></span> <span class="v">' + stateWords(e) + '</span></dd></div>';
+      });
+      h += '</dl>';
+      // Notes, deduplicated: meet and cast are the same page, so they usually
+      // carry the same sentence and printing it twice just looks careless.
+      var seen = [];
+      featIds.forEach(function (f) {
+        var n = b.support[f].note;
+        if (!n || seen.indexOf(n) !== -1) return;
+        seen.push(n);
+        h += '<p class="why">' + esc(n) + '</p>';
+      });
+      h += '</article>';
     });
-    h += '</tbody></table></div>';
+    h += '</div>';
 
     h += '<div class="key">' +
-      '<span><i class="dot" style="background:#3fbf7f;display:inline-block;width:.55rem;height:.55rem;border-radius:50%"></i> Works from this version on</span>' +
-      '<span><i class="dot" style="background:#e2564c;display:inline-block;width:.55rem;height:.55rem;border-radius:50%"></i> Cannot work, at any version</span>' +
-      '<span><i class="dot" style="background:#8a8aa8;display:inline-block;width:.55rem;height:.55rem;border-radius:50%"></i> Nobody has checked yet</span>' +
+      '<span><i class="dot" style="background:#3fbf7f"></i> Works from that version on</span>' +
+      '<span><i class="dot" style="background:#e2564c"></i> Cannot work, at any version</span>' +
+      '<span><i class="dot" style="background:#8a8aa8"></i> Nobody has checked yet</span>' +
       '</div>';
     h += '<p class="stamp">Last checked ' + esc(data.updated) + '.</p>';
     document.getElementById('matrix').innerHTML = h;
@@ -195,18 +218,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       var feat = data.features[f];
       r += '<div class="card"><h3>' + esc(feat.label) + '</h3>';
       r += '<p style="font-size:.92rem">' + esc(feat.plain) + '</p>';
-      if (feat.gatedBy && data.requirements[feat.gatedBy]) {
-        r += '<p style="font-size:.92rem;margin-top:.5rem"><b>What decides the version numbers above:</b> ' +
-             esc(data.requirements[feat.gatedBy].label) + ' — ' + esc(data.requirements[feat.gatedBy].why) + '</p>';
+      // `sameAs` means the requirements are identical to another feature's.
+      // Reprinting eight identical bullets does not inform anyone; it just
+      // makes the page look like it was assembled by a machine that cannot
+      // read. Say the true thing in one line instead.
+      if (feat.sameAs && data.features[feat.sameAs]) {
+        r += '<p style="font-size:.92rem;margin-top:.5rem"><b>Needs exactly what ' +
+             esc(data.features[feat.sameAs].label.toLowerCase()) + ' need</b> — same page, different skin. ' +
+             'Nothing extra, nothing less.</p>';
+      } else {
+        if (feat.gatedBy && data.requirements[feat.gatedBy]) {
+          r += '<p style="font-size:.92rem;margin-top:.5rem"><b>What decides the version numbers above:</b> ' +
+               esc(data.requirements[feat.gatedBy].label) + ' — ' + esc(data.requirements[feat.gatedBy].why) + '</p>';
+        }
+        r += '<ul class="req" style="margin-top:.6rem">';
+        (feat.requires || []).forEach(function (id) {
+          var req = data.requirements[id];
+          if (!req) return;
+          r += '<li><b>' + esc(req.label) + '</b> — ' + esc(req.why) + '</li>';
+        });
+        r += '</ul>';
       }
-      r += '<ul class="req" style="margin-top:.6rem">';
-      (feat.requires || []).forEach(function (id) {
-        var req = data.requirements[id];
-        if (!req) return;
-        r += '<li><b>' + esc(req.label) + '</b> — ' + esc(req.why) + '</li>';
-      });
-      r += '</ul>';
-      if (feat.notRequired) {
+      if (!feat.sameAs && feat.notRequired) {
         r += '<p style="font-size:.85rem;margin-top:.3rem"><b>Not needed:</b></p><ul class="req">';
         Object.keys(feat.notRequired).forEach(function (k) {
           r += '<li>' + esc(feat.notRequired[k]) + '</li>';
