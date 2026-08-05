@@ -223,11 +223,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Step down: the strip must CLEAR everywhere.
   await pages[stagerIdx].evaluate(() => window.__gifosVideo.stageForTest(false));
   let cleared = 0;
+  const uncleared = [];
   for (let i = 0; i < N; i++) {
     const ok = await pages[i].waitForFunction(() => window.__gifosVideo.stageIds().length === 0 && !document.querySelector('#stagefeed video'), null, { timeout: 20000 }).then(() => true).catch(() => false);
     if (ok) cleared++;
+    else {
+      // Forensics for the V4-era flake: WHICH page held the strip, and by
+      // WHAT — lingering stage membership (whose? how fresh?) or an orphaned
+      // strip element with membership already empty (a promotion/teardown
+      // race). The assertion itself is unchanged.
+      const d = await pages[i].evaluate(() => {
+        const g = window.__gifosVideo;
+        const ids = g.stageIds();
+        const vids = [...document.querySelectorAll('#stagefeed video')].map((v) => ({ row: v.closest('[data-row]') && v.closest('[data-row]').getAttribute('data-row'), w: v.videoWidth, rs: v.readyState }));
+        const st = (g.statusPeekForTest ? g.statusPeekForTest(ids[0]) : null);
+        return { page: document.title, ids, vids, st, mosStg: (g.mosInKeysForTest ? g.mosInKeysForTest() : null) };
+      }).catch((e) => ({ err: String(e).slice(0, 120) }));
+      uncleared.push({ i, ...d });
+    }
   }
-  check('step-down clears the strip everywhere', cleared === N, { cleared });
+  check('step-down clears the strip everywhere', cleared === N, { cleared, uncleared });
 
   // Small-room regression guard: mosaic must stay OFF below one section.
   const small = await browser.newContext({ permissions: ['camera', 'microphone'] });
