@@ -102,8 +102,30 @@ local page and still meshes over the production relay.
 **Which box.** A weak host invents failures: browser suites above ~9 bots start
 failing purely from local exhaustion (each participant holds several
 PeerConnections), and those failures look exactly like mesh bugs. Prefer the
-8-core box; when a run disagrees with the sim, re-run it somewhere idle before
-believing it.
+8-core gate host; when a run disagrees with the sim, re-run it somewhere idle
+before believing it.
+
+**But do not queue the whole farm behind one box.** "Prefer the gate host" is
+about where a NUMBER can be trusted, not a rule that every tier must run on one
+machine. The final release-gate run belongs to the gate host — one box, one
+verdict, one log. Everything else should SPREAD across whatever boxes are up:
+
+* **Suites in parallel, one tier per box.** `unit/`, `tools/`, `mesh/` and
+  `sim/` need no browser and no stack, so they can run anywhere while the gate
+  host is busy — including on a small ARM client. Browser tiers want cores, but
+  two different browser SUITES on two different boxes do not contend at all,
+  while two on one box contend badly (a browser suite spawns 6-10 processes).
+* **The behavior battery is a FLEET, not a box.** `lib/cast.js` distributes
+  actors over ssh (see the fleet recipe below); the orchestrator box only has
+  to serve the site + relay and hold the ssh pipes. A 5-person scenario spread
+  1-2 actors per box is the only version of it whose timings mean anything.
+* **Say WHERE a result came from.** A red is only comparable to another red on
+  a box of the same shape and the same load — every behavior failure is stamped
+  with loadavg for that reason. Record the box ROLE (gate host / 6-core fleet
+  client / 4-core ARM client) with any number worth keeping.
+* The gate host is also the box the release gate is ALLOWED to sit on for
+  hours. If it is mid-gate, do not borrow it for exploratory runs: land those
+  on a fleet client and let the gate finish.
 
 **Diagnostics, when a run disagrees with the sim.**
 
@@ -186,6 +208,65 @@ them apart — guessing without this trace cost two wrong diagnoses in one day.
 * **Never `pkill chrome` broadly over ssh** — it took down the ssh session
   itself. Kill the harness by its own bracketed name.
 
+### The BEHAVIOR battery in FLEET mode (the same lesson, automated)
+
+`test/behavior/lib/cast.js` already spreads a cast over boxes: it reads a LOCAL
+hosts file (`~/.gifos-behavior-hosts.json`, or `BEHAVIOR_HOSTS=<path>` — never
+committed, it describes someone's home network), pushes the CURRENT `meet.js`
+to each remote as `.bb-meet.js`, and drives every actor over the same stdio
+sentinel protocol through ssh. A role can name its box (`host:`) but normally
+placement is a weighted round-robin, now filtered by ENGINE (below). The
+orchestrator box runs no browsers if you give it no weight — it serves the
+stack and holds the pipes.
+
+```jsonc
+// BEHAVIOR_HOSTS file. "engines" lists what that box can actually launch;
+// omit it and the box is treated as chromium-only. "local" (no ssh) is the
+// orchestrator itself — drop it entirely to keep that box browser-free.
+{ "base": "http://<orchestrator-ip>:8199", "relay": "ws://<orchestrator-ip>:8795",
+  "hosts": [
+    { "name": "six-core", "ssh": "<alias>", "dir": "/home/u/gifos",
+      "node": "/usr/bin/node", "nodePath": "/home/u/gifos/node_modules",
+      "chrome": "…/chromium-<rev>/chrome-linux/chrome",
+      "firefox": "…/firefox-<rev>/firefox/firefox",
+      "engines": ["chromium", "firefox"], "weight": 2 },
+    { "name": "arm-client", "ssh": "<alias>", "dir": "/home/u/gifos",
+      "node": "/usr/bin/node", "nodePath": "/home/u/swarm/node_modules",
+      "chrome": "…/chromium-<rev>/chrome-linux/chrome", "weight": 1 } ] }
+```
+
+```bash
+# ON THE ORCHESTRATOR BOX — bind 0.0.0.0 or the fleet cannot reach the stack
+# (a scenario refuses with "stack unreachable", it does NOT quietly go local):
+python3 -m http.server 8199 -d site                  # binds 0.0.0.0 already
+RELAY_DEV=1 RELAY_HOST=0.0.0.0 RELAY_PORT=8795 node test/servers/relay-local.js
+
+BEHAVIOR_HOSTS=~/farm-hosts.json node test/behavior/scenarios/25a-mixed-engines-household.js
+BEHAVIOR_HOSTS=~/farm-hosts.json BEHAVIOR_ENGINE=maya=firefox \
+  node test/behavior/scenarios/01b-household-deadzone.js   # re-engine ANY scenario
+```
+
+Fleet traps beyond the ones above:
+
+* **Fleet mode NEVER auto-spawns the stack.** Local mode boots site+relay if
+  the ports are idle; fleet mode cannot (the fleet needs a routable address),
+  so it fails fast with `stack unreachable`. Read that as "you did not start
+  it, or you bound it to 127.0.0.1", never as a mesh symptom.
+* **Use SPARE PORTS when the box may already be serving another session's
+  stack.** 8099/8790 are frequently held by someone else's run of a DIFFERENT
+  tree; your fleet would then mesh over the right relay against the wrong site.
+  8199 + 8795 cost nothing and the hosts file carries them.
+* **`weight` is the only load control there is.** Actors are browsers; give the
+  6-core box 2 and a 4-core ARM client 1. A box already running a resident
+  service (a monitor, a local LLM) should get weight 1 or be left out — its
+  spare cores, not its core count, is what you are dividing up.
+* **The orchestrator's own load still lands in the numbers.** With another
+  session's browser suite on the same box (loadavg 38 on 4 cores, measured
+  2026-08-05) a LOCAL firefox actor took 90s to launch and seat, against 8s for
+  the same actor on an idle fleet client. Everything still passed — but that
+  90s would have been read as a mesh join stall by anyone reading the timings.
+  Give the orchestrator no actors when you care about latency.
+
 ## Running
 
 ```bash
@@ -250,7 +331,7 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
-| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 20 use cases / 48 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys). `--core` = the 21-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro (open bug #1) and stay RED until it's fixed. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP). Prefer an idle multi-core box: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason). |
+| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 25 use cases / 57 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys, and one MIXED-ENGINE room). `--core` = the 21-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro (open bug #1) and stay RED until it's fixed. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP); 25a needs a playwright firefox (else it SKIPs). Discovery is a glob, so a new `scenarios/*.js` is gated the moment it lands. Prefer an idle multi-core box — or better, give it a `BEHAVIOR_HOSTS` fleet and put 1-2 actors per machine: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason). |
 | `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
 | `c-sweep.sh` | **The multi-section confidence battery.** Rebuilds the sim at C in {2,3,4,5} (`-DGIFOS_C`) and drives rooms big enough to form DEEP multi-section trees, checking the invariants that must hold however the tree branches: all seated, ZERO duplicate cells, zero stranded, full Section 1, and no split-brain under partition. Production is C=5, where a second section needs >25 people; low C reaches deep trees with a handful of seats, so C=2/3/4 exercise cross-section seating/heal/churn/partition/compaction cheaply. Verdict gates on C>=4 (incl. production C=5); C=2/3 duplicate-minting under stress is a known degenerate-tiny-section finding (see `known-unfixed.sh`). Sim-only, seconds per C. |
 | `known-unfixed.sh` | **THE GRAVEYARD — every check in it is EXPECTED TO FAIL.** Behaviours we understood and DECIDED not to fix: too hard, not worth it, or a rule we want to keep would have to change. Not a gate, not run by CI, not called by any battery. Run it only when **we change our mind** and want to try again. RED is correct; a GREEN entry means someone fixed it — promote that check back into its real gate and delete it from here. Never soften an assertion to make it green. |
@@ -499,6 +580,52 @@ Measured 2026-08-05 on a 4-core Linux box, playwright 1.61.1, local site+relay:
   symlink, and the fallthrough was silent — playwright launched its default
   `chrome-headless-shell`, which was not installed either, so actors died with
   "Executable doesn't exist" *after* the harness said it was ready.
+- **Firefox HAS an insecure-origin escape hatch; chromium's switch is not the
+  only one** (measured 2026-08-05, correcting the first version of this note).
+  `dom.securecontext.allowlist` takes a comma-separated **HOST** list — no
+  scheme, no port — through playwright's `firefoxUserPrefs`. Against a
+  plain-http tailnet origin, without it: `isSecureContext` false,
+  `crypto.subtle` undefined, `navigator.mediaDevices` absent, so the page is
+  dead before the mesh starts. With it: all three present and WebCrypto
+  **Ed25519 `generateKey` succeeds** (the join floor). `meet.js` sets the pref
+  itself from `MEET_INSECURE_ORIGINS`, so a firefox actor works cross-box with
+  no extra flags. WebKit still has nothing equivalent and keeps its warning.
+
+**In the BEHAVIOR battery.** A role spec takes `engine: 'firefox'` (default
+chromium), and `BEHAVIOR_ENGINE` re-engines a scenario without editing it:
+`BEHAVIOR_ENGINE=firefox` for an all-Gecko room, `BEHAVIOR_ENGINE=maya=firefox`
+for one non-chromium viewer in an existing story. `25a-mixed-engines-household`
+is the gated cross-engine guard (one firefox phone among chromium peers: one
+tree, video BOTH ways — which only passes if the call negotiated VP8 — and a
+dropout healing on the non-chromium side). Three mechanisms make it safe:
+
+* `needEngines('firefox')` SKIPs loudly (exit 0, one `SKIP:` line) on a box
+  with no firefox, exactly like the `[relay-dev]` scenarios. A missing BROWSER
+  is an environment fact, not a product red — but it is never silent either.
+* Fleet placement is engine-aware: a host entry declares `"engines": [...]`,
+  and a role is only placed where its engine can launch. Without that filter
+  the actor dies with "Executable doesn't exist" AFTER the harness said ready.
+* `behavior.sh`'s between-scenario reap sweeps `BB_ACTOR=1` in `/proc/*/environ`
+  as well as the chromium name patterns — those patterns cannot see a leaked
+  firefox, and a leaked actor still holds a relay socket and a seat.
+
+**Staging engines on a fleet box** (`node node_modules/playwright/cli.js
+install firefox`, no sudo needed if the deps are already validated for
+chromium):
+
+* The browser revision follows the PLAYWRIGHT version, not the box: 1.61.1
+  pulls firefox-1532 (Firefox 151), 1.62.1 pulls firefox-1538 (Firefox 153).
+  So a hosts-file `firefox` path is per-box; leave it out and playwright's own
+  registry resolves it, which is usually what you want.
+* **ARM64 is fine** — playwright ships `firefox-debian-12-arm64`, so the small
+  ARM clients can be firefox actors too (installed and verified 2026-08-05).
+* Firefox is SLOWER to become a participant, and the cost is in launch, not in
+  the mesh. Same 3-role scenario, per actor: on one idle box chromium
+  launch→seat ≈ 3s and firefox ≈ 11s; across the farm, chromium ≈ 13s and
+  firefox ≈ 67s (26s of it a cold first launch on that box, 32s page load over
+  the tailnet). Everything still converged — but do not read a firefox actor's
+  join as a mesh stall, and do not write a cross-engine scenario with a tight
+  `waitSeat`.
 
 `swarm.js` runs N headless bots as real
 `run.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,

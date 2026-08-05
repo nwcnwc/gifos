@@ -7,6 +7,13 @@
 #   test/batteries/behavior.sh --core     # the CORE set (~1.5h)
 #   test/batteries/behavior.sh 01 08a     # only scenarios matching prefixes
 #
+# Engines: roles are chromium unless a scenario says otherwise (25a runs one
+# firefox phone; it SKIPs where firefox is not installed). BEHAVIOR_ENGINE
+# re-engines the whole battery (=firefox) or one role (=maya=firefox).
+# Boxes: with a BEHAVIOR_HOSTS file the actors spread over the farm by ssh —
+# test/README "The BEHAVIOR battery in FLEET mode". The battery itself is
+# unchanged either way; only where the browsers live changes.
+#
 # Stack: scenarios auto-spawn site:8099 + relay-local:8790 if idle. Start
 # test/servers/relay-dev.sh yourself to include the [relay-dev] deploy
 # scenarios (04b, 16b; 20a runs its deploy act opportunistically) — without
