@@ -645,6 +645,63 @@ chromium):
   join as a mesh stall, and do not write a cross-engine scenario with a tight
   `waitSeat`.
 
+**STOCK WebKitGTK is not the escape hatch from Playwright's WebKit — measured
+2026-08-05, REFUTED.** The standing suspicion was that Playwright's EMBEDDER,
+not WebKit, is what makes a WebKit guest join the control plane yet never paint
+a remote tile and die on the app share; the plan was to drive the engine the
+distro ships (WebKitGTK — what GNOME Web runs) through its own
+`WebKitWebDriver`, and, as a stretch, get `RTCRtpScriptTransform` from the
+`WEBKIT_FEATURES` env plumbing that Playwright's fork lacks. The question never
+got that far: **stock WebKitGTK has no WebRTC at all.**
+
+`node test/tools/webkitgtk-smoke.js` is that measurement, re-runnable on any
+box in one command (no npm deps — raw WebDriver over `fetch`, its own probe
+server, its own Xvfb and driver). Modes: `caps`, `rtc`, `build`, `gi`.
+Needs `sudo apt-get install webkit2gtk-driver xvfb gir1.2-webkit2-4.1`.
+
+- `RTCPeerConnection`, `RTCDataChannel`, `RTCSessionDescription`,
+  `RTCIceCandidate`, `RTCRtpSender`, `RTCRtpScriptTransform` — **all
+  `undefined`**. `MediaStream`, `getUserMedia`, `canvas.captureStream` and
+  `crypto.subtle` are all PRESENT, so the hole is exactly and only the peer
+  connection. No mesh link, no DC lane, nothing to smoke.
+- **Cause, upstream of any distro:** `Source/cmake/OptionsGTK.cmake` declares
+  `WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_RTC PRIVATE
+  ${ENABLE_EXPERIMENTAL_FEATURES})` — OFF in release builds — while
+  `ENABLE_MEDIA_STREAM` is ON. `debian/rules` never overrides it. Do not go
+  looking for a distro that packaged it differently: it is off by default
+  everywhere.
+- **The `enable-webrtc` setting is a decoy.** `WebKitSettings` really has
+  `enable-webrtc` (and MiniBrowser exposes every WebKitSettings property as
+  `--enable-webrtc=TRUE` etc. via `--help-websettings`). Set it through the C
+  API and it reads back `True` — and `RTCPeerConnection` is still undefined.
+  A live property over a subsystem that was never compiled in.
+- **The build census, with its positive control:** `libwebkit2gtk-4.1.so.0`
+  links neither `libgstwebrtc-1.0` nor `libgstsdp-1.0`, *while
+  `libgstwebrtc-1.0.so.0` is installed on the box*. Without that second half
+  the first half only says "unavailable"; with it, it says COMPILED OUT.
+- Fleet-wide, so nobody re-runs it per box: Debian bookworm ships
+  webkit2gtk **2.50.6** (`webkit2gtk-driver` = `/usr/bin/WebKitWebDriver`,
+  MiniBrowser at `/usr/lib/<triplet>/webkit2gtk-4.1/MiniBrowser`) — new enough
+  for the `WEBKIT_FEATURES` plumbing, and irrelevant. The Ubuntu 22.04 box has
+  2.50.4. bookworm's WPE sibling (`libwpewebkit-1.1-0` 2.38.6 +
+  `wpewebkit-driver`) links no gstwebrtc either. `WebRTCEncodedTransform` does
+  not even appear in `MiniBrowser --features=help` (472 features), because the
+  whole subsystem it belongs to is absent.
+- So **ledger #5 (the pipe lane on a Safari engine) stays with real Apple
+  hardware** — the iPhone lane. On Linux the only engine with
+  `RTCRtpScriptTransform` remains Firefox, which is already a full participant.
+  A WebRTC-capable WebKitGTK would have to be built from source with
+  `-DENABLE_WEB_RTC=ON`; the tool is written so that the day such a build
+  exists, `caps` goes green and `rtc` becomes the next question — it already
+  implements the test Playwright's WebKit FAILS, which is that the RECEIVING
+  `<video>` reaches `readyState>=2` / `videoWidth>0`. Decoding is not painting.
+- Trap: WebKitGTK is a real GTK app and wants a display. Give it Xvfb
+  (`Xvfb :99 …`, `DISPLAY=:99 GDK_BACKEND=x11`), never the user's `:0` — a
+  smoke run must not throw windows onto somebody's desktop. And do not drive
+  MiniBrowser by hand for measurements: it has no output channel for JS
+  results, so a run that silently did not load looks exactly like a run that
+  loaded and answered. WebDriver or the gi route, both of which return values.
+
 `swarm.js` runs N headless bots as real
 `run.html` clients (solid-swatch cams, `swarm-voices.js` espeak clips,
 `swarm-videos/` talking-head packs). `swarm-handq.js` is the hand-queue scale
@@ -660,7 +717,8 @@ seat until its owner arrives.
 app README image), `approom-host.js` + `approom-join.js` (app-room join
 latency, per-leg TRACE), `engine-smoke.js` + its `engine-smoke-pcrec.js`
 init-script (can a given browser ENGINE be in a meeting at all — see
-"Other ENGINES" above).
+"Other ENGINES" above), `webkitgtk-smoke.js` (the same question asked of the
+distro's own WebKitGTK through `WebKitWebDriver`, outside playwright entirely).
 
 ## Known state
 
