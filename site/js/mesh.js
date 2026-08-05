@@ -63,6 +63,7 @@
   // because the rook has many paths to exhaust. A wrong ring-heal is the one act
   // that mints a divergent home; a held hole is a recoverable availability dip.
   const RING_HOLD = 220;     // test/sim/mesh.cpp RING_HOLD
+  const OWNER_SILENT = 40;   // test/sim/mesh.cpp OWNER_SILENT — 5 unanswered 8-tick phone beats arms the ghost-target probe
   // A three-state occupancy: soft sitting-down TTL + assigner recheck (loss wedge).
   const SIT_TTL = 90, SIT_RECHECK = 25;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
@@ -1388,6 +1389,28 @@
       let tc = null; if (this.hasCoord) { if (this.coord.i !== 0) tc = { pc: this.coord.pc, r: this.coord.r, i: 0 }; else tc = this.ownerCoord(); }
       if (!tc) return; const tid = this.occGet(ck(tc)); if (tid == null) return;
       this.emit(tid, { t: 'PHONE', coord: this.coord, tock: ck(tc), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) });
+      // A GHOST PHONE TARGET MUST BE FALSIFIABLE (2026-08-05; sim twin is the
+      // origin — churn-combos leg C). An occupant that MOVED before I arrived
+      // (its LEAVE went to a then-empty cell, so nobody could address it to me)
+      // leaves a ghost occ entry no rule can falsify: occGet never nulls, no
+      // transport event ever fires (we never shared a live DC), the healers'
+      // guards stay shut, and my lastAck rots to E1's 220-tick last resort —
+      // a healthy seat unseats out of a healthy room because somebody ELSE's
+      // link blipped. Remedy: a VIEW-ONLY delete at the healers' OWN horizons,
+      // probe-gated — past OWNER_SILENT I probe the cell across the mesh every
+      // beat (a live-but-severed occupant answers HELLO, turns first-hand, and
+      // this branch resets); only a target silent through the same confirm
+      // horizon the healers use (60 deep, RING_HOLD in Section 1) loses the
+      // occ entry, which lets the EXISTING occGet==null healer branches fire
+      // with their own pacing. (A translost-based first cut borrowed the
+      // DC-death EARLY_HOLD confirm and minted a dup under mass-kill — probe
+      // loss in a storm is not death evidence. Measured in the sim, reverted.)
+      const tk = ck(tc);
+      if (this.TICK - this.lastAck > OWNER_SILENT && !this.firstHandLive(tk)) {
+        this.routeTo(tc, 1);
+        const confirmH = (tc.pc === 0) ? RING_HOLD : 90; // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE; 60 degraded post-mass-kill packing (sim compaction leg 1), 120 lost the E1 race (leg C s5); 90 measured green on both
+        if (this.TICK - this.lastAck > confirmH && this.occ.has(tk)) { this.occ.delete(tk); this.live.delete(tk); this.kidful.delete(tk); this.s1seen.delete(tk); }
+      }
     }
     // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live
     // rook neighbour — its whole row AND whole column — each beat, so first-hand
@@ -1961,7 +1984,7 @@
       // only leaves move; I move only when I am childless), wired with my
       // cousins (O's heir neighbourhood, learned from O's PONG).
       let didHeal = false;
-      if (this.coord.i === 0 && this.cousins.size && TICK - this.healAt > 20) {
+      if (this.coord.i === 0 && TICK - this.healAt > 20) { // cousins may be EMPTY — a ghost owner never PONGed, so it taught no heir neighbourhood; nbrs fall back to the hole's owned-link occupants below
         const oc = this.ownerCoord(); const ok = oc ? ck(oc) : null;
         // H1-S1 CONSERVATISM: promoting into a SECTION-1 owner is the one move
         // that can mint a divergent home — it waits the full RING_HOLD window.
@@ -1976,6 +1999,7 @@
           if (ownEarly) { this.occ.delete(ok); this.live.delete(ok); this.s1seen.delete(ok); this.kidful.delete(ok); }
           this.healTry.set(ok, TICK); this.healAt = TICK; didHeal = true;
           const nb = []; for (const [k, v] of this.cousins) nb.push({ k, v });
+          if (!nb.length) { for (const olc of topo.ownedLinks(oc)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) nb.push({ k: ck(olc), v: x }); } }
           const rc = this.rosterCells(); const ix = this.shuf(Array.from({ length: C() }, (_, k) => k)); let sent = false;
           for (const q of ix) { const x = this.occGet(ck(rc[q])); if (x != null && x !== this.id) { this.emit(x, { t: 'FINDLEAF', hole: oc, nbrs: nb, ttl: 40 }); sent = true; break; } }
           if (!sent) this.promoteInto(oc, nb); // I'm childless ⇒ I AM the leaf
