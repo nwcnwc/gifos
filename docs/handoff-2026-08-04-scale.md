@@ -81,6 +81,39 @@ N=2000 converges @5504 (the regression control). Full runs at N≥5000 take
   ticks/s). A faster machine changes wall-clock, not tick counts — tick
   numbers in the docs remain comparable; seconds do not.
 - Another agent shares the repo working dir ON THE PI with uncommitted
-  changes to site/js/desktop.js and test/browser/e2e-api.js (pipe/§9
-  work). Do not sweep those into commits if working on the Pi clone; a
-  fresh clone on the new machine is clean by construction.
+  changes to site/js/desktop.js and test/browser/e2e-api.js. Do not sweep
+  those into commits if working on the Pi clone; a fresh clone on the new
+  machine is clean by construction.
+
+## Unfinished work sitting in the PI worktree (decide its fate)
+
+Uncommitted on the Pi clone (`/home/nathan/projects/gifos`), author
+unknown (the other agent's session), surviving reboots but committed by
+nobody:
+
+- `site/js/desktop.js` — DELETES the whole password-reveal EYE helper
+  (`pwEye`, the PWEYE_SVG, and the focusin delegate; ~38 lines at ~1671),
+  which commit `a8e7091` ("the password EYE's stranded half") added the
+  same day. One more deletion at ~2280.
+- `test/browser/e2e-api.js` — DELETES the matching assertions ("every
+  Settings key field wears the password eye", reveal/re-hide, the
+  fresh-row focusin leg).
+
+Code and tests removed TOGETHER = it reads as a deliberate revert
+mid-flight, not an accident. Plausible motive (unverified): the desktop's
+Settings fields may already receive the GENERIC eye from run.html's own
+focusin delegate, making the desktop copy mint a SECOND button per field.
+
+How to decide (10 minutes, on any machine):
+1. Load the desktop page, open Settings, focus an API key field. Count
+   eye buttons per password field and note which file's delegate made
+   them (`__pwEye` marks, `pweye-` id prefix).
+2. TWO eyes → the deletion is a dedup fix: commit BOTH file changes
+   together with a message saying exactly that, and keep e2e-video's
+   run.html-side eye guard as the sole guard.
+3. ONE eye, minted by desktop.js → the deletion would strip password
+   reveal from the desktop: restore the worktree (`git checkout -- <both
+   files>`) and note why.
+4. Either way, do not let it sit: an uncommitted coherent change is how
+   a8e7091's own commit message says this bug family started ("it once
+   sat uncommitted while the run.html half shipped").
