@@ -105,17 +105,21 @@ failure under concurrent admission, in three stacked defects:
    twin (plain Numbers) has no such wall, so THE TWINS DIVERGE exactly
    where the storm goes.
 
-**The mint, pinned (mesh.js serveFind deep path):** `firstFreeInRoster()
--> admit()` — ANY seated seat receiving a descending FIND admits into a
-free cell of its own row, with only a markSitting reservation LOCAL to
-that admitter. Section 1 has C3 one-designated-admitter-per-cell; the deep
-join path does not. Two seats of one row serving two seekers concurrently
-both see the same free cell and both PLACE — a duplicate. serveCompact
-directly below already states the needed rule ("Only a ROW HEAD decides —
-it holds the whole row FIRST-HAND"); the join path never got it. Fix
-shape: deep admission head-only (non-heads hand the FIND to their head, a
-direct link), plus a LOUD depth clamp so the uint32 overflow wall can
-never again be crossed silently.
+**The mint — first hypothesis RETRACTED, race narrowed:** the deep path's
+`firstFreeInRoster() -> admit()` is NOT a free-for-all — `rosterCells()`
+shows each seat admits only into the ONE child row it owns
+(`childPath(pc, i)`), so per-cell admission authority is structurally
+unique. The surviving suspects for two PLACEs naming one cell, to be
+pinned EMPIRICALLY with a temporary conflict printf in the sim (log when
+a CLAIM or take lands on an occupied cell: both ids, placer, tick):
+(a) sitting-expiry double-PLACE — the owner's soft reservation expires
+    after SIT_TTL=90 without the seeker's CLAIM registering, and the cell
+    is re-placed while the first seeker still holds it;
+(b) law-T dual-hold — a mid-move owner briefly holds two cells and both
+    old and new occupants of the parent cell serve the same child row;
+(c) cascade — a duplicated PARENT cell gives two seats the same owned
+    child row (this one amplifies but cannot be first).
+The depth clamp for the uint32 wall stands regardless of which mints.
 
 The steady state: dup races -> E2 eviction wars -> evicted seats rejoin
 the storm -> frontiers look full -> deeper descent -> overflow aliasing ->
