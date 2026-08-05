@@ -291,7 +291,14 @@ class Cast {
       : (h.engines ? h.engines.includes(eng) : !h.ssh);
     for (const a of this.all()) {
       const eng = a.engine();
-      if (a.spec.host) { a.host = hosts.find((h) => h.name === a.spec.host); if (a.host) continue; }
+      if (a.spec.host) {
+        a.host = hosts.find((h) => h.name === a.spec.host);
+        // a PIN is explicit intent — say so when it cannot hold, rather than
+        // launching a browser that box does not have
+        if (a.host && !canRun(a.host, eng)) throw new Error('role ' + a.role + ' is pinned to host "' + a.spec.host
+          + '", which does not declare engine "' + eng + '"');
+        if (a.host) continue;
+      }
       let picked = null;
       for (let k = 0; k < cycle.length; k++) { const h = cycle[(ci + k) % cycle.length]; if (canRun(h, eng)) { picked = h; ci += k + 1; break; } }
       if (!picked) throw new Error('no fleet host can run engine "' + eng + '" for role ' + a.role
