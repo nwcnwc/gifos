@@ -1,4 +1,4 @@
-# The behavior battery — 24 use cases, real people, real phones
+# The behavior battery — 25 use cases, real people, real phones
 
 Launch truth: there will be **no monitors in production**. Billions of rooms,
 zero pis, nobody watching. Every problem a meeting can have must be one the
@@ -53,8 +53,16 @@ skipping its logic.
   ports are idle). Scenarios marked **[relay-dev]** need the REAL relay
   (`test/servers/relay-dev.sh`, port 8794) and are skipped with a notice if
   it isn't up — DO restarts cannot be mirrored by the Node stand-in.
+- `engine: 'firefox'` puts a role on another BROWSER ENGINE (default chromium;
+  `webkit` exists but cannot paint a remote tile and dies on an app share, so
+  it is not a battery participant). A scenario that depends on one calls
+  `needEngines('firefox')`, which SKIPs loudly on a box that lacks it.
+- **The cast can span BOXES.** With a `BEHAVIOR_HOSTS` file (see test/README →
+  "The BEHAVIOR battery in FLEET mode") each actor runs on a real machine over
+  ssh, 1-2 per box — the only way a timing number here means anything, since
+  one box running five browsers plus the relay is a shape no meeting has.
 
-## The 20 use cases
+## The 25 use cases
 
 Order is by how common we judge the meeting shape at launch, not severity.
 Scripts live in `scenarios/` as `<nn><letter>-<case>-<pattern>.js`.
@@ -462,6 +470,23 @@ blur and never rides the link.
   message on every device; a LATE ticket-holder walks straight into the
   painted show; the full house holds steady.
 
+### 25. The mixed-engine household — the room is never one browser
+**Cast:** Dana (desktop, chromium), Maya (phone, **Firefox**), Pops (phone,
+chromium).
+**Story:** the same household as use case 1, except Maya's phone is Gecko.
+Every other scenario in this battery is Chromium on all sides, so the
+cross-engine facts — a VP8-only negotiation (the playwright firefox build has
+no H.264), another WebRTC stack's ICE, another visibility/beat implementation —
+were never under a gate.
+
+- **25a `25a-mixed-engines-household.js`** — mixed cast seats into ONE tree,
+  mutual sight by name, video crosses BOTH ways, and the coverage-dropout lever
+  self-heals on the non-chromium side (which also proves the levers themselves
+  are engine-neutral page JS). SKIPs loudly where firefox is not installed.
+  Any OTHER scenario can be asked the same question without editing it:
+  `BEHAVIOR_ENGINE=<role>=firefox`, or `BEHAVIOR_ENGINE=firefox` for an
+  all-Gecko room.
+
 ---
 
 ## Script index → what reality each covers
@@ -484,8 +509,9 @@ blur and never rides the link.
 | multi-row rooms (6+ people) | 22a 22b |
 | multi-section trees (`--mesh-c 2`) | 23a 23b |
 | the Broadcast skin (`bc`, ticket, call-up, chat-off) | 24a |
+| a NON-CHROMIUM participant (firefox/Gecko, VP8) | 25a (+ any scenario under `BEHAVIOR_ENGINE`) |
 
-56 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+57 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
 whether the lever machinery or the app broke). The three open bugs this
 battery once carried as expected-RED scenarios are all FIXED and their
@@ -511,6 +537,25 @@ Every scenario exits non-zero on failure and leaves its run dir
 (`/tmp/behavior/<script>-<ts>/`) with per-role JSONL, the orchestrator log,
 and failure screenshots. `BEHAVIOR_BASE`/`BEHAVIOR_RELAY` redirect the stack;
 `BEHAVIOR_HEADFUL=1` shows the browsers.
+
+**Across the farm** (the shape a meeting actually has — and the reason the
+battery does not have to queue behind the gate host):
+
+```bash
+# on the box that serves the stack — bind 0.0.0.0 or every scenario refuses
+# with "stack unreachable"; fleet mode NEVER auto-spawns the stack
+python3 -m http.server 8199 -d site
+RELAY_DEV=1 RELAY_HOST=0.0.0.0 RELAY_PORT=8795 node test/servers/relay-local.js
+
+BEHAVIOR_HOSTS=~/farm-hosts.json node test/behavior/scenarios/03c-classmates-flaky-pair.js
+BEHAVIOR_HOSTS=~/farm-hosts.json BEHAVIOR_ENGINE=bo=firefox \
+  node test/behavior/scenarios/03c-classmates-flaky-pair.js   # …with one Gecko phone
+```
+
+The hosts-file format, the engine filter, and the traps (spare ports when the
+box already serves someone else's tree; `weight` as the only load control; a
+loaded orchestrator inflating a LOCAL actor's join to 90s) are in test/README →
+"The BEHAVIOR battery in FLEET mode".
 
 ## Writing a new scenario
 
