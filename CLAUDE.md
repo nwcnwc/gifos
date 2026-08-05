@@ -170,6 +170,21 @@ new; then build freely if the bug needs machinery that isn't there.
   off to `index.html#place=<fileId>` so `saveItem` picks the cell. Anything
   that must survive a version redirect goes in the HASH — the channel loader
   carries `pathname + hash` and DROPS the query.
+- Browser support is DATA: `site/browser-support.json` is the single source of
+  truth for every browser × feature (meet / cast / desktop) cutoff, and nothing
+  else may hard-code a version number. `site/browser-support.html` fetches it
+  and cannot drift; `run.html`'s preflight CANNOT fetch (it is ES5, runs before
+  everything, and the browser it is talking to may have no `Promise`), so its
+  copy table is GENERATED but COMMITTED — same doctrine as the App Store
+  catalog. Regenerate with `node scripts/build-browser-support.mjs`; `--check`
+  fails on drift and `test/unit/browser-support.js` runs it in the gate. Edit
+  the JSON, never the block between the GENERATED markers in run.html. The
+  preflight's VERDICT is feature detection only and must stay that way — the
+  table chooses words, never outcomes. Honesty is enforced mechanically:
+  `supported` must carry a version, `unknown`/`unsupported` must not (an
+  unknown with a number is a guess). The floor today is set by WebCrypto
+  Ed25519 (mandatory at every join, `mesh-wire.js` S4): Chrome/Edge 137,
+  Firefox 129, Safari 17.
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.

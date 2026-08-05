@@ -224,27 +224,38 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('  [matrix] ' + e.message));
     await p.goto(BASE + '/browser-support.html');
-    await p.waitForFunction(() => document.querySelectorAll('#matrix tbody tr').length > 0, null, { timeout: 15000 }).catch(() => {});
+    await p.waitForFunction(() => document.querySelectorAll('#matrix [data-browser]').length > 0, null, { timeout: 15000 }).catch(() => {});
     const m = await p.evaluate(() => {
-      const rows = [...document.querySelectorAll('#matrix tbody tr')].map((tr) => ({
-        name: tr.querySelector('th').textContent,
-        cells: [...tr.querySelectorAll('td .v')].map((v) => v.textContent),
-      }));
-      return { rows, reqs: document.getElementById('reqs').textContent, cols: [...document.querySelectorAll('#matrix thead th')].map((t) => t.textContent) };
+      const cards = {};
+      for (const c of document.querySelectorAll('#matrix [data-browser]')) {
+        const feats = {};
+        for (const r of c.querySelectorAll('[data-feature]')) feats[r.getAttribute('data-feature')] = r.querySelector('.v').textContent.trim();
+        cards[c.getAttribute('data-browser')] = feats;
+      }
+      return {
+        cards,
+        glance: (document.querySelector('#matrix .glance') || {}).textContent || '',
+        reqs: document.getElementById('reqs').textContent,
+        wide: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      };
     }).catch(() => null);
-    check('the support matrix page renders a row per browser from the JSON', !!m && m.rows.length >= 8, m && m.rows.length);
-    check('…with a column for meetings, broadcast and the Home Screen',
-      !!m && /Meetings/.test(m.cols.join('|')) && /Broadcast/.test(m.cols.join('|')) && /Home Screen/.test(m.cols.join('|')), m && m.cols);
-    const safari = m && m.rows.find((r) => /^Safari$/.test(r.name.trim()));
+    const n = m ? Object.keys(m.cards).length : 0;
+    check('the support matrix page renders a card per browser from the JSON', n >= 8, n);
+    check('…each answering for meetings, broadcast AND the Home Screen',
+      !!m && Object.values(m.cards).every((f) => f.meet && f.cast && f.desktop), m && m.cards.chrome);
     check('…and it quotes the SAME minimum the too-old screen quotes (Safari 17)',
-      !!safari && safari.cells[0] === '17 and up', safari && safari.cells);
-    const chrome = m && m.rows.find((r) => /^Chrome$/.test(r.name.trim()));
-    check('…and Chrome 137, the number Ed25519 actually sets', !!chrome && chrome.cells[0] === '137 and up', chrome && chrome.cells);
-    const skin = m && m.rows.find((r) => /Samsung/.test(r.name));
+      !!m && m.cards.safari && m.cards.safari.meet === '17 and up', m && m.cards.safari);
+    check('…and Chrome 137, the number Ed25519 actually sets',
+      !!m && m.cards.chrome && m.cards.chrome.meet === '137 and up', m && m.cards.chrome);
     check('…and an unmeasured browser says so rather than guessing',
-      !!skin && skin.cells.every((c) => c === 'We have not checked'), skin && skin.cells);
+      !!m && m.cards.samsung && Object.values(m.cards.samsung).every((v) => v === 'Not checked'), m && m.cards.samsung);
+    check('…and a browser that can never work says THAT, not a version',
+      !!m && m.cards.ie && m.cards.ie.meet === 'Never', m && m.cards.ie);
+    check('the three numbers people came for are above the fold, in one sentence',
+      !!m && /Safari 17/.test(m.glance) && /Chrome 137/.test(m.glance) && /Firefox 129/.test(m.glance), m && m.glance.slice(0, 120));
     check('…and the page explains WHY the numbers are what they are (Ed25519)', !!m && /Ed25519/.test(m.reqs));
     check('…and says a camera is not needed to be in the room', !!m && /camera/i.test(m.reqs));
+    check('the page never scrolls sideways (it is read on phones)', !!m && !m.wide);
     await ctx.close();
   }
 
