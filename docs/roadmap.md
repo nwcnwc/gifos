@@ -1102,6 +1102,24 @@ live; only the IAP rail below is still unbuilt.
 - **Publish path:** maker PR with App GIF + listing JSON; CI checks hash / size /
   basic policy; merge → store index → Home Screen. (Today the catalog holds
   first-party certified apps only, and `--check` is the CI gate.)
+- **Seed the catalog: port existing GitHub apps.** The store's cold-start
+  problem is inventory, and the inventory already exists — GitHub is full of
+  self-contained browser apps and games that are one packaging step away from
+  being App GIFs. Batch-port a curated set (license permitting, credited,
+  linked back) and list them.
+  - **The example that sets the bar: Hop.Earth** (@DVLPLONDON, announcement at
+    3.9M views): a browser three.js driving game where the world is generated
+    around you in real time from OpenStreetMap data + satellite elevation —
+    click anywhere on the planet, "Hop Here", and drive. Single-player is
+    exactly our solo app posture; its multiplayer mode is *"Create race →
+    share the link → friends race you"* — which IS the GifOS invite flow, so
+    a port gets lobby/link/mesh for free from the runtime instead of running
+    its own share plumbing. An app like this in the store is the demo that
+    explains GifOS in one install.
+  - Diligence per port: license allows redistribution; offline behavior honest
+    (Hop.Earth needs OSM/elevation tiles — a `network` capability listing, the
+    same honest degradation as Bible Browser); credit + upstream link in the
+    listing; size within store norms.
 - **IAP:** the whole x402 rail below.
 - **IAP:** shell broker e.g. `gifos.pay` / 402 handling — “Pay $X to &lt;maker&gt;
   (GifOS fee Y%)?”; receipt unlocks in-app entitlement (local or maker-verified).
