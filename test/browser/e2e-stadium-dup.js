@@ -135,8 +135,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   };
 
   let topo = null, df = [], ship = [], via = 'NEITHER';
+  const judgeCarry = async (budgetMs) => {
+  topo = null; df = []; ship = []; via = 'NEITHER';
   const t2 = Date.now();
-  while (Date.now() - t2 < 90000) {
+  while (Date.now() - t2 < budgetMs) {
     topo = await settle();
     if (topo && topo.headIdx >= 0 && topo.headIdx !== mIdx) {
       // Somebody else heads the mover's row: the row product MUST carry the
@@ -157,6 +159,46 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (ship.some((k) => k.indexOf('sub>') === 0)) { via = 'up-ship'; break; }
     }
     await sleep(2000);
+  }
+  };
+  await judgeCarry(90000);
+
+  // RE-MANUFACTURE (2026-08-05). Post-sever dup resolution may lawfully ROTATE
+  // the mover's identity (the R5 saga this suite already reports), and a
+  // rotated node re-enters through the front door — a LATE rotation leaves it
+  // mid-entry (state 2, occ=0, a fresh tick counter) when the budget ends, so
+  // topo derives null and both carry legs would fail VACUOUSLY: not because a
+  // face was dropped, but because the manufactured wedge dissolved before the
+  // judgment. Seen in-gate on the 8-core box (mesh tick=40 at assert — a node
+  // ~20s old); never on the slower boxes, where the wedge outlives the window.
+  // The remedy is the fixture's, not the assertion's: wait for the rotated
+  // node to SEAT, re-manufacture the wedge ONCE (same sever + teleport, fresh
+  // coords and identity), and judge the SAME claims on the second attempt. A
+  // mover that never re-seats, or a face still uncarried after a fresh wedge,
+  // fails exactly as before.
+  if (!topo || !topo.mC || topo.mC.pc === 0) {
+    console.log('   MEASURE manufacture dissolved (mover ' + (topo && topo.mC ? 'back in section 0' : 'mid-re-entry') + ') — waiting for a seat, then re-manufacturing once');
+    const t3 = Date.now();
+    let seated = null;
+    while (Date.now() - t3 < 60000) {
+      seated = await pages[mIdx].evaluate(() => window.__gifosVideo.meshCoord()).catch(() => null);
+      if (seated) break;
+      await sleep(2000);
+    }
+    if (seated) {
+      const csNow = await Promise.all(pages.map((p) => p.evaluate(() => window.__gifosVideo.meshCoord()).catch(() => null)));
+      const dIdx2 = csNow.findIndex((c, k) => k !== mIdx && c && c.pc !== 0);
+      const mPid2 = await pidNow(mIdx);
+      if (dIdx2 >= 0 && mPid2) {
+        const dC2 = csNow[dIdx2];
+        await pages[hIdx].evaluate((pref) => window.__gifosVideo.severByPrefixForTest(pref, 30000), String(mPid2).slice(0, 8));
+        await sleep(500);
+        const seed2 = {}; seed2[dC2.pc + '/' + dC2.r + '.' + dC2.i] = (await pidNow(dIdx2)) || '';
+        await pages[mIdx].evaluate((a) => window.__gifosVideo.forceSeat(a.pc, a.r, a.i, a.seed), { pc: dC2.pc, r: dC2.r, i: 1 - dC2.i, seed: seed2 });
+        await sleep(2000);
+        await judgeCarry(90000);
+      }
+    }
   }
 
   const cstrs = topo ? topo.cs.map(cstr) : null;
