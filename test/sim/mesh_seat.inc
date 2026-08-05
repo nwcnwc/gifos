@@ -735,11 +735,19 @@ Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.chi
   // borrows the DC-death EARLY_HOLD confirm, and a mass-kill storm then minted
   // a duplicate: probe loss under storm is not death evidence. Measured, and
   // the horizons went back to the healers' own.)
+  // NARROWED (2026-08-05, second cut): only an occupant I have NEVER heard
+  // first-hand — a pure inheritance ghost (live has no entry at all) — is
+  // falsifiable by silence. An occupant I once heard and lost is the severed-
+  // but-alive case, and that belongs to D5/E2's transport-event + ring
+  // conservatism, never to a silence clock: under continuous link churn
+  // (repro-adversary "links dying underneath the room") probes die with the
+  // links, and the broad !firstHandLive form falsified LIVE severed neighbours
+  // — measured RED in-gate on the first cut, green again with this narrowing.
   { uint64_t tk=ckey(tc);
-    if(TICK-lastAck>OWNER_SILENT && !firstHandLive(tk)){
+    if(TICK-lastAck>OWNER_SILENT && !live.count(tk)){
       routeTo(tc,1);
-      long long confirmH=(tc.pc==0)?RING_HOLD:90;   // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE, and 60 measurably degraded post-mass-kill packing (compaction leg 1); 120 still beats E1 by half
-      if(TICK-lastAck>confirmH && occ.count(tk)){ occ.erase(tk); live.erase(tk); kidful.erase(tk); s1seen.erase(tk); } } }
+      long long confirmH=(tc.pc==0)?RING_HOLD:90;   // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE, and 60 measurably degraded post-mass-kill packing (compaction leg 1); 120 lost the E1 race (leg C s5)
+      if(TICK-lastAck>confirmH && occ.count(tk)){ occ.erase(tk); kidful.erase(tk); s1seen.erase(tk); } } }
 }
 // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live rook
 // neighbour — its whole row AND whole column — each beat, so first-hand liveness is

@@ -1405,11 +1405,18 @@
       // with their own pacing. (A translost-based first cut borrowed the
       // DC-death EARLY_HOLD confirm and minted a dup under mass-kill — probe
       // loss in a storm is not death evidence. Measured in the sim, reverted.)
+      // NARROWED (second cut): only an occupant I have NEVER heard first-hand
+      // — a pure inheritance ghost (live has no entry at all) — is falsifiable
+      // by silence. An occupant I once heard and lost is the severed-but-alive
+      // case: D5/E2's transport-event + ring conservatism owns it, never a
+      // silence clock — under continuous link churn probes die with the links,
+      // and the broad !firstHandLive form falsified LIVE severed neighbours
+      // (sim repro-adversary went RED in-gate on the first cut).
       const tk = ck(tc);
-      if (this.TICK - this.lastAck > OWNER_SILENT && !this.firstHandLive(tk)) {
+      if (this.TICK - this.lastAck > OWNER_SILENT && !this.live.has(tk)) {
         this.routeTo(tc, 1);
         const confirmH = (tc.pc === 0) ? RING_HOLD : 90; // deep: 1.5x the healer horizon — silence is weaker evidence than a LEAVE; 60 degraded post-mass-kill packing (sim compaction leg 1), 120 lost the E1 race (leg C s5); 90 measured green on both
-        if (this.TICK - this.lastAck > confirmH && this.occ.has(tk)) { this.occ.delete(tk); this.live.delete(tk); this.kidful.delete(tk); this.s1seen.delete(tk); }
+        if (this.TICK - this.lastAck > confirmH && this.occ.has(tk)) { this.occ.delete(tk); this.kidful.delete(tk); this.s1seen.delete(tk); }
       }
     }
     // D1 heartbeat over the RICH ROOK (W7): a Section-1 seat phones every live
