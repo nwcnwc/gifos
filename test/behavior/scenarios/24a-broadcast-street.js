@@ -33,8 +33,15 @@ scenario('24a-broadcast-street', {
     (await ev('hana', 'window.__gifosVideo.onStage()')) === true, { within: 30 });
   // go visibly live: camera on, No blur — with the ticket set, this CLEARS
   await ev('hana', "(function(){var V=window.__gifosVideo;if(V.camOff())document.getElementById('cam').click();V.setBlur(0);return true})()");
-  await check.until('the host broadcasts CLEAR (ticket + consent, no waiting room)', async () =>
-    (await ev('hana', "window.__gifosVideo.blurClassOf('me')")) === 0, { within: 30 });
+  // The probe carries its own forensics: a bare blurClassOf gave a red that
+  // read "— null" (check.until stringifying `false`) with no way to tell WHICH
+  // term of the clear verdict (ticket, camera, blur choice, admin presence)
+  // was the laggard — that cost a night's triage. Now the failure prints them.
+  let _cd = null;
+  await check.until('the host broadcasts CLEAR (ticket + consent, no waiting room)', async () => {
+    _cd = await ev('hana', "(function(V){return {b:V.blurClassOf('me'),pw:!!V.roomPw(),cam:V.camOff(),bl:V.myBlur(),adm:V.amAdmin(),stg:V.onStage()}})(window.__gifosVideo)");
+    return !!_cd && _cd.b === 0; }, { within: 30 });
+  console.log('  [clear terms] ' + JSON.stringify(_cd));
 
   // ---- act 2: the audience arrives with tickets — and nothing else -------
   await cast.joinAll({ roles: ['vera', 'tara', 'gus'] });
