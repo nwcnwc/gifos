@@ -6049,6 +6049,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const gum = (md && md.getUserMedia)
             ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
             : Promise.reject(new Error('no media devices'));
+          bootGumPending = gum.finally(() => { bootGumPending = null; });
           gum.then((stream) => {
             localStream = stream;
             // Join QUIET by default: mic and camera acquired (permission
@@ -9631,6 +9632,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // prompt (DuckDuckGo, links opened inside other apps), or a hasty "Deny".
     // View-only must be an antechamber, not a sentence.
     let lateAsk = false;
+    let bootGumPending = null; // knock-first: the boot's own getUserMedia while it is in flight — THE one ask; lateMedia must join it, never race it
     // The mesh may have been built recvonly (we had nothing to offer when the
     // pc was born) — add our tracks to every live pc and re-offer; perfect
     // negotiation absorbs it, and the fresh m-lines guarantee an ontrack on
@@ -9656,6 +9658,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function lateMedia(kind) {
       if (lateAsk) return;
+      // THE BOOT ASK IS THE ONLY ASK (knock-first, 2026-08-05): the knock no
+      // longer waits on getUserMedia, so "page live, localStream still null"
+      // is a NORMAL window on every boot — and a cam/mic tap in that window
+      // used to start a SECOND gUM racing the boot's own (behavior 24a: the
+      // broadcast host stuck blurred >30s — two streams tangled, the enable
+      // landed on tracks that were then thrown away). Join the pending ask:
+      // when it lands, enabling the tapped kind is a plain track flip; if it
+      // failed (denied/hung), fall through to the fresh re-prompt below.
+      if (bootGumPending) {
+        const p = bootGumPending;
+        setStatus('Asking for camera & microphone…');
+        p.then(() => {
+          const tr = localStream && (kind === 'cam' ? localStream.getVideoTracks() : localStream.getAudioTracks())[0];
+          if (!tr) return lateMedia(kind);
+          tr.enabled = true;
+          if (kind === 'mic') myStatus.muted = false; else myStatus.camOff = false;
+          paintControls(); refreshOutbound(); broadcastStatus(); reactRoomState(); updateMediaSession();
+          setStatus(kind === 'cam' ? 'Camera on.' : 'Mic on.');
+        }, () => lateMedia(kind));
+        return;
+      }
       const md = navigator.mediaDevices;
       if (!md || !md.getUserMedia) {
         setStatus('This browser can’t share a camera or microphone here. Open this meeting link in Safari or Chrome — the Invite button copies it.');
