@@ -620,6 +620,9 @@ dropout healing on the non-chromium side). Three mechanisms make it safe:
 * `needEngines('firefox')` SKIPs loudly (exit 0, one `SKIP:` line) on a box
   with no firefox, exactly like the `[relay-dev]` scenarios. A missing BROWSER
   is an environment fact, not a product red — but it is never silent either.
+  Negative-controlled: with `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty
+  directory the scenario prints the SKIP line naming the install command and
+  exits 0, instead of spawning an actor that dies later.
 * Fleet placement is engine-aware: a host entry declares `"engines": [...]`,
   and a role is only placed where its engine can launch. Without that filter
   the actor dies with "Executable doesn't exist" AFTER the harness said ready.
