@@ -156,9 +156,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   // was cut are still installable by a pinned computer, so a frozen build
   // reading the live catalog is right. THIS FILE IS A DESCRIPTION OF THE CODE
   // SITTING NEXT TO IT. What a build requires is fixed the moment that build
-  // is frozen, so a snapshot must answer for ITSELF: /versions/<v>/ injects
-  // <base href="/versions/<v>/">, this fetch resolves inside the snapshot, and
-  // the page states that build's real requirements.
+  // is frozen, so a snapshot must answer for ITSELF: the archive script stamps
+  // a versions/<v>/ document base into every snapshot page, this fetch
+  // resolves inside the snapshot, and the page states that build's real
+  // requirements. (Deliberately NOT written as a literal tag here: the archive
+  // script greps for the real stamp, and a prose literal made it skip this
+  // file and abort the 0.9.3 cut.)
   //
   // Reading the live matrix from a frozen build would be wrong in both
   // directions. Raise the floor at the root — a new mandatory API — and a
