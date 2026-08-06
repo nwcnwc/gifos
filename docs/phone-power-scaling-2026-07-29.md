@@ -1,5 +1,13 @@
 # 2026-07-29 — phone power scaling vs participant count (moto g24, prod room)
 
+> **MEASUREMENT RECORD — no bug to fix; re-checked 2026-08-06 (ce294be).**
+> Kept for the measurement convention it pins down (`current_now` reads the
+> charger surplus, not the draw) and for one observation that still has no
+> home: **crossing into 2 rows is a power regime that did not revert** —
+> compaction never pulled that attendee back into row 0 despite 4 free seats
+> there for >8 minutes. If that reproduces, it is a compaction bug, not a
+> power one.
+
 The question: how does a low-end phone's power consumption grow as talking-head
 participants are added to its meeting, and does it ever cross into the G2
 plugged-in-death mode (net battery drain while charging)?

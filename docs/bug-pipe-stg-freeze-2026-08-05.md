@@ -1,5 +1,13 @@
 # BUG: the staged feed bright-freezes at every receiver when the pipe lane is ON
 
+
+> **STILL ALIVE as of 2026-08-06 (ce294be).** Re-verified against the tree: `e2e-pipe`
+> remains in `test/batteries/quarantine.txt` with the entry naming THIS
+> dossier as the cause of leg 3, and no fix commit exists. The suite came up
+> GREEN in the 0.9.4 gate — that is the entry's documented nondeterminism,
+> not a fix. Nothing else guards it: the guard IS the quarantined leg.
+> Still one investigation with mirror-drill and redun-drill.
+
 **Found** 2026-08-05, chasing a gate red. **Status: OPEN, unfixed, not a regression
 from anything landed that day.** Filed separately on purpose — it is a media-plane
 bug, and the work that surfaced it (a test-only engine fix) is unrelated to it.

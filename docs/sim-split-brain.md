@@ -1,5 +1,15 @@
 # Split-brain in the sim — what prevents it, and the one case that is real
 
+> **RE-VERIFIED 2026-08-06 (ce294be) — reference doc, still accurate.** Rook
+> geometry, E2 first-hand-only liveness (plus the 03c local-evidence rules)
+> and the probe-gated `RING_HOLD` all match the twins today; guards
+> (`sweep.sh`, `c-sweep.sh`) are in the gate's sim tier. Its one "real case",
+> a partitioned half freezing, is the sanctioned graveyard entry in
+> `known-unfixed.sh` — accepted, not open. Keep for the service-mode trap:
+> `init` does NOT revive killed seats or reset TICK, so reusing one
+> `--service` session across seed+kill cycles leaks state and reports bogus
+> failures.
+
 This note documents the mechanics the C++ reference sim (`mesh.cpp` +
 `mesh_seat.inc` + `topo.h`) uses to keep a meeting to ONE home under node loss,
 and the single case (a genuine transport partition) where two homes is the

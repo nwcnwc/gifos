@@ -1,5 +1,29 @@
 # Scale audit — the 1M law vs the code (2026-08-04)
 
+
+> **PARTLY SUPERSEDED as of 2026-08-06 (ce294be) — read this stamp before the tables.**
+>
+> - **V1 (the O(N) status pulse) — STILL ALIVE.** `fanOut()` still gossips to
+>   the room; there is no digest anywhere in `site/`. The SIM side landed and
+>   is gated (`test/sim/repro-digest.sh`, O(C) gauges flat in N); the browser
+>   port is deliberately deferred. The rollup design section below is now
+>   DUPLICATED BY LAW — healing-laws §G (G0-G8) is authoritative, including
+>   the lying-aggregator argument.
+> - **V2 (`statusOf` grows O(N)) — STILL ALIVE, and completely untested:** no
+>   test file in the repo references `statusOf`. The unit pin this audit asks
+>   for does not exist.
+> - **V3 (dial set directory-scoped) — LARGELY REFUTED BY THE CODE.** Every
+>   dial-out site is gated on `linkTo()`, and has been since 2026-07-16 —
+>   BEFORE this audit was written. The narrow residual is the inbound accept
+>   admitting an offer from a mesh-unknown peer. Rewrite V3 or drop it.
+> - **V4 — SUBSTANTIALLY FIXED; this doc's table is stale.** Measured on the
+>   current tree: N=3000 det converges at 6976 ticks, 3000/3000 seated,
+>   dups=0 (the table below says INCOMPLETE 1915/3000). The dup-mint,
+>   uint32-overflow and contention-into-depth diagnoses here are SUPERSEDED by
+>   healing-laws §V (V1-V6). N=5000 still stalls — that is the live front, and
+>   its current state (including the MEASURED refutation of the goHome
+>   attempt) is in the seed doc, not here.
+
 **The law this doc serves:** GifOS scales to a million participants and
 beyond — the whole Earth on one call. Operationally: **no per-node cost —
 messages, memory, or connections — may grow with room size N.** Per-node

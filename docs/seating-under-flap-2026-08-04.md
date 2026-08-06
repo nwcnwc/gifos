@@ -1,5 +1,16 @@
 # Seating under a flapping socket — the plane incident (2026-08-04)
 
+
+> **FIX IS LIVE BUT UNGUARDED as of 2026-08-06 (ce294be) — so by this repo's own rule
+> it is NOT fixed.** ENTRY RESUME is present in BOTH twins (`site/js/mesh.js`
+> `resumeAsk()`, wired at the ask sites; `test/sim/mesh.cpp` + `mesh_seat.inc`),
+> but NO GATE RUNS IT: `test/tools/seat-flap-repro.js` is a tool and
+> `test/tools/` is not a `release.sh` tier, and no `test/sim/repro-*.sh` flaps
+> a socket. A regression would be silent. Also still open: every item under
+> "Remaining / adjacent work" (roster `conn` vs mesh-link honesty, retry-cadence
+> jitter, dance compression, guest-side flap forensics), and the fix remains
+> unverified against real plane wifi.
+
 Nathan joined the monitored `test` room from in-flight wifi. For hours the
 room read `occ=1` while his tile flickered in and out; he intermittently SAW
 MonitorBot's video. The forensics looked self-contradictory — `liveVid=1`

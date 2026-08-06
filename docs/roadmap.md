@@ -1909,6 +1909,16 @@ side.** Sequence it as one piece of work, and expect the power win (C encoders �
 1, or → 0 for pure forwards) to arrive with the quality and latency wins rather
 than before them.
 
+**And the premise it was born from is REFUTED — measured, 2026-07-31, harvested
+here when `portrait-pixel-bug-2026-07-31.md` was deleted as fixed.** The lever
+was originally justified by a suspected MediaCodec ceiling. There is no ceiling
+to relieve: a Moto g24 force-seated into row 0 beside four bots ran **the whole
+C-1 = 4 fan in hardware** — `senderCount 4, softwareFallbacks 0, cpuLimited 0,
+CEILING_HIT false`. The earlier "ceiling" reading was a measurement artifact of
+headless Chromium, which ships without the hardware encoders. So 9b is a power
+optimisation, never a correctness fix, and nothing is silently falling back to
+software today. **Do not collapse the fan to dodge a ceiling that is not there.**
+
 **The one genuinely independent scrap:** for media a seat *composites itself*
 (the `sd*` packers, the Stage strip at Section 1), the encode is real work that
 must happen once regardless — but it is still being done once **per down-link**.
