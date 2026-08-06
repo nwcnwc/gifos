@@ -122,7 +122,10 @@
       '  vec3 rock  = vec3(0.42,0.39,0.35);',
       '  vec3 snow  = vec3(0.86,0.88,0.92);',
       '  vec3 base = mix(grass, rock, smoothstep(0.18, 0.45, slope));',
-      '  base = mix(base, snow, smoothstep(1500.0, 2200.0, vHeight) * (1.0 - smoothstep(0.5, 0.8, slope)));',
+      // Snowline high and narrow. At 1500 m a real driveable pass — Stelvio
+      // tops out around 2750 m — renders as an unbroken white sheet with no
+      // readable terrain in it at all.
+      '  base = mix(base, snow, smoothstep(2450.0, 3100.0, vHeight) * (1.0 - smoothstep(0.5, 0.8, slope)));',
       '  vec3 photo = texture2D(uTex, vUv).rgb;',
       '  base = mix(base, photo, uHasTex);',
       '  float lam = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);',
@@ -305,12 +308,17 @@
 
   function buildCarMesh() {
     var o = { pos: [], nrm: [], col: [], idx: [] };
-    var body = [1, 1, 1], glassC = [0.25, 0.32, 0.40], tyre = [0.09, 0.09, 0.10];
-    boxInto(o, 0, 0.62, 0,     0.88, 0.30, 2.05, body);        // lower body
-    boxInto(o, 0, 1.02, -0.15, 0.76, 0.28, 1.05, glassC);      // cabin
-    var wy = 0.34, wr = 0.34;
-    [[-0.86, 1.35], [0.86, 1.35], [-0.86, -1.35], [0.86, -1.35]].forEach(function (w) {
-      boxInto(o, w[0], wy, w[1], 0.12, wr, wr, tyre);
+    var body = [1, 1, 1], glassC = [0.22, 0.28, 0.36], tyre = [0.08, 0.08, 0.09];
+    // The boxes must NOT interpenetrate. Wheels buried in the body and a cabin
+    // sunk into the roof put near-parallel faces a few millimetres apart, and
+    // the depth buffer cannot separate them: the car renders as flickering
+    // magenta panels with black seams. So the wheels sit just outboard of the
+    // flanks and the cabin sits ON the body rather than in it.
+    boxInto(o, 0, 0.62, 0,     0.84, 0.28, 2.00, body);        // body: y 0.34 – 0.90
+    boxInto(o, 0, 1.18, -0.18, 0.70, 0.29, 1.00, glassC);      // cabin: y 0.89 – 1.47
+    var wy = 0.33, wr = 0.33;
+    [[-0.92, 1.32], [0.92, 1.32], [-0.92, -1.32], [0.92, -1.32]].forEach(function (w) {
+      boxInto(o, w[0], wy, w[1], 0.10, wr, wr, tyre);          // x 0.82 – 1.02, outboard of 0.84
     });
     return {
       positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),

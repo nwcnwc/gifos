@@ -13,6 +13,40 @@
   ],
   "apps": [
     {
+      "slug": "anyroad",
+      "appId": "anyroad",
+      "name": "Anyroad",
+      "shortName": "Anyroad",
+      "version": "1.0.0",
+      "tagline": "Drive any road on Earth, built from live map data.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "releaseDate": "2026-08-06",
+      "updated": "2026-08-06",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "driving",
+        "map",
+        "openstreetmap",
+        "3d",
+        "multiplayer",
+        "webgl",
+        "racing"
+      ],
+      "accent": [
+        92,
+        178,
+        255
+      ],
+      "cover": "/apps/anyroad/cover.jpg",
+      "bytes": 165476,
+      "signature": null
+    },
+    {
       "slug": "chess-grandmaster",
       "appId": "chess-grandmaster",
       "name": "Chess Grandmaster",
