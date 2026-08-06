@@ -224,17 +224,17 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   background: var(--accent, #7b5cff);
 }
 
-/* SYSTEM tag on trusted system-app launchers (Meeting): honest signage
-   that this icon opens a first-party page with camera/mic/WebRTC access. */
+/* "SYS" tag on trusted system-app launchers (Meeting/Broadcast/App Store):
+   honest signage that this icon opens a first-party page with powers the
+   sandbox withholds from ordinary apps. Quiet on purpose: it sits in the
+   NEW badge's corner (system launchers are never "fresh", so the slot is
+   always free) with NEW's geometry but a MUTED slate instead of the accent —
+   provenance signage, not a promotion. Tooltip still says which powers. */
 .sysbadge {
-  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
-  font-size: .5rem; font-weight: 800; letter-spacing: .1em; line-height: 1;
-  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
-  text-transform: uppercase;
-  /* Solid violet: the "elevated system launcher" marker. White on saturated
-     purple reads on any wallpaper and is unmistakable next to the id pill. */
-  background: #7b5cff; color: #fff; border: 1px solid #9d86ff;
-  box-shadow: 0 2px 6px rgba(0,0,0,.32); text-shadow: 0 1px 1px rgba(0,0,0,.3);
+  position: absolute; left: -4px; bottom: -4px; pointer-events: auto; cursor: help;
+  font-size: .5rem; font-weight: 800; letter-spacing: .06em; line-height: 1;
+  padding: .16rem .3rem; border-radius: .3rem; border: 2px solid var(--bg);
+  background: #62627a; color: #e6e6f0;
 }
 
 /* "MIRROR" band straight across the middle of a synced-mirror icon — a bright
@@ -250,9 +250,9 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 }
 
 /* Identity pill on a SIGNED app's tile: its own declared short name + version.
-   Same top-center placement as SYSTEM, but a DIFFERENT family — deep navy with
-   a cyan version — so provenance never reads as "system privilege". Only signed
-   tiles get one (see desktop.js render). */
+   Top-center (the SYS tag lives bottom-left, in NEW's corner), deep navy with
+   a cyan version — its own family, so provenance never reads as "system
+   privilege". Only signed tiles get one (see desktop.js render). */
 .idbadge {
   position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
   max-width: calc(var(--isize, 64px) + 26px); box-sizing: border-box;
