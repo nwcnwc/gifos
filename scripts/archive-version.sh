@@ -120,8 +120,10 @@ for f in "$DEST"/*.html; do
   # Match a REAL injected base, not any mention of one. A loose '<base ' grep
   # matched prose inside run.html's own comments and silently skipped the file
   # — producing a snapshot with no pin and no warning, the exact failure this
-  # whole change exists to prevent.
-  grep -q '<base href="/versions/' "$f" && continue
+  # whole change exists to prevent. ANCHORED to line start (the injected tag is
+  # always its own line right after <head>): the un-anchored form matched a
+  # comment inside browser-support.html's inline JS and aborted the 0.9.3 cut.
+  grep -q '^<base href="/versions/' "$f" && continue
   perl -0pi -e "s|<head>|<head>\n<base href=\"/versions/$V/\">|i" "$f"
 done
 # Injection is load-bearing: a snapshot without it moves its base the moment a
