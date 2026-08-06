@@ -338,7 +338,7 @@
     // rAF timestamp shares performance.now()'s origin, so this is exact.
     hopAnim = (t - hopT0) / 1000;
 
-    var input = controls.sample();
+    var input = controls.sample(dt);
 
     // Still falling: keep trying to put the landing on a road. The descent is
     // the budget for this — by the time control is handed over, either a road
@@ -468,7 +468,9 @@
       // Tilt is a brokered capability: GifOS does the iOS permission dance and
       // hands back orientation events. The app never touches the sensor itself.
       onTiltEnable: function (cb) { root.Host.motion(cb); },
+      onStick: function (st) { root.UI.showStick(st); },
     });
+    controls.bindSpeed(function () { return car.speed; });
 
     root.Sources.load().then(function () {
       applyControlPrefs();
@@ -480,10 +482,15 @@
 
   function applyControlPrefs() {
     if (!controls) return;
+    var scheme = root.Sources.current.scheme || 'wheel';
+    controls.setScheme(scheme);
     controls.setMode({
       auto: root.Sources.current.throttle !== 'manual',
-      tilt: root.Sources.current.steering === 'tilt',
+      tilt: scheme === 'tilt',
     });
+    root.UI.setScheme(scheme);
+    // The brake pedal is redundant in stick mode — pulling the stick down IS
+    // the brake — but harmless, so it stays for anyone who reaches for it.
     root.UI.setThrottleMode(root.Sources.current.throttle);
   }
 

@@ -22,12 +22,28 @@
     return out;
   }
 
+  // NOTE THE FLIPPED X AXIS. Our world is x=east, y=up, z=north, which is a
+  // LEFT-handed basis — right-handed would need z=south. Feeding it to the
+  // standard right-handed lookAt renders every scene MIRRORED: measured with the
+  // real camera, a point due EAST projected to the LEFT of screen. Manhattan
+  // came out back to front, and a genuine right turn (yaw rotating north toward
+  // east) appeared on screen as a left turn — which is exactly what "the
+  // steering seems opposite" was.
+  //
+  // Negating the view's X row flips the image back. Handedness is a property of
+  // the basis, so the alternative was renumbering the world (z=south) and
+  // re-deriving every triangle winding in the app; this is the same correction
+  // in one line. It DOES invert projected winding, so the front-face rule is
+  // flipped to match in init() — see gl.frontFace(gl.CW).
   function lookAt(out, eye, centre, up) {
     var zx=eye[0]-centre[0], zy=eye[1]-centre[1], zz=eye[2]-centre[2];
     var zl=Math.hypot(zx,zy,zz)||1; zx/=zl; zy/=zl; zz/=zl;
     var xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
     var xl=Math.hypot(xx,xy,xz)||1; xx/=xl; xy/=xl; xz/=xl;
+    // y comes from the ORIGINAL x, so the frame stays orthonormal…
     var yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+    // …and only then is x flipped, which mirrors screen-x and nothing else.
+    xx = -xx; xy = -xy; xz = -xz;
     out[0]=xx; out[1]=yx; out[2]=zx; out[3]=0;
     out[4]=xy; out[5]=yy; out[6]=zy; out[7]=0;
     out[8]=xz; out[9]=yz; out[10]=zz; out[11]=0;
@@ -496,6 +512,10 @@
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
+    // The mirrored view (see lookAt) reverses the projected winding of every
+    // triangle, so the whole app's geometry would cull inside-out. One global
+    // rule change restores all of it at once.
+    gl.frontFace(gl.CW);
     return gl;
   }
 

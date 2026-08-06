@@ -253,8 +253,16 @@
     // all. Here the target speed comes from the road class under the car, so a
     // residential street cruises at ~50 km/h and a motorway at ~120, and the
     // player's remaining job is steering and braking.
-    var mode = { auto: true, tilt: false };
-    var cruiseTarget = 0;          // m/s, set per-frame from the road index
+    // SCHEME decides what the thumbs do:
+    //   'wheel' — a steering wheel you turn, plus a brake. Speed is the road's.
+    //   'stick' — one floating thumb anywhere: sideways steers, and UP/DOWN
+    //             trims a speed SET-POINT which holds when you let go. That
+    //             last part is what makes it a rubber band rather than a
+    //             joystick: a joystick springs back to zero, this keeps the
+    //             speed you dialled in.
+    var mode = { auto: true, tilt: false, scheme: 'wheel' };
+    var roadCruise = 0;            // m/s the road under us is built for
+    var setPoint = null;           // m/s the player has dialled in (stick mode)
     var tilt = { active: false, neutral: null, value: 0 };
 
     // The driving keys are bound on WINDOW, so they also fire while you are
@@ -301,8 +309,11 @@
     //    without looking down and without hunting for the pad.
     //
     // Either way the wheel springs back to centre on release.
-    var steerTouch = null;    // { id, mode:'pad'|'free', startX }
+    var steerTouch = null;    // { id, mode:'pad'|'free'|'stick', startX, startY }
     var DEAD = 0.05;          // fraction of half-width treated as straight ahead
+    var stick = { x: 0, y: 0, active: false, ox: 0, oy: 0 };
+    var STICK_SPAN = 78;      // px of travel for full deflection
+    var TRIM_RATE = 11;       // m/s of set-point change per second at full push
 
     function fromPad(clientX) {
       var r = steerEl.getBoundingClientRect();
@@ -317,22 +328,44 @@
       return Math.max(-1, Math.min(1, (clientX - steerTouch.startX) / span));
     }
 
-    function steerDown(e, mode) {
+    function steerDown(e, m) {
       if (steerTouch) return;
-      steerTouch = { id: e.pointerId, mode: mode, startX: e.clientX };
-      input.steer = mode === 'pad' ? fromPad(e.clientX) : 0;
-      var el = mode === 'pad' ? steerEl : surface;
+      steerTouch = { id: e.pointerId, mode: m, startX: e.clientX, startY: e.clientY };
+      if (m === 'stick') {
+        // The stick is born WHERE THE THUMB LANDS — no target to hunt for, and
+        // it works anywhere on the screen, which is the whole point.
+        stick.active = true; stick.ox = e.clientX; stick.oy = e.clientY;
+        stick.x = 0; stick.y = 0;
+        if (setPoint === null) setPoint = Math.max(0, roadCruise);
+      }
+      input.steer = m === 'pad' ? fromPad(e.clientX) : 0;
+      var el = m === 'pad' ? steerEl : surface;
       if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (err) {} }
       if (steerEl) steerEl.classList.add('active');
       if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
     }
     function steerMove(e) {
       if (!steerTouch || e.pointerId !== steerTouch.id) return;
+      if (steerTouch.mode === 'stick') {
+        stick.x = Math.max(-1, Math.min(1, (e.clientX - stick.ox) / STICK_SPAN));
+        // Screen y grows downward; pushing UP must mean faster.
+        stick.y = Math.max(-1, Math.min(1, (stick.oy - e.clientY) / STICK_SPAN));
+        input.steer = stick.x;
+        if (opts.onStick) opts.onStick(stick);
+        return;
+      }
       input.steer = steerTouch.mode === 'pad' ? fromPad(e.clientX) : fromFree(e.clientX);
     }
     function steerUp(e) {
       if (!steerTouch || e.pointerId !== steerTouch.id) return;
+      var steerTouchWasStick = steerTouch.mode === 'stick';
       steerTouch = null; input.steer = 0;
+      // Releasing latches the speed you are ACTUALLY doing, not the one you
+      // were still climbing toward. "Let go and it keeps this speed" is the
+      // promise; without this you release at 60 and drift up to 100.
+      if (steerTouchWasStick) setPoint = Math.max(0, Math.abs(speedRef()));
+      stick.active = false; stick.x = 0; stick.y = 0;
+      if (opts.onStick) opts.onStick(stick);
       if (steerEl) steerEl.classList.remove('active');
     }
 
@@ -343,12 +376,22 @@
       steerEl.addEventListener('pointercancel', steerUp);
     }
     surface.addEventListener('pointerdown', function (e) {
+      // Stick mode takes the WHOLE screen — "anywhere" is the feature. Wheel
+      // mode keeps the left half as a look-free steering area, with the right
+      // half left alone for the pedal.
+      if (mode.scheme === 'stick') { e.preventDefault(); steerDown(e, 'stick'); return; }
       if (e.clientX < surface.clientWidth / 2) steerDown(e, 'free');
       else if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
     });
     surface.addEventListener('pointermove', steerMove);
     surface.addEventListener('pointerup', steerUp);
     surface.addEventListener('pointercancel', steerUp);
+
+    // The stick needs to know how fast we are actually going to decide whether
+    // to coast or brake; the caller supplies it rather than the control layer
+    // reaching into the car.
+    var speedRef = function () { return 0; };
+    function carSpeedRef() { return speedRef(); }
 
     // ---- tilt steering -------------------------------------------------
     // gamma is the left/right tilt of the device. The neutral point is captured
@@ -377,7 +420,16 @@
         }
       },
       recentreTilt: function () { tilt.neutral = null; },
-      setCruise: function (mps) { cruiseTarget = mps; },
+      setCruise: function (mps) { roadCruise = mps; },
+      bindSpeed: function (fn) { speedRef = fn; },
+      setScheme: function (name) {
+        mode.scheme = name;
+        // Leaving stick mode drops the dialled-in speed, so switching back does
+        // not resume at a set-point the player set ten minutes ago.
+        if (name !== 'stick') setPoint = null;
+      },
+      stick: function () { return stick; },
+      setPoint: function () { return setPoint; },
       setPedal: function (which, on) {
         pedal[which] = on;
         if (on && onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
@@ -387,18 +439,36 @@
       // otherwise the keyboard does; otherwise it recentres. Written as one
       // explicit precedence chain because the old version mixed a decay term
       // into the touch path and the wheel drifted while you held it.
-      sample: function () {
+      sample: function (dt) {
+        dt = dt || 0.016;
         var kThrottle = (keys['w'] || keys['arrowup']) ? 1 : 0;
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
         input.handbrake = !!keys[' '];
 
-        // Throttle. In auto mode the only thing that stops the car is the
-        // brake — so braking must zero the throttle outright, or holding the
-        // brake would be a tug of war with the cruise.
-        if (mode.auto) {
-          input.autoTarget = cruiseTarget;
+        // Throttle.
+        if (mode.scheme === 'stick') {
+          // Rubber band: while held, the vertical deflection TRIMS the
+          // set-point; released, it simply stays. Down past zero becomes the
+          // brake, so one thumb covers accelerate, hold, slow and stop.
+          if (setPoint === null) setPoint = Math.max(0, roadCruise);
+          if (stick.active) setPoint += stick.y * TRIM_RATE * dt;
+          setPoint = Math.max(-3, Math.min(62, setPoint));
+          if (setPoint <= 0) {
+            input.autoTarget = 0; input.throttle = 0;
+            input.brake = Math.max(input.brake, 1);
+          } else {
+            input.autoTarget = setPoint;
+            input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;
+            // Overshooting the set-point (downhill, or after trimming down)
+            // should ease off, and brake if it is a long way over.
+            var over = Math.abs(carSpeedRef()) - setPoint;
+            if (over > 0.5) input.throttle = 0;
+            if (over > 4) input.brake = Math.max(input.brake, 0.7);
+          }
+        } else if (mode.auto) {
+          input.autoTarget = roadCruise;
           input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;
           // The keyboard still works, and still overrides: a desktop player
           // holding W should get full power, not cruise.
