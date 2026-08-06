@@ -90,6 +90,16 @@
     if (inGifOS && root.gifos.apiSetup) { try { root.gifos.apiSetup(name, hint); } catch (e) {} }
   }
 
+  // ---- device motion (tilt steering) ---------------------------------------
+  // Brokered by GifOS when the manifest declares `motion`: it performs the iOS
+  // permission request and forwards orientation events. Outside GifOS we listen
+  // directly, which is what the dev host is for.
+  function motion(cb) {
+    if (inGifOS && root.gifos.motion) return root.gifos.motion(cb);
+    root.addEventListener('deviceorientation', cb);
+    return function () { root.removeEventListener('deviceorientation', cb); };
+  }
+
   // ---- back button ---------------------------------------------------------
   // The GifOS shell swallows Back by default; registering makes it mean
   // "close the panel that is open" instead of nothing.
@@ -104,5 +114,6 @@
     apiReady: apiReady,
     apiSetup: apiSetup,
     onBack: onBack,
+    motion: motion,
   };
 })(window);

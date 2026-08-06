@@ -229,21 +229,10 @@ function overpassBody() {
   const before = await fr.locator('body').evaluate(() => {
     const c = window.App.car(); return { x: c.x, z: c.z, odo: c.odometer };
   });
-  // Drive with the on-screen pedal rather than the keyboard. Keys only reach the
-  // app while its IFRAME holds focus, and inside the GifOS shell that focus is
-  // not ours to rely on — a click into the frame gets the throttle for a moment
-  // and then something upstream takes focus back and the blur handler releases
-  // every key (correctly: a stuck throttle is worse). The pedal is a pointer
-  // press on an element, which is focus-independent, and it exercises the path
-  // every phone player actually uses.
-  // Six seconds, not three. The gate's software rasteriser plus clamped dt puts
-  // simulated time well behind wall clock, and a three-second press finished
-  // barely above the threshold — a margin that thin is a flake with a delay
-  // fuse, which this project treats as a release blocker rather than noise.
-  await fr.locator('#pedal-gas').hover();
-  await app.mouse.down();
+  // NO INPUT AT ALL. The throttle was removed: the car cruises by itself at
+  // whatever the road under it is built for, which is the whole point of the
+  // control redesign. If this needs a button pressed, the redesign regressed.
   await sleep(6000);
-  await app.mouse.up();
   const after = await fr.locator('body').evaluate(() => {
     const c = window.App.car(); return { x: c.x, z: c.z, odo: c.odometer, y: c.y, speed: c.speed };
   });
@@ -255,12 +244,32 @@ function overpassBody() {
   // 0.0 m, not a metre or two either side.
   // Guard the MECHANISM, not a magnitude. dt is clamped at 50 ms for stability,
   // so simulated time trails wall clock by a factor set entirely by frame rate —
-  // and on a 4-core box under load (this one sat at loadavg 6 while these suites
-  // ran) the same build covered 4.0 m one run and 1.2 m the next. Tuning the
-  // threshold to the good runs just buys a flake later. The defect this exists
-  // to catch was an absolute one: throttle held, speed exactly 0, 0.0 m moved.
-  check('the car accelerates and moves', moved > 0.5 && after.speed > 1,
+  // and on a 4-core box under load the same build covered 4.0 m one run and
+  // 1.2 m the next. Tuning the threshold to the good runs just buys a flake.
+  check('the car cruises with no input at all', moved > 0.5 && after.speed > 1,
     moved.toFixed(1) + ' m travelled, now at ' + after.speed.toFixed(1) + ' m/s');
+
+  // …and the brake is the one control that stops it. This is the other half of
+  // the contract: with no throttle, a brake that does not fully arrest the car
+  // would leave the player with no way to stop.
+  await fr.locator('#pedal-brake').hover();
+  await app.mouse.down();
+  await sleep(7000);      // clamped dt on a software rasteriser: wall ≫ simulated
+  const braked = await fr.locator('body').evaluate(() => window.App.car().speed);
+  await app.mouse.up();
+  // Proportional, not absolute. On real hardware at 60 fps this reaches a dead
+  // 0.00 m/s; here clamped dt means seven wall seconds buy about one simulated
+  // one, which is not quite enough from cruise. What must hold either way is
+  // that the brake has AUTHORITY over the cruise — with no throttle control,
+  // a brake that merely trims the speed would leave no way to stop at all.
+  check('the brake overrides the cruise and arrests the car',
+    braked < after.speed * 0.40 && braked < 5.5,
+    'from ' + after.speed.toFixed(1) + ' to ' + braked.toFixed(2) + ' m/s');
+
+  // The throttle pedal must be absent in the default mode — a GO button that
+  // does nothing is worse than no button.
+  check('no throttle pedal in the default control scheme',
+    await fr.locator('#pedal-gas').isHidden());
   check('the car sits on the fetched terrain, not at zero',
     Math.abs(after.y - FIXTURE_HEIGHT) < 3, 'car y = ' + after.y.toFixed(1) + ' m');
 
@@ -309,14 +318,18 @@ function overpassBody() {
     const d = window.App.debug();
     return { throttle: d.input.throttle, brake: d.input.brake, steer: d.input.steer, hand: d.input.handbrake };
   });
+  // NOTE: throttle is deliberately NOT checked any more. In the default control
+  // scheme the car auto-cruises, so throttle sits at 1 legitimately — asserting
+  // it is 0 would be asserting the cruise is broken. Steer is the signal that
+  // actually detects a leak (verified by reverting the fix: throttle read 0
+  // while steer showed 0.047), and brake/handbrake are the other real ones.
   // STEER is the sensitive one. keyboard.type() presses and releases each letter
   // faster than a frame, so a leaked 'w' is usually back up before the next
   // sample and throttle reads 0 anyway — but steer is smoothed and holds a
   // residue, so it is what actually catches the leak. Verified by reverting the
   // fix: throttle stayed 0 while steer showed 0.047.
   check('typing driving letters into search does not drive the car',
-    leaked.throttle === 0 && leaked.brake === 0 && !leaked.hand && leaked.steer === 0,
-    JSON.stringify(leaked));
+    leaked.brake === 0 && !leaked.hand && leaked.steer === 0, JSON.stringify(leaked));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

@@ -24,21 +24,21 @@
   // Anything not listed is not drawn — service alleys and footpaths would
   // quadruple the geometry for very little of the feeling of driving.
   var ROAD_CLASS = {
-    motorway:      { w: 14, tone: 0.62, rank: 6 },
-    motorway_link: { w: 8,  tone: 0.62, rank: 5 },
-    trunk:         { w: 12, tone: 0.60, rank: 6 },
-    trunk_link:    { w: 8,  tone: 0.60, rank: 5 },
-    primary:       { w: 11, tone: 0.58, rank: 5 },
-    primary_link:  { w: 7,  tone: 0.58, rank: 4 },
-    secondary:     { w: 9,  tone: 0.55, rank: 4 },
-    secondary_link:{ w: 6,  tone: 0.55, rank: 3 },
-    tertiary:      { w: 8,  tone: 0.52, rank: 3 },
-    tertiary_link: { w: 6,  tone: 0.52, rank: 3 },
-    residential:   { w: 7,  tone: 0.48, rank: 2 },
-    unclassified:  { w: 6,  tone: 0.46, rank: 2 },
-    living_street: { w: 6,  tone: 0.46, rank: 2 },
-    service:       { w: 4,  tone: 0.42, rank: 1 },
-    track:         { w: 3.5,tone: 0.38, rank: 1 },
+    motorway:      { w: 14, tone: 0.62, rank: 6, cruise: 33 },
+    motorway_link: { w: 8,  tone: 0.62, rank: 5, cruise: 20 },
+    trunk:         { w: 12, tone: 0.60, rank: 6, cruise: 30 },
+    trunk_link:    { w: 8,  tone: 0.60, rank: 5, cruise: 19 },
+    primary:       { w: 11, tone: 0.58, rank: 5, cruise: 24 },
+    primary_link:  { w: 7,  tone: 0.58, rank: 4, cruise: 16 },
+    secondary:     { w: 9,  tone: 0.55, rank: 4, cruise: 21 },
+    secondary_link:{ w: 6,  tone: 0.55, rank: 3, cruise: 15 },
+    tertiary:      { w: 8,  tone: 0.52, rank: 3, cruise: 19 },
+    tertiary_link: { w: 6,  tone: 0.52, rank: 3, cruise: 15 },
+    residential:   { w: 7,  tone: 0.48, rank: 2, cruise: 14 },
+    unclassified:  { w: 6,  tone: 0.46, rank: 2, cruise: 14 },
+    living_street: { w: 6,  tone: 0.46, rank: 2, cruise: 14 },
+    service:       { w: 4,  tone: 0.42, rank: 1, cruise: 9 },
+    track:         { w: 3.5,tone: 0.38, rank: 1, cruise: 8 },
   };
 
   function bboxOf(tile) {
@@ -326,6 +326,7 @@
   // so a linear scan is out. Segments are bucketed into a coarse uniform grid at
   // BUILD time (once per tile) and the query looks only at the car's own cell
   // and its eight neighbours — a couple of dozen segments instead of thousands.
+  var STRIDE = 6;  // x1,z1,x2,z2,halfWidth,cruise
   var CELL = 64;   // metres; comfortably larger than the longest reasonable step
 
   function buildIndex(frame, geom) {
@@ -337,8 +338,8 @@
       var pts = toWorld(frame, geom.ways[w][1]);
       for (var i = 0; i + 1 < pts.length; i++) {
         var a = pts[i], b = pts[i + 1];
-        var idx = segs.length / 5;
-        segs.push(a.x, a.z, b.x, b.z, cls.w / 2);
+        var idx = segs.length / STRIDE;
+        segs.push(a.x, a.z, b.x, b.z, cls.w / 2, cls.cruise);
         // Stamp the segment into every cell its bounding box touches, so a long
         // segment is found from anywhere along it.
         var x0 = Math.floor(Math.min(a.x, b.x) / CELL), x1 = Math.floor(Math.max(a.x, b.x) / CELL);
@@ -357,12 +358,12 @@
   function nearestRoad(index, x, z) {
     if (!index) return null;
     var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
-    var best = Infinity, bestHalf = 0;
+    var best = Infinity, bestHalf = 0, bestCruise = 14;
     for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
       var list = index.map[(cx + dx) + ',' + (cz + dz)];
       if (!list) continue;
       for (var i = 0; i < list.length; i++) {
-        var o = list[i] * 5;
+        var o = list[i] * STRIDE;
         var ax = index.segs[o], az = index.segs[o + 1];
         var bx = index.segs[o + 2], bz = index.segs[o + 3];
         var vx = bx - ax, vz = bz - az;
@@ -370,10 +371,10 @@
         var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
         var px = ax + vx * t, pz = az + vz * t;
         var d = Math.hypot(x - px, z - pz);
-        if (d < best) { best = d; bestHalf = index.segs[o + 4]; }
+        if (d < best) { best = d; bestHalf = index.segs[o + 4]; bestCruise = index.segs[o + 5]; }
       }
     }
-    return best === Infinity ? null : { dist: best, halfWidth: bestHalf };
+    return best === Infinity ? null : { dist: best, halfWidth: bestHalf, cruise: bestCruise };
   }
 
   function extrude(frame, poly, height, out) {
