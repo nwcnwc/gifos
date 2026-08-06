@@ -175,11 +175,39 @@ reaper to exclude processes whose cmdline carries the monitor marker
    the freshly-vacated cell — the healer saw the LEAVE and queued a
    candidate, the goHome reclaim then contests IT, and the contest tax
    moves rather than shrinks. Both twins REVERTED same night; harness
-   re-verified ALL PASS. A second attempt should COORDINATE with the
-   healer: e.g. the YIELD/CONFIRM could carry the winner's identity so the
-   loser asks the WINNER (who now owns the cell's neighborhood view) for a
-   local placement, or the loser's old-cell reclaim could require the old
-   row-head's ack — making the return an ADMISSION, not a raw take.
+   re-verified ALL PASS.
+
+   **MECHANISM, now MEASURED rather than inferred** (scratch build with a
+   requeue-reason tally; N=3000 det, the clean 6976-tick baseline):
+
+   | requeue reason | count |
+   |---|---|
+   | `T1-yield` | 3443 |
+   | `E1-stale-roster` | 1124 |
+   | `CONFIRM-lower-id` | 2 |
+   | **of the yields: holding a LIVE LEASE** (what T6 redirects) | **1250** |
+   | of those: old cell visibly refilled (T6's guard could fire) | 77 |
+
+   So front 1's premise is CONFIRMED — contest losers are 75% of all
+   evictions, and a third of them are movers T6 would have sent home. The
+   reason it broke: **the mover's "is my old cell already refilled?" guard is
+   blind by construction.** `doMove` CLEARS occ and rebuilds it around the
+   NEW seat, so `occGet(leaseCk)` asks about a cell the mover no longer has
+   any neighbourhood for — it answered "unknown" (guard passes) in 1173 of
+   1250 cases. T6 therefore charged 1173 seats back into cells the heal layer
+   had in most cases already designated a candidate for, and the contest tax
+   moved rather than shrank.
+
+   **Attempt 2 must make the return EVIDENCED, not blind.** The repo already
+   has the pattern twice (V2's probe-gated SITPING/SITPONG, D5's early
+   probe): during the T3 lease the mover still holds `oldNbrIds` at
+   `doMove` time — keep them for the lease window, PHONE them on contest
+   loss, and return only on an answer that says the cell is still empty
+   (silence ⇒ requeue, the fail-closed direction). The alternative shape —
+   have YIELD/CONFIRM carry the winner's id so the loser asks the WINNER,
+   who owns that neighbourhood view, for a local placement — turns the
+   return into an ADMISSION rather than a raw take, and is the better fit
+   for the storm case where the old row is itself churning.
 2. **V1 rollup digests to the BROWSER** (sim side LANDED + gated,
    repro-digest.sh 47/0, healing-laws §G argued incl. lying-aggregator);
    then remove the O(N) status flood (V2 statusOf cap, V3 dial). Rename
