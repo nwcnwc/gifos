@@ -108,6 +108,23 @@ const hex = (u) => Buffer.from(u).toString('hex');
   globalThis.GIFOS_ED_FORCE_JS = false;
   globalThis.GifOS = savedGifOS;
 
+  // ---- A SNAPSHOT MUST CARRY ITS OWN SIGNER --------------------------------
+  // The fallback is fetched RELATIVE to gifos-ed.js's own src, so a frozen
+  // /versions/<x.y.z>/ build loads /versions/<x.y.z>/js/vendor/nacl-fast.js.
+  // If a cut ever froze js/ without vendor/, every browser that needs the
+  // fallback would 404 at its first signature — i.e. could not join at all —
+  // on a build that is immutable by design. Two guards: the cut script must
+  // copy js/ WHOLE, and every snapshot that has the door must have the engine.
+  const arch = fs.readFileSync(path.join(ROOT, 'scripts', 'archive-version.sh'), 'utf8');
+  check('archive-version.sh copies js/ recursively (so js/vendor rides along)',
+    /cp\s+-r\s+"\$SITE\/js"/.test(arch));
+  const vdir = path.join(ROOT, 'site', 'versions');
+  const snaps = fs.existsSync(vdir) ? fs.readdirSync(vdir).filter((d) => /^\d+\.\d+\.\d+$/.test(d)) : [];
+  const broken = snaps.filter((v) => fs.existsSync(path.join(vdir, v, 'js', 'gifos-ed.js'))
+                                  && !fs.existsSync(path.join(vdir, v, 'js', 'vendor', 'nacl-fast.js')));
+  check('every frozen snapshot that ships the Ed25519 door also ships its engine',
+    broken.length === 0, { checked: snaps.length, broken });
+
   // ---- the net layer rides the door: mixed-engine {sp,sig,pub} blocks -------
   // (gifos-net edSign/edVerify are what mesh-identity and §SIG actually call)
   require(path.join(ROOT, 'site', 'js', 'gifos-net.js'));
