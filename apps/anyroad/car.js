@@ -132,13 +132,36 @@
     var touchSteerId = null, touchStartX = 0;
     var pedal = { throttle: false, brake: false };
 
-    function onKey(e, down) {
+    // The driving keys are bound on WINDOW, so they also fire while you are
+    // typing in the search box — and space is the handbrake, which called
+    // preventDefault() and ate every space you tried to type. "Golden Gate
+    // Bridge" came out as "GoldenGateBridge". Arrows were swallowed too, so the
+    // caret could not be moved, and W/A/S/D silently held the throttle open
+    // behind the landing sheet.
+    //
+    // So: while the focus is in a text field, the car hears nothing at all.
+    function isTyping(el) {
+      if (!el) return false;
+      var tag = (el.tagName || '').toUpperCase();
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    }
+
+    function onKeyDown(e) {
+      if (isTyping(e.target)) return;          // no preventDefault, no key recorded
       var k = e.key.toLowerCase();
       if (['arrowup','arrowdown','arrowleft','arrowright',' '].indexOf(k) >= 0) e.preventDefault();
-      keys[k] = down;
+      keys[k] = true;
     }
-    root.addEventListener('keydown', function (e) { onKey(e, true); });
-    root.addEventListener('keyup', function (e) { onKey(e, false); });
+    // Key-UP always clears, even mid-typing. Otherwise pressing a key on the
+    // canvas and releasing it after focus moved into a field leaves it stuck
+    // down forever — a throttle you cannot let go of.
+    function onKeyUp(e) {
+      var k = e.key.toLowerCase();
+      if (!isTyping(e.target) && ['arrowup','arrowdown','arrowleft','arrowright',' '].indexOf(k) >= 0) e.preventDefault();
+      keys[k] = false;
+    }
+    root.addEventListener('keydown', onKeyDown);
+    root.addEventListener('keyup', onKeyUp);
     // A lost focus must not leave the throttle pinned.
     root.addEventListener('blur', function () { keys = {}; });
 
