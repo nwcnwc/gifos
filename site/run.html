@@ -101,7 +101,12 @@
     safari:   { label: "Safari",         min: "17" }
   };
   var GENERIC_MINS = "Safari 17, Chrome 137 or Firefox 129 — and up";
-  var WHY_SIGNED = "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.";
+  var WHY = {
+    "webcrypto-ed25519": "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.",
+    "webcrypto-subtle": "Everything in a meeting is scrambled on your own device before it leaves, so nobody in the middle can read it — and this browser is missing tools from the box that does the scrambling.",
+    "webrtc-peerconnection": "In a meeting here, sound, pictures and everything else travel straight between people's browsers — no company server in the middle. This browser is missing part of what makes those direct browser-to-browser connections work.",
+    "websocket": "To find the other people in a meeting, browsers introduce themselves through one small doorway connection — and this browser cannot open that kind of connection."
+  };
   /* ==== END GENERATED ==== */
 
   /* ---- the checks. Each returns a plain-language name for what is missing,
@@ -127,6 +132,19 @@
     if (typeof w.RTCPeerConnection === 'undefined') g.push('WebRTC (RTCPeerConnection)');
     else if (!w.RTCPeerConnection.prototype || !fn(w.RTCPeerConnection.prototype, 'createDataChannel')) g.push('WebRTC data channels (createDataChannel)');
     return g;
+  }
+
+  /* Map a gap list to its plain-language WHY line (the WHY table above is
+     GENERATED from requirements[*].plain — see copy.plainDoctrine in the
+     JSON). Matched on the gap STRINGS syncGaps builds; order is truth-driven,
+     not severity-driven (see the comment at the paint site). */
+  function whyLine(gaps) {
+    var s = gaps.join(', ');
+    if (s.indexOf('Ed25519') !== -1) return WHY['webcrypto-ed25519'];
+    if (s.indexOf('WebCrypto') !== -1) return WHY['webcrypto-subtle'];
+    if (s.indexOf('WebRTC') !== -1) return WHY['webrtc-peerconnection'];
+    if (s.indexOf('WebSocket') !== -1) return WHY['websocket'];
+    return '';
   }
 
   /* An http:// page that is not localhost has NO crypto.subtle at all, in every
@@ -208,13 +226,17 @@
       extra = 'On a phone or tablet, meetings work in <b>Safari</b> (Apple) or <b>Chrome</b> (Android). ' +
               'If someone sent you this link, they can still meet without you until you are updated — nothing is broken on their end.';
     }
-    /* The signed-identity paragraph shows ONLY when Ed25519 is the blocker —
-       that is the one gap where "this browser can scramble a call, what it is
-       missing is signatures" is TRUE (Safari 16 has the encryption
-       primitives). On a browser missing crypto.subtle itself the sentence
-       would be a lie, so it stays generic there. */
-    var signed = (kind === 'old' && gaps && gaps.join(',').indexOf('Ed25519') !== -1)
-      ? '<p id="oldbrowser-signed" style="margin:0 0 .9rem;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + WHY_SIGNED + '</p>'
+    /* The one plain-language WHY paragraph under the verdict, picked for the
+       most telling gap. Every line must be TRUE for the browser it is shown
+       to — the Ed25519 line says "this browser can scramble a call just
+       fine", which holds only when Ed25519 is the single missing piece, so
+       it is checked FIRST (that gap always arrives alone, from the async
+       probe); a browser missing crypto.subtle itself gets the scrambling
+       line instead. Ancient gaps (no Promise/TextEncoder) get no line —
+       "too old, update it" is already the whole truth there. */
+    var why = (kind === 'old' && gaps) ? whyLine(gaps) : '';
+    var signed = why
+      ? '<p id="oldbrowser-why" style="margin:0 0 .9rem;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + why + '</p>'
       : '';
     var small = gaps && gaps.length
       ? '<p id="oldbrowser-gaps" style="margin:1.4rem 0 0;font-size:.72rem;line-height:1.5;color:#6a6a86">' +

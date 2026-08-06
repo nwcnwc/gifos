@@ -100,12 +100,19 @@ for (const b of rows) {
   if (b.support[FEAT].state !== 'supported') fail(b.id + ' has a copyKey but is not `supported` for ' + FEAT + ' — the preflight would promise a version that does not exist');
 }
 
-// The signed-identity sentence (why the table is strict, in plain language) is
-// COPY the preflight paints when Ed25519 is the blocker; it lives in the JSON
-// like every other word the too-old screen speaks. Escaped-HTML plain text —
-// the preflight injects it via innerHTML.
-if (!data.copy.signedIdentity || typeof data.copy.signedIdentity !== 'string') fail('copy.signedIdentity is missing — the Ed25519 explanation would be undefined at paint time');
-if (/[<>]/.test(data.copy.signedIdentity || '')) fail('copy.signedIdentity must be plain text (no markup) — it is injected via innerHTML');
+// The plain-language WHY lines (requirements[*].plain — see copy.plainDoctrine
+// in the JSON): the one sentence the too-old wall shows under its verdict for
+// the telling gap. They live in the JSON like every other word the screen
+// speaks. Plain text only — the preflight injects them via innerHTML.
+const WHY_IDS = ['webcrypto-ed25519', 'webcrypto-subtle', 'webrtc-peerconnection', 'websocket'];
+for (const id of WHY_IDS) {
+  const p = (data.requirements[id] || {}).plain;
+  if (!p || typeof p !== 'string') fail('requirements.' + id + '.plain is missing — whyLine() in run.html would paint undefined');
+  if (/[<>]/.test(p)) fail('requirements.' + id + '.plain must be plain text (no markup) — it is injected via innerHTML');
+}
+for (const [id, r] of Object.entries(data.requirements)) {
+  if (r.plain && !WHY_IDS.includes(id)) fail('requirements.' + id + ' carries a `plain` line but whyLine() never shows it — either wire it into run.html or drop it (a line nobody sees is a second copy waiting to rot)');
+}
 
 const pad = Math.max(...rows.map((b) => b.copyKey.length));
 const padL = Math.max(...rows.map((b) => JSON.stringify(b.label).length));
@@ -130,7 +137,11 @@ rows.forEach((b, i) => {
 });
 lines.push('  };');
 lines.push('  var GENERIC_MINS = ' + JSON.stringify(generic + ' — and up') + ';');
-lines.push('  var WHY_SIGNED = ' + JSON.stringify(data.copy.signedIdentity) + ';');
+lines.push('  var WHY = {');
+WHY_IDS.forEach((id, i) => {
+  lines.push('    ' + JSON.stringify(id) + ': ' + JSON.stringify(data.requirements[id].plain) + (i === WHY_IDS.length - 1 ? '' : ','));
+});
+lines.push('  };');
 lines.push('  ' + END);
 const block = lines.join('\n');
 
