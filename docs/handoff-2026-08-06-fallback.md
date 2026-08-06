@@ -34,6 +34,32 @@ too-old wall only ever appears for genuinely missing pieces (no WebRTC /
 WebSocket / crypto.subtle), in plain language, dismissible over a working
 solo app.
 
+**The demo path is verified end-to-end on the REAL artifact, in Safari's own
+engine** (all measured 2026-08-06, penguin):
+
+1. **Byte-identity on non-V8 engines** — a fixed seed + message through
+   GifOS.ed under `GIFOS_ED_FORCE_JS` gives byte-identical public keys and
+   signatures in chromium, **WebKit** and Firefox, against a hardcoded
+   known answer; each verifies a signature made elsewhere and rejects it
+   over tampered bytes. Gated: `test/browser/e2e-ed-engines.js`.
+2. **A WebKit browser actually SEATS in a real room** signing with the
+   fallback, next to a native-signing chromium host (host 0/0.0, WebKit
+   guest 0/0.1) and each sees the other in its mesh (occ=2 both sides) —
+   which can only happen if signatures crossed the engine boundary in both
+   directions. (One-off experiment, not gated: WebKit-Linux still cannot
+   paint remote tiles, so a gated WebKit media suite would be red for
+   reasons that are not the product. Script kept in the session scratchpad;
+   the reproducible half is e2e-ed-fallback.js's mixed room.)
+3. **A rehearsed 0.9.4 cut** (throwaway worktree, then discarded) produced a
+   snapshot that carries `js/vendor/nacl-fast.js`, stamps
+   `GIFOS_VERSION='0.9.4'`, leaves the root at `edge`, and points
+   `version.json.current` at it — and that REAL artifact, served at
+   `/versions/0.9.4/`, loads in WebKit, engages the fallback engine,
+   fetches the vendor file from its OWN versioned path, and derives the
+   known-answer key. Guarded from here on by `test/unit/ed-fallback.js`
+   (archive-version.sh must copy js/ whole; every snapshot shipping the
+   door must ship the engine).
+
 ## What shipped overnight (all committed + pushed, all gated)
 
 **1. Solo apps never see the meeting preflight** (e51a2a6). The Safari-16
