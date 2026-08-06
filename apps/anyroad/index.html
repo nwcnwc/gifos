@@ -25,6 +25,23 @@
     <span id="speed">0</span><small>km/h</small>
   </div>
 
+  <!-- Condition. Sits with the speed read-out because both answer "how is the
+       car doing" and a bar hunting for attention elsewhere would be noise. -->
+  <div class="health" id="health">
+    <div class="health-bar"><div class="health-fill" id="health-fill"></div></div>
+    <span class="health-label">CONDITION</span>
+  </div>
+
+  <div class="damage-flash" id="damage-flash"></div>
+
+  <div class="wrecked" id="wrecked" hidden>
+    <div class="wrecked-card">
+      <strong>Wrecked</strong>
+      <p>That building won.</p>
+      <button id="btn-repair">Repair and carry on</button>
+    </div>
+  </div>
+
   <div class="status" id="status" hidden></div>
 
   <div class="racehud" id="racehud" hidden>

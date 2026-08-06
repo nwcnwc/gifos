@@ -46,7 +46,8 @@
      'attribution2','board','mp-status','race-badge','race-hint','cache-size',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
-     'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas'].forEach(function (id) { el[id] = $(id); });
+     'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
+     'health','health-fill','damage-flash','wrecked'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
     buildSourceMenus();
@@ -98,6 +99,12 @@
       if (!el.settings.hidden) { hide(el.settings); return; }
       if (!el.race.hidden) { hide(el.race); return; }
       if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); return; }
+    });
+
+    $('btn-repair').addEventListener('click', function () {
+      hooks.onRepair();
+      el.wrecked.hidden = true;
+      note('Repaired. Mind the buildings.');
     });
 
     root.MP.onChange(updateRacePanel);
@@ -308,6 +315,18 @@
       last.msg = msg;
     }
 
+    // Condition bar: colour carries the state, so it is legible without reading.
+    var h = Math.max(0, Math.min(100, s.health == null ? 100 : s.health));
+    if (Math.abs(h - (last.health == null ? -1 : last.health)) > 0.5) {
+      last.health = h;
+      el['health-fill'].style.width = h + '%';
+      el['health-fill'].style.background = h > 60 ? '#48d17a' : (h > 25 ? '#e8b34a' : '#e0544a');
+    }
+    if (!!s.wrecked !== !!last.wrecked) {
+      last.wrecked = !!s.wrecked;
+      el.wrecked.hidden = !s.wrecked;
+    }
+
     if (s.players !== last.players) {
       last.players = s.players;
       updateRacePanel();
@@ -344,6 +363,15 @@
       li.innerHTML = escapeHtml(r.name) + ' <span class="t">' + (r.ms / 1000).toFixed(1) + 's</span>';
       el.board.appendChild(li);
     });
+  }
+
+  // Called on impact only — the bar itself is refreshed from hud() every frame,
+  // so this exists for the parts that are events rather than state.
+  function damage(health, crash) {
+    if (!crash) return;                       // scrapes do not flash the screen
+    el['damage-flash'].classList.remove('hit');
+    void el['damage-flash'].offsetWidth;      // restart the animation
+    el['damage-flash'].classList.add('hit');
   }
 
   function setPlace(p) { el.place.textContent = p || '—'; }
@@ -405,7 +433,7 @@
   root.UI = {
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
     setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
-    setThrottleMode: setThrottleMode,
+    setThrottleMode: setThrottleMode, damage: damage,
     steerPad: function () { return el.steerpad; },
   };
 })(window);
