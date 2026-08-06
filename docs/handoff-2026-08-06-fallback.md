@@ -311,11 +311,34 @@ anywhere else:
    next session on FRONT 3, the descent: the free frontier at the plateau is
    uniformly holey (327 cells at depth 2, ~1200 at each of d3-d12, 11,259 for
    1,924 seekers) and seekers walk PAST the shallow ones into deep spines and
-   NOROOM at the wall. The question to answer first is a measurement, not a
-   fix: WHY does a descent step past a free child? Instrument serveFind at a
-   node holding a free admissible cell that forwards anyway (MESH_FINDLOG
-   exists), and count the reasons — stale/phantom occ, the pass-0
-   firstHandLive preference, or H7 row-fill ordering.
+   NOROOM at the wall.
+
+   **The mechanism is now READ OFF THE CODE — start from this, do not
+   re-derive it** (mesh_seat.inc, tail of `serveFind`). A descent does NOT
+   step past a free child: by the time it descends, `firstFreeInRoster` has
+   already failed, so every roster cell is occupied or non-admissible. The
+   hop is chosen like this:
+
+       Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
+       for(int pass=0;pass<2;pass++)
+         for(int q:idx){ ... if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)) -> descend
+
+   `shufCols()` randomises the candidates, so the bias is NOT the ordering —
+   it is the PASS-0 FILTER. `firstHandLive` means "a child I have heard from
+   recently", and a child whose subtree is BUSY chatters more (more
+   occupants, more heartbeats, more gossip) than one whose subtree is sparse
+   and quiet. Pass 0 returns on its first match, so a busy-but-full branch
+   systematically beats a quiet-but-spacious one and the seeker walks the
+   fullest spine to the wall. Code-grounded, and still a HYPOTHESIS.
+
+   **MEASURE IT BEFORE FIXING IT** — the last three attempts died of skipping
+   exactly this. At each descend decision, log how many roster children were
+   firstHandLive vs only reachable, and use the sim's GROUND TRUTH (the
+   `freemap` verb from the V1 digest work already computes real subtree free
+   space) to ask: does the CHOSEN branch have systematically less free space
+   than the ones pass 0 filtered out? If yes, the fix is a descent that
+   consults capacity rather than chatter. If no, the plateau has moved again
+   and three refutations have still narrowed it. Sweep seeds either way.
 
 2. **V1 rollup digests to the BROWSER** (sim side LANDED + gated,
    repro-digest.sh 47/0, healing-laws §G argued incl. lying-aggregator);
