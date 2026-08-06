@@ -100,6 +100,8 @@
   "copy": {
     "genericOrder": ["safari", "chrome", "firefox"],
     "genericFeature": "meet",
+    "signedIdentity": "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.",
+    "signedIdentityNote": "Shown on the too-old screen ONLY when WebCrypto Ed25519 is the blocker — the one case where 'this browser can scramble a call' is true (Safari 16 has the encryption primitives; what it lacks is the signed-identity mandate, mesh-wire.js S4). Never worded as 'encryption impossible'.",
     "note": "The order and set used when we cannot name the browser in hand: 'Meetings need Safari 17, Chrome 137 or Firefox 129 — and up.'"
   },
 

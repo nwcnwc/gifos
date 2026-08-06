@@ -55,6 +55,14 @@
      no socket opens, and `room` is never set — so the joining veil, which
      early-returns without a room, can never arm behind this screen.
 
+     A SOLO entry (#id=<fileId>) NEVER SEES THIS SCREEN. A solo app is one tab
+     and no network — it runs fine on a browser that could never meet, and a
+     wall saying "too old for meetings" over a working app is a wrong answer
+     (measured on a real Safari 16, family demo 2026-08-05). The verdict is
+     still computed and RECORDED; the wall moves to the point of actual network
+     need — the Share-live button — via requireMeeting(), and there it is
+     dismissible, because the app around it still works.
+
      Known gap, named honestly: a visitor on gifos.app whose channel loader
      redirects to a FROZEN /versions/<x.y.z>/ snapshot cut before this landed
      runs a build with no preflight. Snapshots are immutable by design; the
@@ -93,6 +101,7 @@
     safari:   { label: "Safari",         min: "17" }
   };
   var GENERIC_MINS = "Safari 17, Chrome 137 or Firefox 129 — and up";
+  var WHY_SIGNED = "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.";
   /* ==== END GENERATED ==== */
 
   /* ---- the checks. Each returns a plain-language name for what is missing,
@@ -167,7 +176,10 @@
 
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-  function paint(kind, gaps) {
+  /* `dismiss` is the deferred-solo shape: the wall paints over a WORKING app
+     (the person tapped Share live), so it must offer a way back into it. The
+     load-time paints stay undismissable — there is nothing behind them. */
+  function paint(kind, gaps, dismiss) {
     var who = ua(), head, body, extra = '';
     if (kind === 'insecure') {
       head = 'This link needs to start with https';
@@ -196,6 +208,14 @@
       extra = 'On a phone or tablet, meetings work in <b>Safari</b> (Apple) or <b>Chrome</b> (Android). ' +
               'If someone sent you this link, they can still meet without you until you are updated — nothing is broken on their end.';
     }
+    /* The signed-identity paragraph shows ONLY when Ed25519 is the blocker —
+       that is the one gap where "this browser can scramble a call, what it is
+       missing is signatures" is TRUE (Safari 16 has the encryption
+       primitives). On a browser missing crypto.subtle itself the sentence
+       would be a lie, so it stays generic there. */
+    var signed = (kind === 'old' && gaps && gaps.join(',').indexOf('Ed25519') !== -1)
+      ? '<p id="oldbrowser-signed" style="margin:0 0 .9rem;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + WHY_SIGNED + '</p>'
+      : '';
     var small = gaps && gaps.length
       ? '<p id="oldbrowser-gaps" style="margin:1.4rem 0 0;font-size:.72rem;line-height:1.5;color:#6a6a86">' +
         'For anyone helping you fix this, the missing piece is: <span style="font-family:ui-monospace,Menlo,Consolas,monospace">' +
@@ -211,30 +231,50 @@
       '<div style="font-size:2.4rem;line-height:1;margin-bottom:.9rem">🙁</div>' +
       '<h1 id="oldbrowser-head" style="font-size:1.35rem;line-height:1.3;margin:0 0 .8rem;font-weight:600;color:#fff">' + head + '</h1>' +
       '<p style="margin:0 0 .9rem;font-size:.98rem;line-height:1.6;color:#c8c8dc">' + body + '</p>' +
+      signed +
       (extra ? '<p style="margin:0;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + extra + '</p>' : '') +
       small +
+      (dismiss
+        ? '<button id="oldbrowser-back" style="margin-top:1.4rem;padding:.55rem 1.1rem;font-size:.95rem;border:1px solid #3a3a52;border-radius:.5rem;background:#1a1a26;color:#e0e0f0;cursor:pointer">Keep using the app</button>'
+        : '') +
       '</div>';
+    if (dismiss) {
+      var back = el.querySelector('#oldbrowser-back');
+      if (back) back.onclick = function () { if (el.parentNode) el.parentNode.removeChild(el); };
+    }
     // The theme gate hides <body> until the theme cascade lands; a screen that
     // says "your browser is too old" must never itself be invisible.
     try { document.documentElement.className = String(document.documentElement.className).replace(/\bgifos-booting\b/g, ''); } catch (e) {}
-    try { document.documentElement.style.background = '#0a0a0f'; } catch (e) {}
+    // The dismissible wall floats over a RUNNING app: leave the page's own
+    // background and title alone, or dismissing it returns to a defaced app.
+    if (!dismiss) { try { document.documentElement.style.background = '#0a0a0f'; } catch (e) {} }
     if (document.body) document.body.appendChild(el);
     else if (document.addEventListener) document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(el); });
-    try { if (document.title) document.title = 'Meetings need a newer browser — GifOS'; } catch (e) {}
+    if (!dismiss) { try { if (document.title) document.title = 'Meetings need a newer browser — GifOS'; } catch (e) {} }
   }
 
   /* ---- run it -------------------------------------------------------------- */
-  var API = { ok: true, gaps: [], ready: null, MIN: MIN, syncGaps: syncGaps, ua: ua };
+  var API = { ok: true, gaps: [], kind: '', ready: null, MIN: MIN, syncGaps: syncGaps, ua: ua };
   window.GifOSPreflight = API;
 
+  /* A solo entry (#id=<fileId>) is one tab and NO network: it must run on a
+     browser that could never meet, so a failed verdict is RECORDED, not
+     painted — the wall waits for requireMeeting() at the Share-live button.
+     ES5-checked off the raw hash because ROOM parsing lives far downstream;
+     the [#&] anchor makes this exactly the entry ROOM calls solo (the `id`
+     param wins over every other in ROOM's own parse). */
+  var SOLO = /[#&]id=/.test(String(location.hash || ''));
+  function verdict(kind, gaps) {
+    API.ok = false; API.kind = kind; API.gaps = gaps;
+    if (!SOLO) paint(kind, gaps);
+  }
+
   if (insecure()) {
-    API.ok = false; API.gaps = ['secure context (https)'];
-    paint('insecure', API.gaps);
+    verdict('insecure', ['secure context (https)']);
   } else {
     var gaps = syncGaps();
     if (gaps.length) {
-      API.ok = false; API.gaps = gaps;
-      paint('old', gaps);
+      verdict('old', gaps);
     } else {
       // The Ed25519 probe, shaped exactly like the real thing: the same PKCS#8
       // wrapper gifos-net.js builds around a 32-byte seed, imported and then
@@ -245,7 +285,7 @@
         var settled = false;
         var done = function (good) {
           if (settled) return; settled = true;
-          if (!good) { API.ok = false; API.gaps = ['WebCrypto Ed25519']; paint('old', API.gaps); }
+          if (!good) verdict('old', ['WebCrypto Ed25519']);
           resolve(good);
         };
         // Fail OPEN on a hang: a probe that never answers is not evidence of an
@@ -270,6 +310,22 @@
     if (!API.ok) return;
     if (!API.ready) { f(); return; }
     API.ready.then(function (good) { if (good) f(); });
+  };
+
+  /* The DEFERRED half of the solo doctrine: a network act taken from inside a
+     working solo app (Share live). Runs `f` only when this browser can hold a
+     meeting; otherwise the recorded verdict paints NOW — dismissible, because
+     the app underneath still works and the person must be able to go back to
+     it. By Share-live time the Ed25519 probe has long settled (1.5s cap), so
+     the .then() below is effectively synchronous. */
+  API.requireMeeting = function (f) {
+    var go = function (good) {
+      if (good) f();
+      else paint(API.kind || 'old', API.gaps, true);
+    };
+    if (!API.ok) { go(false); return; }
+    if (!API.ready) { go(true); return; }
+    API.ready.then(go);
   };
 })();
 </script>
@@ -6360,7 +6416,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         showAppPane(nm, 'on this device');
         setAppGif(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), nm);
         const inv = document.getElementById('appinvite');
-        inv.style.display = ''; inv.onclick = inviteFromSolo;
+        // THE deferred preflight gate (see the top of this file): a solo app
+        // never saw the too-old wall at load, so the Share-live button — the
+        // solo entry's first and only network act — is where a browser that
+        // cannot meet finds out, over a still-working app.
+        inv.style.display = '';
+        inv.onclick = () => {
+          const P = window.GifOSPreflight;
+          if (P && typeof P.requireMeeting === 'function') P.requireMeeting(inviteFromSolo);
+          else inviteFromSolo();
+        };
         return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl).then((ctl) => { soloCtl = ctl; });
       }).catch((e) => setStatus('Could not open the app: ' + (e && e.message || e)));
     }

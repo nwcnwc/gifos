@@ -100,6 +100,13 @@ for (const b of rows) {
   if (b.support[FEAT].state !== 'supported') fail(b.id + ' has a copyKey but is not `supported` for ' + FEAT + ' — the preflight would promise a version that does not exist');
 }
 
+// The signed-identity sentence (why the table is strict, in plain language) is
+// COPY the preflight paints when Ed25519 is the blocker; it lives in the JSON
+// like every other word the too-old screen speaks. Escaped-HTML plain text —
+// the preflight injects it via innerHTML.
+if (!data.copy.signedIdentity || typeof data.copy.signedIdentity !== 'string') fail('copy.signedIdentity is missing — the Ed25519 explanation would be undefined at paint time');
+if (/[<>]/.test(data.copy.signedIdentity || '')) fail('copy.signedIdentity must be plain text (no markup) — it is injected via innerHTML');
+
 const pad = Math.max(...rows.map((b) => b.copyKey.length));
 const padL = Math.max(...rows.map((b) => JSON.stringify(b.label).length));
 const generic = data.copy.genericOrder
@@ -123,6 +130,7 @@ rows.forEach((b, i) => {
 });
 lines.push('  };');
 lines.push('  var GENERIC_MINS = ' + JSON.stringify(generic + ' — and up') + ';');
+lines.push('  var WHY_SIGNED = ' + JSON.stringify(data.copy.signedIdentity) + ';');
 lines.push('  ' + END);
 const block = lines.join('\n');
 
