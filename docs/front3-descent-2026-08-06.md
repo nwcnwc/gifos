@@ -12,10 +12,15 @@
 
 **The descent has no choice to make.** At 88.8% of pass-0 descents there is
 exactly ONE eligible candidate, and it is the child-row HEAD 92.4% of the
-time — because a parent owns a link to its row head and to no other child.
-The seeker walks the column-0 spine because that is the only edge it can
-traverse first-hand. Every fix so far has been a better *policy* for choosing
-among candidates, and there is nothing to choose.
+time — because the head is the parent's owned `down` link and therefore the
+only child it hears first-hand, and because pass 0 is swept in full before
+pass 1 is tried at all. The seeker walks the column-0 spine because the pass
+ORDERING hands it that hop every time. Every fix attempted so far has been a
+better *policy* for choosing among candidates, and there is nothing to choose.
+
+(The siblings are reachable — `emit` routes to a non-linked seat rather than
+teleporting. The barrier is the ordering, not the topology. See the correction
+below; I got this wrong on the first pass and it changes the fix.)
 
 ## Why the seed's hypothesis was wrong
 
@@ -92,34 +97,69 @@ Columns 1-4 are reachable-but-unheard 118k-124k times each and pass-0 eligible
 only ~8k times; that residual is the 60-tick `live[]` window right after the
 parent ADMITTED them, before it decays.
 
-So: a parent can FILL any cell of its child row (`firstFreeInRoster` scans all
-C), but it can only DESCEND into column 0. The subtrees hanging under columns
-1..C-1 are effectively undescendable — capacity that exists and cannot be
-reached by a seeker. That is the plateau: the spine runs out of room while the
-room's free space sits in sibling subtrees no FIND can be delivered into.
+**What this does NOT mean — a wrong reading I published first and am
+correcting here.** It is tempting to conclude the sibling subtrees are
+UNREACHABLE. They are not. `Seat::emit` does not teleport to a non-linked
+seat: when the target is not on an owned link it ROUTES the frame over the
+mesh (`route(st->coord,-1,m)`), and the sim's teleport guard never fires. The
+measurement shows the deliveries happening — pass 1 reaches columns 1-4 863
+times, and pass 0 reaches them ~10,357 times during the `live[]` window. A
+parent can descend into ANY column; it costs extra hops, not a new link.
+
+So the barrier is not the link topology — it is the PASS ORDERING. Pass 0 is
+tried exhaustively across all C cells before pass 1 is tried at all, and
+column 0 is the only child that is reliably `firstHandLive`. Pass 0 therefore
+almost always succeeds, at column 0, and returns before pass 1 is ever
+consulted: pass0=146,273 vs pass1=863. The seeker walks the column-0 spine
+because the ordering hands it that hop every time, while the room's free space
+sits in sibling subtrees a FIND could perfectly well have been routed into.
 
 This is also why all four fixes failed identically. Each was a better rule for
 choosing among candidates; 88.8% of the time there is one candidate.
 
 ## The fix this points to — NOT BUILT, and it is a design decision
 
-A row HEAD owns row-links to all its mates. It is therefore the one seat that
-can legally hand a FIND sideways into a sibling subtree WITHOUT teleporting
-(the sim halts on a teleport, deliberately). Today `serveFind` at a head only
-ever considers its own child row. A head that cannot satisfy a FIND could
-offer it along its row, opening the other C-1 subtrees to descent.
+The lever is the PASS ORDERING in `serveFind`, not the link structure and not
+the choice rule. Today:
 
-Reasons this is not a heuristic tweak to land quietly:
+    for(pass=0;pass<2;pass++)
+      for(q:shufCols())
+        if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)) -> descend
 
-- it is a protocol change on the seating path, so BOTH twins move together;
-- it needs loop discipline — a FIND could ping-pong along a row (TTL alone is
-  not obviously enough; a visited-set or a strict left-to-right rule may be);
-- it interacts with the healing layer's admission story and with Q2
-  compaction, which already walks rows for a different reason;
-- the two-pass liveness guarantee must survive intact.
+Pass 0 sweeps all C cells before pass 1 is considered, and column 0 is the
+only reliably-live child, so the spine wins ~92% of hops.
 
-Measure it before building it. The instrument already reports what a fix has
-to move: `DESCSPINE`, `DESCEND` (how FINDs terminate), and the hop histogram.
+**Why the ordering cannot simply be deleted.** It is load-bearing, and the
+reason is in the comment above it: to my own evidence, a peer across a
+partition and a SILENT-BUT-REAL head are indistinguishable — `split` cuts
+delivery with no transport event, so no TRANSLOST ever arrives. Pass 0 exists
+so the starved half of a split room descends only into demonstrably
+deliverable hops (seed 8: side A seated 16/200 and NOTHING deeper when the
+forward used raw occ). Pass 1 exists because a silent-but-real head must still
+be usable (headless-row leg C, hchain D). Both legs are guarded. Any change
+here has to keep both.
+
+Candidate shapes, cheapest first — all measurable with the existing instrument
+before a line is written:
+
+1. **Break the tie only when pass 0 is a singleton.** At the 88.8% of hops
+   where pass 0 offers exactly ONE candidate, that is not a liveness CHOICE,
+   it is a default. Allowing a reachable sibling to be considered alongside it
+   in that specific case costs nothing on the split-room legs, because on
+   those legs the reachable siblings are the unreachable ones and lose anyway.
+2. **Spread on repeat, not on first contact.** A seeker that has already
+   NOROOM'd once has evidence the spine is full; let its RETRY prefer a
+   sibling. This keeps first-contact behaviour byte-identical, which is the
+   property the split-room drills actually assert.
+3. **Let the head spread.** A row head owns row-links to all its mates and can
+   hand a FIND sideways with a real link rather than a route. More invasive:
+   needs loop discipline (TTL alone is likely not enough — a visited set or a
+   strict left-to-right rule), and it interacts with Q2 compaction, which
+   already walks rows for a different reason.
+
+Whichever shape: BOTH twins move together, and the numbers a fix has to move
+are `DESCSPINE`, `DESCEND` (how FINDs terminate) and the hop histogram — not
+convergence time on the default seed alone.
 
 ## Reproducing
 
