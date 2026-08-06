@@ -34,8 +34,24 @@
 // its own case, faked the only way it can be: importKey rejects for that one
 // algorithm, exactly as Chrome 136 / Firefox 128 / Safari 16 do.
 //
+//   (6) THE SOLO DOCTRINE: a solo app (#id=<fileId>) is one tab and no
+//       network, so it must RUN on a browser that could never meet — the wall
+//       never paints at load (measured failing on a real Safari 16, family
+//       demo 2026-08-05: a working app hidden behind "too old for meetings").
+//       The verdict is recorded and paints at the solo entry's ONE network
+//       act — the Share-live button — dismissible, over the still-working
+//       app. Negative-controlled: a healthy browser's Share-live goes
+//       straight to the share dialog, no wall.
+//   (7) when Ed25519 is the blocker the copy carries the signed-identity
+//       line: meetings are private because every participant is SIGNED, and
+//       the missing piece is what makes signatures possible — never
+//       "encryption impossible" (Safari 16 has the encryption primitives).
+//       Negative-controlled: a browser missing crypto.subtle itself must NOT
+//       get that line, because there it would be a lie.
+//
 // Needs: python3 -m http.server 8099 -d site ; node test/servers/relay-local.js
 const { chromium, CHROME } = require('../lib/pw');
+const { systemAppIds } = require('../lib/apps');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -68,6 +84,10 @@ const CASES = [
   {
     id: 'crypto.subtle',
     gap: 'WebCrypto (crypto.subtle)',
+    // The signed-identity line claims "this browser can scramble a call just
+    // fine" — with crypto.subtle itself missing that would be a lie, so the
+    // line must NOT appear here (the negative control for (7)).
+    signedLine: false,
     init: () => { try { Object.defineProperty(window.crypto, 'subtle', { get: function () { return undefined; }, configurable: true }); } catch (e) {} },
   },
   {
@@ -83,6 +103,9 @@ const CASES = [
   {
     id: 'WebCrypto Ed25519',
     gap: 'WebCrypto Ed25519',
+    // Ed25519 as the ONLY gap is the one case where the signed-identity
+    // explanation is true, so it must appear — contract (7).
+    signedLine: true,
     // The Safari-16 shape: everything else works, this one algorithm is not
     // known. Rejecting importKey is exactly what those engines do.
     init: () => {
@@ -128,7 +151,8 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       seen = await p.evaluate(() => {
         const el = document.getElementById('oldbrowser');
         if (!el) return null;
-        return { gaps: el.getAttribute('data-gaps') || '', head: (document.getElementById('oldbrowser-head') || {}).textContent || '', text: el.textContent || '' };
+        const s = document.getElementById('oldbrowser-signed');
+        return { gaps: el.getAttribute('data-gaps') || '', head: (document.getElementById('oldbrowser-head') || {}).textContent || '', text: el.textContent || '', signed: s ? s.textContent : null };
       }).catch(() => null);
       if (!seen) await sleep(250);
     }
@@ -136,6 +160,15 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     check('…and it names the missing piece (' + c.gap + ')', !!seen && seen.gaps.indexOf(c.gap) !== -1, seen && seen.gaps);
     check('…and it says, in words, that meetings need a newer browser',
       !!seen && /too old|newer|Open this in your browser/i.test(seen.text));
+    // (7) the signed-identity line: present exactly when it is TRUE.
+    if (c.signedLine === true) {
+      check('…and the copy says people are SIGNED (why meetings are strict), not "encryption impossible"',
+        !!seen && !!seen.signed && /signed/i.test(seen.signed) && /pretending|impersonat/i.test(seen.signed), seen && (seen.signed || '').slice(0, 100));
+    }
+    if (c.signedLine === false) {
+      check('…and the signed-identity line stays away (it would claim scrambling works — false here)',
+        !!seen && seen.signed === null, seen && seen.signed);
+    }
 
     // THE LOAD-BEARING ONE: nothing knocked, so nothing can spin.
     await sleep(VEIL_WAIT_MS); // > the veil's 4s arming window
@@ -208,6 +241,110 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     let seated = null;
     for (let t = 0; t < 30 && !seated; t++) { await sleep(1000); seated = await p.evaluate(() => window.__gifosVideo && window.__gifosVideo.meshCoord()).catch(() => null); }
     check('…and it JOINS view-only — the knock never needed a camera', !!seated, { seated });
+    await ctx.close();
+  }
+
+  // ---- (6) THE SOLO DOCTRINE: no meeting, no wall --------------------------
+  // A real Safari 16 opening an app from its own Home Screen hit the too-old
+  // screen (family demo, 2026-08-05) — over an app that runs perfectly without
+  // a network. The contract: the wall NEVER paints for #id=<fileId>; it paints
+  // at the Share-live tap, dismissible; dismissing returns to the working app.
+  {
+    const SYS = systemAppIds();
+    const ctx = await newContext({});
+    // The Safari-16 shape for the WHOLE context — the desktop that seeds the
+    // app is the same crippled browser, exactly as it was in the field.
+    await ctx.addInitScript(CASES.find((c) => c.id === 'WebCrypto Ed25519').init);
+    const d = await ctx.newPage();
+    d.on('pageerror', (e) => console.log('  [solo-desk] ' + e.message));
+    await d.goto(BASE + '/index.html');
+    await d.waitForSelector('.icon', { timeout: 30000 }).catch(() => {});
+    const appId = await d.evaluate(async (SYS) => {
+      const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
+      return f ? f.id : null;
+    }, SYS).catch(() => null);
+    check('an Ed25519-less browser still seeds a desktop and holds an app', !!appId);
+
+    if (appId) {
+      const p = await ctx.newPage();
+      p.on('pageerror', (e) => console.log('  [solo] ' + e.message));
+      await p.goto(BASE + '/run.html#id=' + appId);
+      const mounted = await p.waitForSelector('#appmount iframe', { timeout: 30000 }).then(() => true).catch(() => false);
+      check('the solo app BOOTS on a browser that could never meet', mounted);
+      await sleep(3000); // the Ed25519 probe settles at ≤1.5s; give it double
+      check('…and the too-old wall never paints at load (the verdict is recorded, not shown)',
+        await p.evaluate(() => !document.getElementById('oldbrowser')));
+      const title = await p.title();
+      check('…and the tab keeps the APP title, not the meetings-need-newer one', !/Meetings need a newer browser/.test(title), title);
+
+      // The one network act: Share live. HERE the wall paints, dismissibly.
+      // (programmatic click — a default app's own perm-modal can overlay the
+      // button, same dodge as e2e-app-room)
+      await p.evaluate(() => document.getElementById('appinvite').click());
+      let wall = null;
+      for (let t = 0; t < 12 && !wall; t++) {
+        wall = await p.evaluate(() => {
+          const el = document.getElementById('oldbrowser');
+          if (!el) return null;
+          return {
+            gaps: el.getAttribute('data-gaps') || '',
+            signed: !!document.getElementById('oldbrowser-signed'),
+            back: !!document.getElementById('oldbrowser-back'),
+            // the DYNAMIC Share-live dialog only — the page ships static
+            // hidden .name-modal divs (set-modal, pw-modal, …) that all
+            // carry ids, so a bare .name-modal query always matches.
+            modal: Array.prototype.some.call(document.querySelectorAll('.name-modal'), (m) => !m.id && /Share[\s\S]*live/.test(m.textContent)),
+          };
+        }).catch(() => null);
+        if (!wall) await sleep(250);
+      }
+      check('Share live on that browser paints the wall AT THE ACT', !!wall);
+      check('…naming Ed25519', !!wall && wall.gaps.indexOf('WebCrypto Ed25519') !== -1, wall && wall.gaps);
+      check('…with the signed-identity explanation', !!wall && wall.signed);
+      check('…with a way back to the app (dismiss button)', !!wall && wall.back);
+      check('…and the share dialog itself never opened behind it', !!wall && !wall.modal);
+      check('…and the tab title is STILL the app’s (a dismissible wall must not deface the page)',
+        !/Meetings need a newer browser/.test(await p.title()));
+
+      await p.click('#oldbrowser-back').catch(() => {});
+      await sleep(300);
+      check('dismissing it returns to the WORKING app (wall gone, app still mounted)',
+        await p.evaluate(() => !document.getElementById('oldbrowser') && !!document.querySelector('#appmount iframe')));
+      await p.close();
+    }
+    await ctx.close();
+  }
+
+  // ---- (6b) NEGATIVE CONTROL: a healthy browser's Share live is untouched --
+  {
+    const SYS = systemAppIds();
+    const ctx = await newContext({});
+    const d = await ctx.newPage();
+    d.on('pageerror', (e) => console.log('  [ctl-desk] ' + e.message));
+    await d.goto(BASE + '/index.html');
+    await d.waitForSelector('.icon', { timeout: 30000 }).catch(() => {});
+    const appId = await d.evaluate(async (SYS) => {
+      const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
+      return f ? f.id : null;
+    }, SYS).catch(() => null);
+
+    if (appId) {
+      const p = await ctx.newPage();
+      p.on('pageerror', (e) => console.log('  [ctl] ' + e.message));
+      await p.goto(BASE + '/run.html#id=' + appId);
+      await p.waitForSelector('#appmount iframe', { timeout: 30000 }).catch(() => {});
+      await p.evaluate(() => document.getElementById('appinvite').click());
+      let modal = false;
+      for (let t = 0; t < 20 && !modal; t++) {
+        modal = await p.evaluate(() => Array.prototype.some.call(document.querySelectorAll('.name-modal'), (m) => !m.id && /Share[\s\S]*live/.test(m.textContent))).catch(() => false);
+        if (!modal) await sleep(250);
+      }
+      check('NEGATIVE CONTROL: a healthy browser’s Share live opens the share dialog', modal);
+      check('…and no wall', await p.evaluate(() => !document.getElementById('oldbrowser')));
+      await p.close();
+    } else {
+      check('NEGATIVE CONTROL: a healthy browser seeds a desktop app', false);
+    }
     await ctx.close();
   }
 
