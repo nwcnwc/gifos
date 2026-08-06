@@ -194,6 +194,36 @@ time). Either never run gate batteries on the monitor box, or scope the
 reaper to exclude processes whose cmdline carries the monitor marker
 (--name MonitorBot / BB_ACTOR env).
 
+## THE STATE OF /docs (close-out finished 2026-08-06)
+
+There is ONE handoff doc — this one. The 17-doc handoff chain is deleted
+(every item traced to a closure, a refutation, or harvested into roadmap §3 /
+the bug ledger / quarantine.txt).
+
+**Bug dossiers keep their own files.** Each was re-verified ENTRY BY ENTRY
+against the tree — not against its own claims — and now opens with a dated,
+commit-stamped liveness note. A doc without such a stamp is a living
+reference (roadmap, healing-laws, architecture, media-plane, meet-security,
+meeting, threat-model, cors-and-networking, one-runtime, versioning,
+app-mesh*, vote-scale, mmog-ideas, ping-pong, avatar-presence,
+research-notes-p2p, phone-instrument-interface, concept-self-sovereign-app-mesh).
+
+Standing rule from here: **a bug doc dies only when its bug is FIXED AND
+GUARDED**; otherwise it gets a fresh stamp. Do not fold bug docs into this one.
+
+Three guard gaps the audit exposed, all real work and none of them filed
+anywhere else:
+1. **ENTRY RESUME (seating-under-flap) is live in both twins and NO GATE RUNS
+   IT** — `test/tools/seat-flap-repro.js` is a tool, and `test/tools/` is not
+   a release.sh tier. A regression would be silent.
+2. **`statusOf` has ZERO test coverage anywhere in the repo** — which is the
+   scale audit's own named guardrail for V2.
+3. **`e2e-stadium-dup` being quarantined silently un-guards a DIFFERENT,
+   genuinely fixed bug** (the stale-seat duplicate face, media-fan BUG 3) —
+   the exact rot pattern quarantine.txt exists to prevent. It now has TWO
+   consecutive greens on the gate host; one more clean window and it can be
+   promoted out.
+
 ## THE LIVE FRONTS for 0.9.4 (unchanged priorities, now with a clean seed)
 
 1. **N=5000 plateau** (~3076/5000 at 60k cap; scale-frontier.sh is the
