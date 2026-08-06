@@ -15,10 +15,12 @@
 > - BUG 2 (5-minute re-election) FIXED — bounded to ≤30s, guarded by
 >   `e2e-mosaic.js`. RESIDUAL, filed and live: the ~30s bimodal recovery rail
 >   (the bound barely holds) — see the seed doc.
-> - BUG 3 (stale seat duplicates a participant) FIXED — the packer vetoes a
->   face at any seat the peer's own heartbeat disowns. **Its guard,
->   `e2e-stadium-dup.js`, is QUARANTINED for an unrelated leg, so this fix is
->   currently un-gated** — the exact rot pattern quarantine.txt warns about.
+> - BUG 3 (stale seat duplicates a participant) FIXED AND NOW GUARDED — the
+>   packer vetoes a face at any seat the peer's own heartbeat disowns. Its
+>   guard `e2e-stadium-dup.js` was QUARANTINED for an unrelated leg, leaving
+>   this fix un-gated; that leg was measured 12/12 green on the gate host
+>   (14/14 post-V4) and the suite was PROMOTED OUT of quarantine 2026-08-06,
+>   so a regression here reds the gate again.
 > - BUG 4 (provider flapping) FIXED — `MOS_SETTLE` failback hysteresis,
 >   guarded by `e2e-stage-onerow.js`.
 > - **STILL ALIVE:** the "occ merge should let a peer's own report evict its
