@@ -1,8 +1,13 @@
 # Seating under a flapping socket — the plane incident (2026-08-04)
 
 
-> **FIX IS LIVE BUT UNGUARDED as of 2026-08-06 (ce294be) — so by this repo's own rule
-> it is NOT fixed.** ENTRY RESUME is present in BOTH twins (`site/js/mesh.js`
+> **GUARDED as of 2026-08-06 (c867cd2): `test/mesh/entry-resume.js` now pins
+> the mechanism and all four bounds in the gate's mesh tier, mutation-tested
+> (stubbing `resumeAsk` reds 8 assertions). The adjacent work below is still
+> open. Original stamp follows.**
+>
+> **FIX WAS LIVE BUT UNGUARDED as of 2026-08-06 (ce294be) — by this repo's own rule
+> it was NOT fixed.** ENTRY RESUME is present in BOTH twins (`site/js/mesh.js`
 > `resumeAsk()`, wired at the ask sites; `test/sim/mesh.cpp` + `mesh_seat.inc`),
 > but NO GATE RUNS IT: `test/tools/seat-flap-repro.js` is a tool and
 > `test/tools/` is not a `release.sh` tier, and no `test/sim/repro-*.sh` flaps
