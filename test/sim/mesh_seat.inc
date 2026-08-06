@@ -19,7 +19,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
   rowLedger = !(c.pc==0 && c.i==0 && owner>=0);   // V4: an admitted S1 row head waits for its assigner's SITXFER
-  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false;   // seated: any deferred entry retry is moot
+  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false; noroomSeen=0;   // T7: the NOROOM evidence dies with the attempt it belonged to   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
@@ -256,7 +256,7 @@ void Seat::serveFind(Msg& mm){
         auto doorListed=[&](int x){ if(x<0) return false; for(int g:lastGreeters) if(g==x) return true; return false; };
         int aid = firstHandLive(ckey(admc)) ? occGet(ckey(admc)) : (doorListed(occGet(ckey(admc))) ? occGet(ckey(admc)) : -1);
         if(aid<0||aid==id){ int hx=occGet(ckey(admh)); aid = firstHandLive(ckey(admh)) ? hx : (doorListed(hx) ? hx : -1); }
-        if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(aid,m); return; }
+        if(aid>=0&&aid!=id){ Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1;m.spread=mm.spread; emit(aid,m); return; }
         // The whole admitter row below is dead too. "Resolve bottom-up"
         // DEADLOCKED here when EVERY row below was dead or empty (s1all
         // recovery: fresh greeters in rows 0-1, rows 2-4 dead, one stale
@@ -364,7 +364,7 @@ void Seat::serveFind(Msg& mm){
         // Silent-but-real heads stay reachable (headless-row C / hchain D).
         if(admitterReachable(ckey(adm))){
           FINDLOG("handoff -> %d@0/%d.%d for cell 0/%d.%d",occGet(ckey(adm)),(int)adm.r,(int)adm.i,(int)cell.r,(int)cell.i);
-          Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(occGet(ckey(adm)),m); return;
+          Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1;m.spread=mm.spread; emit(occGet(ckey(adm)),m); return;
         }
         // admitter unknown/dead/phantom: keep scanning
       }
@@ -428,7 +428,20 @@ void Seat::serveFind(Msg& mm){
     auto kf=kidful.find(rk); dkid[q] = (kf==kidful.end()) ? 2 : (kf->second ? 1 : 0); }
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
-      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,dkid,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+      // T7 SPREAD-AFTER-NOROOM (docs/front3-descent-2026-08-06.md). Measured:
+      // at the N=5000 plateau, 100.0% of pass-0 descents offer exactly ONE
+      // candidate — the child-row head, the only child a parent owns a link to
+      // and therefore the only one it ever hears first-hand. Every FIND walked
+      // that spine 12 levels to the wall while 11,259 free cells sat under
+      // columns 1..C-1. The descent was not choosing badly; it had no choice.
+      //
+      // So on a FIND whose seeker has ALREADY been told NOROOM to its face,
+      // let a reachable-but-unheard sibling compete in pass 0. First contact is
+      // untouched, and a partitioned seeker never gets here (it fails silent,
+      // not loud), so the seed-8 starvation guarantee pass 0 exists for is
+      // exactly as strong as before. The hop is still strictly DOWNWARD into
+      // the child row, so depth increases every time and no cycle is possible.
+      if(pass==0 ? (firstHandLive(rk) || (mm.spread && admitterReachable(rk))) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,dkid,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d spread=%d -> %d@%u/%d.%d",pass,(int)mm.spread,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1;m.spread=mm.spread; emit(x,m); return; } }
   if(descOn()){ descNote(rc,dcls,dkid,-1,-1,pcDepth(coord.pc)); descEnd(3,200-mm.ttl); }
   FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
@@ -1289,7 +1302,11 @@ void Seat::recv(Msg& m){
     // stands — the corpse-avoid win is untouched. (A late NOROOM from a
     // superseded ask can lift the CURRENT target's mark early; that errs
     // toward the old behavior — one wasted re-pick — never toward a wedge.)
-    case NOROOM: if(state==2){ triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
+    // T7: an EXPLICIT NOROOM is the evidence that licenses spreading. It came
+    // back over a path that demonstrably delivered, so the branch was reachable
+    // and simply full. A partitioned FIND is swallowed in silence and lands on
+    // the timeout path instead, never here — so a split can never set this.
+    case NOROOM: if(state==2){ noroomSeen++; triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.

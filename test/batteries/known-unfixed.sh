@@ -67,20 +67,25 @@ else red "$frozen/20 splits froze a half"; fi
 # battery — not this graveyard — is where it shows.)
 
 hdr "N=5000 MASS-JOIN STALLS  (decided: cut 0.9.3 without it, 2026-08-05)"
-why "the V4 admission-evidence waves took N=3000 from 1915-stuck-forever to a
-                 clean 74s convergence with dups=0, but a 5000-seat single-storm join
-                 still plateaus (~3076 seated at the 60k-tick cap). This is a THIRD
-                 defect family, diagnosed but not fixed, and it predates 0.9.2: no
-                 release has ever converged N=5000. Real rooms sit orders of magnitude
+why "a 5000-seat single-storm join plateaus (~3076 seated at the 60k-tick cap).
+                 No release has ever converged N=5000. Real rooms sit orders of magnitude
                  below the pathology; every real-shape gate is green."
-cost "the join storm builds lone-row SPINES to the depth wall; the heal/compaction
-                 layer then runs a bucket-brigade conveyor (seats admitted deep, pulled
-                 up level-by-level — 113k moves by t=60k) while ~1900 war-loser
-                 requeues descend full spines and NOROOM at the wall (MESH_FINDLOG
-                 evidence in the 2026-08-05 handoff). The fix front is heal-layer
-                 promotion exclusivity + spine re-absorption — test/sim/scale-frontier.sh
-                 is the ready-made gate: the day it goes green, rename it
-                 repro-scale.sh so the release battery globs it forever."
+cost "DIAGNOSED AND SOLVED-BUT-UNSHIPPABLE as of 2026-08-06 — read
+                 docs/front3-descent-2026-08-06.md before touching this. The cause is NOT
+                 the heal layer: at the plateau 100% of pass-0 descents offer exactly ONE
+                 candidate (the child-row head, the only child a parent hears first-hand),
+                 every FIND walks that spine 12 levels to the wall (2.44M NOROOMs, meanHops
+                 exactly 12.00) and 11,259 free cells sit under columns 1..C-1 unreached.
+                 T7 spread-after-NOROOM FIXES IT — sim verb \`spreadon 1\`, DEFAULT OFF:
+                 N=5000 converges 5000/5000 on all 4 seeds (~3200-3400 ticks), N=10000 in
+                 3776, N=20000 in 4480, dups=0, evictions 11022 -> 3739, and the split-room
+                 legs (headless-row C, hchain D) stay green.
+                 IT IS OFF BECAUSE IT COSTS TREE COMPACTNESS: spreading opens more sections
+                 and lone rows than compaction can collapse, and repro-compaction leg 1
+                 reds (clean A/B: baseline GREEN, T7 RED). Raising the evidence bar to 2
+                 NOROOMs does not separate them (still converges, 8 failures instead of 5),
+                 so the trade is inherent to spreading, not a trigger artifact. Resolving
+                 that trade is the remaining work; the covenant below still stands."
 echo "    running test/sim/scale-frontier.sh (~20 min of sim compute) ..."
 if bash test/sim/scale-frontier.sh > /tmp/known-scale.log 2>&1; then green "N=5000 converges — RENAME scale-frontier.sh to repro-scale.sh NOW"; else red "N=5000 mass-join stalls ($(grep -oE 'seated=[0-9]+/5000' /tmp/known-scale.log | tail -1))"; fi
 
