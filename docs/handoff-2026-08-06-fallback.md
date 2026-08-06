@@ -7,64 +7,44 @@ roadmap.md §3 / bug-ledger-2026-08-05.md / quarantine.txt — commit afc8c42),
 and the two 2026-08-05 docs (v4, 093) are deleted with this one carrying
 their living remainder. git history keeps them all.
 
-## READ FIRST — the demo this morning (Nathan's sister's old iPhone)
+## READ FIRST — 0.9.4 IS CUT AND LIVE
 
-The Ed25519 fallback (below) is on EDGE ONLY. A fresh visitor to
-gifos.app/meet/<room> follows version.json to the FROZEN 0.9.3 snapshot,
-which still WALLS Safari ≤16. So for the demo, in order of preference:
+**Build 1062, version.json current=0.9.4, deployed and verified on
+gifos.app.** The old-iPhone demo is ready; nothing needs cutting first, and
+no `?edge` pin is needed.
 
-1. **Cut 0.9.4 first** (the intended path): run the composite gate per farm
-   doctrine (gate host `release.sh --behavior=skip` + behavior fleet on the
-   6-core engines box), then `scripts/archive-version.sh 0.9.4`, commit,
-   push, verify a fresh /meet/<room> load lands on /versions/0.9.4/run.html.
-   Overnight baseline says the gate should be green (see FLEET RESULTS) —
-   the one former red, e2e-deep-pair-heal, was root-caused as a drill
-   mis-assertion and fixed (see below; triple-run verification was in
-   flight at handoff time).
-2. **Or demo on edge**: open the meeting link with `?edge` once on the
-   phone (the channel pin persists per-origin). Solo apps and the desktop
-   need nothing — the solo path never walls (e51a2a6) even on 0.9.3? NO —
-   0.9.3's snapshot predates e51a2a6 too. On a stock 0.9.3 load the phone
-   still hits the wall. USE ?edge OR CUT FIRST. There is no third option.
+**Verified against LIVE PRODUCTION** with a WebKit browser whose Ed25519 was
+removed (the Safari-16 shape), all green in one run:
 
-What the phone will do once on a fallback build: desktop + solo apps work;
-joining a meeting mints the S4 identity through the vendored JS signer
-(byte-identical Ed25519 — the mixed room is proven, see below); the
-too-old wall only ever appears for genuinely missing pieces (no WebRTC /
-WebSocket / crypto.subtle), in plain language, dismissible over a working
-solo app.
+| | |
+|---|---|
+| loads gifos.app and is served the release | → `/versions/0.9.4/`, `GIFOS_VERSION='0.9.4'` |
+| the fallback engine engages | `GifOS.ed.engine() === 'js'` |
+| the vendored signer comes from production | `/versions/0.9.4/js/vendor/nacl-fast.js` → 200 |
+| the desktop paints | 12 icons |
+| a `/meet/<room>` link | does **NOT** show the too-old wall |
+| and the Ed25519-less browser | **SEATS at 0/0.0** — "Just you — send the invite" |
 
-**The demo path is verified end-to-end on the REAL artifact, in Safari's own
-engine** (all measured 2026-08-06, penguin):
+THE COMPOSITE GATE THAT AUTHORIZED THE CUT (farm doctrine):
 
-1. **Byte-identity on non-V8 engines** — a fixed seed + message through
-   GifOS.ed under `GIFOS_ED_FORCE_JS` gives byte-identical public keys and
-   signatures in chromium, **WebKit** and Firefox, against a hardcoded
-   known answer; each verifies a signature made elsewhere and rejects it
-   over tampered bytes. Gated: `test/browser/e2e-ed-engines.js`.
-2. **A WebKit browser actually SEATS in a real room** signing with the
-   fallback, next to a native-signing chromium host (host 0/0.0, WebKit
-   guest 0/0.1) and each sees the other in its mesh (occ=2 both sides) —
-   which can only happen if signatures crossed the engine boundary in both
-   directions. (One-off experiment, not gated: WebKit-Linux still cannot
-   paint remote tiles, so a gated WebKit media suite would be red for
-   reasons that are not the product. Script kept in the session scratchpad;
-   the reproducible half is e2e-ed-fallback.js's mixed room.)
-3. **A rehearsed 0.9.4 cut** (throwaway worktree, then discarded) produced a
-   snapshot that carries `js/vendor/nacl-fast.js`, stamps
-   `GIFOS_VERSION='0.9.4'`, leaves the root at `edge`, and points
-   `version.json.current` at it — and that REAL artifact, served at
-   `/versions/0.9.4/`, loads in WebKit, engages the fallback engine,
-   fetches the vendor file from its OWN versioned path, and derives the
-   known-answer key. Guarded from here on by `test/unit/ed-fallback.js`
-   (archive-version.sh must copy js/ whole; every snapshot shipping the
-   door must ship the engine).
+- **gate host** (nvidia-laptop, `--behavior=skip`): **GREEN 129, FLAKY 0,
+  RED 0, DEAD 0, QUARANTINED 4** — the four ledgered entries only.
+  `e2e-pipe` and `e2e-stadium-dup` were both GREEN this run: data points
+  toward promotion, not promotions (their entries say why).
+- **behavior fleet** (clawbox): **57 passed / 1 failed / 0 skipped**, with
+  `25a-mixed-engines` passing on the Firefox pin and `04b`/`16b` running for
+  real. The single failure, `22b-choir-front-row-loss` — the battery's only
+  8-ACTOR scenario — is PROVEN environmental: it died of two crashed
+  renderers at 396 MB available / 3.2 GB swap, and at this same tree it
+  scores **9 passed / 0 failed** on an uncontended 15 GB box.
 
 ## HOW TO RUN THE DEMO (once 0.9.4 is live)
 
 1. On the old iPhone, open **https://gifos.app/** once. It should paint the
    Home Screen with icons. If it does, the phone is on a build that can sign.
-   (Check: Settings → Advanced → Version should say 0.9.4.)
+   (Check: Settings → Advanced → Version should say 0.9.4.) If the phone has
+   opened GifOS before, it may hold an older build: Settings → Advanced →
+   Version → update, or just reload.)
 2. From your own machine, open a meeting and share the link to the phone
    (Messages/WhatsApp is fine — iOS opens Safari properly for these).
 3. On the phone, tap the link. Expect: the name prompt, then the meeting.
@@ -73,7 +53,8 @@ engine** (all measured 2026-08-06, penguin):
 4. If the phone shows "too old for meetings", read the small print at the
    bottom of that screen — it names the missing piece. Ed25519 should NOT
    appear there anymore; if it does, the phone is on a pre-0.9.4 build
-   (make it reload, or open the link with `?edge`).
+   (make it reload). A genuine gap on a very old iPhone would be WebRTC,
+   and the screen now explains that in plain language.
 5. Tapping an app on the phone's own Home Screen must ALWAYS work, meeting or
    not — that path touches no network at all.
 
