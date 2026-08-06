@@ -49,8 +49,11 @@ check('site/browser-support.json exists and parses', !!data);
 if (data) {
   const feats = Object.keys(data.features || {});
   check('it covers the meeting AND the broadcast page', feats.includes('meet') && feats.includes('cast'), feats);
-  check('meetings are gated on the requirement that actually sets the table (WebCrypto Ed25519)',
-    data.features.meet.gatedBy === 'webcrypto-ed25519');
+  check('meetings are gated on the requirement that actually sets the table (the JS syntax floor — Ed25519 stopped gating when the fallback signer landed)',
+    data.features.meet.gatedBy === 'es6-baseline');
+  check('…but the Ed25519 MANDATE is still listed as a requirement (the engine changed, not the rule)',
+    (data.features.meet.requires || []).includes('webcrypto-ed25519')
+    && /fallback/i.test(data.requirements['webcrypto-ed25519'].why));
   check('a camera is NOT among the meeting requirements (view-only join is first class)',
     !(data.features.meet.requires || []).some((r) => /getusermedia|camera/i.test(r)) && !!data.features.meet.notRequired.getUserMedia);
   check('the Home Screen is listed and needs none of the meeting stack',
@@ -69,13 +72,18 @@ if (data) {
   const numberless = data.browsers.filter((b) => feats.some((f) => b.support[f].state === 'supported' && !b.support[f].min));
   check('everything marked supported carries the version it is supported from', numberless.length === 0, numberless.map((b) => b.id));
 
-  // The verified numbers this whole work-front turned on.
+  // The fallback-era numbers: the table is set by the JS syntax floor
+  // (globalThis, 2019), because the Ed25519 engine falls back below the old
+  // native floor. These are DERIVED (requirement arithmetic), and the rows
+  // must say so — a derived number wearing 'verified' is a guess in a suit.
   const min = (id, f) => (data.browsers.find((b) => b.id === id) || { support: {} }).support[f];
-  check('Chrome meet minimum is 137 (Ed25519, 2025-05 — the last engine to ship it)', (min('chrome', 'meet') || {}).min === '137');
-  check('Edge meet minimum is 137', (min('edge', 'meet') || {}).min === '137');
-  check('Firefox meet minimum is 129', (min('firefox', 'meet') || {}).min === '129');
-  check('Safari meet minimum is 17, on the Mac and on the iPhone alike',
-    (min('safari', 'meet') || {}).min === '17' && (min('safari-ios', 'meet') || {}).min === '17');
+  check('Chrome meet minimum is 71 (globalThis, 2018-12)', (min('chrome', 'meet') || {}).min === '71');
+  check('Edge meet minimum is 79 (first Chromium Edge)', (min('edge', 'meet') || {}).min === '79');
+  check('Firefox meet minimum is 65', (min('firefox', 'meet') || {}).min === '65');
+  check('Safari meet minimum is 12.1 / iOS 12.2',
+    (min('safari', 'meet') || {}).min === '12.1' && (min('safari-ios', 'meet') || {}).min === '12.2');
+  check('…and every fallback-era row is honest about being DERIVED, not run',
+    ['chrome', 'edge', 'firefox', 'safari', 'safari-ios'].every((id) => min(id, 'meet').confidence === 'derived'));
   check('broadcast carries the same numbers as meetings (it is the same page in a different skin)',
     ['chrome', 'edge', 'firefox', 'safari'].every((id) => min(id, 'cast').min === min(id, 'meet').min));
 

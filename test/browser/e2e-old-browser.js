@@ -28,11 +28,12 @@
 //       does. A published matrix that disagrees with the product is worse than
 //       no matrix — it teaches people the wrong thing with authority.
 //
-// Ed25519 is the requirement that actually sets the version table — every
-// participant mints an Ed25519 identity at join (mesh-wire.js, S4, no off
-// switch), and it is the newest API in the required set by years. So it gets
-// its own case, faked the only way it can be: importKey rejects for that one
-// algorithm, exactly as Chrome 136 / Firefox 128 / Safari 16 do.
+// Ed25519 DELIBERATELY HAS NO WALL CASE ANYMORE. It used to set the whole
+// version table (Safari 17 / Chrome 137 / Firefox 129); since the fallback
+// signer landed (gifos-ed.js + the pinned vendor), a browser whose importKey
+// rejects Ed25519 — exactly what Chrome 136 / Firefox 128 / Safari 16 do —
+// must JOIN, signing through the JS engine. That inversion is contract (8),
+// and the two-engine room is e2e-ed-fallback.js's whole job.
 //
 //   (6) THE SOLO DOCTRINE: a solo app (#id=<fileId>) is one tab and no
 //       network, so it must RUN on a browser that could never meet — the wall
@@ -44,13 +45,12 @@
 //       straight to the share dialog, no wall.
 //   (7) the wall carries ONE plain-language WHY line picked for the telling
 //       gap (requirements[*].plain in browser-support.json, generated into
-//       the preflight): Ed25519 → people are SIGNED (never "encryption
-//       impossible" — Safari 16 has the encryption primitives); WebCrypto →
-//       scrambling happens on-device; WebRTC → direct browser-to-browser;
-//       WebSocket → the doorway introduction. Truth-controlled: a browser
-//       missing crypto.subtle must get the scrambling line, NOT the signed
-//       one (whose "can scramble just fine" would be a lie there), and an
-//       ancient gap (TextEncoder) gets NO line at all.
+//       the preflight): WebCrypto → scrambling happens on-device; WebRTC →
+//       direct browser-to-browser; WebSocket → the doorway introduction.
+//       Truth-controlled: an ancient gap (TextEncoder) gets NO line at all.
+//   (8) THE INVERSION: the Safari-16 shape (importKey rejecting Ed25519,
+//       everything else present) passes the preflight and SEATS — the exact
+//       browser the old wall turned away is now a participant.
 //
 // Needs: python3 -m http.server 8099 -d site ; node test/servers/relay-local.js
 const { chromium, CHROME } = require('../lib/pw');
@@ -112,27 +112,23 @@ const CASES = [
     why: null,
     init: () => { try { delete window.TextEncoder; } catch (e) {} try { window.TextEncoder = undefined; } catch (e) {} },
   },
-  {
-    id: 'WebCrypto Ed25519',
-    gap: 'WebCrypto Ed25519',
-    // Ed25519 as the ONLY gap is the one case where the signed-identity
-    // explanation is true, so it must appear — contract (7).
-    why: /signed/i, whyNot: /impossible/i,
-    // The Safari-16 shape: everything else works, this one algorithm is not
-    // known. Rejecting importKey is exactly what those engines do.
-    init: () => {
-      const real = window.crypto.subtle.importKey.bind(window.crypto.subtle);
-      Object.defineProperty(window.crypto.subtle, 'importKey', {
-        configurable: true,
-        value: function (fmt, key, alg, ext, uses) {
-          const n = (alg && alg.name) || alg;
-          if (String(n) === 'Ed25519') return Promise.reject(new Error('Unrecognized name.'));
-          return real(fmt, key, alg, ext, uses);
-        },
-      });
-    },
-  },
 ];
+
+// The Safari-16 shape: everything works EXCEPT Ed25519 — importKey rejects
+// that one algorithm, exactly as Chrome 136 / Firefox 128 / Safari 16 do.
+// No longer a wall case (see the header): used by (8) to prove the seat, and
+// by (6) to prove solo + Share-live sail through on that browser.
+const SAFARI16 = () => {
+  const real = window.crypto.subtle.importKey.bind(window.crypto.subtle);
+  Object.defineProperty(window.crypto.subtle, 'importKey', {
+    configurable: true,
+    value: function (fmt, key, alg, ext, uses) {
+      const n = (alg && alg.name) || alg;
+      if (String(n) === 'Ed25519') return Promise.reject(new Error('Unrecognized name.'));
+      return real(fmt, key, alg, ext, uses);
+    },
+  });
+};
 
 const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] };
 
@@ -197,7 +193,7 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       permissions: ['camera', 'microphone'],
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
     });
-    await ctx.addInitScript(CASES[CASES.length - 1].init); // Ed25519 missing — the real Safari-14 gap
+    await ctx.addInitScript(CASES[0].init); // WebRTC missing — a genuinely-walled gap (Ed25519 no longer walls)
     const p = await ctx.newPage();
     p.on('pageerror', () => {});
     await p.goto(BASE + '/run.html#v=uacopy-' + Math.random().toString(36).slice(2, 8));
@@ -207,7 +203,7 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       if (!txt) await sleep(250);
     }
     check('the copy names the browser in hand ("Safari 14")', /Safari 14/.test(txt), txt.slice(0, 160));
-    check('…and the version it needs ("Safari 17")', /Safari 17/.test(txt));
+    check('…and the version it needs ("Safari 12.1" — the fallback-era floor)', /Safari 12\.1/.test(txt));
     await ctx.close();
   }
 
@@ -217,7 +213,7 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       permissions: ['camera', 'microphone'],
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/300.0]',
     });
-    await ctx.addInitScript(CASES[CASES.length - 1].init);
+    await ctx.addInitScript(CASES[0].init);
     const p = await ctx.newPage();
     p.on('pageerror', () => {});
     await p.goto(BASE + '/run.html#v=uaapp-' + Math.random().toString(36).slice(2, 8));
@@ -260,14 +256,16 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
   // ---- (6) THE SOLO DOCTRINE: no meeting, no wall --------------------------
   // A real Safari 16 opening an app from its own Home Screen hit the too-old
   // screen (family demo, 2026-08-05) — over an app that runs perfectly without
-  // a network. The contract: the wall NEVER paints for #id=<fileId>; it paints
-  // at the Share-live tap, dismissible; dismissing returns to the working app.
+  // a network. The contract: the wall NEVER paints for #id=<fileId>. On the
+  // Safari-16 shape, Share live now sails through too (the fallback signer
+  // handles the room mint) — the wall-at-the-act mechanics are proven on a
+  // browser that GENUINELY cannot meet (no WebRTC) in (6c).
   {
     const SYS = systemAppIds();
     const ctx = await newContext({});
     // The Safari-16 shape for the WHOLE context — the desktop that seeds the
     // app is the same crippled browser, exactly as it was in the field.
-    await ctx.addInitScript(CASES.find((c) => c.id === 'WebCrypto Ed25519').init);
+    await ctx.addInitScript(SAFARI16);
     const d = await ctx.newPage();
     d.on('pageerror', (e) => console.log('  [solo-desk] ' + e.message));
     await d.goto(BASE + '/index.html');
@@ -283,16 +281,60 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       p.on('pageerror', (e) => console.log('  [solo] ' + e.message));
       await p.goto(BASE + '/run.html#id=' + appId);
       const mounted = await p.waitForSelector('#appmount iframe', { timeout: 30000 }).then(() => true).catch(() => false);
-      check('the solo app BOOTS on a browser that could never meet', mounted);
-      await sleep(3000); // the Ed25519 probe settles at ≤1.5s; give it double
-      check('…and the too-old wall never paints at load (the verdict is recorded, not shown)',
-        await p.evaluate(() => !document.getElementById('oldbrowser')));
-      const title = await p.title();
-      check('…and the tab keeps the APP title, not the meetings-need-newer one', !/Meetings need a newer browser/.test(title), title);
+      check('the solo app BOOTS on the Safari-16 shape', mounted);
+      await sleep(2000);
+      check('…and the too-old wall never paints at load', await p.evaluate(() => !document.getElementById('oldbrowser')));
+      check('…and the tab keeps the APP title', !/Meetings need a newer browser/.test(await p.title()));
 
-      // The one network act: Share live. HERE the wall paints, dismissibly.
+      // Share live on the Safari-16 shape: NO wall — the dialog opens. The
+      // room this mints will be signed by the fallback engine.
       // (programmatic click — a default app's own perm-modal can overlay the
       // button, same dodge as e2e-app-room)
+      await p.evaluate(() => document.getElementById('appinvite').click());
+      let modal = false, walled = false;
+      for (let t = 0; t < 20 && !modal && !walled; t++) {
+        [modal, walled] = await p.evaluate(() => [
+          // the DYNAMIC Share-live dialog only — the page ships static hidden
+          // .name-modal divs (set-modal, pw-modal, …) that all carry ids.
+          Array.prototype.some.call(document.querySelectorAll('.name-modal'), (m) => !m.id && /Share[\s\S]*live/.test(m.textContent)),
+          !!document.getElementById('oldbrowser'),
+        ]).catch(() => [false, false]);
+        if (!modal && !walled) await sleep(250);
+      }
+      check('Share live on the Safari-16 shape opens the dialog — THE OLD WALL IS GONE', modal && !walled);
+      await p.close();
+    }
+    await ctx.close();
+  }
+
+  // ---- (6c) the wall-at-the-act mechanics, on a browser that truly cannot --
+  // meet: WebRTC deleted. Solo still boots and runs; Share live paints the
+  // wall THERE, dismissible, with the WebRTC why-line; dismissing returns to
+  // the working app with its title undefaced.
+  {
+    const SYS = systemAppIds();
+    const ctx = await newContext({});
+    await ctx.addInitScript(CASES[0].init); // no RTCPeerConnection at all
+    const d = await ctx.newPage();
+    d.on('pageerror', (e) => console.log('  [rtc-desk] ' + e.message));
+    await d.goto(BASE + '/index.html');
+    await d.waitForSelector('.icon', { timeout: 30000 }).catch(() => {});
+    const appId = await d.evaluate(async (SYS) => {
+      const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
+      return f ? f.id : null;
+    }, SYS).catch(() => null);
+    check('a WebRTC-less browser still seeds a desktop and holds an app', !!appId);
+
+    if (appId) {
+      const p = await ctx.newPage();
+      p.on('pageerror', (e) => console.log('  [rtc-solo] ' + e.message));
+      await p.goto(BASE + '/run.html#id=' + appId);
+      const mounted = await p.waitForSelector('#appmount iframe', { timeout: 30000 }).then(() => true).catch(() => false);
+      check('the solo app BOOTS on a browser that could never meet (no WebRTC)', mounted);
+      await sleep(2000);
+      check('…and the too-old wall never paints at load (the verdict is recorded, not shown)',
+        await p.evaluate(() => !document.getElementById('oldbrowser')));
+
       await p.evaluate(() => document.getElementById('appinvite').click());
       let wall = null;
       for (let t = 0; t < 12 && !wall; t++) {
@@ -301,19 +343,16 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
           if (!el) return null;
           return {
             gaps: el.getAttribute('data-gaps') || '',
-            signed: !!document.getElementById('oldbrowser-why'),
+            why: (document.getElementById('oldbrowser-why') || {}).textContent || null,
             back: !!document.getElementById('oldbrowser-back'),
-            // the DYNAMIC Share-live dialog only — the page ships static
-            // hidden .name-modal divs (set-modal, pw-modal, …) that all
-            // carry ids, so a bare .name-modal query always matches.
             modal: Array.prototype.some.call(document.querySelectorAll('.name-modal'), (m) => !m.id && /Share[\s\S]*live/.test(m.textContent)),
           };
         }).catch(() => null);
         if (!wall) await sleep(250);
       }
-      check('Share live on that browser paints the wall AT THE ACT', !!wall);
-      check('…naming Ed25519', !!wall && wall.gaps.indexOf('WebCrypto Ed25519') !== -1, wall && wall.gaps);
-      check('…with the signed-identity explanation', !!wall && wall.signed);
+      check('Share live on THAT browser paints the wall AT THE ACT', !!wall);
+      check('…naming WebRTC', !!wall && wall.gaps.indexOf('WebRTC') !== -1, wall && wall.gaps);
+      check('…with the browser-to-browser why line', !!wall && !!wall.why && /browser-to-browser|straight between/i.test(wall.why));
       check('…with a way back to the app (dismiss button)', !!wall && wall.back);
       check('…and the share dialog itself never opened behind it', !!wall && !wall.modal);
       check('…and the tab title is STILL the app’s (a dismissible wall must not deface the page)',
@@ -361,6 +400,30 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     await ctx.close();
   }
 
+  // ---- (8) THE INVERSION: the Safari-16 shape SEATS ------------------------
+  // The browser the old wall existed for — everything present except native
+  // Ed25519 — must now pass the preflight and take a seat, signing through
+  // the fallback engine. (The two-engine room, with cross-verified frames in
+  // both directions, is e2e-ed-fallback.js.)
+  {
+    const ctx = await newContext({ permissions: ['camera', 'microphone'] });
+    await ctx.addInitScript("try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Old16')}catch(e){}");
+    await ctx.addInitScript(SAFARI16);
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => console.log('  [s16] ' + e.message));
+    const room = 'oldbrowser-s16-' + Math.random().toString(36).slice(2, 8);
+    await p.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
+
+    await sleep(1500);
+    check('the Safari-16 shape is NOT turned away (no preflight screen)', await p.evaluate(() => !document.getElementById('oldbrowser')));
+
+    let seated = null;
+    for (let t = 0; t < 30 && !seated; t++) { await sleep(1000); seated = await p.evaluate(() => window.__gifosVideo && window.__gifosVideo.meshCoord()).catch(() => null); }
+    check('…and it SEATS, signing through the fallback engine', !!seated, { seated });
+    check('…and the JS engine really carried it (vendored nacl was loaded)', await p.evaluate(() => !!(window.nacl && window.nacl.sign)));
+    await ctx.close();
+  }
+
   // ---- (5) THE MATRIX IS PUBLIC, AND IT AGREES WITH THE PREFLIGHT ----------
   // site/browser-support.json is the source of truth; run.html carries a
   // GENERATED copy of its numbers (the preflight is ES5 and cannot fetch), and
@@ -393,16 +456,16 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     check('the support matrix page renders a card per browser from the JSON', n >= 8, n);
     check('…each answering for meetings, broadcast AND the Home Screen',
       !!m && Object.values(m.cards).every((f) => f.meet && f.cast && f.desktop), m && m.cards.chrome);
-    check('…and it quotes the SAME minimum the too-old screen quotes (Safari 17)',
-      !!m && m.cards.safari && m.cards.safari.meet === '17 and up', m && m.cards.safari);
-    check('…and Chrome 137, the number Ed25519 actually sets',
-      !!m && m.cards.chrome && m.cards.chrome.meet === '137 and up', m && m.cards.chrome);
+    check('…and it quotes the SAME minimum the too-old screen quotes (Safari 12.1, the fallback-era floor)',
+      !!m && m.cards.safari && m.cards.safari.meet === '12.1 and up', m && m.cards.safari);
+    check('…and Chrome 71, the number the JS syntax floor sets now that Ed25519 has a fallback',
+      !!m && m.cards.chrome && m.cards.chrome.meet === '71 and up', m && m.cards.chrome);
     check('…and an unmeasured browser says so rather than guessing',
       !!m && m.cards.samsung && Object.values(m.cards.samsung).every((v) => v === 'Not checked'), m && m.cards.samsung);
     check('…and a browser that can never work says THAT, not a version',
       !!m && m.cards.ie && m.cards.ie.meet === 'Never', m && m.cards.ie);
     check('the three numbers people came for are above the fold, in one sentence',
-      !!m && /Safari 17/.test(m.glance) && /Chrome 137/.test(m.glance) && /Firefox 129/.test(m.glance), m && m.glance.slice(0, 120));
+      !!m && /Safari 12\.1/.test(m.glance) && /Chrome 71/.test(m.glance) && /Firefox 65/.test(m.glance), m && m.glance.slice(0, 120));
     check('…and the page explains WHY the numbers are what they are (Ed25519)', !!m && /Ed25519/.test(m.reqs));
     check('…and says a camera is not needed to be in the room', !!m && /camera/i.test(m.reqs));
     check('the page never scrolls sideways (it is read on phones)', !!m && !m.wide);
