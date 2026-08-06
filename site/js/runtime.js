@@ -183,10 +183,25 @@
           subscribe: function(cb){ (subs[collection]=subs[collection]||[]).push(cb);
             rpc({type:'db',op:'getAll',collection:collection}).then(cb); }
         }; },
+        // The bridge hands back the RAW BYTES and the decode happens here, so the
+        // response behaves like a real one: .text()/.json() for APIs, and
+        // .arrayBuffer()/.blob() for binary (map tiles, images, audio). Pair a
+        // blob with URL.createObjectURL — the app CSP allows blob: for img/media.
+        // Decoding lazily means a JSON call never touches the binary path, and a
+        // tile fetch never builds a throwaway string.
         fetch: function(url, opts){ opts=opts||{};
           return rpc({type:'fetch',url:url,method:opts.method||'GET',headers:opts.headers||{},body:opts.body||null,proxy:!!opts.proxy})
-            .then(function(r){ return { status:r.status, headers:r.headers, ok:r.status>=200&&r.status<300,
-              json:function(){return Promise.resolve(JSON.parse(r.body));}, text:function(){return Promise.resolve(r.body);} }; });
+            .then(function(r){
+              var txt = null; // memoized: re-reading a Response is a convenience here, not an error
+              function asText(){ if (txt === null) txt = new TextDecoder().decode(new Uint8Array(r.bytes)); return txt; }
+              // Header names come from the Headers iterator, so they are lower-cased.
+              var mime = (r.headers && r.headers['content-type']) || '';
+              return { status:r.status, headers:r.headers, ok:r.status>=200&&r.status<300,
+                json:function(){return Promise.resolve(JSON.parse(asText()));},
+                text:function(){return Promise.resolve(asText());},
+                arrayBuffer:function(){return Promise.resolve(r.bytes);},
+                blob:function(){return Promise.resolve(new Blob([r.bytes], { type: mime }));} };
+            });
         },
         save: function(){ return rpc({type:'save'}); },
         info: function(){ return rpc({type:'info'}); },
@@ -360,6 +375,10 @@
   //  - never the GifOS origin or its own subdomains: an app must not be able to
   //    turn the trusted first-party into a proxy for the relay/site itself.
   //  - no credentials are ever attached, and the response body is size-capped.
+  // The body may be ANY content type: the response crosses back as raw bytes and
+  // the app picks .text()/.json() or .arrayBuffer()/.blob(). What an app may
+  // reach is decided entirely by the declared-and-user-approved host allowlist —
+  // never by what the bytes happen to contain.
   const FETCH_MAX_BYTES = 8 * 1024 * 1024; // 8 MB response ceiling
   function firstPartyHost(host) {
     // gifos.app and *.gifos.app (relay/mirrors) are always off-limits.
@@ -471,7 +490,17 @@
         }
         return resp.arrayBuffer().then((buf) => {
           if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
-          return { status: resp.status, headers: Object.fromEntries(resp.headers.entries()), body: gif.bytesToText(new Uint8Array(buf)) };
+          // Hand back the BYTES, not a decoded string. structuredClone carries an
+          // ArrayBuffer across postMessage natively (the same way brokered capture
+          // and gifos.api's as:'bytes' already do), and the shim decodes on demand.
+          // Decoding here instead would run every response through a UTF-8
+          // TextDecoder, which mangles any non-text body beyond recovery — an
+          // accident of reusing the GIF codec's text helper, never a boundary.
+          // Nothing about the trust model lives in the body's shape: the gate is
+          // the manifest host allowlist the user approves, plus https-only, the
+          // first-party refusal, credentials:'omit', the post-redirect re-check,
+          // and the size cap above — all of which are enforced before this point.
+          return { status: resp.status, headers: Object.fromEntries(resp.headers.entries()), bytes: buf };
         });
       });
   }
