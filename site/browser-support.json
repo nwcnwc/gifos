@@ -24,19 +24,23 @@
     },
     "websocket": {
       "label": "WebSocket",
-      "why": "The one socket to the relay, which introduces browsers to each other (site/js/gifos-net.js)."
+      "why": "The one socket to the relay, which introduces browsers to each other (site/js/gifos-net.js).",
+      "plain": "To find the other people in a meeting, browsers introduce themselves through one small doorway connection — and this browser cannot open that kind of connection."
     },
     "webcrypto-subtle": {
       "label": "WebCrypto (crypto.subtle)",
-      "why": "Derive-don't-send: the room key is derived on the device from the link, and every frame is sealed with AES-GCM. Nothing about a room is ever sent to the relay."
+      "why": "Derive-don't-send: the room key is derived on the device from the link, and every frame is sealed with AES-GCM. Nothing about a room is ever sent to the relay.",
+      "plain": "Everything in a meeting is scrambled on your own device before it leaves, so nobody in the middle can read it — and this browser is missing tools from the box that does the scrambling."
     },
     "webcrypto-ed25519": {
       "label": "WebCrypto Ed25519 signatures",
-      "why": "THE ONE THAT SETS THE TABLE. Every participant mints an Ed25519 identity the moment they join (site/js/mesh-wire.js, healing-laws S4 — there is no off switch) and signs every seat-authoring frame with it. It is by years the newest thing GifOS needs, so it, not WebRTC, decides the minimum version of every browser below."
+      "why": "THE ONE THAT SETS THE TABLE. Every participant mints an Ed25519 identity the moment they join (site/js/mesh-wire.js, healing-laws S4 — there is no off switch) and signs every seat-authoring frame with it. It is by years the newest thing GifOS needs, so it, not WebRTC, decides the minimum version of every browser below.",
+      "plain": "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible."
     },
     "webrtc-peerconnection": {
       "label": "WebRTC (RTCPeerConnection)",
-      "why": "Pictures and voice go straight between people. There is no media server to fall back to."
+      "why": "Pictures and voice go straight between people. There is no media server to fall back to.",
+      "plain": "In a meeting here, sound, pictures and everything else travel straight between people's browsers — no company server in the middle. This browser is missing part of what makes those direct browser-to-browser connections work."
     },
     "webrtc-datachannel": {
       "label": "WebRTC data channels",
@@ -100,8 +104,7 @@
   "copy": {
     "genericOrder": ["safari", "chrome", "firefox"],
     "genericFeature": "meet",
-    "signedIdentity": "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.",
-    "signedIdentityNote": "Shown on the too-old screen ONLY when WebCrypto Ed25519 is the blocker — the one case where 'this browser can scramble a call' is true (Safari 16 has the encryption primitives; what it lacks is the signed-identity mandate, mesh-wire.js S4). Never worded as 'encryption impossible'.",
+    "plainDoctrine": "requirements[*].plain is the ONE plain-language sentence the too-old wall shows under its verdict when that requirement is the telling gap (run.html whyLine picks it: Ed25519 first, then WebCrypto, WebRTC, WebSocket). Plain text only, no markup — it is injected via innerHTML. Every line must be TRUE for every browser it can be shown to: the Ed25519 line may say 'this browser can scramble a call just fine' only because it is shown solely when Ed25519 is the single missing piece (Safari 16 has the encryption primitives — never word that gap as 'encryption impossible'). The ancient gaps (no Promise, no TextEncoder, no getRandomValues) deliberately carry no line: 'too old, update it' is already the whole truth for a browser that old.",
     "note": "The order and set used when we cannot name the browser in hand: 'Meetings need Safari 17, Chrome 137 or Firefox 129 — and up.'"
   },
 

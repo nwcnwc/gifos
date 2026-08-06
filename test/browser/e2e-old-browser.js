@@ -42,12 +42,15 @@
 //       act — the Share-live button — dismissible, over the still-working
 //       app. Negative-controlled: a healthy browser's Share-live goes
 //       straight to the share dialog, no wall.
-//   (7) when Ed25519 is the blocker the copy carries the signed-identity
-//       line: meetings are private because every participant is SIGNED, and
-//       the missing piece is what makes signatures possible — never
-//       "encryption impossible" (Safari 16 has the encryption primitives).
-//       Negative-controlled: a browser missing crypto.subtle itself must NOT
-//       get that line, because there it would be a lie.
+//   (7) the wall carries ONE plain-language WHY line picked for the telling
+//       gap (requirements[*].plain in browser-support.json, generated into
+//       the preflight): Ed25519 → people are SIGNED (never "encryption
+//       impossible" — Safari 16 has the encryption primitives); WebCrypto →
+//       scrambling happens on-device; WebRTC → direct browser-to-browser;
+//       WebSocket → the doorway introduction. Truth-controlled: a browser
+//       missing crypto.subtle must get the scrambling line, NOT the signed
+//       one (whose "can scramble just fine" would be a lie there), and an
+//       ancient gap (TextEncoder) gets NO line at all.
 //
 // Needs: python3 -m http.server 8099 -d site ; node test/servers/relay-local.js
 const { chromium, CHROME } = require('../lib/pw');
@@ -63,41 +66,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // declaring it absent, or this suite passes for the wrong reason.
 const VEIL_ARM_MS = 4000, VEIL_WAIT_MS = 9000;
 
-// Each case: how to cripple the browser, and the words we expect to see in the
-// screen's machine-readable gap list.
+// Each case: how to cripple the browser, the words we expect in the screen's
+// machine-readable gap list, and the plain-language WHY line contract (7):
+// `why` is a regex the line must match, `whyNot` a regex it must NOT (the
+// truth control), and `why: null` asserts NO line paints at all.
 const CASES = [
   {
     id: 'RTCPeerConnection',
     gap: 'WebRTC (RTCPeerConnection)',
+    why: /browser-to-browser|straight between/i, whyNot: /signed|scrambl/i,
     init: () => { try { delete window.RTCPeerConnection; } catch (e) {} try { window.RTCPeerConnection = undefined; } catch (e) {} },
   },
   {
     id: 'createDataChannel',
     gap: 'createDataChannel',
+    // same WebRTC family, same line — the direct-connection sentence holds
+    why: /browser-to-browser|straight between/i, whyNot: /signed/i,
     init: () => { try { delete window.RTCPeerConnection.prototype.createDataChannel; } catch (e) {} },
   },
   {
     id: 'WebSocket',
     gap: 'WebSocket',
+    why: /doorway/i, whyNot: /signed|scrambl/i,
     init: () => { try { delete window.WebSocket; } catch (e) {} try { window.WebSocket = undefined; } catch (e) {} },
   },
   {
     id: 'crypto.subtle',
     gap: 'WebCrypto (crypto.subtle)',
-    // The signed-identity line claims "this browser can scramble a call just
-    // fine" — with crypto.subtle itself missing that would be a lie, so the
-    // line must NOT appear here (the negative control for (7)).
-    signedLine: false,
+    // The truth control: the SIGNED line claims "this browser can scramble a
+    // call just fine" — with crypto.subtle itself missing that would be a
+    // lie, so this browser must get the SCRAMBLING line instead.
+    why: /scrambl/i, whyNot: /signed|pretending/i,
     init: () => { try { Object.defineProperty(window.crypto, 'subtle', { get: function () { return undefined; }, configurable: true }); } catch (e) {} },
   },
   {
     id: 'crypto.subtle.deriveBits',
     gap: 'WebCrypto deriveBits',
+    why: /scrambl/i, whyNot: /signed|pretending/i,
     init: () => { try { Object.defineProperty(window.crypto.subtle, 'deriveBits', { value: undefined, configurable: true }); } catch (e) {} },
   },
   {
     id: 'TextEncoder',
     gap: 'TextEncoder/TextDecoder',
+    // Ancient gap: NO why line — "too old, update it" is the whole truth.
+    why: null,
     init: () => { try { delete window.TextEncoder; } catch (e) {} try { window.TextEncoder = undefined; } catch (e) {} },
   },
   {
@@ -105,7 +117,7 @@ const CASES = [
     gap: 'WebCrypto Ed25519',
     // Ed25519 as the ONLY gap is the one case where the signed-identity
     // explanation is true, so it must appear — contract (7).
-    signedLine: true,
+    why: /signed/i, whyNot: /impossible/i,
     // The Safari-16 shape: everything else works, this one algorithm is not
     // known. Rejecting importKey is exactly what those engines do.
     init: () => {
@@ -151,8 +163,8 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
       seen = await p.evaluate(() => {
         const el = document.getElementById('oldbrowser');
         if (!el) return null;
-        const s = document.getElementById('oldbrowser-signed');
-        return { gaps: el.getAttribute('data-gaps') || '', head: (document.getElementById('oldbrowser-head') || {}).textContent || '', text: el.textContent || '', signed: s ? s.textContent : null };
+        const s = document.getElementById('oldbrowser-why');
+        return { gaps: el.getAttribute('data-gaps') || '', head: (document.getElementById('oldbrowser-head') || {}).textContent || '', text: el.textContent || '', why: s ? s.textContent : null };
       }).catch(() => null);
       if (!seen) await sleep(250);
     }
@@ -160,14 +172,15 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     check('…and it names the missing piece (' + c.gap + ')', !!seen && seen.gaps.indexOf(c.gap) !== -1, seen && seen.gaps);
     check('…and it says, in words, that meetings need a newer browser',
       !!seen && /too old|newer|Open this in your browser/i.test(seen.text));
-    // (7) the signed-identity line: present exactly when it is TRUE.
-    if (c.signedLine === true) {
-      check('…and the copy says people are SIGNED (why meetings are strict), not "encryption impossible"',
-        !!seen && !!seen.signed && /signed/i.test(seen.signed) && /pretending|impersonat/i.test(seen.signed), seen && (seen.signed || '').slice(0, 100));
-    }
-    if (c.signedLine === false) {
-      check('…and the signed-identity line stays away (it would claim scrambling works — false here)',
-        !!seen && seen.signed === null, seen && seen.signed);
+    // (7) the plain-language WHY line: the right one, and only where TRUE.
+    if (c.why === null) {
+      check('…and no why line paints (ancient gap — "too old" is the whole truth)',
+        !!seen && seen.why === null, seen && seen.why);
+    } else if (c.why) {
+      check('…and the why line fits the gap (' + c.why + ')',
+        !!seen && !!seen.why && c.why.test(seen.why), seen && (seen.why || '').slice(0, 100));
+      check('…and never claims what this browser cannot do (' + c.whyNot + ')',
+        !!seen && !!seen.why && !c.whyNot.test(seen.why), seen && (seen.why || '').slice(0, 100));
     }
 
     // THE LOAD-BEARING ONE: nothing knocked, so nothing can spin.
@@ -288,7 +301,7 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
           if (!el) return null;
           return {
             gaps: el.getAttribute('data-gaps') || '',
-            signed: !!document.getElementById('oldbrowser-signed'),
+            signed: !!document.getElementById('oldbrowser-why'),
             back: !!document.getElementById('oldbrowser-back'),
             // the DYNAMIC Share-live dialog only — the page ships static
             // hidden .name-modal divs (set-modal, pw-modal, …) that all
