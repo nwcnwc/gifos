@@ -109,6 +109,9 @@ void Seat::recheckSitting(){
 
 void Seat::admit(Coord c,Msg& f){
   int nc=f.nc;
+  // FRONT 3 measurement only: how a newcomer FIND ended, and how many hops it
+  // burned. tag==1 is a compaction probe on its own TTL budget — not a seeker.
+  if(descOn() && f.tag!=1) descEnd(strncmp(ADMIT_SITE,"deep",4)==0?0:1, 200-f.ttl);
   uint64_t k=ckey(c);
   { auto al=ADMIT_LOG.find(k);
     if(al!=ADMIT_LOG.end()) ADMIT_LOG[k]={ADMIT_SITE,(long long)TICK,id,al->second.site,al->second.t,al->second.admitter};
@@ -147,7 +150,7 @@ void Seat::admit(Coord c,Msg& f){
 // forever-searching joiner's asks go to die.
 #define FINDLOG(fmt,...) do{ const char* _f=getenv("MESH_FINDLOG"); if(_f&&atoi(_f)==mm.nc) fprintf(stderr,"FINDLOG t=%lld me=%d@%u/%d.%d ttl=%d " fmt "\n",(long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,mm.ttl,##__VA_ARGS__); }while(0)
 void Seat::serveFind(Msg& mm){
-  if(!hasCoord||mm.ttl<=0){ FINDLOG("NOROOM ttl-or-unseated"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(!hasCoord||mm.ttl<=0){ if(descOn()) descEnd(4,200-mm.ttl); FINDLOG("NOROOM ttl-or-unseated"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   if(coord.pc==0){
     // H7 ROW-FILL seating (replaces the old column backfill): Section 1 fills
     // ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first C people
@@ -380,7 +383,7 @@ void Seat::serveFind(Msg& mm){
     // path when home's free cells look unservable FAST-TRACKS SILENT DEATH past
     // the H1-S1 ring-hold (headless-row leg C), and it buys nothing: the
     // partitioned half recovers on the reachable-forward fix below alone.
-    if(s1admFree>0){ FINDLOG("NOROOM s1admFree=%d",s1admFree); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+    if(s1admFree>0){ if(descOn()) descEnd(5,200-mm.ttl); FINDLOG("NOROOM s1admFree=%d",s1admFree); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){
     if(getenv("MESH_DUPLOG")) fprintf(stderr,"DEEPADM t=%lld me=%d my=%u/%d.%d cell=%u/%d.%d seeker=%d\n",
@@ -414,11 +417,18 @@ void Seat::serveFind(Msg& mm){
   // would be depth 13 must not forward the FIND downward — NOROOM is honest
   // (a depth-12 stadium is ~2 billion sections; admission never legitimately
   // needs the 13th floor — reaching it IS the dup-war signature).
-  if(pcDepth(coord.pc)>=12){ FINDLOG("NOROOM depth-wall"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(pcDepth(coord.pc)>=12){ if(descOn()) descEnd(2,200-mm.ttl); FINDLOG("NOROOM depth-wall"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
+  // FRONT 3 (measurement only, MESH_DESC=1): classify the candidate set BEFORE
+  // the choice is made, so the tally can ask whether the pass-0 filter is what
+  // steers the seeker. Zero effect on the protocol.
+  int dcls[C];
+  if(descOn()) for(int q=0;q<C;q++){ uint64_t rk=ckey(rc[q]); int x=occGet(rk);
+    dcls[q] = (x<0||x==id) ? 0 : (firstHandLive(rk) ? 2 : (admitterReachable(rk) ? 1 : 3)); }
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
-      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+  if(descOn()){ descNote(rc,dcls,-1,-1,pcDepth(coord.pc)); descEnd(3,200-mm.ttl); }
   FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
 }
