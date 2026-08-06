@@ -801,6 +801,21 @@ struct DescStat {
   // that indicts a capacity-blind descent even if the filter is innocent.
   long long multi=0, bestChosen=0; double regret=0, chosenFreeSum=0, bestFreeSum=0;
   long long dminChosenSum=0, dminBestSum=0, dminN=0;
+  // DOES DEPTH DISCRIMINATE AT A HOP? The earlier "digest routing is
+  // irrelevant" refutation was measured at the 25 TOP sections, where every
+  // dmin is equal. That says nothing about the per-hop choice deeper down.
+  // dminDiff counts the hops where the candidates do NOT all report the same
+  // shallowest free depth — the upper bound on what any depth-aware descent
+  // could ever buy.
+  long long dminDiff=0, dminChoseShallowest=0, freeDiff=0;
+  // the dead-branch confound: a candidate whose subtree holds neither a seat
+  // nor a free frontier cell is a stale occ entry, not a branch. Descending
+  // there finds nothing, so a filter that avoids it is doing its job.
+  long long candLiveSub=0, candDeadSub=0;
+  // head-to-head again, but counting ONLY filtered-out candidates that are
+  // genuinely alive. If the gap collapses here, pass 0 is a liveness filter
+  // and nothing more.
+  long long hhL=0, hhLLess=0, hhLMore=0; double hhLChosen=0, hhLFiltered=0;
   // how a FIND ends, and how many hops it burned getting there
   long long endAdmitDeep=0, endAdmitS1=0, endNoroomWall=0, endNoroomDead=0, endNoroomTtl=0, endNoroomS1free=0;
   long long hops[26]={0}; long long hopSum=0, hopN=0;
@@ -814,15 +829,20 @@ static void descNote(const Coord rc[C], const int cls[C], int chosenQ, int pass,
   DSC.descends++;
   if(depth>=0&&depth<16) DSC.byDepth[depth]++;
   int nReach=0, best=-1, bestQ=-1, bestDmin=99, filtSum=0, filtN=0, nCand=0;
+  int worstDmin=-1, worstFree=-1; long long filtLSum=0; int filtLN=0;
   for(int q=0;q<C;q++){
     if(!cls[q]) continue;
     nCand++;
     int f=subFree(rc[q]);
+    bool liveSub = (subN(rc[q])>0 || f>0);
+    if(liveSub) DSC.candLiveSub++; else DSC.candDeadSub++;
     if(cls[q]==2){ DSC.candFhl++; DSC.fhlFree+=f; }
-    else if(cls[q]==1){ DSC.candReach++; DSC.reachFree+=f; nReach++; filtSum+=f; filtN++; }
+    else if(cls[q]==1){ DSC.candReach++; DSC.reachFree+=f; nReach++; filtSum+=f; filtN++;
+                        if(liveSub){ filtLSum+=f; filtLN++; } }
     else DSC.candNeither++;
     if(f>best){ best=f; bestQ=q; }
-    int dm=subDmin(rc[q]); if(dm<bestDmin) bestDmin=dm;
+    if(worstFree<0||f<worstFree) worstFree=f;
+    int dm=subDmin(rc[q]); if(dm<bestDmin) bestDmin=dm; if(dm>worstDmin) worstDmin=dm;
   }
   if(nReach>0) DSC.discriminating++;
   if(chosenQ<0){ DSC.deadEnds++; return; }
@@ -833,12 +853,20 @@ static void descNote(const Coord rc[C], const int cls[C], int chosenQ, int pass,
     DSC.regret+=(best-cf); if(bestQ==chosenQ) DSC.bestChosen++;
     int cd=subDmin(rc[chosenQ]);
     if(cd<99||bestDmin<99){ DSC.dminChosenSum+=(cd<99?cd:20); DSC.dminBestSum+=(bestDmin<99?bestDmin:20); DSC.dminN++; }
+    if(worstDmin!=bestDmin){ DSC.dminDiff++; if(cd==bestDmin) DSC.dminChoseShallowest++; }
+    if(worstFree!=best) DSC.freeDiff++;
   }
   // hypothesis (b): only meaningful when pass 0 actually excluded someone
   if(pass==0 && filtN>0){
     double fm=(double)filtSum/filtN;
     DSC.hh++; DSC.hhChosenFree+=cf; DSC.hhFilteredFree+=fm;
     if(cf<fm) DSC.hhLess++; else if(cf>fm) DSC.hhMore++; else DSC.hhTie++;
+  }
+  // the same question with the dead branches removed from the excluded set
+  if(pass==0 && filtLN>0){
+    double fm=(double)filtLSum/filtLN;
+    DSC.hhL++; DSC.hhLChosen+=cf; DSC.hhLFiltered+=fm;
+    if(cf<fm) DSC.hhLLess++; else if(cf>fm) DSC.hhLMore++;
   }
 }
 static void descEnd(int which,int hops){
@@ -1211,6 +1239,16 @@ int main(int argc,char**argv){
         DSC.multi?DSC.chosenFreeSum/DSC.multi:0.0, DSC.multi?DSC.bestFreeSum/DSC.multi:0.0,
         DSC.multi?DSC.regret/DSC.multi:0.0,
         DSC.dminN?(double)DSC.dminChosenSum/DSC.dminN:0.0, DSC.dminN?(double)DSC.dminBestSum/DSC.dminN:0.0);
+      printf("DESCHHLIVE n=%lld chosenLess=%lld chosenMore=%lld  meanChosenFree=%.2f meanFilteredFree=%.2f | candidateSubtrees live=%lld dead=%lld (%.1f%% dead)\n",
+        DSC.hhL,DSC.hhLLess,DSC.hhLMore, DSC.hhL?DSC.hhLChosen/DSC.hhL:0.0, DSC.hhL?DSC.hhLFiltered/DSC.hhL:0.0,
+        DSC.candLiveSub,DSC.candDeadSub, (DSC.candLiveSub+DSC.candDeadSub)?100.0*DSC.candDeadSub/(DSC.candLiveSub+DSC.candDeadSub):0.0);
+      // THE CEILING ON ANY DEPTH-AWARE DESCENT: if the candidates at a hop all
+      // report the same shallowest-free depth, no amount of depth awareness can
+      // steer. dminDiff is how often they do not.
+      printf("DESCDMIN hopsWhereDminDiscriminates=%lld/%lld (%.1f%%) choseShallowest=%lld (%.1f%% of those) | hopsWhereFreeDiscriminates=%lld (%.1f%%)\n",
+        DSC.dminDiff,DSC.multi, DSC.multi?100.0*DSC.dminDiff/DSC.multi:0.0,
+        DSC.dminChoseShallowest, DSC.dminDiff?100.0*DSC.dminChoseShallowest/DSC.dminDiff:0.0,
+        DSC.freeDiff, DSC.multi?100.0*DSC.freeDiff/DSC.multi:0.0);
       printf("DESCEND admitDeep=%lld admitS1=%lld noroomWall=%lld noroomDeadEnd=%lld noroomTtl=%lld noroomS1free=%lld meanHops=%.2f\n",
         DSC.endAdmitDeep,DSC.endAdmitS1,DSC.endNoroomWall,DSC.endNoroomDead,DSC.endNoroomTtl,DSC.endNoroomS1free,
         DSC.hopN?(double)DSC.hopSum/DSC.hopN:0.0);
