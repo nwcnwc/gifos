@@ -422,13 +422,14 @@ void Seat::serveFind(Msg& mm){
   // FRONT 3 (measurement only, MESH_DESC=1): classify the candidate set BEFORE
   // the choice is made, so the tally can ask whether the pass-0 filter is what
   // steers the seeker. Zero effect on the protocol.
-  int dcls[C];
+  int dcls[C], dkid[C];
   if(descOn()) for(int q=0;q<C;q++){ uint64_t rk=ckey(rc[q]); int x=occGet(rk);
-    dcls[q] = (x<0||x==id) ? 0 : (firstHandLive(rk) ? 2 : (admitterReachable(rk) ? 1 : 3)); }
+    dcls[q] = (x<0||x==id) ? 0 : (firstHandLive(rk) ? 2 : (admitterReachable(rk) ? 1 : 3));
+    auto kf=kidful.find(rk); dkid[q] = (kf==kidful.end()) ? 2 : (kf->second ? 1 : 0); }
   for(int pass=0;pass<2;pass++)
     for(int q:idx){ uint64_t rk=ckey(rc[q]); int x=occGet(rk); if(x<0||x==id) continue;
-      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
-  if(descOn()){ descNote(rc,dcls,-1,-1,pcDepth(coord.pc)); descEnd(3,200-mm.ttl); }
+      if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,dkid,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d -> %d@%u/%d.%d",pass,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1; emit(x,m); return; } }
+  if(descOn()){ descNote(rc,dcls,dkid,-1,-1,pcDepth(coord.pc)); descEnd(3,200-mm.ttl); }
   FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
 }
