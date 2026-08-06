@@ -131,6 +131,20 @@ argument (a forgeable early-free is an eviction weapon).
   passed with `secondsAfterLift: -15` — a negative interval, i.e. the
   healed MEASURE was captured BEFORE the lift, so the suite's own
   observation window is suspect alongside the partition's leakiness.
-  Triage BOTH halves: does the drill's sever actually cut the pair (or does
-  a cross-link/friend-relay path legitimately carry the product past it?),
-  and fix the measure ordering. Logs: /tmp/release-gate/browser_e2e-deep-pair-heal.log(.retry) on the gate host.
+  DIAGNOSED same night (mechanism, not yet fixed): the isolated pair
+  SELF-COMPACTS. Severed from everyone above, the pair's first-hand view
+  says the rest of the room is dead; the healing laws then correctly walk
+  the two survivors up the empty-looking tree (V4's phantom-aware deep
+  admission made this rescue fast enough to beat the drill's 20s grace
+  wait — the failing MEASURE shows A at 0/0.1 with rowFaces = the pair's
+  OWN two ids, B a head at 2/0.0 advertising sub> of A). B's ship is a
+  correct head's advertisement inside the pair's own tiny tree, and the
+  drill's sender-side 'ships nothing up' assertion mis-reads it as a
+  leaked partition; secondsAfterLift:-15 is the same failure echoing in
+  leg 3. Whether the pair self-compacts inside the window is timing —
+  hence green at the 0.9.3 gate, red twice hours later. FIX THE TEST:
+  assert isolation as 'no product crosses the sever boundary' (jobs
+  claimed by / delivered to seats OUTSIDE the pair), or pin the pair with
+  a freeze-moves test hook; never assert 'advertises nothing', which a
+  lawful self-compacted head violates.
+  Logs: /tmp/release-gate/browser_e2e-deep-pair-heal.log(.retry) on the gate host.
