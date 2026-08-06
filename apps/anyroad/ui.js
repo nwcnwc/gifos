@@ -10,20 +10,6 @@
 
   var el = {}, hooks = {}, last = {}, noteTimer = null;
 
-  // Cached so the HUD does not measure layout every frame; invalidated on
-  // resize and on orientation change, which is the only time it can move.
-  var travel = 0;
-  function knobTravel() {
-    if (!travel) {
-      var track = document.querySelector('.steer-track');
-      var knob = el['steer-knob'];
-      if (track && knob) travel = Math.max(0, (track.clientWidth - knob.offsetWidth) / 2);
-    }
-    return travel;
-  }
-  window.addEventListener('resize', function () { travel = 0; last.steer = null; });
-  window.addEventListener('orientationchange', function () { travel = 0; last.steer = null; });
-
   // A handful of places that show the app off: dense city grid, mountain
   // switchbacks, an island road, a desert straight.
   var PRESETS = [
@@ -47,7 +33,8 @@
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
-     'health','health-fill','damage-flash','wrecked'].forEach(function (id) { el[id] = $(id); });
+     'health','health-fill','damage-flash','wrecked',
+     'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
     buildSourceMenus();
@@ -105,6 +92,18 @@
       hooks.onRepair();
       el.wrecked.hidden = true;
       note('Repaired. Mind the buildings.');
+    });
+
+    Array.prototype.forEach.call(el.schemes.querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        var name = b.dataset.scheme;
+        root.Sources.set({ scheme: name });
+        setScheme(name);
+        dismissCoach();
+        note(name === 'stick' ? 'Drag anywhere: up faster, down slower, sideways steers.'
+           : name === 'tilt' ? 'Hold the phone as you like — that is now straight ahead.'
+           : 'Turn the wheel to steer; the car keeps its own speed.');
+      });
     });
 
     root.MP.onChange(updateRacePanel);
@@ -287,14 +286,12 @@
     // The steering knob is the read-out that makes the control legible: it has
     // to track the wheel whether the input came from the pad, a drag on the
     // canvas, or the keyboard.
+    // The wheel turns the way a wheel turns: full lock is ±120°, which reads as
+    // a real steering input rather than a dial.
     var st = Math.max(-1, Math.min(1, s.steer || 0));
     if (Math.abs(st - (last.steer == null ? 99 : last.steer)) > 0.005) {
       last.steer = st;
-      // Travel in PIXELS: half the track, less half the knob, so full lock puts
-      // the knob flush against the end instead of half outside it. A percentage
-      // here would be a percentage of the KNOB's width, which is not the
-      // distance it needs to move.
-      el['steer-knob'].style.transform = 'translateX(' + (st * knobTravel()) + 'px)';
+      el.wheel.style.transform = 'rotate(' + (st * 120) + 'deg)';
     }
 
     // One status line, and only when there is something honest to say.
@@ -374,6 +371,27 @@
     el['damage-flash'].classList.add('hit');
   }
 
+  // Draw the rubber-band stick wherever the thumb put it.
+  function showStick(st) {
+    if (!st || !st.active) { el.stick.hidden = true; return; }
+    el.stick.hidden = false;
+    el['stick-base'].style.left = st.ox + 'px';
+    el['stick-base'].style.top = st.oy + 'px';
+    el['stick-axis'].style.left = st.ox + 'px';
+    el['stick-axis'].style.top = st.oy + 'px';
+    el['stick-knob'].style.left = (st.ox + st.x * 78) + 'px';
+    el['stick-knob'].style.top = (st.oy - st.y * 78) + 'px';
+  }
+
+  function setScheme(name) {
+    Array.prototype.forEach.call(el.schemes.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-checked', String(b.dataset.scheme === name));
+    });
+    // The wheel is only meaningful when a wheel is what you are using.
+    el.steerpad.hidden = (name !== 'wheel');
+    if (name !== 'stick') el.stick.hidden = true;
+  }
+
   function setPlace(p) { el.place.textContent = p || '—'; }
 
   // Coach marks appear on the first drive only, and any touch of any control
@@ -434,6 +452,7 @@
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
     setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
     setThrottleMode: setThrottleMode, damage: damage,
+    showStick: showStick, setScheme: setScheme,
     steerPad: function () { return el.steerpad; },
   };
 })(window);

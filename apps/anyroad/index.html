@@ -58,12 +58,16 @@
        drag on the left half of the screen. So: steering is now a VISIBLE pad
        with a knob that moves, and the pedals say what they are in words. -->
   <div class="controls" id="controls">
-    <div class="steerpad" id="steerpad" aria-label="Steering">
-      <div class="steer-track">
-        <span class="steer-tick"></span>
-        <div class="steer-knob" id="steer-knob"></div>
-      </div>
-      <div class="steer-hint"><span>◀</span><b>SLIDE TO STEER</b><span>▶</span></div>
+    <!-- A wheel that TURNS. A slider was legible but it is not what a hand
+         expects a car to have, and it gave no sense of which way is straight. -->
+    <div class="steerpad" id="steerpad" aria-label="Steering wheel">
+      <svg class="wheel" id="wheel" viewBox="-50 -50 100 100" aria-hidden="true">
+        <circle class="w-rim" cx="0" cy="0" r="42"/>
+        <circle class="w-hub" cx="0" cy="0" r="11"/>
+        <path class="w-spoke" d="M-42 0 H-11 M11 0 H42 M0 11 V40"/>
+        <path class="w-top" d="M0 -42 v9"/>
+      </svg>
+      <div class="steer-hint">TURN TO STEER</div>
     </div>
     <!-- The throttle is HIDDEN by default: the car cruises on its own and the
          only pedal you need is the brake. It comes back if you choose manual
@@ -72,6 +76,22 @@
       <button class="pedal brake" id="pedal-brake" aria-label="Brake and reverse">BRAKE</button>
       <button class="pedal gas" id="pedal-gas" aria-label="Accelerate" hidden>GO</button>
     </div>
+  </div>
+
+  <!-- Rubber-band stick: invisible until a thumb lands, then drawn where it
+       landed. Up/down trims the speed you hold; sideways steers. -->
+  <div class="stick" id="stick" hidden>
+    <div class="stick-base" id="stick-base"></div>
+    <div class="stick-knob" id="stick-knob"></div>
+    <div class="stick-axis" id="stick-axis"></div>
+  </div>
+
+  <!-- Control-scheme picker, on the main screen as asked: change it while
+       driving and feel the difference immediately, no menu round trip. -->
+  <div class="schemes" id="schemes" role="radiogroup" aria-label="Control scheme">
+    <button role="radio" data-scheme="wheel" aria-checked="true">Wheel</button>
+    <button role="radio" data-scheme="stick" aria-checked="false">Stick</button>
+    <button role="radio" data-scheme="tilt" aria-checked="false">Tilt</button>
   </div>
 
   <!-- First-drive coach marks: shown once, dismissed by the first touch. -->

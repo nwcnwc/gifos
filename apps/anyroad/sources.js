@@ -88,7 +88,8 @@
     // 'auto' = cruise, no throttle control at all. The default, because a
     // throttle you must hold is the thumb that should be steering.
     throttle: 'auto',
-    steering: 'touch',      // 'touch' | 'tilt'
+    steering: 'touch',      // legacy; superseded by `scheme`
+    scheme: 'wheel',        // 'wheel' | 'stick' | 'tilt'
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -104,6 +105,7 @@
         if (rec.quality) current.quality = rec.quality;
         if (rec.throttle === 'auto' || rec.throttle === 'manual') current.throttle = rec.throttle;
         if (rec.steering === 'touch' || rec.steering === 'tilt') current.steering = rec.steering;
+        if (['wheel','stick','tilt'].indexOf(rec.scheme) >= 0) current.scheme = rec.scheme;
       }
       return current;
     }).catch(function () { return current; });
