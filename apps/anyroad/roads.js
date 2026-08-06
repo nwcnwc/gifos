@@ -288,7 +288,12 @@
       ribbon(frame, toWorld(frame, geom.ways[i][1]), cls.w / 2, 0.18, roads, cls.tone);
     }
 
-    var walls = { pos: [], nrm: [], tone: [], idx: [] };
+    // binfo carries (baseY, seed) per vertex: the shader needs the building's
+    // own ground level to lay out floors, and a stable per-building seed so a
+    // street is not one uniform grey. Neither can be derived in the fragment
+    // stage — world Y alone cannot tell a ground floor from a fifth floor on a
+    // hill, which is exactly how a terrace ends up with staggered windows.
+    var walls = { pos: [], nrm: [], tone: [], binfo: [], idx: [] };
     for (var b = 0; b < geom.bld.length; b++) {
       extrude(frame, toWorld(frame, geom.bld[b][1]), geom.bld[b][0], walls);
     }
@@ -310,9 +315,65 @@
 
     return {
       roads: pack(roads, ['pos', 'uv', 'tone']),
-      buildings: pack(walls, ['pos', 'nrm', 'tone']),
+      buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
+      index: buildIndex(frame, geom),
     };
+  }
+
+  // ---- "am I on tarmac?" ---------------------------------------------------
+  // The car needs this every frame, and a city tile holds thousands of segments,
+  // so a linear scan is out. Segments are bucketed into a coarse uniform grid at
+  // BUILD time (once per tile) and the query looks only at the car's own cell
+  // and its eight neighbours — a couple of dozen segments instead of thousands.
+  var CELL = 64;   // metres; comfortably larger than the longest reasonable step
+
+  function buildIndex(frame, geom) {
+    var segs = [], map = Object.create(null);
+    function cellKey(cx, cz) { return cx + ',' + cz; }
+    for (var w = 0; w < geom.ways.length; w++) {
+      var cls = ROAD_CLASS[geom.ways[w][0]];
+      if (!cls) continue;
+      var pts = toWorld(frame, geom.ways[w][1]);
+      for (var i = 0; i + 1 < pts.length; i++) {
+        var a = pts[i], b = pts[i + 1];
+        var idx = segs.length / 5;
+        segs.push(a.x, a.z, b.x, b.z, cls.w / 2);
+        // Stamp the segment into every cell its bounding box touches, so a long
+        // segment is found from anywhere along it.
+        var x0 = Math.floor(Math.min(a.x, b.x) / CELL), x1 = Math.floor(Math.max(a.x, b.x) / CELL);
+        var z0 = Math.floor(Math.min(a.z, b.z) / CELL), z1 = Math.floor(Math.max(a.z, b.z) / CELL);
+        for (var cx = x0; cx <= x1; cx++) for (var cz = z0; cz <= z1; cz++) {
+          var k = cellKey(cx, cz);
+          (map[k] || (map[k] = [])).push(idx);
+        }
+      }
+    }
+    return { segs: new Float32Array(segs), map: map, cell: CELL };
+  }
+
+  // Perpendicular distance from (x,z) to the nearest carriageway, and that
+  // road's half width. Returns null when this tile has nothing near.
+  function nearestRoad(index, x, z) {
+    if (!index) return null;
+    var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
+    var best = Infinity, bestHalf = 0;
+    for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
+      var list = index.map[(cx + dx) + ',' + (cz + dz)];
+      if (!list) continue;
+      for (var i = 0; i < list.length; i++) {
+        var o = list[i] * 5;
+        var ax = index.segs[o], az = index.segs[o + 1];
+        var bx = index.segs[o + 2], bz = index.segs[o + 3];
+        var vx = bx - ax, vz = bz - az;
+        var len2 = vx * vx + vz * vz;
+        var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
+        var px = ax + vx * t, pz = az + vz * t;
+        var d = Math.hypot(x - px, z - pz);
+        if (d < best) { best = d; bestHalf = index.segs[o + 4]; }
+      }
+    }
+    return best === Infinity ? null : { dist: best, halfWidth: bestHalf };
   }
 
   function extrude(frame, poly, height, out) {
@@ -336,6 +397,9 @@
     if (!isFinite(base)) base = 0;
     var top = base + height;
     var tone = 0.5 + Math.min(0.35, height / 160);
+    // A stable seed from the footprint's first corner — same building, same
+    // colour, every time it is rebuilt after a re-pin.
+    var seed = Math.abs(Math.sin(poly[0].x * 12.9898 + poly[0].z * 78.233) * 43758.5453) % 1;
 
     for (var e = 0; e < poly.length; e++) {
       var a = poly[e], b = poly[(e + 1) % poly.length];
@@ -343,7 +407,7 @@
       var nx = dz / len, nz = -dx / len;
       var v0 = out.pos.length / 3;
       out.pos.push(a.x, base, a.z, b.x, base, b.z, a.x, top, a.z, b.x, top, b.z);
-      for (var k = 0; k < 4; k++) { out.nrm.push(nx, 0, nz); out.tone.push(tone); }
+      for (var k = 0; k < 4; k++) { out.nrm.push(nx, 0, nz); out.tone.push(tone); out.binfo.push(base, seed); }
       out.idx.push(v0, v0 + 2, v0 + 1, v0 + 1, v0 + 2, v0 + 3);
     }
     // Roof.
@@ -353,6 +417,7 @@
       out.pos.push(poly[r].x, top, poly[r].z);
       out.nrm.push(0, 1, 0);
       out.tone.push(tone + 0.08);
+      out.binfo.push(base, seed);
     }
     for (var t = 0; t < tris.length; t++) out.idx.push(rbase + tris[t]);
   }
@@ -369,7 +434,7 @@
 
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
-    loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS,
+    loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {

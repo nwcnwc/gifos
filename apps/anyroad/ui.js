@@ -10,6 +10,20 @@
 
   var el = {}, hooks = {}, last = {}, noteTimer = null;
 
+  // Cached so the HUD does not measure layout every frame; invalidated on
+  // resize and on orientation change, which is the only time it can move.
+  var travel = 0;
+  function knobTravel() {
+    if (!travel) {
+      var track = document.querySelector('.steer-track');
+      var knob = el['steer-knob'];
+      if (track && knob) travel = Math.max(0, (track.clientWidth - knob.offsetWidth) / 2);
+    }
+    return travel;
+  }
+  window.addEventListener('resize', function () { travel = 0; last.steer = null; });
+  window.addEventListener('orientationchange', function () { travel = 0; last.steer = null; });
+
   // A handful of places that show the app off: dense city grid, mountain
   // switchbacks, an island road, a desert straight.
   var PRESETS = [
@@ -31,7 +45,7 @@
      'racehud','rh-time','rh-dist','rh-arrow','q','results','presets','attribution',
      'attribution2','board','mp-status','race-badge','race-hint','cache-size',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
-     'searchform','fatal-msg'].forEach(function (id) { el[id] = $(id); });
+     'searchform','fatal-msg','steerpad','steer-knob','coach','controls'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
     buildSourceMenus();
@@ -49,14 +63,19 @@
 
     // Pedals: pointer events so a held finger keeps the throttle open and
     // leaving the button releases it (a plain click would be useless here).
+    // Pointer CAPTURE matters — without it, sliding a thumb slightly off the
+    // pedal fires pointerleave and the throttle drops mid-corner.
     ['gas', 'brake'].forEach(function (which) {
       var b = $('pedal-' + which);
       var name = which === 'gas' ? 'throttle' : 'brake';
-      ['pointerdown'].forEach(function (ev) {
-        b.addEventListener(ev, function (e) { e.preventDefault(); hooks.onPedal(name, true); });
+      b.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        try { b.setPointerCapture(e.pointerId); } catch (err) {}
+        b.classList.add('on');
+        hooks.onPedal(name, true);
       });
-      ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
-        b.addEventListener(ev, function () { hooks.onPedal(name, false); });
+      ['pointerup', 'pointercancel'].forEach(function (ev) {
+        b.addEventListener(ev, function () { b.classList.remove('on'); hooks.onPedal(name, false); });
       });
     });
 
@@ -230,14 +249,31 @@
     var kph = Math.round(s.speed);
     if (kph !== last.kph) { el.speed.textContent = kph; last.kph = kph; }
 
+    // The steering knob is the read-out that makes the control legible: it has
+    // to track the wheel whether the input came from the pad, a drag on the
+    // canvas, or the keyboard.
+    var st = Math.max(-1, Math.min(1, s.steer || 0));
+    if (Math.abs(st - (last.steer == null ? 99 : last.steer)) > 0.005) {
+      last.steer = st;
+      // Travel in PIXELS: half the track, less half the knob, so full lock puts
+      // the knob flush against the end instead of half outside it. A percentage
+      // here would be a percentage of the KNOB's width, which is not the
+      // distance it needs to move.
+      el['steer-knob'].style.transform = 'translateX(' + (st * knobTravel()) + 'px)';
+    }
+
     // One status line, and only when there is something honest to say.
     var msg = '';
-    if (s.loading > 0) msg = 'Loading the world… ' + s.loading + ' tile' + (s.loading === 1 ? '' : 's');
+    // Only while there is genuinely nothing to drive on. Once the ground and a
+    // road are down, the rest streams in behind the fog and saying so just puts
+    // a permanent pill over the horizon.
+    if (!s.ready) msg = 'Building the world…';
     // Past a few seconds of backoff this is not a blip, and the player can
     // actually do something about it — so say what, rather than spin forever.
     else if (s.net.backoffMs > 8000) msg = 'Map server busy — try another Roads source in ☰ Settings';
     else if (s.net.backoffMs > 800) msg = 'Map server busy — waiting ' + Math.ceil(s.net.backoffMs / 1000) + 's';
     else if (s.airborne) msg = 'Airborne';
+    else if (s.offRoad) msg = 'Off road — less grip';
     if (msg !== last.msg) {
       el.status.textContent = msg;
       el.status.hidden = !msg;
@@ -284,12 +320,40 @@
 
   function setPlace(p) { el.place.textContent = p || '—'; }
 
+  // Coach marks appear on the first drive only, and any touch of any control
+  // retires them for good. They exist because the controls were unreadable
+  // without them, not as decoration — so they must never nag a second time.
+  var coachSeen = false;
+  function maybeCoach() {
+    if (coachSeen) return;
+    root.Host.db('prefs').get('coached').then(function (rec) {
+      if (rec && rec.done) { coachSeen = true; return; }
+      el.coach.hidden = false;
+      // A safety net for anyone who reads it and does nothing.
+      setTimeout(dismissCoach, 9000);
+    }).catch(function () {});
+  }
+  function dismissCoach() {
+    if (coachSeen) return;
+    coachSeen = true;
+    if (el.coach) el.coach.hidden = true;
+    root.Host.db('prefs').put({ id: 'coached', done: true }).catch(function () {});
+  }
+
   function showDrive() {
     hide(el.landing);
     show(el.hud);
+    maybeCoach();
   }
 
+  var lastNote = '', lastNoteAt = 0;
   function note(msg) {
+    // A busy map server retries continuously, and the old code raised a fresh
+    // toast every time — a permanent banner across the middle of the screen
+    // saying the same thing. Same message inside 12 s is not news.
+    var now = Date.now();
+    if (msg === lastNote && now - lastNoteAt < 12000) return;
+    lastNote = msg; lastNoteAt = now;
     el.note.textContent = msg;
     el.note.hidden = false;
     clearTimeout(noteTimer);
@@ -312,6 +376,7 @@
 
   root.UI = {
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
-    setPlace: setPlace, showDrive: showDrive,
+    setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
+    steerPad: function () { return el.steerpad; },
   };
 })(window);

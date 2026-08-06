@@ -161,6 +161,26 @@
     return true;
   }
 
+  // ---- on tarmac, or not ---------------------------------------------------
+  // Recomputed a few times a second rather than every frame: the answer cannot
+  // change meaningfully inside 60 ms even at motorway speed, and the query
+  // touches every loaded tile's index.
+  var roadCheckAt = 0;
+  function updateOnRoad(nowMs) {
+    if (nowMs - roadCheckAt < 120) return;
+    roadCheckAt = nowMs;
+    var best = null;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      var hit = root.Roads.nearestRoad(r.built.index, car.x, car.z);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    // No road data loaded at all is NOT "off road" — that would punish the
+    // player for our streaming being slow. Only a known-and-distant road is.
+    car.onRoad = best ? best.dist <= best.halfWidth + 1.2 : true;
+  }
+
   // Terrain must be present under a road tile before its mesh can be built.
   function terrainReadyFor(tile) {
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
@@ -293,6 +313,7 @@
     // seconds are spent driving an invisible car across a void.
     var grounded = root.Terrain.heightAt(world.frame, car.x, car.z) !== null;
     if (grounded && hopAnim > 2.6) {
+      updateOnRoad(t);
       root.Car.update(car, input, dt, world.frame);
     } else if (grounded) {
       car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
@@ -332,14 +353,23 @@
 
     root.UI.hud({
       speed: Math.abs(car.speed) * 3.6,
+      steer: input.steer,
       place: world.place,
       loading: pendingCount(),
+      ready: grounded && roadsBuilt() > 0,
       net: root.Net.stats(),
       airborne: car.airborne,
+      offRoad: !car.onRoad,
       players: root.MP.count(),
       race: root.MP.raceState(car),
       odometer: car.odometer,
     });
+  }
+
+  function roadsBuilt() {
+    var n = 0;
+    for (var k in world.roads) if (world.roads[k] && world.roads[k].built) n++;
+    return n;
   }
 
   function pendingCount() {
@@ -367,10 +397,13 @@
     try { root.Render.init(canvas); }
     catch (e) { root.UI.fatal(e.message); return; }
 
-    controls = root.Car.controls(canvas);
     car = root.Car.create(0, 0, 0);
     world.frame = root.Geo.frame(0, 0);
 
+    // UI.init FIRST: it builds the element map, and the control layer needs the
+    // steering pad out of it. Built the other way round, steerEl is undefined
+    // and the pad silently does nothing — the one control the redesign exists
+    // to make visible.
     root.UI.init({
       onHop: hop,
       onSearch: search,
@@ -378,6 +411,11 @@
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
       car: function () { return car; },
       frame: function () { return world.frame; },
+    });
+
+    controls = root.Car.controls(canvas, {
+      steerEl: root.UI.steerPad(),
+      onFirstTouch: function () { root.UI.dismissCoach(); },
     });
 
     root.Sources.load().then(function () {
