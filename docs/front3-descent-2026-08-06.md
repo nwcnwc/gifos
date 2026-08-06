@@ -53,6 +53,37 @@ a digest-routing problem, and not capacity-blindness. **The seeker is handed
 the same single edge at every hop, walks it to the depth wall, and retries
 forever, while the room's free space sits one column over.**
 
+### The plateau STEADY STATE — zero choices, exactly twelve hops
+
+Measured separately: `converge 20000`, then `descstat reset` and `tick 3000`,
+so the join-storm transient is excluded and only the stalled steady state is
+counted (seated 3023, unchanged over those 3000 ticks).
+
+    DESCSPINE chosenColumn=0:1632036,1:1162,2:1150,3:1206,4:1172  (col0=99.7%)
+      pass0CandidatesByColumn = 0:1632036, 1:0, 2:0, 3:0, 4:0
+      reachOnlyByColumn       = 0:0, 1:1636726, 2:1636726, 3:1636726, 4:1636726
+      pass0DescentsWithExactlyOneCandidate = 1632036/1632036 (100.0%)
+    DESCEND admitDeep=35 noroomWall=134392 meanHops=12.00
+
+- columns 1-4 are pass-0 eligible **exactly ZERO times**;
+- column 0 is reachable-only **exactly ZERO times**;
+- columns 1-4 are reachable-only at **EVERY** descent (1,636,726 = all of them);
+- **100.0%** of pass-0 descents offer exactly one candidate;
+- `meanHops` is **exactly 12.00** — every FIND walks the full spine to the wall;
+- 1.6 million descents produced **35** deep admissions.
+
+The 4,690 hops that did reach columns 1-4 are precisely the pass-1 descents
+(1162+1150+1206+1172 = 4690), which fire only when pass 0 has NO candidate.
+
+At N=3000 the picture was statistical (col0 92.4%, single-candidate 88.8%)
+because the room is still churning and the `live[]` window keeps re-opening.
+At the plateau the room is quiescent, nothing re-opens, and the descent
+degenerates into a deterministic walk down column 0. That is the plateau.
+
+(Note: this run reports dups=3 at tick 20000/23000. That is a mid-flight
+transient with 33-35 leases outstanding, not a settled duplicate — the 60k-cap
+run above settles to dups=0. It does not bear on the descent numbers.)
+
 ## Why the seed's hypothesis was wrong
 
 The standing hypothesis (docs/handoff-2026-08-06-fallback.md, front 3) was
