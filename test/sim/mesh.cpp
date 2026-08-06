@@ -815,6 +815,14 @@ struct DescStat {
   // ask the same question restricted to the pass-0 ELIGIBLE set: that is all a
   // depth-aware descent could ever reorder.
   long long dminDiffFhl=0, dminChoseShallowestFhl=0;
+  // THE SPINE TEST. A parent's owned links include down(s) = {child, r, 0} —
+  // the HEAD of its child row and NOTHING ELSE; the other C-1 children are
+  // linked to that head, not to the parent. If that is why pass 0 usually has
+  // exactly one candidate, then the chosen child is column 0 nearly always,
+  // and the seeker's path is the column-0 spine by construction. Count the
+  // column actually taken, and the column of every pass-0 candidate offered.
+  long long chosenCol[8]={0}, fhlCol[8]={0}, reachCol[8]={0};
+  long long soleFhl=0;   // pass-0 descents where exactly ONE candidate was eligible
   // the dead-branch confound: a candidate whose subtree holds neither a seat
   // nor a free frontier cell is a stale occ entry, not a branch. Descending
   // there finds nothing, so a filter that avoids it is doing its job.
@@ -865,8 +873,10 @@ static void descNote(const Coord rc[C], const int cls[C], const int kid[C], int 
     bool liveSub = (subN(rc[q])>0 || f>0);
     if(liveSub) DSC.candLiveSub++; else DSC.candDeadSub++;
     if(cls[q]==2){ DSC.candFhl++; DSC.fhlFree+=f; nFhl++;
-                   int dq=subDmin(rc[q]); if(dq<fhlBestDmin) fhlBestDmin=dq; if(dq>fhlWorstDmin) fhlWorstDmin=dq; }
+                   int dq=subDmin(rc[q]); if(dq<fhlBestDmin) fhlBestDmin=dq; if(dq>fhlWorstDmin) fhlWorstDmin=dq;
+                   if(rc[q].i<8) DSC.fhlCol[rc[q].i]++; }
     else if(cls[q]==1){ DSC.candReach++; DSC.reachFree+=f; nReach++; filtSum+=f; filtN++;
+                        if(rc[q].i<8) DSC.reachCol[rc[q].i]++;
                         if(liveSub){ filtLSum+=f; filtLN++; } }
     else DSC.candNeither++;
     if(f>best){ best=f; bestQ=q; }
@@ -876,6 +886,8 @@ static void descNote(const Coord rc[C], const int cls[C], const int kid[C], int 
   if(nReach>0) DSC.discriminating++;
   if(chosenQ<0){ DSC.deadEnds++; return; }
   if(pass>=0&&pass<2) DSC.byPass[pass]++;
+  if(rc[chosenQ].i<8) DSC.chosenCol[rc[chosenQ].i]++;
+  if(pass==0 && nFhl==1) DSC.soleFhl++;
   int cf=subFree(rc[chosenQ]);
   if(nCand>=2){
     DSC.multi++; DSC.chosenFreeSum+=cf; DSC.bestFreeSum+=best;
@@ -1292,6 +1304,16 @@ int main(int argc,char**argv){
         DSC.kidless?(double)DSC.freeKidlessSum/DSC.kidless:0.0,
         DSC.kidfull?(double)DSC.freeKidfullSum/DSC.kidfull:0.0,
         DSC.hadKidless,DSC.tookKidless, DSC.hadKidless?100.0*DSC.tookKidless/DSC.hadKidless:0.0);
+      // THE SPINE. If column 0 dominates, the descent is not choosing a branch
+      // at all — the topology is choosing it, because the row head is the only
+      // child the parent owns a link to.
+      { printf("DESCSPINE chosenColumn="); for(int q=0;q<C&&q<8;q++) printf("%s%d:%lld",q?",":"",q,DSC.chosenCol[q]);
+        long long tc=0; for(int q=0;q<C&&q<8;q++) tc+=DSC.chosenCol[q];
+        printf(" (col0=%.1f%%) | pass0CandidatesByColumn=",tc?100.0*DSC.chosenCol[0]/tc:0.0);
+        for(int q=0;q<C&&q<8;q++) printf("%s%d:%lld",q?",":"",q,DSC.fhlCol[q]);
+        printf(" | reachOnlyByColumn="); for(int q=0;q<C&&q<8;q++) printf("%s%d:%lld",q?",":"",q,DSC.reachCol[q]);
+        printf(" | pass0DescentsWithExactlyOneCandidate=%lld/%lld (%.1f%%)\n",
+          DSC.soleFhl,DSC.byPass[0], DSC.byPass[0]?100.0*DSC.soleFhl/DSC.byPass[0]:0.0); }
       printf("DESCEND admitDeep=%lld admitS1=%lld noroomWall=%lld noroomDeadEnd=%lld noroomTtl=%lld noroomS1free=%lld meanHops=%.2f\n",
         DSC.endAdmitDeep,DSC.endAdmitS1,DSC.endNoroomWall,DSC.endNoroomDead,DSC.endNoroomTtl,DSC.endNoroomS1free,
         DSC.hopN?(double)DSC.hopSum/DSC.hopN:0.0);
