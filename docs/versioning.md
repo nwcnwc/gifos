@@ -1,9 +1,17 @@
 # Release channels & versioned delivery
 
-**Status: PROPOSED design — not yet built.** This document describes where
-GifOS delivery is going, not how it works today. Where it says "today," that is
-current reality; everything else is the target. When it ships, fold the "today"
-notes into history and make this canonical.
+**Status: BUILT AND LIVE (status corrected 2026-08-06).** The design below
+shipped and is canonical: `scripts/archive-version.sh` cuts frozen snapshots
+into `site/versions/<x.y.z>/`, `site/version.json` is the release pointer,
+the site root stays the edge build, and the channel loader (edge / stable /
+pinned, `?edge` `?stable` `?pin`) rides every entry page — releases 0.8.x
+through 0.9.3 were all cut this way. Where the prose below says "today" it
+describes the PRE-BUILD world of 2026-07; read it as history of why the shape
+was chosen. Two doctrine amendments since: snapshots are addressed as
+run.html PERIOD (the 0.9.3 no-shims flag day — meet.html is deleted and
+pre-0.9.3 snapshots are deliberately no longer loader-addressable), and the
+archive script's base-stamp skip-grep is line-anchored (no site page comment
+may spell a literal base tag).
 
 ---
 
