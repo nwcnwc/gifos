@@ -715,6 +715,140 @@ static void relayKnock(int id,uint64_t presentedKey){
   else if(keyHash(presentedKey)==relayGenesisKey && (int)relayGreeters.size()<RELAY_CAP){ relayGreeters[id]=TICK+RELAY_TTL; }   // proven member (H(key) matches): (re)admit + refresh TTL
 }
 
+// ======================= FRONT 3 — DESCENT INSTRUMENTATION ===================
+// MEASUREMENT ONLY. Nothing in the protocol reads a single byte of this; it is
+// off unless MESH_DESC=1 is in the environment, and it exists to settle ONE
+// question with numbers instead of a hunch:
+//
+//   when serveFind DESCENDS, does the PASS-0 FILTER (firstHandLive) steer the
+//   seeker into branches that hold LESS free space than the ones it filtered
+//   out — i.e. is the plateau's "walk the fullest spine to the wall" caused by
+//   chatter standing in for capacity?
+//
+// The hypothesis (docs/handoff-2026-08-06-fallback.md, front 3) is that a BUSY
+// subtree chatters more than a sparse quiet one, so pass 0 returns on a full
+// branch. Two things have to be true for that to be the mechanism, and BOTH are
+// measured here separately, because the first can kill it on its own:
+//
+//   (a) the filter must DISCRIMINATE at all — there must be descents where some
+//       roster children are firstHandLive and others are only reachable. If
+//       essentially every candidate is firstHandLive, pass 0 filters nothing
+//       and the bias cannot live there (the descent is then a uniformly random
+//       walk that never consults capacity — a different, equally real defect).
+//   (b) among the descents where it DOES discriminate, the pass-0 set must hold
+//       systematically less free space than the pass-1-only set.
+//
+// GROUND TRUTH is a global-observer snapshot no seat could ever compute — the
+// same notion of "free" the freemap verb uses (a free cell whose down-child is
+// also free is one admissible frontier cell), folded up the ownership chain.
+// Rebuilt at most once every DESC_SNAP ticks; a descent reads the snapshot.
+static int DESC_ON=-1;
+static inline bool descOn(){ if(DESC_ON<0){ const char* e=getenv("MESH_DESC"); DESC_ON=(e&&atoi(e))?1:0; } return DESC_ON==1; }
+static const long long DESC_SNAP=25;
+static long long descSnapAt=-1;
+// per CELL, over the subtree BELOW it: admissible frontier cells, seats, and
+// the shallowest depth at which that subtree has a free frontier cell.
+static unordered_map<uint64_t,int> gSubFree, gSubN, gSubDmin;
+
+static inline bool parentCell(Coord c, Coord& o){ if(c.pc==0) return false; return up({c.pc,c.r,0},o); }
+
+static void descRebuild(){
+  if(descSnapAt>=0 && TICK-descSnapAt<DESC_SNAP) return;
+  descSnapAt=TICK;
+  gSubFree.clear(); gSubN.clear(); gSubDmin.clear();
+  unordered_map<uint64_t,int> at;
+  for(int q=0;q<(int)seats.size();q++) if(alive[q]&&seats[q]->state==3&&seats[q]->hasCoord) at[ckey(seats[q]->coord)]=q;
+  // Walk each occupied cell's ancestor chain once (O(N * depth)) rather than
+  // folding bottom-up: a mid-tree HOLE (a free cell with an occupied subtree
+  // hanging under it) would silently truncate a fold, and holes are exactly
+  // what this plateau is made of.
+  for(auto& kv:at){
+    Coord c=seats[kv.second]->coord;
+    { Coord a=c,o; while(parentCell(a,o)){ a=o; gSubN[ckey(a)]++; } }
+    int d=pcDepth(c.pc); if(d>=12) continue;
+    Coord h=down(c);
+    for(int j=0;j<C;j++){
+      Coord cc={h.pc,h.r,(uint8_t)j};
+      if(at.count(ckey(cc))) continue;
+      if(at.count(ckey(down(cc)))) continue;      // not admissible: its down-child is taken
+      // cc is one admissible frontier cell at depth d+1; credit every ancestor
+      // starting at c itself.
+      Coord a=c;
+      for(;;){ uint64_t ak=ckey(a); gSubFree[ak]++;
+        auto it=gSubDmin.find(ak); if(it==gSubDmin.end()||it->second>d+1) gSubDmin[ak]=d+1;
+        Coord o; if(!parentCell(a,o)) break; a=o; }
+    }
+  }
+}
+static inline int subFree(Coord c){ auto it=gSubFree.find(ckey(c)); return it==gSubFree.end()?0:it->second; }
+static inline int subDmin(Coord c){ auto it=gSubDmin.find(ckey(c)); return it==gSubDmin.end()?99:it->second; }
+static inline int subN(Coord c){ auto it=gSubN.find(ckey(c)); return it==gSubN.end()?0:it->second; }
+
+struct DescStat {
+  long long descends=0, deadEnds=0;
+  long long candFhl=0, candReach=0, candNeither=0;   // candidates seen, all descents
+  long long fhlFree=0, reachFree=0;                  // free-space sums over those candidates
+  long long discriminating=0;                        // descents with >=1 reach-only candidate
+  long long byPass[2]={0,0};
+  long long byDepth[16]={0};
+  // head-to-head, DISCRIMINATING pass-0 descents only: chosen vs the mean of
+  // the candidates pass 0 filtered out. This is hypothesis (b), stated as a
+  // number that can come out either way.
+  long long hh=0, hhLess=0, hhMore=0, hhTie=0;
+  double hhChosenFree=0, hhFilteredFree=0;
+  // capacity regret: how the chosen branch compares to the ROOMIEST candidate
+  // available at that hop, whatever its liveness class. This is the measure
+  // that indicts a capacity-blind descent even if the filter is innocent.
+  long long multi=0, bestChosen=0; double regret=0, chosenFreeSum=0, bestFreeSum=0;
+  long long dminChosenSum=0, dminBestSum=0, dminN=0;
+  // how a FIND ends, and how many hops it burned getting there
+  long long endAdmitDeep=0, endAdmitS1=0, endNoroomWall=0, endNoroomDead=0, endNoroomTtl=0, endNoroomS1free=0;
+  long long hops[26]={0}; long long hopSum=0, hopN=0;
+};
+static DescStat DSC;
+
+// cls[]: 0 = not a candidate, 1 = reachable only (pass 1), 2 = firstHandLive
+// (pass 0), 3 = a candidate neither pass will take. chosenQ<0 means dead end.
+static void descNote(const Coord rc[C], const int cls[C], int chosenQ, int pass, int depth){
+  descRebuild();
+  DSC.descends++;
+  if(depth>=0&&depth<16) DSC.byDepth[depth]++;
+  int nReach=0, best=-1, bestQ=-1, bestDmin=99, filtSum=0, filtN=0, nCand=0;
+  for(int q=0;q<C;q++){
+    if(!cls[q]) continue;
+    nCand++;
+    int f=subFree(rc[q]);
+    if(cls[q]==2){ DSC.candFhl++; DSC.fhlFree+=f; }
+    else if(cls[q]==1){ DSC.candReach++; DSC.reachFree+=f; nReach++; filtSum+=f; filtN++; }
+    else DSC.candNeither++;
+    if(f>best){ best=f; bestQ=q; }
+    int dm=subDmin(rc[q]); if(dm<bestDmin) bestDmin=dm;
+  }
+  if(nReach>0) DSC.discriminating++;
+  if(chosenQ<0){ DSC.deadEnds++; return; }
+  if(pass>=0&&pass<2) DSC.byPass[pass]++;
+  int cf=subFree(rc[chosenQ]);
+  if(nCand>=2){
+    DSC.multi++; DSC.chosenFreeSum+=cf; DSC.bestFreeSum+=best;
+    DSC.regret+=(best-cf); if(bestQ==chosenQ) DSC.bestChosen++;
+    int cd=subDmin(rc[chosenQ]);
+    if(cd<99||bestDmin<99){ DSC.dminChosenSum+=(cd<99?cd:20); DSC.dminBestSum+=(bestDmin<99?bestDmin:20); DSC.dminN++; }
+  }
+  // hypothesis (b): only meaningful when pass 0 actually excluded someone
+  if(pass==0 && filtN>0){
+    double fm=(double)filtSum/filtN;
+    DSC.hh++; DSC.hhChosenFree+=cf; DSC.hhFilteredFree+=fm;
+    if(cf<fm) DSC.hhLess++; else if(cf>fm) DSC.hhMore++; else DSC.hhTie++;
+  }
+}
+static void descEnd(int which,int hops){
+  if(!descOn()) return;
+  switch(which){ case 0: DSC.endAdmitDeep++; break; case 1: DSC.endAdmitS1++; break;
+                 case 2: DSC.endNoroomWall++; break; case 3: DSC.endNoroomDead++; break;
+                 case 4: DSC.endNoroomTtl++; break; case 5: DSC.endNoroomS1free++; break; }
+  if(hops>=0){ DSC.hopSum+=hops; DSC.hopN++; if(hops>25) hops=25; DSC.hops[hops]++; }
+}
+
 // (seat method bodies continue in mesh_seat.inc)
 #include "mesh_seat.inc"
 
@@ -1049,6 +1183,39 @@ int main(int argc,char**argv){
       printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    // descstat [reset] — FRONT 3. Needs MESH_DESC=1 in the environment; without
+    // it every counter is zero and the verb says so rather than printing a
+    // convincing-looking table of nothing.
+    else if(op=="descstat"){
+      if(tk.size()>1&&tk[1]=="reset"){ DSC=DescStat(); descSnapAt=-1; printf("OK descstat reset at tick=%lld\n",TICK); continue; }
+      if(!descOn()){ printf("DESCSTAT off — rerun with MESH_DESC=1\n"); continue; }
+      long long cands=DSC.candFhl+DSC.candReach+DSC.candNeither;
+      printf("DESCSTAT descends=%lld deadEnds=%lld pass0=%lld pass1=%lld | candidates fhl=%lld reachOnly=%lld neither=%lld (fhl=%.1f%% of %lld)\n",
+        DSC.descends,DSC.deadEnds,DSC.byPass[0],DSC.byPass[1],DSC.candFhl,DSC.candReach,DSC.candNeither,
+        cands?100.0*DSC.candFhl/cands:0.0,cands);
+      // (a) DOES THE FILTER DISCRIMINATE? If this is ~0%, the pass-0 filter
+      // cannot be the bias, whatever the free-space numbers say.
+      printf("DESCFILTER discriminatingDescends=%lld/%lld (%.1f%%)  meanFree fhlCand=%.1f reachOnlyCand=%.1f\n",
+        DSC.discriminating,DSC.descends, DSC.descends?100.0*DSC.discriminating/DSC.descends:0.0,
+        DSC.candFhl?(double)DSC.fhlFree/DSC.candFhl:0.0, DSC.candReach?(double)DSC.reachFree/DSC.candReach:0.0);
+      // (b) THE HYPOTHESIS, head to head, on the descents where pass 0 really
+      // excluded someone: chosen branch vs the mean of the excluded ones.
+      printf("DESCHH n=%lld chosenLess=%lld chosenMore=%lld tie=%lld  meanChosenFree=%.2f meanFilteredFree=%.2f\n",
+        DSC.hh,DSC.hhLess,DSC.hhMore,DSC.hhTie,
+        DSC.hh?DSC.hhChosenFree/DSC.hh:0.0, DSC.hh?DSC.hhFilteredFree/DSC.hh:0.0);
+      // CAPACITY REGRET — indicts a capacity-blind descent whether or not the
+      // filter is guilty: how the chosen branch compares to the roomiest one
+      // actually on offer at that hop.
+      printf("DESCREGRET descentsWith2plus=%lld choseRoomiest=%lld (%.1f%%) meanChosenFree=%.2f meanBestFree=%.2f meanRegret=%.2f | meanDminChosen=%.2f meanDminBest=%.2f\n",
+        DSC.multi,DSC.bestChosen, DSC.multi?100.0*DSC.bestChosen/DSC.multi:0.0,
+        DSC.multi?DSC.chosenFreeSum/DSC.multi:0.0, DSC.multi?DSC.bestFreeSum/DSC.multi:0.0,
+        DSC.multi?DSC.regret/DSC.multi:0.0,
+        DSC.dminN?(double)DSC.dminChosenSum/DSC.dminN:0.0, DSC.dminN?(double)DSC.dminBestSum/DSC.dminN:0.0);
+      printf("DESCEND admitDeep=%lld admitS1=%lld noroomWall=%lld noroomDeadEnd=%lld noroomTtl=%lld noroomS1free=%lld meanHops=%.2f\n",
+        DSC.endAdmitDeep,DSC.endAdmitS1,DSC.endNoroomWall,DSC.endNoroomDead,DSC.endNoroomTtl,DSC.endNoroomS1free,
+        DSC.hopN?(double)DSC.hopSum/DSC.hopN:0.0);
+      printf("DESCDEPTH descendsByDepth="); for(int d=0;d<16;d++) if(DSC.byDepth[d]) printf("%s%d:%lld",d?",":"",d,DSC.byDepth[d]);
+      printf("\nDESCHOPS "); for(int h=0;h<26;h++) if(DSC.hops[h]) printf("%s%d:%lld",h?",":"",h,DSC.hops[h]); printf("\n"); }
     // freemap — G7 MEASUREMENT ONLY (nothing reads freeC; see healing-laws § G7).
     // For each of the C^2 Section-1 cells: what its subtree digest BELIEVES about
     // free space vs the GROUND TRUTH of that subtree, plus the subtree's depth.

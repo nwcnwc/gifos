@@ -45,6 +45,36 @@ byte-identical (scale-audit sequencing step 4).
 
 Gate: `test/sim/repro-digest.sh` (47 assertions).
 
+## the descent instrument (FRONT 3) — MEASUREMENT ONLY
+
+Off unless `MESH_DESC=1` is in the environment, and inert when off (verified:
+the instrumented binary is byte-identical to the baseline on N=3000 det).
+It answers whether `serveFind`'s two-pass descent steers seekers into branches
+that are FULLER than the ones it passed over.
+
+      MESH_DESC=1 ./mesh --service
+      descstat [reset]
+
+Five lines, and they are meant to be read in this order:
+
+      DESCSTAT     descents, dead ends, pass-0 vs pass-1, candidate classes
+      DESCFILTER   does the pass-0 firstHandLive filter DISCRIMINATE at all?
+                   if ~0% of descents have a reach-only candidate, the filter
+                   excludes nobody and the bias cannot live there
+      DESCHH       the hypothesis head to head, on discriminating descents
+                   only: chosen branch's free space vs the mean of the ones
+                   pass 0 filtered out
+      DESCREGRET   the capacity-blind measure: how often the descent picks the
+                   ROOMIEST candidate on offer, and how much free space it
+                   gives up when it does not
+      DESCEND      how FINDs end (deep admit / S1 admit / NOROOM wall / dead
+                   end / ttl) and the hop histogram
+
+Ground truth is a global-observer snapshot (rebuilt every 25 ticks) using
+`freemap`'s notion of free: a free cell whose down-child is also free is one
+admissible frontier cell, folded up the ownership chain. No seat could compute
+it — that is the point.
+
 Scenario suites: test/sim/sweep.sh (churn + partition verdict),
 test/sim/repro-headless-row.sh (the headless-row admission gap, roadmap §3),
 test/sim/repro-atomic-move.sh (the mover's lease, law T: mover death mid-transit,
