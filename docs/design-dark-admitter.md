@@ -1,5 +1,17 @@
 # Design question: the dark designated-admitter closes the door
 
+> **DECIDED AND SHIPPED (option A, Nathan 2026-07-27, with 0.8.6). Two
+> staleness corrections, 2026-08-06 (ce294be):**
+> - **The guard pointer below is DEAD.** `test/behavior/scenarios/14a-*` is
+>   now `14a-walkthrough-handoff.js` — a different scenario. Nothing named in
+>   "What this touches" currently guards this behaviour.
+> - **The fail-tail this doc says to fix first may already be fixed, but
+>   nobody re-measured.** The dial no longer waits on liveness (`run.html`:
+>   if `linkTo()` says a seat is ours, we dial it, heard-from or not), which
+>   is the shape the "dial/starve from ROSTER, not occ" one-liner asked for.
+>   No 14a-style re-measurement of the >120s tail has been recorded since.
+> Option B below is retained as the argued fallback, not as pending work.
+
 **Status: DECIDED — A (Nathan, 2026-07-27).** The one-admitter law stands;
 the ~12-15s dark-door window is accepted, and the joining veil gains a
 "Waiting for a seat…" countdown from the worst-case bound (195s vouch reap +

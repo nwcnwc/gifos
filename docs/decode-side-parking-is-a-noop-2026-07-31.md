@@ -1,5 +1,14 @@
 # Decode-side parking is a NO-OP — measured, then reverted
 
+> **RE-VERIFIED 2026-08-06 (ce294be) — NOT a bug doc: this is the record that
+> stops three re-proposals.** `dpark` / `offscreenMain` are absent from
+> `site/` and `test/` (the revert held). Do not confuse this with the
+> SENDER-side vis-park machinery, which is live and gated by
+> `e2e-vis-park.js`. All three verdicts stand: decode-side parking is a
+> no-op, pixel overdraw is refuted, and "a phone should not be a HEAD" is
+> still UNCONFIRMED — it needs a randomized repeated ABAB design, and acting
+> on it is flag-day-sized.
+
 **Verdict: the "biggest untouched win" does not exist.** A phone does not decode
 main video for tiles it never paints, because the SENDER already refuses to send
 it. Measured on two Motos, then reverted. Do not re-propose this.

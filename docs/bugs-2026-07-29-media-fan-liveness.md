@@ -1,5 +1,32 @@
 # 2026-07-29 — live-room media-plane bugs: a starved fan job looks healthy
 
+
+> **ALL FOUR BUGS ARE FIXED as of 2026-08-06 (ce294be); this doc is kept for the ONE
+> live follow-up and for one correction it must not keep teaching wrong.**
+>
+> - BUG 1 (stage black/silent) FIXED — the self-echo guard (`run.html`:
+>   never claim `stg:<self>`, never flood a feed to its owner). Guarded by
+>   `test/browser/e2e-stage-onerow.js`.
+>   **CORRECTION — this doc's recorded fix is STALE:** the `trackLive()` and
+>   born-dark changes described below were REVERTED (they killed failover;
+>   redun-drill leg B). Their job is now done by `HOT_VOID_MS`, which arms on
+>   a claim with zero bytes regardless of qualification. Read the autopsy in
+>   `run.html` beside `HOT_VOID_MS`, not the prescription here.
+> - BUG 2 (5-minute re-election) FIXED — bounded to ≤30s, guarded by
+>   `e2e-mosaic.js`. RESIDUAL, filed and live: the ~30s bimodal recovery rail
+>   (the bound barely holds) — see the seed doc.
+> - BUG 3 (stale seat duplicates a participant) FIXED — the packer vetoes a
+>   face at any seat the peer's own heartbeat disowns. **Its guard,
+>   `e2e-stadium-dup.js`, is QUARANTINED for an unrelated leg, so this fix is
+>   currently un-gated** — the exact rot pattern quarantine.txt warns about.
+> - BUG 4 (provider flapping) FIXED — `MOS_SETTLE` failback hysteresis,
+>   guarded by `e2e-stage-onerow.js`.
+> - **STILL ALIVE:** the "occ merge should let a peer's own report evict its
+>   own stale entries" LAW change. `mesh.js` implements a *moved-elsewhere*
+>   phantom rule, which is close in spirit but is MY first-hand view, not the
+>   peer's own report; `tlSweep` still cannot kill an entry whose pid answers
+>   probes from another seat. No sim repro pins it. Sim-first when taken up.
+
 Observed live in prod room `test` (edge build 901, 6 seats: 2 phones + monitor
 + 1 phone attendee on cellular in section 0 rows 0–1, 2 clip bots). Evidence
 captured while it happened via the meet.js REPL, the monitor's tmux session,

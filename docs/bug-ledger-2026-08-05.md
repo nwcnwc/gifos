@@ -1,5 +1,29 @@
 # Bug ledger — 2026-08-05 (demo-failure night)
 
+> **RE-VERIFIED ENTRY BY ENTRY against the tree on 2026-08-06 (ce294be).**
+> Two entries are CLOSED and struck below; the rest are ALIVE. A ledger only
+> shrinks — do not re-open a struck entry without a fresh repro.
+>
+> | # | status | evidence |
+> |---|---|---|
+> | 1 stale guest password splits a room | **ALIVE** | `gifos_vpw_<room>` still per-origin with no expiry; the `gifos_vpwep_` epoch is a §LOCK replay counter, not the expiry this asks for. Host side still silent. `e2e-meet-password.js` covers rotation, NOT this trap. |
+> | 2 sim seed-4 FIND/PLACE livelock | **CLOSED 2026-08-06** | Repro re-run on this tree: `CHECK PASS seed=4 [seated=40/40 s1=25 dups=0]`, seeds 1-8 all pass. Killed by the V4/V5 admission waves (healing-laws §V). CAVEAT: `repro-churn-combos.sh` leg C pins seed 5 only, so seed 4 is unpinned. |
+> | 3 sw.js can serve a pre-rename loader that 404s | **ALIVE** | `degrade()` still returns the cached `/index.html` with NO `SHELL_VERSION` check; the guard this entry proposes is absent. Confirmed reachable: `versions/0.9.1/run.html` does not exist. |
+> | 4 loaders with no `gifosPinTarget` hook | **ALIVE (half obsolete)** | `store.html` half is DEAD — it deliberately ships no channel loader now. `sign.html` half STANDS and is in no battery (`runtime-page-name.js` iterates index/boot/run only). The pre-rename wrinkle is moot post-flag-day; the rot pattern is not. |
+> | 5 mesh-pipe on Safari live + untested | **ALIVE** | `e2e-pipe.js` is chromium-only by construction (`ignorePins`); the only cross-engine suite tests Ed25519, not the pipe. Needs the real-Apple lane. |
+> | 6 the 7-hour room fork | **ALIVE / unreproduced** | The sim family is gated (`c-sweep.sh` asserts dups=0 under total partition at all C), but the LIVE shape — two one-seat trees on one relay session — still has no test, and the flap doc's `greeterTrace` observability is unbuilt. |
+> | 7 iOS in-app viewers can't grant a camera | **ALIVE (product question)** | No proactive iOS-webview affordance on the join page; "Open in Safari" appears only from the preflight's failure path. |
+> | 8 standby re-park lag | **ALIVE** | `redun-drill` still quarantined verbatim; part of the one redundancy-lane investigation. |
+> | 9 identity rotation costs a ring window | **ALIVE** | `RING_HOLD = 220` unchanged; no signed "my old self is dead" LEAVE exists in either twin. Still a healing-laws question, not a patch. |
+> | addendum: `e2e-deep-pair-heal` red | **CLOSED 2026-08-06** | Root-caused (an isolated pair lawfully self-compacts), drill rewritten to assert the sever BOUNDARY, verified 3/3 green. Suite is in the browser tier and not quarantined. |
+> | addendum: serial N=2 | **CLOSED** | stale; no counter-evidence found. |
+> | addendum: pinned ≤0.9.2 has no preflight | **NOT A BUG** | snapshots are immutable by design; accepted. |
+>
+> Two guard gaps this pass exposed, both worth their own work: `statusOf` has
+> ZERO test coverage anywhere in the repo, and `e2e-stadium-dup` being
+> quarantined silently un-guards a DIFFERENT, genuinely fixed bug (the stale-seat
+> duplicate face).
+
 The demo-night root causes are FIXED on main (ghost-target falsification
 `0c7f93d`+`b62c31e`, knock-first boot `3dd8802`). These are the REAL findings
 from the same investigation that are deliberately NOT fixed tonight, so they

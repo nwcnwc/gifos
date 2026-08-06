@@ -1,5 +1,20 @@
 # Phone power tuning — the sweep harness (2026-07-29)
 
+> **CANDIDATE-LEVER LIST BELOW IS STALE — corrected 2026-08-06 (ce294be).**
+> Two of the levers this doc proposes were REFUTED by measurement the
+> following day and must not be re-proposed from here:
+> - **decode-side parking — a NO-OP.** `UNPAINTED_kbps: 0`. Not small, zero.
+>   See `decode-side-parking-is-a-noop-2026-07-31.md`, which also refutes
+>   pixel overdraw and leaves "a phone should not be a HEAD" unconfirmed.
+> - **the one-encoder fan — the premise is gone.** A g24 runs the whole
+>   C-1 = 4 fan in hardware (`CEILING_HIT false`); the "ceiling" was an
+>   artifact of headless Chromium having no hardware encoders. Re-scoped
+>   into roadmap §9b, where it is what §9a delivers for free.
+>
+> Surviving levers from this doc: **fan off-phone** (roadmap: "compositor
+> duty on phones", a LAW change needing sim-first work and Nathan's sign-off)
+> and **composite fps split**. The measurements themselves stand.
+
 Nathan's bar: **draining while plugged in is unacceptable.** The g24
 measurements (docs/phone-power-scaling-2026-07-29.md) put a phone's meeting
 load at ~2.2 W against a 2.5 W real-world USB budget with the CPU pegged at
