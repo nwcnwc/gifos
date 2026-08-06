@@ -85,8 +85,18 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // — sub> to an outside seat again — which also kills the false heal this
   // suite once reported (secondsAfterLift: -15, the pair-internal ship read
   // as recovery before the lift).
-  const pairSig = () => [pids[A], pids[B]].map((p) => 'sub>' + String(p).slice(0, 14));
-  const crossShipping = (p) => (p.ships || []).some((x) => x.indexOf('sub>') === 0 && pairSig().indexOf(x) === -1);
+  // Generalized 2026-08-06 after the first fix's triple-run: a healed pair
+  // may re-integrate WITHOUT any sub> at all — rejoining section 0 makes its
+  // visibility products x1/x2/sdrow row ships, and B landing deep under A
+  // ships sub> only inside the pair. So the boundary predicate reads the
+  // DESTINATION of every mosaic job (the token after the last '>'): healed =
+  // any product to an outside seat; isolated = none, of any kind.
+  const pairDst = () => [pids[A], pids[B]].map((p) => String(p).slice(0, 14));
+  const crossShipping = (p) => (p.ships || []).some((x) => {
+    if (x.indexOf('>') === -1) return false;
+    const dst = x.split('>').pop();
+    return dst && pairDst().indexOf(dst) === -1;
+  });
   // EXACT: a seat above claiming a 'sub' feed whose VIA is one of the pair.
   // Matching on the key alone counts a stale pre-sever claim and reports
   // recovery that has not happened (it did, in the first draft of this probe).
