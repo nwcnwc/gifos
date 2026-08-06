@@ -1116,6 +1116,18 @@ live; only the IAP rail below is still unbuilt.
     a port gets lobby/link/mesh for free from the runtime instead of running
     its own share plumbing. An app like this in the store is the demo that
     explains GifOS in one install.
+  - **Second example: putt.day** (by ell.dev, models Kenney CC0) — Wordle for
+    minigolf. One hole a day, the same for the whole world, only your first
+    attempt counts; slingshot input; a shareable Wordle-style score card;
+    previous holes playable from a calendar. It is already GifOS-shaped to the
+    letter — no accounts, no tracking, streak lives in the browser and dies
+    with it — EXCEPT for its one server: the live leaderboard + ghost trails
+    of other players' balls. A port keeps the daily hole + score card as a
+    solo app (deterministic hole from the date seed) and moves the social
+    layer onto app rooms: your foursome IS the room, ghosts and leaderboard
+    ride the mesh, no server at all. Global-strangers ghosts are the only
+    part that genuinely wants a server — a friends-circle version is arguably
+    the better game anyway.
   - Diligence per port: license allows redistribution; offline behavior honest
     (Hop.Earth needs OSM/elevation tiles — a `network` capability listing, the
     same honest degradation as Bible Browser); credit + upstream link in the
