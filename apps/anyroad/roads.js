@@ -150,10 +150,14 @@
     }
 
     return ask(wantBuildings).catch(function (err) {
-      // "response too large" is the 8 MB bridge cap: the tile is dense, so drop
-      // the buildings and take the roads. Recorded so we never pay for the
-      // oversized attempt on this tile again.
-      if (wantBuildings && /too large/i.test(err.message || '')) {
+      // Two different ways a dense tile refuses to load, and both mean the same
+      // thing — this query is too big for this tile:
+      //   "response too large"  the GifOS bridge's own 8 MB response cap
+      //   HTTP 504              Overpass gave up on the query's cost
+      // Either way, drop the buildings and take the roads. Without the 504 case
+      // a city centre retries the identical too-expensive query forever, which
+      // reads to the player as an app that simply never finishes loading.
+      if (wantBuildings && (/too large/i.test(err.message || '') || err.status === 504)) {
         return ask(false).then(function (g) { g.dense = true; return g; });
       }
       throw err;
@@ -254,14 +258,18 @@
           if (inside(a, b, c, poly[vi])) { ok = false; break; }
         }
         if (!ok) continue;
-        idx.push(i0, i1, i2);
+        // Reversed: the ear test runs in the (x, z) plane, where a
+        // counter-clockwise triangle faces DOWN once y is up. Emitting them
+        // reversed means every roof and lake faces the sky, which is the only
+        // way they survive back-face culling.
+        idx.push(i2, i1, i0);
         v.splice(k, 1);
         clipped = true;
         break;
       }
       if (!clipped) break;                              // degenerate; take what we have
     }
-    if (v.length === 3) idx.push(v[0], v[1], v[2]);
+    if (v.length === 3) idx.push(v[2], v[1], v[0]);
     return idx;
   }
 
@@ -311,6 +319,16 @@
     if (poly.length < 3) return;
     if (poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
     if (poly.length < 3) return;
+    // OSM building ways come in both windings, and the wall normal is derived
+    // from edge direction — so half of every city would face inward and vanish.
+    // Normalise to positive signed area first; then the per-edge normal below
+    // is reliably outward.
+    var signed = 0;
+    for (var s = 0; s < poly.length; s++) {
+      var pa = poly[s], pb = poly[(s + 1) % poly.length];
+      signed += pa.x * pb.z - pb.x * pa.z;
+    }
+    if (signed < 0) poly.reverse();
     // One ground height for the whole footprint: a building does not follow the
     // hill, it sits on it (and per-corner heights make walls visibly skew).
     var base = Infinity;

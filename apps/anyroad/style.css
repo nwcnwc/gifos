@@ -1,0 +1,204 @@
+/* Anyroad — the chrome around the world.
+   Dark, out of the way, and thumb-sized: the game is the picture, so every
+   control here earns its pixels or goes. */
+
+:root {
+  --ink: #e9edf5;
+  --dim: #93a0b8;
+  --bg: #0a0d16;
+  --panel: rgba(12, 17, 28, 0.94);
+  --line: rgba(255, 255, 255, 0.11);
+  --accent: #5cb2ff;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+/* Every panel here sets its own display, which silently defeats the `hidden`
+   attribute (an author display always beats the UA's display:none). One rule,
+   or half the HUD is permanently visible. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  -webkit-user-select: none; user-select: none;
+  overscroll-behavior: none;
+}
+
+#view {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; touch-action: none;   /* the left half is the steering wheel */
+}
+
+/* ── HUD ─────────────────────────────────────────────────────────────────── */
+#hud { position: fixed; inset: 0; pointer-events: none; }
+#hud button { pointer-events: auto; }
+
+.topbar {
+  position: absolute; top: calc(8px + var(--safe-t)); left: 8px; right: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.spacer { flex: 1; }
+
+.chip {
+  position: relative;
+  min-width: 38px; height: 38px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: rgba(10, 14, 24, 0.62); color: var(--ink);
+  font-size: 16px; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.chip:active { background: rgba(30, 40, 60, 0.8); }
+.badge {
+  position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+}
+
+.place {
+  max-width: 46vw; padding: 7px 11px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: rgba(10, 14, 24, 0.62);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-size: 12.5px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.speedo {
+  position: absolute; left: 14px; bottom: calc(14px + var(--safe-b));
+  display: flex; align-items: baseline; gap: 5px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+}
+.speedo span { font-size: 46px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.speedo small { font-size: 12px; color: var(--dim); }
+
+.status {
+  position: absolute; left: 50%; top: calc(58px + var(--safe-t)); transform: translateX(-50%);
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(10, 14, 24, 0.72); border: 1px solid var(--line);
+  font-size: 12px; color: var(--dim); white-space: nowrap;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+
+/* Race read-out: time, distance, and an arrow that points at the finish. */
+.racehud {
+  position: absolute; right: 14px; top: calc(56px + var(--safe-t));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+}
+.rh-time { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rh-dist { font-size: 12px; color: var(--dim); }
+.rh-arrow { width: 44px; height: 44px; color: var(--accent); margin-top: 4px; }
+
+.pedals {
+  position: absolute; right: 12px; bottom: calc(12px + var(--safe-b));
+  display: flex; gap: 10px;
+}
+.pedal {
+  width: 74px; height: 74px; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(10, 14, 24, 0.6);
+  color: var(--ink); font-size: 22px; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  touch-action: none;
+}
+.pedal.gas:active { background: rgba(50, 140, 90, 0.75); }
+.pedal.brake:active { background: rgba(150, 55, 55, 0.75); }
+
+/* ── overlays ────────────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; overflow-y: auto;
+  background: rgba(5, 7, 13, 0.72);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.overlay[hidden] { display: none; }
+
+.sheet {
+  width: 100%; max-width: 460px;
+  padding: 20px; border-radius: 18px;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+
+h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.02em; }
+h2 { margin: 0; font-size: 19px; }
+.sub { margin: 0 0 16px; color: var(--dim); font-size: 13.5px; }
+.hint { margin: 8px 0 0; color: var(--dim); font-size: 11.5px; line-height: 1.5; }
+.muted { color: var(--dim); font-size: 12.5px; }
+
+.close {
+  width: 32px; height: 32px; border-radius: 9px;
+  border: 1px solid var(--line); background: transparent; color: var(--dim);
+  font-size: 14px; cursor: pointer;
+}
+
+form { display: flex; gap: 8px; margin-top: 14px; }
+input[type="search"] {
+  flex: 1; min-width: 0; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05); color: var(--ink);
+  font-size: 15px; -webkit-user-select: text; user-select: text;
+}
+input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+button {
+  padding: 11px 15px; border-radius: 11px; border: 1px solid transparent;
+  background: var(--accent); color: #06101d; font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+button:active { filter: brightness(0.9); }
+button.ghost { background: rgba(255, 255, 255, 0.07); color: var(--ink); border-color: var(--line); font-weight: 500; }
+button[disabled] { opacity: 0.45; cursor: default; }
+
+.results { list-style: none; margin: 12px 0 0; padding: 0; max-height: 34vh; overflow-y: auto; }
+.results li { margin-bottom: 6px; }
+.results button {
+  width: 100%; text-align: left; background: rgba(255, 255, 255, 0.05);
+  color: var(--ink); border-color: var(--line); font-weight: 500; font-size: 13px;
+  line-height: 1.4; padding: 10px 12px;
+}
+
+.presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.presets button {
+  background: rgba(255, 255, 255, 0.05); color: var(--ink);
+  border-color: var(--line); font-weight: 500; font-size: 12.5px; padding: 8px 11px;
+}
+
+.field { display: block; margin-top: 16px; }
+.field > span { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.field small { display: block; margin-top: 5px; color: var(--dim); font-size: 11.5px; line-height: 1.5; }
+.field .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+select {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05); color: var(--ink);
+  font-size: 14px; font-family: inherit;
+}
+
+.racebuttons { display: flex; gap: 8px; margin-top: 10px; }
+.racebuttons button { flex: 1; }
+
+.board { margin: 14px 0 0; padding-left: 22px; font-size: 13.5px; }
+.board li { margin-bottom: 4px; }
+.board .t { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+.attribution { margin: 18px 0 0; color: var(--dim); font-size: 10.5px; line-height: 1.6; }
+
+.note {
+  position: fixed; left: 50%; bottom: calc(100px + var(--safe-b)); transform: translateX(-50%);
+  z-index: 30; max-width: 84vw;
+  padding: 9px 14px; border-radius: 11px;
+  background: rgba(10, 14, 24, 0.94); border: 1px solid var(--line);
+  font-size: 12.5px; color: var(--ink);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.note[hidden] { display: none; }
+
+@media (max-width: 420px) {
+  .speedo span { font-size: 38px; }
+  .pedal { width: 66px; height: 66px; }
+}

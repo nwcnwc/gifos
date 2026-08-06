@@ -28,17 +28,37 @@
 
   // ---- state ---------------------------------------------------------------
   // gifos.db is async and collection-scoped. The dev stand-in keeps the same
-  // surface over a Map so app code is identical in both hosts. Dev state is
-  // deliberately NOT persisted: a reload should give a clean world.
-  function devCollection(store) {
+  // surface over a Map so app code is identical in both hosts.
+  //
+  // The dev store persists to localStorage, which matters for one specific
+  // reason: the road cache. Without it every reload during development re-asks
+  // Overpass for tiles it already had, and Overpass is donated infrastructure
+  // with a per-IP budget. Inside GifOS this code never runs (localStorage is
+  // disabled in the sandbox and gifos.db is the real store).
+  function devLoad(name) {
+    try {
+      var raw = root.localStorage.getItem('anyroad.dev.' + name);
+      var m = new Map();
+      if (raw) JSON.parse(raw).forEach(function (v) { m.set(v.id, v); });
+      return m;
+    } catch (e) { return new Map(); }
+  }
+  function devSave(name, store) {
+    try {
+      var arr = []; store.forEach(function (v) { arr.push(v); });
+      root.localStorage.setItem('anyroad.dev.' + name, JSON.stringify(arr));
+    } catch (e) { /* quota or private mode: dev convenience only */ }
+  }
+
+  function devCollection(store, name) {
     var subs = [];
     function all() { var out = []; store.forEach(function (v) { out.push(v); }); return out; }
     function fire() { var snap = all(); subs.forEach(function (cb) { try { cb(snap); } catch (e) {} }); }
     return {
-      put: function (item) { store.set(item.id, item); fire(); return Promise.resolve(item); },
+      put: function (item) { store.set(item.id, item); devSave(name, store); fire(); return Promise.resolve(item); },
       get: function (id) { return Promise.resolve(store.get(id) || null); },
       getAll: function () { return Promise.resolve(all()); },
-      delete: function (id) { store.delete(id); fire(); return Promise.resolve(true); },
+      delete: function (id) { store.delete(id); devSave(name, store); fire(); return Promise.resolve(true); },
       setVisibility: function () { return Promise.resolve(true); },
       subscribe: function (cb) { subs.push(cb); Promise.resolve().then(function () { cb(all()); }); },
     };
@@ -46,7 +66,7 @@
   var devStores = {};
   function db(name) {
     if (inGifOS) return root.gifos.db(name);
-    if (!devStores[name]) devStores[name] = devCollection(new Map());
+    if (!devStores[name]) devStores[name] = devCollection(devLoad(name), name);
     return devStores[name];
   }
 

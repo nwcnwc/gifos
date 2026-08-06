@@ -69,9 +69,11 @@
       var heights = decodeTerrarium(px);
       var min = Infinity, max = -Infinity;
       for (var i = 0; i < heights.length; i++) {
-        // Terrarium uses a sentinel-ish deep value for no-data ocean; clamping
-        // keeps one bad post from stretching the whole tile's range.
-        if (heights[i] < -400) heights[i] = 0;
+        // Open ocean comes back thousands of metres down. Clamping it to a
+        // shallow negative keeps one abyssal post from stretching the tile's
+        // range, while still leaving it BELOW the sea plane at y=0 — flatten it
+        // to exactly 0 and the coastline disappears.
+        if (heights[i] < -25) heights[i] = -25;
         if (heights[i] < min) min = heights[i];
         if (heights[i] > max) max = heights[i];
       }
@@ -154,15 +156,25 @@
       var zm = (Math.max(0, jj - 1) * n + ii) * 3, zp = (Math.min(n - 1, jj + 1) * n + ii) * 3;
       var dx = pos[xp] - pos[xm], dhx = pos[xp + 1] - pos[xm + 1];
       var dz = pos[zp + 2] - pos[zm + 2], dhz = pos[zp + 1] - pos[zm + 1];
-      // Cross of the two tangents, normalised.
-      var nx = -dhx * (dz || 1), ny = (dx || 1) * (dz || 1), nz = -dhz * (dx || 1);
+      // Cross the two surface tangents: tX = (dx, dhx, 0), tZ = (0, dhz, dz).
+      // dz is NEGATIVE here (row j+1 lies south), which is exactly what flips
+      // the naive cross product downward — and a downward normal makes every
+      // slope read as unlit rock, which is a lighting bug that looks like an
+      // art decision. A heightfield's normal always points up, so assert it.
+      var nx = dhx * dz;
+      var ny = -dx * dz;
+      var nz = dx * dhz;
+      if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
       var len = Math.hypot(nx, ny, nz) || 1;
       nrm[i0] = nx / len; nrm[i0 + 1] = ny / len; nrm[i0 + 2] = nz / len;
     }
 
+    // Winding: row j+1 lies SOUTH of row j, and south is -z, so the naive
+    // (a, c, b) order produces a downward normal and the whole ground gets
+    // back-face culled — a sky-blue screen with no error anywhere.
     for (var y = 0; y < GRID; y++) for (var x = 0; x < GRID; x++) {
       var a = y * n + x, bb = a + 1, c = a + n, d = c + 1;
-      idx.push(a, c, bb, bb, c, d);
+      idx.push(a, bb, c, bb, d, c);
     }
 
     // Skirt: duplicate each border vertex, drop it, and stitch a wall. Purely
