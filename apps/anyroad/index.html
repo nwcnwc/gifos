@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Anyroad</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1424'/%3E%3Cpath d='M14 54 L28 12 h8 l14 42 z' fill='%232b3550'/%3E%3Crect x='30' y='18' width='4' height='8' fill='%23e8e2c4'/%3E%3Crect x='30' y='32' width='4' height='8' fill='%23e8e2c4'/%3E%3Crect x='30' y='46' width='4' height='6' fill='%23e8e2c4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<!-- ── the drive HUD ─────────────────────────────────────────────────────── -->
+<div id="hud" hidden>
+  <div class="topbar">
+    <button class="chip" id="btn-menu" aria-label="Menu">☰</button>
+    <div class="place" id="place">—</div>
+    <div class="spacer"></div>
+    <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
+    <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
+  </div>
+
+  <div class="speedo">
+    <span id="speed">0</span><small>km/h</small>
+  </div>
+
+  <div class="status" id="status" hidden></div>
+
+  <div class="racehud" id="racehud" hidden>
+    <div class="rh-time" id="rh-time">0.0</div>
+    <div class="rh-dist" id="rh-dist"></div>
+    <svg class="rh-arrow" id="rh-arrow" viewBox="-12 -12 24 24" aria-hidden="true">
+      <path d="M0 -10 L7 8 L0 4 L-7 8 Z" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <!-- Touch controls. The left half of the canvas is a virtual wheel (drag to
+       steer), so only the pedals need to be real buttons. -->
+  <div class="pedals" id="pedals">
+    <button class="pedal brake" id="pedal-brake" aria-label="Brake">◀</button>
+    <button class="pedal gas" id="pedal-gas" aria-label="Accelerate">▶</button>
+  </div>
+</div>
+
+<!-- ── landing / hop ─────────────────────────────────────────────────────── -->
+<div id="landing" class="overlay">
+  <div class="sheet">
+    <h1>Anyroad</h1>
+    <p class="sub">Drive any road on Earth. Search a place, drop in, go.</p>
+
+    <form id="searchform" autocomplete="off">
+      <input id="q" type="search" placeholder="Somewhere on Earth…" aria-label="Search for a place">
+      <button type="submit" id="go">Search</button>
+    </form>
+    <p class="hint" id="searchhint">Search runs once when you press Search — OpenStreetMap's geocoder allows one request a second, so there is no type-ahead.</p>
+
+    <ul id="results" class="results"></ul>
+
+    <div class="presets" id="presets"></div>
+
+    <p class="attribution" id="attribution"></p>
+  </div>
+</div>
+
+<!-- ── settings ──────────────────────────────────────────────────────────── -->
+<div id="settings" class="overlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><h2>Settings</h2><button class="close" id="close-settings" aria-label="Close">✕</button></div>
+
+    <label class="field">
+      <span>Elevation</span>
+      <select id="src-terrain"></select>
+      <small id="note-terrain"></small>
+    </label>
+
+    <label class="field">
+      <span>Roads</span>
+      <select id="src-roads"></select>
+      <small>Several public Overpass mirrors. Switch if one is busy or has blocked us.</small>
+    </label>
+
+    <label class="field">
+      <span>Imagery</span>
+      <select id="src-imagery"></select>
+      <small id="note-imagery"></small>
+    </label>
+
+    <label class="field">
+      <span>Detail</span>
+      <select id="src-quality">
+        <option value="low">Roads only — lightest</option>
+        <option value="normal">Roads and buildings</option>
+      </select>
+    </label>
+
+    <div class="field">
+      <span>Cached map data</span>
+      <div class="row">
+        <span class="muted" id="cache-size">—</span>
+        <button id="clear-cache" class="ghost">Clear</button>
+      </div>
+      <small>Road geometry is kept on this device so re-driving an area needs no
+        network. It is stored inside the app's own GIF, so it is capped — clear
+        it if the file gets large.</small>
+    </div>
+
+    <p class="attribution" id="attribution2"></p>
+  </div>
+</div>
+
+<!-- ── races ─────────────────────────────────────────────────────────────── -->
+<div id="race" class="overlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><h2>Race</h2><button class="close" id="close-race" aria-label="Close">✕</button></div>
+    <p class="sub" id="mp-status">Driving alone.</p>
+    <p class="hint">Everyone who opens this app's invite link lands in the same
+      place and drives the same world. Use <b>Invite</b> in the GifOS menu to
+      send the link.</p>
+
+    <div class="racebuttons">
+      <button id="set-start" class="ghost">Set start here</button>
+      <button id="set-finish" class="ghost">Set finish here</button>
+    </div>
+    <div class="racebuttons">
+      <button id="start-race">Start race</button>
+      <button id="clear-race" class="ghost">Clear</button>
+    </div>
+    <p class="hint" id="race-hint">Drive to where you want the start, set it, drive to the finish, set that, then start.</p>
+
+    <ol class="board" id="board"></ol>
+  </div>
+</div>
+
+<div id="note" class="note" hidden></div>
+
+<div id="fatal" class="overlay" hidden>
+  <div class="sheet">
+    <h2>Anyroad can't run here</h2>
+    <p class="sub" id="fatal-msg"></p>
+  </div>
+</div>
+
+<script src="host.js"></script>
+<script src="geo.js"></script>
+<script src="sources.js"></script>
+<script src="net.js"></script>
+<script src="terrain.js"></script>
+<script src="roads.js"></script>
+<script src="render.js"></script>
+<script src="car.js"></script>
+<script src="mp.js"></script>
+<script src="ui.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
