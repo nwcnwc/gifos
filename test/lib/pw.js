@@ -98,5 +98,45 @@ function findChrome(opts) {
   throw new Error('pw.js: no Chromium binary found. Set MEET_CHROME, or install one. Looked in:\n' + tried(cands));
 }
 
+/*
+ * findEngine(name) — the same SEARCH doctrine, for the non-Chromium engines.
+ *
+ * Playwright's own `firefox.executablePath()` answers from PLAYWRIGHT_BROWSERS_PATH
+ * (default ~/.cache/ms-playwright). On a box that keeps its browsers in
+ * /opt/pw-browsers that answer is a path which does not exist — so a suite asking
+ * "is firefox installed here?" is told NO on a box where firefox is installed and
+ * working. That reads as a product red (or, worse, as silently reduced coverage)
+ * for a purely environmental reason, which is the exact failure this file exists
+ * to end.
+ *
+ * Returns a launchable path or null. The per-box pin (MEET_FIREFOX / MEET_WEBKIT)
+ * wins, because it is what the fleet actually launches with — same rule as
+ * MEET_CHROME above, and the same reason: the repo's playwright pin may name an
+ * older revision than the box has (the pre-Ed25519 firefox trap, 2026-08-05).
+ */
+function engineCandidates(name) {
+  const out = [];
+  const pin = process.env['MEET_' + name.toUpperCase()];
+  if (pin) out.push(pin);
+  // <root>/<name>-<rev>/ : firefox ships firefox/firefox, webkit a pw_run.sh
+  const leaf = name === 'firefox' ? ['firefox', 'firefox'] : ['pw_run.sh'];
+  for (const root of ['/opt/pw-browsers', path.join(HOME, '.cache/ms-playwright')]) {
+    let names = [];
+    try { names = fs.readdirSync(root); } catch (e) { continue; }
+    names.filter((n) => new RegExp('^' + name + '-\\d+$').test(n))
+      .sort((a, b) => parseInt(b.split('-')[1], 10) - parseInt(a.split('-')[1], 10))
+      .forEach((n) => out.push(path.join(root, n, ...leaf)));
+  }
+  try { const p = pw[name] && pw[name].executablePath(); if (p) out.push(p); } catch (e) { /* not installed per playwright */ }
+  return out;
+}
+function findEngine(name) {
+  if (name === 'chromium') { try { return findChrome(); } catch (e) { return null; } }
+  for (const c of engineCandidates(name)) {
+    try { if (fs.existsSync(c)) return c; } catch (e) { /* next */ }
+  }
+  return null;
+}
+
 const pw = loadPlaywright();
-module.exports = { ...pw, chromium: pw.chromium, CHROME: findChrome(), findChrome };
+module.exports = { ...pw, chromium: pw.chromium, CHROME: findChrome(), findChrome, findEngine };

@@ -51,14 +51,16 @@ const WANT_PUB = '419643381ad573b89036c19c89ee8ff8c888a7d265acb9790da571c1a78399
 const WANT_SIG = 'd0539b8a4d5025a19af31004449b0267dcd047e9392603c0f9a138d5243b32cb'
                + '069d0857193055136f3d2c63243d280bf03d12af031436e3a0c778d3155eaf08';
 
-// An optional engine counts as present only if we can resolve a real binary —
-// the same doctrine as the behavior battery's engineAvailable (a per-box
-// MEET_<ENGINE> pin is what we would launch with, so it IS presence).
+// An optional engine counts as present only if we can resolve a REAL binary.
+// pw.findEngine searches the same roots as the chromium resolver and honors the
+// per-box MEET_<ENGINE> pin — measured necessary 2026-08-06: on the pi, firefox
+// is installed under ~/.cache/ms-playwright but playwright's own
+// executablePath() answers with the revision IT pins, which is not there. Asking
+// playwright alone reported "firefox not installed" on a box running firefox
+// fine, and this suite went red for a purely environmental reason.
 function optionalEngine(name) {
-  const pinned = process.env['MEET_' + name.toUpperCase()];
-  if (pinned && fs.existsSync(pinned)) return { launch: { executablePath: pinned } };
-  try { const p = pw[name] && pw[name].executablePath(); if (p && fs.existsSync(p)) return { launch: {} }; } catch (e) {}
-  return null;
+  const p = pw.findEngine(name);
+  return p ? { launch: { executablePath: p } } : null;
 }
 
 async function runEngine(label, browserType, launchOpts) {
