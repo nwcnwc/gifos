@@ -37,6 +37,16 @@
   const subtle = (typeof crypto !== 'undefined' && crypto.subtle) ? crypto.subtle
     : (typeof require === 'function' ? require('crypto').webcrypto.subtle : null);
   const enc = new TextEncoder();
+  const rnd = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto
+    : (typeof require === 'function' ? require('crypto').webcrypto : null);
+  // THE ONE Ed25519 DOOR (gifos-ed.js) — resolved lazily so load order never
+  // matters; in node it pulls the sibling module in itself.
+  const ed = () => {
+    const G = typeof self !== 'undefined' ? self : globalThis;
+    if ((!G.GifOS || !G.GifOS.ed) && typeof document === 'undefined' && typeof require === 'function') { try { require('./gifos-ed.js'); } catch (e) {} }
+    if (!G.GifOS || !G.GifOS.ed) throw new Error('gifos-ed.js must load before app-owner.js');
+    return G.GifOS.ed;
+  };
 
   const hex = (buf) => {
     const a = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -73,21 +83,25 @@
   const canonicalBytes = (v) => enc.encode(canonical(v));
 
   // ---- owner signer --------------------------------------------------------
-  // A fresh per-share Ed25519 keypair. The private key is non-extractable and
-  // never leaves this tab; the public key (hex) travels in every frame so any
-  // participant can verify. `sign(sid, kind, body)` returns a signed frame over
-  // the canonical bytes of the SIGNED TUPLE { sid, kind, n, body } (n = a
-  // monotonic per-owner counter that binds ordering and defeats replay).
+  // A fresh per-share Ed25519 keypair. The key never leaves this tab; the
+  // public key (hex) travels in every frame so any participant can verify.
+  // `sign(sid, kind, body)` returns a signed frame over the canonical bytes of
+  // the SIGNED TUPLE { sid, kind, n, body } (n = a monotonic per-owner counter
+  // that binds ordering and defeats replay). Routed through THE ONE Ed25519
+  // DOOR (gifos-ed.js) so an owner on a no-native-Ed25519 browser (old
+  // iPhone) can still share; the key is seed-derived like the S4 identity —
+  // the former non-extractable generateKey bought nothing the seed path
+  // doesn't, since the S4 seed already lives in JS memory.
   async function createSigner() {
-    const kp = await subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
-    const pubRaw = new Uint8Array(await subtle.exportKey('raw', kp.publicKey));
-    const pkHex = hex(pubRaw);
+    const seed = new Uint8Array(32); rnd.getRandomValues(seed);
+    const k = await ed().keysFromSeed(seed);
+    const pkHex = hex(k.pubRaw);
     let n = 0;
     return {
       pkHex,
       async sign(sid, kind, body) {
         const p = { sid: sid, kind: kind, n: (++n), body: body };
-        const sig = new Uint8Array(await subtle.sign({ name: 'Ed25519' }, kp.privateKey, canonicalBytes(p)));
+        const sig = await ed().sign(k.priv, canonicalBytes(p));
         return { p: p, pk: pkHex, sig: hex(sig) };
       },
     };
@@ -125,8 +139,7 @@
         }
         let good = false;
         try {
-          const key = await subtle.importKey('raw', fromHex(frame.pk), { name: 'Ed25519' }, false, ['verify']);
-          good = await subtle.verify({ name: 'Ed25519' }, key, fromHex(frame.sig), canonicalBytes(p));
+          good = await ed().verify(fromHex(frame.pk), fromHex(frame.sig), canonicalBytes(p));
         } catch (e) { good = false; }
         if (!good) return { ok: false, reason: 'bad-sig' };
         // THE APP FRAME IS IMMUTABLE CONTENT, NOT ORDERED STATE.

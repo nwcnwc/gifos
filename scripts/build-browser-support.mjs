@@ -104,7 +104,7 @@ for (const b of rows) {
 // in the JSON): the one sentence the too-old wall shows under its verdict for
 // the telling gap. They live in the JSON like every other word the screen
 // speaks. Plain text only — the preflight injects them via innerHTML.
-const WHY_IDS = ['webcrypto-ed25519', 'webcrypto-subtle', 'webrtc-peerconnection', 'websocket'];
+const WHY_IDS = ['webcrypto-subtle', 'webrtc-peerconnection', 'websocket'];
 for (const id of WHY_IDS) {
   const p = (data.requirements[id] || {}).plain;
   if (!p || typeof p !== 'string') fail('requirements.' + id + '.plain is missing — whyLine() in run.html would paint undefined');

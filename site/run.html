@@ -29,12 +29,6 @@
        WebSocket .................. the relay socket (gifos-net.js)
        crypto.subtle + getRandomValues .. derive-don't-send: PBKDF2/HKDF-shaped
                                     derivation, AES-GCM sealed frames, SHA-256
-       WebCrypto Ed25519 .......... S4 per-participant identity. MANDATORY —
-                                    mesh-wire.js mints one at every join and
-                                    has no off switch, and every FINDLEAF /
-                                    PLACE / CLAIM / HELLO is signed with it.
-                                    This is the LATEST-arriving requirement by
-                                    a wide margin and it sets the whole table.
        RTCPeerConnection + createDataChannel .. the mesh links themselves
        TextEncoder / TextDecoder .. the byte<->string boundary everywhere
        Promise / Map / Set ........ the ES6 floor the runtime is written on
@@ -47,13 +41,22 @@
        canvas.captureStream ....... same reason; it is a sending capability.
        Insecure-origin http:// .... reported as ITS OWN problem (the link needs
                                     https), never as "your browser is old".
+       WebCrypto Ed25519 .......... NO LONGER GATES. The S4 signing mandate
+                                    (mesh-wire.js, every join, no off switch)
+                                    is absolute, but the ENGINE is not: a
+                                    browser without native Ed25519 (Safari 16
+                                    and older — the old-iPhone case) signs
+                                    with the built-in byte-identical fallback
+                                    (js/gifos-ed.js + pinned vendor), and
+                                    interoperates in the same room. This is
+                                    what moved the whole table from Safari 17
+                                    era down to the syntax floor below.
 
-     Ed25519 is async to probe (importKey returns a promise), so the verdict
-     lands in two halves: the synchronous half blocks here and now, and the
-     Ed25519 half resolves through GifOSPreflight.whenSupported(), which the
-     runtime's entry dispatch waits on before it boots a room. Nothing knocks,
-     no socket opens, and `room` is never set — so the joining veil, which
-     early-returns without a room, can never arm behind this screen.
+     Every check here is synchronous, so the verdict lands before anything
+     knocks: a blocked browser opens no socket and never sets `room`, so the
+     joining veil — which early-returns without a room — can never arm behind
+     this screen. (The old ASYNC half, the Ed25519 probe, is gone with the
+     fallback signer; GifOSPreflight.whenSupported stays for the dispatch.)
 
      A SOLO entry (#id=<fileId>) NEVER SEES THIS SCREEN. A solo app is one tab
      and no network — it runs fine on a browser that could never meet, and a
@@ -88,21 +91,20 @@
   /* Source of truth: site/browser-support.json (updated 2026-08-05).
      DO NOT EDIT BY HAND — edit the JSON and re-run the script; the release
      gate fails on drift (test/unit/browser-support.js).
-     These numbers are set by WebCrypto Ed25519 signatures:
-       Chrome            137   (2025-05)
-       Microsoft Edge    137   (2025-05)
-       Firefox           129   (2024-08)
-       Safari            17   (2023-09)
+     These numbers are set by Modern JavaScript (Promise, Map, Set, async/await, globalThis):
+       Chrome            71   (2018-12)
+       Microsoft Edge    79   (2020-01)
+       Firefox           65   (2019-01)
+       Safari            12.1   (2019-03)
      COPY ONLY. The verdict below is feature detection and never this table. */
   var MIN = {
-    chrome:   { label: "Chrome",         min: "137" },
-    edge:     { label: "Microsoft Edge", min: "137" },
-    firefox:  { label: "Firefox",        min: "129" },
-    safari:   { label: "Safari",         min: "17" }
+    chrome:   { label: "Chrome",         min: "71" },
+    edge:     { label: "Microsoft Edge", min: "79" },
+    firefox:  { label: "Firefox",        min: "65" },
+    safari:   { label: "Safari",         min: "12.1" }
   };
-  var GENERIC_MINS = "Safari 17, Chrome 137 or Firefox 129 — and up";
+  var GENERIC_MINS = "Safari 12.1, Chrome 71 or Firefox 65 — and up";
   var WHY = {
-    "webcrypto-ed25519": "Why so strict? Meetings here are private because every person in the room is cryptographically signed — nobody can join pretending to be someone else. This browser can scramble a call just fine; what it is missing is the newer piece that makes those signatures possible.",
     "webcrypto-subtle": "Everything in a meeting is scrambled on your own device before it leaves, so nobody in the middle can read it — and this browser is missing tools from the box that does the scrambling.",
     "webrtc-peerconnection": "In a meeting here, sound, pictures and everything else travel straight between people's browsers — no company server in the middle. This browser is missing part of what makes those direct browser-to-browser connections work.",
     "websocket": "To find the other people in a meeting, browsers introduce themselves through one small doorway connection — and this browser cannot open that kind of connection."
@@ -140,7 +142,6 @@
      not severity-driven (see the comment at the paint site). */
   function whyLine(gaps) {
     var s = gaps.join(', ');
-    if (s.indexOf('Ed25519') !== -1) return WHY['webcrypto-ed25519'];
     if (s.indexOf('WebCrypto') !== -1) return WHY['webcrypto-subtle'];
     if (s.indexOf('WebRTC') !== -1) return WHY['webrtc-peerconnection'];
     if (s.indexOf('WebSocket') !== -1) return WHY['websocket'];
@@ -228,12 +229,10 @@
     }
     /* The one plain-language WHY paragraph under the verdict, picked for the
        most telling gap. Every line must be TRUE for the browser it is shown
-       to — the Ed25519 line says "this browser can scramble a call just
-       fine", which holds only when Ed25519 is the single missing piece, so
-       it is checked FIRST (that gap always arrives alone, from the async
-       probe); a browser missing crypto.subtle itself gets the scrambling
-       line instead. Ancient gaps (no Promise/TextEncoder) get no line —
-       "too old, update it" is already the whole truth there. */
+       to. Ancient gaps (no Promise/TextEncoder) get no line — "too old,
+       update it" is already the whole truth there. (Ed25519 has no line
+       because it no longer walls anyone: the fallback signer took it off
+       the required-native list.) */
     var why = (kind === 'old' && gaps) ? whyLine(gaps) : '';
     var signed = why
       ? '<p id="oldbrowser-why" style="margin:0 0 .9rem;font-size:.9rem;line-height:1.6;color:#9a9ab5">' + why + '</p>'
@@ -295,34 +294,11 @@
     verdict('insecure', ['secure context (https)']);
   } else {
     var gaps = syncGaps();
-    if (gaps.length) {
-      verdict('old', gaps);
-    } else {
-      // The Ed25519 probe, shaped exactly like the real thing: the same PKCS#8
-      // wrapper gifos-net.js builds around a 32-byte seed, imported and then
-      // exported as JWK (that export is how the public half is obtained). If
-      // either step is unsupported, this rejects — which is precisely what
-      // Safari 16, Firefox 128 and Chrome 136 do.
-      API.ready = new Promise(function (resolve) {
-        var settled = false;
-        var done = function (good) {
-          if (settled) return; settled = true;
-          if (!good) verdict('old', ['WebCrypto Ed25519']);
-          resolve(good);
-        };
-        // Fail OPEN on a hang: a probe that never answers is not evidence of an
-        // old browser, and blocking a working browser is the worse mistake.
-        setTimeout(function () { done(true); }, 1500);
-        try {
-          var pkcs8 = new Uint8Array(48);
-          pkcs8.set([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20], 0);
-          for (var i = 16; i < 48; i++) pkcs8[i] = (i * 7) & 0xff;
-          window.crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign'])
-            .then(function (k) { return window.crypto.subtle.exportKey('jwk', k); })
-            .then(function (jwk) { done(!!(jwk && jwk.x)); }, function () { done(false); });
-        } catch (e) { done(false); }
-      });
-    }
+    if (gaps.length) verdict('old', gaps);
+    // No async half anymore: the Ed25519 probe that used to live here (and
+    // set the Safari-17 floor) is retired — a browser without native Ed25519
+    // signs through the fallback engine (js/gifos-ed.js). The probe's exact
+    // shape lives on inside gifos-ed's own engine detection.
   }
 
   /* The one gate the runtime calls. `fn` runs only if this browser can really
@@ -1354,6 +1330,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     })();
   </script>
   <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-ed.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/gifos-net.js"></script>

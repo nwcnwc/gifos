@@ -119,14 +119,20 @@
   const b64ToBytes = (s) => { const bin = atob(s.replace(/\s+/g, '')); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; };
   const bytesToB64 = (a) => { let s = ''; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); };
 
+  // Sign/verify ride THE ONE Ed25519 DOOR (gifos-ed.js): VERIFY is what
+  // matters on old browsers — an app badge must check out on the same old
+  // iPhone that installs the app. Minting a domain key (below) stays native
+  // WebCrypto: that is the developer's own sign.html flow on a dev machine.
+  const ed = () => {
+    if ((!GifOS.ed) && typeof document === 'undefined' && typeof require === 'function') { try { require('./gifos-ed.js'); } catch (e) {} }
+    if (!GifOS.ed) throw new Error('gifos-ed.js must load before gifos-sign.js');
+    return GifOS.ed;
+  };
   async function ed25519Sign(privateKey, msg) {
-    return new Uint8Array(await subtle.sign({ name: 'Ed25519' }, privateKey, msg));
+    return await ed().sign(privateKey, msg);
   }
   async function ed25519Verify(pub32, sig64, msg) {
-    try {
-      const key = await subtle.importKey('raw', pub32, { name: 'Ed25519' }, false, ['verify']);
-      return await subtle.verify({ name: 'Ed25519' }, key, sig64, msg);
-    } catch (e) { return false; }
+    try { return await ed().verify(pub32, sig64, msg); } catch (e) { return false; }
   }
   async function generateDomainKey() {
     const kp = await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
