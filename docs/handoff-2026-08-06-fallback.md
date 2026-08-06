@@ -94,10 +94,13 @@ above, first-hand liveness says the room is dead, healing walks the two
 survivors up, one becomes a real head and ships 'sub>' to the OTHER pair
 member. The drill read any sub> as a leaked partition (and the pair-internal
 ship produced its secondsAfterLift:-15 false heal). Fixed by asserting the
-BOUNDARY: mosJobs keys are 'sub>'+DESTINATION pid, so isolation = no sub>
-to outside the pair, heal = sub> to outside again. Strictly stronger where
-it matters. (Triple-run verification on the pi was in flight at write time —
-check /tmp/dpair.log there if unconfirmed.)
+BOUNDARY: every mosaic job names its DESTINATION after the last '>'
+(shipMos jk = key+'>'+to), so isolation = NO product of any kind to a seat
+outside the pair, heal = ANY product to an outside seat (a healed pair may
+rejoin section 0, whose visibility products are x1/x2/sdrow, never sub>).
+VERIFIED 3/3 green on the pi under real chromium (two iterations: the
+sub>-only predicate healed 1/3 — the generalized destination predicate is
+the one that landed).
 
 **6. Handoff close-out** (afc8c42 + 079fb48): all 15 old handoffs audited
 and deleted. Harvest lives in roadmap §3 "Harvested from retired handoff
