@@ -60,6 +60,27 @@ engine** (all measured 2026-08-06, penguin):
    (archive-version.sh must copy js/ whole; every snapshot shipping the
    door must ship the engine).
 
+## HOW TO RUN THE DEMO (once 0.9.4 is live)
+
+1. On the old iPhone, open **https://gifos.app/** once. It should paint the
+   Home Screen with icons. If it does, the phone is on a build that can sign.
+   (Check: Settings → Advanced → Version should say 0.9.4.)
+2. From your own machine, open a meeting and share the link to the phone
+   (Messages/WhatsApp is fine — iOS opens Safari properly for these).
+3. On the phone, tap the link. Expect: the name prompt, then the meeting.
+   The phone may join **view-only** if it will not grant a camera — that is a
+   supported, first-class state, not a failure.
+4. If the phone shows "too old for meetings", read the small print at the
+   bottom of that screen — it names the missing piece. Ed25519 should NOT
+   appear there anymore; if it does, the phone is on a pre-0.9.4 build
+   (make it reload, or open the link with `?edge`).
+5. Tapping an app on the phone's own Home Screen must ALWAYS work, meeting or
+   not — that path touches no network at all.
+
+If something goes wrong, the forensics that matter: the phone's Settings →
+Advanced → Version (which build it is really on), and whether
+`/versions/0.9.4/js/vendor/nacl-fast.js` loads in its browser.
+
 ## What shipped overnight (all committed + pushed, all gated)
 
 **1. Solo apps never see the meeting preflight** (e51a2a6). The Safari-16
