@@ -318,7 +318,51 @@
       buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
       index: buildIndex(frame, geom),
+      walls: buildWallIndex(frame, geom),
     };
+  }
+
+  // ---- building walls, for collision --------------------------------------
+  // Same bucketing trick as the road index, over the footprint EDGES. A city
+  // tile can hold a thousand buildings and the car needs an answer every frame,
+  // so the only thing a query may touch is the handful of edges in its own cell
+  // and the eight around it.
+  function buildWallIndex(frame, geom) {
+    var segs = [], map = Object.create(null);
+    for (var b = 0; b < geom.bld.length; b++) {
+      var poly = toWorld(frame, geom.bld[b][1]);
+      if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
+      if (poly.length < 3) continue;
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], c = poly[(i + 1) % poly.length];
+        var idx = segs.length / 4;
+        segs.push(a.x, a.z, c.x, c.z);
+        var x0 = Math.floor(Math.min(a.x, c.x) / CELL), x1 = Math.floor(Math.max(a.x, c.x) / CELL);
+        var z0 = Math.floor(Math.min(a.z, c.z) / CELL), z1 = Math.floor(Math.max(a.z, c.z) / CELL);
+        for (var cx = x0; cx <= x1; cx++) for (var cz = z0; cz <= z1; cz++) {
+          var k = cx + ',' + cz;
+          (map[k] || (map[k] = [])).push(idx);
+        }
+      }
+    }
+    return { segs: new Float32Array(segs), map: map, cell: CELL };
+  }
+
+  // Every wall edge whose cell neighbourhood contains (x, z). Returns a flat
+  // array [x1,z1,x2,z2, …] because the caller runs it per frame and an array of
+  // objects here would be a per-frame allocation storm.
+  function nearWalls(index, x, z, out) {
+    if (!index) return out;
+    var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
+    for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
+      var list = index.map[(cx + dx) + ',' + (cz + dz)];
+      if (!list) continue;
+      for (var i = 0; i < list.length; i++) {
+        var o = list[i] * 4;
+        out.push(index.segs[o], index.segs[o + 1], index.segs[o + 2], index.segs[o + 3]);
+      }
+    }
+    return out;
   }
 
   // ---- "am I on tarmac?" ---------------------------------------------------
@@ -436,6 +480,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
+    nearWalls: nearWalls,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {

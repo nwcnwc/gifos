@@ -94,6 +94,50 @@ html, body {
 .rh-dist { font-size: 12px; color: var(--dim); }
 .rh-arrow { width: 44px; height: 44px; color: var(--accent); margin-top: 4px; }
 
+/* Condition bar. Green through amber to red, so the state is readable at a
+   glance without reading a number. */
+.health {
+  position: absolute; left: 16px; bottom: calc(112px + var(--safe-b));
+  width: 128px;
+}
+.health-bar {
+  height: 7px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.health-fill {
+  height: 100%; width: 100%; border-radius: 4px;
+  background: #48d17a;
+  transition: width 240ms ease-out, background 240ms;
+}
+.health-label {
+  display: block; margin-top: 4px;
+  font-size: 9px; letter-spacing: 0.12em; font-weight: 700; color: var(--dim);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+}
+
+/* A red edge pulse on impact: peripheral, so it reads without stealing the
+   road from you the way a full-screen flash would. */
+.damage-flash {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  box-shadow: inset 0 0 90px 20px rgba(220, 40, 40, 0.85);
+}
+.damage-flash.hit { animation: dmg 420ms ease-out; }
+@keyframes dmg { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+
+.wrecked {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; pointer-events: auto;
+  background: rgba(6, 8, 14, 0.55);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+.wrecked-card {
+  text-align: center; padding: 22px 24px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.wrecked-card strong { display: block; font-size: 22px; margin-bottom: 4px; }
+.wrecked-card p { margin: 0 0 14px; color: var(--dim); font-size: 13px; }
+
 /* ── driving controls ─────────────────────────────────────────────────────
    Two rules learned the hard way from a phone: an affordance you cannot SEE
    does not exist, and an arrow glyph on a pedal means "go that way", not

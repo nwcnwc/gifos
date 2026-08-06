@@ -187,6 +187,26 @@
     car.cruise = target;
   }
 
+  // ---- hitting buildings ---------------------------------------------------
+  // One reused array for the candidate wall edges: this runs every frame, and
+  // allocating a fresh list of segments 60 times a second is exactly the kind
+  // of garbage that shows up as periodic stutter on a phone.
+  var wallScratch = [];
+  var shake = 0;
+  function collideBuildings(dtNow) {
+    wallScratch.length = 0;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.walls) continue;
+      root.Roads.nearWalls(r.built.walls, car.x, car.z, wallScratch);
+    }
+    if (!wallScratch.length) return;
+    var hit = root.Car.collide(car, wallScratch, dtNow);
+    if (!hit || hit.impact < 0.4) return;
+    shake = Math.min(1, Math.max(shake, hit.impact / 16));
+    if (hit.damage > 0) root.UI.damage(car.health, hit.crash);
+  }
+
   // Terrain must be present under a road tile before its mesh can be built.
   function terrainReadyFor(tile) {
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
@@ -293,6 +313,16 @@
     camera.tx = car.x + fx * ahead;
     camera.ty = car.y + 1.4;
     camera.tz = car.z + fz * ahead;
+
+    // Impact shake. Decays fast — a long shake reads as a broken camera rather
+    // than as a crash.
+    if (shake > 0.001) {
+      var amp = shake * 1.4;
+      camera.x += (Math.sin(clock * 71.0) + Math.sin(clock * 37.3)) * amp * 0.5;
+      camera.y += Math.sin(clock * 53.7) * amp * 0.35;
+      camera.z += (Math.cos(clock * 61.0) + Math.cos(clock * 43.1)) * amp * 0.5;
+      shake *= Math.max(0, 1 - dt * 5.5);
+    }
   }
 
   // ---- frame ---------------------------------------------------------------
@@ -320,7 +350,17 @@
     var grounded = root.Terrain.heightAt(world.frame, car.x, car.z) !== null;
     if (grounded && hopAnim > 2.6) {
       updateOnRoad(t);
-      root.Car.update(car, input, dt, world.frame);
+      // SUBSTEP when the car would cross more ground in one frame than the
+      // collision test can see. Contact is detected within 0.95 m of a wall, so
+      // a single 2 m step can start outside a building and finish outside the
+      // far side having never been tested against it — the car tunnels through
+      // at exactly the speeds where hitting a building should matter most.
+      var travel = Math.abs(car.speed) * dt;
+      var steps = Math.min(4, Math.max(1, Math.ceil(travel / 0.6)));
+      for (var st = 0; st < steps; st++) {
+        root.Car.update(car, input, dt / steps, world.frame);
+        collideBuildings(dt / steps);
+      }
     } else if (grounded) {
       car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
     }
@@ -366,6 +406,8 @@
       net: root.Net.stats(),
       airborne: car.airborne,
       offRoad: !car.onRoad,
+      health: car.health,
+      wrecked: car.wrecked,
       players: root.MP.count(),
       race: root.MP.raceState(car),
       odometer: car.odometer,
@@ -415,6 +457,7 @@
       onSearch: search,
       onPedal: function (which, on) { controls.setPedal(which, on); },
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
+      onRepair: function () { root.Car.repair(car); },
       car: function () { return car; },
       frame: function () { return world.frame; },
     });

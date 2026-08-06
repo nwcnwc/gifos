@@ -23,8 +23,102 @@
       airborne: false,
       vy: 0,
       odometer: 0,
+      health: 100,
+      wrecked: false,
+      contactT: 0,        // seconds of unbroken contact with a wall
+      hurtCool: 0,        // seconds until another impact may be charged
     };
   }
+
+  // ---- hitting things -----------------------------------------------------
+  // The car is approximated by three circles down its centreline rather than one
+  // — a single circle either sticks out past the bumpers or lets the nose clip
+  // into a corner before anything registers.
+  //
+  // ONE number decides what kind of crash it was: the closing speed along the
+  // wall's normal. That already encodes both things worth distinguishing — a
+  // fast but glancing hit has a small normal component and should scrape, a
+  // square hit at the same speed has a large one and should hurt. No separate
+  // angle test is needed, and none of the edge cases that come with one.
+  var BODY_R = 0.95;
+  var SAMPLE = [1.55, 0, -1.55];      // metres along the heading
+  var CRASH_AT = 4.5;                 // m/s closing: below this you bounce off
+  var HURT_AT = 3.0;                  // m/s closing: below this, no damage at all
+
+  function collide(car, walls, dt) {
+    if (!walls || !walls.length) { car.contactT = 0; return null; }
+    var fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+    var pushX = 0, pushZ = 0, best = 0, bnx = 0, bnz = 0, touched = false;
+
+    for (var s = 0; s < SAMPLE.length; s++) {
+      var px = car.x + fx * SAMPLE[s], pz = car.z + fz * SAMPLE[s];
+      for (var i = 0; i < walls.length; i += 4) {
+        var ax = walls[i], az = walls[i + 1], bx = walls[i + 2], bz = walls[i + 3];
+        var vx = bx - ax, vz = bz - az;
+        var len2 = vx * vx + vz * vz;
+        if (len2 < 1e-6) continue;
+        var t = Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / len2));
+        var qx = ax + vx * t, qz = az + vz * t;
+        var dx = px - qx, dz = pz - qz;
+        var d = Math.hypot(dx, dz);
+        if (d >= BODY_R) continue;
+        touched = true;
+        var nx, nz;
+        if (d > 1e-4) { nx = dx / d; nz = dz / d; }
+        else { var l = Math.sqrt(len2); nx = -vz / l; nz = vx / l; }   // dead centre on the edge
+        var pen = BODY_R - d;
+        pushX += nx * pen; pushZ += nz * pen;
+        var closing = -(car.speed * (fx * nx + fz * nz));
+        if (closing > best) { best = closing; bnx = nx; bnz = nz; }
+      }
+    }
+    if (!touched) { car.contactT = 0; return null; }
+
+    // Separate first, always — otherwise a car that comes to rest inside a wall
+    // stays inside it, and every later frame re-reports a collision.
+    car.x += pushX; car.z += pushZ;
+
+    // FIRST frame of contact is the impact. Everything after it is resting or
+    // scraping, and must not be charged as a fresh crash — with auto-cruise the
+    // car drives itself back into the wall the instant it bounces off, so
+    // damaging every frame of contact ground a 11 km/h nudge down to 74%
+    // health and would eventually total a parked car.
+    var fresh = car.contactT === 0 && car.hurtCool <= 0;
+    car.contactT += (dt || 0.016);
+
+    if (best <= 0.05) return { impact: 0, damage: 0, crash: false };
+
+    // Sustained contact always slides along the wall, whatever the speed. That
+    // is what stops the bounce-cruise-bounce loop: instead of buzzing against
+    // the building, the car ends up running alongside it and drives away.
+    var scrape = !fresh || best < CRASH_AT;
+
+    var damage = 0;
+    if (scrape) {
+      var tx = -bnz, tz = bnx;
+      if (tx * fx + tz * fz < 0) { tx = -tx; tz = -tz; }
+      var want = Math.atan2(tx, tz);
+      var diff = ((want - car.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      car.yaw += diff * (fresh ? 0.45 : 0.22);
+      car.speed *= fresh ? 0.90 : 0.97;
+    } else {
+      // Crash: most of the energy goes into the building, and you come off it.
+      car.speed = -Math.min(4.5, best * 0.22);
+    }
+
+    if (fresh && best > HURT_AT) {
+      // One crash is one crash. A bounce breaks contact, the cruise drives the
+      // car straight back in, and without this every rebound is charged again —
+      // holding the nose against a building slowly totalled it.
+      car.hurtCool = 1.0;
+      damage = (best - HURT_AT) * 2.6;
+      car.health = Math.max(0, car.health - damage);
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+    }
+    return { impact: fresh ? best : 0, damage: damage, crash: !scrape };
+  }
+
+  function repair(car) { car.health = 100; car.wrecked = false; car.contactT = 0; }
 
   // Controls arrive as a plain object so the same physics serve keyboard,
   // touch, and a replayed ghost.
@@ -32,6 +126,16 @@
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
+    if (car.hurtCool > 0) car.hurtCool -= dt;
+    if (car.wrecked) {
+      // Wrecked: no drive, no steering authority, just roll to a halt and sit.
+      car.speed *= Math.max(0, 1 - dt * 2.5);
+      if (Math.abs(car.speed) < 0.2) car.speed = 0;
+      var dxw = Math.sin(car.yaw) * car.speed * dt, dzw = Math.cos(car.yaw) * car.speed * dt;
+      car.x += dxw; car.z += dzw;
+      settle(car, frame, dt);
+      return car;
+    }
 
     // --- steering: smoothed, and less authoritative the faster you go -------
     var target = Math.max(-1, Math.min(1, input.steer));
@@ -315,5 +419,6 @@
     };
   }
 
-  root.Car = { create: create, update: update, controls: controls, blankInput: blankInput };
+  root.Car = { create: create, update: update, controls: controls, blankInput: blankInput,
+               collide: collide, repair: repair };
 })(window);
