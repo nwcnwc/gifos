@@ -180,9 +180,30 @@ Nathan's fleet directive, executed via one agent per box:
   (/opt/node22 is only a playwright lib dir; real node is v20) — install
   node 22 before ever assigning it gate work. Its chromium symlink chain is
   healthy (1194→1228 real binary).
-- **clawbox (6c, chromium-1234 + firefox-1538)** — full behavior battery:
-  STILL RUNNING at handoff time (long). Check the agent log /
-  /tmp/behavior-full.log on clawbox. This box is the behavior-fleet box.
+- **clawbox (6c/7.6GB, chromium-1234 + firefox-1538)** — full behavior
+  battery, 2h22m: **57 passed / 1 failed / 0 SKIPPED** at ca059c8.
+  25a-mixed-engines PASSED (the firefox pin was honored — no repeat of the
+  cut-day SKIP trap), 04b/16b ran for real because relay-dev was up, and the
+  known ~50% flake 08a passed first try.
+  The one red is **22b-choir-front-row-loss**, the battery's ONLY 8-actor
+  scenario: two renderers (`ed`, `gus`) reported `Target crashed` from the
+  first assertion on, and every downstream red counts corpses. loadavg was
+  1.89-5.44 on 6 cpus — NOT cpu starvation; memory at the failure was
+  **396 MB available with 3.2 GB of swap in use**.
+  **BOX ANOMALY, worth chasing on its own:** with every chrome and driver
+  killed, the sum of ALL process RSS on clawbox is ~261 MB while `free`
+  reports ~6.4 GB used / ~480 MB available. AnonPages 126 MB, Cached
+  204 MB, Slab 155 MB, Shmem 2 MB, no cgroup limit, no OOM kills in dmesg,
+  /tmp is real disk. Roughly 6 GB is held outside process accounting on a
+  2-day uptime. Until that is understood, clawbox has ~0.5 GB of real
+  headroom and CANNOT host the 8-actor scenarios.
+  **PROCESS LESSON (mine): I destroyed that agent's two discriminating
+  retries.** My `pkill -f "[c]hrome-linux/chrome"` and `pkill -f
+  "[b]ehavior.sh"` at 23:36/23:37/23:43 landed inside its retry and its
+  22a→22b interleaved A/B, which then reported `no actor null` at loadavg
+  10.38 — an artifact of having its browsers killed, not a measurement.
+  When two sessions share a box, the reaper is a weapon: check
+  `pgrep -f behavior.sh` and ASK before reaping anything you did not start.
 - Post-fallback verification runs happened on raspberrypi (all green, §4).
 
 **Farm finding to fix**: release.sh's reap_browsers() kill -9's every
