@@ -66,37 +66,6 @@ mirror-drill  NONDETERMINISTIC known-unfixed: ~10/17 green measured 2026-08-02. 
 # NONDETERMINISTIC — promotion is a human call on a measured rate.
 redun-drill  NONDETERMINISTIC known-unfixed: re-park lag behind the drill's windows; 3/3 red only with knock-first+ghost-law combined (1/3 baseline). The redundancy-lane cluster (with mirror-drill + the stg-freeze dossier) is the top post-0.9.2 work item.
 
-# ADDED 2026-08-05 (second entry, same night, cutting 0.9.2) — argued:
-# e2e-stadium-dup's manufactured wedge (sever + forceSeat teleport) sometimes
-# triggers IDENTITY ROTATION; the rotated node then lands in the pre-existing
-# FIND/PLACE searching-livelock — state 2, occ=0 for 172s+ on an idle box in a
-# near-empty room. That livelock is bug-ledger #2 (docs/bug-ledger-2026-08-05.md)
-# and predates 0.9.1: the sim reproduces the identical shape at seed 4 on the
-# f9dcfdb tree and earlier. It is the small-N tail of the V4 admission family
-# (docs/scale-audit-2026-08-04.md) and its fix belongs to that pursuit — mesh
-# admission surgery, sim-first, not a release-night patch. The suite's fixture
-# was already made rotation-aware (re-manufacture arm, ring-window wait); what
-# remains red is the PRODUCT defect it exposes, ~1/3 of runs on the fast box,
-# never on slower ones (the wedge outlives the window there). Measured tonight:
-# gate host 2/3+2/3 green across fixture revisions; clawbox 3/3; penguin 4/4.
-# NONDETERMINISTIC — promotion is a human call on a measured rate, after V4.
-e2e-stadium-dup  NONDETERMINISTIC known-unfixed: manufactured rotation exposes the pre-existing FIND/PLACE searching-livelock (ledger #2, V4 family). Fix rides the V4 pursuit; promote on a measured rate after it lands.
-# MEASURED 2026-08-05 after the V4 waves landed (healing-laws § V): 10/10
-# ALL PASS on a loaded 4-core box (was ~50% flaky). The livelock the entry
-# names is the exact family V5 (phantom-aware deep admission) killed.
-# COUNTER-EVIDENCE same day: the release gate on the 8-core gate host scored
-# it RED TWICE on a DIFFERENT leg ("the moved face is carried at its NEW
-# row") — so the searching-livelock is plausibly dead but the suite is not
-# clean box-independently. DO NOT promote yet; next session should chase the
-# moved-face leg on the gate host before the call.
-# DIAGNOSTIC LEAD for the moved-face leg (harvested 2026-08-06 from the
-# retired 07-31 handoff — the best surviving pointer): the failing deep head
-# at 2/0.0 reported rowFaces: [] while holding a full row; look at the
-# iAmHead / beyondRow gate for a FRESHLY-POPULATED deep row (a head that has
-# just gained occupants may not yet believe it is a head, so it fans no faces).
-# DATA POINT 2026-08-06: GREEN on the gate host's own browser-tier run
-# (mover carried at its NEW row, identity stable) — one more green, not proof.
-
 # ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
 # e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane
 # actually RUNS — which it only does since ec06c46 gave this suite a real
