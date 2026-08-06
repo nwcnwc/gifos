@@ -313,32 +313,47 @@ anywhere else:
    1,924 seekers) and seekers walk PAST the shallow ones into deep spines and
    NOROOM at the wall.
 
-   **The mechanism is now READ OFF THE CODE — start from this, do not
-   re-derive it** (mesh_seat.inc, tail of `serveFind`). A descent does NOT
-   step past a free child: by the time it descends, `firstFreeInRoster` has
-   already failed, so every roster cell is occupied or non-admissible. The
-   hop is chosen like this:
+   **FRONT 3 IS ANSWERED — 2026-08-06. Read
+   `docs/front3-descent-2026-08-06.md`, do not re-derive any of it.** The
+   PASS-0 FILTER hypothesis stated here is REFUTED, with the sign inverted,
+   and three further candidate fixes died with it. What was measured (the
+   instrument is on main: `MESH_DESC=1` + the `descstat` verb, inert when
+   off, N=3000 det reproduces `converged@6976 moves=29387 evict=4569`):
 
-       Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
-       for(int pass=0;pass<2;pass++)
-         for(int q:idx){ ... if(pass==0 ? firstHandLive(rk) : admitterReachable(rk)) -> descend
+   - the filter DOES discriminate (85.1% of descents) — but the branch it
+     CHOOSES holds 182 free cells against 13.3 for the ones it filters out.
+     It is a LIVENESS filter and it works. Not a dead-subtree artifact:
+     only 1.6% of candidates have an empty subtree and removing them moves
+     nothing.
+   - the descent is NOT capacity-blind: it takes the roomiest candidate
+     89.6% of the time, mean regret 3.3 cells out of 176.
+   - `kidful` (childless children — free, already on every PHONE) REFUTED
+     before building: unknown for 78% of candidates, already taken 71.5% of
+     the time offered, and childless nodes are DEEP in absolute terms so
+     their dmin (5.60) matches everyone else's (5.67).
+   - a digest-`dmin` descent REFUTED on the honest ceiling: only ~8% of hops
+     offer a depth choice WITHIN the pass-0 set (pass 0's liveness guarantee
+     is not tradeable), and the shuffle already wins 58% of those.
 
-   `shufCols()` randomises the candidates, so the bias is NOT the ordering —
-   it is the PASS-0 FILTER. `firstHandLive` means "a child I have heard from
-   recently", and a child whose subtree is BUSY chatters more (more
-   occupants, more heartbeats, more gossip) than one whose subtree is sparse
-   and quiet. Pass 0 returns on its first match, so a busy-but-full branch
-   systematically beats a quiet-but-spacious one and the seeker walks the
-   fullest spine to the wall. Code-grounded, and still a HYPOTHESIS.
+   **THE MECHANISM, CONFIRMED:** `reachOnlyByColumn` for column 0 is ZERO —
+   never, not rarely. The child-row head is the parent's owned `down` link,
+   so it is heard first-hand every time; columns 1-4 are pass-0 eligible only
+   inside the 60-tick `live[]` window after an admit. Pass 0 is swept in FULL
+   before pass 1 is consulted, so it almost always succeeds at the head and
+   returns (pass0=146,273 vs pass1=863). Result: col0 chosen 92.4%, and
+   **88.8% of pass-0 descents have exactly ONE candidate.** That is why all
+   four fixes failed identically — each was a better POLICY for choosing, and
+   there is nothing to choose.
 
-   **MEASURE IT BEFORE FIXING IT** — the last three attempts died of skipping
-   exactly this. At each descend decision, log how many roster children were
-   firstHandLive vs only reachable, and use the sim's GROUND TRUTH (the
-   `freemap` verb from the V1 digest work already computes real subtree free
-   space) to ask: does the CHOSEN branch have systematically less free space
-   than the ones pass 0 filtered out? If yes, the fix is a descent that
-   consults capacity rather than chatter. If no, the plateau has moved again
-   and three refutations have still narrowed it. Sweep seeds either way.
+   NOTE the correction in the dossier: the siblings are NOT unreachable.
+   `emit` routes to a non-linked seat rather than teleporting, so the barrier
+   is the pass ORDERING, not the topology — which makes the fix much cheaper
+   than a new sideways hop. Three shapes are named there in ascending
+   invasiveness (singleton tie-break / spread on RETRY only / head spreads
+   along its row), together with why the ordering cannot simply be deleted
+   (it is what stops split-room starvation — seed 8, side A 16/200 and
+   nothing deeper when the forward used raw occ). NOT BUILT: it is a protocol
+   change on the seating path and both twins move together.
 
 2. **V1 rollup digests to the BROWSER** (sim side LANDED + gated,
    repro-digest.sh 47/0, healing-laws §G argued incl. lying-aggregator);
