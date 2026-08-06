@@ -206,8 +206,17 @@ trap stop_all EXIT
 # Every pattern is bracketed so pgrep/pkill cannot match this script's own
 # command line — see the pgrep self-match note in CLAUDE.md.
 reap_browsers() {
+  # NEVER reap a RESIDENT service's browser. Measured 2026-08-06 on the pi:
+  # this loop kill -9'd the MonitorBot's chrome at every suite boundary (13
+  # times in one drills run — the bot self-healed each time, cutting its 23h
+  # session over and over). A resident (the monitor's run.sh) exports
+  # GIFOS_RESIDENT=1, which meet.js passes into the browser's environment.
+  # ONLY that marker is exempt — BB_ACTOR (drive-mode fleet actors) stays
+  # reapable on purpose: stale crashed actors are exactly the pile-up this
+  # reaper exists for.
   for _p in $(pgrep -f '[c]hrome-linux/chrome' 2>/dev/null) \
             $(pgrep -f '[h]eadless_shel' 2>/dev/null); do
+    if tr '\0' ' ' < "/proc/$_p/environ" 2>/dev/null | grep -q 'GIFOS_RESIDENT=1'; then continue; fi
     kill -9 "$_p" 2>/dev/null
   done
 }
