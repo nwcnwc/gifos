@@ -104,22 +104,32 @@
       'attribute vec3 aPos; attribute vec3 aNormal; attribute vec2 aUv;',
       'uniform mat4 uViewProj; uniform vec3 uEye;',
       'varying vec3 vNormal; varying vec2 vUv; varying float vDist; varying float vHeight;',
+      'varying vec2 vWorldXZ;',
       'void main(){',
-      '  vNormal = aNormal; vUv = aUv; vHeight = aPos.y;',
+      '  vNormal = aNormal; vUv = aUv; vHeight = aPos.y; vWorldXZ = aPos.xz;',
       '  vDist = length(aPos - uEye);',
       '  gl_Position = uViewProj * vec4(aPos, 1.0);',
       '}',
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir; uniform sampler2D uTex; uniform float uHasTex;',
-      'varying vec3 vNormal; varying vec2 vUv; varying float vHeight;',
+      'varying vec3 vNormal; varying vec2 vUv; varying float vHeight; varying vec2 vWorldXZ;',
       FOG,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
       '  float slope = 1.0 - clamp(n.y, 0.0, 1.0);',
+      // Two octaves of cheap value noise. Terrarium posts are ~10 m apart, so
+      // without this the ground is large flat facets of one identical green and
+      // reads as painted cardboard however good the lighting is.
+      '  vec2 p = vWorldXZ;',
+      '  float n1 = fract(sin(dot(floor(p / 7.0), vec2(127.1, 311.7))) * 43758.5453);',
+      '  float n2 = fract(sin(dot(floor(p / 31.0), vec2(269.5, 183.3))) * 43758.5453);',
+      '  float grain = (n1 - 0.5) * 0.05 + (n2 - 0.5) * 0.035;',
       // Stylised palette: grass low and flat, rock on anything steep, snow high.
-      '  vec3 grass = mix(vec3(0.35,0.46,0.27), vec3(0.42,0.50,0.30), clamp(vHeight/900.0,0.0,1.0));',
-      '  vec3 rock  = vec3(0.42,0.39,0.35);',
+      '  vec3 grass = mix(vec3(0.33,0.44,0.24), vec3(0.44,0.51,0.29), clamp(vHeight/900.0,0.0,1.0));',
+      '  grass *= 1.0 + grain * 2.2;',
+      '  grass = mix(grass, vec3(0.46,0.44,0.28), clamp(n2 * 0.16, 0.0, 0.16));',   // dry patches
+      '  vec3 rock  = vec3(0.42,0.39,0.35) * (1.0 + grain);',
       '  vec3 snow  = vec3(0.86,0.88,0.92);',
       '  vec3 base = mix(grass, rock, smoothstep(0.18, 0.45, slope));',
       // Snowline high and narrow. At 1500 m a real driveable pass — Stelvio
@@ -145,36 +155,86 @@
       'varying vec2 vUv; varying float vTone;',
       FOG,
       'void main(){',
-      '  vec3 tarmac = vec3(0.20,0.20,0.22) * (0.6 + vTone);',
+      // Aggregate speckle, so tarmac at 100 km/h is a surface rather than a
+      // flat grey ribbon with no sensation of movement over it.
+      // Fine aggregate. vUv.x is in METRES along the way, so the cell size here
+      // is a real size on the ground: at 3 per metre the speckle came out as
+      // 30 cm tiles and the road read as a checkerboard. 14 per metre is chip.
+      '  float g = fract(sin(dot(floor(vec2(vUv.x * 14.0, vUv.y * 26.0)), vec2(127.1, 311.7))) * 43758.5453);',
+      '  float g2 = fract(sin(dot(floor(vec2(vUv.x * 3.5, vUv.y * 5.0)), vec2(269.5, 183.3))) * 43758.5453);',
+      '  vec3 tarmac = vec3(0.21,0.21,0.23) * (0.62 + vTone) * (0.95 + 0.07 * g + 0.05 * g2);',
       // Kerb: a lighter band at both edges of the ribbon.
-      '  float edge = smoothstep(0.5, 0.44, abs(vUv.y - 0.5));',
-      '  tarmac = mix(tarmac * 1.35, tarmac, edge);',
-      // Centre line: only on the bigger classes (tone carries the class), and
-      // dashed in metres so the dashes stay a fixed size on the ground.
-      '  float mid = 1.0 - smoothstep(0.012, 0.03, abs(vUv.y - 0.5));',
-      '  float dash = step(0.5, fract(vUv.x / 9.0));',
-      '  float paint = mid * dash * step(0.5, vTone);',
-      '  vec3 c = mix(tarmac, vec3(0.85,0.82,0.62), paint);',
+      '  float edge = smoothstep(0.5, 0.45, abs(vUv.y - 0.5));',
+      '  tarmac = mix(tarmac * 1.30, tarmac, edge);',
+      // Edge lines on everything, centre line on anything bigger than a lane.
+      // The old rule painted a centre line only above tone 0.5, which excluded
+      // residential streets — i.e. most of what you actually drive on — so the
+      // roads had no markings at all where it mattered.
+      '  float edgeLine = (1.0 - smoothstep(0.004, 0.013, abs(abs(vUv.y - 0.5) - 0.455)));',
+      '  float mid = 1.0 - smoothstep(0.010, 0.026, abs(vUv.y - 0.5));',
+      '  float dash = step(0.42, fract(vUv.x / 9.0));',
+      '  float paint = max(mid * dash * step(0.45, vTone), edgeLine * 0.62);',
+      '  vec3 c = mix(tarmac, vec3(0.88,0.86,0.72), clamp(paint, 0.0, 1.0));',
       '  gl_FragColor = vec4(fogged(c), 1.0);',
       '}',
     ].join('\n'));
 
-    // --- buildings: flat-shaded extrusions ---
+    // --- buildings: extrusions with floors, windows and a per-building colour ---
+    // OSM gives a footprint and a height and nothing else, so everything that
+    // makes these read as BUILDINGS rather than grey slabs is generated here:
+    // storey bands from the height above each building's OWN base, window
+    // columns from position along the wall, and a colour picked by a stable
+    // per-building seed so a street has variety instead of one flat tone.
     progs.building = program([
-      'attribute vec3 aPos; attribute vec3 aNormal; attribute float aTone;',
+      'attribute vec3 aPos; attribute vec3 aNormal; attribute float aTone; attribute vec2 aBinfo;',
       'uniform mat4 uViewProj; uniform vec3 uEye;',
-      'varying vec3 vNormal; varying float vTone; varying float vDist; varying float vY;',
-      'void main(){ vNormal=aNormal; vTone=aTone; vY=aPos.y; vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
+      'varying vec3 vNormal; varying float vTone; varying float vDist;',
+      'varying vec3 vWorld; varying vec2 vBinfo;',
+      'void main(){ vNormal=aNormal; vTone=aTone; vWorld=aPos; vBinfo=aBinfo;',
+      '  vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir;',
-      'varying vec3 vNormal; varying float vTone; varying float vY;',
+      'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec2 vBinfo;',
       FOG,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
+      '  float s = fract(vBinfo.y);',
+      // Four plausible facade colours: warm stone, cool grey, terracotta, off-white.
+      '  vec3 base = vec3(0.79,0.75,0.68);',
+      '  if (s > 0.25) base = vec3(0.68,0.69,0.71);',
+      '  if (s > 0.50) base = vec3(0.74,0.57,0.46);',
+      '  if (s > 0.75) base = vec3(0.86,0.84,0.79);',
+      '  float isWall = 1.0 - step(0.55, abs(n.y));',
+      '  float h = vWorld.y - vBinfo.x;',            // height above THIS building's base
+      // Storey bands. Using the building's own base is what keeps windows level
+      // across a terrace built on a slope.
+      '  float band = fract(h / 3.3);',
+      '  float floorLit = fract(sin((floor(h / 3.3) + s * 31.0) * 12.9898) * 43758.5453);',
+      // Run the window columns along whichever horizontal axis the wall faces.
+      '  float u = abs(n.x) > abs(n.z) ? vWorld.z : vWorld.x;',
+      '  float col = fract(u / 2.6 + s);',
+      // Roughly 0.9 m x 1.1 m of glass per 2.6 m x 3.3 m of facade. The first
+      // pass used 1.7 m windows on a 3.2 m pitch, which is more glass than
+      // wall — from a distance that is not a building, it is a chessboard.
+      '  float win = isWall * step(0.34, band) * step(band, 0.68)',
+      '            * step(0.32, col) * step(col, 0.68) * step(2.2, h);',
+      // Glass reflects the sky more than it swallows light, and a few windows
+      // per floor differ — a facade of identical black holes reads as printed.
+      '  vec3 glass = mix(vec3(0.24,0.30,0.38), vec3(0.55,0.64,0.72), floorLit);',
+      // Fade the pattern out with distance. A window grid is high-frequency
+      // detail and there is no mip chain behind a procedural step() — past
+      // ~80 m it aliases into a crawling dither that reads as dirt on the
+      // facade. Beyond the fade the wall keeps a slightly darker average, which
+      // is what a windowed building looks like from far away anyway.
+      '  float near = 1.0 - smoothstep(80.0, 260.0, vDist);',
+      '  base = mix(base, glass, win * 0.72 * near);',
+      '  base = mix(base, base * 0.93, (1.0 - near) * isWall);',
+      // Grime toward the ground, and a darker roof.
+      '  base *= mix(0.72, 1.0, clamp(h / 5.0, 0.0, 1.0));',
+      '  base = mix(base, base * 0.78, step(0.55, abs(n.y)) * step(0.0, n.y));',
       '  float lam = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);',
-      '  vec3 base = vec3(0.82,0.79,0.75) * vTone;',
-      '  gl_FragColor = vec4(fogged(base * (0.62 + 0.62 * lam)), 1.0);',
+      '  gl_FragColor = vec4(fogged(base * vTone * (0.70 + 0.66 * lam)), 1.0);',
       '}',
     ].join('\n'));
 
@@ -220,6 +280,27 @@
       '}',
     ].join('\n'));
 
+    // --- shadow: a soft blob on the ground under each car ---
+    // Cheap, and it does more for believability than any amount of shading:
+    // without a contact shadow the car reads as hovering, and on a slope you
+    // genuinely cannot tell whether it is touching the ground.
+    progs.shadow = program([
+      'attribute vec2 aPos;',
+      'uniform mat4 uViewProj; uniform vec3 uCentre; uniform float uRadius;',
+      'varying vec2 vLocal;',
+      'void main(){ vLocal = aPos;',
+      '  vec3 w = uCentre + vec3(aPos.x * uRadius, 0.0, aPos.y * uRadius * 1.45);',
+      '  gl_Position = uViewProj * vec4(w, 1.0); }',
+    ].join('\n'), [
+      'precision highp float;',
+      'varying vec2 vLocal;',
+      'void main(){',
+      '  float d = length(vLocal);',
+      '  float a = smoothstep(1.0, 0.15, d) * 0.42;',
+      '  gl_FragColor = vec4(0.0, 0.0, 0.0, a);',
+      '}',
+    ].join('\n'));
+
     // --- sky: a full-screen gradient drawn before everything, depth off ---
     progs.sky = program([
       'attribute vec2 aPos; varying vec2 vP;',
@@ -239,7 +320,7 @@
     if (mesh._gl) return mesh._gl;
     var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count,
               type: (mesh.indices instanceof Uint32Array) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
-    ['positions', 'normals', 'uvs', 'tone'].forEach(function (k) {
+    ['positions', 'normals', 'uvs', 'tone', 'binfo'].forEach(function (k) {
       if (!mesh[k]) return;
       var buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -308,17 +389,30 @@
 
   function buildCarMesh() {
     var o = { pos: [], nrm: [], col: [], idx: [] };
-    var body = [1, 1, 1], glassC = [0.22, 0.28, 0.36], tyre = [0.08, 0.08, 0.09];
-    // The boxes must NOT interpenetrate. Wheels buried in the body and a cabin
-    // sunk into the roof put near-parallel faces a few millimetres apart, and
-    // the depth buffer cannot separate them: the car renders as flickering
-    // magenta panels with black seams. So the wheels sit just outboard of the
-    // flanks and the cabin sits ON the body rather than in it.
-    boxInto(o, 0, 0.62, 0,     0.84, 0.28, 2.00, body);        // body: y 0.34 – 0.90
-    boxInto(o, 0, 1.18, -0.18, 0.70, 0.29, 1.00, glassC);      // cabin: y 0.89 – 1.47
+    var body = [1, 1, 1], glassC = [0.16, 0.21, 0.28], tyre = [0.07, 0.07, 0.08];
+    var lamp = [1.0, 0.94, 0.80], tail = [0.85, 0.10, 0.08], trim = [0.16, 0.16, 0.18];
+    // Silhouette matters more than polygon count at this scale: a single box
+    // with a smaller box on top reads as a brick, so the shape is broken into
+    // bonnet / cabin / boot at different heights, which is what makes it read
+    // as a car from behind — the only angle the chase camera ever shows.
+    //
+    // The boxes must NOT interpenetrate: parallel faces a millimetre apart are
+    // beyond the depth buffer and flicker as magenta seams.
+    boxInto(o, 0, 0.60, 0,      0.86, 0.26, 2.05, body);       // main body   y 0.34–0.86
+    boxInto(o, 0, 0.94, 1.28,   0.80, 0.09, 0.72, body);       // bonnet      y 0.85–1.03
+    boxInto(o, 0, 0.94, -1.55,  0.80, 0.08, 0.46, body);       // boot lid    y 0.86–1.02
+    boxInto(o, 0, 1.20, -0.22,  0.72, 0.29, 0.92, glassC);     // cabin/glass y 0.91–1.49
+    boxInto(o, 0, 1.50, -0.22,  0.70, 0.03, 0.88, body);       // roof panel
+    // Lamps. Slightly proud of the bodywork so they never z-fight with it.
+    boxInto(o, -0.58, 0.80, 2.09, 0.20, 0.09, 0.04, lamp);
+    boxInto(o,  0.58, 0.80, 2.09, 0.20, 0.09, 0.04, lamp);
+    boxInto(o, -0.60, 0.82, -2.09, 0.22, 0.10, 0.04, tail);
+    boxInto(o,  0.60, 0.82, -2.09, 0.22, 0.10, 0.04, tail);
+    boxInto(o, 0, 0.42, 2.08, 0.74, 0.10, 0.04, trim);         // front bumper
+    boxInto(o, 0, 0.42, -2.08, 0.74, 0.10, 0.04, trim);        // rear bumper
     var wy = 0.33, wr = 0.33;
     [[-0.92, 1.32], [0.92, 1.32], [-0.92, -1.32], [0.92, -1.32]].forEach(function (w) {
-      boxInto(o, w[0], wy, w[1], 0.10, wr, wr, tyre);          // x 0.82 – 1.02, outboard of 0.84
+      boxInto(o, w[0], wy, w[1], 0.10, wr, wr, tyre);          // x 0.82 – 1.02, outboard of 0.86
     });
     return {
       positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
@@ -340,6 +434,16 @@
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, carGL.ibo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, carMesh.indices, gl.STATIC_DRAW);
     return carGL;
+  }
+
+  // ---- shadow quad ---------------------------------------------------------
+  var shadowBuf = null;
+  function uploadShadow() {
+    if (shadowBuf) return shadowBuf;
+    shadowBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shadowBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1]), gl.STATIC_DRAW);
+    return shadowBuf;
   }
 
   // ---- sky quad ------------------------------------------------------------
@@ -377,7 +481,7 @@
 
   // ---- public --------------------------------------------------------------
   var view = mat4(), proj = mat4(), viewProj = mat4();
-  var SKY_TOP = [0.26, 0.51, 0.78], SKY_HORIZON = [0.72, 0.83, 0.91];
+  var SKY_TOP = [0.20, 0.44, 0.76], SKY_HORIZON = [0.78, 0.85, 0.89];
   var LIGHT = [0.45, 0.78, 0.30];
 
   function init(cv) {
@@ -476,8 +580,36 @@
     common(progs.building);
     for (var b = 0; b < scene.buildings.length; b++) {
       drawMesh(progs.building, scene.buildings[b], {
-        aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 }, aTone: { src: 'tone', size: 1 },
+        aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
+        aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 2 },
       });
+    }
+
+    // Contact shadows, before the cars themselves. Blended, and with depth
+    // WRITES off so one shadow cannot occlude another or the car above it —
+    // they still depth-TEST, so a shadow behind a building stays hidden.
+    if (scene.cars && scene.cars.length) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(progs.shadow.id);
+      gl.uniformMatrix4fv(progs.shadow.u.uViewProj, false, viewProj);
+      gl.bindBuffer(gl.ARRAY_BUFFER, uploadShadow());
+      gl.enableVertexAttribArray(progs.shadow.a.aPos);
+      gl.vertexAttribPointer(progs.shadow.a.aPos, 2, gl.FLOAT, false, 0, 0);
+      for (var sc = 0; sc < scene.cars.length; sc++) {
+        var s0 = scene.cars[sc];
+        // Sit it a few centimetres above the ground the car is standing on, so
+        // it never z-fights with the road surface it is cast onto.
+        gl.uniform3fv(progs.shadow.u.uCentre, [s0.x, (s0.groundY != null ? s0.groundY : s0.y) + 0.06, s0.z]);
+        gl.uniform1f(progs.shadow.u.uRadius, 1.5);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+      gl.disableVertexAttribArray(progs.shadow.a.aPos);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.enable(gl.CULL_FACE);
     }
 
     // Cars

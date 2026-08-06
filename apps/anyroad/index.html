@@ -35,11 +35,30 @@
     </svg>
   </div>
 
-  <!-- Touch controls. The left half of the canvas is a virtual wheel (drag to
-       steer), so only the pedals need to be real buttons. -->
-  <div class="pedals" id="pedals">
-    <button class="pedal brake" id="pedal-brake" aria-label="Brake">◀</button>
-    <button class="pedal gas" id="pedal-gas" aria-label="Accelerate">▶</button>
+  <!-- Touch controls.
+       The old version put ◀ and ▶ where the pedals go, which every hand reads
+       as "left" and "right" — and hid the actual steering behind an invisible
+       drag on the left half of the screen. So: steering is now a VISIBLE pad
+       with a knob that moves, and the pedals say what they are in words. -->
+  <div class="controls" id="controls">
+    <div class="steerpad" id="steerpad" aria-label="Steering">
+      <div class="steer-track">
+        <span class="steer-tick"></span>
+        <div class="steer-knob" id="steer-knob"></div>
+      </div>
+      <div class="steer-hint"><span>◀</span><b>SLIDE TO STEER</b><span>▶</span></div>
+    </div>
+    <div class="pedals">
+      <button class="pedal brake" id="pedal-brake" aria-label="Brake">BRAKE</button>
+      <button class="pedal gas" id="pedal-gas" aria-label="Accelerate">GO</button>
+    </div>
+  </div>
+
+  <!-- First-drive coach marks: shown once, dismissed by the first touch. -->
+  <div class="coach" id="coach" hidden>
+    <div class="coach-steer">Slide anywhere on this side to steer</div>
+    <div class="coach-gas">Hold to<br>accelerate</div>
+    <div class="coach-brake">Hold to brake<br>and reverse</div>
   </div>
 </div>
 

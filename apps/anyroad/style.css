@@ -67,9 +67,11 @@ html, body {
 }
 
 .speedo {
-  position: absolute; left: 14px; bottom: calc(14px + var(--safe-b));
+  /* Above the controls, not behind them: the driving controls now occupy the
+     bottom strip and were covering the speed read-out entirely. */
+  position: absolute; left: 16px; bottom: calc(132px + var(--safe-b));
   display: flex; align-items: baseline; gap: 5px;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
 }
 .speedo span { font-size: 46px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .speedo small { font-size: 12px; color: var(--dim); }
@@ -84,7 +86,7 @@ html, body {
 
 /* Race read-out: time, distance, and an arrow that points at the finish. */
 .racehud {
-  position: absolute; right: 14px; top: calc(56px + var(--safe-t));
+  position: absolute; right: 14px; top: calc(60px + var(--safe-t));
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
 }
@@ -92,19 +94,85 @@ html, body {
 .rh-dist { font-size: 12px; color: var(--dim); }
 .rh-arrow { width: 44px; height: 44px; color: var(--accent); margin-top: 4px; }
 
-.pedals {
-  position: absolute; right: 12px; bottom: calc(12px + var(--safe-b));
-  display: flex; gap: 10px;
+/* ── driving controls ─────────────────────────────────────────────────────
+   Two rules learned the hard way from a phone: an affordance you cannot SEE
+   does not exist, and an arrow glyph on a pedal means "go that way", not
+   "accelerate". So the steering shows a knob that actually moves, and the
+   pedals are labelled in words. */
+.controls {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 12px calc(12px + var(--safe-b));
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 12px; pointer-events: none;
 }
-.pedal {
-  width: 74px; height: 74px; border-radius: 50%;
-  border: 1px solid var(--line); background: rgba(10, 14, 24, 0.6);
-  color: var(--ink); font-size: 22px; cursor: pointer;
+
+.steerpad {
+  pointer-events: auto;
+  /* Percentage-only made this 690 px wide on a desktop window — a steering
+     slider half a metre long. Cap it in pixels; thumbs are the same size on
+     every screen. */
+  flex: 1; max-width: min(54%, 340px);
+  padding: 12px 12px 10px;
+  border-radius: 16px;
+  background: rgba(10, 14, 24, 0.5);
+  border: 1px solid var(--line);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   touch-action: none;
 }
-.pedal.gas:active { background: rgba(50, 140, 90, 0.75); }
-.pedal.brake:active { background: rgba(150, 55, 55, 0.75); }
+.steer-track {
+  position: relative; height: 38px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.steer-tick {
+  position: absolute; left: 50%; top: 6px; bottom: 6px; width: 2px;
+  margin-left: -1px; background: rgba(255, 255, 255, 0.22); border-radius: 2px;
+}
+.steer-knob {
+  position: absolute; top: 3px; bottom: 3px; width: 54px;
+  left: 50%; margin-left: -27px;
+  border-radius: 8px; background: var(--accent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  transition: background 120ms;
+}
+.steerpad.active .steer-knob { background: #8fd0ff; }
+.steer-hint {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 7px; font-size: 10px; letter-spacing: 0.09em;
+  color: var(--dim); font-weight: 700;
+}
+.steer-hint span { font-size: 13px; opacity: 0.75; }
+
+.pedals { display: flex; gap: 10px; pointer-events: auto; }
+.pedal {
+  width: 84px; height: 84px; border-radius: 20px;
+  border: 1px solid var(--line);
+  color: var(--ink); font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+  cursor: pointer; touch-action: none;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.pedal.gas { background: rgba(38, 122, 78, 0.62); border-color: rgba(120, 230, 170, 0.35); }
+.pedal.brake { background: rgba(126, 44, 44, 0.55); border-color: rgba(240, 140, 140, 0.3); }
+.pedal.gas:active, .pedal.gas.on { background: rgba(52, 190, 118, 0.92); color: #04140c; }
+.pedal.brake:active, .pedal.brake.on { background: rgba(214, 74, 74, 0.92); color: #1a0505; }
+
+/* Coach marks: once, on the first drive. */
+.coach { position: absolute; inset: 0; pointer-events: none; }
+.coach div {
+  position: absolute; padding: 8px 11px; border-radius: 10px;
+  background: rgba(8, 12, 20, 0.86); border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 12px; line-height: 1.35; font-weight: 600; text-align: center;
+  animation: coachpulse 2.2s ease-in-out infinite;
+}
+.coach-steer { left: 14px; bottom: calc(196px + var(--safe-b)); max-width: 60%; }
+.coach-gas { right: 14px; bottom: calc(112px + var(--safe-b)); }
+.coach-brake { right: 104px; bottom: calc(112px + var(--safe-b)); }
+@keyframes coachpulse { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.55; } }
+
+@media (max-width: 380px) {
+  .pedal { width: 72px; height: 72px; }
+}
 
 /* ── overlays ────────────────────────────────────────────────────────────── */
 .overlay {
@@ -189,7 +257,8 @@ select {
 .attribution { margin: 18px 0 0; color: var(--dim); font-size: 10.5px; line-height: 1.6; }
 
 .note {
-  position: fixed; left: 50%; bottom: calc(100px + var(--safe-b)); transform: translateX(-50%);
+  /* Top, not bottom: at the bottom it sat directly across the speedometer. */
+  position: fixed; left: 50%; top: calc(96px + var(--safe-t)); transform: translateX(-50%);
   z-index: 30; max-width: 84vw;
   padding: 9px 14px; border-radius: 11px;
   background: rgba(10, 14, 24, 0.94); border: 1px solid var(--line);

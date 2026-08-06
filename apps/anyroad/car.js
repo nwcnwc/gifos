@@ -44,9 +44,12 @@
     car.yaw += turnRate * dt * (car.speed < 0 ? -1 : 1);
 
     // --- longitudinal ------------------------------------------------------
-    var grip = car.onRoad ? 1 : 0.62;
+    // Tarmac versus everything else. Until the road index existed, onRoad was
+    // set once at spawn and never updated, so a field drove exactly like a
+    // motorway — which is most of why the world felt weightless.
+    var grip = car.onRoad ? 1 : 0.55;
     var power = 11.5 * grip;                            // m/s² at full throttle
-    var maxSpeed = (car.onRoad ? 62 : 26);              // ~220 km/h on tarmac
+    var maxSpeed = (car.onRoad ? 62 : 19);              // ~220 km/h vs ~68 off road
     var accel = 0;
 
     if (input.throttle > 0) {
@@ -61,7 +64,7 @@
     if (input.handbrake) accel -= Math.sign(car.speed) * 9;
 
     // Drag and rolling resistance.
-    accel -= Math.sign(car.speed) * (0.0021 * car.speed * car.speed + (car.onRoad ? 0.45 : 2.1));
+    accel -= Math.sign(car.speed) * (0.0021 * car.speed * car.speed + (car.onRoad ? 0.45 : 1.9));
 
     // Hills. pitch>0 means nose up, so gravity pulls backwards along the body.
     accel -= GRAVITY * Math.sin(car.pitch) * 0.85;
@@ -126,10 +129,12 @@
   // wheel: drag anywhere on the left of the screen and how far you have moved
   // horizontally IS the steering angle, which beats on-screen arrows because
   // your thumb never has to find a target.
-  function controls(surface) {
+  function controls(surface, opts) {
+    opts = opts || {};
+    var steerEl = opts.steerEl || null;
+    var onFirstTouch = opts.onFirstTouch || null;
     var input = blankInput();
     var keys = {};
-    var touchSteerId = null, touchStartX = 0;
     var pedal = { throttle: false, brake: false };
 
     // The driving keys are bound on WINDOW, so they also fire while you are
@@ -165,31 +170,77 @@
     // A lost focus must not leave the throttle pinned.
     root.addEventListener('blur', function () { keys = {}; });
 
-    function pointerDown(e) {
-      var half = surface.clientWidth / 2;
-      if (e.clientX < half && touchSteerId === null) {
-        touchSteerId = e.pointerId; touchStartX = e.clientX;
-        surface.setPointerCapture && surface.setPointerCapture(e.pointerId);
-      }
+    // ---- touch steering ----------------------------------------------------
+    // Two ways in, because they suit different hands:
+    //
+    //  PAD (the visible control) — ABSOLUTE. Where your thumb sits across the
+    //    pad IS the steering angle, so the knob under it is a true read-out and
+    //    full lock is reachable without a long drag. This is the discoverable
+    //    one; it is the thing on screen with a label.
+    //  CANVAS left half — RELATIVE to where you first touched, so you can drive
+    //    without looking down and without hunting for the pad.
+    //
+    // Either way the wheel springs back to centre on release.
+    var steerTouch = null;    // { id, mode:'pad'|'free', startX }
+    var DEAD = 0.05;          // fraction of half-width treated as straight ahead
+
+    function fromPad(clientX) {
+      var r = steerEl.getBoundingClientRect();
+      var half = r.width / 2;
+      var v = (clientX - (r.left + half)) / half;
+      if (Math.abs(v) < DEAD) return 0;
+      v = (v - Math.sign(v) * DEAD) / (1 - DEAD);
+      return Math.max(-1, Math.min(1, v));
     }
-    function pointerMove(e) {
-      if (e.pointerId !== touchSteerId) return;
-      var span = Math.max(60, surface.clientWidth * 0.18);
-      input.steer = Math.max(-1, Math.min(1, (e.clientX - touchStartX) / span));
+    function fromFree(clientX) {
+      var span = Math.max(70, surface.clientWidth * 0.20);
+      return Math.max(-1, Math.min(1, (clientX - steerTouch.startX) / span));
     }
-    function pointerUp(e) {
-      if (e.pointerId === touchSteerId) { touchSteerId = null; input.steer = 0; }
+
+    function steerDown(e, mode) {
+      if (steerTouch) return;
+      steerTouch = { id: e.pointerId, mode: mode, startX: e.clientX };
+      input.steer = mode === 'pad' ? fromPad(e.clientX) : 0;
+      var el = mode === 'pad' ? steerEl : surface;
+      if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (err) {} }
+      if (steerEl) steerEl.classList.add('active');
+      if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
     }
-    surface.addEventListener('pointerdown', pointerDown);
-    surface.addEventListener('pointermove', pointerMove);
-    surface.addEventListener('pointerup', pointerUp);
-    surface.addEventListener('pointercancel', pointerUp);
+    function steerMove(e) {
+      if (!steerTouch || e.pointerId !== steerTouch.id) return;
+      input.steer = steerTouch.mode === 'pad' ? fromPad(e.clientX) : fromFree(e.clientX);
+    }
+    function steerUp(e) {
+      if (!steerTouch || e.pointerId !== steerTouch.id) return;
+      steerTouch = null; input.steer = 0;
+      if (steerEl) steerEl.classList.remove('active');
+    }
+
+    if (steerEl) {
+      steerEl.addEventListener('pointerdown', function (e) { e.preventDefault(); steerDown(e, 'pad'); });
+      steerEl.addEventListener('pointermove', steerMove);
+      steerEl.addEventListener('pointerup', steerUp);
+      steerEl.addEventListener('pointercancel', steerUp);
+    }
+    surface.addEventListener('pointerdown', function (e) {
+      if (e.clientX < surface.clientWidth / 2) steerDown(e, 'free');
+      else if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
+    });
+    surface.addEventListener('pointermove', steerMove);
+    surface.addEventListener('pointerup', steerUp);
+    surface.addEventListener('pointercancel', steerUp);
 
     return {
       input: input,
-      setPedal: function (which, on) { pedal[which] = on; },
-      // Called once per frame: fold keyboard state into the same input object
-      // the touch handlers have been writing to.
+      setPedal: function (which, on) {
+        pedal[which] = on;
+        if (on && onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
+      },
+      steering: function () { return steerTouch !== null; },
+      // Called once per frame. Touch owns the wheel while a finger is down;
+      // otherwise the keyboard does; otherwise it recentres. Written as one
+      // explicit precedence chain because the old version mixed a decay term
+      // into the touch path and the wheel drifted while you held it.
       sample: function () {
         var kThrottle = (keys['w'] || keys['arrowup']) ? 1 : 0;
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
@@ -197,8 +248,9 @@
         input.throttle = Math.max(kThrottle, pedal.throttle ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
         input.handbrake = !!keys[' '];
-        if (touchSteerId === null && kSteer !== 0) input.steer = kSteer;
-        else if (touchSteerId === null && kSteer === 0 && !input.steerHeldByTouch) input.steer *= 0.6;
+        if (steerTouch) { /* the finger owns it */ }
+        else if (kSteer !== 0) input.steer = kSteer;
+        else input.steer = 0;
         return input;
       },
       keys: keys,
