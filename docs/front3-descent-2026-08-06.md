@@ -22,6 +22,37 @@ better *policy* for choosing among candidates, and there is nothing to choose.
 teleporting. The barrier is the ordering, not the topology. See the correction
 below; I got this wrong on the first pass and it changes the fix.)
 
+## AT THE PLATEAU (N=5000 det, 60k cap) — this IS the plateau
+
+Everything below was measured at N=3000, which CONVERGES. The stalled regime
+says the same thing far more starkly. Seated 3076/5000 — the known plateau,
+reproduced exactly.
+
+| | N=3000 (converges) | N=5000 (plateaus) |
+|---|---|---|
+| descents | 150,118 | **31,012,955** |
+| FINDs ending at the DEPTH WALL | 1,612 | **2,439,260** (96% of terminations) |
+| deep admits | 18,485 | 55,849 |
+| hop histogram | spread over 0-12 | flat ~15k at 0-11, then **2,441,209 at exactly 12** |
+| descents by depth | decays 27.7k -> 1.7k | **flat: 2.69M at d0 … 2.45M at d11** |
+| chose shallowest branch | 6.3% | **0.2%** |
+| dmin chosen / best | 5.88 / 4.86 | 8.49 / **6.89** |
+
+Read the hop and depth histograms together: **essentially every seeker walks
+all twelve levels down and NOROOMs at the wall**, and the per-depth counts
+barely decay, so a FIND that starts descending almost never finds a home on
+the way. 31 million descents for 1,924 unseated seekers.
+
+**And the room is not full.** `FREEDEPTH` at the plateau: **11,259 admissible
+frontier cells** — 327 at depth 2, ~1,000 at every depth from 3 to 12 — unused
+while seekers grind the wall 2.4 million times. Those cells are in rows under
+columns 1-4. The seekers are pinned to column 0 and never see them.
+
+So the plateau is not a contest-cost problem (front 1, correctly retired), not
+a digest-routing problem, and not capacity-blindness. **The seeker is handed
+the same single edge at every hop, walks it to the depth wall, and retries
+forever, while the room's free space sits one column over.**
+
 ## Why the seed's hypothesis was wrong
 
 The standing hypothesis (docs/handoff-2026-08-06-fallback.md, front 3) was
