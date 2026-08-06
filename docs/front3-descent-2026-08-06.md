@@ -179,7 +179,82 @@ sits in sibling subtrees a FIND could perfectly well have been routed into.
 This is also why all four fixes failed identically. Each was a better rule for
 choosing among candidates; 88.8% of the time there is one candidate.
 
-## The fix this points to — NOT BUILT, and it is a design decision
+## T7 SPREAD-AFTER-NOROOM — BUILT, IT WORKS, AND IT IS OFF BY DEFAULT
+
+Built 2026-08-06 (sim verb `spreadon 0|1`, **default OFF**). It solves the
+plateau outright and it is not shippable as it stands. Both halves are real.
+
+**The change.** On a FIND whose seeker has already been told NOROOM *to its
+face*, a reachable-but-unheard sibling may compete in pass 0:
+
+    pass==0 ? (firstHandLive(rk) || (mm.spread && admitterReachable(rk)))
+            : admitterReachable(rk)
+
+`spread` is set only by an EXPLICIT NOROOM (`case NOROOM`), never by a
+timeout. That distinction is the whole safety argument: **the plateau fails
+LOUD** (2.44M delivered NOROOMs) while **a split fails SILENT** (the FIND is
+swallowed, the seeker times out on a different code path). So a partitioned
+seeker can never set the flag, and pass 0's deliverability preference is
+untouched exactly where it is load-bearing. The hop also stays strictly
+DOWNWARD into the child row, so depth increases monotonically and no cycle is
+possible — this needs no loop discipline, unlike shape 3.
+
+**What it buys** (det, `converge` under cap, dups=0 and CHECK PASS throughout):
+
+| | baseline | T7 |
+|---|---|---|
+| N=5000 seed 20260714 | TIMEOUT 3076/5000 | **converged@3200, 5000/5000** |
+| N=5000 seed 7 / 101 / 2029 | TIMEOUT 3076/5000 | **3264 / 3392 / 3392, all 5000/5000** |
+| N=10000 | (never attempted — 5000 stalled) | **converged@3776, 10000/10000** |
+| N=20000 | " | **converged@4480, 20000/20000** |
+| N=3000, four seeds | 6976 / 4096 / 4160 / 4480 | **2624 / 2752 / 2560 / 2816** |
+| N=5000 moves / evictions | 113,061 / 11,022 | **20,687 / 3,739** |
+
+Every seed improves — no sign flip, which is precisely what killed T6b. The
+scaling is sub-linear: 6.7x the seats for 1.7x the ticks.
+`test/sim/scale-frontier.sh` reports **SCALE GREEN** with the flag on.
+Split-room legs stay green: repro-headless-row A/B/**C**, repro-hchain E/F.
+
+**Why it is OFF.** It costs TREE COMPACTNESS. Spreading seekers across the
+child row opens more sections and lone rows than compaction can collapse, and
+`repro-compaction` leg 1 reds. Clean A/B on the same tree:
+
+| | leg 1 (gradual shrink) |
+|---|---|
+| baseline | **COMPACTION GREEN** |
+| T7 | **RED** — `sections grew past the floor allowance (seed 2: 23 > 16+1)`, `aggregate lone-rows not reduced (35 !< 32)` |
+
+Legs 2 (oscillation) and 3 (adversarial mass-kill) stay green, and correctness
+is never in question — CHECK PASS, dups=0, no teleport. What regresses is the
+shape of the tree, and **the fix and that assertion are in direct tension by
+construction**: T7 exists to spread breadth-wise, leg 1 asserts the tree
+collapses toward a minimal section count.
+
+Raising the evidence bar does NOT separate them (measured, not assumed):
+
+| threshold | N=5000 | compaction leg 1 |
+|---|---|---|
+| 1 NOROOM | converged@3200 | RED, 5 failures |
+| 2 NOROOMs | converged@3904 | RED, 8 failures |
+
+So the trade is inherent to spreading, not an artifact of an over-eager
+trigger. **ON is not a superset of OFF**, which is exactly why the default
+must stay OFF and why this is not a shim: `spreadon` is an A/B toggle in the
+same idiom as `compacton` and `digeston`, and default-off is byte-identical to
+baseline (N=3000 det: converged@6976, moves=29387, evict=4569).
+
+**The remaining work is the trade, not the mechanism.** Open questions, in the
+order I would take them: does compaction simply need longer / a higher rate
+limit to collapse a wider tree (leg 1's allowance is a floor+1, and a spread
+tree may legitimately need more passes)? Should the spread be depth-gated, so
+it only fires below the depth where fragmentation stops mattering? Or is a
+wider, shallower tree actually the BETTER shape — in which case leg 1's floor
+is the thing that is wrong, and that is an argued change to the compaction
+law, not a test tweak. NOTE the JS twin does NOT have T7: the twins diverge
+here deliberately, exactly as they already do for the digest, until this is
+resolved.
+
+## The three shapes this pointed to — for the record
 
 The lever is the PASS ORDERING in `serveFind`, not the link structure and not
 the choice rule. Today:

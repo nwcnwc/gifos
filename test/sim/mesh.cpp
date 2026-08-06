@@ -58,6 +58,13 @@ struct Msg {
   uint64_t ck=0,oCk=0,tock=0,gkey=0,mvd=0;   // mvd: LEAVE/MOVED destination coord (law T3 — the goodbye carries where the mover went)
   Coord coord{0,0,0},hole{0,0,0},target{0,0,0};
   bool kids=false;
+  // T7 SPREAD-AFTER-NOROOM. Set on a FIND whose seeker has already been told
+  // NOROOM to its face. It is EVIDENCE, not a preference: an explicit NOROOM
+  // came back over a delivered path, so the route was reachable and merely
+  // full. A split-room failure is SILENT (the FIND is swallowed, the seeker
+  // times out), so this flag can never be set by one — which is what keeps
+  // pass 0's deliverability preference intact exactly where it is load-bearing.
+  bool spread=false;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
   // § G digest payloads. dgUp rides PHONE (what I contribute to my aggregator);
   // dgPub + dgRoot ride PONG (what I publish back to you — the G4 checker's
@@ -82,6 +89,14 @@ static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
 static long long COMPACT_PROBES=0, COMPACT_MOVES=0, COMPACT_ADMITS=0, COMPACT_PLACES=0, COMPACT_ATS1=0, COMPACT_SWEEP=0;   // Q2 diagnostics
 static bool HEALING=true;
 static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
+// T7 SPREAD-AFTER-NOROOM — front 3's fix, DEFAULT OFF (`spreadon 0|1`).
+// It converges rooms that have never converged (N=5000 3076-stuck -> 5000/5000
+// in 3200 ticks; N=20000 in 4480; all seeds; dups=0) but it COSTS TREE
+// COMPACTNESS: spreading seekers across the child row opens more sections and
+// lone rows than compaction can collapse, and repro-compaction leg 1 reds.
+// That trade is unresolved, so the default must stay OFF: ON is not a superset
+// of OFF. See docs/front3-descent-2026-08-06.md.
+static bool SPREAD=false;
 // V1 ROLLUP (healing-laws § G). `digeston 0|1`. The A/B exists to PROVE G1: the
 // rollup adds no frame and no decision, so ON and OFF must produce identical
 // seating trajectories — if they ever diverge, something in the digest actuated.
@@ -281,6 +296,10 @@ struct Seat {
   // trajectory-identity leg of repro-digest.sh, not by good intentions.
   bool refuses=false;      // MY OWN first-hand consent state (has NOT consented). Local, never derived from a digest.
   int  lie=0;              // adversary knob: 1 = publish refuse=0/part=0 (SUPPRESS — the one dangerous direction), 2 = inflate n
+  // T7: has this seeker been told NOROOM to its face since it last entered the
+  // search? Only an EXPLICIT NOROOM sets it — a timeout never does. Cleared on
+  // seating and on re-entry, so the evidence never outlives the attempt.
+  int noroomSeen=0;
   Dig  myDig, rowDig, rootDig;              // my subtree fold / my row fold (deep heads) / the room fold
   Dig  downDig;                             // the ROW digest my down-child head published up to me (my whole owned child row)
   unordered_map<uint64_t,Dig> rowKids;      // head only: each row-mate's subtree digest   (<= C-1)
@@ -498,7 +517,7 @@ struct Seat {
   // consumes reJoin, so the seat wedged forever: seated-looking, coordless,
   // knocking never (behavior 04a: a 20s radio blip left one phone solo for 3.5
   // minutes until the NEXT blip re-fired the rescue at a fresh tick).
-  void join(){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d join() state=%d haveRoster=%d resumeTries=%d\n",(long long)TICK,id,state,(int)haveRoster,resumeTries);} if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
+  void join(){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d join() state=%d haveRoster=%d resumeTries=%d\n",(long long)TICK,id,state,(int)haveRoster,resumeTries);} if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); noroomSeen=0;   /* T7: a fresh knock is a fresh attempt — the NOROOM evidence does not carry over */ if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
   // ENTRY RESUME (2026-08-04 plane incident; mesh.js resumeAsk is the origin,
   // this is its sim twin — test/tools/seat-flap-repro.js measures it). The
   // dance is three door round trips and a retry used to restart from the
@@ -519,7 +538,7 @@ struct Seat {
     Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w);
     state=1; retryAt=(int)TICK; wake(id); return true;
   }
-  void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; emit(target,m); wake(id); }
+  void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; m.spread=(SPREAD && noroomSeen>=1); emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.
@@ -1253,6 +1272,7 @@ int main(int argc,char**argv){
       printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    else if(op=="spreadon"){ SPREAD=(tk.size()<2)||(tk[1]!="0"); printf("OK spread=%d\n",(int)SPREAD); }
     // descstat [reset] — FRONT 3. Needs MESH_DESC=1 in the environment; without
     // it every counter is zero and the verb says so rather than printing a
     // convincing-looking table of nothing.

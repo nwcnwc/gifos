@@ -165,10 +165,26 @@ const short = (id) => String(id).slice(0, 8);
       sawBack === 0, { polls, sawBack });
     // The other observers agree — this is a property of the map everywhere, not
     // of one lucky page.
+    //
+    // BOUNDED WAIT, not an instant read. Eviction is per-observer: each page
+    // ages out its own statusOf entry on its own beat, so Hal having evicted
+    // Kim says nothing about when Ivy and Jon will. This leg used to read once,
+    // immediately, and red whenever a survivor's eviction had not landed yet
+    // (gate 2026-08-06: FLAKY, held 3 ids, green on retry). The ASSERTION is
+    // unchanged — Kim absent AND Hal present — it is only given the same 60s
+    // bound Hal's own eviction leg is held to. A survivor that never agrees
+    // still fails, which is the property worth guarding.
     for (const u of [IVY, JON]) {
-      const ids = await statusIds(u);
-      check(u.name + ' agrees: the departed id is absent, the survivors present',
-        !!ids && ids.indexOf(KIM.id) < 0 && ids.indexOf(HAL.id) >= 0, { held: (ids || []).map(short) });
+      const t1 = Date.now();
+      let ids = null, agreeMs = -1;
+      while (Date.now() - t1 < 60000) {
+        ids = await statusIds(u);
+        if (ids && ids.indexOf(KIM.id) < 0 && ids.indexOf(HAL.id) >= 0) { agreeMs = Date.now() - t1; break; }
+        await sleep(400);
+      }
+      check(u.name + ' agrees: the departed id is absent, the survivors present'
+        + ' (in ' + (agreeMs < 0 ? 'NEVER (>60s)' : (agreeMs / 1000).toFixed(1) + 's') + ', bound 60s)',
+        agreeMs >= 0, { held: (ids || []).map(short) });
     }
   }
 
