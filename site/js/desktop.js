@@ -719,7 +719,7 @@
           // the store. The tooltip says which, per launcher.
           const sys = document.createElement('span');
           sys.className = 'sysbadge';
-          sys.textContent = 'SYSTEM';
+          sys.textContent = 'SYS';
           sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
         } else if (meta && (meta.shortName || meta.version)) {
