@@ -13,6 +13,15 @@
   var ROAD_RADIUS = 1200;      // metres of OSM geometry — one Overpass query per tile
   var DRAW_DISTANCE = 6000;
 
+  // Hard ceilings on how much world is resident, because a metre radius does
+  // NOT imply a tile count. Web Mercator tiles shrink with latitude — the same
+  // 3 km asks for 25 tiles in Paris and 49 in Edinburgh, and 49 tiles is a
+  // quarter of a million triangles, which on a modest device drops the frame
+  // rate far enough that the clamped physics step turns the car into a snail.
+  // tilesAround() sorts nearest-first, so taking a prefix keeps what matters.
+  var MAX_TERRAIN_TILES = 25;
+  var MAX_ROAD_TILES = 9;
+
   var world = {
     frame: null,
     terrain: {},     // key -> { rec, mesh, texture }
@@ -23,14 +32,36 @@
 
   var car = null, controls = null, canvas = null;
   var camera = { x: 0, y: 40, z: -30, tx: 0, ty: 0, tz: 0, settled: false };
-  var running = false, lastT = 0, clock = 0;
-  var hopAnim = 0;   // seconds since the drop began; drives the descent
+  var running = false, lastT = 0, clock = 0, frames = 0;
+  var hopAnim = 0;   // seconds of WALL CLOCK since the drop began; drives the descent
+  var hopT0 = 0;
 
   // ---- streaming -----------------------------------------------------------
+  // Drop everything the car has driven away from. Without this the resident set
+  // only ever grows: drive ten kilometres and you are still drawing — and still
+  // holding GL buffers for — the tiles you started on.
+  function evict(store, want) {
+    var keep = {};
+    for (var i = 0; i < want.length; i++) keep[root.Geo.tileKey(want[i])] = 1;
+    for (var k in store) {
+      if (keep[k]) continue;
+      var slot = store[k];
+      if (slot && slot.rec && slot.rec.mesh && slot.rec.mesh.release) slot.rec.mesh.release();
+      if (slot && slot.built) {
+        ['roads', 'buildings', 'water'].forEach(function (m) {
+          if (slot.built[m] && slot.built[m].release) slot.built[m].release();
+        });
+      }
+      delete store[k];
+    }
+  }
+
   function ensureTerrain() {
     if (!world.frame) return;
-    var want = root.Geo.tilesAround(world.frame, car.x, car.z, TERRAIN_RADIUS, root.Terrain.TILE_ZOOM);
+    var want = root.Geo.tilesAround(world.frame, car.x, car.z, TERRAIN_RADIUS, root.Terrain.TILE_ZOOM)
+      .slice(0, MAX_TERRAIN_TILES);
     world.wanted.terrain = want;
+    evict(world.terrain, want);
     var launched = 0;
     for (var i = 0; i < want.length && launched < 3; i++) {
       var key = root.Geo.tileKey(want[i]);
@@ -51,8 +82,10 @@
 
   function ensureRoads() {
     if (!world.frame) return;
-    var want = root.Geo.tilesAround(world.frame, car.x, car.z, ROAD_RADIUS, root.Roads.TILE_ZOOM);
+    var want = root.Geo.tilesAround(world.frame, car.x, car.z, ROAD_RADIUS, root.Roads.TILE_ZOOM)
+      .slice(0, MAX_ROAD_TILES);
     world.wanted.roads = want;
+    evict(world.roads, want);
     var launched = 0;
     for (var i = 0; i < want.length && launched < 2; i++) {
       var key = root.Geo.tileKey(want[i]);
@@ -180,6 +213,7 @@
     car = root.Car.create(0, 0, Math.random() * Math.PI * 2);
     car.y = 0;
     hopAnim = 0;
+    hopT0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     camera.settled = false;
     root.MP.setFrame(world.frame, lat, lon, world.place);
     root.UI.setPlace(world.place);
@@ -214,6 +248,22 @@
     camera.z += (wantZ - camera.z) * k;
     camera.settled = true;
 
+    // The smoothing lags, and while it catches up the camera can end up inside
+    // the car — the near plane then slices the bodywork and you are looking at
+    // the inside of the doors. Enforce a hard floor on the chase distance after
+    // the lerp rather than trusting it never to get there.
+    var MIN_BACK = 4.5;
+    var dx = camera.x - car.x, dz = camera.z - car.z;
+    var dist = Math.hypot(dx, dz);
+    if (dist < MIN_BACK) {
+      // Push straight back along the car's heading if we are practically on top
+      // of it, otherwise outward along whatever offset we already have.
+      var ux = dist > 0.01 ? dx / dist : -fx, uz = dist > 0.01 ? dz / dist : -fz;
+      camera.x = car.x + ux * MIN_BACK;
+      camera.z = car.z + uz * MIN_BACK;
+      camera.y = Math.max(camera.y, car.y + 2.2);
+    }
+
     camera.tx = car.x + fx * ahead;
     camera.ty = car.y + 1.4;
     camera.tz = car.z + fz * ahead;
@@ -224,7 +274,13 @@
     if (!running) return;
     requestAnimationFrame(frame);
     var dt = lastT ? Math.min(0.05, (t - lastT) / 1000) : 0.016;
-    lastT = t; clock += dt; hopAnim += dt;
+    lastT = t; clock += dt; frames++;
+    // The descent is WALL-CLOCK, not accumulated dt. dt is clamped to 50 ms so a
+    // long frame cannot teleport the car, which means on a slow device
+    // simulated time runs behind real time — and a three-second intro measured
+    // in simulated seconds becomes ten real ones with the controls dead. The
+    // rAF timestamp shares performance.now()'s origin, so this is exact.
+    hopAnim = (t - hopT0) / 1000;
 
     var input = controls.sample();
 
@@ -347,6 +403,18 @@
   root.App = {
     boot: boot, hop: hop, search: search, world: world,
     hasHopped: function () { return hopped; },
+    car: function () { return car; },
+    // Why the car is or is not moving, in one call. The loop has several gates
+    // (ground loaded, descent finished, input) and from the outside every one
+    // of them looks identical: a stationary car.
+    debug: function () {
+      return {
+        running: running, hopAnim: hopAnim, frames: frames,
+        grounded: world.frame ? root.Terrain.heightAt(world.frame, car.x, car.z) !== null : false,
+        input: controls ? JSON.parse(JSON.stringify(controls.input)) : null,
+        speed: car.speed, x: car.x, z: car.z, y: car.y,
+      };
+    },
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

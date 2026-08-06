@@ -59,6 +59,16 @@ how an app stays unlisted while it's being built.
 
 ## Apps
 
+- **[anyroad](anyroad/)** — drive any road on Earth. The world is fetched, not
+  authored: OpenStreetMap geometry for roads and buildings, terrain-RGB tiles for
+  real elevation, streamed in around the car as it moves, rendered with
+  hand-rolled WebGL. Races need no server — the invite link is the room, and
+  everyone who opens it lands in the same place on the planet. The first app to
+  need **binary `gifos.fetch`**: elevation arrives as a PNG whose pixels are
+  metres. Every data source is swappable at runtime, and the optional satellite
+  drape runs on the player's own key via `gifos.api`, so the app ships on
+  genuinely open data with no account. Finished GIF:
+  [`site/apps/anyroad/anyroad.gif`](../site/apps/anyroad/anyroad.gif) (~160 KB).
 - **[fluence](fluence/)** — spontaneous-speech coach (full port). Nine drill
   types, record a take → Deepgram nova-3 transcript (word confidence + filler
   tagging via `gifos.api`) → deterministic pace/filler/lexical features →

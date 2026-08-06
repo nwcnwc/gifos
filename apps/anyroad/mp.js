@@ -57,10 +57,16 @@
         if (!p || !p.id || p.id === me.id) return;
         seen[p.id] = 1;
         var cur = others[p.id];
-        // Keep the previous sample so we can interpolate rather than teleport.
+        // Staleness is measured by when WE last saw this record CHANGE, not by
+        // the sender's timestamp and not by when the collection was delivered.
+        //  - The sender's clock is not ours; peers are independent devices.
+        //  - Stamping `now` on every delivery makes every record permanently
+        //    fresh, so a driver who left months ago is still parked on the road
+        //    in every future session (their row lives on in the host's db).
+        var moved = !cur || cur.lat !== p.lat || cur.lon !== p.lon || cur.stamp !== p.t;
         others[p.id] = {
           lat: p.lat, lon: p.lon, yaw: p.yaw, spd: p.spd || 0, name: p.name || 'Driver',
-          t: now, tint: tintFor(p.id),
+          stamp: p.t, seen: moved ? now : cur.seen, t: now, tint: tintFor(p.id),
           prev: cur ? { lat: cur.lat, lon: cur.lon, yaw: cur.yaw, t: cur.t } : null,
         };
       });
@@ -107,7 +113,7 @@
     var now = Date.now(), out = [];
     for (var id in others) {
       var o = others[id];
-      if (now - o.t > STALE_MS) continue;
+      if (now - o.seen > STALE_MS) continue;
       var lat = o.lat, lon = o.lon, yaw = o.yaw;
       if (o.prev) {
         // Extrapolate across the gap between publishes so a ghost glides
@@ -121,14 +127,17 @@
       }
       var w = frame.toWorld(lat, lon);
       var h = root.Terrain.heightAt(frame, w.x, w.z);
-      out.push({ x: w.x, y: (h === null ? 0 : h), z: w.z, yaw: yaw, tint: o.tint, name: o.name });
+      // No ground loaded under them yet: skip rather than draw the car at sea
+      // level, which in hilly terrain is a car hanging in the sky.
+      if (h === null) continue;
+      out.push({ x: w.x, y: h, z: w.z, yaw: yaw, tint: o.tint, name: o.name });
     }
     return out;
   }
 
   function count() {
     var now = Date.now(), n = 0;
-    for (var id in others) if (now - others[id].t <= STALE_MS) n++;
+    for (var id in others) if (now - others[id].seen <= STALE_MS) n++;   // same rule as ghosts()
     return n + 1;
   }
 
