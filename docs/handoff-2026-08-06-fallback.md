@@ -157,6 +157,26 @@ reaper to exclude processes whose cmdline carries the monitor marker
    discrimination available). The digest DOES give a free, exact room-wide
    "there IS room" signal — a UX/diagnosis win, not a routing fix.
    Tools: MESH_FINDLOG/SITLOG/CELLLOG/DUPLOG, `holes`/`compact` verbs.
+
+   **T6 "goHome" v1 ATTEMPTED AND REFUTED overnight 2026-08-06 — do not
+   rebuild it the same way.** The idea: a promo-loser whose move had already
+   CONFIRMED (T3 vacated the old seat) requeues to the ROOT and feeds the
+   seeker flood; instead, within the T3 lease window, reclaim the old cell
+   (un-announce the lost cell, take(old,-1), guard: skip if a refiller is
+   visible in occ; consume the lease; second contradiction requeues).
+   Implemented in BOTH twins, wired at YIELD + CONFIRM-lower-id. MEASURED:
+   N=3000 det went from a clean 6976-tick convergence to 2962/3000 STUCK at
+   the 30000-tick cap (evict=5498, dups 0), and the JS harness's D5 crash
+   leg healed in 290 ticks vs the 120 bound. Mechanism (inferred, not yet
+   proven): the reclaim collides with the heal layer's own designation for
+   the freshly-vacated cell — the healer saw the LEAVE and queued a
+   candidate, the goHome reclaim then contests IT, and the contest tax
+   moves rather than shrinks. Both twins REVERTED same night; harness
+   re-verified ALL PASS. A second attempt should COORDINATE with the
+   healer: e.g. the YIELD/CONFIRM could carry the winner's identity so the
+   loser asks the WINNER (who now owns the cell's neighborhood view) for a
+   local placement, or the loser's old-cell reclaim could require the old
+   row-head's ack — making the return an ADMISSION, not a raw take.
 2. **V1 rollup digests to the BROWSER** (sim side LANDED + gated,
    repro-digest.sh 47/0, healing-laws §G argued incl. lying-aggregator);
    then remove the O(N) status flood (V2 statusOf cap, V3 dial). Rename
