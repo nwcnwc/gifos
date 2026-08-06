@@ -53,7 +53,7 @@ var CACHE = 'gifos-shell-' + SHELL_VERSION;
 var CORE = [
   '/', '/index.html', '/boot.html', '/run.html', '/sign.html', '/about.html', '/store.html', '/404.html',
   '/css/desktop.css',
-  '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
+  '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-ed.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js', '/js/store.js',
   '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js', '/js/build.js', '/js/build-badge.js',
   '/themes/theme.js', '/themes/icons.js', '/themes/eggs.js',
