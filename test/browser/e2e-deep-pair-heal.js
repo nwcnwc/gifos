@@ -73,7 +73,20 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
       ships: (m.jobSig || []).map((x) => x.split('|')[0]),
       claims: (m.claimVia || []).map((c) => ({ rk: c.rk, via: String(c.via || '') })) };
   }).catch((e) => ({ err: String(e).slice(0, 80) }));
-  const upShipping = (p) => (p.ships || []).some((x) => x.indexOf('sub>') === 0);
+  // THE BOUNDARY, not the advertisement (learned the hard way 2026-08-06,
+  // red-twice on the gate host): an ISOLATED pair lawfully SELF-COMPACTS —
+  // first-hand liveness says the rest of the room is dead, healing walks the
+  // two survivors up the empty-looking tree, one becomes a real head and
+  // ships 'sub>' product to the OTHER member of the pair. That is correct
+  // behavior, not a leaked partition. A mosJobs key is 'sub>' + the
+  // DESTINATION pid (run.html shipMos: jk = key + '>' + to; jobSig keeps the
+  // first 14 pid chars), so the honest isolation claim is: no sub> job whose
+  // destination lies OUTSIDE the pair. The same predicate is the heal signal
+  // — sub> to an outside seat again — which also kills the false heal this
+  // suite once reported (secondsAfterLift: -15, the pair-internal ship read
+  // as recovery before the lift).
+  const pairSig = () => [pids[A], pids[B]].map((p) => 'sub>' + String(p).slice(0, 14));
+  const crossShipping = (p) => (p.ships || []).some((x) => x.indexOf('sub>') === 0 && pairSig().indexOf(x) === -1);
   // EXACT: a seat above claiming a 'sub' feed whose VIA is one of the pair.
   // Matching on the key alone counts a stale pre-sever claim and reports
   // recovery that has not happened (it did, in the first draft of this probe).
@@ -130,15 +143,15 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // claim list is NOT usable here — it is a cache with its own ageing, so a
   // pre-sever claim lingers above and reads as "still connected" long after the
   // sender stopped. occ size is likewise only how we get there, not the law.
-  check('the severed pair really is cut off (neither ships its product up)',
-    !upShipping(z) && !upShipping(zb),
+  check('the severed pair really is cut off (no product crosses the sever boundary)',
+    !crossShipping(z) && !crossShipping(zb),
     { aOcc: z.occ, bOcc: zb.occ, aShips: z.ships, bShips: zb.ships, staleClaimsAbove: z0Above });
 
   // ---- while partitioned it stays isolated (no phantom recovery) ------------
   await sleep(10000);
   const mA = await probe(A), mB = await probe(B);
-  check('while the partition holds, they still ship nothing up',
-    !upShipping(mA) && !upShipping(mB),
+  check('while the partition holds, still nothing crosses the boundary',
+    !crossShipping(mA) && !crossShipping(mB),
     { aShips: mA.ships, bShips: mB.ships });
 
   // ---- and when it lifts, they rejoin --------------------------------------
@@ -151,7 +164,7 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   const deadline = severedAt + SEVER_MS + 120000;
   while (Date.now() < deadline) {
     const pa = await probe(A), pb = await probe(B);
-    if (upShipping(pa) || upShipping(pb)) {
+    if (crossShipping(pa) || crossShipping(pb)) {
       healed = true; healedAt = Math.round((Date.now() - severedAt - SEVER_MS) / 1000);
       above = await claimedAbove();
       console.log('   MEASURE healed A=' + JSON.stringify(pa) + ' B=' + JSON.stringify(pb));
