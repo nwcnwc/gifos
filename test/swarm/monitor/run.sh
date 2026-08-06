@@ -85,7 +85,12 @@ while true; do
   fi
   # --foreground keeps the REPL interactive on the tty; at RECYCLE_SECS the
   # child gets TERM (exit 124) and the loop respawns it onto current code.
-  timeout --foreground "$RECYCLE_SECS" \
+  # GIFOS_RESIDENT=1 rides into the browser process environment (meet.js
+  # passes env through outside drive mode) and marks this browser as a
+  # RESIDENT SERVICE: release.sh's reap_browsers() exempts it. Without the
+  # marker a gate battery on this box kill -9'd the bot's chrome at every
+  # suite boundary (13 times in one drills run, 2026-08-06).
+  GIFOS_RESIDENT=1 timeout --foreground "$RECYCLE_SECS" \
     node "$REPO/test/swarm/meet.js" \
     --room "$ROOM" --name "$NAME" --cam $EDGE_FLAG "${PASS_ARGS[@]}" \
     --every 5 --jsonl "$DATA/snapshots-%d.jsonl" \
