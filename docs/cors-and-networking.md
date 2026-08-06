@@ -418,6 +418,30 @@ Two ways an app reaches it:
 - **`api` capability** — a keyed third-party API configured in *Settings → Third-party APIs* with the per-API "use CORS proxy" toggle. The runtime attaches the credential and routes through the proxy (see `brokerApi`).
 - **`network` capability** — for **public** data with no key. The app declares the host under `capabilities.network` and calls `gifos.fetch(url, { proxy: true })`. The runtime still gates the call on the declared-host allow-list, then routes it through `cors-proxy.gifos.app` (which enforces its own `ALLOW_HOSTS`). The app can **only** select the default GifOS proxy — never an arbitrary URL — so the bridge can't become an exfiltration channel; a self-hosted deployment overrides the base once via `window.GIFOS_CORS_PROXY`. The default **Bible Browser** app (`sample-apps.js`) is a live demo: it reads `text.recoveryversion.bible` (which sends no CORS headers) entirely through this path.
 
+### Response bodies: any content type
+
+The bridge is content-type agnostic. A response crosses the postMessage boundary
+as **raw bytes** (an `ArrayBuffer`, carried natively by structured clone — the
+same way brokered capture and `gifos.api`'s `as:'bytes'` already work), and the
+in-app shim decodes on demand:
+
+```javascript
+const r = await gifos.fetch('https://example.com/tile.png');
+await r.json();         // API responses
+await r.text();         //   "
+await r.arrayBuffer();  // binary — byte-exact
+const url = URL.createObjectURL(await r.blob());   // the app CSP allows img-src blob:
+```
+
+Until 2026-08 the bridge ran **every** body through a UTF-8 `TextDecoder`, which
+replaced each invalid sequence with U+FFFD and so made images, tiles and audio
+unreachable. That was an accident of reusing the GIF codec's text helper, not a
+boundary: **nothing in the trust model depends on the body's shape.** What an app
+may reach is decided by the manifest host allowlist the user explicitly approves
+(`gifos-perms.js`), plus https-only, the first-party refusal, `credentials:'omit'`,
+the post-redirect host re-check, and the 8 MB cap — all enforced on the *request*,
+before a byte is read. `e2e-fetch-bridge.js` guards the round-trip.
+
 The Worker is a dumb pipe: it adds one CORS header and forwards everything else unchanged. **API keys still flow directly from the user to the target API** — the Worker doesn't log or persist them. CORS-friendly APIs (the growing majority) never touch the proxy.
 
 ### Deployment
