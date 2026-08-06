@@ -83,7 +83,13 @@
   // ---- the player's choice -------------------------------------------------
   // Persisted in the 'prefs' collection, which is PRIVATE: a guest joining a
   // race gets their own sources (and their own key), never the host's.
-  var DEFAULTS = { terrain: 'aws-terrarium', roads: 'overpass-de', imagery: 'none', quality: 'normal' };
+  var DEFAULTS = {
+    terrain: 'aws-terrarium', roads: 'overpass-de', imagery: 'none', quality: 'normal',
+    // 'auto' = cruise, no throttle control at all. The default, because a
+    // throttle you must hold is the thumb that should be steering.
+    throttle: 'auto',
+    steering: 'touch',      // 'touch' | 'tilt'
+  };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
 
@@ -96,6 +102,8 @@
         if (byId(ROADS, rec.roads).id === rec.roads) current.roads = rec.roads;
         if (byId(IMAGERY, rec.imagery).id === rec.imagery) current.imagery = rec.imagery;
         if (rec.quality) current.quality = rec.quality;
+        if (rec.throttle === 'auto' || rec.throttle === 'manual') current.throttle = rec.throttle;
+        if (rec.steering === 'touch' || rec.steering === 'tilt') current.steering = rec.steering;
       }
       return current;
     }).catch(function () { return current; });

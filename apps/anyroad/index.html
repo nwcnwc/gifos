@@ -48,17 +48,20 @@
       </div>
       <div class="steer-hint"><span>◀</span><b>SLIDE TO STEER</b><span>▶</span></div>
     </div>
+    <!-- The throttle is HIDDEN by default: the car cruises on its own and the
+         only pedal you need is the brake. It comes back if you choose manual
+         throttle in Settings. -->
     <div class="pedals">
-      <button class="pedal brake" id="pedal-brake" aria-label="Brake">BRAKE</button>
-      <button class="pedal gas" id="pedal-gas" aria-label="Accelerate">GO</button>
+      <button class="pedal brake" id="pedal-brake" aria-label="Brake and reverse">BRAKE</button>
+      <button class="pedal gas" id="pedal-gas" aria-label="Accelerate" hidden>GO</button>
     </div>
   </div>
 
   <!-- First-drive coach marks: shown once, dismissed by the first touch. -->
   <div class="coach" id="coach" hidden>
     <div class="coach-steer">Slide anywhere on this side to steer</div>
-    <div class="coach-gas">Hold to<br>accelerate</div>
-    <div class="coach-brake">Hold to brake<br>and reverse</div>
+    <div class="coach-gas" id="coach-gas" hidden>Hold to<br>accelerate</div>
+    <div class="coach-brake">Drives itself —<br>hold to slow down</div>
   </div>
 </div>
 
@@ -106,6 +109,26 @@
       <span>Imagery</span>
       <select id="src-imagery"></select>
       <small id="note-imagery"></small>
+    </label>
+
+    <label class="field">
+      <span>Steering</span>
+      <select id="ctl-steering">
+        <option value="touch">Slide to steer</option>
+        <option value="tilt">Tilt the phone</option>
+      </select>
+      <small id="note-steering"></small>
+    </label>
+
+    <label class="field">
+      <span>Speed</span>
+      <select id="ctl-throttle">
+        <option value="auto">Drives itself — you steer and brake</option>
+        <option value="manual">Manual — hold GO to accelerate</option>
+      </select>
+      <small>On a phone the throttle is the thumb that should be steering, so by
+        default the car cruises at whatever the road it is on is built for and
+        you only brake.</small>
     </label>
 
     <label class="field">

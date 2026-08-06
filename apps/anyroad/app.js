@@ -179,6 +179,12 @@
     // No road data loaded at all is NOT "off road" — that would punish the
     // player for our streaming being slow. Only a known-and-distant road is.
     car.onRoad = best ? best.dist <= best.halfWidth + 1.2 : true;
+    // Cruise at what this road is for. Off tarmac, a walking-pace-ish amble —
+    // it is the same idea as a speed limit, and it makes the class of road you
+    // picked actually matter to how the drive feels.
+    var target = car.onRoad && best ? best.cruise : 8;
+    if (controls && controls.setCruise) controls.setCruise(target);
+    car.cruise = target;
   }
 
   // Terrain must be present under a road tile before its mesh can be built.
@@ -416,12 +422,26 @@
     controls = root.Car.controls(canvas, {
       steerEl: root.UI.steerPad(),
       onFirstTouch: function () { root.UI.dismissCoach(); },
+      // Tilt is a brokered capability: GifOS does the iOS permission dance and
+      // hands back orientation events. The app never touches the sensor itself.
+      onTiltEnable: function (cb) { root.Host.motion(cb); },
     });
 
     root.Sources.load().then(function () {
+      applyControlPrefs();
       root.UI.ready();
     });
+    root.Sources.onChange(applyControlPrefs);
     root.MP.init();
+  }
+
+  function applyControlPrefs() {
+    if (!controls) return;
+    controls.setMode({
+      auto: root.Sources.current.throttle !== 'manual',
+      tilt: root.Sources.current.steering === 'tilt',
+    });
+    root.UI.setThrottleMode(root.Sources.current.throttle);
   }
 
   function releaseWorld() {

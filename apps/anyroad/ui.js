@@ -45,7 +45,8 @@
      'racehud','rh-time','rh-dist','rh-arrow','q','results','presets','attribution',
      'attribution2','board','mp-status','race-badge','race-hint','cache-size',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
-     'searchform','fatal-msg','steerpad','steer-knob','coach','controls'].forEach(function (id) { el[id] = $(id); });
+     'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
+     'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
     buildSourceMenus();
@@ -158,6 +159,15 @@
       root.Sources.set({ quality: this.value });
       note('Applies to map tiles loaded from here on.');
     });
+    el['ctl-throttle'].addEventListener('change', function () {
+      root.Sources.set({ throttle: this.value });
+      note(this.value === 'auto' ? 'The car drives itself — steer and brake.' : 'Hold GO to accelerate.');
+    });
+    el['ctl-steering'].addEventListener('change', function () {
+      root.Sources.set({ steering: this.value });
+      note(this.value === 'tilt' ? 'Hold the phone as you like — that is now straight ahead.'
+                                 : 'Slide on the pad or the left of the screen.');
+    });
   }
 
   function fill(select, list) {
@@ -188,11 +198,29 @@
     note('Source changed — new tiles will use it.');
   }
 
+  // Show or hide the throttle pedal and its coach mark to match the mode. A GO
+  // button that does nothing is worse than no button at all.
+  function setThrottleMode(mode) {
+    var manual = mode === 'manual';
+    if (el['pedal-gas']) el['pedal-gas'].hidden = !manual;
+    if (el['coach-gas']) el['coach-gas'].hidden = !manual;
+    var brakeCoach = document.querySelector('.coach-brake');
+    if (brakeCoach) {
+      brakeCoach.innerHTML = manual ? 'Hold to brake<br>and reverse'
+                                    : 'Drives itself —<br>hold to slow down';
+    }
+  }
+
   function syncSourceMenus() {
     el['src-terrain'].value = root.Sources.current.terrain;
     el['src-roads'].value = root.Sources.current.roads;
     el['src-imagery'].value = root.Sources.current.imagery;
     el['src-quality'].value = root.Sources.current.quality;
+    el['ctl-throttle'].value = root.Sources.current.throttle;
+    el['ctl-steering'].value = root.Sources.current.steering;
+    el['note-steering'].textContent = root.Sources.current.steering === 'tilt'
+      ? 'Whatever angle you are holding the phone at when you start becomes straight ahead. Your phone will ask permission the first time.'
+      : 'Slide on the pad, or anywhere on the left half of the screen.';
     el['note-terrain'].textContent = root.Sources.terrain.note || '';
     el['note-imagery'].textContent = root.Sources.imagery.note || '';
   }
@@ -377,6 +405,7 @@
   root.UI = {
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
     setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
+    setThrottleMode: setThrottleMode,
     steerPad: function () { return el.steerpad; },
   };
 })(window);

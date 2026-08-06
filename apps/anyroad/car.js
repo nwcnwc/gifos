@@ -28,7 +28,7 @@
 
   // Controls arrive as a plain object so the same physics serve keyboard,
   // touch, and a replayed ghost.
-  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false }; }
+  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0 }; }
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
@@ -56,6 +56,11 @@
       // Falls off as you approach top speed, so acceleration feels like a car
       // rather than a rocket with a speed clamp.
       accel += power * input.throttle * Math.max(0.08, 1 - v / maxSpeed);
+      // Auto-throttle eases off near the target instead of bouncing off it, so
+      // cruising is steady rather than a sawtooth between full power and none.
+      if (input.autoTarget > 0 && v > input.autoTarget * 0.88) {
+        accel *= Math.max(0, 1 - (v - input.autoTarget * 0.88) / (input.autoTarget * 0.18));
+      }
     }
     if (input.brake > 0) {
       if (car.speed > 0.4) accel -= 16 * input.brake * grip;
@@ -136,6 +141,17 @@
     var input = blankInput();
     var keys = {};
     var pedal = { throttle: false, brake: false };
+
+    // Auto-throttle ("cruise") is the DEFAULT, and it is the answer to the real
+    // complaint about the first build: a throttle you must hold, or worse tap,
+    // occupies the thumb that should be steering. Every widely-played mobile
+    // racer removes it — Mario Kart Tour auto-accelerates with no setting at
+    // all. Here the target speed comes from the road class under the car, so a
+    // residential street cruises at ~50 km/h and a motorway at ~120, and the
+    // player's remaining job is steering and braking.
+    var mode = { auto: true, tilt: false };
+    var cruiseTarget = 0;          // m/s, set per-frame from the road index
+    var tilt = { active: false, neutral: null, value: 0 };
 
     // The driving keys are bound on WINDOW, so they also fire while you are
     // typing in the search box — and space is the handbrake, which called
@@ -230,8 +246,34 @@
     surface.addEventListener('pointerup', steerUp);
     surface.addEventListener('pointercancel', steerUp);
 
+    // ---- tilt steering -------------------------------------------------
+    // gamma is the left/right tilt of the device. The neutral point is captured
+    // the first time a reading arrives (and re-captured on request), because
+    // nobody holds a phone at exactly zero — assuming flat would put a constant
+    // steering bias on every player.
+    function onOrient(e) {
+      if (!mode.tilt || e.gamma == null) return;
+      if (tilt.neutral === null) tilt.neutral = e.gamma;
+      var d = e.gamma - tilt.neutral;
+      var RANGE = 26;                       // degrees for full lock
+      var dead = 2.5;
+      if (Math.abs(d) < dead) { tilt.value = 0; return; }
+      d = d - (d > 0 ? dead : -dead);
+      tilt.value = Math.max(-1, Math.min(1, d / RANGE));
+    }
+
     return {
       input: input,
+      setMode: function (m) {
+        if (m.auto != null) mode.auto = !!m.auto;
+        if (m.tilt != null && !!m.tilt !== mode.tilt) {
+          mode.tilt = !!m.tilt;
+          tilt.neutral = null; tilt.value = 0;
+          if (mode.tilt && opts.onTiltEnable) opts.onTiltEnable(onOrient);
+        }
+      },
+      recentreTilt: function () { tilt.neutral = null; },
+      setCruise: function (mps) { cruiseTarget = mps; },
       setPedal: function (which, on) {
         pedal[which] = on;
         if (on && onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
@@ -245,10 +287,26 @@
         var kThrottle = (keys['w'] || keys['arrowup']) ? 1 : 0;
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
-        input.throttle = Math.max(kThrottle, pedal.throttle ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
         input.handbrake = !!keys[' '];
+
+        // Throttle. In auto mode the only thing that stops the car is the
+        // brake — so braking must zero the throttle outright, or holding the
+        // brake would be a tug of war with the cruise.
+        if (mode.auto) {
+          input.autoTarget = cruiseTarget;
+          input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;
+          // The keyboard still works, and still overrides: a desktop player
+          // holding W should get full power, not cruise.
+          if (kThrottle) { input.throttle = 1; input.autoTarget = 0; }
+        } else {
+          input.autoTarget = 0;
+          input.throttle = Math.max(kThrottle, pedal.throttle ? 1 : 0);
+        }
+
+        // Steering precedence: finger, then tilt, then keys, then centre.
         if (steerTouch) { /* the finger owns it */ }
+        else if (mode.tilt) input.steer = tilt.value;
         else if (kSteer !== 0) input.steer = kSteer;
         else input.steer = 0;
         return input;

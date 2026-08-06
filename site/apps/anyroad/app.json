@@ -44,12 +44,13 @@
     ],
     "api": [
       "maptiler"
-    ]
+    ],
+    "motion": true
   },
   "cover": "/apps/anyroad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/anyroad/anyroad.gif",
-  "bytes": 176513,
-  "sha256": "7dcc6209afc1d4dd5ef749c8e35111bc1ce995681ab29d348546bc1f552b93b7",
+  "bytes": 180012,
+  "sha256": "ed77eaf8f47504072c2f7b94503de37b803c47702b7ed2820156fb8c029d094b",
   "signature": null
 }
