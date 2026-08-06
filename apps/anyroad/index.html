@@ -53,7 +53,10 @@
       <input id="q" type="search" placeholder="Somewhere on Earth…" aria-label="Search for a place">
       <button type="submit" id="go">Search</button>
     </form>
-    <p class="hint" id="searchhint">Search runs once when you press Search — OpenStreetMap's geocoder allows one request a second, so there is no type-ahead.</p>
+    <p class="hint" id="searchhint">Street addresses work. Search runs once when you press Search, and the text you
+      type is sent to OpenStreetMap's geocoder to be turned into coordinates —
+      their policy allows one request a second, which is also why there is no
+      type-ahead.</p>
 
     <ul id="results" class="results"></ul>
 

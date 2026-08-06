@@ -288,6 +288,36 @@ function overpassBody() {
   check('the renderer draws ground, not just sky', painted.diff > 40,
     'ground rgb ' + painted.ground.join(',') + ' vs sky ' + painted.sky.join(','));
 
+  // ---- typing must not reach the car --------------------------------------
+  // The driving keys are bound on window, so they fire while the search field
+  // has focus too. Space is the handbrake and called preventDefault(), which
+  // ate every space typed: "Golden Gate Bridge" arrived as "GoldenGateBridge"
+  // and multi-word searches — every address — were impossible. Checked with the
+  // loop RUNNING, because that is the only time the car reads the keyboard.
+  await fr.locator('#btn-hop').click();
+  await fr.locator('#landing').waitFor({ state: 'visible', timeout: 5000 });
+  await fr.locator('#q').click();
+  await app.keyboard.type('221B Baker Street, London');
+  const typed = await fr.locator('#q').inputValue();
+  check('the search field accepts spaces (the handbrake no longer eats them)',
+    typed === '221B Baker Street, London', JSON.stringify(typed));
+
+  await fr.locator('#q').fill('');
+  await fr.locator('#q').click();
+  await app.keyboard.type('wasd');
+  const leaked = await fr.locator('body').evaluate(() => {
+    const d = window.App.debug();
+    return { throttle: d.input.throttle, brake: d.input.brake, steer: d.input.steer, hand: d.input.handbrake };
+  });
+  // STEER is the sensitive one. keyboard.type() presses and releases each letter
+  // faster than a frame, so a leaked 'w' is usually back up before the next
+  // sample and throttle reads 0 anyway — but steer is smoothed and holds a
+  // residue, so it is what actually catches the leak. Verified by reverting the
+  // fix: throttle stayed 0 while steer showed 0.047.
+  check('typing driving letters into search does not drive the car',
+    leaked.throttle === 0 && leaked.brake === 0 && !leaked.hand && leaked.steer === 0,
+    JSON.stringify(leaked));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
