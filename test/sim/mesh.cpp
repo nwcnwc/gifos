@@ -808,6 +808,13 @@ struct DescStat {
   // shallowest free depth — the upper bound on what any depth-aware descent
   // could ever buy.
   long long dminDiff=0, dminChoseShallowest=0, freeDiff=0;
+  // THE HONEST CEILING. dminDiff above counts ALL candidates, including the
+  // pass-1-only ones a fix may not reorder into — pass 0 exists to guarantee
+  // the hop is deliverable, and trading that away to chase depth would buy the
+  // plateau by re-opening the split-room starvation it was built to stop. So
+  // ask the same question restricted to the pass-0 ELIGIBLE set: that is all a
+  // depth-aware descent could ever reorder.
+  long long dminDiffFhl=0, dminChoseShallowestFhl=0;
   // the dead-branch confound: a candidate whose subtree holds neither a seat
   // nor a free frontier cell is a stale occ entry, not a branch. Descending
   // there finds nothing, so a filter that avoids it is doing its job.
@@ -816,6 +823,17 @@ struct DescStat {
   // genuinely alive. If the gap collapses here, pass 0 is a liveness filter
   // and nothing more.
   long long hhL=0, hhLLess=0, hhLMore=0; double hhLChosen=0, hhLFiltered=0;
+  // THE CHEAP FIX CANDIDATE. `kidful` is already on the wire — every PHONE
+  // carries m.kids=hasChildren(), so a parent knows first-hand which of its
+  // roster children are CHILDLESS. A childless child's own row is entirely
+  // free, i.e. the shallowest room that exists below this hop (depth d+2).
+  // The descent ignores kidful completely today. Before building anything on
+  // that, measure it: how often is a childless candidate on offer, how deep is
+  // its room really, and how often does the descent take it anyway?
+  long long kidless=0, kidfull=0, kidUnknown=0;
+  long long dminKidlessSum=0, dminKidlessN=0, dminKidfullSum=0, dminKidfullN=0;
+  long long freeKidlessSum=0, freeKidfullSum=0;
+  long long hadKidless=0, tookKidless=0;   // pass-0 descents offering a childless candidate
   // how a FIND ends, and how many hops it burned getting there
   long long endAdmitDeep=0, endAdmitS1=0, endNoroomWall=0, endNoroomDead=0, endNoroomTtl=0, endNoroomS1free=0;
   long long hops[26]={0}; long long hopSum=0, hopN=0;
@@ -824,19 +842,30 @@ static DescStat DSC;
 
 // cls[]: 0 = not a candidate, 1 = reachable only (pass 1), 2 = firstHandLive
 // (pass 0), 3 = a candidate neither pass will take. chosenQ<0 means dead end.
-static void descNote(const Coord rc[C], const int cls[C], int chosenQ, int pass, int depth){
+// kid[]: the observer's OWN kidful belief about each candidate — 0 childless,
+// 1 has children, 2 unknown. First-hand, already on the wire, no digest needed.
+static void descNote(const Coord rc[C], const int cls[C], const int kid[C], int chosenQ, int pass, int depth){
   descRebuild();
+  { bool anyKidless=false;
+    for(int q=0;q<C;q++){ if(!cls[q]) continue;
+      int dm=subDmin(rc[q]), f=subFree(rc[q]);
+      if(kid[q]==0){ DSC.kidless++; DSC.freeKidlessSum+=f; if(dm<99){ DSC.dminKidlessSum+=dm; DSC.dminKidlessN++; } anyKidless=true; }
+      else if(kid[q]==1){ DSC.kidfull++; DSC.freeKidfullSum+=f; if(dm<99){ DSC.dminKidfullSum+=dm; DSC.dminKidfullN++; } }
+      else DSC.kidUnknown++; }
+    if(anyKidless && pass==0){ DSC.hadKidless++; if(chosenQ>=0 && kid[chosenQ]==0) DSC.tookKidless++; } }
   DSC.descends++;
   if(depth>=0&&depth<16) DSC.byDepth[depth]++;
   int nReach=0, best=-1, bestQ=-1, bestDmin=99, filtSum=0, filtN=0, nCand=0;
   int worstDmin=-1, worstFree=-1; long long filtLSum=0; int filtLN=0;
+  int fhlBestDmin=99, fhlWorstDmin=-1, nFhl=0;
   for(int q=0;q<C;q++){
     if(!cls[q]) continue;
     nCand++;
     int f=subFree(rc[q]);
     bool liveSub = (subN(rc[q])>0 || f>0);
     if(liveSub) DSC.candLiveSub++; else DSC.candDeadSub++;
-    if(cls[q]==2){ DSC.candFhl++; DSC.fhlFree+=f; }
+    if(cls[q]==2){ DSC.candFhl++; DSC.fhlFree+=f; nFhl++;
+                   int dq=subDmin(rc[q]); if(dq<fhlBestDmin) fhlBestDmin=dq; if(dq>fhlWorstDmin) fhlWorstDmin=dq; }
     else if(cls[q]==1){ DSC.candReach++; DSC.reachFree+=f; nReach++; filtSum+=f; filtN++;
                         if(liveSub){ filtLSum+=f; filtLN++; } }
     else DSC.candNeither++;
@@ -854,6 +883,7 @@ static void descNote(const Coord rc[C], const int cls[C], int chosenQ, int pass,
     int cd=subDmin(rc[chosenQ]);
     if(cd<99||bestDmin<99){ DSC.dminChosenSum+=(cd<99?cd:20); DSC.dminBestSum+=(bestDmin<99?bestDmin:20); DSC.dminN++; }
     if(worstDmin!=bestDmin){ DSC.dminDiff++; if(cd==bestDmin) DSC.dminChoseShallowest++; }
+    if(pass==0 && nFhl>=2 && fhlWorstDmin!=fhlBestDmin){ DSC.dminDiffFhl++; if(cd==fhlBestDmin) DSC.dminChoseShallowestFhl++; }
     if(worstFree!=best) DSC.freeDiff++;
   }
   // hypothesis (b): only meaningful when pass 0 actually excluded someone
@@ -1249,6 +1279,19 @@ int main(int argc,char**argv){
         DSC.dminDiff,DSC.multi, DSC.multi?100.0*DSC.dminDiff/DSC.multi:0.0,
         DSC.dminChoseShallowest, DSC.dminDiff?100.0*DSC.dminChoseShallowest/DSC.dminDiff:0.0,
         DSC.freeDiff, DSC.multi?100.0*DSC.freeDiff/DSC.multi:0.0);
+      printf("DESCDMINFHL reorderableHops=%lld choseShallowest=%lld (%.1f%%)  <- the ceiling on any depth-aware descent that keeps the pass-0 liveness guarantee\n",
+        DSC.dminDiffFhl,DSC.dminChoseShallowestFhl, DSC.dminDiffFhl?100.0*DSC.dminChoseShallowestFhl/DSC.dminDiffFhl:0.0);
+      // THE CHEAP FIX CANDIDATE, measured before it is built: kidful is
+      // first-hand and already on every PHONE. A childless candidate's own row
+      // is entirely free, so its room is as shallow as room below this hop can
+      // possibly be.
+      printf("DESCKID candidates childless=%lld hasKids=%lld unknown=%lld | meanDmin childless=%.2f hasKids=%.2f | meanFree childless=%.2f hasKids=%.2f | pass0DescentsOfferingChildless=%lld tookIt=%lld (%.1f%%)\n",
+        DSC.kidless,DSC.kidfull,DSC.kidUnknown,
+        DSC.dminKidlessN?(double)DSC.dminKidlessSum/DSC.dminKidlessN:0.0,
+        DSC.dminKidfullN?(double)DSC.dminKidfullSum/DSC.dminKidfullN:0.0,
+        DSC.kidless?(double)DSC.freeKidlessSum/DSC.kidless:0.0,
+        DSC.kidfull?(double)DSC.freeKidfullSum/DSC.kidfull:0.0,
+        DSC.hadKidless,DSC.tookKidless, DSC.hadKidless?100.0*DSC.tookKidless/DSC.hadKidless:0.0);
       printf("DESCEND admitDeep=%lld admitS1=%lld noroomWall=%lld noroomDeadEnd=%lld noroomTtl=%lld noroomS1free=%lld meanHops=%.2f\n",
         DSC.endAdmitDeep,DSC.endAdmitS1,DSC.endNoroomWall,DSC.endNoroomDead,DSC.endNoroomTtl,DSC.endNoroomS1free,
         DSC.hopN?(double)DSC.hopSum/DSC.hopN:0.0);
