@@ -11457,6 +11457,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       ips: () => Object.assign({}, ipsOf),
       // ---- stream-identity + gossip-health hooks (glitch hunting) ----
       peerIds: () => Array.from(peers.keys()),
+      // Every id statusOf holds right now — the read-only handle e2e-status-map.js
+      // needs to prove a status never outlives the peer it describes.
+      statusIds: () => Array.from(statusOf.keys()),
       mySid: () => mySid(),
       announcedSid: (id) => { const p = peers.get(id); return p ? p.ownSid || null : null; },
       tileSid: (id) => { const p = peers.get(id); const s = p && p.video.srcObject; return s ? s.id : null; },
