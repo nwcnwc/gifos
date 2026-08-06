@@ -381,10 +381,12 @@ mix-minus) is live. What it still owed, verbatim but renumbered:
   mesh as signed governance gossip; today they are the relay's last
   non-greeting duties (they don't violate R2's "arbitrates nothing", but they
   are a residual path to retire).
-- **Standalone app-share bus swap** — standalone (outside-a-meeting) app
-  sharing still rides the relay broadcast bus (`runtime.js` `t:'bcast'`);
-  swap it to a headless mesh node per `app-mesh.md`. In-meeting apps already
-  ride the mesh Stage DATA lane.
+- **Standalone app-share bus swap — DONE (2026-08-01/02 one-runtime flag day;
+  reconciled 2026-08-06).** Standalone shares are mesh rooms; the relay star
+  bus is deleted (`app-mesh.md` status COMPLETE is correct). One dead vestige
+  remains in `runtime.js`: `liveHost` is never assigned, so `endSession()`'s
+  `t:'bcast'` send is unreachable and `ctl.endSession` has no caller — safe
+  to excise in a cleanup commit with the runtime suites green around it.
 - **Final greeting-only relay audit** — after the two items above, delete every
   remaining non-greeting relay path and prove the relay carries only knock +
   first-greeter handshake.
@@ -394,7 +396,32 @@ mix-minus) is live. What it still owed, verbatim but renumbered:
   mesh, home-LAN real-device pass, then cut a versioned release
   (`scripts/archive-version.sh`).
 
-## 4. Meeting agency & presence
+### Harvested from retired handoff docs (2026-08-06 close-out)
+
+The July/August handoff chain was deleted after a full open-item audit; the
+items below are the survivors that lived nowhere else. Everything not listed
+here was verified CLOSED or REFUTED in a successor doc or commit.
+
+- **Q3 — class C+D churn sweep follow-ups**: event-reactive retries (react to
+  the LEAVE/timeout, don't wait the fixed cadence) + clock unification across
+  sim actors. Design sketched 2026-07-19, never started.
+- **Q4 — greeter/door extinction invariant**: the relay registry must always
+  hold ≥K live greeter blobs or the door can go extinct while seats live.
+  Design sketched 2026-07-19, never started.
+- **Anti-stampede D-constants at scale** — must be MEASURED on a real
+  multi-region swarm, not guessed (Nathan-owed decision since 2026-07-19).
+- **Home-LAN acceptance for Q2/H-CHAIN** — Nathan to confirm what "live
+  production on home-LAN hardware" means concretely (which boxes, what scale).
+- **Untested sim fault knobs** — `lat`, `qual`, `spine`, `relayk` are
+  exercised by NO repro at all; `spine=0` is the interesting one (a probe
+  script was drafted 2026-07-21 and never run).
+- **Stager's ~1s self-view lag** — observed 2026-07-30, unexplained, never
+  chased (the stager sees their own shared media a beat late).
+- **`e2e-meeting-app` "fix the wait" flake** — the one of the 07-30 flaky trio
+  whose wait was never audited (media-recovery and e2e-video were).
+- **`e2e-video` "via Hub" / friend-relay island leg** — known flake (~1 in 4
+  at 90s), consistent with friend-relay roam engagement never being observed;
+  investigate under B.
 
 Product-facing mesh features that do not change the fair-share / no-beefy-node
 doctrine. Design depth for games and social rooms lives in

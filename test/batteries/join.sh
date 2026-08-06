@@ -140,6 +140,8 @@ run "adversary — dark peers cannot block seating, wiring or admission" \
     node test/drills/adversary-room.js
 run "late join — wiring to socketless seats via the sponsor door" \
     node test/drills/e2e-latejoin.js
+run "R5 pick-one — same-key dual greeter halves end-to-end" \
+    node test/drills/e2e-r5-fork-pick.js
 
 echo; echo "════════════════════════════════════════"
 printf '%b\n' "$results"

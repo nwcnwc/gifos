@@ -89,6 +89,13 @@ e2e-stadium-dup  NONDETERMINISTIC known-unfixed: manufactured rotation exposes t
 # row") — so the searching-livelock is plausibly dead but the suite is not
 # clean box-independently. DO NOT promote yet; next session should chase the
 # moved-face leg on the gate host before the call.
+# DIAGNOSTIC LEAD for the moved-face leg (harvested 2026-08-06 from the
+# retired 07-31 handoff — the best surviving pointer): the failing deep head
+# at 2/0.0 reported rowFaces: [] while holding a full row; look at the
+# iAmHead / beyondRow gate for a FRESHLY-POPULATED deep row (a head that has
+# just gained occupants may not yet believe it is a head, so it fans no faces).
+# DATA POINT 2026-08-06: GREEN on the gate host's own browser-tier run
+# (mover carried at its NEW row, identity stable) — one more green, not proof.
 
 # ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
 # e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane

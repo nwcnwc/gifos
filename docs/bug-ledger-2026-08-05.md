@@ -107,3 +107,30 @@ but a bad 2 minutes. Design question, not a patch: should a rotation carry a
 signed "my old self is dead" so the corpses free instantly (a LEAVE the new
 identity can prove), instead of waiting out the ring? Needs a healing-laws
 argument (a forgeable early-free is an eviction weapon).
+
+## Dispositions added 2026-08-06 (handoff close-out night)
+
+- **Entry 3 re-checked against the no-shims flag day (5224753):** sw.js today
+  carries `SHELL_VERSION = 'v9'` and `degrade()`; whether degrade refuses
+  OLDER shells than the current version was NOT re-verified tonight — the
+  entry stands, now with the extra wrinkle that a pre-rename cached shell
+  would reference the deleted meet.html. Same fix direction as written.
+- **Serial N=2 incomplete link on the gate box (2026-07-21 residual) —
+  CLEARED as stale:** never re-raised across the 0.8.7 → 0.9.3 gates; the
+  serial approom suites and drills have been green on three different boxes
+  since. Re-open only with a fresh repro.
+- **Pinned ≤0.9.2 visitors run a build with no preflight — ACCEPTED:**
+  snapshots are immutable by design; the 0.9.3 cut closed it for fresh
+  visitors, and the Ed25519 fallback (0.9.4) retires most of the wall
+  anyway. Not a work item.
+- **NEW: `e2e-deep-pair-heal` RED TWICE on the gate host's browser tier at
+  ca059c8** (was green in the 0.9.3 gate on the same host hours earlier;
+  no mesh-touching commit in between). Both attempts identical shape: seat B
+  (2/0.0) still ships its `sub>` product up while the partition is supposed
+  to hold, stale claims (P1/P2) sit above, and the "heals after lift" leg
+  passed with `secondsAfterLift: -15` — a negative interval, i.e. the
+  healed MEASURE was captured BEFORE the lift, so the suite's own
+  observation window is suspect alongside the partition's leakiness.
+  Triage BOTH halves: does the drill's sever actually cut the pair (or does
+  a cross-link/friend-relay path legitimately carry the product past it?),
+  and fix the measure ordering. Logs: /tmp/release-gate/browser_e2e-deep-pair-heal.log(.retry) on the gate host.
