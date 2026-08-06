@@ -277,16 +277,46 @@ anywhere else:
    had in most cases already designated a candidate for, and the contest tax
    moved rather than shrank.
 
-   **Attempt 2 must make the return EVIDENCED, not blind.** The repo already
-   has the pattern twice (V2's probe-gated SITPING/SITPONG, D5's early
-   probe): during the T3 lease the mover still holds `oldNbrIds` at
-   `doMove` time — keep them for the lease window, PHONE them on contest
-   loss, and return only on an answer that says the cell is still empty
-   (silence ⇒ requeue, the fail-closed direction). The alternative shape —
-   have YIELD/CONFIRM carry the winner's id so the loser asks the WINNER,
-   who owns that neighbourhood view, for a local placement — turns the
-   return into an ADMISSION rather than a raw take, and is the better fit
-   for the storm case where the old row is itself churning.
+   **ATTEMPT 2 (T6b) IS ALSO REFUTED — 2026-08-06. FRONT 1 IS RETIRED; do not
+   spend a third session on it.** The seed's own second option was built: stamp
+   the WINNER onto YIELD (CONFIRM already carried it) and have a contest loser
+   ask that node for a placement — an ordinary admission through serveFind,
+   which may NOROOM it, never a raw take. It cleanly avoided T6's defect (it
+   cannot mint a dup, and dups stayed 0 everywhere), and it looked like a big
+   win on the default seed. It is not.
+
+   | measurement | baseline | T6b |
+   |---|---|---|
+   | N=5000 det, seated at the 60k cap | 3076/5000 | 3119/5000 (+1.4%) |
+   | N=3000 det, seed 20260714 (the default) | 6976 | 5056 (-28%) |
+   | N=3000 det, seed 7 | 4096 | **4608 (+13% WORSE)** |
+   | N=3000 det, seed 101 | 4160 | **4480 (+8% WORSE)** |
+   | N=3000 det, seed 2029 | 4480 | 3904 (-13%) |
+
+   Interleaved ABAB, each arm repeated and byte-identical on repeat (det runs
+   reproduce exactly), so the sign flip is signal, not noise: T6b helps two
+   seeds and hurts two. **The plateau does not move at all** — which is the
+   whole point of the front. Reverted; the sim is back at the 6976 baseline.
+
+   **METHODOLOGICAL TRAP, worth more than the experiment:** seed 20260714 is
+   the sim's DEFAULT and it is an OUTLIER — it converges in 6976 ticks where
+   every other seed tried lands at 4100-4500. Measuring only the default seed
+   showed a 28% win that does not exist. Sweep seeds before believing any
+   convergence delta.
+
+   **What the two refutations together establish:** contest losses really are
+   75% of evictions (measured), and making them cheaper — by ANY of the three
+   routes now tried (go-home, ask-the-winner, and the digest before them) —
+   does not move N=5000. The plateau is not a contest-cost problem. Spend the
+   next session on FRONT 3, the descent: the free frontier at the plateau is
+   uniformly holey (327 cells at depth 2, ~1200 at each of d3-d12, 11,259 for
+   1,924 seekers) and seekers walk PAST the shallow ones into deep spines and
+   NOROOM at the wall. The question to answer first is a measurement, not a
+   fix: WHY does a descent step past a free child? Instrument serveFind at a
+   node holding a free admissible cell that forwards anyway (MESH_FINDLOG
+   exists), and count the reasons — stale/phantom occ, the pass-0
+   firstHandLive preference, or H7 row-fill ordering.
+
 2. **V1 rollup digests to the BROWSER** (sim side LANDED + gated,
    repro-digest.sh 47/0, healing-laws §G argued incl. lying-aggregator);
    then remove the O(N) status flood (V2 statusOf cap, V3 dial). Rename
