@@ -36,7 +36,8 @@
         "multiplayer",
         "webgl",
         "racing",
-        "wildlife"
+        "wildlife",
+        "traffic"
       ],
       "accent": [
         92,
@@ -44,7 +45,7 @@
         255
       ],
       "cover": "/apps/anyroad/cover.jpg",
-      "bytes": 239161,
+      "bytes": 255338,
       "signature": null
     },
     {

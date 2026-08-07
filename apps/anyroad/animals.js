@@ -217,10 +217,38 @@
     }
 
     lastAlert = alert;
+    callIn -= dt;
     return hit;
   }
 
   var lastAlert = false;
+
+  // ---- calls ---------------------------------------------------------------
+  // Every few seconds, one animal within earshot makes its noise. Owned here
+  // rather than in sound.js because this is the module that knows what is
+  // nearby and what kind it is; sound.js only knows how to make the noise.
+  //
+  // Fleeing animals call MUCH more often, which is the useful part: a herd
+  // panicking somewhere off to your right is a warning that something is about
+  // to be in the road.
+  var callIn = 2;
+  function nextCall(car) {
+    if (callIn > 0 || !herd.length) return null;
+    callIn = rnd(1.6, 5.5);
+    var pick = [];
+    for (var i = 0; i < herd.length; i++) {
+      var a = herd[i];
+      if (a.state === 'hit') continue;
+      var d = Math.hypot(a.x - (car ? car.x : 0), a.z - (car ? car.z : 0));
+      if (d > 95) continue;
+      // Weight the panicking ones: they are the ones worth hearing.
+      pick.push(a);
+      if (a.state === 'flee') { pick.push(a); pick.push(a); callIn = rnd(0.5, 1.6); }
+    }
+    if (!pick.length) return null;
+    var chosen = pick[Math.floor(Math.random() * pick.length)];
+    return { kind: chosen.kind.id, x: chosen.x, z: chosen.z };
+  }
 
   // What the renderer needs, and nothing else. Rebuilt per frame into the same
   // array — the draw list is consumed immediately and a fresh array 60 times a
@@ -250,7 +278,7 @@
   }
 
   root.Animals = {
-    update: update, drawList: drawList, clear: clear,
+    update: update, drawList: drawList, clear: clear, nextCall: nextCall,
     KINDS: KINDS,
     count: function () { return herd.length; },
     alert: function () { return lastAlert; },

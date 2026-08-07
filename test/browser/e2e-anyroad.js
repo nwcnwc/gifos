@@ -462,18 +462,26 @@ function mixedStreet() {
   // backwards. Reading is not driving.
   await fr.locator('#btn-race').click();
   await fr.locator('#race').waitFor({ state: 'visible', timeout: 5000 });
-  await sleep(2500);
-  const parked = await fr.locator('body').evaluate(() => ({
-    park: window.App.debug().input.park, speed: window.App.car().speed,
-  }));
+  // POLLED, not slept. dt is clamped at 50 ms for stability, so on a software
+  // rasteriser running at seven frames a second one wall-clock second is a
+  // third of a simulated one — a fixed sleep asserts the frame rate, not the
+  // brake. What must be true is that the car comes to REST and stays there.
+  let parked = { park: false, speed: 99 };
+  for (let i = 0; i < 40; i++) {
+    await sleep(400);
+    parked = await fr.locator('body').evaluate(() => ({
+      park: window.App.debug().input.park, speed: window.App.car().speed,
+    }));
+    if (parked.park && Math.abs(parked.speed) < 0.001) break;
+  }
   await fr.locator('#close-race').click();
   await sleep(2500);
   const unparked = await fr.locator('body').evaluate(() => ({
     park: window.App.debug().input.park, speed: window.App.car().speed,
   }));
   check('a full-screen panel parks the car instead of driving it blind',
-    parked.park === true && Math.abs(parked.speed) < 0.5,
-    'park=' + parked.park + ' speed=' + parked.speed.toFixed(2));
+    parked.park === true && Math.abs(parked.speed) < 0.001,
+    'park=' + parked.park + ' speed=' + parked.speed.toFixed(3));
   check('closing the panel hands the car back',
     unparked.park === false && unparked.speed > 0.5,
     'park=' + unparked.park + ' speed=' + unparked.speed.toFixed(2));
@@ -754,6 +762,142 @@ function mixedStreet() {
   check('houses get a pitched roof, and it is not painted as a wall',
     kinds.pitched > 0, kinds.pitched + ' tile vertices');
   check('houses get a chimney', kinds.stacks > 0, kinds.stacks + ' chimney vertices');
+
+  // ---- traffic -------------------------------------------------------------
+  // Other cars, driving the ways the tile builder already computed for the road
+  // ribbons. No pathfinding and no road graph — but everything the player can
+  // actually check has to be real: they stay ON the road, they keep to one
+  // side, they never materialise on top of you, and hitting one hurts.
+  const cars = await fr.locator('body').evaluate(async () => {
+    const w = window.App.world, me = window.App.car();
+    const ctx = {
+      height: (x, z) => window.Terrain.heightAt(w.frame, x, z),
+      paths: () => {
+        const out = [];
+        for (const k in w.roads) {
+          const r = w.roads[k];
+          if (r && r.built && r.built.paths) out.push(...r.built.paths);
+        }
+        return out;
+      },
+    };
+    const nearestRoad = (x, z) => {
+      let best = null;
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (!r || !r.built || !r.built.index) continue;
+        const h = window.Roads.nearestRoad(r.built.index, x, z);
+        if (h && (!best || h.dist < best.dist)) best = h;
+      }
+      return best;
+    };
+    window.Traffic.clear();
+    window.Traffic.setLevel('heavy');
+    // Run it forward. Real steps, so the cars actually drive their ways.
+    // Two different numbers, and conflating them is a bug in the TEST: a car
+    // driving past you at three metres is traffic working correctly, while a
+    // car APPEARING at three metres is a car materialising in your bonnet.
+    // What must be bounded is the distance at first sight.
+    let closestSpawn = Infinity, offRoad = 0, samples = 0, moved = 0;
+    const first = {};
+    for (let i = 0; i < 400; i++) {
+      window.Traffic.update(me, ctx, 0.05);
+      for (const c of window.Traffic.drawList()) {
+        const d = Math.hypot(c.x - me.x, c.z - me.z);
+        if (first[c.id] === undefined) closestSpawn = Math.min(closestSpawn, d);
+        if (i % 20 === 0) {
+          const road = nearestRoad(c.x, c.z);
+          samples++;
+          if (!road || road.dist > road.halfWidth + 1.5) offRoad++;
+        }
+        if (first[c.id] === undefined) first[c.id] = c.x + ',' + c.z;
+        else if (first[c.id] !== c.x + ',' + c.z) moved++;
+      }
+    }
+    const level = { none: 0, light: 0, normal: 0, heavy: 0 };
+    for (const l of Object.keys(level)) {
+      window.Traffic.clear();
+      window.Traffic.setLevel(l);
+      for (let i = 0; i < 400; i++) window.Traffic.update(me, ctx, 0.25);
+      level[l] = window.Traffic.count();
+    }
+    window.Traffic.clear();
+    return { closestSpawn, offRoad, samples, moved, level, max: window.Traffic.LEVELS };
+  });
+  check('traffic appears on the roads and drives along them',
+    cars.samples > 0 && cars.moved > 0, cars.samples + ' samples, ' + cars.moved + ' movements');
+  check('traffic stays ON the carriageway', cars.offRoad === 0,
+    cars.offRoad + ' of ' + cars.samples + ' samples off the road');
+  check('traffic never materialises on top of the player',
+    cars.closestSpawn > 50, 'nearest first sighting ' + cars.closestSpawn.toFixed(0) + ' m');
+  check('the traffic level is a real dial, and "empty roads" means empty',
+    cars.level.none === 0 && cars.level.light > 0
+      && cars.level.light < cars.level.normal && cars.level.normal < cars.level.heavy,
+    JSON.stringify(cars.level));
+
+  const bump = await fr.locator('body').evaluate(() => {
+    const w = window.App.world, me = window.App.car();
+    const ctx = { height: (x, z) => window.Terrain.heightAt(w.frame, x, z), paths: () => [] };
+    window.Traffic.clear();
+    window.Car.repair(me);
+    me.speed = 22;
+    // Head-on, one car length ahead, closing.
+    const path = { pts: [{ x: me.x, z: me.z + 40 }, { x: me.x, z: me.z - 40 }], cruise: 14, half: 3 };
+    window.Traffic.inject({ path, i: 0, t: 0.5, dir: 1, speed: 18,
+                            x: me.x + Math.sin(me.yaw) * 2.5, z: me.z + Math.cos(me.yaw) * 2.5,
+                            y: me.y, yaw: me.yaw + Math.PI,
+                            vx: -Math.sin(me.yaw) * 18, vz: -Math.cos(me.yaw) * 18 });
+    const hit = window.Traffic.update(me, ctx, 0.016);
+    window.Traffic.clear();
+    return { damage: hit ? hit.damage : 0, health: me.health, rel: hit ? hit.rel : 0 };
+  });
+  check('hitting traffic costs condition, and a head-on costs a lot',
+    bump.damage > 20 && bump.health < 80,
+    '-' + bump.damage.toFixed(1) + ' at ' + bump.rel.toFixed(0) + ' m/s closing, ' + bump.health.toFixed(0) + '% left');
+
+  // ---- sound ---------------------------------------------------------------
+  // Everything is synthesised — the app is a GIF and a minute of audio is
+  // several times the size of the whole game — so there is no file to assert
+  // about. What CAN be checked is that the graph exists in a null-origin
+  // sandbox (the runtime gives the app no `allow-same-origin`), that the engine
+  // note tracks the gearbox rather than sitting at one pitch, and that silence
+  // is actually silent.
+  const audio = await fr.locator('body').evaluate(async () => {
+    if (!window.Sound.unlock('on')) return { unavailable: true };
+    // AWAITED between samples, because the continuous voices are updated at
+    // 20 Hz rather than at the frame rate — sixty ramps a second on a parameter
+    // with a 100 ms time constant is four schedulings for every one the ear
+    // could resolve. Five reads inside one tick would all return the first.
+    const at = async (speed) => {
+      await new Promise((r) => setTimeout(r, 70));
+      window.Sound.drive({ speed, throttle: 1, brake: false, onRoad: true, surface: 0, idle: false });
+      return window.Sound.debug().engineHz;
+    };
+    // WITHIN one gear, then over the change. The speeds matter: an earlier
+    // version sampled 6 and 14 m/s, which sit at exactly the same fraction of
+    // their respective gears and therefore produce exactly the same note — the
+    // test read that as a flat engine when the gearbox was working perfectly.
+    const idle = await at(0), slow = await at(3), mid = await at(7),
+          shift = await at(9), fast = await at(40);
+    window.Sound.drive({ speed: 30, throttle: 1, brake: false, onRoad: true, surface: 0, idle: false });
+    const rolling = window.Sound.debug();
+    // Silence is RAMPED, not switched — a hard cut on an audio parameter is an
+    // audible click. So wait for the ramp before asking whether it is silent.
+    window.Sound.setMode('off');
+    await new Promise((r) => setTimeout(r, 400));
+    const off = window.Sound.debug();
+    window.Sound.setMode('on');
+    return { idle, slow, mid, shift, fast, silentMaster: off.master,
+             state: rolling.state, ready: window.Sound.ready() };
+  });
+  check('the audio graph starts inside the sandbox', !audio.unavailable && audio.ready,
+    audio.unavailable ? 'no AudioContext available' : 'state: ' + audio.state);
+  check('the engine note rises with speed', audio.slow > audio.idle && audio.mid > audio.slow,
+    [audio.idle, audio.slow, audio.mid].map((n) => n.toFixed(0)).join(' -> ') + ' Hz');
+  check('…and DROPS on a gear change, which is what makes it a car',
+    audio.shift < audio.mid, 'at 7 m/s ' + audio.mid.toFixed(0)
+      + ' Hz, at 9 m/s ' + audio.shift.toFixed(0) + ' Hz');
+  check('silent means silent', audio.silentMaster < 0.01, 'master gain ' + audio.silentMaster.toFixed(4));
 
   // ---- a track is not a motorway -------------------------------------------
   // `surface` and `lanes` were the other two tags sitting unread in the same

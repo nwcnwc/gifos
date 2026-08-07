@@ -80,6 +80,13 @@
     // stays inside it, and every later frame re-reports a collision.
     car.x += pushX; car.z += pushZ;
 
+    // A PARKED car is pushed clear and nothing else. It has no velocity to
+    // convert into a rebound, and giving it one anyway is how a car resting
+    // against a building bounced off it at 4 m/s for as long as a panel was
+    // open — the park brake zeroed the speed and the next frame's rebound put
+    // it straight back.
+    if (car.parked) { car.contactT = 0; car.speed = 0; return null; }
+
     // FIRST frame of contact is the impact. Everything after it is resting or
     // scraping, and must not be charged as a fresh crash — with auto-cruise the
     // car drives itself back into the wall the instant it bounces off, so
@@ -162,6 +169,11 @@
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
+    // BEFORE the wrecked early-return, because collide() reads it and a wrecked
+    // car resting against a wall bounces off it exactly as enthusiastically as
+    // a healthy one — and being wrecked puts a panel on the screen, so it is
+    // precisely when the car is supposed to be sitting still.
+    car.parked = !!input.park;
     if (car.hurtCool > 0) car.hurtCool -= dt;
     if (car.wrecked) {
       // Wrecked: no drive, no steering authority, just roll to a halt and sit.
@@ -176,7 +188,7 @@
     // Parked: the player is reading a panel, not driving. No throttle, no
     // steering, and the brake is on — but reverse must NOT arm, or coming back
     // from the race sheet would find the car quietly backing down the street.
-    var park = !!input.park;
+    var park = car.parked;
     var inThrottle = park ? 0 : input.throttle;
     var inBrake = park ? 1 : input.brake;
     var inHand = park ? false : !!input.handbrake;

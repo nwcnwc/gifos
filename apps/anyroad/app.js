@@ -238,6 +238,7 @@
     // No road data loaded at all is NOT "off road" — that would punish the
     // player for our streaming being slow. Only a known-and-distant road is.
     car.onRoad = best ? best.dist <= best.halfWidth + 1.2 : true;
+    car.surface = best && car.onRoad ? best.surface : 2;   // off road IS rough
     // Cruise at what this road is for. Off tarmac, a walking-pace-ish amble —
     // it is the same idea as a speed limit, and it makes the class of road you
     // picked actually matter to how the drive feels.
@@ -263,6 +264,8 @@
     var hit = root.Car.collide(car, wallScratch, dtNow);
     if (!hit || hit.impact < 0.4) return;
     shake = Math.min(1, Math.max(shake, hit.impact / 16));
+    if (hit.crash) root.Sound.crash(Math.min(1, hit.impact / 18));
+    else if (hit.impact > 1) root.Sound.scrape();
     if (hit.damage > 0) root.UI.damage(car.health, hit.crash, hit.damage);
   }
 
@@ -297,10 +300,45 @@
   function wildlife(dt) {
     if (root.Sources.current.wildlife === 'off') { root.Animals.clear(); return; }
     var hit = root.Animals.update(car, animalCtx, dt);
+    // They make noise whether or not you hit them — an animal you can HEAR at
+    // the roadside before you see it is a warning, which is what turns them
+    // from a tax into a hazard.
+    var heard = root.Animals.nextCall(car);
+    if (heard) root.Sound.call(heard.kind, car, heard.x, heard.z);
     if (!hit) return;
     shake = Math.min(1, Math.max(shake, 0.25 + hit.damage / 40));
+    root.Sound.thump(hit.kind, Math.min(1, hit.damage / 25));
     root.UI.damage(car.health, true, hit.damage);
     root.UI.note(hit.label + '! ' + Math.round(hit.damage) + '% off the windscreen.');
+  }
+
+  // ---- other cars ----------------------------------------------------------
+  // traffic.js needs somewhere to drive: the world-space polylines the tile
+  // builder already computed for the road ribbons. Rebuilt per call rather than
+  // cached because tiles come and go, and it is a handful of array pushes.
+  var pathScratch = [];
+  var trafficCtx = {
+    height: function (x, z) { return root.Terrain.heightAt(world.frame, x, z); },
+    paths: function () {
+      pathScratch.length = 0;
+      for (var k in world.roads) {
+        var r = world.roads[k];
+        if (!r || !r.built || !r.built.paths) continue;
+        for (var i = 0; i < r.built.paths.length; i++) pathScratch.push(r.built.paths[i]);
+      }
+      return pathScratch;
+    },
+  };
+
+  function otherCars(dt) {
+    root.Traffic.setLevel(root.Sources.current.traffic);
+    var hit = root.Traffic.update(car, trafficCtx, dt);
+    root.Sound.traffic(car, root.Traffic.drawList());
+    if (!hit) return;
+    shake = Math.min(1, Math.max(shake, 0.35 + hit.damage / 40));
+    root.Sound.crash(Math.min(1, hit.rel / 22));
+    root.UI.damage(car.health, true, hit.damage);
+    root.UI.note('Collision — ' + Math.round(hit.damage) + '% condition gone.');
   }
 
   // Terrain must be present under a road tile before its mesh can be built.
@@ -351,6 +389,11 @@
     releaseWorld();
     root.Terrain.clear();
     root.Animals.clear();          // the herd belongs to the place you left
+    root.Traffic.clear();          // …and so does the traffic
+    // The first tap on a place IS the gesture a browser requires before it will
+    // start an audio graph. Nothing is primed before the player has asked for
+    // anything, which is also why there is no sound on the landing sheet.
+    root.Sound.unlock(root.Sources.current.sound);
     world.terrain = {}; world.roads = {};
     world.place = label || (lat.toFixed(4) + ', ' + lon.toFixed(4));
     // A hop is a fresh car, so the glass has to be fresh too — otherwise you
@@ -469,6 +512,11 @@
         collideBuildings(dt / steps);
       }
       wildlife(dt);
+      otherCars(dt);
+      root.Sound.drive({
+        speed: car.speed, throttle: input.throttle, brake: input.brake > 0,
+        onRoad: car.onRoad, surface: car.surface || 0, idle: Math.abs(car.speed) < 0.3,
+      });
     } else if (grounded) {
       car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
     }
@@ -513,6 +561,12 @@
                       tint: [0.90, 0.24, 0.22] });
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });
+    });
+    // Traffic goes through the same list as the players' cars: one mesh, one
+    // program, one matrix each. Thirty of them is thirty uniform writes.
+    root.Traffic.drawList().forEach(function (t) {
+      scene.cars.push({ x: t.x, y: t.y, z: t.z, yaw: t.yaw, pitch: 0, roll: 0,
+                        tint: t.tint, groundY: t.groundY });
     });
 
     try { root.Render.draw(scene); }
