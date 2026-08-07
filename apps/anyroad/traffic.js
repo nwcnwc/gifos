@@ -196,6 +196,15 @@
     for (var i = cars.length - 1; i >= 0; i--) {
       var c = cars[i];
 
+      // Dying: parked mid-explosion. No steering, no contact, no advance —
+      // just the clock running out on the wreck. It stays in the list so the
+      // cars behind still see it as a blocker.
+      if (c.dying != null) {
+        c.dying += dt;
+        if (c.dying > DYING_S) cars.splice(i, 1);
+        continue;
+      }
+
       // Slow for whatever is in front. Only against the few cars sharing this
       // way — a full n² sweep for something you register as "the traffic ahead
       // is slowing" is not a trade worth making.
@@ -272,7 +281,10 @@
     for (var i = 0; i < cars.length; i++) {
       var c = cars[i];
       draw.push({ id: c.id, x: c.x, y: c.y, z: c.z, yaw: c.yaw, tint: c.tint,
-                  speed: c.speed, vx: c.vx, vz: c.vz, groundY: c.y });
+                  speed: c.speed, vx: c.vx, vz: c.vz, groundY: c.y,
+                  // seconds into the death animation, or undefined while alive —
+                  // the renderer turns this into flash, shrink and smoke.
+                  boom: c.dying });
     }
     return draw;
   }
@@ -280,13 +292,22 @@
   // A car takes a few hits before it goes. One-shotting traffic makes the road
   // empty faster than it can be refilled, and an empty road is the thing this
   // module exists to prevent.
+  //
+  // A killed car does not BLINK OUT — an object that vanishes in one frame
+  // reads as a rendering bug, not as a consequence. It enters `dying`: it
+  // stops where it is, flashes, burns down and fades over DYING_S, and only
+  // then leaves the list. While dying it is a ghost to bolts and to the
+  // player's bumper (shooting or crashing into an explosion twice is nonsense)
+  // but it still blocks the traffic behind it, because a wreck does.
+  var DYING_S = 1.6;
   function shootAt(x, z, radius) {
     for (var i = 0; i < cars.length; i++) {
       var c = cars[i];
+      if (c.dying != null) continue;                 // already going — a ghost
       if (Math.hypot(c.x - x, c.z - z) > radius + 2.0) continue;
       c.hp = (c.hp === undefined ? 3 : c.hp) - 1;
       c.speed *= 0.6;
-      if (c.hp <= 0) { cars.splice(i, 1); return { destroyed: true, x: c.x, y: c.y, z: c.z }; }
+      if (c.hp <= 0) { c.dying = 0; c.speed = 0; return { destroyed: true, x: c.x, y: c.y, z: c.z }; }
       return { destroyed: false, x: c.x, y: c.y, z: c.z };
     }
     return null;

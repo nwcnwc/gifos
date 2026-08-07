@@ -26,16 +26,10 @@
       <div class="street" id="street" hidden></div>
     </div>
     <div class="spacer"></div>
-    <button class="chip" id="btn-map" aria-label="Map" aria-pressed="false">🗺️</button>
+    <!-- Bird's eye flies the game camera itself — no inset, no second map. -->
+    <button class="chip" id="btn-map" aria-label="Bird's-eye view" aria-pressed="false">🗺️</button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
-  </div>
-
-  <!-- Bird's-eye inset. Drawn from the SAME road index the car asks "am I on
-       tarmac" with, so the map cannot disagree with the world. -->
-  <div class="minimap" id="minimap" hidden>
-    <canvas id="mapcanvas" width="360" height="360"></canvas>
-    <div class="map-scale" id="map-scale">400 m</div>
   </div>
 
   <div class="speedo" id="speedo">

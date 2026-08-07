@@ -80,7 +80,14 @@
       if (Math.abs(den) < 1e-9) continue;              // parallel
       var t = ((ax - x0) * sz - (az - z0) * sx) / den;
       var u = ((ax - x0) * rz - (az - z0) * rx) / den;
-      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: x0 + rx * t, z: z0 + rz * t };
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+        // The wall's normal, facing the side the shot came FROM — a scorch
+        // mark laid on the far face of the wall is a mark nobody ever sees.
+        var nl = Math.hypot(sx, sz) || 1;
+        var nx = sz / nl, nz = -sx / nl;
+        if (nx * (x0 - ax) + nz * (z0 - az) < 0) { nx = -nx; nz = -nz; }
+        return { x: x0 + rx * t, z: z0 + rz * t, nx: nx, nz: nz };
+      }
     }
     return null;
   }
@@ -119,7 +126,7 @@
         ctx.walls(b.x, b.z, wallScratch);
         ctx.walls(nx, nz, wallScratch);
         var w = hitWall(b.x, b.z, nx, nz, wallScratch);
-        if (w) hit = { kind: 'wall', x: w.x, y: b.y, z: w.z };
+        if (w) hit = { kind: 'wall', x: w.x, y: b.y, z: w.z, nx: w.nx, nz: w.nz };
       }
       // And the ground, if you are shooting downhill.
       if (!hit && ctx.height) {

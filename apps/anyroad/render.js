@@ -683,6 +683,29 @@
       '}',
     ].join('\n'));
 
+    // --- decals: scorch marks and smoke, one batched blend pass --------------
+    // Quads whose corners the APP computes (it knows the wall normals and the
+    // camera; the renderer should not). Per-vertex tint+alpha so the whole
+    // list is ONE buffer upload and ONE draw call — a firefight's worth of
+    // marks is a few kilobytes, not a few dozen draw calls.
+    progs.decal = program([
+      'attribute vec3 aPos; attribute vec2 aUv; attribute vec4 aColor;',
+      'uniform mat4 uViewProj;',
+      'varying vec2 vUv; varying vec4 vColor;',
+      'void main(){ vUv = aUv; vColor = aColor; gl_Position = uViewProj * vec4(aPos, 1.0); }',
+    ].join('\n'), [
+      'precision highp float;',
+      'varying vec2 vUv; varying vec4 vColor;',
+      'void main(){',
+      // Radial falloff, so a square quad reads as a burn, a bloom of smoke —
+      // anything but a square.
+      '  float d = length(vUv - 0.5) * 2.0;',
+      '  float a = vColor.a * (1.0 - smoothstep(0.45, 1.0, d));',
+      '  if (a < 0.01) discard;',
+      '  gl_FragColor = vec4(vColor.rgb, a);',
+      '}',
+    ].join('\n'));
+
     // --- sky: a real sky, drawn before everything with depth writes off ------
     // It was a vertical gradient in SCREEN space, which means it did not move
     // when you did: look up, look down, spin the car — the same band sat there,
@@ -1082,6 +1105,44 @@
   }
 
   // scene: { eye, target, fov, far, time, terrain:[{mesh,texture}], roads:[], buildings:[], water:[], cars:[] }
+  // The decal batch: pos(3) + uv(2) + rgba(4) interleaved, rebuilt per frame
+  // into ONE reused buffer. Rebuilding is fine — the list is capped well under
+  // a hundred quads and the alternative is a draw call per mark.
+  var decalBuf = null, decalData = null;
+  var DECAL_UV = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];   // two tris of a unit quad
+  var DECAL_CORNER = [0, 1, 2, 0, 2, 3];
+  function drawDecals(decals) {
+    var p = progs.decal;
+    gl.useProgram(p.id);
+    gl.uniformMatrix4fv(p.u.uViewProj, false, viewProj);
+    var need = decals.length * 6 * 9;
+    if (!decalData || decalData.length < need) decalData = new Float32Array(Math.max(need, 1024));
+    var o = 0;
+    for (var i = 0; i < decals.length; i++) {
+      var d = decals[i], c = d.corners, t = d.tint, a = d.alpha;
+      for (var v = 0; v < 6; v++) {
+        var ci = DECAL_CORNER[v] * 3;
+        decalData[o++] = c[ci]; decalData[o++] = c[ci + 1]; decalData[o++] = c[ci + 2];
+        decalData[o++] = DECAL_UV[v * 2]; decalData[o++] = DECAL_UV[v * 2 + 1];
+        decalData[o++] = t[0]; decalData[o++] = t[1]; decalData[o++] = t[2]; decalData[o++] = a;
+      }
+    }
+    if (!decalBuf) decalBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, decalBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, decalData.subarray(0, o), gl.DYNAMIC_DRAW);
+    var stride = 9 * 4;
+    gl.enableVertexAttribArray(p.a.aPos);
+    gl.vertexAttribPointer(p.a.aPos, 3, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(p.a.aUv);
+    gl.vertexAttribPointer(p.a.aUv, 2, gl.FLOAT, false, stride, 12);
+    gl.enableVertexAttribArray(p.a.aColor);
+    gl.vertexAttribPointer(p.a.aColor, 4, gl.FLOAT, false, stride, 20);
+    gl.drawArrays(gl.TRIANGLES, 0, decals.length * 6);
+    gl.disableVertexAttribArray(p.a.aPos);
+    gl.disableVertexAttribArray(p.a.aUv);
+    gl.disableVertexAttribArray(p.a.aColor);
+  }
+
   function draw(scene) {
     var aspect = resize();
     var far = scene.far || 6000;
@@ -1170,6 +1231,20 @@
         aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
         aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 3 },
       });
+    }
+
+    // Decals — scorch marks on the walls just drawn, smoke over whatever is
+    // burning. Depth TEST on (a mark behind a wall stays behind it), depth
+    // WRITES off (they are film, not geometry). One buffer, one draw.
+    if (scene.decals && scene.decals.length) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);          // corners arrive in whatever winding
+      drawDecals(scene.decals);
+      gl.enable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     }
 
     // Scenery — trees and hedges, baked into one static mesh per road tile (see
@@ -1264,7 +1339,14 @@
         carMatrix(m, car.x, car.y, car.z, car.yaw, car.pitch || 0, car.roll || 0);
         gl.uniformMatrix4fv(progs.car.u.uModel, false, m);
         gl.uniform3fv(progs.car.u.uTint, car.tint || [0.85, 0.25, 0.25]);
+        // A dying car shrinks (scale) and flashes (emit) through the SAME
+        // program — two uniforms, no second mesh, no blend state.
+        var cs = car.scale || 1;
+        if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, [cs, cs, cs]);
+        if (car.emit) gl.uniform1f(progs.car.u.uEmit, car.emit);
         gl.drawElements(gl.TRIANGLES, cg.count, cg.type, 0);
+        if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, ONE);
+        if (car.emit) gl.uniform1f(progs.car.u.uEmit, 0);
       }
       ['aPos','aNormal','aColor'].forEach(function (name) {
         var loc = progs.car.a[name];

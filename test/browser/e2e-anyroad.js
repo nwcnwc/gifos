@@ -1106,12 +1106,76 @@ function check(name, cond, detail) {
       if (evs) stop = evs[0];
     }
     window.Blaster.clear();
+    // The wall's normal rides the event now — it orients the scorch mark, and
+    // a mark laid on the far face is a mark nobody sees. `facing` is its dot
+    // with the bolt's travel: a normal that faces the shooter is negative.
+    const facing = stop ? (stop.nx * (stop.x - me.x) + stop.nz * (stop.z - me.z)) : 0;
     return { kind: stop ? stop.kind : null,
-             dist: stop ? Math.hypot(stop.x - me.x, stop.z - me.z) : -1 };
+             dist: stop ? Math.hypot(stop.x - me.x, stop.z - me.z) : -1,
+             nlen: stop ? Math.hypot(stop.nx || 0, stop.nz || 0) : 0, facing: facing };
   });
   check('a bolt stops at a wall instead of shooting through the world',
     wallStop.kind === 'wall' && Math.abs(wallStop.dist - 20) < 3,
     wallStop.kind + ' at ' + wallStop.dist.toFixed(1) + ' m');
+  check('…and the hit carries a unit wall normal, facing the shooter',
+    Math.abs(wallStop.nlen - 1) < 0.01 && wallStop.facing < 0,
+    'len=' + wallStop.nlen.toFixed(3) + ' facing=' + wallStop.facing.toFixed(1));
+
+  // A shot that lands on a building leaves a MARK. Real path this time — the
+  // app's own blaster context against the real wall index — and the mark must
+  // arrive in the scene as a decal, because a list nothing draws is not a mark.
+  const scorched = await fr.locator('body').evaluate(async () => {
+    const me = window.App.car(); const w = window.App.world;
+    const scratch = [];
+    for (const k in w.roads) { const r = w.roads[k]; if (r && r.built) window.Roads.nearWalls(r.built.walls, me.x, me.z, scratch); }
+    if (!scratch.length) return { walls: 0 };
+    const ax = (scratch[0] + scratch[2]) / 2, az = (scratch[1] + scratch[3]) / 2;
+    me.yaw = Math.atan2(ax - me.x, az - me.z); me.speed = 0;
+    const before = window.App.debug().scorches;
+    for (let i = 0; i < 40 && window.App.debug().scorches === before; i++) {
+      window.Blaster.fire(me);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    return { walls: scratch.length / 4, scorches: window.App.debug().scorches - before };
+  });
+  check('shooting a building leaves a scorch mark on it',
+    scorched.scorches > 0, scorched.scorches + ' mark(s), ' + scorched.walls + ' wall segs near');
+
+  // A traffic car that dies EXPLODES AND FADES — it must keep appearing in the
+  // draw list (flagged `boom`) before it leaves, because an object that blinks
+  // out in one frame reads as a rendering bug, not a consequence. Driven
+  // through the real module; polled, because dt is clamped and simulated time
+  // trails wall clock on a busy box.
+  const boom = await fr.locator('body').evaluate(async () => {
+    for (let i = 0; i < 60 && !window.Traffic.count(); i++) await new Promise((r) => setTimeout(r, 250));
+    const list = window.Traffic.drawList();
+    if (!list.length) return { traffic: 0 };
+    const t0 = list[0];
+    let res = null;
+    for (let i = 0; i < 3; i++) res = window.Traffic.shootAt(t0.x, t0.z, 3);
+    const dyingNow = window.Traffic.drawList().find((t) => t.id === t0.id);
+    // A dying car is a ghost to further shots — a second kill of the same car
+    // would double-count everything downstream of it.
+    const ghost = window.Traffic.shootAt(t0.x, t0.z, 3);
+    let gone = false, aged = 0;
+    for (let i = 0; i < 40 && !gone; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      const t = window.Traffic.drawList().find((x) => x.id === t0.id);
+      if (!t) gone = true;
+      else aged = t.boom;
+    }
+    return { traffic: list.length, destroyed: !!(res && res.destroyed),
+             stays: !!(dyingNow && dyingNow.boom != null), ghostHit: ghost && Math.hypot(ghost.x - t0.x, ghost.z - t0.z) < 4,
+             aged: aged, gone: gone };
+  });
+  if (boom.traffic === 0) {
+    check('a killed traffic car explodes and fades (no traffic spawned to test)', true, 'skipped — no traffic in range');
+  } else {
+    check('a killed traffic car STAYS in the world, dying', boom.destroyed && boom.stays, JSON.stringify(boom));
+    check('…is a ghost to further shots while it dies', !boom.ghostHit, JSON.stringify(boom.ghostHit));
+    check('…and then it is gone, after visibly ageing', boom.gone && boom.aged > 0,
+      'aged to ' + (+boom.aged).toFixed(2) + ' s, gone=' + boom.gone);
+  }
 
   // Space fires it, and the handbrake moved off space to make room.
   const keys = await fr.locator('body').evaluate(async () => {
@@ -1137,34 +1201,50 @@ function check(name, cond, detail) {
   check('…and the handbrake moved to X so space could have it',
     keys.held.hand === false && keys.hand === true && keys.released === false, JSON.stringify(keys));
 
-  // ---- the bird's-eye inset ------------------------------------------------
-  // Drawn from the same road index the car asks "am I on tarmac" with, so it
-  // cannot disagree with the world. What must hold: the toggle shows it, it
-  // actually draws something, and it is not eating pointer events over the
-  // steering area.
+  // ---- bird's eye: the CAMERA flies, there is no inset ----------------------
+  // The canvas minimap is deliberately DEAD. It was a second renderer over a
+  // second read of the world, and it did what second copies do: the road index
+  // grew a field (stride 7 → 8) and the map kept walking it at seven —
+  // coordinates became half-widths, half-widths became line-widths hundreds of
+  // metres wide, and the result was a map with no roads that also ate the
+  // frame rate repainting garbage at 8 Hz. The button now flies the one real
+  // camera up and back down. These checks hold the toggle to that: the eye
+  // actually climbs, the world keeps running (it is a view, not a pause), and
+  // the eye comes back down when asked.
+  check('the old inset is really gone (no second renderer to rot again)',
+    await fr.locator('body').evaluate(() => !document.getElementById('mapcanvas') && !document.getElementById('minimap')));
   await fr.locator('#btn-map').click();
-  await sleep(900);
-  const map = await fr.locator('body').evaluate(() => {
-    const cv = document.getElementById('mapcanvas');
-    const g = cv.getContext('2d');
-    const px = g.getImageData(0, 0, cv.width, cv.height).data;
-    let ink = 0, road = 0;
-    for (let i = 0; i < px.length; i += 4) {
-      if (px[i + 3] > 8) ink++;
-      // The tarmac grey the map paints carriageways with.
-      if (Math.abs(px[i] - 74) < 26 && Math.abs(px[i + 1] - 79) < 26 && Math.abs(px[i + 2] - 87) < 26) road++;
-    }
-    const box = document.getElementById('minimap');
-    return { shown: !box.hidden, ink, road, total: cv.width * cv.height,
-             pointer: getComputedStyle(box).pointerEvents,
-             pressed: document.getElementById('btn-map').getAttribute('aria-pressed') };
+  let bird = null;
+  for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock
+    await sleep(500);
+    bird = await fr.locator('body').evaluate(() => {
+      const d = window.App.debug();
+      return { on: d.birdseye, up: d.camera.y - d.y,
+               pressed: document.getElementById('btn-map').getAttribute('aria-pressed') };
+    });
+    if (bird.up > 150) break;
+  }
+  check('the bird\'s-eye toggle flies the REAL camera up', bird.on && bird.up > 150,
+    bird.up.toFixed(0) + ' m above the car, pressed=' + bird.pressed);
+  check('…and the chip shows pressed', bird.pressed === 'true');
+  const birdDrive = await fr.locator('body').evaluate(() => {
+    const d = window.App.debug();
+    return { running: d.running, speed: Math.abs(d.speed) };
   });
-  check('the map opens from its own chip', map.shown && map.pressed === 'true');
-  check('the map draws the world, not an empty circle',
-    map.ink > map.total * 0.2 && map.road > 200,
-    Math.round(map.ink / map.total * 100) + '% painted, ' + map.road + ' carriageway pixels');
-  check('the map never takes a pointer event', map.pointer === 'none', map.pointer);
+  check('the world keeps running under the bird — a view, not a pause',
+    birdDrive.running, JSON.stringify(birdDrive));
   await fr.locator('#btn-map').click();
+  let down = null;
+  for (let i = 0; i < 24; i++) {
+    await sleep(500);
+    down = await fr.locator('body').evaluate(() => {
+      const d = window.App.debug();
+      return { on: d.birdseye, up: d.camera.y - d.y };
+    });
+    if (!down.on && down.up < 40) break;
+  }
+  check('toggling again brings the camera back down to the chase',
+    !down.on && down.up < 40, down.up.toFixed(0) + ' m above the car');
 
   // ---- sound ---------------------------------------------------------------
   // Everything is synthesised — the app is a GIF and a minute of audio is
@@ -1325,6 +1405,126 @@ function check(name, cond, detail) {
   // fix: throttle stayed 0 while steer showed 0.047.
   check('typing driving letters into search does not drive the car',
     leaked.brake === 0 && !leaked.hand && leaked.steer === 0, JSON.stringify(leaked));
+
+  // ==== THE HILLS CODA ======================================================
+  // Everything above runs on a FLAT fixture, and a flat world cannot catch the
+  // two bugs that emptied a real city:
+  //
+  //  * TWO SURFACES. The renderer drew a 48-cell lattice; heightAt answered
+  //    from the full heightfield — different surfaces, agreeing exactly on
+  //    flat ground and disagreeing by metres wherever real terrain curves
+  //    inside a lattice cell. Every densified road hugged the surface the
+  //    renderer does not draw, and every residential street on a hillside was
+  //    genuinely underground while the street NAMES (a 2-D index) kept
+  //    working. Every gate stayed green, because the fixture was flat.
+  //  * FROZEN GUESSES. Ways run beyond their tile over terrain not loaded yet;
+  //    those ground samples were silently 0, the tile built its city at the
+  //    bottom of the world, and a built tile never rebuilt — the meadow where
+  //    the old town should be.
+  //
+  // So: a second boot on ROLLING HILLS, asserting the invariants themselves.
+  const hCtx = await browser.newContext();
+  const hHits = await routeWorld(hCtx, { hills: true });
+  void hHits;
+  const hDesk = await hCtx.newPage();
+  hDesk.on('pageerror', (e) => console.log('  [hills desk pageerror]', e.message));
+  await hDesk.goto(BASE + '/index.html');
+  await hDesk.waitForSelector('.icon', { timeout: 45000 });
+  await hDesk.evaluate(async (b64) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Anyroad.gif', bytes, kind: 'gif', isApp: true, appId: 'anyroad', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Anyroad.gif', parent: null, x: 620, y: 320, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  }, gifB64);
+  const [hApp] = await Promise.all([
+    hCtx.waitForEvent('page'),
+    hDesk.locator('.icon', { hasText: 'Anyroad.gif' }).dblclick(),
+  ]);
+  hApp.on('pageerror', (e) => console.log('  [hills app pageerror]', e.message));
+  await hApp.bringToFront();
+  await hApp.waitForSelector('iframe', { timeout: 10000 });
+  await hApp.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 5000 }).catch(() => {});
+  const hFr = hApp.frameLocator('iframe');
+  await hFr.locator('#landing').waitFor({ timeout: 10000 });
+  await hFr.locator('#presets button', { hasText: 'Paris' }).first().click();
+  await hFr.locator('#hud').waitFor({ state: 'visible', timeout: 8000 });
+  let hState = null;
+  for (let i = 0; i < 50; i++) {
+    await sleep(1000);
+    hState = await hFr.locator('body').evaluate(() => {
+      const w = window.App.world;
+      const built = Object.keys(w.roads).filter((k) => w.roads[k] && w.roads[k].built);
+      const pend = Object.keys(w.roads).filter((k) => w.roads[k] && (w.roads[k].pending || (!w.roads[k].built && !w.roads[k].failed)));
+      return { built: built.length, pending: pend.length };
+    }).catch(() => null);
+    if (hState && hState.built >= 4 && hState.pending === 0) break;
+  }
+  check('HILLS: the world builds on rolling terrain', !!hState && hState.built >= 4, JSON.stringify(hState));
+
+  const hills = await hFr.locator('body').evaluate(() => {
+    const w = window.App.world, f = w.frame;
+    // 1. ONE SURFACE: the drawn terrain mesh and heightAt must agree at the
+    //    mesh's own vertices. Sample the lattice (skip the skirt verts, which
+    //    hang below on purpose).
+    let worstMesh = 0, meshChecked = 0, range = { min: Infinity, max: -Infinity };
+    for (const tk in w.terrain) {
+      const slot = w.terrain[tk];
+      if (!slot || !slot.rec) continue;
+      const mesh = window.Terrain.meshFor(slot.rec, f);
+      const P = mesh.positions;
+      for (let v = 0; v < P.length / 3; v += 7) {
+        const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+        const h = window.Terrain.heightAt(f, x, z);
+        if (h === null) continue;
+        // skirt verts are duplicates dropped SKIRT below their edge vertex —
+        // they disagree by exactly SKIRT; skip anything that far out.
+        const d = Math.abs(y - h);
+        if (d > 0.5) continue;
+        if (d > worstMesh) worstMesh = d;
+        meshChecked++;
+        if (h < range.min) range.min = h; if (h > range.max) range.max = h;
+      }
+    }
+    // 2. ROADS ON THE DRAWN GROUND: every carriageway vertex (uv.v === 0 edge,
+    //    same filter the width test uses) sits ON or ABOVE what is drawn.
+    let below = 0, roadChecked = 0, worstRoad = 0;
+    for (const rk in w.roads) {
+      const r = w.roads[rk];
+      if (!r || !r.built) continue;
+      const m = r.built.roads, P = m.positions, U = m.uvs;
+      for (let v = 0; v < P.length / 3; v += 3) {
+        if (U[v * 2 + 1] !== 0) continue;                    // carriageway edge only
+        const h = window.Terrain.heightAt(f, P[v * 3], P[v * 3 + 2]);
+        if (h === null) continue;
+        roadChecked++;
+        const clearance = P[v * 3 + 1] - h;
+        if (clearance < 0.05) { below++; if (-clearance > worstRoad) worstRoad = -clearance; }
+      }
+    }
+    // 3. NO FROZEN GUESSES: with all terrain loaded, no built tile still
+    //    carries incomplete geometry (the rebuild-on-arrival converged).
+    let incomplete = 0;
+    for (const rk in w.roads) {
+      const r = w.roads[rk];
+      if (r && r.built && r.built.incomplete) incomplete++;
+    }
+    return { worstMesh, meshChecked, relief: range.max - range.min,
+             below, roadChecked, worstRoad, incomplete };
+  });
+  check('HILLS: the terrain is actually hilly (the coda is not testing flat)',
+    hills.relief > 8, hills.relief.toFixed(1) + ' m of relief across the mesh');
+  check('HILLS: the drawn ground and the physical ground are ONE surface',
+    hills.meshChecked > 200 && hills.worstMesh < 0.02,
+    'worst disagreement ' + (hills.worstMesh * 100).toFixed(1) + ' cm over ' + hills.meshChecked + ' mesh vertices');
+  check('HILLS: every road stands on the ground the renderer draws',
+    hills.roadChecked > 200 && hills.below === 0,
+    hills.below + ' of ' + hills.roadChecked + ' carriageway vertices below the drawn ground'
+    + (hills.below ? ' (worst ' + hills.worstRoad.toFixed(2) + ' m under)' : ''));
+  check('HILLS: no tile is left holding terrain-less guesses (rebuilds converged)',
+    hills.incomplete === 0, hills.incomplete + ' tile(s) still incomplete');
+  await hCtx.close();
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

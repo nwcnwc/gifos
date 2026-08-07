@@ -57,6 +57,33 @@ function terrariumTile(size, h) {
 }
 const TILE_PNG = terrariumTile(64, FIXTURE_HEIGHT);
 
+// Rolling hills — the terrain that CAUGHT the two-surfaces bug. A constant
+// tile can never disagree with itself: the drawn mesh and the sampled
+// heightfield only part company where ground CURVES inside a lattice cell, so
+// a flat fixture certifies a renderer that buries every residential street on
+// a real hillside. h = base + amp·sin(x/λ)·cos(y/λ), amplitude in metres.
+function terrariumHills(size, base, amp, wavelengthPx) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 3);
+    for (let x = 0; x < size; x++) {
+      const h = base + amp * Math.sin(x / wavelengthPx * 2 * Math.PI) * Math.cos(y / wavelengthPx * 2 * Math.PI);
+      const [r, g, b] = terrariumPixel(h);
+      row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b;
+    }
+    rows.push(row);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(Buffer.concat(rows))), pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+// 64px tile, ±9 m swells about 8 lattice cells wide: honest countryside.
+const HILLS_PNG = terrariumHills(64, FIXTURE_HEIGHT, 9, 21);
+
 // A street with KNOWN building types on it. OSM carries `building=house`,
 // `building=retail`, `building=warehouse` and the rest, and until 2026-08 the
 // parser tested the tag for truthiness and threw the value away — so this
@@ -130,12 +157,13 @@ function overpassBody() {
 // Returns the per-context hit ledger. It is per CONTEXT on purpose: with the
 // download pool engaged, a URL fetched by one player is never requested by the
 // others, so summing these across contexts counts REAL upstream requests.
-async function routeWorld(context) {
+async function routeWorld(context, opts) {
+  const terrainBody = opts && opts.hills ? HILLS_PNG : TILE_PNG;
   const hits = { terrain: 0, overpass: 0, nominatim: 0, urls: [] };
   await context.route('**://s3.amazonaws.com/**', async (route) => {
     hits.terrain++;
     await route.fulfill({ status: 200, contentType: 'image/png',
-      headers: { 'Access-Control-Allow-Origin': '*' }, body: TILE_PNG });
+      headers: { 'Access-Control-Allow-Origin': '*' }, body: terrainBody });
   });
   await context.route(/overpass/, async (route) => {
     hits.overpass++; hits.urls.push(route.request().url());
@@ -151,4 +179,4 @@ async function routeWorld(context) {
   return hits;
 }
 
-module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, terrariumTile, overpassBody, mixedStreet, routeWorld };
+module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, HILLS_PNG, terrariumTile, terrariumHills, overpassBody, mixedStreet, routeWorld };
