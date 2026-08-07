@@ -27,13 +27,13 @@
 
   function init(h) {
     hooks = h;
-    ['view','hud','landing','settings','race','note','fatal','place','speed','status',
+    ['view','hud','landing','settings','race','note','fatal','place','speed','speedo','status',
      'racehud','rh-time','rh-dist','rh-arrow','q','results','presets','attribution',
      'attribution2','board','mp-status','race-badge','race-hint','cache-size',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
-     'health','health-fill','damage-flash','wrecked',
+     'health','health-fill','damage-flash','wrecked','gear','stuck','cracks','ctl-wildlife',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -91,7 +91,17 @@
     $('btn-repair').addEventListener('click', function () {
       hooks.onRepair();
       el.wrecked.hidden = true;
+      clearCracks();
       note('Repaired. Mind the buildings.');
+    });
+
+    // The rescue. Deliberately a button and not an automatic teleport: being
+    // moved by the game while you are still working out how to reverse out is
+    // worse than being stuck, and there is no way for the app to tell the two
+    // apart from the outside.
+    el.stuck.addEventListener('click', function () {
+      hooks.onUnstick();
+      el.stuck.hidden = true; last.stuck = false;
     });
 
     Array.prototype.forEach.call(el.schemes.querySelectorAll('button'), function (b) {
@@ -104,6 +114,18 @@
            : name === 'tilt' ? 'Hold the phone as you like — that is now straight ahead.'
            : 'Turn the wheel to steer; the car keeps its own speed.');
       });
+    });
+
+    // R for rescue, on the keyboard, whether or not the button is showing —
+    // a desktop player wedged in a courtyard should not have to wait 2.5 s for
+    // a button to appear before they can do anything about it.
+    root.addEventListener('keydown', function (e) {
+      if (e.key !== 'r' && e.key !== 'R') return;
+      var t = e.target, tag = (t && t.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      if (panelOpen()) return;
+      hooks.onUnstick();
+      el.stuck.hidden = true; last.stuck = false;
     });
 
     root.MP.onChange(updateRacePanel);
@@ -169,6 +191,10 @@
       root.Sources.set({ throttle: this.value });
       note(this.value === 'auto' ? 'The car drives itself — steer and brake.' : 'Hold GO to accelerate.');
     });
+    el['ctl-wildlife'].addEventListener('change', function () {
+      root.Sources.set({ wildlife: this.value });
+      note(this.value === 'on' ? 'Watch for animals on the road.' : 'The roads are empty again.');
+    });
     el['ctl-steering'].addEventListener('change', function () {
       root.Sources.set({ steering: this.value });
       note(this.value === 'tilt' ? 'Hold the phone as you like — that is now straight ahead.'
@@ -212,8 +238,8 @@
     if (el['coach-gas']) el['coach-gas'].hidden = !manual;
     var brakeCoach = document.querySelector('.coach-brake');
     if (brakeCoach) {
-      brakeCoach.innerHTML = manual ? 'Hold to brake<br>and reverse'
-                                    : 'Drives itself —<br>hold to slow down';
+      brakeCoach.innerHTML = manual ? 'Hold to brake —<br>keep holding to reverse'
+                                    : 'Drives itself — hold to<br>slow, then to reverse';
     }
   }
 
@@ -224,6 +250,7 @@
     el['src-quality'].value = root.Sources.current.quality;
     el['ctl-throttle'].value = root.Sources.current.throttle;
     el['ctl-steering'].value = root.Sources.current.steering;
+    el['ctl-wildlife'].value = root.Sources.current.wildlife;
     el['note-steering'].textContent = root.Sources.current.steering === 'tilt'
       ? 'Whatever angle you are holding the phone at when you start becomes straight ahead. Your phone will ask permission the first time.'
       : 'Slide on the pad, or anywhere on the left half of the screen.';
@@ -283,6 +310,21 @@
     var kph = Math.round(s.speed);
     if (kph !== last.kph) { el.speed.textContent = kph; last.kph = kph; }
 
+    // Direction, because a number with no sign told the player nothing. The
+    // whole read-out turns amber in reverse rather than only the little R: at a
+    // glance, "the speedo looks different" has to arrive before you read it.
+    if (!!s.reverse !== !!last.reverse) {
+      last.reverse = !!s.reverse;
+      el.gear.hidden = !s.reverse;
+      el.speedo.classList.toggle('reversing', !!s.reverse);
+    }
+
+    // The rescue button, and only while it is true.
+    if (!!s.stuck !== !!last.stuck) {
+      last.stuck = !!s.stuck;
+      el.stuck.hidden = !s.stuck;
+    }
+
     // The steering knob is the read-out that makes the control legible: it has
     // to track the wheel whether the input came from the pad, a drag on the
     // canvas, or the keyboard.
@@ -304,6 +346,7 @@
     // actually do something about it — so say what, rather than spin forever.
     else if (s.net.backoffMs > 8000) msg = 'Map server busy — try another Roads source in ☰ Settings';
     else if (s.net.backoffMs > 800) msg = 'Map server busy — waiting ' + Math.ceil(s.net.backoffMs / 1000) + 's';
+    else if (s.beast) msg = 'Animal on the road';
     else if (s.airborne) msg = 'Airborne';
     else if (s.offRoad) msg = 'Off road — less grip';
     if (msg !== last.msg) {
@@ -318,6 +361,9 @@
       last.health = h;
       el['health-fill'].style.width = h + '%';
       el['health-fill'].style.background = h > 60 ? '#48d17a' : (h > 25 ? '#e8b34a' : '#e0544a');
+      // Condition is not only a bar in the corner any more: the same number
+      // spreads the cracks across the glass you are looking through.
+      setDamage(h);
     }
     if (!!s.wrecked !== !!last.wrecked) {
       last.wrecked = !!s.wrecked;
@@ -362,9 +408,155 @@
     });
   }
 
+  // ---- the windscreen ------------------------------------------------------
+  // Condition used to be a 128-pixel bar in a corner, which is a number about
+  // the car rather than something happening to YOU. Damage now lands on the
+  // glass you are looking through: every impact chips it where it hit, and as
+  // the condition falls those chips grow legs and spread. It is drawn on a 2D
+  // canvas over the GL one — cheap, redrawn only when the damage actually
+  // changes, and never once per frame.
+  //
+  // Two rules keep it from becoming an obstacle:
+  //  - the cracks stay OUT of the middle of the screen, where the road is;
+  //  - they are thin and mostly transparent, so they read as glass rather than
+  //    as a texture pasted over the picture.
+  var impacts = [];            // { u, v, r, seed } in 0..1 screen space
+  var damageLevel = 100;
+  var crackCtx = null;
+
+  function crackCanvas() {
+    if (!crackCtx && el.cracks) {
+      crackCtx = el.cracks.getContext('2d');
+      root.addEventListener('resize', drawCracks);
+    }
+    return crackCtx;
+  }
+
+  // A tiny deterministic PRNG per impact, so a redraw (a resize, a rotation)
+  // reproduces the SAME crack rather than shattering the glass again.
+  function prng(seed) {
+    var s = seed;
+    return function () { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+  }
+
+  function branch(ctx, x, y, ang, len, depth, rand) {
+    if (len < 5 || depth > 2) return;
+    var segs = 2 + Math.floor(rand() * 3);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    var cx = x, cy = y, a = ang;
+    for (var i = 0; i < segs; i++) {
+      a += (rand() - 0.5) * 0.7;
+      var step = len / segs;
+      cx += Math.cos(a) * step; cy += Math.sin(a) * step;
+      ctx.lineTo(cx, cy);
+      // Forks, which is what makes it a crack and not a scratch.
+      if (rand() < 0.45) branch(ctx, cx, cy, a + (rand() < 0.5 ? 1 : -1) * (0.5 + rand() * 0.6),
+                                len * (0.35 + rand() * 0.3), depth + 1, rand);
+    }
+    ctx.lineWidth = Math.max(0.6, 2.2 - depth * 0.55);
+    ctx.stroke();
+  }
+
+  function drawCracks() {
+    var ctx = crackCanvas();
+    if (!ctx) return;
+    var cv = el.cracks;
+    var dpr = Math.min(root.devicePixelRatio || 1, 2);
+    var w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (!impacts.length) return;
+
+    // Everything grows as the condition falls, so the glass keeps deteriorating
+    // between hits instead of only at the moment of impact.
+    var spread = 1 + (100 - damageLevel) / 100 * 0.85;
+    var scale = Math.min(w, h);
+
+    for (var i = 0; i < impacts.length; i++) {
+      var im = impacts[i];
+      var x = im.u * w, y = im.v * h;
+      var rand = prng(im.seed);
+      // Short. A crack is a star a hand's width across, not a line across the
+      // windscreen — at 0.16 of the screen per arm the first version drew
+      // something that read as scratches on the lens, and worse, as scenery.
+      var len = im.r * scale * 0.042 * spread;
+
+      // The arms are decided ONCE and drawn twice. Deriving them inside each
+      // pass advanced the shared PRNG differently, so the dark pass drew a
+      // completely different star from the light one — two cracks, not one
+      // crack with a shadow, which is exactly what it looked like.
+      var arms = [];
+      var n = 5 + Math.floor(rand() * 4);
+      var a0 = rand() * 6.28;
+      for (var k = 0; k < n; k++) {
+        arms.push({ ang: a0 + k * 6.28 / n + (rand() - 0.5) * 0.5,
+                    len: len * (0.55 + rand() * 0.75), seed: im.seed + k * 7919 });
+      }
+
+      function pass(dx, dy, style) {
+        ctx.save();
+        ctx.translate(dx, dy);
+        ctx.strokeStyle = style;
+        for (var j = 0; j < arms.length; j++) {
+          branch(ctx, x, y, arms[j].ang, arms[j].len, 0, prng(arms[j].seed));
+        }
+        ctx.restore();
+      }
+      // Glass fractures read as a bright line with a shadow under it; one
+      // stroke on its own is a pen mark.
+      pass(1.1, 1.1, 'rgba(8, 13, 22, 0.34)');
+      pass(0, 0, 'rgba(228, 240, 253, 0.58)');
+
+      // The chip itself: a small pit of pulverised glass at the point of
+      // contact, which is the bit that actually says "something hit this".
+      var pit = Math.max(2.5, im.r * scale * 0.006 * spread);
+      var g = ctx.createRadialGradient(x, y, 0, x, y, pit * 3);
+      g.addColorStop(0, 'rgba(255, 255, 255, 0.62)');
+      g.addColorStop(0.45, 'rgba(206, 226, 245, 0.22)');
+      g.addColorStop(1, 'rgba(206, 226, 245, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, pit * 3, 0, 6.2832);
+      ctx.fill();
+    }
+  }
+
+  // A new chip, placed where it will not sit on top of the road: the middle
+  // third of the screen is where you are looking, so impacts land around it.
+  function addImpact(severity) {
+    if (impacts.length >= 14) impacts.shift();
+    var side = Math.random() < 0.5 ? -1 : 1;
+    impacts.push({
+      u: 0.5 + side * (0.16 + Math.random() * 0.28),
+      v: 0.10 + Math.random() * 0.42,
+      r: Math.max(0.45, Math.min(2.2, 0.5 + severity / 14)),
+      seed: Math.floor(Math.random() * 2000000) + 1,
+    });
+    drawCracks();
+  }
+
+  function setDamage(health) {
+    var was = damageLevel;
+    damageLevel = health;
+    // Only redraw on a real change of state — this is a full canvas repaint and
+    // it must not happen because a number wobbled by a tenth.
+    if (impacts.length && Math.abs(was - health) > 2) drawCracks();
+  }
+
+  function clearCracks() {
+    impacts.length = 0;
+    damageLevel = 100;
+    drawCracks();
+  }
+
   // Called on impact only — the bar itself is refreshed from hud() every frame,
   // so this exists for the parts that are events rather than state.
-  function damage(health, crash) {
+  function damage(health, crash, amount) {
+    // Anything that actually cost condition marks the glass; a scrape along a
+    // wall does not, or driving down a narrow street would frost the windscreen.
+    if (amount > 0.8) addImpact(amount);
     if (!crash) return;                       // scrapes do not flash the screen
     el['damage-flash'].classList.remove('hit');
     void el['damage-flash'].offsetWidth;      // restart the animation
@@ -448,11 +640,21 @@
     });
   }
 
+  // Is anything full-screen in front of the player? The loop asks every frame
+  // and parks the car if so — see app.js. `fatal` is deliberately in the list:
+  // the app is dead, and a dead app must not still be driving.
+  function panelOpen() {
+    return !!(el.landing && !el.landing.hidden) || !!(el.settings && !el.settings.hidden)
+        || !!(el.race && !el.race.hidden) || !!(el.fatal && !el.fatal.hidden)
+        || !!(el.wrecked && !el.wrecked.hidden);
+  }
+
   root.UI = {
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
     setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
-    setThrottleMode: setThrottleMode, damage: damage,
-    showStick: showStick, setScheme: setScheme,
+    setThrottleMode: setThrottleMode, damage: damage, panelOpen: panelOpen,
+    showStick: showStick, setScheme: setScheme, clearCracks: clearCracks,
+    crackCount: function () { return impacts.length; },
     steerPad: function () { return el.steerpad; },
   };
 })(window);

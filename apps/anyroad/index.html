@@ -10,6 +10,11 @@
 <body>
 
 <canvas id="view"></canvas>
+<!-- The windscreen: damage is drawn on the glass you are looking through, not
+     only counted in a bar. Never takes a pointer event — it sits over the
+     steering area. -->
+<canvas id="cracks"></canvas>
+<div class="glass" aria-hidden="true"></div>
 
 <!-- ── the drive HUD ─────────────────────────────────────────────────────── -->
 <div id="hud" hidden>
@@ -21,9 +26,16 @@
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
   </div>
 
-  <div class="speedo">
+  <div class="speedo" id="speedo">
     <span id="speed">0</span><small>km/h</small>
+    <!-- Reverse is a GEAR and the read-out says so. |speed| alone made 36 km/h
+         backwards and 36 km/h forwards the same picture. -->
+    <b class="gear" id="gear" hidden>R</b>
   </div>
+
+  <!-- Appears only while the car is genuinely wedged: full power, no movement.
+       Puts you back on the nearest carriageway, facing along it. -->
+  <button class="stuck" id="stuck" hidden>Stuck? Back to the road</button>
 
   <!-- Condition. Sits with the speed read-out because both answer "how is the
        car doing" and a bar hunting for attention elsewhere would be noise. -->
@@ -169,11 +181,27 @@
     </label>
 
     <label class="field">
+      <span>Wildlife</span>
+      <select id="ctl-wildlife">
+        <option value="on">Animals on the roads</option>
+        <option value="off">None</option>
+      </select>
+      <small>Deer, sheep, geese and the occasional cow wander the verges and
+        cross in front of you. Hitting one costs condition and cracks the
+        windscreen — brake, or go round.</small>
+    </label>
+
+    <label class="field">
       <span>Detail</span>
       <select id="src-quality">
+        <option value="normal">Everything — buildings and scenery</option>
+        <option value="medium">No scenery — buildings only</option>
         <option value="low">Roads only — lightest</option>
-        <option value="normal">Roads and buildings</option>
       </select>
+      <small>Scenery is trees, generated along the roads rather than downloaded,
+        and it is the most expensive thing on screen. Step down one if an older
+        phone struggles; roads-only also stops asking for building footprints,
+        which makes busy cities load faster.</small>
     </label>
 
     <div class="field">
@@ -231,6 +259,7 @@
 <script src="roads.js"></script>
 <script src="render.js"></script>
 <script src="car.js"></script>
+<script src="animals.js"></script>
 <script src="mp.js"></script>
 <script src="ui.js"></script>
 <script src="app.js"></script>

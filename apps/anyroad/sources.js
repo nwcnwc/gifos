@@ -90,6 +90,7 @@
     throttle: 'auto',
     steering: 'touch',      // legacy; superseded by `scheme`
     scheme: 'wheel',        // 'wheel' | 'stick' | 'tilt'
+    wildlife: 'on',         // deer, sheep, geese — and the damage they cost
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -102,10 +103,11 @@
         if (byId(TERRAIN, rec.terrain).id === rec.terrain) current.terrain = rec.terrain;
         if (byId(ROADS, rec.roads).id === rec.roads) current.roads = rec.roads;
         if (byId(IMAGERY, rec.imagery).id === rec.imagery) current.imagery = rec.imagery;
-        if (rec.quality) current.quality = rec.quality;
+        if (['low', 'medium', 'normal'].indexOf(rec.quality) >= 0) current.quality = rec.quality;
         if (rec.throttle === 'auto' || rec.throttle === 'manual') current.throttle = rec.throttle;
         if (rec.steering === 'touch' || rec.steering === 'tilt') current.steering = rec.steering;
         if (['wheel','stick','tilt'].indexOf(rec.scheme) >= 0) current.scheme = rec.scheme;
+        if (rec.wildlife === 'on' || rec.wildlife === 'off') current.wildlife = rec.wildlife;
       }
       return current;
     }).catch(function () { return current; });

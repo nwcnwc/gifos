@@ -344,6 +344,230 @@ function overpassBody() {
   check('the car is pushed clear of the wall, never left inside it',
     Math.abs(impacts.headOn.z) > 0.9, 'z = ' + impacts.headOn.z);
 
+  // ---- reverse is a gear, not an accident ----------------------------------
+  // THE BUG: the brake past zero simply kept accelerating backwards, bounded
+  // only by a -14 m/s clamp, while the speed read-out showed |speed| — so three
+  // seconds on the brake pedal put the car 20 m back up the road at what the
+  // HUD called 36 km/h FORWARDS. Worse, the auto-cruise compared |speed| to its
+  // target, so a car reversing at 8 m/s read as "already at speed" and the
+  // cruise cut the very power that would have pulled it forward again: one
+  // rebound off a building and the car reversed away indefinitely.
+  //
+  // Driven directly rather than through the pedal, because what is being
+  // guarded is the RULE, and a pedal test measures the harness's clock.
+  const reverse = await fr.locator('body').evaluate(() => {
+    // The real frame, not null: settle() samples the terrain every step, and
+    // the fixture's ground is flat, so the hill term stays out of the way.
+    const F = window.App.world.frame;
+    const step = (car, input, n, dt) => { for (let i = 0; i < n; i++) window.Car.update(car, input, dt || 0.02, F); };
+    const brake = Object.assign(window.Car.blankInput(), { brake: 1 });
+
+    // 1. A short dab of brake at a standstill is a STOP, not a reverse.
+    const a = window.Car.create(0, 0, 0);
+    a.speed = 0.2;
+    step(a, brake, 10, 0.02);                       // 0.2 s — under the arming time
+    const dab = a.speed;
+
+    // 2. Held, it reverses — and never faster than the reverse ceiling.
+    const b = window.Car.create(0, 0, 0);
+    step(b, brake, 400, 0.02);                      // 8 s of held brake
+    const held = b.speed;
+
+    // 3. The cruise pulls a car that IS going backwards forward again.
+    const c = window.Car.create(0, 0, 0);
+    c.speed = -4;
+    const cruise = Object.assign(window.Car.blankInput(), { throttle: 1, autoTarget: 14 });
+    step(c, cruise, 200, 0.02);                     // 4 s
+    const recovered = c.speed;
+
+    // 4. Nothing may leave the car reversing faster than the ceiling — not a
+    //    rebound, not a hill. Slam it to an absurd speed and step once.
+    const d = window.Car.create(0, 0, 0);
+    d.speed = -40;
+    step(d, window.Car.blankInput(), 1, 0.02);
+    const clamped = d.speed;
+
+    return { dab, held, recovered, clamped, max: window.Car.REV_MAX };
+  });
+
+  check('a dab of brake at a standstill stops, it does not reverse',
+    reverse.dab >= 0, 'speed after 0.2 s of brake at rest: ' + reverse.dab.toFixed(2));
+  check('holding the brake DOES reverse — backing up is possible',
+    reverse.held < -1, 'speed after 8 s of held brake: ' + reverse.held.toFixed(2));
+  check('reverse is bounded by the reverse ceiling, however long you hold it',
+    reverse.held >= -reverse.max - 0.01, reverse.held.toFixed(2) + ' m/s vs ceiling ' + -reverse.max);
+  check('the cruise recovers a car that is travelling BACKWARDS',
+    reverse.recovered > 1, '-4 m/s -> ' + reverse.recovered.toFixed(2) + ' m/s under cruise');
+  check('no rebound or slope may exceed the reverse ceiling',
+    reverse.clamped >= -reverse.max - 0.01, '-40 m/s clamped to ' + reverse.clamped.toFixed(2));
+
+  // …and the read-out says which way. |speed| alone made the two directions
+  // the same number on the screen.
+  const gear = await fr.locator('body').evaluate(() => {
+    window.UI.hud({ speed: 18, reverse: true, steer: 0, health: 100, net: { backoffMs: 0 },
+                    ready: true, players: 1, race: null, odometer: 0 });
+    const on = !document.getElementById('gear').hidden;
+    window.UI.hud({ speed: 18, reverse: false, steer: 0, health: 100, net: { backoffMs: 0 },
+                    ready: true, players: 1, race: null, odometer: 0 });
+    return { on: on, off: !document.getElementById('gear').hidden };
+  });
+  check('the HUD says R when the car is going backwards, and only then',
+    gear.on && !gear.off, JSON.stringify(gear));
+
+  // ---- a panel parks the car ----------------------------------------------
+  // Opening the race sheet used to leave the world running behind it with the
+  // cruise throttle open: you read the panel, the car drove itself into a
+  // building unattended, and closing the sheet handed you back a wreck bouncing
+  // backwards. Reading is not driving.
+  await fr.locator('#btn-race').click();
+  await fr.locator('#race').waitFor({ state: 'visible', timeout: 5000 });
+  await sleep(2500);
+  const parked = await fr.locator('body').evaluate(() => ({
+    park: window.App.debug().input.park, speed: window.App.car().speed,
+  }));
+  await fr.locator('#close-race').click();
+  await sleep(2500);
+  const unparked = await fr.locator('body').evaluate(() => ({
+    park: window.App.debug().input.park, speed: window.App.car().speed,
+  }));
+  check('a full-screen panel parks the car instead of driving it blind',
+    parked.park === true && Math.abs(parked.speed) < 0.5,
+    'park=' + parked.park + ' speed=' + parked.speed.toFixed(2));
+  check('closing the panel hands the car back',
+    unparked.park === false && unparked.speed > 0.5,
+    'park=' + unparked.park + ' speed=' + unparked.speed.toFixed(2));
+
+  // ---- the unstick rescue --------------------------------------------------
+  // Reverse is the first answer to being wedged, but some footprints are a
+  // horseshoe and reverse is not enough. Put the car in a field and ask.
+  const rescue = await fr.locator('body').evaluate(() => {
+    const c = window.App.car(), w = window.App.world;
+    const nearest = () => {
+      let best = null;
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (!r || !r.built || !r.built.index) continue;
+        const hit = window.Roads.nearestRoad(r.built.index, c.x, c.z);
+        if (hit && (!best || hit.dist < best.dist)) best = hit;
+      }
+      return best;
+    };
+    window.Car.place(c, c.x + 60, c.z + 60, 0);
+    c.speed = 0;
+    const before = nearest();
+    window.App.unstick();
+    const after = nearest();
+    return { before: before ? before.dist : -1, after: after ? after.dist : -1,
+             half: after ? after.halfWidth : 0, speed: c.speed };
+  });
+  check('unstick puts the car back on a carriageway',
+    rescue.after >= 0 && rescue.after <= rescue.half && rescue.after < rescue.before,
+    rescue.before.toFixed(1) + ' m from a road -> ' + rescue.after.toFixed(1) + ' m (half width ' + rescue.half + ')');
+
+  // ---- wildlife ------------------------------------------------------------
+  // Animals cost condition, and the condition shows up ON THE GLASS. Injected
+  // rather than waited for: spawning is deliberately random and a suite that
+  // waits for a deer is a suite that flakes.
+  const beast = await fr.locator('body').evaluate(() => {
+    const c = window.App.car(), w = window.App.world;
+    window.Animals.clear();
+    window.UI.clearCracks();
+    window.Car.repair(c);
+    c.speed = 25;
+    const cracksBefore = window.UI.crackCount();
+    const ctx = {
+      height: (x, z) => window.Terrain.heightAt(w.frame, x, z),
+      nearestRoad: () => null,
+    };
+    // Dead ahead, one car length away, so the next step drives through it.
+    window.Animals.inject({ kind: 'deer', x: c.x + Math.sin(c.yaw) * 2, z: c.z + Math.cos(c.yaw) * 2,
+                            y: c.y, yaw: c.yaw });
+    const hit = window.Animals.update(c, ctx, 0.016);
+    if (hit) window.UI.damage(c.health, true, hit.damage);
+    // A goose is not a cow: the same speed must not cost the same.
+    const heavy = window.Car.create(0, 0, 0); heavy.speed = 25;
+    window.Animals.clear();
+    window.Animals.inject({ kind: 'cow', x: 0, z: 2, y: 0, yaw: 0 });
+    const cowHit = window.Animals.update(heavy, ctx, 0.016);
+    const light = window.Car.create(0, 0, 0); light.speed = 25;
+    window.Animals.clear();
+    window.Animals.inject({ kind: 'goose', x: 0, z: 2, y: 0, yaw: 0 });
+    const gooseHit = window.Animals.update(light, ctx, 0.016);
+    return {
+      hit: hit ? hit.kind : null, damage: hit ? hit.damage : 0, health: c.health,
+      cracksBefore, cracksAfter: window.UI.crackCount(),
+      cow: cowHit ? cowHit.damage : 0, goose: gooseHit ? gooseHit.damage : 0,
+    };
+  });
+  check('driving into an animal costs condition', beast.hit === 'deer' && beast.health < 100,
+    beast.hit + ', -' + beast.damage.toFixed(1) + ' -> ' + beast.health.toFixed(0) + '%');
+  check('what you hit matters — a cow is not a goose',
+    beast.cow > beast.goose * 2, 'cow -' + beast.cow.toFixed(1) + ' vs goose -' + beast.goose.toFixed(1));
+  check('the damage lands on the windscreen, not only in a number',
+    beast.cracksBefore === 0 && beast.cracksAfter > 0,
+    beast.cracksBefore + ' -> ' + beast.cracksAfter + ' impacts on the glass');
+
+  // An animal is a hazard you can SEE COMING. One materialising under the
+  // bumper is not a hazard, it is a tax — so the spawner may never place one
+  // near the car, however many times it is asked.
+  const spawns = await fr.locator('body').evaluate(() => {
+    const c = window.App.car(), w = window.App.world;
+    const ctx = {
+      height: (x, z) => window.Terrain.heightAt(w.frame, x, z),
+      nearestRoad: (x, z) => {
+        let best = null;
+        for (const k in w.roads) {
+          const r = w.roads[k];
+          if (!r || !r.built || !r.built.index) continue;
+          const hit = window.Roads.nearestRoad(r.built.index, x, z);
+          if (hit && (!best || hit.dist < best.dist)) best = hit;
+        }
+        return best;
+      },
+    };
+    window.Animals.clear();
+    let closest = Infinity, seen = 0;
+    for (let i = 0; i < 600; i++) {
+      window.Animals.update(c, ctx, 0.5);       // big steps: force the spawner to run
+      for (const a of window.Animals.drawList()) {
+        seen++;
+        closest = Math.min(closest, Math.hypot(a.x - c.x, a.z - c.z));
+      }
+      window.Animals.clear();                    // clear so every tick spawns afresh
+    }
+    return { closest, seen };
+  });
+  check('animals never materialise on top of the car',
+    spawns.seen > 0 && spawns.closest > 30,
+    spawns.seen + ' spawned, nearest ' + (spawns.closest === Infinity ? 'none' : spawns.closest.toFixed(0) + ' m'));
+  await fr.locator('body').evaluate(() => { window.Animals.clear(); window.UI.clearCracks(); });
+
+  // ---- scenery -------------------------------------------------------------
+  // Trees are generated, not downloaded, and they are the biggest single thing
+  // the app does for a world with no satellite drape. They are also the most
+  // expensive, which is why they have their own draw distance and their own
+  // rung on the Detail setting.
+  const scenery = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    let idx = 0, tiles = 0, onRoad = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.trees) continue;
+      tiles++; idx += r.built.trees.count;
+      // Nothing may be planted ON the carriageway. Sample the trunk positions.
+      const pos = r.built.trees.positions;
+      for (let i = 0; i < pos.length; i += 3 * 40) {
+        const hit = window.Roads.nearestRoad(r.built.index, pos[i], pos[i + 2]);
+        if (hit && hit.dist < hit.halfWidth) onRoad++;
+      }
+    }
+    return { tiles, idx, onRoad };
+  });
+  check('scenery is generated along the roads', scenery.tiles > 0 && scenery.idx > 0,
+    scenery.tiles + ' tiles, ' + scenery.idx + ' indices');
+  check('no tree is planted in the middle of the road', scenery.onRoad === 0,
+    scenery.onRoad + ' trunks on tarmac');
+
   // The renderer drew a world, not an empty sky. Sample the canvas below the
   // horizon: ground pixels must differ from the sky gradient up top.
   // The read has to happen INSIDE an animation frame, after the app's own draw
@@ -358,15 +582,33 @@ function overpassBody() {
       const gl = window.Render.gl;
       const px = new Uint8Array(4);
       const read = (x, y) => { gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); return [px[0], px[1], px[2]]; };
+      const diff = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
       // readPixels' origin is bottom-left, so a LOW y is the foreground ground.
-      const ground = read(Math.floor(cv.width / 2), Math.floor(cv.height * 0.12));
+      // ACROSS several columns, not one. A single centre sample lands on the
+      // painted centre line as often as not, and white road paint against a
+      // pale sky is a difference of forty — the assertion was one dash away
+      // from failing for a renderer that was working perfectly.
+      const ground = [0.2, 0.35, 0.5, 0.65, 0.8].map((f) => read(Math.floor(cv.width * f), Math.floor(cv.height * 0.12)));
       const sky = read(Math.floor(cv.width / 2), Math.floor(cv.height * 0.95));
-      resolve({ ground: ground, sky: sky,
-                diff: Math.abs(ground[0] - sky[0]) + Math.abs(ground[1] - sky[1]) + Math.abs(ground[2] - sky[2]) });
+      const skyLow = read(Math.floor(cv.width / 2), Math.floor(cv.height * 0.62));
+      resolve({
+        ground: ground.map((g) => g.join(',')).join(' | '), sky: sky, skyLow: skyLow,
+        diff: Math.max.apply(null, ground.map((g) => diff(g, sky))),
+        // The sky SHADER, not the clear colour. It is a full-screen triangle
+        // wound counter-clockwise and the app culls counter-clockwise faces, so
+        // for a long time it was culled outright and every sky pixel was the
+        // flat glClear colour — a gradient, a sun and two attempts at clouds
+        // all went into a shader that never ran. A sky with a gradient in it is
+        // the only thing that tells the two apart from outside.
+        skyGradient: diff(sky, skyLow),
+      });
     }));
   }));
   check('the renderer draws ground, not just sky', painted.diff > 40,
-    'ground rgb ' + painted.ground.join(',') + ' vs sky ' + painted.sky.join(','));
+    'ground rgb ' + painted.ground + ' vs sky ' + painted.sky.join(','));
+  check('the sky shader runs — the sky is a gradient, not the clear colour',
+    painted.skyGradient > 12,
+    'high ' + painted.sky.join(',') + ' vs low ' + painted.skyLow.join(','));
 
   // ---- typing must not reach the car --------------------------------------
   // The driving keys are bound on window, so they fire while the search field

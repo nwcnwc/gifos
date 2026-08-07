@@ -279,8 +279,146 @@
     return pts;
   }
 
-  // Build all three meshes for one tile's geometry.
-  function build(frame, geom) {
+  // ---- scenery -------------------------------------------------------------
+  // OSM knows where the woods are, but asking for them is a whole extra layer
+  // in every Overpass query — on donated infrastructure, for scenery. So the
+  // trees are GROWN instead: a deterministic scatter over the tile, rejected
+  // wherever the world already has something (road, building, water, cliff).
+  //
+  // Deterministic matters. The hash is over the world position, so a tile
+  // rebuilt after the frame re-pins grows the SAME wood in the SAME place —
+  // otherwise every re-pin would replant the countryside in front of you.
+  //
+  // This is the biggest single thing the app can do for the look of a place
+  // with no satellite drape, because bare heightfield green is exactly what a
+  // landscape does not look like. It is also why it is one static mesh per
+  // tile: 300 trees as 300 draw calls would cost more than everything else in
+  // the frame put together.
+  var TREE_STEP = 34;          // metres between candidate sites
+  var TREE_MAX = 240;          // per tile — a hard ceiling on bytes AND on fill
+  var TREE_CLEAR = 4.0;        // metres of clearance from a carriageway edge
+
+  function hash2(x, z) {
+    var h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  // A cone on a stick. Eight triangles for the canopy, four for the trunk, and
+  // at any distance you actually see one from a car that is enough — the shape
+  // and the colour do the work, not the polygon count.
+  function tree(x, base, z, h, r, tint, out) {
+    var trunkR = Math.max(0.12, r * 0.13), trunkH = h * 0.34;
+    var bark = [0.26, 0.20, 0.15];
+    var v0 = out.pos.length / 3;
+    var i, ang, nx, nz;
+    for (i = 0; i < 4; i++) {
+      ang = i * Math.PI / 2 + 0.4;
+      nx = Math.cos(ang); nz = Math.sin(ang);
+      out.pos.push(x + nx * trunkR, base, z + nz * trunkR);
+      out.pos.push(x + nx * trunkR, base + trunkH, z + nz * trunkR);
+      out.nrm.push(nx, 0, nz, nx, 0, nz);
+      out.col.push(bark[0], bark[1], bark[2], bark[0], bark[1], bark[2]);
+    }
+    for (i = 0; i < 4; i++) {
+      var a = v0 + i * 2, b = a + 1, c = v0 + ((i + 1) % 4) * 2, d = c + 1;
+      out.idx.push(a, c, b, b, c, d);
+    }
+    // Canopy: two stacked rings pinched to a point, which reads as a broadleaf
+    // crown from the side and as a blob from above — both of which are right.
+    var ringY = [base + trunkH * 0.75, base + h * 0.62], ringR = [r, r * 0.66];
+    var rings = [];
+    for (var ri = 0; ri < 2; ri++) {
+      var start = out.pos.length / 3;
+      for (i = 0; i < 6; i++) {
+        ang = i * Math.PI / 3;
+        nx = Math.cos(ang); nz = Math.sin(ang);
+        out.pos.push(x + nx * ringR[ri], ringY[ri], z + nz * ringR[ri]);
+        out.nrm.push(nx * 0.7, 0.35, nz * 0.7);
+        // Every leaf face slightly its own colour, so a wood is not one flat
+        // green shape with a hole cut in the sky.
+        var j = hash2(x + i * 3.1, z + ri * 7.7) * 0.18 - 0.09;
+        out.col.push(tint[0] + j, tint[1] + j * 0.8, tint[2] + j * 0.5);
+      }
+      rings.push(start);
+    }
+    var apex = out.pos.length / 3;
+    out.pos.push(x, base + h, z);
+    out.nrm.push(0, 1, 0);
+    out.col.push(tint[0] * 1.12, tint[1] * 1.12, tint[2] * 1.12);
+    for (i = 0; i < 6; i++) {
+      var i2 = (i + 1) % 6;
+      out.idx.push(rings[0] + i, rings[1] + i2, rings[0] + i2);
+      out.idx.push(rings[0] + i, rings[1] + i, rings[1] + i2);
+      out.idx.push(rings[1] + i, apex, rings[1] + i2);
+    }
+  }
+
+  function scatter(frame, tile, geom, roadIndex, wallIndex) {
+    var out = { pos: [], nrm: [], col: [], idx: [] };
+    if (!tile) return pack(out, ['pos', 'nrm', 'col']);
+    var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
+    var c1 = frame.toWorld(b.north, b.west), c2 = frame.toWorld(b.south, b.east);
+    var x0 = Math.min(c1.x, c2.x), x1 = Math.max(c1.x, c2.x);
+    var z0 = Math.min(c1.z, c2.z), z1 = Math.max(c1.z, c2.z);
+    var planted = 0;
+    var probe = [];
+
+    for (var gx = Math.floor(x0 / TREE_STEP); gx * TREE_STEP < x1 && planted < TREE_MAX; gx++) {
+      for (var gz = Math.floor(z0 / TREE_STEP); gz * TREE_STEP < z1 && planted < TREE_MAX; gz++) {
+        var r1 = hash2(gx, gz), r2 = hash2(gx + 91.3, gz - 47.9), r3 = hash2(gx * 1.7, gz * 2.3 + 5.1);
+        // Clumping: trees come in copses, and a uniform scatter is the one
+        // arrangement no landscape on Earth has.
+        var clump = hash2(Math.floor(gx / 4) * 3.7, Math.floor(gz / 4) * 5.9);
+        if (r3 > 0.20 + clump * 0.72) continue;
+        var x = (gx + r1) * TREE_STEP, z = (gz + r2) * TREE_STEP;
+        if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+
+        var road = nearestRoad(roadIndex, x, z);
+        if (road && road.dist < road.halfWidth + TREE_CLEAR) continue;
+        probe.length = 0;
+        nearWalls(wallIndex, x, z, probe);
+        var blocked = false;
+        for (var w = 0; w < probe.length; w += 4) {
+          // Anything within a few metres of a footprint edge is a courtyard, a
+          // pavement or the inside of the building itself.
+          if (segDist(x, z, probe[w], probe[w + 1], probe[w + 2], probe[w + 3]) < 5) { blocked = true; break; }
+        }
+        if (blocked) continue;
+
+        var y = root.Terrain.heightAt(frame, x, z);
+        if (y === null || y < 0.6) continue;            // not loaded, or in the sea
+        // No trees on a cliff: sample the slope the same way the car does.
+        var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
+        if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) continue;
+
+        var h = 5.5 + r1 * 7.5, rad = 1.7 + r2 * 2.1;
+        // Conifer above the treeline-ish, broadleaf below, and a few dying back
+        // to autumn either way.
+        var conifer = y > 900 || r3 < 0.06;
+        var tint = conifer ? [0.16 + r1 * 0.05, 0.30 + r2 * 0.07, 0.20 + r1 * 0.05]
+                           : [0.22 + r2 * 0.14, 0.38 + r1 * 0.12, 0.16 + r2 * 0.08];
+        if (r2 > 0.93) tint = [0.52, 0.40, 0.16];       // one in fifteen has turned
+        tree(x, y, z, conifer ? h * 1.25 : h, conifer ? rad * 0.62 : rad, tint, out);
+        planted++;
+      }
+    }
+    return pack(out, ['pos', 'nrm', 'col']);
+  }
+
+  function tileCentre(frame, tile) {
+    if (!tile) return null;
+    var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
+    return frame.toWorld((b.north + b.south) / 2, (b.west + b.east) / 2);
+  }
+
+  function segDist(x, z, ax, az, bx, bz) {
+    var vx = bx - ax, vz = bz - az, len2 = vx * vx + vz * vz;
+    var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
+    return Math.hypot(x - (ax + vx * t), z - (az + vz * t));
+  }
+
+  // Build all four meshes for one tile's geometry.
+  function build(frame, geom, tile) {
     var roads = { pos: [], uv: [], tone: [], idx: [] };
     for (var i = 0; i < geom.ways.length; i++) {
       var cls = ROAD_CLASS[geom.ways[i][0]];
@@ -313,12 +451,21 @@
       for (var ti = 0; ti < tris.length; ti++) water.idx.push(base + tris[ti]);
     }
 
+    // The two indices are built BEFORE the scenery, because the scatter asks
+    // both of them where it may not plant.
+    var roadIndex = buildIndex(frame, geom);
+    var wallIndex = buildWallIndex(frame, geom);
     return {
       roads: pack(roads, ['pos', 'uv', 'tone']),
       buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
-      index: buildIndex(frame, geom),
-      walls: buildWallIndex(frame, geom),
+      trees: root.Sources.current.quality === 'normal' ? scatter(frame, tile, geom, roadIndex, wallIndex) : null,
+      // Where this tile sits, so the draw loop can drop DISTANT scenery without
+      // rebuilding anything. Trees are the most numerous thing in the world and
+      // the ones a kilometre away are a green haze the fog eats anyway.
+      centre: tileCentre(frame, tile),
+      index: roadIndex,
+      walls: wallIndex,
     };
   }
 
@@ -403,6 +550,7 @@
     if (!index) return null;
     var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
     var best = Infinity, bestHalf = 0, bestCruise = 14;
+    var bestX = 0, bestZ = 0, bestVX = 0, bestVZ = 1;
     for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
       var list = index.map[(cx + dx) + ',' + (cz + dz)];
       if (!list) continue;
@@ -415,10 +563,19 @@
         var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
         var px = ax + vx * t, pz = az + vz * t;
         var d = Math.hypot(x - px, z - pz);
-        if (d < best) { best = d; bestHalf = index.segs[o + 4]; bestCruise = index.segs[o + 5]; }
+        if (d < best) {
+          best = d; bestHalf = index.segs[o + 4]; bestCruise = index.segs[o + 5];
+          // The POINT, not just the distance. The wildlife walks toward the
+          // nearest carriageway to cross it, and the unstick rescue puts the
+          // car back down on it — both need somewhere to aim, and recomputing
+          // it in the caller would mean walking the index twice.
+          bestX = px; bestZ = pz;
+          bestVX = vx; bestVZ = vz;
+        }
       }
     }
-    return best === Infinity ? null : { dist: best, halfWidth: bestHalf, cruise: bestCruise };
+    return best === Infinity ? null
+      : { dist: best, halfWidth: bestHalf, cruise: bestCruise, x: bestX, z: bestZ, dx: bestVX, dz: bestVZ };
   }
 
   function extrude(frame, poly, height, out) {
@@ -470,7 +627,8 @@
   function pack(o, attrs) {
     var m = { count: o.idx.length };
     attrs.forEach(function (a) {
-      var key = a === 'pos' ? 'positions' : a === 'nrm' ? 'normals' : a === 'uv' ? 'uvs' : a;
+      var key = a === 'pos' ? 'positions' : a === 'nrm' ? 'normals'
+              : a === 'uv' ? 'uvs' : a === 'col' ? 'colors' : a;
       m[key] = new Float32Array(o[a]);
     });
     m.indices = (o.pos.length / 3 > 65535) ? new Uint32Array(o.idx) : new Uint16Array(o.idx);

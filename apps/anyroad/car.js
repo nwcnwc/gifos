@@ -27,6 +27,8 @@
       wrecked: false,
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
+      revArm: 0,          // seconds the brake has been held at a standstill
+      stillT: 0,          // seconds of going nowhere — what "stuck" is read from
     };
   }
 
@@ -118,11 +120,45 @@
     return { impact: fresh ? best : 0, damage: damage, crash: !scrape };
   }
 
-  function repair(car) { car.health = 100; car.wrecked = false; car.contactT = 0; }
+  function repair(car) {
+    car.health = 100; car.wrecked = false; car.contactT = 0;
+    car.revArm = 0; car.stillT = 0;
+  }
+
+  // Put the car down somewhere clean, facing somewhere sensible, at rest. Used
+  // by the unstick rescue and by anything else that teleports the car — all of
+  // the little counters have to be cleared together or the frame after the
+  // rescue still thinks it is mid-crash.
+  function place(car, x, z, yaw) {
+    car.x = x; car.z = z;
+    if (yaw != null) car.yaw = yaw;
+    car.speed = 0; car.vy = 0;
+    car.contactT = 0; car.hurtCool = 0; car.revArm = 0; car.stillT = 0;
+    car.airborne = false;
+    return car;
+  }
+
+  // ---- reverse, which is a GEAR and not an accident -----------------------
+  // Reverse used to be whatever fell out of "brake past zero": hold the brake at
+  // a standstill and the car accelerated backwards with no ceiling but the
+  // -14 m/s clamp, while the speed read-out — |speed| — happily showed 50 km/h.
+  // Three seconds on the brake pedal put you 20 m back up the road at what the
+  // HUD called thirty-six km/h forwards. The suite even printed it and passed.
+  //
+  // So reverse is now an explicit thing with three rules:
+  //  - it must be ASKED for: the brake at a standstill arms it after a beat,
+  //    so an ordinary stop is a stop and not a slow roll backwards;
+  //  - it is SLOW: REV_MAX is a car-park speed, not a motorway one;
+  //  - it is never faster than REV_MAX no matter what pushed you there — a
+  //    rebound off a building, or gravity on a hill you stalled on.
+  var REV_MAX = 5.5;                  // m/s ≈ 20 km/h, and it is a hard floor
+  var REV_ARM = 0.45;                 // seconds of brake at a stop before reverse
 
   // Controls arrive as a plain object so the same physics serve keyboard,
-  // touch, and a replayed ghost.
-  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0 }; }
+  // touch, and a replayed ghost. `park` is the whole-car override: a panel is
+  // over the screen, so the car is not being driven and must not be creeping
+  // into a building while the player reads it.
+  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false }; }
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
@@ -137,14 +173,23 @@
       return car;
     }
 
+    // Parked: the player is reading a panel, not driving. No throttle, no
+    // steering, and the brake is on — but reverse must NOT arm, or coming back
+    // from the race sheet would find the car quietly backing down the street.
+    var park = !!input.park;
+    var inThrottle = park ? 0 : input.throttle;
+    var inBrake = park ? 1 : input.brake;
+    var inHand = park ? false : !!input.handbrake;
+    var autoTarget = park ? 0 : input.autoTarget;
+
     // --- steering: smoothed, and less authoritative the faster you go -------
-    var target = Math.max(-1, Math.min(1, input.steer));
+    var target = park ? 0 : Math.max(-1, Math.min(1, input.steer));
     car.steer += (target - car.steer) * Math.min(1, dt * 9);
     var v = Math.abs(car.speed);
     // Full lock at a crawl, about a third of it at motorway speed.
     var authority = 1 / (1 + v * 0.055);
     var turnRate = car.steer * 2.4 * authority * Math.min(1, v / 2.2);
-    if (input.handbrake) turnRate *= 1.7;               // slide the back out
+    if (inHand) turnRate *= 1.7;                        // slide the back out
     car.yaw += turnRate * dt * (car.speed < 0 ? -1 : 1);
 
     // --- longitudinal ------------------------------------------------------
@@ -156,21 +201,35 @@
     var maxSpeed = (car.onRoad ? 62 : 19);              // ~220 km/h vs ~68 off road
     var accel = 0;
 
-    if (input.throttle > 0) {
+    if (inThrottle > 0) {
       // Falls off as you approach top speed, so acceleration feels like a car
       // rather than a rocket with a speed clamp.
-      accel += power * input.throttle * Math.max(0.08, 1 - v / maxSpeed);
+      accel += power * inThrottle * Math.max(0.08, 1 - v / maxSpeed);
       // Auto-throttle eases off near the target instead of bouncing off it, so
       // cruising is steady rather than a sawtooth between full power and none.
-      if (input.autoTarget > 0 && v > input.autoTarget * 0.88) {
-        accel *= Math.max(0, 1 - (v - input.autoTarget * 0.88) / (input.autoTarget * 0.18));
+      //
+      // SIGNED, and that is the whole point. Comparing |speed| to the target
+      // meant a car travelling BACKWARDS at 8 m/s read as "already up to
+      // speed", so the cruise cut the power that would have pulled it forward
+      // again — a rebound off a building, or a hill, and the car reversed away
+      // for as long as you let it, gathering speed the read-out called
+      // positive. Against the signed speed, anything below the target (and
+      // every reverse speed is) gets full power.
+      if (autoTarget > 0 && car.speed > autoTarget * 0.88) {
+        accel *= Math.max(0, 1 - (car.speed - autoTarget * 0.88) / (autoTarget * 0.18));
       }
     }
-    if (input.brake > 0) {
-      if (car.speed > 0.4) accel -= 16 * input.brake * grip;
-      else accel -= 7 * input.brake;                     // into reverse
-    }
-    if (input.handbrake) accel -= Math.sign(car.speed) * 9;
+    // Brake, and — only when asked for — reverse.
+    if (inBrake > 0) {
+      if (car.speed > 0.4) { accel -= 16 * inBrake * grip; car.revArm = 0; }
+      else if (park) { car.revArm = 0; if (car.speed > -0.2) car.speed = Math.max(0, car.speed); }
+      else {
+        car.revArm += dt;
+        if (car.revArm >= REV_ARM) accel -= 7 * inBrake;   // deliberate reverse
+        else if (car.speed > -0.05) car.speed = Math.max(0, car.speed);  // an ordinary stop
+      }
+    } else car.revArm = 0;
+    if (inHand) accel -= Math.sign(car.speed) * 9;
 
     // Drag and rolling resistance.
     accel -= Math.sign(car.speed) * (0.0021 * car.speed * car.speed + (car.onRoad ? 0.45 : 1.9));
@@ -179,14 +238,29 @@
     accel -= GRAVITY * Math.sin(car.pitch) * 0.85;
 
     car.speed += accel * dt;
-    if (Math.abs(car.speed) < 0.12 && input.throttle === 0) car.speed = 0;
-    car.speed = Math.max(-14, Math.min(maxSpeed, car.speed));
+    if (Math.abs(car.speed) < 0.12 && inThrottle === 0) car.speed = 0;
+    // The reverse floor is not conditional on HOW you ended up going backwards.
+    // A rebound, a slope, a mis-set stick — none of them may exceed a speed you
+    // could not reverse at deliberately.
+    car.speed = Math.max(-REV_MAX, Math.min(maxSpeed, car.speed));
 
     // --- move --------------------------------------------------------------
     var dx = Math.sin(car.yaw) * car.speed * dt;
     var dz = Math.cos(car.yaw) * car.speed * dt;
     car.x += dx; car.z += dz;
     car.odometer += Math.abs(car.speed) * dt;
+
+    // How long we have been going nowhere while being asked to go somewhere.
+    // Some building footprints are a courtyard or a re-entrant corner, and a
+    // car that noses into one can be held there by the wall slide with the
+    // cruise pushing it back in for ever. That is not a crash the player can
+    // drive out of, so it has to be DETECTED — see App.unstick().
+    // Only counted while power is actually being asked for and the brake is
+    // off: a deliberate stop at a junction is not being stuck, and offering to
+    // rescue someone who is simply parked is noise.
+    if (park || inThrottle === 0 || inBrake > 0) car.stillT = 0;
+    else if (Math.abs(car.speed) < 1.0) car.stillT += dt;
+    else car.stillT = 0;
 
     // --- sit on the ground --------------------------------------------------
     settle(car, frame, dt);
@@ -260,7 +334,7 @@
     //             last part is what makes it a rubber band rather than a
     //             joystick: a joystick springs back to zero, this keeps the
     //             speed you dialled in.
-    var mode = { auto: true, tilt: false, scheme: 'wheel' };
+    var mode = { auto: true, tilt: false, scheme: 'wheel', park: false };
     var roadCruise = 0;            // m/s the road under us is built for
     var setPoint = null;           // m/s the player has dialled in (stick mode)
     var tilt = { active: false, neutral: null, value: 0 };
@@ -420,6 +494,11 @@
         }
       },
       recentreTilt: function () { tilt.neutral = null; },
+      // A full-screen panel is open, so nobody is driving. Set here rather than
+      // poked onto `input` from outside, so the whole precedence chain still
+      // lives in sample() and there is one place that decides what the car
+      // hears.
+      setPark: function (on) { mode.park = !!on; },
       setCruise: function (mps) { roadCruise = mps; },
       bindSpeed: function (fn) { speedRef = fn; },
       setScheme: function (name) {
@@ -441,6 +520,7 @@
       // into the touch path and the wheel drifted while you held it.
       sample: function (dt) {
         dt = dt || 0.016;
+        input.park = mode.park;
         var kThrottle = (keys['w'] || keys['arrowup']) ? 1 : 0;
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
@@ -490,5 +570,6 @@
   }
 
   root.Car = { create: create, update: update, controls: controls, blankInput: blankInput,
-               collide: collide, repair: repair };
+               collide: collide, repair: repair, place: place,
+               REV_MAX: REV_MAX, REV_ARM: REV_ARM };
 })(window);
