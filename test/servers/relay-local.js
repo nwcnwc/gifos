@@ -233,7 +233,28 @@ server.on('upgrade', (req, socket, head) => {
   // cap, or aimed at a DIFFERENT session id than the one being watched. The
   // relay is the only place that can tell those apart, so it says so out loud.
   const clog = (...a) => { if (process.env.RELAY_DEBUG) console.log('[conn]', new Date().toISOString().slice(11, 23), ...a); };
-  const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(); };
+  // POLICY CLOSE CODES — mirror the Worker exactly. This closed with NO code
+  // until 2026-08-06, and that is not a cosmetic gap: gifos-net's steadySocket
+  // keys its reconnect policy on the close code (FATAL_CLOSES = 1008, 4000,
+  // 4001, 4003, 4004, 4007, 4008, 4009, 4010) and RESETS its backoff on every
+  // onopen. A codeless refusal therefore reads as a transient blip, so a locally
+  // refused client re-knocked about twice a second FOREVER — every browser suite
+  // was exercising the wrong reconnect policy for a refusal, and a fatal
+  // rejection looked survivable. The table is production's, verbatim
+  // (relay/src/relay.js reject() call sites); anything not in it closes
+  // uncoded, exactly as production does.
+  const REJECT_CODES = {
+    'too many joining right now — try again in a moment': 1013,
+    'this session is full': 1013,
+    'too many connections from your network': 1013,
+    'joining too fast — slow down': 1013,
+    'the relay is a greeter — app sessions ride the room mesh now': 4010,
+    'bad room token': 1008,
+    'password required': 4003,
+    'banned': 4004,
+    'voted-off': 4007,
+  };
+  const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(REJECT_CODES[error] || 0, error); };
   const allConns = () => sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is

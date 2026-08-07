@@ -1068,6 +1068,36 @@ int main(int argc,char**argv){
     else if(s.rfind("--threads=",0)==0) wthreads=max(1,atoi(s.c_str()+10));
     else if(s=="--det") DETERM=true;
     else if(s=="--allow-teleport") ROUTE_ENFORCE=false; }   // A/B only: revert to the old perfect-bus (teleports counted, not fatal)
+  // ---- --threads IS NOT USABLE. Two traps, both measured 2026-08-06 (the
+  // threads investigation; see docs/sim-threads-2026-08-06.md). Refuse rather
+  // than produce numbers nobody can trust:
+  //
+  //  (1) WITHOUT -fopenmp the `#pragma omp parallel` is silently IGNORED, so
+  //      doTickPar runs shard 0 ONLY — seats with id%NTHREADS != 0 never tick
+  //      and their inbox is discarded (the bus entry is already erased).
+  //      MEASURED: N=2000 --threads=2 seats 1000, --threads=4 seats 500;
+  //      N=200 --threads=4 seats exactly 50, and ids 1,2,3 sit at `joining`
+  //      forever. Nothing in this repo builds with -fopenmp (every documented
+  //      line is `g++ -O2 -std=c++17`), so this is what --threads DID.
+  //  (2) WITH -fopenmp it compiles and converges, but the buffered-emit path
+  //      is unsound: emit() reads the TARGET seat's hasCoord/coord/socketed()/
+  //      gateway across shards while its owner thread mutates them (1,613
+  //      ThreadSanitizer reports at N=300), and classifyEmit re-judges
+  //      adjacency at FLUSH time for a send decided at EMIT time, which
+  //      manufactures thousands of phantom TELEPORT detonations (all of them
+  //      adjacent-at-emit; the protocol is fine).
+  //
+  // Fixing this means locking or re-sharding the cross-shard reads AND
+  // classifying at emit time. Until then --threads is refused, not warned
+  // about: a silently-quartered room looks exactly like a real run.
+  if(wthreads>1){
+    fprintf(stderr,"\n--threads=%d is REFUSED: the parallel path is unsound (see docs/sim-threads-2026-08-06.md).\n"
+                   "  * built WITHOUT -fopenmp it simulates only 1/%d of the room, silently;\n"
+                   "  * built WITH -fopenmp it has unsynchronized cross-shard reads in emit().\n"
+                   "Run single-threaded (the validated path). Every gate in test/sim/ already does.\n\n",
+            wthreads, wthreads);
+    return 2;
+  }
   tlsResize(wthreads);
   if(!service){
     int n=argc>1?atoi(argv[1]):10000; double lv=argc>2?atof(argv[2]):0;
