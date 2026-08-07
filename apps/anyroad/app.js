@@ -334,8 +334,12 @@
     root.Animals.clear();          // the herd belongs to the place you left
     world.terrain = {}; world.roads = {};
     world.place = label || (lat.toFixed(4) + ', ' + lon.toFixed(4));
+    // A hop is a fresh car, so the glass has to be fresh too — otherwise you
+    // arrive somewhere new at 100% condition looking through the last place's
+    // windscreen.
     car = root.Car.create(0, 0, Math.random() * Math.PI * 2);
     car.y = 0;
+    root.UI.clearCracks();
     hopAnim = 0;
     hopT0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     camera.settled = false;

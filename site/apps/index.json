@@ -24,7 +24,7 @@
         "url": "https://gifos.app"
       },
       "releaseDate": "2026-08-06",
-      "updated": "2026-08-06",
+      "updated": "2026-08-07",
       "categories": [
         "Games"
       ],
@@ -35,7 +35,8 @@
         "3d",
         "multiplayer",
         "webgl",
-        "racing"
+        "racing",
+        "wildlife"
       ],
       "accent": [
         92,
@@ -43,7 +44,7 @@
         255
       ],
       "cover": "/apps/anyroad/cover.jpg",
-      "bytes": 222580,
+      "bytes": 222677,
       "signature": null
     },
     {
