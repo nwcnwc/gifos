@@ -77,13 +77,27 @@ if (data) {
   // native floor. These are DERIVED (requirement arithmetic), and the rows
   // must say so — a derived number wearing 'verified' is a guess in a suit.
   const min = (id, f) => (data.browsers.find((b) => b.id === id) || { support: {} }).support[f];
-  check('Chrome meet minimum is 71 (globalThis, 2018-12)', (min('chrome', 'meet') || {}).min === '71');
+  check('Chrome meet minimum is 71', (min('chrome', 'meet') || {}).min === '71');
   check('Edge meet minimum is 79 (first Chromium Edge)', (min('edge', 'meet') || {}).min === '79');
   check('Firefox meet minimum is 65', (min('firefox', 'meet') || {}).min === '65');
   check('Safari meet minimum is 12.1 / iOS 12.2',
     (min('safari', 'meet') || {}).min === '12.1' && (min('safari-ios', 'meet') || {}).min === '12.2');
-  check('…and every fallback-era row is honest about being DERIVED, not run',
-    ['chrome', 'edge', 'firefox', 'safari', 'safari-ios'].every((id) => min(id, 'meet').confidence === 'derived'));
+  // NOT 'derived' any more, and the difference is the whole point (2026-08-07):
+  // these five numbers were derived from globalThis, which the product does not
+  // require, so the derivation is void. They are kept because they are
+  // CONSERVATIVE — too high can only make a wall's sentence pessimistic, never
+  // admit or turn away anyone, since the verdict is feature detection. A row
+  // that goes back to claiming 'derived' is claiming an arithmetic that no
+  // longer exists.
+  check('…and every fallback-era row says CONSERVATIVE, not derived (the globalThis arithmetic is void)',
+    ['chrome', 'edge', 'firefox', 'safari', 'safari-ios'].every((id) => min(id, 'meet').confidence === 'conservative'));
+  check('…and each of those rows carries a note saying what was actually run, or that nothing was',
+    ['chrome', 'edge', 'firefox', 'safari', 'safari-ios'].every((id) => /CONSERVATIVE/.test(min(id, 'meet').note || '')
+      && /(MEASURED|been run|was run)/i.test(min(id, 'meet').note || '')),
+    ['chrome', 'edge', 'firefox', 'safari', 'safari-ios'].filter((id) => {
+      const n = min(id, 'meet').note || '';
+      return !/CONSERVATIVE/.test(n) || !/(MEASURED|been run|was run)/i.test(n);
+    }));
   check('broadcast carries the same numbers as meetings (it is the same page in a different skin)',
     ['chrome', 'edge', 'firefox', 'safari'].every((id) => min(id, 'cast').min === min(id, 'meet').min));
 
