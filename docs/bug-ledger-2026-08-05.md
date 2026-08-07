@@ -24,6 +24,32 @@
 > quarantined silently un-guards a DIFFERENT, genuinely fixed bug (the stale-seat
 > duplicate face).
 
+## 10. A freed seat is re-seeded in `occ`, and the corpse gets DIALLED (2026-08-07)
+
+**ALIVE, unguarded, not blocking.** Found while root-causing the `statusOf`
+resurrection leak (fixed in 2c3f7d8/611bd60). Forensics from Hal, 4-browser room:
+
+    gone k_3ba0 bye        <- confirmGone: tombstone set
+    +1.8s   occ 3->4, links 2->3     <- a gossip echo RE-SEEDS the freed seat
+    +63s    tombstone GC'd -> Hal DIALS the corpse (peer:false -> true)
+            then `mesh-starve rebuild`
+    +70.5s  gone k_3ba0 d5           <- second death verdict
+
+The departed peer stayed in Hal's `occ` for the full 71 s, and once the 60 s
+tombstone GC lifted, Hal dialled a seat whose occupant had been dead for over a
+minute. This is a MESH-layer occ echo re-seeding a freed seat, independent of
+`statusOf` — and, ironically, it is the mechanism that let the status leak
+self-heal at all (the re-dial produced the second verdict that finally deleted
+the entry).
+
+COST: one wasted dial per departure that loses this race, plus a `mesh-starve
+rebuild`. Invisible to `e2e-status-map`, which is why it is recorded here rather
+than guarded there. NOT blocking 0.9.5.
+
+WHERE TO START: which gossip path re-seeds `occ` for a cell whose occupant has a
+live `meshGone` tombstone — the tombstone already guards the roster, the count,
+the dial set and the app ads, so the question is why `occ` is not on that list.
+
 The demo-night root causes are FIXED on main (ghost-target falsification
 `0c7f93d`+`b62c31e`, knock-first boot `3dd8802`). These are the REAL findings
 from the same investigation that are deliberately NOT fixed tonight, so they
