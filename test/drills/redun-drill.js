@@ -96,9 +96,55 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   let stagerIdx = coords.findIndex((c) => c && !/^0\//.test(c) && !/\.0$/.test(c));
   if (stagerIdx < 0) stagerIdx = coords.findIndex((c) => c && !/\.0$/.test(c));
   if (stagerIdx < 0) stagerIdx = 0;
+  // A STAGER WITH NO CAMERA SHIPS NOTHING. run.html boots JOIN-QUIET
+  // (`myStatus = { muted: true, camOff: true }`), and the camera idle-stop then
+  // STOPS AND REMOVES the video track after 20s of camOff (`reactCamIdle`, the
+  // phone-power work). `sentVideoTrack()` is then null, so `mySelfStream()` is
+  // null — and that stream is the ONLY place a stager's feed leaves the device
+  // (while staged the main senders are parked: "the room sees and hears me
+  // through my 'stg:' aux feed alone"). So this drill was staging a member who
+  // broadcast NOTHING: measured on an idle 6-core box, zero seats held any
+  // 'stg:' claim at all, in every run, and leg B's "found a wake target" — a
+  // receiver holding a RELAYED stg primary + standby — could never be true.
+  // That precondition guards the whole kill/wake/failover/re-park half, so
+  // ~8 of the drill's ~14 legs never executed. This is not a product failure
+  // and never was: the same failure reproduces on the 2026-07-30 tree (8ce4651,
+  // drill AND site), so the drill has always depended on winning a race against
+  // the 20s idle-stop, which a slower box simply loses.
+  //
+  // Turn the camera on, like e2e-pipe does, and drop blur (the blur pipe swaps
+  // the sent track, which re-mints mySelfStream's id and re-ships every stg job
+  // — churn this drill's steady-state windows do not need).
+  await pages[stagerIdx].page.evaluate(() => {
+    const none = document.getElementById('blur-none'); if (none) none.click();
+    const cam = document.getElementById('cam'); if (cam && cam.classList.contains('off')) cam.click();
+  }).catch(() => {});
+  const camUp = await pages[stagerIdx].page.waitForFunction(
+    () => !document.getElementById('cam').classList.contains('off'),
+    null, { timeout: 20000 }).then(() => true).catch(() => false);
+  check('the stager\'s camera is on (join-quiet + idle-stop would leave it silent)', camUp);
   const staged = await pages[stagerIdx].page.evaluate(() => __gifosVideo.stageForTest(true)).catch(() => null);
   check('a member stepped on Stage (' + pages[stagerIdx].name + ')', staged === true, staged);
   const stagerId = await idOf(pages[stagerIdx]);
+  // mySelfStream() actually built — the memo logs the track pair it minted. No
+  // memo = no self stream = nothing to ship, which is the failure above.
+  const selfUp = await pages[stagerIdx].page.waitForFunction(
+    () => (__gifosVideo.mosaic().selfMemo || []).length > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  check('the stager built a self stream to broadcast (mySelfStream memo)', selfUp);
+
+  // ...and the feed must actually REACH the room. Asserted here, on its own, so
+  // that a stage lane which stops delivering reds at a leg that NAMES it instead
+  // of silently disarming the failover half below (see the wake-target note).
+  const mosOf0 = (e) => e.page ? e.page.evaluate(() => __gifosVideo.mosaic()).catch(() => null) : null;
+  let stgHolders = [];
+  const tStg = Date.now();
+  while (Date.now() - tStg < 60000) {
+    const ms = await Promise.all(pages.map(mosOf0));
+    stgHolders = ms.map((m, i) => (m && (m.claims || []).some((k) => k === 'stg:' + stagerId)) ? pages[i].name : null).filter(Boolean);
+    if (stgHolders.length >= 2) break;
+    await sleep(2500);
+  }
+  check('the stager\'s stg feed reaches the room (>=2 seats hold stg:<stager>)', stgHolders.length >= 2, stgHolders.join(','));
 
   // ---- redundancy settles: some page holds a claim WITH a standby ----------
   const mosOf = (e) => e.page ? e.page.evaluate(() => __gifosVideo.mosaic()).catch(() => null) : null;
