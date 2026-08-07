@@ -470,7 +470,26 @@ Missing, in priority order:
 3. Any measurement at all of door-cycle throughput (V6) — even a 100-joiner
    drill against the local relay with the 30-socket cap engaged.
 
-## 6. Harness caveat — `--threads` is BROKEN, and it may not be only the harness
+## 6. Harness caveat — `--threads` is BROKEN — **ANSWERED 2026-08-06: it is the harness**
+
+> **RESOLVED — see [docs/sim-threads-2026-08-06.md](sim-threads-2026-08-06.md).**
+> The open question below ("is lockstep hiding a real race?") was chased and
+> settled: **reading (a), decisively.** Every teleport in every threaded run —
+> 5,049 of them — was ADJACENT AT EMIT; not one was genuinely non-adjacent when
+> the send was made. `classifyEmit` judges adjacency at FLUSH time for a send
+> decided at EMIT time. Proved with concurrency removed entirely: the buffered
+> path with ONE thread produces 2,155 teleports where the serial path produces
+> 0. No product finding. Correctly-built parallel runs converge 2000/2000 with
+> dups=0, so the protocol tolerates concurrency fine.
+>
+> Two harness defects came out of it, and the second is worse than the first:
+> (1) the assertion's deferred read, above; (2) **`--threads=N` without
+> `-fopenmp` — which is every build line in this repo — silently simulates only
+> 1/N of the room** (N=2000 threads=4 seats exactly 500; ids not ≡0 mod N never
+> tick). `--threads>1` is now REFUSED by the sim. Every number in this audit was
+> single-threaded and is unaffected.
+
+The original caveat, kept for the record:
 
 `./mesh --service --threads=4` **core-dumps on the TELEPORT assertion** — a
 YIELD frame routed to a seat the sender has no path to — at N=2000, tick 128,
