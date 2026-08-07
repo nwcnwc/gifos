@@ -6,7 +6,19 @@
 //   * changing the password re-keys live: present members learn it over the
 //     sealed pwinfo channel with no prompt;
 //   * the OLD password stops working at the door (a stale stored password
-//     re-prompts) while the NEW one admits — §LOCK, "derive, don't send";
+//     re-prompts) while the NEW one admits — §LOCK, "derive, don't send" — and
+//     the password that was just PROVEN WRONG is forgotten, so the trap does
+//     not re-arm itself on the next visit;
+//   * THE SILENT SPLIT (bug ledger #1, 2026-08-06): a guest who walks into an
+//     OPEN room carrying a password remembered under that room's NAME from
+//     some other meeting used to share the relay session with everyone and be
+//     unable to open a single frame — both sides stuck at 1 participant
+//     forever, the guest told "This room is locked" (it is not) and the host
+//     told nothing at all. She must now land in the room, on the open key,
+//     with the phantom password forgotten;
+//   * a remembered password EXPIRES: an entry older than the store's TTL is
+//     never offered, so a room NAME cannot stay locked by a password typed
+//     into it weeks ago on another build;
 //   * ADMIN room: only the admin can manage the lock (guest button disabled);
 //     the admin's SIGNED setpw locks the door and guests join with that
 //     password exactly like an open room's.
@@ -85,7 +97,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Cyd arrives holding the STALE password — it must NOT work; the new one must
   const C = await newUser('Cyd', "localStorage.setItem('gifos_vpw_" + room + "','pw-one');");
   const c = await open(C, 'c', 'v=' + room);
-  check('the OLD password stops working at the door (stale holder re-prompted)', await waitModal(c, true, 30000));
+  check('the OLD password stops working at the door (stale holder re-prompted)', await waitModal(c, true, 40000));
+  // …and it is FORGOTTEN. A password the door has refused (and whose room the
+  // open key cannot read either) is proven wrong; keeping it re-runs the whole
+  // refusal on the next visit, which is exactly how one room name stayed
+  // locked against its own guests "forever".
+  check('a password the room PROVED wrong is forgotten, not re-armed',
+    (await c.evaluate(() => window.__gifosVideo.pwState().stored)) === '');
   await enterPw(c, 'pw-two');
   await c.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 1, null, { timeout: 40000 });
   check('the NEW password admits the late joiner', (await c.evaluate(() => window.__gifosVideo.roomPw())) === 'pw-two');
@@ -101,6 +119,56 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('all three converge in the re-keyed room', three);
   await a.close(); await b.close(); await c.close();
+
+  // ================ THE SILENT SPLIT (bug ledger #1) ==================
+  // An OPEN room, and a guest carrying a password she once typed into this
+  // room NAME for a completely different meeting. sid/tok are password-free
+  // and the room key is password-BOUND, so she used to share the relay session
+  // with the host and be unable to open one frame of his: two people in one
+  // room, each seeing "1 participant", forever, in silence.
+  const splitRoom = 'pwsplit' + Math.floor(Math.random() * 1e9).toString(36);
+  const H = await newUser('Hank'); const h = await open(H, 'h', 'v=' + splitRoom);
+  await h.waitForFunction(() => window.__gifosVideo.relayUp(), null, { timeout: 20000 });
+  const G = await newUser('Gwen', "localStorage.setItem('gifos_vpw_" + splitRoom + "','ghost-of-another-meeting');"
+    + "localStorage.setItem('gifos_vpwat_" + splitRoom + "',String(Date.now()));");
+  const g = await open(G, 'g', 'v=' + splitRoom);
+  let joined = false;
+  const tSp = Date.now();
+  while (Date.now() - tSp < 60000 && !joined) {
+    joined = (await g.evaluate(() => window.__gifosVideo.liveDataLinks() >= 1))
+      && (await h.evaluate(() => window.__gifosVideo.liveDataLinks() >= 1));
+    if (!joined) await sleep(500);
+  }
+  check('a phantom saved password does NOT split an open room (both sides linked)', joined);
+  check('…the guest lands on the room\'s OWN (open) key',
+    (await g.evaluate(() => window.__gifosVideo.roomPw())) === '');
+  check('…the host is not left alone with a guest he cannot open',
+    (await h.evaluate(() => window.__gifosVideo.participants())) >= 2);
+  // The phantom is forgotten once the room proves itself open and populated —
+  // otherwise every future visit repeats the divergence dance.
+  let forgot = false;
+  const tFg = Date.now();
+  while (Date.now() - tFg < 20000 && !forgot) {
+    forgot = (await g.evaluate(() => window.__gifosVideo.pwState().stored)) === '';
+    if (!forgot) await sleep(500);
+  }
+  check('…and the phantom password is forgotten', forgot);
+  await g.close(); await h.close();
+
+  // ==================== A REMEMBERED PASSWORD EXPIRES ====================
+  // Same trap, one step earlier: the entry is old enough that it must never be
+  // offered at all. gifos_vpw_ is per-ORIGIN and shared with every /versions/
+  // snapshot, so without this an unlucky room NAME is locked by a password
+  // typed on another build, weeks ago, with nothing on screen to say so.
+  const oldRoom = 'pwold' + Math.floor(Math.random() * 1e9).toString(36);
+  const I = await newUser('Iris', "localStorage.setItem('gifos_vpw_" + oldRoom + "','ancient-history');"
+    + "localStorage.setItem('gifos_vpwat_" + oldRoom + "',String(Date.now() - 400*24*3600*1000));");
+  const i = await open(I, 'i', 'v=' + oldRoom);
+  await i.waitForFunction(() => window.__gifosVideo.relayUp(), null, { timeout: 20000 });
+  const iSt = await i.evaluate(() => window.__gifosVideo.pwState());
+  check('an EXPIRED saved password is never offered (the room opens unlocked)', iSt.pw === '' && !iSt.fromStore);
+  check('…and the expired entry is dropped from storage', iSt.stored === '');
+  await i.close();
 
   // ============================ ADMIN ROOM ============================
   const admRoom = 'pwadm' + Math.floor(Math.random() * 1e9).toString(36);
