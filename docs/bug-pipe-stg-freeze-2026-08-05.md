@@ -7,6 +7,12 @@
 > GREEN in the 0.9.4 gate — that is the entry's documented nondeterminism,
 > not a fix. Nothing else guards it: the guard IS the quarantined leg.
 > Still one investigation with mirror-drill and redun-drill.
+>
+> **RE-MEASURED 2026-08-06 EVENING, and the shape is now specific — see
+> "What it actually is" below.** Three runs on clawbox (Chrome 151, lane live,
+> idle box): leg 3 red in 3/3. The detector was also over-reporting, and that
+> is fixed in `cd2efeb` — the freeze is smaller than it looked, and much more
+> pointed than it looked.
 
 **Found** 2026-08-05, chasing a gate red. **Status: OPEN, unfixed, not a regression
 from anything landed that day.** Filed separately on purpose — it is a media-plane
@@ -83,6 +89,58 @@ outcomes; the lane does.
 
 Independently reproduced 2/2 in ad-hoc runs before the A/B, same signature.
 
+## What it actually is (measured 2026-08-06, clawbox, Chrome 151, idle)
+
+Leg 3 was instrumented to run its own rule and a container-aware one side by
+side, and to record, at the instant a stall fires, the slot's inbound BYTES
+across the freeze plus that flow's `framesDecoded`/`keyFramesDecoded`.
+
+**1. Two thirds of the reported stalls were the detector, not the product.**
+`feedsInfo().frames` is the ELEMENT's `totalVideoFrames`, and a claim swap
+(failover, failback, or an announcer re-shipping a new container) installs a
+NEW `<video>` whose counter restarts at zero. The old rule waited for the fresh
+element to climb past the dead one's total — tens of seconds — and called that
+a bright freeze. Run 1: 3 stalls reported, 2 of them exactly this, at seats
+that were decoding fine on a new container. Fixed in `cd2efeb`; the assertion
+is untouched.
+
+**2. What remains is real, and it is not a quiet pipe.** With the baseline
+keyed by container, every one of the three runs still reds, and the surviving
+stalls all have the same signature:
+
+| run | stalls | bytes arriving during the 12-13s freeze | frames decoded, whole 36s | stager |
+|---|---|---|---|---|
+| 1 | 1 (P0) | 50.7 kB | 15 | fenc 36, kenc 21 |
+| 2 | 3 (P0,P1,P5) | 25.6 / 24.9 / 28.7 kB | 9 / 11 / 4 | fenc 44, kenc 19 |
+| 3 | 1 (P0) | 25.0 kB | 4 | fenc 59, kenc 22 |
+
+So: **bytes keep arriving (2-4 kB/s) while the decoder produces nothing**, the
+producer is encoding keyframes throughout (`kenc` 19-22), and the piped copy
+decodes single-digit frame counts over a 36-second window. This is not "the
+feed freezes occasionally" — on the pipe lane the forwarded stg copy barely
+runs at all. The freeze is a decoder starved of a decodable frame while its
+pipe is delivering, which is the keyframe-starvation shape `87f57e6` described
+and fixed for the transcode path.
+
+**3. And the claim churns underneath it.** In run 1 the stg claim swapped
+containers 7 times in 36s across 4 seats (P4 flipping A→B→A), run 3 four
+times, run 2 not at all. Run 3's stall record carries the producer-side
+reason, from `mosaic().reship`: `why: 'sig-change'`, the stager's own sent
+video track alternating between two ids (`54094d3f` -> `98308cec` ->
+`54094d3f`) with `blur: 1, pipe: true` and a CONSTANT `camId`. That is the
+blur pipe's track and the raw camera track taking turns: each flip re-mints
+`mySelfStream()`, which re-ships every stg job with a new container, which
+tears down every downstream decoder. Note the arm that showed it had clicked
+`blur-none` (e2e-pipe does, on every page) and still reported `blur: 1` — a
+room/guest blur outranking the user's own "none" is the obvious suspect for
+what makes the level oscillate. A separate probe with blur left at its default
+2 showed ONE `selfMemo` entry, no re-ships, and stg feeds advancing at every
+seat.
+
+That gives the next session two threads that may be one: the source-side
+identity flip-flop (why does the sent track alternate?), and the
+keyframe-starved piped copy (why does a hop with bytes never decode?).
+
 ## What is NOT yet known
 
 - **Duration.** `stuckMs` is bounded by the detector: leg 3 polls every 2s, fires the
@@ -90,13 +148,18 @@ Independently reproduced 2/2 in ad-hoc runs before the A/B, same signature.
   Every number it can print is ~12-14s by construction. A 12.3s blip and a 120s
   freeze are indistinguishable in this output. Do not read "12.3s" as "mild" — that
   misread cost triage time already. Measuring real duration needs the detector
-  changed to keep sampling after the first hit.
-- **Mechanism.** Whether this is the same keyframe starvation `87f57e6` fixed (and
-  the fix is incomplete, or regressed), or a second freeze reachable only when the
-  lane is hot, is unestablished. `deny:0` says no job fell back to transcode, and
-  `kfAsk:0 / kdrop:0 / nkDrop:0` on the module-chain leg says the worker was not
-  asking for keyframes there — worth checking what those read at the moment of a
-  LEG-3 stall, which nothing currently captures.
+  changed to keep sampling after the first hit. (2026-08-06: the FRAME COUNTS
+  answer the spirit of it anyway — 4 to 15 decoded frames in 36 seconds means
+  the copy is not blipping, it is barely running.)
+- **Mechanism.** Narrowed 2026-08-06, not closed. It is keyframe starvation in
+  shape — bytes arriving, nothing decoding, producer keyframing — but whether
+  the hop-local `sendKeyFrameRequest` never fires, never arrives, or fires and
+  is answered on a stream the receiver has already been re-shipped off, is
+  open. `deny:0` still says no job fell back to transcode. `kfAsk/kdrop/nkDrop`
+  are now captured for the RECEIVER's flow at the moment a stall fires (leg 3
+  reads `kfStats` for `in:<key>`); the next run to red should have them in the
+  failure line, and the pipe worker's own counters at the FORWARDING hop are
+  the piece still missing.
 - **Whether real users hit it.** Chrome 140 has no `RTCRtpScriptTransform`, so every
   browser older than ~141 runs with the lane off and cannot see this. How much of the
   real audience is on an engine new enough to turn the lane on — and therefore new
