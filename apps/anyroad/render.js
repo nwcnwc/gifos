@@ -340,43 +340,95 @@
     // columns from position along the wall, and a colour picked by a stable
     // per-building seed so a street has variety instead of one flat tone.
     progs.building = program([
-      'attribute vec3 aPos; attribute vec3 aNormal; attribute float aTone; attribute vec2 aBinfo;',
+      'attribute vec3 aPos; attribute vec3 aNormal; attribute float aTone; attribute vec3 aBinfo;',
       'uniform mat4 uViewProj; uniform vec3 uEye;',
       'varying vec3 vNormal; varying float vTone; varying float vDist;',
-      'varying vec3 vWorld; varying vec2 vBinfo;',
+      'varying vec3 vWorld; varying vec3 vBinfo;',
       'void main(){ vNormal=aNormal; vTone=aTone; vWorld=aPos; vBinfo=aBinfo;',
       '  vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir; uniform vec3 uEye;',
-      'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec2 vBinfo;',
+      'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec3 vBinfo;',
       NOISE, FOG, LIGHTING,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
       '  float s = fract(vBinfo.y);',
-      // Four plausible facade colours: warm stone, cool grey, terracotta, off-white.
+      // vBinfo.z is the OSM building class, straight off the tag the parser
+      // used to throw away: 1 house, 2 flats, 3 retail, 4 office, 5 industrial,
+      // 6 outbuilding, 7 civic, 8 a pitched roof surface. Everything below
+      // branches on it, because a warehouse and a terraced house are not the
+      // same object with different dimensions.
+      '  float cls = vBinfo.z;',
+      '  float isHouse  = step(0.5, cls) * step(cls, 1.5);',
+      '  float isFlats  = step(1.5, cls) * step(cls, 2.5);',
+      '  float isShop   = step(2.5, cls) * step(cls, 3.5);',
+      '  float isOffice = step(3.5, cls) * step(cls, 4.5);',
+      '  float isWorks  = step(4.5, cls) * step(cls, 5.5);',
+      '  float isShed   = step(5.5, cls) * step(cls, 6.5);',
+      '  float isCivic  = step(6.5, cls) * step(cls, 7.5);',
+      '  float isTile   = step(7.5, cls);',                  // a pitched roof face
+      // Facade palettes, per class. Houses are brick and render; offices are
+      // cool and grey; works are metal; civic is pale stone.
       '  vec3 base = vec3(0.79,0.75,0.68);',
       '  if (s > 0.25) base = vec3(0.68,0.69,0.71);',
       '  if (s > 0.50) base = vec3(0.74,0.57,0.46);',
       '  if (s > 0.75) base = vec3(0.86,0.84,0.79);',
+      '  vec3 brick = mix(vec3(0.55,0.34,0.27), vec3(0.78,0.72,0.62), step(0.45, s));',
+      '  brick = mix(brick, vec3(0.86,0.83,0.76), step(0.78, s));',      // rendered white
+      '  vec3 metal = mix(vec3(0.62,0.65,0.66), vec3(0.50,0.55,0.58), step(0.5, s));',
+      '  vec3 corp  = mix(vec3(0.56,0.60,0.66), vec3(0.72,0.74,0.77), step(0.5, s));',
+      '  vec3 stone = vec3(0.80,0.77,0.70);',
+      '  base = mix(base, brick, max(isHouse, isShed));',
+      '  base = mix(base, metal, isWorks);',
+      '  base = mix(base, corp, max(isOffice, isFlats * 0.6));',
+      '  base = mix(base, stone, isCivic);',
       '  float isWall = 1.0 - step(0.55, abs(n.y));',
       '  float isRoof = step(0.55, n.y);',
       '  float h = vWorld.y - vBinfo.x;',            // height above THIS building's base
       // Storey bands. Using the building's own base is what keeps windows level
       // across a terrace built on a slope.
-      '  float band = fract(h / 3.3);',
-      '  float floorLit = fract(sin((floor(h / 3.3) + s * 31.0) * 12.9898) * 43758.5453);',
+      // Storey height and window pitch are per class: a house has small windows
+      // on a domestic grid, an office has a wide curtain-wall module, a
+      // warehouse has almost none.
+      '  float storey = 3.3;',
+      '  storey = mix(storey, 2.8, isHouse);',
+      '  storey = mix(storey, 3.8, isOffice);',
+      '  storey = mix(storey, 5.5, isWorks);',
+      '  float band = fract(h / storey);',
+      '  float floorLit = fract(sin((floor(h / storey) + s * 31.0) * 12.9898) * 43758.5453);',
       // Run the window columns along whichever horizontal axis the wall faces.
       '  float u = abs(n.x) > abs(n.z) ? vWorld.z : vWorld.x;',
-      '  float col = fract(u / 2.6 + s);',
+      '  float pitch = 2.6;',
+      '  pitch = mix(pitch, 3.4, isHouse);',        // fewer, wider-spaced openings
+      '  pitch = mix(pitch, 1.9, isOffice);',       // tight curtain-wall module
+      '  pitch = mix(pitch, 6.0, isWorks);',
+      '  float col = fract(u / pitch + s);',
       // Roughly 0.9 m x 1.1 m of glass per 2.6 m x 3.3 m of facade. The first
       // pass used 1.7 m windows on a 3.2 m pitch, which is more glass than
       // wall — from a distance that is not a building, it is a chessboard.
-      '  float win = isWall * step(0.34, band) * step(band, 0.68)',
-      '            * step(0.32, col) * step(col, 0.68) * step(2.2, h);',
+      '  float wLo = mix(0.34, 0.30, isOffice), wHi = mix(0.68, 0.80, isOffice);',
+      '  float cLo = mix(0.32, 0.14, isOffice), cHi = mix(0.68, 0.86, isOffice);',
+      '  float win = isWall * step(wLo, band) * step(band, wHi)',
+      '            * step(cLo, col) * step(col, cHi) * step(2.2, h);',
+      // A shed has no windows at all, and a warehouse has a strip near the roof
+      // rather than a grid — glazing a distribution shed like a house is most of
+      // what made every building look the same.
+      '  win *= 1.0 - isShed;',
+      // A pitched roof face can be steep enough to pass the "is this a wall?"
+      // normal test, and a roof with windows in it is a very odd house.
+      '  win *= 1.0 - isTile;',
+      '  win *= mix(1.0, step(0.55, band) * step(h, vBinfo.x + 40.0), isWorks);',
+      // THE SHOPFRONT. A parade of shops is unmistakable from the road because
+      // the ground floor is glass and the floors above are not — one band does
+      // more for "this is a high street" than any facade colour.
+      '  float shopFront = isShop * isWall * step(0.6, h) * step(h, 3.6);',
+      '  float fascia = isShop * isWall * step(3.6, h) * step(h, 4.3);',
+      '  win = max(win, shopFront);',
       // Glass reflects the sky more than it swallows light, and a few windows
       // per floor differ — a facade of identical black holes reads as printed.
       '  vec3 glass = mix(vec3(0.24,0.30,0.38), vec3(0.55,0.64,0.72), floorLit);',
+      '  glass = mix(glass, vec3(0.62,0.70,0.78), isOffice * 0.5);',
       // Fade the pattern out with distance. A window grid is high-frequency
       // detail and there is no mip chain behind a procedural step() — past
       // ~80 m it aliases into a crawling dither that reads as dirt on the
@@ -385,6 +437,42 @@
       '  float near = 1.0 - smoothstep(80.0, 260.0, vDist);',
       '  base = mix(base, glass, win * 0.72 * near);',
       '  base = mix(base, base * 0.93, (1.0 - near) * isWall);',
+      // Shop windows are LIT FROM INSIDE and full of pale merchandise — the
+      // dark blue-grey used for a flat's window makes a parade of shops read as
+      // a row of caves, which is the opposite of what a high street looks like.
+      // Warm interior, cool reflection, and mullions every couple of metres so
+      // it is glazing rather than one long hole.
+      '  vec3 shopGlass = mix(vec3(0.54,0.60,0.66), vec3(0.92,0.80,0.56), floorLit * 0.8);',
+      '  shopGlass *= 0.80 + 0.24 * step(0.10, fract(u / 2.1 + s));',
+      '  base = mix(base, shopGlass, shopFront * near * 0.92);',
+      // The sign board over a shopfront. No lettering — at this scale letters
+      // are noise — just a painted band in the shop's own colour, which is what
+      // you actually read from a car.
+      '  vec3 signColour = mix(vec3(0.24,0.42,0.54), vec3(0.56,0.26,0.26), step(0.5, s));',
+      '  signColour = mix(signColour, vec3(0.26,0.46,0.32), step(0.78, s));',
+      '  base = mix(base, signColour, fascia * near);',
+      // Corrugation on a metal shed: vertical ribbing instead of windows, which
+      // is the entire visual language of an industrial estate.
+      '  float rib = 0.5 + 0.5 * cos(u * 6.2832 / 0.9);',
+      '  base *= mix(1.0, 0.88 + 0.24 * rib, isWorks * isWall * near);',
+      // Brick courses on a house, at the same distance fade as everything else.
+      '  base *= mix(1.0, 0.94 + 0.12 * step(0.5, fract(h / 0.32)), isHouse * isWall * near * 0.6);',
+      // A HOUSE IS NOT A SMALL OFFICE. What makes one read as somewhere people
+      // live is the domestic furniture of it: a door on the ground floor, a
+      // painted sill and lintel round every window, and a band of a different
+      // colour where the render stops. All three are two lines of shader each
+      // and together they do more than another thousand triangles would.
+      '  float doorCol = step(0.42, fract(u / pitch + s + 0.5)) * step(fract(u / pitch + s + 0.5), 0.58);',
+      '  float door = isHouse * isWall * doorCol * step(0.15, h) * step(h, 2.05);',
+      '  vec3 doorPaint = mix(vec3(0.16,0.24,0.30), vec3(0.30,0.16,0.14), step(0.5, s));',
+      '  doorPaint = mix(doorPaint, vec3(0.20,0.28,0.20), step(0.8, s));',
+      '  base = mix(base, doorPaint, door * near);',
+      // Sill and lintel: a pale band immediately under and over the glazing.
+      '  float trimBand = step(wLo - 0.10, band) * step(band, wLo) + step(wHi, band) * step(band, wHi + 0.08);',
+      '  float trim = isHouse * isWall * trimBand * step(cLo - 0.06, col) * step(col, cHi + 0.06) * step(2.2, h);',
+      '  base = mix(base, vec3(0.90,0.88,0.84), trim * near * 0.75);',
+      // The plinth: brick or stone below the damp course, on houses and shops.
+      '  base = mix(base, base * vec3(0.78,0.76,0.74), max(isHouse, isShop) * isWall * (1.0 - step(0.55, h)));',
       // Grime toward the ground.
       '  base *= mix(0.72, 1.0, clamp(h / 5.0, 0.0, 1.0));',
       // ROOFS ARE NOT WALLS. Looking down a street from the chase camera you see
@@ -398,7 +486,19 @@
       '  float clutter = vnoise(vWorld.xz * 0.55 + s * 20.0);',
       '  roof *= 0.86 + 0.30 * clutter;',
       '  roof += vec3(0.06) * step(0.80, clutter);',                 // plant, vents, skylights
-      '  base = mix(base, roof, isRoof);',
+      // A PITCHED roof is tile or slate, and it is a sloping surface — so it is
+      // not caught by the isRoof normal test and gets its own class instead.
+      // Rows of tiles run across the slope; without them a hip roof is a smooth
+      // coloured cone and reads as a circus tent.
+      '  vec3 tile = mix(vec3(0.48,0.26,0.19), vec3(0.34,0.33,0.35), step(0.55, s));',
+      '  float course = 0.90 + 0.14 * step(0.5, fract(h / 0.34));',
+      '  tile *= course;',
+      '  base = mix(base, roof, isRoof * (1.0 - isTile));',
+      '  base = mix(base, tile, isTile);',
+      // The chimney is class 9 and is brick, not tile — it is the one thing on
+      // a roof that is a continuation of the wall below it.
+      '  float isStack = step(8.5, cls);',
+      '  base = mix(base, brick * (0.92 + 0.10 * step(0.5, fract(h / 0.30))), isStack);',
       '  vec3 lit = shade(base * vTone, n, normalize(uLightDir));',
       // Glass catches the sun. Only on the window rectangles, only on walls,
       // and only near enough that the pattern is still resolved — a whole city
@@ -495,6 +595,37 @@
       '  float d = length(vLocal);',
       '  float a = (1.0 - smoothstep(0.15, 1.0, d)) * 0.42;',   // ascending edges: see the sky shader
       '  gl_FragColor = vec4(0.0, 0.0, 0.0, a);',
+      '}',
+    ].join('\n'));
+
+    // --- baked shadows: flat dark polygons lying on the ground ---------------
+    // No shader worth the name. The geometry IS the shadow (see roads.js
+    // buildShadows), computed once per tile because the sun never moves, and
+    // all this has to do is lay it down with a soft edge so it does not read as
+    // a cut-out. vEdge is a per-vertex "how far into the shadow am I", which
+    // the fan hands out as 0 on the rim and 1 at the centre.
+    progs.shade = program([
+      'attribute vec3 aPos;',
+      'uniform mat4 uViewProj; uniform vec3 uEye;',
+      'varying float vDist;',
+      'void main(){ vDist = length(aPos - uEye); gl_Position = uViewProj * vec4(aPos, 1.0); }',
+    ].join('\n'), [
+      'precision highp float;',
+      'uniform float uFogDensity;',
+      'varying float vDist;',
+      'void main(){',
+      // Shadows fade out with distance for the same reason everything else
+      // does: past the fog band there is no contrast left to darken, and a hard
+      // shadow inside the haze reads as a hole in the ground.
+      '  float f = clamp(1.0 - exp(-vDist * uFogDensity), 0.0, 1.0);',
+      // 0.34 was too strong, and not because it looked heavy on its own: these
+      // are translucent decals, so two overlapping shadows darken TWICE and a
+      // street of buildings stacks four or five deep into something that reads
+      // as a hole in the world rather than as shade. A stencil pass would fix
+      // the stacking properly; at this alpha it does not need fixing.
+      // Blue, not black — shade is lit by the sky, and a neutral grey shadow is
+      // the single most common tell of a fake one.
+      '  gl_FragColor = vec4(0.06, 0.09, 0.18, 0.20 * (1.0 - f));',
       '}',
     ].join('\n'));
 
@@ -784,7 +915,15 @@
   // ---- public --------------------------------------------------------------
   var view = mat4(), proj = mat4(), viewProj = mat4();
   var SKY_TOP = [0.17, 0.38, 0.72], SKY_HORIZON = [0.74, 0.81, 0.86];
-  var LIGHT = [0.45, 0.78, 0.30];
+  // Late afternoon, and the elevation is the whole character of the lighting.
+  // Overhead, every shadow is a puddle under its own building and the picture
+  // is flat. This is about 24°, which buys three things at once: shadows two
+  // and a half times the height of what casts them, running across the road
+  // rather than hiding under the eaves; a low sun angle that models the sides
+  // of things instead of their tops; and — measured, not assumed — a sun that
+  // is actually IN FRAME when you drive toward it. The chase camera only sees
+  // about 25° above the horizon, so a sun at 40° is a sun nobody ever sees.
+  var LIGHT = [0.60, 0.36, -0.52];
   // Warm sun, cool sky fill, warm bounce off the ground. The three of them are
   // what the hemisphere model reads; keeping them here rather than in the
   // shaders means one place decides what time of day it is.
@@ -792,9 +931,12 @@
   // shaded vertical wall at about a third of a lit one, which is right for a
   // photograph and wrong for a stylised world at speed — the far side of every
   // building became an unreadable brown. Bright fill, slightly weaker sun.
-  var SUN_COLOR = [0.78, 0.73, 0.62];
+  // Warmer and stronger than the noon sun it replaced: a low sun is both, and
+  // it also has to carry more, because at 24° an upward-facing surface catches
+  // far less of it and the ground would otherwise go flat and grey.
+  var SUN_COLOR = [0.98, 0.86, 0.68];
   var SKY_FILL = [0.42, 0.48, 0.58];
-  var GROUND_FILL = [0.27, 0.25, 0.21];
+  var GROUND_FILL = [0.28, 0.25, 0.20];
   var sunDir = [0, 1, 0];       // LIGHT, normalised, recomputed on init
   var ray = [0, 0, 0], upv = [0, 0, 0], fwd = [0, 0, 0];
   var IDENT = mat4(), ONE = [1, 1, 1];
@@ -913,11 +1055,29 @@
       });
     }
 
+    // Shadows go down AFTER the ground they lie on and BEFORE the things that
+    // cast them, so a building always occludes its own shadow. Depth writes off
+    // (they are decals, not occluders); depth test on, so a shadow behind a
+    // wall stays behind it.
+    if (scene.shadows && scene.shadows.length) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);          // hulls come out in either winding
+      common(progs.shade);
+      for (var sh = 0; sh < scene.shadows.length; sh++) {
+        drawMesh(progs.shade, scene.shadows[sh], { aPos: { src: 'positions', size: 3 } });
+      }
+      gl.enable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+
     common(progs.building);
     for (var b = 0; b < scene.buildings.length; b++) {
       drawMesh(progs.building, scene.buildings[b], {
         aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
-        aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 2 },
+        aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 3 },
       });
     }
 
@@ -1079,6 +1239,10 @@
     init: init, draw: draw, textureFor: textureFor,
     get gl() { return gl; },
     isGL2: function () { return isGL2; },
+    // The sun direction, normalised. roads.js bakes the shadows against it at
+    // tile build time — one definition of where the light comes from, or the
+    // shadows point somewhere the shading does not.
+    sun: function () { return [sunDir[0], sunDir[1], sunDir[2]]; },
     // The camera basis the sky reconstructs its rays from, as it was last
     // uploaded. Exposed because a wrong basis does not look wrong in any
     // obvious way — it looks like a sky with no clouds in it, which is exactly

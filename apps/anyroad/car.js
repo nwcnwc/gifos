@@ -243,6 +243,12 @@
     // A rebound, a slope, a mis-set stick — none of them may exceed a speed you
     // could not reverse at deliberately.
     car.speed = Math.max(-REV_MAX, Math.min(maxSpeed, car.speed));
+    // Parked means PARKED. The brake alone gets it to nearly zero, but a car
+    // resting against a wall is pushed out a few centimetres every frame by the
+    // collision solver, and "nearly zero" plus a nudge is a car that creeps at
+    // walking pace for as long as the panel is open. Reading a menu should not
+    // move you.
+    if (park && Math.abs(car.speed) < 1.2) car.speed = 0;
 
     // --- move --------------------------------------------------------------
     var dx = Math.sin(car.yaw) * car.speed * dt;

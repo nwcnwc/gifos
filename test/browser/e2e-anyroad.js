@@ -89,8 +89,39 @@ function overpassBody() {
         { lat: HOP.lat + 0.0007, lon: HOP.lon + 0.0004 },
         { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0004 },
       ] },
+      ...mixedStreet(),
     ],
   });
+}
+
+// A street with KNOWN building types on it. OSM carries `building=house`,
+// `building=retail`, `building=warehouse` and the rest, and until 2026-08 the
+// parser tested the tag for truthiness and threw the value away — so this
+// fixture exists to hold the classifier to what the data actually said.
+// Houses down one side, a parade of shops, an office and a shed down the other.
+function mixedStreet() {
+  const out = [];
+  let id = 100;
+  const box = (tags, lat, lon, dlat, dlon) => ({
+    type: 'way', id: id++, tags,
+    geometry: [
+      { lat, lon }, { lat, lon: lon + dlon },
+      { lat: lat + dlat, lon: lon + dlon }, { lat: lat + dlat, lon },
+      { lat, lon },
+    ],
+  });
+  const KINDS = [
+    { building: 'retail' },
+    { building: 'commercial', 'building:levels': '5' },
+    { building: 'warehouse' },
+    { building: 'church' },
+  ];
+  for (let i = -6; i < 6; i++) {
+    const lat = HOP.lat + i * 0.00036, lon = HOP.lon + i * 0.00012;
+    out.push(box({ building: 'house' }, lat, lon - 0.00035, 0.00009, 0.00013));
+    out.push(box(KINDS[((i % 4) + 4) % 4], lat, lon + 0.00022, 0.00011, 0.00020));
+  }
+  return out;
 }
 
 (async () => {
@@ -585,6 +616,130 @@ function overpassBody() {
   check('no tree is planted in the middle of the road', scenery.onRoad === 0,
     scenery.onRoad + ' trunks on tarmac');
 
+  // ---- trees are solid -----------------------------------------------------
+  // A tree you can drive through is scenery. The whole reason for putting them
+  // beside a road is that leaving the road should cost something, so the trunks
+  // go into the SAME wall index buildings use — one collision system, not two.
+  const timber = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    // Find a real trunk: the first tile with scenery, its first tree's base.
+    let trunk = null;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.trees || !r.built.trees.count) continue;
+      const p = r.built.trees.positions;
+      trunk = { x: p[0], z: p[2] };
+      break;
+    }
+    if (!trunk) return { found: false };
+    // Every wall segment near it, exactly as the car would ask.
+    const near = [];
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.walls) continue;
+      window.Roads.nearWalls(r.built.walls, trunk.x, trunk.z, near);
+    }
+    let closest = Infinity;
+    for (let i = 0; i < near.length; i += 4) {
+      closest = Math.min(closest, window.Roads.segDist(trunk.x, trunk.z, near[i], near[i + 1], near[i + 2], near[i + 3]));
+    }
+    // …and drive into it. Aimed at the trunk from 3 m out, at 20 m/s.
+    const car = window.Car.create(trunk.x, trunk.z - 3, 0);
+    car.health = 100; car.speed = 20;
+    const hit = window.Car.collide(car, near, 0.016);
+    return { found: true, closest, segs: near.length / 4,
+             damage: hit ? hit.damage : 0, health: car.health, speed: car.speed };
+  });
+  check('a tree trunk is in the collision index', timber.found && timber.closest < 1,
+    timber.found ? (timber.segs + ' segments near it, closest ' + timber.closest.toFixed(2) + ' m')
+                 : 'no scenery tile found');
+  check('driving into a tree hurts', timber.damage > 0 && timber.health < 100 && timber.speed < 20,
+    '-' + timber.damage.toFixed(1) + ' condition, ' + timber.health.toFixed(0) + '% left, speed -> ' + timber.speed.toFixed(1));
+
+  // ---- shadows -------------------------------------------------------------
+  // Baked once per tile, because the sun does not move. What must hold is that
+  // they exist, that they lie along the sun and not somewhere else, and that
+  // they are on the ground rather than floating.
+  const shadow = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    const sun = window.Render.sun();
+    let idx = 0, tiles = 0, offGround = 0, samples = 0, alongSun = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.shadows || !r.built.shadows.count) continue;
+      tiles++; idx += r.built.shadows.count;
+      const p = r.built.shadows.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        const g = window.Terrain.heightAt(w.frame, p[i], p[i + 2]);
+        samples++;
+        if (g === null || Math.abs(p[i + 1] - g) > 0.9) offGround++;
+      }
+    }
+    // Where the shadows sit versus where the buildings sit. Both centroids are
+    // taken over the SAME tile's whole set — an earlier version compared the
+    // tile's entire shadow mesh against its FIRST building and measured nothing
+    // but where that building happened to be in the block.
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.shadows || !r.built.shadows.count) continue;
+      if (!r.geom.bld.length) continue;
+      const p = r.built.shadows.positions;
+      let sx = 0, sz = 0, n = 0;
+      for (let i = 0; i < p.length; i += 3) { sx += p[i]; sz += p[i + 2]; n++; }
+      sx /= n; sz /= n;
+      let bx = 0, bz = 0, m = 0;
+      for (const b of r.geom.bld) {
+        for (let i = 0; i + 1 < b[1].length; i += 2) {
+          const q = w.frame.toWorld(b[1][i], b[1][i + 1]);
+          bx += q.x; bz += q.z; m++;
+        }
+      }
+      bx /= m; bz /= m;
+      // Dot the offset with the direction a shadow should fall.
+      alongSun = (sx - bx) * -sun[0] + (sz - bz) * -sun[2];
+      break;
+    }
+    return { tiles, idx, offGround, samples, alongSun, sun };
+  });
+  check('shadows are baked for every built tile', shadow.tiles > 0 && shadow.idx > 0,
+    shadow.tiles + ' tiles, ' + shadow.idx + ' indices');
+  check('shadows lie ON the ground, not above or below it', shadow.offGround === 0,
+    shadow.offGround + ' of ' + shadow.samples + ' vertices off the terrain');
+  check('shadows fall away from the sun', shadow.alongSun > 0,
+    'offset along the shadow direction: ' + shadow.alongSun.toFixed(1) + ' m');
+
+  // ---- buildings are told apart --------------------------------------------
+  // OSM has always carried this and the parser used to test `tags.building` for
+  // truthiness and throw the value away, so a terrace, a shopping parade and a
+  // distribution shed were the same grey extrusion. The fixture street is built
+  // of known types, so the classes coming out are checkable.
+  const kinds = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    const seen = {};
+    let pitched = 0, flat = 0, stacks = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.buildings.count) continue;
+      const bi = r.built.buildings.binfo;
+      for (let i = 2; i < bi.length; i += 3) {
+        const c = bi[i];
+        seen[c] = (seen[c] || 0) + 1;
+        if (c === 8) pitched++;
+        else if (c === 9) stacks++;
+      }
+      const nrm = r.built.buildings.normals;
+      for (let i = 1; i < nrm.length; i += 3) if (nrm[i] > 0.95) flat++;
+    }
+    return { seen, pitched, flat, stacks,
+             classes: Object.keys(seen).map(Number).sort((a, b) => a - b) };
+  });
+  check('more than one kind of building comes out of the map data',
+    kinds.classes.filter((c) => c >= 1 && c <= 7).length >= 3,
+    'classes present: ' + kinds.classes.join(','));
+  check('houses get a pitched roof, and it is not painted as a wall',
+    kinds.pitched > 0, kinds.pitched + ' tile vertices');
+  check('houses get a chimney', kinds.stacks > 0, kinds.stacks + ' chimney vertices');
+
   // The renderer drew a world, not an empty sky. Sample the canvas below the
   // horizon: ground pixels must differ from the sky gradient up top.
   // The read has to happen INSIDE an animation frame, after the app's own draw
@@ -607,25 +762,30 @@ function overpassBody() {
       // from failing for a renderer that was working perfectly.
       const ground = [0.2, 0.35, 0.5, 0.65, 0.8].map((f) => read(Math.floor(cv.width * f), Math.floor(cv.height * 0.12)));
       const sky = read(Math.floor(cv.width / 2), Math.floor(cv.height * 0.95));
-      const skyLow = read(Math.floor(cv.width / 2), Math.floor(cv.height * 0.62));
+      // The sky sampled ACROSS the frame, not as one pair of pixels. Two
+      // samples can land on the same cloud, or on two points the gradient
+      // happens to give the same value — that is a flake, not a finding.
+      const skyPts = [];
+      for (const fx of [0.15, 0.35, 0.5, 0.65, 0.85]) {
+        for (const fy of [0.66, 0.80, 0.95]) skyPts.push(read(Math.floor(cv.width * fx), Math.floor(cv.height * fy)));
+      }
+      let spread = 0;
+      for (const a of skyPts) for (const b of skyPts) spread = Math.max(spread, diff(a, b));
       resolve({
-        ground: ground.map((g) => g.join(',')).join(' | '), sky: sky, skyLow: skyLow,
+        ground: ground.map((g) => g.join(',')).join(' | '), sky: sky, spread: spread,
         diff: Math.max.apply(null, ground.map((g) => diff(g, sky))),
-        // The sky SHADER, not the clear colour. It is a full-screen triangle
-        // wound counter-clockwise and the app culls counter-clockwise faces, so
-        // for a long time it was culled outright and every sky pixel was the
-        // flat glClear colour — a gradient, a sun and two attempts at clouds
-        // all went into a shader that never ran. A sky with a gradient in it is
-        // the only thing that tells the two apart from outside.
-        skyGradient: diff(sky, skyLow),
       });
     }));
   }));
   check('the renderer draws ground, not just sky', painted.diff > 40,
     'ground rgb ' + painted.ground + ' vs sky ' + painted.sky.join(','));
-  check('the sky shader runs — the sky is a gradient, not the clear colour',
-    painted.skyGradient > 12,
-    'high ' + painted.sky.join(',') + ' vs low ' + painted.skyLow.join(','));
+  // The sky SHADER, not the clear colour. Its full-screen triangle is wound
+  // counter-clockwise and the app culls counter-clockwise faces, so for a long
+  // time it was culled outright and every sky pixel was the flat glClear
+  // colour — a gradient, a sun and two attempts at clouds all went into a
+  // shader that never ran, and nothing looked broken. A flat sky is the tell.
+  check('the sky shader runs — the sky is not one flat colour',
+    painted.spread > 14, 'widest difference across 15 sky samples: ' + painted.spread);
 
   // ---- typing must not reach the car --------------------------------------
   // The driving keys are bound on window, so they fire while the search field
