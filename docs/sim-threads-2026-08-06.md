@@ -163,3 +163,13 @@ correctly-built parallel runs converge 2000/2000 with dups=0, which is the
 first (weak, race-caveated) evidence we have that the seating protocol tolerates
 concurrent execution at all. Every measurement in that audit was taken on the
 single-threaded path and stands unaffected.
+
+---
+
+*Provenance note: the content of this document, the `--threads` guard in
+`test/sim/mesh.cpp`, and the § 6 stamp on the scale audit were all committed —
+accidentally, by a concurrent agent working in the same clone — under commit
+`767a57e` ("relay-local: speak production's policy close codes"), whose message
+describes none of them. Recorded here because the commit log is the thing this
+project treats as valuable, and grepping the history for this investigation
+would otherwise lead somewhere baffling.*
