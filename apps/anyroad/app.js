@@ -579,6 +579,7 @@
       // The direction is not a detail — it is the difference between the two
       // things that can be happening.
       reverse: car.speed < -0.3,
+      halted: car.halted,
       steer: input.steer,
       place: world.place,
       loading: pendingCount(),
@@ -645,6 +646,7 @@
       onUnstick: unstick,
       car: function () { return car; },
       frame: function () { return world.frame; },
+      world: function () { return world; },
     });
 
     controls = root.Car.controls(canvas, {

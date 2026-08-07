@@ -40,9 +40,9 @@
     try { ctx = new AC(); } catch (e) { return false; }
 
     master = ctx.createGain();
-    master.gain.value = 0.9;
+    master.gain.value = 0.62;
     master.connect(ctx.destination);
-    sfxBus = ctx.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = 0.8; sfxBus.connect(master);
 
     // Two seconds of white noise, made once and reused by every tyre, gust,
     // impact and animal in the game.
@@ -242,9 +242,9 @@
     // Tyres: nothing at rest, and the character changes with what is under
     // them — tarmac hisses, gravel and dirt rumble.
     var grit = (state.surface >= 1 || !state.onRoad) ? 1 : 0;
-    ramp(tyres.out.gain, Math.min(0.30, v * v * (grit ? 0.0011 : 0.00055)), 0.15);
-    ramp(tyres.filt.frequency, (grit ? 260 : 900) + v * (grit ? 14 : 46), 0.2);
-    tyres.filt.Q.value = grit ? 0.5 : 0.9;
+    ramp(tyres.out.gain, Math.min(0.14, v * v * (grit ? 0.00055 : 0.00026)), 0.15);
+    ramp(tyres.filt.frequency, (grit ? 220 : 520) + v * (grit ? 9 : 22), 0.2);
+    tyres.filt.Q.value = grit ? 0.8 : 1.5;
     return rpm;
   }
 
@@ -317,19 +317,19 @@
   // A call is a pitch envelope plus a formant. What separates a cow from a
   // goose is mostly the fundamental and how fast it wobbles.
   var CALLS = {
-    cow:   { type: 'sawtooth', f0: 150, f1: 108, dur: 1.10, gain: 0.30, vibrato: 5,  depth: 6,  filter: 700 },
-    sheep: { type: 'sawtooth', f0: 380, f1: 300, dur: 0.55, gain: 0.22, vibrato: 22, depth: 34, filter: 1600 },
-    goose: { type: 'square',   f0: 520, f1: 430, dur: 0.20, gain: 0.20, vibrato: 0,  depth: 0,  filter: 2400, repeat: 2 },
-    dog:   { type: 'sawtooth', f0: 320, f1: 150, dur: 0.13, gain: 0.26, vibrato: 0,  depth: 0,  filter: 1800, repeat: 3 },
-    deer:  { type: 'sawtooth', f0: 240, f1: 170, dur: 0.22, gain: 0.20, vibrato: 0,  depth: 0,  filter: 1200 },
-    boar:  { type: 'sawtooth', f0: 120, f1: 92,  dur: 0.28, gain: 0.26, vibrato: 9,  depth: 8,  filter: 600, repeat: 2 },
+    cow:   { type: 'sawtooth', f0: 150, f1: 108, dur: 1.10, gain: 0.62, vibrato: 5,  depth: 6,  filter: 700 },
+    sheep: { type: 'sawtooth', f0: 380, f1: 300, dur: 0.55, gain: 0.52, vibrato: 22, depth: 34, filter: 1600 },
+    goose: { type: 'square',   f0: 520, f1: 430, dur: 0.20, gain: 0.44, vibrato: 0,  depth: 0,  filter: 2400, repeat: 2 },
+    dog:   { type: 'sawtooth', f0: 320, f1: 150, dur: 0.13, gain: 0.56, vibrato: 0,  depth: 0,  filter: 1800, repeat: 3 },
+    deer:  { type: 'sawtooth', f0: 240, f1: 170, dur: 0.22, gain: 0.48, vibrato: 0,  depth: 0,  filter: 1200 },
+    boar:  { type: 'sawtooth', f0: 120, f1: 92,  dur: 0.28, gain: 0.56, vibrato: 9,  depth: 8,  filter: 600, repeat: 2 },
   };
 
   function call(kind, car, x, z) {
     if (!started || silent) return;
     var c = CALLS[kind];
     if (!c) return;
-    var dest = place(car, x, z, 95);
+    var dest = place(car, x, z, 150);
     if (!dest) return;
     var n = c.repeat || 1;
     for (var i = 0; i < n; i++) {
@@ -366,7 +366,7 @@
       ramp(tyres.out.gain, 0, 0.05);
       for (var i = 0; i < voices.length; i++) ramp(voices[i].gain.gain, 0, 0.05);
     }
-    ramp(master.gain, silent ? 0 : 0.9, 0.05);
+    ramp(master.gain, silent ? 0 : 0.62, 0.05);
   }
 
   // The first gesture. Browsers will not start an audio graph without one, and

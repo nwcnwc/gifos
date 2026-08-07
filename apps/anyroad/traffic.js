@@ -5,18 +5,21 @@
 // nothing: the world is already streaming geometry, decoding elevation PNGs and
 // drawing a quarter of a million triangles on a phone.
 //
-// So there is NO pathfinding, no junction logic and no road graph. Each car is
-// given a WAY — a polyline the tile builder already computed in world metres
-// for the ribbon — and drives along it at what that class of road is for, in
-// its own lane. When it runs out of way, it leaves. When it is far enough
-// behind you not to matter, it leaves. Cars appear at a distance you cannot
-// tell them from cars that were always there.
+// So there is NO pathfinding and no road graph. Each car is given a WAY — a
+// polyline the tile builder already computed in world metres for the ribbon —
+// and drives along it at what that class of road is for, in its own lane.
 //
-// That sounds like a cheat and it is exactly what you can see from a car: you
-// never watch a specific vehicle negotiate a junction two hundred metres away,
-// you see traffic on the road in front of you. Everything the player can
-// actually check — that they stay in lane, that they meet you on the correct
-// side, that they slow for the car in front — is real.
+// It does not stop at the end of one, though. OSM splits a street into a way
+// per block, and dropping a car whenever its way ran out meant traffic
+// evaporating every couple of hundred metres in front of you, which reads as
+// broken rather than as traffic. A junction IS two ways whose ends touch, so at
+// the end of one a car looks for another within a few metres and takes it —
+// junction behaviour without a junction table. Cars now last long enough to
+// follow, and only leave when they are genuinely out of the world.
+//
+// Everything the player can actually check is real: they stay on the
+// carriageway, keep to their side, slow for what is in front of them, turn at
+// junctions, and never appear closer than seventy metres.
 //
 // Cost per car per frame: advance along a polyline, one terrain height sample,
 // one distance check against the player. Thirty of those is not measurable
@@ -27,7 +30,15 @@
   var LEVELS = { none: 0, light: 7, normal: 16, heavy: 30 };
   var SPAWN_NEAR = 70;         // never closer than this to the player
   var SPAWN_FAR = 340;
-  var DESPAWN = 460;
+  // A car you can FOLLOW. The first version dropped a car the instant its way
+  // ran out, and OSM splits a single street into a way per block — so cars
+  // vanished every couple of hundred metres for no reason the player could
+  // see, which reads as broken rather than as traffic. They now turn onto a
+  // connecting way at a junction and only leave when they are genuinely out of
+  // the world.
+  var DESPAWN = 900;
+  var LINK_DIST = 16;          // metres — how close two way-ends must be to join
+  var MAX_HOPS = 40;           // ways one car may chain before it is retired
   var HIT_LAT = 1.75;          // half a car's width, plus a little
   var HIT_LON = 4.0;           // half a car's length, plus a little
 
@@ -86,16 +97,48 @@
       speed: p.cruise * rnd(0.72, 1.0),
       want: p.cruise * rnd(0.72, 1.0),
       tint: PAINT[Math.floor(Math.random() * PAINT.length)],
-      honked: 0,
+      hops: 0,
     };
     if (!advance(made, ctx, 0)) return null;
     if (Math.hypot(made.x - car.x, made.z - car.z) < SPAWN_NEAR) return null;
     return made;
   }
 
+  // ---- turning at a junction ----------------------------------------------
+  // OSM has no junction table and building one would be a graph pass per tile.
+  // But a junction IS two ways whose ends touch, so at the end of a way: look
+  // for another whose first or last point is within a few metres, and take it.
+  // A scan over the tile's paths sounds expensive and is not — it happens when
+  // a car reaches the end of a way, which is once every few hundred metres of
+  // driving, not once a frame.
+  function linkOn(c, ctx, x, z) {
+    if (c.hops >= MAX_HOPS) return false;
+    var paths = ctx.paths();
+    var best = null, bestD = LINK_DIST * LINK_DIST, bestEnd = 0;
+    for (var i = 0; i < paths.length; i++) {
+      var p = paths[i];
+      if (p === c.path || p.pts.length < 2) continue;
+      var head = p.pts[0], tail = p.pts[p.pts.length - 1];
+      var dh = (head.x - x) * (head.x - x) + (head.z - z) * (head.z - z);
+      var dt2 = (tail.x - x) * (tail.x - x) + (tail.z - z) * (tail.z - z);
+      if (dh < bestD) { bestD = dh; best = p; bestEnd = 0; }
+      if (dt2 < bestD) { bestD = dt2; best = p; bestEnd = 1; }
+    }
+    if (!best) return false;
+    c.path = best;
+    c.hops++;
+    // Enter at whichever end we met, driving away from it.
+    if (bestEnd === 0) { c.i = 0; c.t = 0; c.dir = 1; }
+    else { c.i = best.pts.length - 2; c.t = 1; c.dir = -1; }
+    // The new road may be a different class, so take its speed.
+    c.want = best.cruise * (0.72 + (c.id % 7) / 25);
+    c.lane = Math.max(1.0, Math.min(best.half - 1.1, best.half * 0.62));
+    return true;
+  }
+
   // ---- one car, one step ---------------------------------------------------
   // Walk the polyline by however far this frame carries us, then sit in the
-  // lane and on the ground. Returns false when the way runs out.
+  // lane and on the ground. Returns false when there is nowhere left to go.
   function advance(c, ctx, dt) {
     var move = c.speed * dt;
     var guard = 0;
@@ -108,10 +151,18 @@
       // Off the end of this segment and on to the next.
       if (nt > 1) {
         c.i++; move = (nt - 1) * segLen; c.t = 0;
-        if (c.i + 1 >= c.path.pts.length) return false;
+        if (c.i + 1 >= c.path.pts.length) {
+          var e = c.path.pts[c.path.pts.length - 1];
+          if (!linkOn(c, ctx, e.x, e.z)) return false;
+          move = 0;
+        }
       } else {
         c.i--; move = -nt * segLen; c.t = 1;
-        if (c.i < 0) return false;
+        if (c.i < 0) {
+          var s = c.path.pts[0];
+          if (!linkOn(c, ctx, s.x, s.z)) return false;
+          move = 0;
+        }
       }
     }
     var p0 = c.path.pts[c.i], p1 = c.path.pts[c.i + 1];
@@ -240,7 +291,7 @@
         x: spec.x, z: spec.z, y: spec.y || 0, yaw: spec.yaw || 0,
         vx: spec.vx || 0, vz: spec.vz || 0, lane: 0,
         speed: spec.speed || 0, want: spec.speed || 0,
-        tint: PAINT[0], honked: 0,
+        tint: PAINT[0], hops: 0,
       };
       cars.push(made);
       return made;

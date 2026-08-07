@@ -324,8 +324,24 @@ function mixedStreet() {
 
   // The throttle pedal must be absent in the default mode — a GO button that
   // does nothing is worse than no button.
-  check('no throttle pedal in the default control scheme',
-    await fr.locator('#pedal-gas').isHidden());
+  // GO is hidden while the car is DRIVING in the default scheme — a button that
+  // does nothing is worse than no button. It appears when you are stopped, and
+  // that case is guarded with the halt below.
+  const goWhileMoving = await fr.locator('body').evaluate(() => {
+    const c = window.App.car();
+    c.halted = false;
+    window.UI.hud({ speed: 40, halted: false, steer: 0, health: 100, net: { backoffMs: 0 },
+                    ready: true, players: 1, race: null, odometer: 0 });
+    return document.getElementById('pedal-gas').hidden;
+  });
+  check('no throttle pedal in the default control scheme while moving', goWhileMoving);
+  const goWhenStopped = await fr.locator('body').evaluate(() => {
+    window.UI.hud({ speed: 0, halted: true, steer: 0, health: 100, net: { backoffMs: 0 },
+                    ready: true, players: 1, race: null, odometer: 0 });
+    return !document.getElementById('pedal-gas').hidden;
+  });
+  check('…and GO appears the moment you are stopped, so there is a way to move off',
+    goWhenStopped);
   check('the car sits on the fetched terrain, not at zero',
     Math.abs(after.y - FIXTURE_HEIGHT) < 3, 'car y = ' + after.y.toFixed(1) + ' m');
 
@@ -695,7 +711,7 @@ function mixedStreet() {
         // that is UNDER the tarmac: the depth test hides it and every shadow
         // stops dead at the kerb, which is exactly what they did.
         const lift = g === null ? -1 : p[i + 1] - g;
-        if (lift < 0.19 || lift > 0.9) offGround++;
+        if (lift < 0.26 || lift > 0.9) offGround++;
       }
     }
     // Where the shadows sit versus where the buildings sit. Both centroids are
@@ -762,6 +778,90 @@ function mixedStreet() {
   check('houses get a pitched roof, and it is not painted as a wall',
     kinds.pitched > 0, kinds.pitched + ' tile vertices');
   check('houses get a chimney', kinds.stacks > 0, kinds.stacks + ' chimney vertices');
+
+  // ---- the grass flowing into the road -------------------------------------
+  // A ribbon samples the ground at the way's OWN nodes, and OSM puts those
+  // wherever the road bends — on a straight they can be a hundred metres apart,
+  // while the heightfield has a post every ten. So the tarmac was a straight
+  // line in Y across ground that rose and fell under it, and everywhere the
+  // ground won it came through the surface. Guard the MECHANISM: no piece of
+  // road may span more than one terrain post, and there must be a kerb skirt
+  // hanging below the carriageway to cover the rest.
+  const surfacing = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    let longest = 0, pieces = 0, below = 0, lifts = {};
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.roads.count) continue;
+      const p = r.built.roads.positions, uv = r.built.roads.uvs;
+      // Carriageway vertices carry v EXACTLY 0 or 1; the skirt that follows
+      // them uses 0.02/0.98. Filtering on that is what keeps this walking the
+      // road — an earlier version strode through the buffer in fixed steps,
+      // ran off the end of the carriageway into the skirt's different layout,
+      // and measured gaps between vertices that are not neighbours.
+      let prev = null;
+      for (let i = 0; i < p.length; i += 3) {
+        const v = uv[(i / 3) * 2 + 1], u = uv[(i / 3) * 2];
+        if (v !== 0) continue;                       // left kerb of a cross-section
+        if (prev && u > prev.u) {
+          const d = Math.hypot(p[i] - prev.x, p[i + 2] - prev.z);
+          if (d > 0.01) { longest = Math.max(longest, d); pieces++; }
+        }
+        prev = { x: p[i], z: p[i + 2], u };
+      }
+      // The skirt: vertices sitting BELOW the terrain they stand on.
+      for (let i = 0; i < p.length; i += 3) {
+        const g = window.Terrain.heightAt(w.frame, p[i], p[i + 2]);
+        if (g !== null && p[i + 1] < g) below++;
+        if (g !== null && p[i + 1] > g) lifts[(p[i + 1] - g).toFixed(3)] = 1;
+      }
+    }
+    return { longest, pieces, below, lifts: Object.keys(lifts).map(Number).sort((a, b) => a - b) };
+  });
+  check('no piece of road spans more than one terrain post',
+    surfacing.pieces > 0 && surfacing.longest <= 9,
+    'longest cross-section gap ' + surfacing.longest.toFixed(1) + ' m over ' + surfacing.pieces + ' pieces');
+  check('the carriageway has a kerb skirt hanging below it',
+    surfacing.below > 0, surfacing.below + ' skirt vertices below the ground line');
+  // Junctions: two ways crossing lay two ribbons on the same ground, and
+  // coplanar geometry is the one thing a depth buffer cannot resolve. A
+  // millimetre of lift per class rank settles it in the right order.
+  check('roads of different classes sit at different heights, so a junction cannot z-fight',
+    surfacing.lifts.length >= 3,
+    'distinct lifts above ground: ' + surfacing.lifts.join(', '));
+
+  // ---- stopping ------------------------------------------------------------
+  // "Almost impossible to stop" was not a weak brake — it was that the instant
+  // the brake came off, the cruise opened the throttle and drove away. Coming
+  // to rest is a STATE now, and it survives the brake being released.
+  const halt = await fr.locator('body').evaluate(() => {
+    const F = window.App.world.frame;
+    const step = (car, input, n) => { for (let i = 0; i < n; i++) window.Car.update(car, input, 0.02, F); };
+    const cruise = () => Object.assign(window.Car.blankInput(), { throttle: 1, autoTarget: 14 });
+    const brake = () => Object.assign(window.Car.blankInput(), { throttle: 0, brake: 1, autoTarget: 14 });
+
+    const c = window.Car.create(0, 0, 0);
+    c.speed = 14;
+    step(c, brake(), 60);                       // 1.2 s of brake: enough to stop
+    const stopped = { speed: c.speed, halted: c.halted };
+    step(c, cruise(), 250);                     // 5 s of cruise asking to go
+    const stayed = { speed: c.speed, halted: c.halted };
+    // GO releases it, and only GO.
+    const go = Object.assign(cruise(), { go: true });
+    step(c, go, 5);
+    step(c, cruise(), 120);
+    const moving = { speed: c.speed, halted: c.halted };
+    return { stopped, stayed, moving };
+  });
+  check('braking to a standstill actually stops the car',
+    Math.abs(halt.stopped.speed) < 0.01 && halt.stopped.halted,
+    'speed ' + halt.stopped.speed.toFixed(3) + ', halted ' + halt.stopped.halted);
+  check('…and it STAYS stopped with the cruise asking to go',
+    Math.abs(halt.stayed.speed) < 0.01 && halt.stayed.halted,
+    'after 5 s of cruise: ' + halt.stayed.speed.toFixed(3) + ' m/s');
+  check('GO releases the halt and the car pulls away',
+    halt.moving.speed > 3 && !halt.moving.halted,
+    'after GO: ' + halt.moving.speed.toFixed(1) + ' m/s');
 
   // ---- traffic -------------------------------------------------------------
   // Other cars, driving the ways the tile builder already computed for the road
@@ -851,9 +951,74 @@ function mixedStreet() {
     window.Traffic.clear();
     return { damage: hit ? hit.damage : 0, health: me.health, rel: hit ? hit.rel : 0 };
   });
+  // A car you can FOLLOW. OSM splits a street into a way per block, and the
+  // first version dropped a car the instant its way ran out — so traffic
+  // evaporated every couple of hundred metres for no reason the player could
+  // see. A junction is two ways whose ends touch, so a car takes the next one.
+  const linked = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    // Two ways meeting end to end, at right angles, like any corner.
+    // A closed square, because two ways end to end is a DEAD END and a car
+    // leaving at the far end of it is correct behaviour, not a failure.
+    const a = { pts: [{ x: 0, z: 0 }, { x: 0, z: 60 }], cruise: 14, half: 3.5, surface: 0 };
+    const b = { pts: [{ x: 0, z: 60 }, { x: 80, z: 60 }], cruise: 14, half: 3.5, surface: 0 };
+    const c2 = { pts: [{ x: 80, z: 60 }, { x: 80, z: 0 }], cruise: 14, half: 3.5, surface: 0 };
+    const d2 = { pts: [{ x: 80, z: 0 }, { x: 0, z: 0 }], cruise: 14, half: 3.5, surface: 0 };
+    const ctx = { height: () => 0, paths: () => [a, b, c2, d2] };
+    window.Traffic.clear();
+    const car = window.Car.create(-500, -500, 0);       // far away: no collisions
+    const t = window.Traffic.inject({ path: a, i: 0, t: 0.02, dir: 1, speed: 12,
+                                      x: 0, z: 1, y: 0, yaw: 0 });
+    let turned = false, alive = 0, yawEnd = 0;
+    for (let i = 0; i < 400; i++) {
+      window.Traffic.update(car, ctx, 0.05);
+      const list = window.Traffic.drawList();
+      if (!list.length) break;
+      alive = i;
+      if (list[0].x > 10) turned = true;               // it is on the second way
+      yawEnd = list[0].yaw;
+    }
+    const survived = window.Traffic.count() > 0;
+    window.Traffic.clear();
+    return { turned, alive, survived, yawEnd };
+  });
+  check('a car reaching the end of a way turns onto a connecting one',
+    linked.turned, linked.turned ? 'it took the corner' : 'it vanished at the junction');
+  check('…and is still there afterwards, long enough to follow',
+    linked.survived, linked.alive + ' steps alive');
+
   check('hitting traffic costs condition, and a head-on costs a lot',
     bump.damage > 20 && bump.health < 80,
     '-' + bump.damage.toFixed(1) + ' at ' + bump.rel.toFixed(0) + ' m/s closing, ' + bump.health.toFixed(0) + '% left');
+
+  // ---- the bird's-eye inset ------------------------------------------------
+  // Drawn from the same road index the car asks "am I on tarmac" with, so it
+  // cannot disagree with the world. What must hold: the toggle shows it, it
+  // actually draws something, and it is not eating pointer events over the
+  // steering area.
+  await fr.locator('#btn-map').click();
+  await sleep(900);
+  const map = await fr.locator('body').evaluate(() => {
+    const cv = document.getElementById('mapcanvas');
+    const g = cv.getContext('2d');
+    const px = g.getImageData(0, 0, cv.width, cv.height).data;
+    let ink = 0, road = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] > 8) ink++;
+      // The tarmac grey the map paints carriageways with.
+      if (Math.abs(px[i] - 74) < 26 && Math.abs(px[i + 1] - 79) < 26 && Math.abs(px[i + 2] - 87) < 26) road++;
+    }
+    const box = document.getElementById('minimap');
+    return { shown: !box.hidden, ink, road, total: cv.width * cv.height,
+             pointer: getComputedStyle(box).pointerEvents,
+             pressed: document.getElementById('btn-map').getAttribute('aria-pressed') };
+  });
+  check('the map opens from its own chip', map.shown && map.pressed === 'true');
+  check('the map draws the world, not an empty circle',
+    map.ink > map.total * 0.2 && map.road > 200,
+    Math.round(map.ink / map.total * 100) + '% painted, ' + map.road + ' carriageway pixels');
+  check('the map never takes a pointer event', map.pointer === 'none', map.pointer);
+  await fr.locator('#btn-map').click();
 
   // ---- sound ---------------------------------------------------------------
   // Everything is synthesised — the app is a GIF and a minute of audio is
