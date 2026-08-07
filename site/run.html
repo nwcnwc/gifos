@@ -11755,6 +11755,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           res({ took: !!took, afterMs: Date.now() - buriedAt, held: statusOf.has(id), grace: TOMB_GRACE });
         }, delayMs | 0));
       },
+      // A GHOST WITH A CHOSEN AGE (e2e-status-map leg 7). The sweeper's
+      // structural floor deletes an entry with no peers record, no seat in occ
+      // and total silence past HOLDOVER_MS — the class of leak that has no
+      // departure verdict to miss. Nothing in a 4-browser room can age an entry
+      // past the holdover on demand, so hand the sweep exactly the shape it
+      // exists for, plus a FRESH one it must leave alone.
+      _ghostStatus: (id, ageMs) => { const t = Date.now() - (ageMs | 0); statusOf.set(id, { muted: true, camOff: true, blur: 0, at: t, rx: t }); return statusOf.has(id); },
       // SCALE FAULT INJECTION (scale audit V2/V3, test/browser/e2e-status-map.js):
       // stuff `statusOf` with N synthetic strangers, exactly as a room-wide
       // status flood at scale would. Nothing else is touched — the point is to
