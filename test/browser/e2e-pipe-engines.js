@@ -344,10 +344,18 @@ async function fallbackRoom(engine, exe, cripple) {
   // Prefer a NATIVE gap (webkit) — no simulation, the engine really is what
   // ships to a pre-16.4 Safari. Otherwise cripple the default engine, so a box
   // whose browsers are all modern still guards the property.
-  let subject = engines.find((e) => e.name === 'webkit' && caps.webkit && !caps.webkit.transform)
+  // PIPE_ROOM_ENGINE pins the subject. It exists for ONE reason: on a box with
+  // webkit the native gap always wins, so the SIMULATED path — the one every
+  // other box in the fleet will actually run — would never execute here, and an
+  // unexecuted path in a gate suite is the exact rot this repo has been bitten
+  // by. Pin it to a transform-carrying engine to exercise the simulation.
+  const pin = process.env.PIPE_ROOM_ENGINE;
+  let subject = (pin && engines.find((e) => e.name === pin))
+    || engines.find((e) => e.name === 'webkit' && caps.webkit && !caps.webkit.transform)
     || engines.find((e) => caps[e.name] && !caps[e.name].transform);
-  const cripple = !subject;
-  if (cripple) subject = engines[0];
+  if (pin && !subject) { check('PIPE_ROOM_ENGINE names an installed engine', false, { pin, installed: engines.map((e) => e.name) }); }
+  const cripple = !subject || !!(subject && caps[subject.name] && caps[subject.name].transform);
+  if (!subject) subject = engines[0];
   console.log('  [leg C] engine=' + subject.name + (cripple
     ? '  gap=SIMULATED (RTCRtpScriptTransform deleted before page scripts — every installed engine has it)'
     : '  gap=NATIVE (this engine genuinely has no RTCRtpScriptTransform)'));
