@@ -14,6 +14,7 @@
 #include <chrono>
 #include <algorithm>
 #include <utility>
+#include <array>
 using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
@@ -89,6 +90,26 @@ static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
 static long long COMPACT_PROBES=0, COMPACT_MOVES=0, COMPACT_ADMITS=0, COMPACT_PLACES=0, COMPACT_ATS1=0, COMPACT_SWEEP=0;   // Q2 diagnostics
 static bool HEALING=true;
 static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
+// ===== V5 PER-TYPE FRAME INSTRUMENT ==========================================
+// MEASUREMENT ONLY (the MESH_DESC doctrine): off unless MESH_MT=1 is in the
+// environment, and no protocol path reads a byte of it. It exists to settle
+// WHAT the DIGGAUGE hot node is actually receiving — the scale-audit V5
+// attribution ("it is compaction probes") was refuted by the NOROOMUP
+// experiment (97% probe cut, 15% frame cut), so the answer must be measured,
+// not inferred. It decomposes Seat::framesIn EXACTLY: every recv() lands in
+// one bucket — transit (an in-flight routing frame routeStep forwarded or
+// dropped) or final (the switch saw it). sum(fin)+sum(xit) == framesIn.
+// `digest reset` rebases the window (same window as DIGGAUGE); `mtdump [k]`
+// reports the top-k seats and the room-wide per-type totals.
+static int MTI_ON=-1;
+static inline bool mtiOn(){ if(MTI_ON<0){ const char* e=getenv("MESH_MT"); MTI_ON=(e&&atoi(e))?1:0; } return MTI_ON==1; }
+static const int MTN=26;   // == MT enum size; MT_NAME covers all of them
+static vector<array<long long,MTN>> MT_FIN, MT_FIN0, MT_XIT, MT_XIT0;   // [seatId][type], and the window bases
+static inline void mtiCount(int id,int t,bool transit){
+  if(t<0||t>=MTN||id<0) return;
+  if((int)MT_FIN.size()<=id){ MT_FIN.resize(id+1); MT_FIN0.resize(id+1); MT_XIT.resize(id+1); MT_XIT0.resize(id+1); }
+  (transit?MT_XIT:MT_FIN)[id][t]++;
+}
 // T7 SPREAD-AFTER-NOROOM — front 3's fix, DEFAULT OFF (`spreadon 0|1`).
 // It converges rooms that have never converged (N=5000 3076-stuck -> 5000/5000
 // in 3200 ticks; N=20000 in 4480; all seeds; dups=0) but it COSTS TREE
@@ -1458,7 +1479,7 @@ int main(int argc,char**argv){
     //              digest state, both of which must be flat in N. This is the V1
     //              law's actual subject; a number that grows with N is the flood.
     else if(op=="digest"){
-      if(tk.size()>1 && tk[1]=="reset"){ for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->framesIn0=seats[q]->framesIn; GAUGE_T0=TICK; DIG_MISMATCH=0; for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->digMismatch=0; printf("OK digest gauge reset at tick=%lld\n",TICK); continue; }
+      if(tk.size()>1 && tk[1]=="reset"){ for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->framesIn0=seats[q]->framesIn; GAUGE_T0=TICK; DIG_MISMATCH=0; for(int q=0;q<nextId;q++) if(alive[q]) seats[q]->digMismatch=0; if(mtiOn()){ MT_FIN0=MT_FIN; MT_XIT0=MT_XIT; } printf("OK digest gauge reset at tick=%lld\n",TICK); continue; }
       long long trueSeated=0,trueRefuse=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3){ trueSeated++; if(seats[q]->refuses) trueRefuse++; }
       int rmin=1<<30,rmax=-1,fmin=1<<30,fmax=-1,exact=0,obs=0,part=0,stale=0;
       long long mism=0; int freeMin=1<<30,freeMax=-1;
@@ -1509,6 +1530,33 @@ int main(int argc,char**argv){
         seatN,occSections,maxDepth,minDepth,loneDeep);
       for(int d=0;d<=maxDepth;d++) printf("%s%d:%d",d?",":"",d,byDepth.count(d)?byDepth[d]:0);
       printf(" frontier(d0=%d,d1=%d,d2=%d) cProbes=%lld cAdmits=%lld cPlaces=%lld cMoves=%lld\n",fr[0],fr[1],fr[2],COMPACT_PROBES,COMPACT_ADMITS,COMPACT_PLACES,COMPACT_MOVES); }
+    // mtdump [k] — V5 instrument report (needs MESH_MT=1). Ranks live seated
+    // seats by window frames/tick (the DIGGAUGE window: since `digest reset`)
+    // and prints the per-type decomposition for the top k (default 3) as
+    // TYPE=total(f<final>/x<transit>), then the room-wide per-type totals.
+    else if(op=="mtdump"){
+      if(!mtiOn()){ printf("MTDUMP off — rerun with MESH_MT=1\n"); continue; }
+      int topk=tk.size()>1?atoi(tk[1].c_str()):3;
+      long long win=max(1LL,TICK-GAUGE_T0);
+      auto wf=[&](int q,int t)->long long{ return (q<(int)MT_FIN.size())?MT_FIN[q][t]-MT_FIN0[q][t]:0; };
+      auto wx=[&](int q,int t)->long long{ return (q<(int)MT_XIT.size())?MT_XIT[q][t]-MT_XIT0[q][t]:0; };
+      auto depthOf=[](uint32_t pc){ int d=0; while(pc){ pc=parentPath(pc); d++; } return d; };
+      vector<pair<long long,int>> rank; array<long long,MTN> totF{},totX{};
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; long long s=0;
+        for(int t=0;t<MTN;t++){ long long a=wf(q,t),b=wx(q,t); s+=a+b; totF[t]+=a; totX[t]+=b; }
+        rank.push_back({s,q}); }
+      sort(rank.rbegin(),rank.rend());
+      for(int r=0;r<topk&&r<(int)rank.size();r++){ int q=rank[r].second; Seat*s=seats[q];
+        printf("MTDUMP #%d id=%d coord=%s depth=%d kids=%d occ=%zu rowKids=%zu s1tab=%zu win=%lld total=%lld (%.3f/tick):",
+          r,q,s->hasCoord?coordStr(s->coord).c_str():"-",s->hasCoord?depthOf(s->coord.pc):-1,(int)s->hasChildren(),s->occ.size(),s->rowKids.size(),s->s1tab.size(),win,rank[r].first,(double)rank[r].first/(double)win);
+        vector<pair<long long,int>> byT; for(int t=0;t<MTN;t++){ long long v=wf(q,t)+wx(q,t); if(v) byT.push_back({v,t}); }
+        sort(byT.rbegin(),byT.rend());
+        for(auto&e:byT) printf(" %s=%lld(f%lld/x%lld)",MT_NAME(e.second),e.first,wf(q,e.second),wx(q,e.second));
+        printf("\n"); }
+      printf("MTTOT win=%lld:",win);
+      { vector<pair<long long,int>> byT; for(int t=0;t<MTN;t++){ long long v=totF[t]+totX[t]; if(v) byT.push_back({v,t}); } sort(byT.rbegin(),byT.rend());
+        for(auto&e:byT) printf(" %s=%lld(f%lld/x%lld)",MT_NAME(e.second),e.first,totF[e.second],totX[e.second]); }
+      printf("\n"); }
     else printf("ERR unknown: %s\n",op.c_str());
   }
   return 0;

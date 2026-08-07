@@ -1207,7 +1207,8 @@ void Seat::rollup(){
 void Seat::recv(Msg& m){
   if(!alive[id]) return;
   framesIn++;   // GAUGE only (the V1 law's actual subject: frames per node per tick must not grow with N)
-  if(m.routing && !routeStep(m)) return;   // Option A: in-transit routing frame — forward it (or drop); only fall through when it is FOR me
+  if(m.routing && !routeStep(m)){ if(mtiOn()) mtiCount(id,(int)m.t,true); return; }   // Option A: in-transit routing frame — forward it (or drop); only fall through when it is FOR me
+  if(mtiOn()) mtiCount(id,(int)m.t,false);   // V5 instrument: a frame the switch will see (measurement only)
   if(moving && state==3 && moveEvidence(m)) confirmMove();   // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
   switch(m.t){
     case GREETERS: {
