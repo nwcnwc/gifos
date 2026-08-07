@@ -80,7 +80,15 @@ cost "DIAGNOSED AND SOLVED-BUT-UNSHIPPABLE as of 2026-08-06 — read
                  N=5000 converges 5000/5000 on all 4 seeds (~3200-3400 ticks), N=10000 in
                  3776, N=20000 in 4480, dups=0, evictions 11022 -> 3739, and the split-room
                  legs (headless-row C, hchain D) stay green.
-                 IT IS OFF BECAUSE IT COSTS TREE COMPACTNESS: spreading opens more sections
+                 IT IS OFF FOR TWO REASONS, AND THE FIRST IS CORRECTNESS.
+                 (1) T7 MINTS DUPLICATE SEATS: N=50000 gives seated=49986/50000
+                 with DUPS 18 and CHECK FAIL, while N=100000 is clean (dups=0) —
+                 non-monotonic, so a race whose window depends on topology, not a
+                 threshold. Inferred cause: pass 0's firstHandLive filter was also
+                 selecting an admitter whose occ view is FRESH; a reachable-but-
+                 unheard admitter can admit into a cell already taken. Fixing that
+                 belongs beside the V4/V5 evidence waves.
+                 (2) IT COSTS TREE COMPACTNESS: spreading opens more sections
                  and lone rows than compaction can collapse, and repro-compaction leg 1
                  reds (clean A/B: baseline GREEN, T7 RED). Raising the evidence bar to 2
                  NOROOMs does not separate them (still converges, 8 failures instead of 5),
