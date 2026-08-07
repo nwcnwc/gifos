@@ -84,6 +84,50 @@ try/caught and nothing touches the join path (all behind `hasCoord`), so the
 risk is post-seat video, not entry. Needs a real-iOS pass; also the open
 pipe-lane freeze `docs/bug-pipe-stg-freeze-2026-08-05.md`.
 
+**DISPOSITION 2026-08-07 — SPLIT IN TWO. The non-Blink half is ANSWERED and
+gated; the Safari half is PROVEN unanswerable on Linux and stays with real
+Apple hardware.** The lane is `test/browser/e2e-pipe-engines.js` (three legs:
+the engine CONTRACT on every engine installed, the MODULE CHAIN wherever the
+transform exists, the FALLBACK ROOM where it does not).
+
+*What was measured, on penguin:*
+
+- **The pipe lane is NOT Blink-only.** Firefox 151 (Gecko) runs the module
+  chain in full: both transforms attach, the worker swapped 122-159 content
+  frames across runs with `swapErr 0` and `dropped 0`, content and template
+  mime agree (`video/VP8` == `video/VP8`), and the consumer decodes
+  **322x180 — content size, never the 48px carrier** (`framesDecoded`
+  94→123, 69→119, 66→105 on three runs). Before this the encoded-passthrough
+  machinery had executed on exactly one engine, ever.
+- **The engine CONTRACT holds on all three engines here** — `supported()`
+  equals the engine's real `RTCRtpScriptTransform` on Chrome 137 (false; it
+  has the LEGACY `createEncodedStreams` and the module correctly ignores it),
+  Firefox 151 (true) and WebKit (false).
+- **WebKit self-disables the lane correctly in a real four-seat room**:
+  `pipeInfo().enabled === false` at every seat, every run.
+
+*Why the Safari half cannot be closed here — with its negative control:*
+playwright's WebKit has the class COMPILED IN (`JSRTCRtpScriptTransform` in
+`libWPEWebKit-2.0.so`) and `MiniBrowser --features=help` lists
+`- WebRTCEncodedTransform (mature)` — the leading `-` is DEFAULT OFF. It
+cannot be switched on: `--features=+WebRTCEncodedTransform` reaches the
+process (visible in `DEBUG=pw:browser <launching>`) and changes nothing, and
+`--features=-PeerConnection` does not remove `RTCPeerConnection` either, so
+playwright's embedder ignores `--features` for protocol-created pages
+entirely; its WK protocol exposes `Page.overrideSetting` with a fixed
+21-value enum and no feature knob. (Stock WebKitGTK was already refuted
+2026-08-05: no WebRTC at all.) **This is new information — the 2026-08-05
+note said the feature "does not even appear" in WebKitGTK's feature list; in
+playwright's WebKit fork it DOES appear, and is merely off, which is why it
+was worth re-testing and why the negative control matters.**
+
+*Still open, and now cheap to close:* the encoded lane on a real Safari
+engine. The demo iPhone is the instrument; nothing on Linux substitutes.
+`penguin is the ONLY box in the fleet with a playwright WebKit build` —
+clawbox, nvidia-laptop, raspberrypi and pi-16gb have chromium + firefox and
+no webkit at all — so leg C runs its NATIVE gap only there and its SIMULATED
+gap (transform deleted before page scripts) everywhere else.
+
 ## 6. The 7-hour room fork (monitor room `test`, 17:30→00:34Z)
 
 Bot at `0/0.0 occ=1 links=0` while the moto sat in its app roster with live
