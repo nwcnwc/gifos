@@ -35,9 +35,11 @@ const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;
 const N = 3;
 // The camera idle-stop fires 20s after camOff (reactCamIdle). Every assertion
-// about the bug lives past it, with margin for a loaded box.
-const IDLE_STOP_MS = 20000;
-const PAST_IDLE_MS = 30000;
+// about the bug lives past it, with margin for a loaded box: the continuity
+// window below is 30s long and starts only once the feed is ESTABLISHED, so it
+// always straddles the idle-stop however slowly the room came up.
+const IDLE_STOP_MS = 20000;   // documented here because it is the clock this drill is timed against
+const PAST_IDLE_MS = Math.max(30000, IDLE_STOP_MS + 10000);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
