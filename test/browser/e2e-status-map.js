@@ -37,6 +37,12 @@
 //      peer, not one is linkable, and the real peers are untouched. The
 //      arithmetic half of the same guard, at sizes no browser can reach, is
 //      test/unit/dial-set-bound.js.
+//   6. THE CORPSE'S LAST BREATH (added 2026-08-07, after this suite caught a
+//      real 71.2s leak at the 0.9.5 gate): a status arriving just AFTER its
+//      peer's death verdict must not un-bury the entry, and one arriving past
+//      the grace must still be taken. Leg 3 catches the same defect end to end,
+//      but only when the race falls the losing way — this drives both halves of
+//      the rule deterministically, on synthetic ids.
 const { chromium, CHROME } = require('../lib/pw');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -140,6 +146,18 @@ const short = (id) => String(id).slice(0, 8);
   // often the site that fires). Tightening this toward the fast measure buys no
   // coverage and buys a flake. Latency of departure has its own guard —
   // test/drills/e2e-vanish-browser.js.
+  //
+  // THIS LEG WAS RIGHT AND THE PRODUCT WAS WRONG (0.9.5 gate, 2026-08-07). It
+  // red TWICE at NEVER(>60s), on all three observers at once. The cause was a
+  // real leak, not this bound: Kim's final status pulse arrived ~650ms AFTER
+  // Hal's own 'bye' verdict, and takeStatus — which knew nothing of the
+  // tombstone confirmGone had just set — put the entry straight back. From
+  // there NEITHER delete site could reach it (no peers record for dropPeer; the
+  // tombstone made confirmGone early-return), so it sat in the map until the
+  // 60s tombstone GC let the corpse's seat be re-dialled and a second death
+  // verdict landed: 71.2s, measured, and unbounded had the healed tree not
+  // named that seat again. Fixed in takeStatus (TOMB_GRACE) plus the sweeper's
+  // structural floor; leg 6 below drives the same race deterministically.
   {
     const t0 = Date.now();
     await KIM.ctx.close().catch(() => {});
@@ -229,6 +247,38 @@ const short = (id) => String(id).slice(0, 8);
     check('after clearing the flood the real room is intact — survivors still held',
       !!back && back.indexOf(IVY.id) >= 0 && back.indexOf(JON.id) >= 0 && back.every((i) => i.indexOf('k_flood') < 0),
       { held: (back || []).map(short) });
+  }
+
+  // ---- 6. THE CORPSE'S LAST BREATH, deterministically ----------------------
+  // Leg 3 is the end-to-end property and it caught this — but only because the
+  // race fell the losing way twice in a row. A guard that fires on a coin flip
+  // is a guard that will go quiet. So drive the two halves of the tombstone
+  // rule directly, on SYNTHETIC ids that were never peers (the live room is
+  // untouched): confirmGone, then a status delivered at a chosen delay.
+  //   inside the grace  -> REFUSED, the entry stays buried (the leak)
+  //   past the grace    -> TAKEN,  the entry returns (proof of life)
+  // The second half is what stops the fix from being a blanket "never accept a
+  // status for anyone we ever buried", which would strand a peer that really
+  // came back. Mutation-tested: dropping the guard in takeStatus turns the
+  // first assertion red immediately, with no dependence on any race.
+  {
+    const ghostA = 'k_tomb' + Math.floor(Math.random() * 1e12).toString(16);
+    const ghostB = 'k_tomb' + Math.floor(Math.random() * 1e12).toString(16);
+    const inside = await HAL.pg.evaluate(([id]) => window.__gifosVideo._lastBreath(id, 200), [ghostA]);
+    check('a status arriving INSIDE the departure grace is refused — the burial holds'
+      + ' (delivered ' + inside.afterMs + 'ms after the verdict, grace ' + inside.grace + 'ms)',
+      inside.took === false && inside.held === false, inside);
+    const outside = await HAL.pg.evaluate(([id, g]) => window.__gifosVideo._lastBreath(id, g + 900), [ghostB, inside.grace || 1500]);
+    check('a status arriving PAST the grace is still taken — a peer that truly returns is not stranded'
+      + ' (delivered ' + outside.afterMs + 'ms after the verdict)',
+      outside.took === true && outside.held === true, outside);
+    // and the room is exactly as it was: no ghost may linger in the real map
+    await HAL.pg.evaluate(([a, b]) => { window.__gifosVideo._corruptStatus(a); window.__gifosVideo._corruptStatus(b); }, [ghostA, ghostB]);
+    const clean = await statusIds(HAL);
+    check('the synthetic ids left no residue — the map still holds exactly the survivors',
+      !!clean && clean.indexOf(IVY.id) >= 0 && clean.indexOf(JON.id) >= 0
+        && clean.every((i) => i.indexOf('k_tomb') < 0 && i.indexOf('k_flood') < 0),
+      { held: (clean || []).map(short) });
   }
 
   check('zero page errors across the whole scenario', errs.length === 0, errs);

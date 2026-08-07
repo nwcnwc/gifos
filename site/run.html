@@ -4108,6 +4108,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // heals within a heartbeat.
     function takeStatus(from, st) {
       if (!st) return false;
+      // THE CORPSE'S LAST BREATH (2026-08-07). A confirmed departure stays dead
+      // for TOMB_GRACE. confirmGone empties this peer's entry and then its
+      // tombstone guards the roster, the count, the dial set and the app ads —
+      // but NOTHING guarded the map it had just emptied. The departing tab's
+      // final status pulse, already in flight over a longer gossip hop, walked
+      // straight back in here and re-created the entry ~650ms after the burial.
+      // Nothing SHOWED, because every consumer ages the stale entry out
+      // (stHold, 15s) — but the entry itself was now unreachable by BOTH delete
+      // sites: no peers record for dropPeer, and confirmGone early-returns on
+      // its own tombstone. Measured on the gate: the status outlived its peer by
+      // 71.2s, freed only when the 60s tombstone GC let the seat be re-dialled
+      // and a SECOND death verdict landed — and had the healed tree not named
+      // that seat again, forever. That is exactly the leak e2e-status-map
+      // guards, and it is why leg 3 red at the 0.9.5 gate.
+      // PAST the grace the same frame is genuine proof of life: notTomb lifts
+      // the tombstone on the identical test (st.rx > g + TOMB_GRACE), so the two
+      // halves of the rule can no longer disagree about the same fact.
+      const tomb = meshGone.get(from);
+      if (tomb !== undefined && Date.now() - tomb <= TOMB_GRACE) return false;
       const cur = statusOf.get(from);
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
       st.rx = Date.now(); // RECEIPT time (local clock) — the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
@@ -4371,6 +4390,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // vanish ever shows in occ. The ABSENT_GRACE sweep stays as the BACKSTOP
     // for deaths with no signal (far peers, lost frames) — never the main path.
     const meshGone = new Map();   // pid -> Date.now() of the confirmed departure (tombstone)
+    // THE ONE window both halves of the tombstone rule read (see takeStatus and
+    // notTomb). Inside it a status is the departure's own echo and is REFUSED;
+    // outside it the same frame is first-hand proof of life and LIFTS the
+    // tombstone. One constant, so the write path and the read path cannot
+    // disagree about whether a peer is dead.
+    const TOMB_GRACE = 1500;
     const occVanish = new Map();  // pid -> Date.now() first seen freed ('left' one-beat confirm)
     const occFirstSeen = new Map(); // pid -> Date.now() first seen IN occ (knownTotal's join grace)
     let occPrevIds = new Map();   // pid -> ckey, my occ view one mesh tick ago
@@ -4403,7 +4428,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const notTomb = (pid) => {
       const g = meshGone.get(pid); if (g === undefined) return true;
       const st = statusOf.get(pid); const p = peers.get(pid);
-      if ((st && (st.rx || 0) > g + 1500) || (p && p.connected)) { meshGone.delete(pid); return true; }
+      if ((st && (st.rx || 0) > g + TOMB_GRACE) || (p && p.connected)) { meshGone.delete(pid); return true; }
       return false;
     };
     function departSweep(s) {
@@ -5398,6 +5423,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Departure tombstones expire once every occ echo of the freed seat has
       // settled — after that a same-id RE-JOIN is an ordinary newcomer.
       for (const [pid, at] of meshGone) if (now - at > 60000) meshGone.delete(pid);
+      // NO STATUS OUTLIVES ITS PEER — the STRUCTURAL floor (scale audit V2).
+      // Both delete sites are EVENT-driven: dropPeer needs a peers record,
+      // confirmGone needs a departure verdict aimed at this id. An entry that
+      // has neither — no link, no seat anywhere in my occ, and total silence
+      // past the holdover — is reachable by neither, so it stayed in the map
+      // for the life of the page and the map accumulated the room instead of
+      // tracking it. The tombstone guard in takeStatus closes the one race we
+      // measured; this closes the CLASS, so the property holds even when a
+      // verdict is missed entirely (a far peer I only ever heard over the
+      // flood has no verdict to miss in the first place).
+      // It changes nothing anyone can see: stHold already reads such an entry
+      // as absent at 15s, 60s at the outside, so every consumer — roster,
+      // count, consent, hands, app ads — has long since stopped counting it.
+      // A LIVE far peer re-arms this every HB (4s); 60s of silence is four
+      // times the roster's own freshness rule and exactly the holdover a
+      // pocketed phone is already given.
+      {
+        const seatOcc = meshSeat();
+        const occLive = new Set();
+        if (seatOcc && seatOcc.occ) for (const v of seatOcc.occ.values()) if (v) occLive.add(v);
+        for (const [pid, st] of statusOf) {
+          if (pid === myId || peers.has(pid) || occLive.has(pid)) continue;
+          if (now - Math.max((st && st.rx) || 0, (st && st.at) || 0) > HOLDOVER_MS) statusOf.delete(pid);
+        }
+      }
       // The link set follows the seat arithmetic — occupancy gossip settling
       // can name new neighbours; dial them the tick they appear.
       for (const pid of rosterIds) {
@@ -11687,6 +11737,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       awayOf: (id) => peerAway(id),
       // fault injection: simulate lost gossip / a dead transport
       _corruptStatus: (id) => statusOf.delete(id),
+      // THE CORPSE'S LAST BREATH, on demand (e2e-status-map leg 6). The 71.2s
+      // leak of 2026-08-07 rode a RACE — a departing tab's final status pulse
+      // landing microseconds after its own death verdict — so the end-to-end
+      // leg that caught it catches it only when the race falls that way. This
+      // drives the same two code paths deterministically, on a SYNTHETIC id
+      // that was never a peer, so the live room is untouched: bury it, then
+      // deliver a status for it at a chosen delay and report whether the write
+      // path took it. Inside TOMB_GRACE it must be refused (the entry stays
+      // buried); past it, it must be taken (proof of life still works, so the
+      // guard is a rule and not a blanket).
+      _lastBreath: (id, delayMs) => {
+        confirmGone(id, 'test-last-breath');
+        const buriedAt = Date.now();
+        return new Promise((res) => setTimeout(() => {
+          const took = takeStatus(id, { muted: false, camOff: false, blur: 0, at: Date.now() });
+          res({ took: !!took, afterMs: Date.now() - buriedAt, held: statusOf.has(id), grace: TOMB_GRACE });
+        }, delayMs | 0));
+      },
       // SCALE FAULT INJECTION (scale audit V2/V3, test/browser/e2e-status-map.js):
       // stuff `statusOf` with N synthetic strangers, exactly as a room-wide
       // status flood at scale would. Nothing else is touched — the point is to
