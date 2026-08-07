@@ -1213,6 +1213,20 @@ function check(name, cond, detail) {
   // the eye comes back down when asked.
   check('the old inset is really gone (no second renderer to rot again)',
     await fr.locator('body').evaluate(() => !document.getElementById('mapcanvas') && !document.getElementById('minimap')));
+
+  // Attribution IS licensing, not decoration: ODbL (roads) and the imagery
+  // provider's terms want the credit visible while the data is ON SCREEN — a
+  // line on the landing sheet that vanishes the moment the map appears does
+  // not qualify. So the drive HUD carries one, and it must never eat input.
+  const attrib = await fr.locator('body').evaluate(() => {
+    const a = document.getElementById('attribution3');
+    return a ? { text: a.textContent, events: getComputedStyle(a).pointerEvents,
+                 visible: !!(a.offsetWidth || a.offsetHeight) } : null;
+  });
+  check('data credits are visible ON the drive screen, while the data is',
+    !!attrib && attrib.visible && /OpenStreetMap/.test(attrib.text), attrib && attrib.text);
+  check('…and the credit line can never eat a steering touch',
+    !!attrib && attrib.events === 'none', attrib && attrib.events);
   await fr.locator('#btn-map').click();
   let bird = null;
   for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock
