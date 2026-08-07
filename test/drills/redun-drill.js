@@ -51,10 +51,23 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     env: { ...process.env, RELAY_PORT: String(RELAY_PORT), TRUSTED_IPS: '127.0.0.1,::1,::ffff:127.0.0.1' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
+  // THE RELAY'S STDERR WAS PIPED AND NEVER READ. A relay that cannot bind
+  // (EADDRINUSE — the previous run in a loop still holding 8871) then dies in
+  // silence, and the drill reports it 120 seconds later as "all 6 seated"
+  // failing with null coords: a manufacture collapse wearing the mask of a
+  // seating bug. Read it, and say it out loud.
+  let relayErr = '', relayGone = null;
+  relay.stderr.on('data', (b) => { relayErr += String(b); if (relayErr.length > 2000) relayErr = relayErr.slice(-2000); });
+  relay.on('exit', (code) => { relayGone = code; });
   const site = spawn('python3', ['-m', 'http.server', String(SITE_PORT), '-d', path.join(__dirname, '..', '..', 'site')], { stdio: 'ignore' });
   const cleanup = () => { try { relay.kill(); } catch (e) {} try { site.kill(); } catch (e) {} };
   process.on('exit', cleanup);
   await sleep(900);
+  if (relayGone !== null) {
+    check('the drill\'s own relay is up on ' + RELAY_PORT, false, 'relay exited with ' + relayGone + ': ' + relayErr.slice(-300));
+    console.log('\n1 FAILED');
+    process.exit(1);
+  }
 
   const browser = await chromium.launch({
     executablePath: CHROME, headless: true,
@@ -94,7 +107,8 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     if (coords.every(Boolean)) break;
     await sleep(2000);
   }
-  check('all ' + N + ' seated', coords.every(Boolean), coords);
+  check('all ' + N + ' seated', coords.every(Boolean), coords.every(Boolean) ? coords
+    : { coords, relayAlive: relayGone === null, relayExit: relayGone, relayErr: relayErr.slice(-200), loadavg: loadNow() });
   console.log('seats: ' + pages.map((e, i) => e.name + '@' + coords[i]).join(' '));
 
   // one NON-HEAD page steps on Stage (its stg:* feed then fans/floods
