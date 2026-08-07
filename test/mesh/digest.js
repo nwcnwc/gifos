@@ -288,6 +288,20 @@ console.log('\n=== 5) THE LYING AGGREGATOR — G4/G5 ===');
   check('found a deep aggregator with a row AND a subtree to lie about', !!liar,
     liar ? { coord: ck(liar.coord), rowKids: liar.rowKids.size, subtreeRefuse: liar.myDig.refuse } : undefined);
   if (liar) {
+    // Make BOTH checker classes have something to lose. Only the author whose
+    // own contribution was suppressed can refute (G4.3 — "is my own
+    // contribution still in there?"), so a liar whose row-mates and down-child
+    // all contributed refuse=0 is correctly refuted by nobody: strip a zero and
+    // nothing is missing. That is faithful, but it makes the leg prove only
+    // half of G4.4. So put a refusal in a ROW-MATE's subtree and in the
+    // DOWN-CHILD's, let the honest fold carry them, and then lie.
+    const rowMate = live().find((s) => s.coord.pc === liar.coord.pc && s.coord.r === liar.coord.r && s.coord.i > 0);
+    const downKid = live().find((s) => ck(s.coord) === ck(topo.down(liar.coord)));
+    check('the liar has a row-mate AND a down-child to suppress', !!rowMate && !!downKid,
+      { rowMate: rowMate ? ck(rowMate.coord) : null, downKid: downKid ? ck(downKid.coord) : null });
+    if (rowMate) rowMate.refuses = true;
+    if (downKid) downKid.refuses = true;
+    run(env, 400);
     const before = H.counts(env);
     const accusations = [];
     for (const s of live()) { s.digMismatch = 0; s.onDigMismatch = (e) => accusations.push(e); }
@@ -313,6 +327,13 @@ console.log('\n=== 5) THE LYING AGGREGATOR — G4/G5 ===');
       { accused: accused.size, isLiar: accused.has(liar.id) });
     const victims = new Set(accusations.map((e) => e.meId));
     console.log(`  (${accusations.length} refutation frames from ${victims.size} distinct victims, arms ${[...new Set(accusations.map((e) => e.arm))].sort().join('+')})`);
+    // BOTH structural checker classes must actually fire — the down-child on
+    // the subtree claim, and the row-mate on the row sum. A leg where only one
+    // ever fires proves only half of G4.4.
+    check('the DOWN-CHILD refuted the subtree claim (its sole input was suppressed)',
+      !!downKid && victims.has(downKid.id), { downKid: downKid ? ck(downKid.coord) : null });
+    check('the ROW-MATE refuted the row sum (its own contribution was suppressed)',
+      !!rowMate && victims.has(rowMate.id), { rowMate: rowMate ? ck(rowMate.coord) : null });
     run(env, 1000);
     const c = H.counts(env);
     check('G5: the lie evicted NOTHING — same seated count, dups 0, s1 full, no teleports',
