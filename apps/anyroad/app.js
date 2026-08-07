@@ -34,6 +34,7 @@
     roads: {},       // key -> { geom, built }
     wanted: { terrain: [], roads: [] },
     place: '',
+    terrainEpoch: 0, // bumped per terrain-tile arrival; stale incomplete builds rebuild against it
   };
 
   var car = null, controls = null, canvas = null;
@@ -77,6 +78,10 @@
       (function (tile, k) {
         root.Terrain.loadTile(tile).then(function (rec) {
           world.terrain[k] = { rec: rec, tile: tile, mesh: null, texture: null };
+          // New ground exists. Any road tile built while THIS was missing has
+          // geometry pinned at y≈0 under it — the epoch is what tells
+          // buildPending those guesses are now answerable.
+          world.terrainEpoch++;
           maybeLoadImagery(tile, k);
         }).catch(function (err) {
           world.terrain[k] = { failed: true, error: err };
@@ -404,10 +409,40 @@
         root.UI.note(e.what.label + ' — cleared.');
       } else if (e.kind === 'wreck') {
         hits.cars++;
+        puff(e.x, e.y, e.z, 1.0);
+      } else if (e.kind === 'car') {
+        puff(e.x, e.y, e.z, 0.4);
+      } else if (e.kind === 'wall') {
+        // The shot LANDS somewhere, and the wall remembers. Capped and FIFO —
+        // sixty marks is a fight's worth, and the mark is the point, not a
+        // damage model.
+        scorches.push({ x: e.x, y: e.y, z: e.z, nx: e.nx || 0, nz: e.nz || 1, age: 0 });
+        if (scorches.length > MAX_SCORCH) scorches.shift();
+        puff(e.x, e.y, e.z, 0.35);
+      } else if (e.kind === 'ground') {
+        puff(e.x, e.y + 0.3, e.z, 0.3);
       }
     }
   }
   var hits = { animals: 0, cars: 0 };
+
+  // ---- impact debris -------------------------------------------------------
+  // Scorches persist (a mark is a record); puffs are the half-second of smoke
+  // and spark that makes a hit read as a HIT rather than a disappearance.
+  var MAX_SCORCH = 60;
+  var scorches = [];
+  var puffs = [];
+  function puff(x, y, z, size) {
+    if (puffs.length > 24) puffs.shift();
+    puffs.push({ x: x, y: y, z: z, size: size, age: 0 });
+  }
+  function updatePuffs(dt) {
+    for (var i = puffs.length - 1; i >= 0; i--) {
+      puffs[i].age += dt;
+      if (puffs[i].age > 0.9) puffs.splice(i, 1);
+    }
+    for (var s = 0; s < scorches.length; s++) if (scorches[s].age < 1) scorches[s].age += dt;
+  }
 
   function otherCars(dt) {
     root.Traffic.setLevel(root.Sources.current.traffic);
@@ -433,12 +468,30 @@
 
   // One build per frame at most: building a dense tile is tens of milliseconds
   // and doing several back to back is a visible hitch.
+  //
+  // A build is not necessarily the LAST build. terrainReadyFor only vouches
+  // for the ground under the tile's own square, but `out geom` ways run far
+  // beyond it — over terrain that may not exist yet, where every ground sample
+  // is a guess pinned at y≈0. Those guesses used to be permanent: the city
+  // past the loaded ground was baked underground, terrain later loaded in
+  // above the corpse, and the world ended at a hard line of grass with the
+  // street names still working. A tile that built with misses now says so
+  // (built.incomplete), and is rebuilt whenever new terrain has arrived since
+  // — still one build per frame, and it converges: a rebuild with zero misses
+  // is final.
   function buildPending() {
     for (var k in world.roads) {
       var t = world.roads[k];
-      if (!t || t.pending || t.failed || t.built) continue;
-      if (!terrainReadyFor(t.tile)) continue;
+      if (!t || t.pending || t.failed) continue;
+      if (t.built && !(t.built.incomplete && t.epoch !== world.terrainEpoch)) continue;
+      if (!t.built && !terrainReadyFor(t.tile)) continue;
+      if (t.built) {
+        MESHES.forEach(function (m) {
+          if (t.built[m] && t.built[m].release) t.built[m].release();
+        });
+      }
       t.built = root.Roads.build(world.frame, t.geom, t.tile);
+      t.epoch = world.terrainEpoch;
       return;
     }
   }
@@ -583,7 +636,33 @@
       camera.z += (Math.cos(clock * 61.0) + Math.cos(clock * 43.1)) * amp * 0.5;
       shake *= Math.max(0, 1 - dt * 5.5);
     }
+
+    // BIRD'S EYE is the same camera, flown up — not an inset. The old canvas
+    // minimap was a second renderer with a second copy of the world's read
+    // path, and it rotted exactly as second copies do (it walked the road
+    // index at the previous stride and painted garbage at 8 Hz, which is why
+    // it both lost the roads and ate the frame rate). This is one world, one
+    // renderer, one more place to put the eye: pull up until the streets read
+    // as a map, keep driving, pull back down. Heading-up follows from the
+    // geometry for free — the eye trails the car's yaw, so forward stays
+    // roughly screen-up, which is the only orientation a windscreen instrument
+    // makes sense in.
+    birdK += ((birdWant ? 1 : 0) - birdK) * Math.min(1, dt * 2.4);
+    if (birdK > 0.001) {
+      var H = 235 + v * 2.2;                 // higher when faster: see further ahead
+      var bex = car.x - fx * H * 0.30, bez = car.z - fz * H * 0.30;
+      var bey = car.y + H;
+      var btx = car.x + fx * H * 0.20, btz = car.z + fz * H * 0.20;
+      camera.x += (bex - camera.x) * birdK;
+      camera.y += (bey - camera.y) * birdK;
+      camera.z += (bez - camera.z) * birdK;
+      camera.tx += (btx - camera.tx) * birdK;
+      camera.ty += (car.y - camera.ty) * birdK;
+      camera.tz += (btz - camera.tz) * birdK;
+    }
   }
+  var birdWant = false, birdK = 0;
+  function toggleBirdseye() { birdWant = !birdWant; return birdWant; }
 
   // ---- frame ---------------------------------------------------------------
   function frame(t) {
@@ -683,9 +762,67 @@
     // Traffic goes through the same list as the players' cars: one mesh, one
     // program, one matrix each. Thirty of them is thirty uniform writes.
     root.Traffic.drawList().forEach(function (t) {
-      scene.cars.push({ x: t.x, y: t.y, z: t.z, yaw: t.yaw, pitch: 0, roll: 0,
-                        tint: t.tint, groundY: t.groundY });
+      var entry = { x: t.x, y: t.y, z: t.z, yaw: t.yaw, pitch: 0, roll: 0,
+                    tint: t.tint, groundY: t.groundY };
+      if (t.boom != null) {
+        // The death, staged: a flash (emissive spike), then the wreck chars,
+        // shrinks and sinks until the ground takes it. Scale and emit ride the
+        // car program's existing uShape/uEmit, so this costs two uniforms.
+        var k = Math.min(1, t.boom / 1.6);
+        entry.emit = Math.max(0, 1 - t.boom / 0.22);            // the flash
+        entry.scale = Math.max(0.05, 1 - k * k * 0.95);          // then the fade
+        entry.y -= k * k * 1.1;
+        entry.tint = [0.16 + entry.emit * 0.8, 0.14 + entry.emit * 0.5, 0.13];
+        if (t.boom < 0.7 && Math.random() < 0.5) puff(t.x, t.y + 1.2, t.z, 0.7);
+      }
+      scene.cars.push(entry);
     });
+
+    // Decals: scorch marks on the walls, and the smoke of anything currently
+    // exploding. One batched draw; corners are computed here because only the
+    // app knows the camera (for billboards) and the wall normals (for marks).
+    updatePuffs(dt);
+    if (scorches.length || puffs.length) {
+      var decals = scene.decals = [];
+      for (var sc2 = 0; sc2 < scorches.length; sc2++) {
+        var s2 = scorches[sc2];
+        // A quad on the wall plane, nudged out along the normal so it wins the
+        // depth test against the face it marks.
+        var rx = -s2.nz, rz = s2.nx, hw = 0.62;
+        decals.push({
+          corners: [
+            s2.x - rx * hw + s2.nx * 0.06, s2.y - hw * 0.9, s2.z - rz * hw + s2.nz * 0.06,
+            s2.x + rx * hw + s2.nx * 0.06, s2.y - hw * 0.9, s2.z + rz * hw + s2.nz * 0.06,
+            s2.x + rx * hw + s2.nx * 0.06, s2.y + hw * 1.1, s2.z + rz * hw + s2.nz * 0.06,
+            s2.x - rx * hw + s2.nx * 0.06, s2.y + hw * 1.1, s2.z - rz * hw + s2.nz * 0.06,
+          ],
+          tint: [0.07, 0.06, 0.06], alpha: 0.78 * Math.min(1, s2.age * 6),
+        });
+      }
+      if (puffs.length) {
+        // Billboards need the camera's right/up; derive once per frame.
+        var vdx = camera.tx - camera.x, vdy = camera.ty - camera.y, vdz = camera.tz - camera.z;
+        var vl = Math.hypot(vdx, vdy, vdz) || 1; vdx /= vl; vdy /= vl; vdz /= vl;
+        var rx2 = vdz, ry2 = 0, rz2 = -vdx;
+        var rl = Math.hypot(rx2, rz2) || 1; rx2 /= rl; rz2 /= rl;
+        var ux = vdy * rz2 - vdz * ry2, uy = vdz * rx2 - vdx * rz2, uz = vdx * ry2 - vdy * rx2;
+        for (var pf = 0; pf < puffs.length; pf++) {
+          var p2 = puffs[pf];
+          var t2 = p2.age / 0.9;
+          var r2 = (0.5 + t2 * 2.2) * p2.size;
+          var heat = Math.max(0, 1 - p2.age / 0.18);            // orange first, smoke after
+          decals.push({
+            corners: [
+              p2.x - rx2 * r2 - ux * r2, p2.y - ry2 * r2 - uy * r2, p2.z - rz2 * r2 - uz * r2,
+              p2.x + rx2 * r2 - ux * r2, p2.y + ry2 * r2 - uy * r2, p2.z + rz2 * r2 - uz * r2,
+              p2.x + rx2 * r2 + ux * r2, p2.y + ry2 * r2 + uy * r2, p2.z + rz2 * r2 + uz * r2,
+              p2.x - rx2 * r2 + ux * r2, p2.y - ry2 * r2 + uy * r2, p2.z - rz2 * r2 + uz * r2,
+            ],
+            tint: [0.24 + heat * 0.75, 0.22 + heat * 0.36, 0.20], alpha: 0.55 * (1 - t2),
+          });
+        }
+      }
+    }
 
     try { root.Render.draw(scene); }
     catch (e) { running = false; root.UI.fatal(e.message); return; }
@@ -766,6 +903,7 @@
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
       onRepair: function () { root.Car.repair(car); },
       onUnstick: unstick,
+      onBirdseye: toggleBirdseye,
       car: function () { return car; },
       frame: function () { return world.frame; },
       world: function () { return world; },
@@ -846,6 +984,9 @@
         grounded: world.frame ? root.Terrain.heightAt(world.frame, car.x, car.z) !== null : false,
         input: controls ? JSON.parse(JSON.stringify(controls.input)) : null,
         speed: car.speed, x: car.x, z: car.z, y: car.y,
+        camera: { x: camera.x, y: camera.y, z: camera.z },
+        birdseye: birdWant, birdK: birdK,
+        scorches: scorches.length, puffs: puffs.length,
       };
     },
   };

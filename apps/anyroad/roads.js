@@ -270,9 +270,21 @@
   // ---- geometry building ---------------------------------------------------
   // All three meshes are built in world metres against the current frame, with
   // heights sampled from the SAME terrain the car drives on.
+  // Ground height for geometry building — and an honest ledger of the times it
+  // had no answer. `out geom` returns WHOLE ways, which run far beyond the
+  // tile that asked for them, over terrain that may not be loaded yet; every
+  // such sample used to become a silent 0, so the road (and anything near it)
+  // was baked hundreds of metres underground and STAYED there — a built tile
+  // never rebuilt, the terrain later loaded in above the corpse, and a city
+  // ended at a hard line of grass with the street names still working (the
+  // road index is 2-D and never sampled a height in its life). The counter is
+  // how build() knows the tile is a guess, so the app can rebuild it when the
+  // ground it was missing arrives.
+  var groundMisses = 0;
   function groundAt(frame, x, z, lift) {
     var h = root.Terrain.heightAt(frame, x, z);
-    return (h === null ? 0 : h) + lift;
+    if (h === null) { groundMisses++; return lift; }
+    return h + lift;
   }
 
   // THE GRASS FLOWING INTO THE ROAD. A ribbon only samples the ground at the
@@ -568,7 +580,8 @@
         if (blocked) continue;
 
         var y = root.Terrain.heightAt(frame, x, z);
-        if (y === null || y < 0.6) continue;            // not loaded, or in the sea
+        if (y === null) { groundMisses++; continue; }   // not loaded — the tile is a guess
+        if (y < 0.6) continue;                          // in the sea
         // No trees on a cliff: sample the slope the same way the car does.
         var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
         if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) continue;
@@ -703,6 +716,7 @@
 
   // Build all four meshes for one tile's geometry.
   function build(frame, geom, tile) {
+    groundMisses = 0;
     var roads = { pos: [], uv: [], tone: [], rinfo: [], idx: [] };
     var paths = [];
     for (var i = 0; i < geom.ways.length; i++) {
@@ -792,6 +806,11 @@
       paths: paths,
       index: roadIndex,
       walls: wallIndex,
+      // How many ground samples had no terrain under them. Zero means every
+      // vertex stands on real ground; anything else means parts of this tile
+      // are a guess pinned at y≈0 and it should be REBUILT when more terrain
+      // arrives — see buildPending in app.js.
+      incomplete: groundMisses,
     };
   }
 

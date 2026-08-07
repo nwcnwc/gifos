@@ -36,7 +36,11 @@
     { id: 'sheep', size: 0.74, r: 0.65, mass: 0.65, walk: 0.7, run: 4.2, tint: [0.88, 0.87, 0.82], shape: [1.15, 0.90, 0.95], label: 'A sheep' },
     { id: 'dog',   size: 0.60, r: 0.50, mass: 0.40, walk: 1.8, run: 8.0, tint: [0.52, 0.38, 0.26], shape: [0.85, 0.85, 1.10], label: 'A dog' },
     { id: 'boar',  size: 0.80, r: 0.70, mass: 0.90, walk: 1.1, run: 6.5, tint: [0.26, 0.22, 0.20], shape: [1.20, 0.78, 1.05], label: 'A boar' },
-    { id: 'cow',   size: 1.25, r: 1.00, mass: 1.50, walk: 0.6, run: 3.2, tint: [0.80, 0.77, 0.72], shape: [1.15, 1.05, 1.15], label: 'A cow' },
+    // The cow was [0.80, 0.77, 0.72] — an off-white blob two tenths from the
+    // sheep's, and at forty metres the two were the same animal at different
+    // zoom. Colour is what survives distance, so the cow is now dark brown and
+    // noticeably LONG; the sheep keeps the wool.
+    { id: 'cow',   size: 1.25, r: 1.00, mass: 1.50, walk: 0.6, run: 3.2, tint: [0.38, 0.26, 0.19], shape: [1.20, 1.02, 1.50], label: 'A cow' },
     { id: 'goose', size: 0.42, r: 0.38, mass: 0.18, walk: 1.0, run: 5.0, tint: [0.93, 0.92, 0.88], shape: [0.75, 1.35, 0.80], label: 'A goose' },
   ];
 

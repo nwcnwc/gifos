@@ -34,7 +34,7 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','minimap','mapcanvas','map-scale',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster',
      'street','passing','recent',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
@@ -48,7 +48,16 @@
 
     $('btn-menu').addEventListener('click', function () { openSettings(); });
     $('btn-race').addEventListener('click', function () { openRace(); });
-    $('btn-map').addEventListener('click', toggleMap);
+    $('btn-map').addEventListener('click', function () {
+      // Bird's eye is a CAMERA MOVE now, not an inset. The old canvas minimap
+      // was a second renderer over a second read of the world, and it rotted
+      // the way second copies do — it walked the road index at a stale stride,
+      // painted garbage strokes hundreds of metres wide, and ate the frame
+      // rate doing it. The world already has a renderer; this now just flies
+      // its eye up (toggleBirdseye in app.js) and back down.
+      var on = hooks.onBirdseye ? hooks.onBirdseye() : false;
+      $('btn-map').setAttribute('aria-pressed', String(on));
+    });
     $('btn-hop').addEventListener('click', function () { show(el.landing); });
     $('close-settings').addEventListener('click', function () { hide(el.settings); });
     $('close-race').addEventListener('click', function () { hide(el.race); });
@@ -66,7 +75,6 @@
       if (!el.settings.hidden) { hide(el.settings); e.preventDefault(); return; }
       if (!el.race.hidden) { hide(el.race); e.preventDefault(); return; }
       if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); e.preventDefault(); return; }
-      if (mapOn) { toggleMap(); e.preventDefault(); }
     });
 
     // Pedals: pointer events so a held finger keeps the throttle open and
@@ -105,7 +113,6 @@
       if (!el.settings.hidden) { hide(el.settings); return; }
       if (!el.race.hidden) { hide(el.race); return; }
       if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); return; }
-      if (mapOn) { toggleMap(); return; }
     });
 
     $('btn-repair').addEventListener('click', function () {
@@ -492,12 +499,6 @@
       el.wrecked.hidden = !s.wrecked;
     }
 
-    // The inset redraws at 8 Hz on its own clock — see drawMap.
-    if (mapOn) {
-      var mnow = Date.now();
-      if (mnow - mapAt > 125) { mapAt = mnow; drawMap(hooks.car()); }
-    }
-
     if (s.players !== last.players) {
       last.players = s.players;
       updateRacePanel();
@@ -536,131 +537,13 @@
     });
   }
 
-  // ---- the bird's-eye inset ------------------------------------------------
-  // Drawn from the ROAD INDEX — the same bucketed segments the car asks "am I
-  // on tarmac" with — so the map cannot disagree with the world it is a map of.
-  // Nothing here is a second copy of anything.
-  //
-  // HEADING-UP, not north-up: this is a windscreen instrument, and the useful
-  // question is "what is the shape of the road in front of me", which north-up
-  // makes you rotate in your head at exactly the moment you have no attention
-  // to spare.
-  //
-  // Redrawn at 8 Hz. It is a canvas full of strokes and it is an inset the size
-  // of a stamp; sixty of those a second would cost more than the world behind
-  // it.
-  var mapOn = false, mapAt = 0, mapCtx = null;
-  var MAP_RANGE = 200;          // metres from the centre to the edge
-
-  function toggleMap() {
-    mapOn = !mapOn;
-    el.minimap.hidden = !mapOn;
-    $('btn-map').setAttribute('aria-pressed', String(mapOn));
-    if (mapOn) mapAt = 0;
-  }
-
-  function drawMap(car) {
-    var cv = el.mapcanvas;
-    if (!cv) return;
-    if (!mapCtx) mapCtx = cv.getContext('2d');
-    var g = mapCtx, W = cv.width, H = cv.height;
-    var R = Math.min(W, H) / 2;
-    var scale = R / MAP_RANGE;
-
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.clearRect(0, 0, W, H);
-    g.save();
-    // Round window.
-    g.beginPath(); g.arc(W / 2, H / 2, R - 1, 0, 6.2832); g.clip();
-    g.fillStyle = '#16200f';
-    g.fillRect(0, 0, W, H);
-
-    // World -> map: translate to the car, rotate so its heading points up.
-    g.translate(W / 2, H / 2);
-    g.rotate(car.yaw);
-    // The world is x=east, z=north and the screen is y-down, so north maps to
-    // -y. Scale z by -1 rather than negating every coordinate by hand.
-    g.scale(scale, -scale);
-    g.translate(-car.x, -car.z);
-
-    var world = hooks.world ? hooks.world() : null;
-    var k, r, i, segs;
-    if (world) {
-      // Buildings first, as a wash under the roads.
-      g.strokeStyle = 'rgba(150, 160, 175, 0.5)';
-      g.lineWidth = 1.6 / scale;
-      g.beginPath();
-      for (k in world.roads) {
-        r = world.roads[k];
-        if (!r || !r.built || !r.built.walls) continue;
-        segs = r.built.walls.segs;
-        for (i = 0; i < segs.length; i += 4) {
-          if (Math.abs(segs[i] - car.x) > MAP_RANGE || Math.abs(segs[i + 1] - car.z) > MAP_RANGE) continue;
-          g.moveTo(segs[i], segs[i + 1]);
-          g.lineTo(segs[i + 2], segs[i + 3]);
-        }
-      }
-      g.stroke();
-
-      // Roads, at their real width, coloured by what they are made of.
-      for (k in world.roads) {
-        r = world.roads[k];
-        if (!r || !r.built || !r.built.index) continue;
-        segs = r.built.index.segs;
-        for (i = 0; i < segs.length; i += 7) {
-          if (Math.abs(segs[i] - car.x) > MAP_RANGE || Math.abs(segs[i + 1] - car.z) > MAP_RANGE) continue;
-          g.strokeStyle = segs[i + 6] >= 2 ? '#6b5638' : segs[i + 6] >= 1 ? '#7d7566' : '#4a4f57';
-          g.lineWidth = Math.max(2 / scale, segs[i + 4] * 2);
-          g.lineCap = 'round';
-          g.beginPath();
-          g.moveTo(segs[i], segs[i + 1]);
-          g.lineTo(segs[i + 2], segs[i + 3]);
-          g.stroke();
-        }
-      }
-    }
-
-    // Everything that moves.
-    if (root.Traffic) {
-      g.fillStyle = '#d8dde6';
-      root.Traffic.drawList().forEach(function (t) {
-        g.beginPath(); g.arc(t.x, t.z, 3.4 / scale * 1.6, 0, 6.2832); g.fill();
-      });
-    }
-    if (root.Animals) {
-      g.fillStyle = '#c9a24a';
-      root.Animals.drawList().forEach(function (a) {
-        g.beginPath(); g.arc(a.x, a.z, 2.6 / scale * 1.6, 0, 6.2832); g.fill();
-      });
-    }
-    if (root.MP) {
-      root.MP.ghosts().forEach(function (o) {
-        g.fillStyle = 'rgb(' + o.tint.map(function (c) { return Math.round(c * 255); }).join(',') + ')';
-        g.beginPath(); g.arc(o.x, o.z, 4 / scale * 1.6, 0, 6.2832); g.fill();
-      });
-    }
-    g.restore();
-
-    // The car, drawn last and in SCREEN space: it is always at the centre
-    // pointing up, so it needs none of the world transform.
-    g.save();
-    g.translate(W / 2, H / 2);
-    g.fillStyle = '#e8443c';
-    g.beginPath();
-    g.moveTo(0, -11); g.lineTo(7, 9); g.lineTo(0, 5); g.lineTo(-7, 9);
-    g.closePath(); g.fill();
-    g.restore();
-
-    // North, so heading-up does not cost you your bearings entirely.
-    g.save();
-    g.translate(W / 2, H / 2);
-    g.rotate(-car.yaw);
-    g.fillStyle = 'rgba(226,233,245,0.85)';
-    g.font = 'bold 20px system-ui, sans-serif';
-    g.textAlign = 'center';
-    g.fillText('N', 0, -R + 24);
-    g.restore();
-  }
+  // (The bird's-eye INSET lived here — a 2D canvas renderer over its own read
+  // of the road index. Deleted, not fixed: it drifted from the real renderer's
+  // data layout once already (a stride-7 walk over a stride-8 index — no
+  // roads, and garbage line-widths that cost the whole frame rate), and a map
+  // that is a second copy of the world can always do that again. The button
+  // now flies the actual camera up: one world, one renderer — see
+  // toggleBirdseye in app.js.)
 
   // ---- the windscreen ------------------------------------------------------
   // Condition used to be a 128-pixel bar in a corner, which is a number about
