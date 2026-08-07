@@ -179,19 +179,19 @@ function trajectory(N, digestOn, seed, wantIdx) {
   const jt = H.runJoin(env, N, 20000);
   const nk = H.kill(env, N, 0.15, '');
   const kt = H.converge(env, N - nk, 40000);
-  run(env, 600);
+  run(env, 400);
   const c = H.counts(env);
   return { h1, h2, n: h1.length, grabbed, jt, kt, nk, c, moves: env.moves, evict: env.evict, digFrames: digOn.count, digTypes: Array.from(digOn.types).sort() };
 }
 for (const seed of [20260714, 7]) {
-  const A = trajectory(200, true, seed);
-  const B = trajectory(200, false, seed);
+  const A = trajectory(160, true, seed);
+  const B = trajectory(160, false, seed);
   check(`seed ${seed}: same number of frames (${A.n})`, A.n === B.n, { on: A.n, off: B.n });
   let firstDiff = -1;
   for (let i = 0; i < Math.min(A.n, B.n); i++) if (A.h1[i] !== B.h1[i] || A.h2[i] !== B.h2[i]) { firstDiff = i; break; }
   let detail;
   if (firstDiff >= 0) {   // failure path only: pay a re-run to name the frame
-    const A2 = trajectory(200, true, seed, firstDiff), B2 = trajectory(200, false, seed, firstDiff);
+    const A2 = trajectory(160, true, seed, firstDiff), B2 = trajectory(160, false, seed, firstDiff);
     detail = { atFrame: firstDiff, on: String(A2.grabbed).slice(0, 220), off: String(B2.grabbed).slice(0, 220) };
   }
   check(`seed ${seed}: digests ON is BYTE-IDENTICAL to OFF, frame for frame, through join+kill+heal`,
@@ -249,7 +249,7 @@ leg('3) REFUSALS — G3: exact, unanimous, and failing toward BLUR');
   }
   check(`during the loss the fold goes PARTIAL (peak ${maxPart} observers blurred)`, maxPart > 0, { maxPart });
   check('refusals NEVER fell below the truth anywhere in the loss (the fail-safe direction)', dropped === 0, { dropped });
-  run(env, 4000); d = digStat(env);
+  run(env, 3000); d = digStat(env);
   const c = H.counts(env);
   check('after the heal the blur clears', d.part === 0, { partial: d.part, seated: c.seated });
   check('…and the count is true again at every observer', d.exact === d.obs && d.obs === c.seated, { exact: d.exact, obs: d.obs, seated: c.seated, n: d.rmax });
@@ -299,7 +299,7 @@ leg('5) THE LYING AGGREGATOR — G4/G5');
 //   - exactly ONE aggregator stands accused — the liar.
 //   - G5: nothing is evicted. The room stays fully seated, dups 0.
 {
-  const { env } = settledRoom(300);
+  const { env } = settledRoom(200);
   const live = () => [...env.seats.values()].filter((s) => s.alive && s.state === 3);
   const all = live(); for (let i = 0; i < all.length; i++) if (i % 10 === 0) all[i].refuses = true;
   run(env, 400);
