@@ -24,6 +24,35 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 
 ---
 
+> **V5 UPDATE 2026-08-06 — the first fix attempt is REFUTED, and the trade is
+> now measured.** I read the funnel as "fruitless probes repeat at a fixed
+> period forever, so the aggregate never decays", and added exponential backoff
+> on consecutive misses (reset by a real move and by nearby churn). Measured,
+> same box, same seed, N=20000, room CONVERGED AND SETTLED first (spreadon 1,
+> then `digest reset` + `tick 6000` — the funnel is a settled-room cost, which
+> my first A/B script got wrong by leaving the room unconverged):
+>
+> | arm | framesPerTick_max |
+> |---|---|
+> | compaction ON, with the backoff | **15.1592** |
+> | compaction OFF | **3.1285** |
+> | (this audit's original ON / OFF) | 15.126 / 3.140 |
+>
+> The audit's numbers reproduce exactly; the backoff moved nothing. REVERTED —
+> a change that does not do what its comment claims is worse than no change.
+> Whatever sustains the probe rate in a settled room, it is not the fixed
+> period. An untested guess for the next attempt: `compactMiss` was reset on any
+> nearby churn, and at N=20000 there may be enough constant low-level churn that
+> the counter never climbs — measure that before building on it.
+>
+> **THE TRADE, NOW MEASURED, AND IT IS THE REAL QUESTION.** Same two runs:
+> lone-row deep sections 1350 (ON) vs 1395 (OFF), convergence 4480 vs 4288
+> ticks. So compaction buys about a **3% reduction in lone-row sections for
+> roughly 5x the hottest node's traffic**, and that node is a Section-1 head —
+> the scarcest position in the room. Before anyone writes a cleverer probe, the
+> question worth answering is whether compaction earns its place ON by default
+> at all.
+
 ## The verdict, ranked by how much it actually blocks 1M
 
 | # | violation | plane | status | blocks 1M at |
