@@ -18,7 +18,19 @@
 // per-context, so a URL one player fetched is simply never requested by the
 // other two: summing the ledgers counts REAL upstream requests.
 //
-// RECORD=1 records each player's screen to test/out/anyroad-mp/*.webm.
+// BOTH DOORS ARE RUN. ROOM=meet is a meeting that happens to be showing an
+// app; ROOM=app is the app AS the room, invited in place from a desktop icon
+// with no call layer at all. Unset runs both in sequence. Measured on a 4-core
+// box: meet 70-101s, app 115-173s. Dropping the a/v plane does NOT make this
+// cheaper here, and that is not a surprise once stated: the media is FAKE
+// devices with no capture and no encode, so removing it saves almost nothing,
+// while the wall clock is dominated by a fixed 40s drive and three swiftshader
+// worlds. On real hardware with real cameras the saving is real. On this box
+// the app path is if anything the slower of the two, and run-to-run variance
+// (115s vs 173s for the same mode) is larger than the gap between them — which
+// is the usual warning that a number measured here is a number about the box.
+//
+// RECORD=1 records each player's screen to test/out/anyroad-mp[-app]/*.webm.
 //
 // Needs: static server on 8099, local relay on 8790. Three Chromiums rendering
 // a 3D world on a software rasteriser is heavy — every assertion here is about
@@ -27,20 +39,34 @@
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
 const { HOP, routeWorld } = require('../lib/anyroad-fixtures');
+const need = require('../lib/need');   // a missing fixture must never look like a product bug
 const { readFileSync, mkdirSync, existsSync, rmSync, readdirSync, renameSync } = require('fs');
 const path = require('path');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 const RECORD = process.env.RECORD === '1';
-const OUT = path.resolve(__dirname, '../out/anyroad-mp');
+// 'meet' = a meeting running an app; 'app' = the app IS the room, no call
+// layer. BOTH run by default, one after the other: they are different products
+// reached through different doors, and a door no battery opens is a door that
+// rots — which is the whole reason this file exists.
+const MODES = process.env.ROOM ? [process.env.ROOM] : ['meet', 'app'];
 const NAMES = ['Ada', 'Ben', 'Cyd'];
 
 let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-(async () => {
+async function run(MODE) {
+  const OUT = path.resolve(__dirname, '../out/anyroad-mp' + (MODE === 'app' ? '-app' : ''));
+  // A dead relay looks EXACTLY like a broken app here: the room forms locally,
+  // the invite link mints, and the guests then sit on "reconnecting to the
+  // room…" until a 90 s locator gives up somewhere deep in the mount. That is
+  // the failure mode need.js exists for — cost an hour of chasing the app-room
+  // path before this line was here.
+  await need({ 8099: 'a static server on 8099 (python3 -m http.server 8099 -d site)', 8790: 'relay-local' });
+  const t0 = Date.now();
+  console.log('=== ROOM=' + MODE + (MODE === 'app' ? '  (app-pinned — no call layer)' : '  (meeting with an app on the stage)'));
   const gifB64 = readFileSync(appGif('anyroad')).toString('base64');
   if (RECORD) { if (existsSync(OUT)) rmSync(OUT, { recursive: true, force: true }); mkdirSync(OUT, { recursive: true }); }
 
@@ -81,6 +107,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         localStorage.setItem('gifos_meet_bar', '0');
       } catch (e) {}
     }, { relay: RELAY, name });
+    // Count every getUserMedia. An app room's whole claim is that it never
+    // touches your camera, and "the grid looks dark" is not that claim.
+    await ctx.addInitScript(() => {
+      window.__gumCount = 0;
+      const md = navigator.mediaDevices;
+      if (md && md.getUserMedia) { const real = md.getUserMedia.bind(md); md.getUserMedia = (c) => { window.__gumCount++; return real(c); }; }
+    });
     const hits = await routeWorld(ctx);
     players.push({ name, ctx, hits });
   }
@@ -102,11 +135,52 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   ada.page = await ada.ctx.newPage();
   ada.page.on('pageerror', (e) => console.log('  [Ada pageerror]', e.message));
-  await ada.page.goto(BASE + '/run.html');
-  await ada.page.locator('#lob-open').click();
-  await ada.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 60000 });
-  const link = await ada.page.evaluate(() => document.getElementById('share-url').value);
-  check('Ada opened a meeting and has an invite link', /run\.html|\/j\//.test(link || ''), link);
+
+  // THE TWO WAYS THREE PEOPLE END UP IN ONE ANYROAD, and they are different
+  // products, not two spellings of one. Both are run, because a path no battery
+  // reaches is a path that rots.
+  //
+  //   meet — a MEETING that happens to be running an app. Faces first: the call
+  //          layer is up from the start, every participant is publishing media,
+  //          and the app rides the meeting's Stage DATA lane.
+  //   app  — the APP is the room. Opened solo from a desktop icon, Invite flips
+  //          the same page in place with NO navigation and NO call layer: the
+  //          grid stays dark and nobody's camera is ever touched unless someone
+  //          opts in. Same mesh, same owner-signed lane, none of the a/v.
+  //
+  // Everything after this fork is identical, on purpose — the game must not be
+  // able to tell which door people came through.
+  let link;
+  if (MODE === 'app') {
+    await ada.page.goto(BASE + '/run.html#id=' + fid);
+    await ada.page.waitForSelector('#appmount iframe', { timeout: 60000 });
+    await ada.page.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 15000 }).catch(() => {});
+    // Driven programmatically: the app's own consent sheet can overlay the page
+    // and eat the pointer event, which is not what is under test here.
+    await ada.page.evaluate(() => document.getElementById('appinvite').click());
+    await ada.page.waitForSelector('input[name="rmcls"]', { timeout: 20000 });
+    await ada.page.evaluate(() => {
+      const heal = document.querySelector('input[name="rmcls"][value="heal"]');
+      if (heal) heal.checked = true;           // resilient: the room outlives its opener
+      document.getElementById('inv-go').click();
+    });
+    await ada.page.waitForFunction(() => document.body.classList.contains('app-room') && window.__gifosVideo.room(), null, { timeout: 40000 });
+    link = await ada.page.evaluate(() => document.getElementById('share-url').value);
+    check('Invite turned the running app into a room, on the same page', true, link);
+    check('the app is PINNED — there is no stop or hide affordance',
+      await ada.page.evaluate(() => {
+        const s = document.getElementById('appstop'), h = document.getElementById('apphide');
+        return s.style.display === 'none' && h.style.display === 'none';
+      }));
+    check('the call layer is DARK — an app room is not a video call',
+      await ada.page.evaluate(() => !document.body.classList.contains('call-on')));
+  } else {
+    await ada.page.goto(BASE + '/run.html');
+    await ada.page.locator('#lob-open').click();
+    await ada.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 60000 });
+    link = await ada.page.evaluate(() => document.getElementById('share-url').value);
+    check('Ada opened a meeting and has an invite link', /run\.html|\/j\//.test(link || ''), link);
+  }
 
   // ---- Ben and Cyd walk in through the link -------------------------------
   for (const p of [ben, cyd]) {
@@ -114,33 +188,76 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     p.page.on('pageerror', (e) => console.log('  [' + p.name + ' pageerror]', e.message));
     await p.page.goto(link);
   }
-  // ONE live link, not two. Three nodes do not form a triangle: the stadium's
+  // WAIT ON THE RIGHT THING, and it is not the same thing in both modes.
+  //
+  // In a meeting, liveLinks() counts peers whose PeerConnection is up, and the
+  // host cannot put an app on the stage before anyone is there to see it. ONE
+  // live link, not two: three nodes do not form a triangle — the stadium's
   // fabric is a tree plus its lateral links, so the middle of a three-node
-  // section can be the only one with two peers and the ends have one each.
-  // App state still reaches everybody — the sga lane FLOODS across structural
-  // links rather than requiring a direct edge — and demanding a direct edge
-  // here just asserts a topology the mesh never promised.
+  // section can be the only one with two peers and the ends have one each. App
+  // state still reaches everybody, because the sga lane FLOODS across
+  // structural links rather than requiring a direct edge.
+  //
+  // In an APP ROOM there is no call layer at all, so `connected` — a
+  // media-plane notion — is not the readiness signal and waiting on it hangs
+  // for the full timeout while the app is already up on every screen. The
+  // product-level gate is the one that matters anyway and it is the same
+  // sentence in English: the app converged to everybody.
+  if (MODE !== 'app') {
+    for (const p of players) {
+      await p.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 90000 });
+    }
+    // The host has to put it on the stage; in an app room it is already running
+    // and the guests converge to it.
+    await ada.page.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Anyroad'), fid);
+  }
   for (const p of players) {
-    await p.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 90000 });
+    await p.page.waitForSelector('#appmount iframe', { timeout: 90000 }).catch(async (e) => {
+      // Say WHAT the stuck page was showing. "waitForSelector timed out" names
+      // the symptom; the room status line names the cause.
+      const st = await p.page.evaluate(() => ({
+        status: (document.getElementById('status') || {}).textContent,
+        room: !!(window.__gifosVideo && window.__gifosVideo.room()),
+        peers: window.__gifosVideo ? window.__gifosVideo.peerCount() : -1,
+        body: document.body.className,
+        knock: !!document.querySelector('#knock, #lobby, .knock'),
+      })).catch(() => null);
+      console.log('  [STUCK ' + p.name + '] ' + JSON.stringify(st));
+      throw e;
+    });
+    await p.page.bringToFront();
+    // The declared-network consent sheet stands between the app and the bridge
+    // on every peer independently; a click on one is not a click on the others.
+    await p.page.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 15000 }).catch(() => {});
+    // The share sheet is a full-page overlay sitting on top of the running
+    // game, and it RE-RENDERS as the room forms — so hiding it before the
+    // guests arrive does not stick. Close it here, once everything has settled,
+    // through the product's own Close button. Without this every later click
+    // into the app frame lands on the sheet instead; Playwright says so in as
+    // many words ("name-box … intercepts pointer events") where a human would
+    // simply have closed it.
+    await p.page.evaluate(() => {
+      const done = document.getElementById('inv-done');
+      if (done) done.click();
+      const m = document.getElementById('inv-modal');
+      if (m) m.style.display = 'none';
+    }).catch(() => {});
+    p.fr = p.page.frameLocator('#appmount iframe');
+    p.body = () => p.fr.locator('body');
   }
   const links = await Promise.all(players.map((p) => p.page.evaluate(() => ({
     live: window.__gifosVideo.liveLinks(), known: window.__gifosVideo.peerCount(),
   }))));
   console.log('  [mesh] ' + JSON.stringify(links));
-  check('all three are meshed in one meeting', links.every((l) => l.live >= 1));
-  check('…and each of them knows the other two exist', links.every((l) => l.known >= 2), JSON.stringify(links));
-
-  // ---- Ada runs Anyroad INTO the meeting; the other two mount it live -----
-  await ada.page.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Anyroad'), fid);
-  for (const p of players) {
-    await p.page.waitForSelector('#appmount iframe', { timeout: 90000 });
-    await p.page.bringToFront();
-    // The declared-network consent sheet stands between the app and the bridge
-    // on every peer independently; a click on one is not a click on the others.
-    await p.page.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 15000 }).catch(() => {});
-    p.fr = p.page.frameLocator('#appmount iframe');
-    p.body = () => p.fr.locator('body');
-  }
+  // NOBODY IS ALONE — and that is the whole of what the mesh promises here.
+  // An earlier version demanded each node know the other TWO, which asserts a
+  // TRIANGLE; three nodes form a tree plus lateral links, so the two leaves
+  // legitimately hold one peer each and only the middle holds two. Measured
+  // both shapes across runs of this very suite. What actually matters is
+  // claimed further down and does not care about the shape at all: every
+  // player ends up seeing every other player, because the app lane FLOODS
+  // across structural links rather than needing a direct edge.
+  check('nobody is stranded — every player has a peer', links.every((l) => l.known >= 1), JSON.stringify(links));
   check('all three mounted the SAME shared app from the mesh',
     (await Promise.all(players.map((p) => p.page.evaluate(() => window.__gifosVideo.appActive())))).every(Boolean));
   check('exactly one of them is the app host',
@@ -148,6 +265,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   for (const p of players) await p.fr.locator('#landing').waitFor({ timeout: 30000 });
   check('Anyroad booted inside all three sandboxes', true);
+
+  if (MODE === 'app') {
+    // THE POINT OF THIS MODE. Three people are in a shared world together and
+    // not one camera has been opened — not the host's, not either guest's. The
+    // a/v plane is the expensive half of a meeting, and a game does not need it.
+    const gum = await Promise.all(players.map((p) => p.page.evaluate(() => window.__gumCount)));
+    check('nobody\'s camera or microphone was ever opened', gum.every((n) => n === 0), JSON.stringify(gum));
+    check('…and the call layer stayed dark for everyone',
+      (await Promise.all(players.map((p) => p.page.evaluate(() => !document.body.classList.contains('call-on'))))).every(Boolean));
+    check('the guests are not hosts of the app they joined',
+      (await Promise.all([ben, cyd].map((p) => p.page.evaluate(() => !window.__gifosVideo.appIsHost())))).every(Boolean));
+  }
 
   // ---- Ada picks the place. The other two must FOLLOW HER THERE ------------
   // This is the design claim in mp.js: the invite link alone is enough, because
@@ -342,6 +471,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
   }
 
-  console.log(failures ? '\n' + failures + ' FAILED' : '\nall good');
+  console.log('=== ROOM=' + MODE + ' finished in ' + Math.round((Date.now() - t0) / 1000) + 's\n');
+}
+
+(async () => {
+  for (const m of MODES) await run(m);
+  console.log(failures ? failures + ' FAILED' : 'all good');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

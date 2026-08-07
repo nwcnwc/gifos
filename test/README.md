@@ -470,6 +470,12 @@ Roughly three families in one directory:
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`,
+  `e2e-anyroad-mp` (THREE people driving one Anyroad, through BOTH doors:
+  `ROOM=meet` a meeting with the app on its stage, `ROOM=app` the app invited
+  in place as its own room with no call layer — unset runs both. Guards mp.js
+  end to end, and is where the download pool is proven on a real app: nine
+  tiles, nine upstream requests, players driving on roads they never
+  downloaded. `RECORD=1` writes a per-player screen recording to `test/out/`),
   `e2e-pool` (capabilities.pool — two peers in one meeting, one URL, and the
   upstream is asked ONCE; spawns its own counting server on 8801 and asserts
   the COUNT, not the source, so a cache or a second code path cannot fake it.
