@@ -109,9 +109,17 @@ still fails — that's the missing observability from this incident.
   itself the designated admitter (common: S1 front row), HOME could carry a
   provisional PLACE — entry in 2 RTTs. Needs care with C3 fixed-designation
   and S4 fill signing; sim first.
-- **Guest-side flap forensics**: persist `greeterTrace` + state transitions
-  client-side (ring buffer) so the NEXT incident of this shape is diagnosed
-  from the victim's logs, not inferred from the survivor's.
+- ~~**Guest-side flap forensics**: persist `greeterTrace` + state transitions
+  client-side (ring buffer)~~ — **PARTLY DONE 2026-08-06, and the ask was
+  mis-stated.** The ring buffer already existed (`mesh-wire.js`
+  `greeterTrace`, 32 entries, exposed as `__gifosVideo.greeterTrace()`); what
+  did not exist was anything that READ it. It is now recorded with every
+  monitor snapshot and printed by `meet.js`'s `door` command
+  (see "SEEING A FORK", below). Still open: a VICTIM's copy. The trace lives
+  in page memory, so the one client whose logs matter — the phone that
+  reloaded, the guest on plane wifi — still takes its evidence with it.
+  That needs a product change (persist to localStorage across reloads) and
+  belongs to whoever owns `mesh-wire.js`.
 - **`nosock` and freshness**: the wire deliberately doesn't nudge the join
   loop on a nosock bounce (a stray bounce thrashes the FIND dance). With
   resume in play, unchanged — but if a bounce ever names our WHOHOME target,
@@ -123,3 +131,74 @@ still fails — that's the missing observability from this incident.
   Chrome on the moto is currently failing its own cold start (Play updated
   it under a running instance; a reboot will likely clear it). Door-entry
   and camera legs verified live end-to-end.
+
+## SEEING A FORK — the observability this doc asked for (2026-08-06)
+
+The bug this doc's `greeterTrace` line was written for came due: bug ledger
+2026-08-05 §6, the **7-hour room fork**. Monitor room `test`, 17:30→00:34Z,
+two ONE-SEAT trees on ONE relay session. Nobody noticed, because from inside a
+one-seat tree a fork and an empty room are the same picture, and every field
+the monitor recorded was a view from inside one tree.
+
+**The observation that breaks the symmetry was on the wire the whole time.**
+The relay broadcasts `{t:'roster', peers:[…]}` — every socket attached to
+THIS session, whatever tree its owner is in. `run.html` already keeps it
+(`relaySocketed`) and already exposes it (`__gifosVideo.relayReach()`). One
+relay session is one stadium (healing-laws R2/R3 — that is what the derivation
+is FOR), so:
+
+> a peer socketed on my relay session that holds **no cell in my occupancy**,
+> for longer than any lawful entry dance, is a **second tree**.
+
+- `test/tools/fork-detect.js` — the probe and the dwell clock. In-tree is
+  proved by three independent witnesses (roster coords, `linkPeers`, my own
+  section grid); a fork claim needs all three silent. Dwell 90s in production:
+  past ENTRY RESUME's worst case, far short of seven hours. Verdicts:
+  `solo-fork` (I am one seat and someone else is here), `split`, `door-stall`
+  (I am the one outside — the joiner's view of the same illness).
+- `test/swarm/meet.js` — every snapshot carries the verdict, `door` prints it
+  with the greeterTrace behind it, both edges go to stderr (the monitor's
+  `stderr.log`), and the verdict rides the jsonl compactor's signature: a
+  forked room is the most boring-LOOKING state there is (`occ=1 links=0`,
+  unchanged for hours), i.e. exactly what a shape-only signature deletes.
+  `sever <peer> [secs]` manufactures the shape between REAL boxes.
+- `test/drills/e2e-room-fork-live.js` — the guard, in `mesh-churn.sh` and the
+  release gate's drills tier. Measured (raspberrypi, load < 1, and
+  nvidia-laptop): the fork forms in 6.6-6.7s and both halves see it 6.4s
+  later, at `0/0.0 occ=1 links=0` — the ledger's reading, verbatim. A HEALTHY
+  room stays silent for twice the dwell, which is the leg that makes the
+  others mean anything.
+
+**It observes; it never heals.** Whether a fork of this shape should
+self-dissolve is healing-laws work — mesh-wire's fragment-rescue chain
+already owns every case where the door can SEE the other half, and this is
+precisely the case where it cannot.
+
+## The door itself: a stale claim that never lets go (2026-08-06)
+
+`test/tools/door-registry-probe.js` speaks the knock protocol directly, no
+browser. Two results, both measured:
+
+1. **`{t:'knock', gk:''}` is a read-only door probe.** It is never founded,
+   never admitted, stamps no `gseen`, and still returns the full live blob
+   list — so a door can be censused from outside without minting a ghost.
+2. **A stale genesis claim is absorbing, and the mint grace does not touch
+   it.** `genesisHash()` grants the room to `a.gblob && a.gseen + TTL > now`
+   ("registered before, still knocking"), but `a.gblob` is never cleared when
+   it expires and `a.gseen` is refreshed by EVERY knock, blobless ones
+   included. A socket that registered a greeter blob ONCE and thereafter only
+   knocks blobless — exactly a seat's state after `requeue()`: state 0, same
+   socket, ~10s knocks — holds the genesis while greeting nobody. Measured
+   5/5 rounds: a fresh joiner gets `founded:false admitted:false list:[]`
+   forever, and the dead claim RESURRECTS over a legitimate founder that took
+   the room while it was briefly lapsed (`a.gkh` is never cleared either).
+   That is the 2026-07-29 field signature verbatim (`hold-mint-gap`,
+   listLen 0, sealed []) and a door at which two already-seated halves can
+   never find each other again — a mechanism for §6's seven hours.
+
+   The ghost-genesis fix moved the hole one branch down instead of closing
+   it: `MINT_GRACE_MS` only weakens a claim from a socket that NEVER
+   registered. **Fix direction (relay, REPORTED not made — it wants a
+   healing-laws read): a genesis claim must require a LIVE registration
+   (`gexp > now`) or an unconverted mint inside the grace. A knock is proof of
+   life, never proof of greeting** — which was already the lesson.

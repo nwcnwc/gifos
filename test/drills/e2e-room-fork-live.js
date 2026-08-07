@@ -46,7 +46,12 @@ const ROOM = 'forklive-' + Date.now().toString(36);
 // The drill's dwell. Production is 90s (past ENTRY RESUME's worst case); here
 // it is compressed to 6s so the SHAPE is what is asserted, not the constant.
 const DWELL_MS = parseInt(process.env.FORKLIVE_DWELL_MS || '6000', 10);
-const SEVER_MS = parseInt(process.env.FORKLIVE_SEVER_MS || '75000', 10); // must outlast: fork forms (~5-20s) + dwell + the observation window
+// The partition is lifted EXPLICITLY (severPair with a 1ms expiry) once the
+// observation legs are done, never by waiting out a fixed window: on a loaded
+// box the fork can take tens of seconds to form, and a sever that expires
+// mid-observation makes the drill flake for a reason that has nothing to do
+// with what it asserts. This is only a ceiling.
+const SEVER_MS = parseInt(process.env.FORKLIVE_SEVER_MS || '240000', 10);
 const QUIET_MS = 14000;   // phase 1: how long the healthy room must stay silent (> 2x dwell)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -151,9 +156,12 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
     + 's Bob@' + (seen.Bob ? (seen.Bob.atMs / 1000).toFixed(1) : 'never') + 's after the fork formed (dwell ' + (DWELL_MS / 1000) + 's)');
 
   // ---- 5. AND IT CLEARS. An alarm that cannot turn off is noise, and a
-  // monitor that cries fork forever teaches everyone to ignore it.
-  const tLift = tSever + SEVER_MS;
-  await sleep(Math.max(0, tLift - Date.now()));
+  // monitor that cries fork forever teaches everyone to ignore it. Lift the
+  // partition explicitly (expire the sever now) — never by waiting out a
+  // window the observation above might still be inside.
+  await ada.page.evaluate((pid) => window.__gifosVideo.severPair(pid, 1), bobId).catch(() => {});
+  await bob.page.evaluate((pid) => window.__gifosVideo.severPair(pid, 1), adaId).catch(() => {});
+  const tLift = Date.now();
   let clear = { Ada: -1, Bob: -1 };
   while (Date.now() - tLift < 60000 && (clear.Ada < 0 || clear.Bob < 0)) {
     for (const u of [ada, bob]) { const v = await sample(u); if (v.ok && !v.fork && clear[u.name] < 0) clear[u.name] = Date.now() - tLift; }
