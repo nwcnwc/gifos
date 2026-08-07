@@ -182,10 +182,29 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // and a legitimate NEXT rotation still lands (persistence never wedges
   // adoption).
   await ben.reload({ waitUntil: 'domcontentloaded' });
-  await ben.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 15000 });
-  await ben.waitForFunction(() => window.__gifosVideo.pwState && window.__gifosVideo.pwState().pw === 'pw-two', null, { timeout: 20000 });
-  const reSt = await ben.evaluate(() => window.__gifosVideo.pwState());
-  check('RELOAD: Ben comes back armed — epoch persisted, not 0', !!(reSt && reSt.epoch === adaSt.epoch), { ben: reSt && reSt.epoch, ada: adaSt.epoch });
+  // The reloaded page's BOOT gets a budget and a dossier, not a bare 15s
+  // waitForFunction. This drill serves the site from its own single-threaded
+  // `python3 -m http.server`, so a reload that has to re-fetch run.html and its
+  // whole asset set queues behind whatever the other context is doing — on a
+  // loaded box that is lawfully tens of seconds, not fifteen. Measured on
+  // clawbox at loadavg 2-3: this exact wait threw a raw TimeoutError in roughly
+  // one run in four, IDENTICALLY in this tree and in the pre-password-work
+  // baseline — so it is the harness's own server, not the product. A raw throw
+  // there also loses every later check and prints no state at all, which is the
+  // failure shape 3e8ddca already drove out of the rest of this file.
+  // The assertion is UNCHANGED and in fact tighter: the page must come back,
+  // still on pw-two, at Ada's epoch. Only the waiting is honest.
+  let reSt = null;
+  const tRl = Date.now();
+  while (Date.now() - tRl < 60000) {
+    reSt = await ben.evaluate(() => (window.__gifosVideo && window.__gifosVideo.room() && window.__gifosVideo.pwState)
+      ? window.__gifosVideo.pwState() : null).catch(() => null);
+    if (reSt && reSt.pw === 'pw-two') break;
+    await sleep(500);
+  }
+  check('RELOAD: Ben comes back armed — epoch persisted, not 0',
+    !!(reSt && reSt.pw === 'pw-two' && reSt.epoch === adaSt.epoch), { ben: reSt, ada: adaSt.epoch });
+  if (!reSt) { console.log('  [reload-diag] Ben never re-exposed __gifosVideo.room() in 60s — the drill cannot continue'); await browser.close(); console.log('\n' + failures + ' FAILED'); process.exit(1); }
   // Young-pair settle before the next rotation (same discipline as the first
   // save): the adoption below must ride the flood or the heal, not luck.
   // 90s, not 40: a reload-rejoin can lawfully eat a dial-backoff cycle before
