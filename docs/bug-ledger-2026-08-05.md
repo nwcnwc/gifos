@@ -24,6 +24,57 @@
 > quarantined silently un-guards a DIFFERENT, genuinely fixed bug (the stale-seat
 > duplicate face).
 
+## 11. 23b red at the 0.9.5 cut is LOAD, and a multi-member fragment has NO healer (2026-08-07)
+
+**The `statusOf` fix (2c3f7d8/611bd60) is EXONERATED — by measurement, then by
+mechanism.** The cut battery's one red (`23b-beehive-anchor-death`: census
+stuck at 4/4/4/2/2, ONE-tree replies=4/6, load 8.45/6cpu) looked like a healing
+regression from the new sweeper. Interleaved ABAB of the scenario on the
+behavior host (6 cores), suspect tree `e33591e` vs pre-fix tree `7ee189b`
+(behavior harness byte-identical between the two):
+
+    ambient load (~4-6):        e33591e 4/4 PASS     7ee189b 4/4 PASS
+    +4 CPU spinners (~8-10):    e33591e 4/5          7ee189b 3/5
+
+The PRE-FIX tree reproduces the original signature under load — one red is the
+same 4-and-2 shape (`ana:4 cai:4 dee:4 fio:4 eli:2 gil:2`, replies=4/6), one a
+3-and-3 — on code carrying none of the three commits. The suspect tree's one
+red also failed "converges to 7" (>180s), which is pure load. Six battery-era
+23b runs before the cut night were all green; the red is a contention flake,
+first seen at loadavg 8.45 on 6 cores.
+
+The sweeper is also provably census-neutral at the line level: `knownTotal`
+counts an occ member on `now - st.at < 30s`, `stHold`'s windows are 15s/60s on
+`at` — but the sweeper evicts only at `now - max(rx,at) > HOLDOVER_MS` (60s)
+AND no `peers` record (so `knownTotal`'s `p.connected` clause is dead at sweep
+time too). The windows cannot overlap: every entry the sweep may touch already
+read as absent to every census path for ≥30s. The `takeStatus` tombstone guard
+suppresses a status for ≤TOMB_GRACE (1.5s) after a verdict, and `knownTotal`
+skips `meshGone` ids regardless; pre-fix, the in-grace frame could not lift the
+tombstone either (`rx ≤ g+1500` fails `notTomb`). Neither half can move a
+census for more than one heartbeat.
+
+THE REAL FINDING — the failing runs show a GENUINE split that today has no
+healer. The anchor's deep children lose their up-link, fail to re-attach under
+CPU starvation, and re-found as a second tree (occ=2). From then on BOTH sides
+hold `fork:{kind:'split'}` door evidence (door open=4, orphans past the dwell,
+for 200-318s in the forensics) and neither acts: every `onFragment` rescue path
+in `mesh-wire.js` is gated on `seat.occ.size <= 1` (~lines 499-533). A 4+2 or
+3+3 split has no solo member, so the door hands its evidence to no one — the
+first recorded shape where a room fragments, both halves KNOW, and neither may
+act. The solo-only gate predates the 0.9.5 work; 23b green six times over it.
+COST today: reached only under extreme one-box contention (7 browsers + 4
+spinners on 6 cores). NOT blocking 0.9.5, by the same standard as #10.
+
+WHERE TO START: `test/tools/fork-detect.js` already computes exactly the
+evidence the product ignores (non-occ door ids past the dwell). The gate to
+revisit is the `occ.size <= 1` condition on mesh-wire's fragment-rescue path —
+a SEATED member whose door lists open ids absent from its occ, sustained past
+a dwell, is the same fragment fact at any occ size. Any fix must handle glare
+(both halves acting at once) and must not fire during an ordinary heal — the
+dwell is the discriminator, and the 23b-under-spinners recipe above is the
+repro.
+
 ## 10. A freed seat is re-seeded in `occ`, and the corpse gets DIALLED (2026-08-07)
 
 **ALIVE, unguarded, not blocking.** Found while root-causing the `statusOf`
