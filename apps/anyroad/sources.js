@@ -91,6 +91,8 @@
     steering: 'touch',      // legacy; superseded by `scheme`
     scheme: 'wheel',        // 'wheel' | 'stick' | 'tilt'
     wildlife: 'on',         // deer, sheep, geese — and the damage they cost
+    traffic: 'normal',      // 'none' | 'light' | 'normal' | 'heavy'
+    sound: 'on',            // engine, tyres, traffic, animals. No music.
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -108,6 +110,8 @@
         if (rec.steering === 'touch' || rec.steering === 'tilt') current.steering = rec.steering;
         if (['wheel','stick','tilt'].indexOf(rec.scheme) >= 0) current.scheme = rec.scheme;
         if (rec.wildlife === 'on' || rec.wildlife === 'off') current.wildlife = rec.wildlife;
+        if (['none', 'light', 'normal', 'heavy'].indexOf(rec.traffic) >= 0) current.traffic = rec.traffic;
+        if (rec.sound === 'on' || rec.sound === 'off') current.sound = rec.sound;
       }
       return current;
     }).catch(function () { return current; });

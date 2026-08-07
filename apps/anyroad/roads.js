@@ -621,6 +621,7 @@
   // Build all four meshes for one tile's geometry.
   function build(frame, geom, tile) {
     var roads = { pos: [], uv: [], tone: [], rinfo: [], idx: [] };
+    var paths = [];
     for (var i = 0; i < geom.ways.length; i++) {
       var cls = ROAD_CLASS[geom.ways[i][0]];
       if (!cls) continue;
@@ -631,8 +632,17 @@
       // A tagged lane count beats the class width: a six-lane primary and a
       // two-lane primary are the same OSM class and very much not the same road.
       var width = lanes ? Math.max(cls.w * 0.6, lanes * 3.3) : cls.w;
-      ribbon(frame, toWorld(frame, geom.ways[i][1]), width / 2, ROAD_LIFT, roads,
+      var pts = toWorld(frame, geom.ways[i][1]);
+      ribbon(frame, pts, width / 2, ROAD_LIFT, roads,
              cls.tone, surf, lanes || Math.max(1, Math.round(cls.w / 3.4)));
+      // Keep the world-space polyline: traffic drives along it. It is already
+      // computed for the ribbon, so this costs a reference rather than the
+      // work, and it means traffic needs no road graph of its own. Real roads
+      // only — nobody commutes down a farm track, and a service alley full of
+      // cars looks like a car park that has escaped.
+      if (cls.rank >= 2 && pts.length >= 2) {
+        paths.push({ pts: pts, cruise: cls.cruise, half: width / 2, surface: surf });
+      }
     }
 
     // binfo carries (baseY, seed, class) per vertex: the shader needs the building's
@@ -688,6 +698,7 @@
       // rebuilding anything. Trees are the most numerous thing in the world and
       // the ones a kilometre away are a green haze the fog eats anyway.
       centre: tileCentre(frame, tile),
+      paths: paths,
       index: roadIndex,
       walls: wallIndex,
     };
@@ -758,7 +769,7 @@
   // so a linear scan is out. Segments are bucketed into a coarse uniform grid at
   // BUILD time (once per tile) and the query looks only at the car's own cell
   // and its eight neighbours — a couple of dozen segments instead of thousands.
-  var STRIDE = 6;  // x1,z1,x2,z2,halfWidth,cruise
+  var STRIDE = 7;  // x1,z1,x2,z2,halfWidth,cruise,surface
   var CELL = 64;   // metres; comfortably larger than the longest reasonable step
 
   function buildIndex(frame, geom) {
@@ -768,10 +779,15 @@
       var cls = ROAD_CLASS[geom.ways[w][0]];
       if (!cls) continue;
       var pts = toWorld(frame, geom.ways[w][1]);
+      var surf = geom.ways[w][2] || 0;
+      var lanes = geom.ways[w][3] || 0;
+      var half = (lanes ? Math.max(cls.w * 0.6, lanes * 3.3) : cls.w) / 2;
       for (var i = 0; i + 1 < pts.length; i++) {
         var a = pts[i], b = pts[i + 1];
         var idx = segs.length / STRIDE;
-        segs.push(a.x, a.z, b.x, b.z, cls.w / 2, cls.cruise);
+        // The same half width the RIBBON was built with, or "am I on tarmac"
+        // answers about a road of a different size from the one being drawn.
+        segs.push(a.x, a.z, b.x, b.z, half, cls.cruise, surf);
         // Stamp the segment into every cell its bounding box touches, so a long
         // segment is found from anywhere along it.
         var x0 = Math.floor(Math.min(a.x, b.x) / CELL), x1 = Math.floor(Math.max(a.x, b.x) / CELL);
@@ -790,7 +806,7 @@
   function nearestRoad(index, x, z) {
     if (!index) return null;
     var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
-    var best = Infinity, bestHalf = 0, bestCruise = 14;
+    var best = Infinity, bestHalf = 0, bestCruise = 14, bestSurf = 0;
     var bestX = 0, bestZ = 0, bestVX = 0, bestVZ = 1;
     for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
       var list = index.map[(cx + dx) + ',' + (cz + dz)];
@@ -806,6 +822,7 @@
         var d = Math.hypot(x - px, z - pz);
         if (d < best) {
           best = d; bestHalf = index.segs[o + 4]; bestCruise = index.segs[o + 5];
+          bestSurf = index.segs[o + 6];
           // The POINT, not just the distance. The wildlife walks toward the
           // nearest carriageway to cross it, and the unstick rescue puts the
           // car back down on it — both need somewhere to aim, and recomputing
@@ -816,7 +833,8 @@
       }
     }
     return best === Infinity ? null
-      : { dist: best, halfWidth: bestHalf, cruise: bestCruise, x: bestX, z: bestZ, dx: bestVX, dz: bestVZ };
+      : { dist: best, halfWidth: bestHalf, cruise: bestCruise, surface: bestSurf,
+          x: bestX, z: bestZ, dx: bestVX, dz: bestVZ };
   }
 
   // Push every corner radially away from the centroid. Not a true polygon

@@ -40,6 +40,47 @@ app.js       the world streamer and the loop
 
 ## Things that are the way they are for a reason
 
+**Every sound is SYNTHESISED, and that is not a stylistic choice.** The app is a
+GIF. One minute of even badly compressed audio is several times the size of the
+entire game, so there are no samples — there are oscillators, one noise buffer
+made at boot, and envelopes. The engine is detuned saws through a lowpass that
+opens with load, pitched by a five-speed gearbox (a single note rising with
+speed is a milk float; the drop at each change is what the ear reads as a car).
+Tyres are that noise buffer through a bandpass that climbs with speed and
+changes character with the `surface` under them. Animals are pitch envelopes
+with formants, panned to where they actually are.
+
+**There is no music, deliberately.** A tune would compete with the one sound
+carrying information about what the car is doing.
+
+**Traffic gets three voices, not one per car.** Thirty cars is thirty oscillator
+chains for no gain — you cannot pick four engines out of a crowd. The pool is
+reassigned each tick to the three nearest, with the Doppler done by hand from
+the closing rate (a `PannerNode` with real Doppler is both deprecated and far
+more machinery than a pitch offset).
+
+**The audio graph is built ONCE and ramped, and runs at 20 Hz.** Creating
+oscillators per frame is what makes Web Audio crackle; and every parameter here
+is a ramp with a ~100 ms time constant, so updating at sixty frames a second
+schedules four ramps for every one the ear can resolve.
+
+**Traffic has no pathfinding, no junction logic and no road graph.** Each car is
+given a WAY — the polyline the tile builder already computed in world metres for
+the ribbon — and drives it in its own lane. When it runs out of way, or gets far
+enough behind you, it leaves. That sounds like a cheat and it is exactly what
+you can see from a car: you never watch a specific vehicle negotiate a junction
+two hundred metres away. Everything the player CAN check is real — they stay on
+the carriageway, they keep to one side, they slow for what is in front of them,
+and they never appear closer than 70 m.
+
+**How far right the traffic sits is load-bearing.** The player is dropped on the
+centreline and mostly drives there, so at half a carriageway every oncoming car
+passed within a car's width and clipped them — traffic that hits you for driving
+normally is a minefield, not traffic. They keep as far over as the road allows,
+and the contact test is two axes (across the heading, then along it) rather than
+a radius: centre to centre, two cars in adjacent lanes are about two metres
+apart, which any circle big enough to cover a car's length also covers.
+
 **Two tile grids, not one.** Elevation is cheap and wants to reach the horizon
 (z14, ~2.4 km tiles, 3 km radius). Roads are expensive — one Overpass query each
 — and only matter nearby (z15, ~1.2 km, 1.2 km radius). Tiles load nearest-first

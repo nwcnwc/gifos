@@ -33,7 +33,8 @@
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
-     'health','health-fill','damage-flash','wrecked','gear','stuck','cracks','ctl-wildlife',
+     'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
+     'ctl-wildlife','ctl-traffic','ctl-sound',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -191,6 +192,19 @@
       root.Sources.set({ throttle: this.value });
       note(this.value === 'auto' ? 'The car drives itself — steer and brake.' : 'Hold GO to accelerate.');
     });
+    el['ctl-traffic'].addEventListener('change', function () {
+      root.Sources.set({ traffic: this.value });
+      root.Traffic.setLevel(this.value);
+      note(this.value === 'none' ? 'The roads are yours.' : 'Traffic: ' + this.value + '.');
+    });
+    el['ctl-sound'].addEventListener('change', function () {
+      root.Sources.set({ sound: this.value });
+      // unlock() rather than setMode(): this IS a gesture, so if the graph has
+      // not started yet — the player turned sound on from the landing sheet —
+      // this is the moment it legitimately can.
+      root.Sound.unlock(this.value);
+      note(this.value === 'off' ? 'Silent.' : 'Engine on.');
+    });
     el['ctl-wildlife'].addEventListener('change', function () {
       root.Sources.set({ wildlife: this.value });
       note(this.value === 'on' ? 'Watch for animals on the road.' : 'The roads are empty again.');
@@ -251,6 +265,8 @@
     el['ctl-throttle'].value = root.Sources.current.throttle;
     el['ctl-steering'].value = root.Sources.current.steering;
     el['ctl-wildlife'].value = root.Sources.current.wildlife;
+    el['ctl-traffic'].value = root.Sources.current.traffic;
+    el['ctl-sound'].value = root.Sources.current.sound;
     el['note-steering'].textContent = root.Sources.current.steering === 'tilt'
       ? 'Whatever angle you are holding the phone at when you start becomes straight ahead. Your phone will ask permission the first time.'
       : 'Slide on the pad, or anywhere on the left half of the screen.';
@@ -556,7 +572,7 @@
   function damage(health, crash, amount) {
     // Anything that actually cost condition marks the glass; a scrape along a
     // wall does not, or driving down a narrow street would frost the windscreen.
-    if (amount > 0.8) addImpact(amount);
+    if (amount > 0.8) { addImpact(amount); root.Sound.glass(); }
     if (!crash) return;                       // scrapes do not flash the screen
     el['damage-flash'].classList.remove('hit');
     void el['damage-flash'].offsetWidth;      // restart the animation

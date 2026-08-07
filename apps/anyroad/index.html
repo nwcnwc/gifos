@@ -181,6 +181,30 @@
     </label>
 
     <label class="field">
+      <span>Traffic</span>
+      <select id="ctl-traffic">
+        <option value="none">Empty roads</option>
+        <option value="light">Light</option>
+        <option value="normal">Normal</option>
+        <option value="heavy">Heavy</option>
+      </select>
+      <small>Other cars, driving the same roads you are at whatever that class
+        of road is for. They keep to their side, slow for what is in front of
+        them, and hitting one costs you both.</small>
+    </label>
+
+    <label class="field">
+      <span>Sound</span>
+      <select id="ctl-sound">
+        <option value="on">Engine, tyres, traffic and animals</option>
+        <option value="off">Silent</option>
+      </select>
+      <small>Everything you hear is generated as you drive — there is no audio
+        in the file. The engine has a gearbox, the tyres change with the
+        surface, and animals call from where they actually are.</small>
+    </label>
+
+    <label class="field">
       <span>Wildlife</span>
       <select id="ctl-wildlife">
         <option value="on">Animals on the roads</option>
@@ -260,6 +284,8 @@
 <script src="render.js"></script>
 <script src="car.js"></script>
 <script src="animals.js"></script>
+<script src="traffic.js"></script>
+<script src="sound.js"></script>
 <script src="mp.js"></script>
 <script src="ui.js"></script>
 <script src="app.js"></script>
