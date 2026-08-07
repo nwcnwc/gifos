@@ -70,7 +70,13 @@ const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 // to addScriptTag into, and booting the desktop (index.html) costs an IndexedDB
 // seed that has its own failure modes on old/slow browsers.
 const ORIGIN_PAGE = BASE + '/browser-support.html';
-const ROOM_N = parseInt(process.env.PIPE_ROOM_N || '3', 10);
+// FOUR SEATS, NOT THREE. At C=2 a three-seat room (0/0.0, 0/0.1, 0/1.0) needs
+// no packing at all — everyone is directly linked, mosIn stays empty at every
+// seat and the composite assertion has nothing to be true about. Measured: at
+// N=3 no seat ever holds a composite; at N=4 the row-1 pack (x1) is claimed and
+// painted. A room too small to make a composite would have passed leg C
+// vacuously, which is worse than failing it.
+const ROOM_N = parseInt(process.env.PIPE_ROOM_N || '4', 10);
 
 let failures = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d !== undefined ? '  ' + JSON.stringify(d) : '')); if (!c) failures++; };
@@ -100,7 +106,7 @@ const CAM = (name, hue) => `(() => { const mk = async () => {
   const c=document.createElement('canvas');c.width=240;c.height=426;const x=c.getContext('2d');
   const paint=()=>{x.fillStyle='hsl(${hue},40%,30%)';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.font='bold 22px system-ui';x.textAlign='center';x.fillText(${JSON.stringify(name)},c.width/2,c.height/2);
     x.fillStyle='#ff0';x.fillRect((Date.now()/50)%200,8,18,18);};
-  paint();setInterval(paint,100);const s=c.captureStream(10);
+  paint();setInterval(paint,200);const s=c.captureStream(8);
   try{const ac=new AudioContext();const d=ac.createMediaStreamDestination();for(const t of d.stream.getAudioTracks())s.addTrack(t);}catch(e){}
   return s;};
   if(navigator.mediaDevices){navigator.mediaDevices.getUserMedia=mk;navigator.mediaDevices.getDisplayMedia=mk;}
@@ -195,7 +201,15 @@ async function fallbackRoom(engine, exe, cripple) {
       const p = await ctx.newPage();
       p.on('pageerror', (e) => console.log('  [E' + i + '] PAGEERROR ' + String(e).slice(0, 140)));
       p.on('crash', () => console.log('  [E' + i + '] RENDERER CRASHED'));
-      await p.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
+      // 'load' waits for every image on the page and 30s is playwright's
+      // default: on a contended 4-core box the FOURTH webkit web process took
+      // longer than that and the whole leg died as "the room runs at all"
+      // before a single seat existed — a host fact wearing a product red.
+      // domcontentloaded + the explicit __gifosVideo wait below is both more
+      // generous and more meaningful: it waits for the thing we assert on.
+      await p.goto(BASE + '/run.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: 120000 });
+      await p.waitForFunction(() => !!window.__gifosVideo, null, { timeout: 120000 })
+        .catch(() => console.log('  [E' + i + '] __gifosVideo never appeared within 120s'));
       pages.push(p);
       await sleep(1500);
     }
@@ -213,8 +227,14 @@ async function fallbackRoom(engine, exe, cripple) {
     // mosaic feeds, so every key here arrived from another seat.
     const isComposite = (k) => /^(x\d|sdrow:|sdm)/.test(k);
     const enabled = [];
-    let best = null; // the strongest composite arrival seen anywhere, over time
+    // Every painted composite ever seen, keyed seat:feed, with its first and
+    // latest decoded-frame count. A Map, not a single "best": several seats
+    // claim several composites and they come and go, so a scalar would keep
+    // resetting its own progress window and could never show a counter climb.
+    const seen = new Map();
+    const claimedAnywhere = new Set();
     const tS = Date.now();
+    let live = null;
     while (Date.now() - tS < 150000) {
       for (let i = 0; i < ROOM_N; i++) {
         const s = await pages[i].evaluate(() => ({
@@ -225,17 +245,21 @@ async function fallbackRoom(engine, exe, cripple) {
         enabled[i] = s.en;
         for (const f of s.feeds) {
           if (!isComposite(f.key)) continue;
+          claimedAnywhere.add('E' + i + ':' + f.key);
           if (!(f.vw > 0 && f.ready >= 2 && f.vMuted === false)) continue;
-          const k = i + ':' + f.key;
-          if (!best || best.k !== k) { best = { k, seat: i, key: f.key, w: f.vw, h: f.vh, fr0: f.frames, fr1: f.frames, at: Date.now() }; }
-          else { best.fr1 = f.frames; best.w = f.vw; best.h = f.vh; }
+          const k = 'E' + i + ':' + f.key;
+          const rec = seen.get(k);
+          if (!rec) seen.set(k, { seat: i, key: f.key, w: f.vw, h: f.vh, fr0: f.frames, fr1: f.frames });
+          else { rec.fr1 = f.frames; rec.w = f.vw; rec.h = f.vh; }
         }
       }
       // a live composite is one whose decoded-frame counter is still CLIMBING
-      if (best && best.fr1 > best.fr0 && Date.now() - best.at > 6000) break;
+      live = [...seen.entries()].find(([, r]) => r.fr1 > r.fr0);
+      if (live) break;
       await sleep(3000);
     }
-    return { coords, enabled, best };
+    return { coords, enabled, best: live ? { k: live[0], ...live[1] } : null,
+      painted: [...seen.keys()], claimed: [...claimedAnywhere] };
   } finally { await b.close(); }
 }
 
@@ -319,7 +343,13 @@ async function fallbackRoom(engine, exe, cripple) {
     // feed) and its decoded-frame counter is still climbing on a later sample.
     check('leg C (' + subject.name + '): a COMPOSITE crosses the tree and ARRIVES — content-sized, unmuted, still decoding',
       !!room.best && room.best.w > 0 && room.best.fr1 > room.best.fr0,
-      room.best ? { seat: 'E' + room.best.seat, key: room.best.key, dims: room.best.w + 'x' + room.best.h, frames: room.best.fr0 + '->' + room.best.fr1 } : null);
+      room.best
+        ? { seat: 'E' + room.best.seat, key: room.best.key, dims: room.best.w + 'x' + room.best.h, frames: room.best.fr0 + '->' + room.best.fr1 }
+        // The forensic that tells the two failures apart: NOTHING CLAIMED means
+        // the room never packed a composite (too small / never converged);
+        // claimed-but-never-painted means it arrived dead — the feed exists,
+        // its track does not carry.
+        : { claimedNowhere: room.claimed.length === 0, claimed: room.claimed, painted: room.painted });
   }
 
   // ---- coverage is REPORTED, never silent ----------------------------------
