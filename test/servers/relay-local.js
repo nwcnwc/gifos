@@ -23,6 +23,10 @@ const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 *
 // and suites that shorten the TTL (zombie-genesis) are asserting exactly when
 // an unconverted claim lets go. RELAY_MINT_GRACE_MS overrides for tests.
 const MINT_GRACE_MS = parseInt(process.env.RELAY_MINT_GRACE_MS || String(Math.min(60 * 1000, GREETER_TTL_MS)), 10);
+// Mirrors relay/src/relay.js CLAIM_GRACE_MS — how long a genesis claim survives
+// with no live registration behind it, measured from the registration's EXPIRY.
+// Overridable so a test can collapse the window instead of sleeping 60s.
+const CLAIM_GRACE_MS = parseInt(process.env.RELAY_CLAIM_GRACE_MS || String(Math.min(60 * 1000, GREETER_TTL_MS)), 10);
 
 // RELAY_GREETDEBUG=1 — narrate the greeter registry (R2/R3) on every knock.
 // The registry is the door: when a live room hands a knocker an EMPTY list the
@@ -367,13 +371,18 @@ server.on('upgrade', (req, socket, head) => {
     // zombie socket must not hold a greeterless room founded forever (E3's
     // reopening clause) — AND, per the ghost-genesis rule, only on a
     // connection that has actually BECOME a greeter, or is a founder still
-    // inside its mint grace. See relay/src/relay.js for the full statement.
+    // inside its mint grace. THE STALE-REGISTRATION FIX (2026-08-06): the
+    // lapsed-greeter window is measured from the registration's EXPIRY, not
+    // from the last knock — gblob is never cleared and gseen is refreshed by
+    // every blobless knock, so the old rule renewed itself forever and left the
+    // room founded-with-an-empty-pool. See relay/src/relay.js for the full
+    // statement.
     const now = Date.now();
     for (const c of sess.clients.values()) {
       if (!c.gkh) continue;
-      if (c.gblob && (c.gexp || 0) > now) return c.gkh;                    // a registered greeter, live
-      if (c.gblob && (c.gseen || 0) + GREETER_TTL_MS > now) return c.gkh;  // registered before, still knocking
-      if (!c.gblob && (c.gmint || 0) + MINT_GRACE_MS > now) return c.gkh;  // a founder still taking its seat
+      if (c.gblob && (c.gexp || 0) > now) return c.gkh;                      // a registered greeter, live
+      if (c.gblob && (c.gexp || 0) + CLAIM_GRACE_MS > now) return c.gkh;     // lapsed — bounded re-register window, measured from EXPIRY (a knock cannot extend it)
+      if (!c.gblob && (c.gmint || 0) + MINT_GRACE_MS > now) return c.gkh;    // a founder still taking its seat
     }
     return null;
   };
