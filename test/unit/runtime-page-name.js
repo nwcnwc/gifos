@@ -33,7 +33,10 @@ check('meet.html does NOT exist at the root — the shim stays dead',
   !fs.existsSync(path.join(SITE, 'meet.html')));
 
 // ---- 2. every channel loader addresses snapshots as run.html ---------------
-for (const page of ['site/index.html', 'site/boot.html', 'site/run.html']) {
+// sign.html is in this list because it ships a loader, not because anyone
+// remembered it: WHO ships one is discovered mechanically in
+// test/unit/channel-loader.js, which also proves all four are the same code.
+for (const page of ['site/index.html', 'site/boot.html', 'site/run.html', 'site/sign.html']) {
   const s = code(read(page));
   check(page + ': no code path builds a meet.html address', !/['"`]\/?meet\.html/.test(s));
   check(page + ': the loader builds run.html targets', /['"]\/run\.html#/.test(s) || /\/run\.html/.test(s));
