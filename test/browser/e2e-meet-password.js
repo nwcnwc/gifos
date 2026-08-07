@@ -170,6 +170,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('…and the expired entry is dropped from storage', iSt.stored === '');
   await i.close();
 
+  // ============== A REMEMBERED LOCK IS VISIBLE TO THE HOST ==============
+  // The host side of this trap is silent by construction: her page works, her
+  // room is locked by a password she typed into this room NAME once, and every
+  // guest is turned away at a door she cannot see. Say it while she is alone —
+  // exactly when she is waiting for the guest being refused.
+  const soloRoom = 'pwsolo' + Math.floor(Math.random() * 1e9).toString(36);
+  const J = await newUser('Jo', "localStorage.setItem('gifos_vpw_" + soloRoom + "','kept-key');"
+    + "localStorage.setItem('gifos_vpwat_" + soloRoom + "',String(Date.now()));");
+  const j = await open(J, 'j', 'v=' + soloRoom);
+  let told = false;
+  const tTd = Date.now();
+  while (Date.now() - tTd < 25000 && !told) {
+    told = /locked with a password you saved earlier/.test(await j.evaluate(() => (document.getElementById('status') || {}).textContent || ''));
+    if (!told) await sleep(500);
+  }
+  check('a lock you did not set THIS session is visible while you are alone', told,
+    await j.evaluate(() => (document.getElementById('status') || {}).textContent || ''));
+  await j.close();
+
   // ============================ ADMIN ROOM ============================
   const admRoom = 'pwadm' + Math.floor(Math.random() * 1e9).toString(36);
   const D = await newUser('Dana'); const d = await D.newPage();
@@ -202,6 +221,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('admin room: the password admits the guest', (await e.evaluate(() => window.__gifosVideo.roomPw())) === 'adm-room-key');
   check('admin room: the guest\'s Password button is disabled (admin-managed lock)',
     await e.evaluate(() => document.getElementById('pwbtn').disabled));
+
+  // AN ADMIN'S OWN PASSWORD IS NOT A CANDIDATE. The room empties, a
+  // passwordless member re-founds it (admin rooms always open lockless at the
+  // door), and the returning admin finds a greeter pool she cannot read — R6,
+  // fired at the one person whose stored password IS the room's authority.
+  // Treating it as a guess and dropping it to probe the open key leaves
+  // `roomPw` empty exactly when her signed re-assert reads it: the door never
+  // re-locks and a passwordless stray walks into a room its admin believes is
+  // shut. Caught for real by e2e-video's returning-admin leg while this fix
+  // was being written; pinned here where it runs in two minutes, not fifteen.
+  await d.close(); await e.close();
+  await sleep(1500); // the room empties
+  const F = await newUser('Fay'); const f = await open(F, 'f', 'v=' + admRoom + '&av=' + av);
+  await f.waitForFunction(() => window.__gifosVideo.relayUp(), null, { timeout: 20000 });
+  const d2 = await open(D, 'd2', 'v=' + admRoom + '&av=' + av);       // same context: her admin key AND her stored password
+  await d2.waitForFunction(() => window.__gifosVideo.amAdmin(), null, { timeout: 30000 });
+  check('admin room: the returning admin keeps her password (it is authority, not a guess)',
+    (await d2.evaluate(() => window.__gifosVideo.roomPw())) === 'adm-room-key');
+  await sleep(2500); // her signed setpw re-assert propagates
+  const S = await newUser('Sam'); const s = await open(S, 's', 'v=' + admRoom + '&av=' + av);
+  check('admin room: …so the door re-locks and a passwordless stray is challenged',
+    await waitModal(s, true, 25000));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

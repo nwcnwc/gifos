@@ -6102,6 +6102,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // (stored admin key) is exempt: her signed re-assert IS the authority,
       // and dropping her key first would make her re-assert an empty lock.
       pwProvisional = !!(av && roomPw && !admKey);
+      // …AND THE OPEN-KEY PROBE IS EXEMPT FOR THE SAME REASON (2026-08-06).
+      // An admin returning to her own evicted room finds it re-founded on the
+      // OPEN key by whoever arrived first, so nothing she can read is in the
+      // greeter pool and R6 fires at her. Treating her password as a CANDIDATE
+      // there and dropping it would leave `roomPw` empty exactly when the
+      // signed re-assert reads it — the door would stay open and a
+      // passwordless stray would walk into a room its admin believes is
+      // locked. (Caught by e2e-video's "the returning admin re-locks the
+      // door" leg, which is what that leg is for.) Her stored password is not
+      // a guess: it is the authority she is about to prove.
+      if (av && admKey) pwFromStore = false;
       const relay = relayUrl();
       const custom = relay && relay !== window.GIFOS_RELAY;
       const avPart = (av ? '&av=' + av : '') + (BROADCAST ? '&bc=1' : '');
