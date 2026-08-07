@@ -606,7 +606,7 @@
       '}',
     ].join('\n'), [
       'precision highp float;',
-      'uniform vec3 uLightDir; uniform vec3 uEye; uniform float uGloss;',
+      'uniform vec3 uLightDir; uniform vec3 uEye; uniform float uGloss; uniform float uEmit;',
       'varying vec3 vNormal; varying vec3 vColor; varying vec3 vWorld;',
       FOG, LIGHTING,
       'void main(){',
@@ -619,7 +619,9 @@
       '  vec3 vd = normalize(uEye - vWorld);',
       '  float spec = pow(max(dot(n, normalize(vd + l)), 0.0), 54.0) * uGloss;',
       '  float rim = pow(1.0 - clamp(dot(n, vd), 0.0, 1.0), 3.5) * 0.22 * uGloss;',
-      '  gl_FragColor = vec4(finish(lit + vec3(spec) + uSkyFill * rim), 1.0);',
+      // uEmit makes the same program draw things that GLOW. A blaster bolt lit
+      // like bodywork is a small grey box.
+      '  gl_FragColor = vec4(finish(lit + vec3(spec) + uSkyFill * rim + vColor * uEmit), 1.0);',
       '}',
     ].join('\n'));
 
@@ -894,7 +896,33 @@
     };
   }
 
-  var carMesh = null, carGL = null, animalGL = null;
+  // A gun on the roof. Deliberately chunky and slightly comic — this is a
+  // driving game with a blaster on it, not a weapons platform.
+  function buildBlasterMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    var body = [0.32, 0.34, 0.40], barrel = [0.18, 0.19, 0.22], glow = [0.45, 0.85, 1.0];
+    boxInto(o, 0, 1.60, -0.10, 0.26, 0.10, 0.34, body);       // mount on the roof
+    boxInto(o, 0, 1.74, 0.30, 0.10, 0.10, 0.62, barrel);      // barrel forward
+    boxInto(o, 0, 1.74, 0.94, 0.13, 0.13, 0.08, glow);        // muzzle ring
+    boxInto(o, -0.20, 1.72, -0.02, 0.05, 0.06, 0.20, glow);   // cell either side
+    boxInto(o, 0.20, 1.72, -0.02, 0.05, 0.06, 0.20, glow);
+    return {
+      positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+      colors: new Float32Array(o.col), indices: new Uint16Array(o.idx), count: o.idx.length,
+    };
+  }
+
+  // One box, stretched along its length by uShape into a bolt.
+  function buildBoltMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    boxInto(o, 0, 0, 0, 1, 1, 1, [0.55, 0.95, 1.0]);
+    return {
+      positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+      colors: new Float32Array(o.col), indices: new Uint16Array(o.idx), count: o.idx.length,
+    };
+  }
+
+  var carMesh = null, carGL = null, animalGL = null, blasterGL = null, boltGL = null;
 
   function uploadBody(mesh) {
     var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count, type: gl.UNSIGNED_SHORT };
@@ -919,6 +947,16 @@
   function uploadAnimal() {
     if (!animalGL) animalGL = uploadBody(buildAnimalMesh());
     return animalGL;
+  }
+
+  function uploadBlaster() {
+    if (!blasterGL) blasterGL = uploadBody(buildBlasterMesh());
+    return blasterGL;
+  }
+
+  function uploadBolt() {
+    if (!boltGL) boltGL = uploadBody(buildBoltMesh());
+    return boltGL;
   }
 
   // ---- shadow quad ---------------------------------------------------------
@@ -1145,6 +1183,7 @@
       gl.uniform3fv(progs.car.u.uTint, ONE);
       gl.uniform3fv(progs.car.u.uShape, ONE);
       gl.uniform1f(progs.car.u.uGloss, 0);
+      gl.uniform1f(progs.car.u.uEmit, 0);
       // CULLED, like everything else. Drawing foliage double-sided was worth
       // trying — a canopy is a shell of leaves, not a solid — but it doubles
       // the fill of the most numerous object in the scene for a difference
@@ -1219,6 +1258,7 @@
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cg.ibo);
       gl.uniform3fv(progs.car.u.uShape, ONE);
       gl.uniform1f(progs.car.u.uGloss, 1);
+      gl.uniform1f(progs.car.u.uEmit, 0);
       for (var c = 0; c < scene.cars.length; c++) {
         var car = scene.cars[c];
         carMatrix(m, car.x, car.y, car.z, car.yaw, car.pitch || 0, car.roll || 0);
@@ -1226,6 +1266,66 @@
         gl.uniform3fv(progs.car.u.uTint, car.tint || [0.85, 0.25, 0.25]);
         gl.drawElements(gl.TRIANGLES, cg.count, cg.type, 0);
       }
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
+      });
+
+      // The blaster, on whichever cars carry one. Same program, same matrix —
+      // it is bolted to the roof, so it takes the car's pitch and roll for
+      // free and never has to be kept in step with anything.
+      var armed = scene.cars.filter(function (c) { return c.blaster; });
+      if (armed.length) {
+        var bg = uploadBlaster();
+        ['aPos','aNormal','aColor'].forEach(function (name) {
+          var loc = progs.car.a[name];
+          if (loc === undefined || loc < 0) return;
+          gl.bindBuffer(gl.ARRAY_BUFFER, bg.vbo[name]);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+        });
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bg.ibo);
+        gl.uniform3fv(progs.car.u.uTint, ONE);
+        gl.uniform1f(progs.car.u.uGloss, 0.8);
+        for (var ar = 0; ar < armed.length; ar++) {
+          var a1 = armed[ar];
+          carMatrix(m, a1.x, a1.y, a1.z, a1.yaw, a1.pitch || 0, a1.roll || 0);
+          gl.uniformMatrix4fv(progs.car.u.uModel, false, m);
+          gl.drawElements(gl.TRIANGLES, bg.count, bg.type, 0);
+        }
+        ['aPos','aNormal','aColor'].forEach(function (name) {
+          var loc = progs.car.a[name];
+          if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
+        });
+      }
+    }
+
+    // Blaster bolts: emissive, so they read as light rather than as small grey
+    // boxes travelling very fast.
+    var bolts = scene.bolts || [];
+    if (bolts.length) {
+      var tg = uploadBolt();
+      common(progs.car);
+      var bm = mat4();
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc === undefined || loc < 0) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, tg.vbo[name]);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      });
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, tg.ibo);
+      gl.uniform3fv(progs.car.u.uTint, ONE);
+      gl.uniform1f(progs.car.u.uGloss, 0);
+      gl.uniform1f(progs.car.u.uEmit, 1.7);
+      gl.uniform3fv(progs.car.u.uShape, [0.10, 0.10, 1.5]);
+      for (var bo = 0; bo < bolts.length; bo++) {
+        carMatrix(bm, bolts[bo].x, bolts[bo].y, bolts[bo].z, bolts[bo].yaw, 0, 0);
+        gl.uniformMatrix4fv(progs.car.u.uModel, false, bm);
+        gl.drawElements(gl.TRIANGLES, tg.count, tg.type, 0);
+      }
+      gl.uniform1f(progs.car.u.uEmit, 0);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
       ['aPos','aNormal','aColor'].forEach(function (name) {
         var loc = progs.car.a[name];
         if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
@@ -1247,6 +1347,7 @@
       });
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ag.ibo);
       gl.uniform1f(progs.car.u.uGloss, 0.10);      // fur is not paint
+      gl.uniform1f(progs.car.u.uEmit, 0);
       for (var an = 0; an < animals.length; an++) {
         var b0 = animals[an];
         carMatrix(am, b0.x, b0.y, b0.z, b0.yaw, b0.tilt || 0, 0);

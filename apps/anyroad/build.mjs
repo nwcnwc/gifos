@@ -18,7 +18,7 @@ const manifest = JSON.parse(read('manifest.json'));
 // Script order matters: each module attaches itself to window and the ones
 // after it read what came before. index.html lists them in the same order.
 const SCRIPTS = ['host.js', 'geo.js', 'sources.js', 'net.js', 'terrain.js',
-                 'roads.js', 'render.js', 'car.js', 'animals.js', 'traffic.js', 'sound.js', 'mp.js', 'ui.js', 'app.js'];
+                 'roads.js', 'render.js', 'car.js', 'animals.js', 'traffic.js', 'blaster.js', 'sound.js', 'mp.js', 'ui.js', 'app.js'];
 
 const files = { 'manifest.json': JSON.stringify(manifest),
                 'index.html': read('index.html'),

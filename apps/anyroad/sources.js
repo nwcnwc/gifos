@@ -93,6 +93,7 @@
     wildlife: 'on',         // deer, sheep, geese — and the damage they cost
     traffic: 'normal',      // 'none' | 'light' | 'normal' | 'heavy'
     sound: 'on',            // engine, tyres, traffic, animals. No music.
+    blaster: 'on',          // the gun on the roof, and space/tap to fire it
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -112,6 +113,7 @@
         if (rec.wildlife === 'on' || rec.wildlife === 'off') current.wildlife = rec.wildlife;
         if (['none', 'light', 'normal', 'heavy'].indexOf(rec.traffic) >= 0) current.traffic = rec.traffic;
         if (rec.sound === 'on' || rec.sound === 'off') current.sound = rec.sound;
+        if (rec.blaster === 'on' || rec.blaster === 'off') current.blaster = rec.blaster;
       }
       return current;
     }).catch(function () { return current; });

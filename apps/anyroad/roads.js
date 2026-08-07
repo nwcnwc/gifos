@@ -285,7 +285,12 @@
   //
   // Split every segment so no piece is longer than one terrain post. Costs
   // vertices on long straights, which is exactly where they were missing.
-  var ROAD_STEP = 8;
+  // SIX metres, not eight or ten, and the reason is latitude. A z14 terrain
+  // tile is 2.4 km of ground at the equator but shrinks by cos(lat) — in Paris
+  // it is about 1.6 km, so its 256 posts are 6.2 m apart, not 9.4. A step
+  // chosen against the equator undersamples every city in Europe, which is
+  // where the grass was coming through.
+  var ROAD_STEP = 6;
 
   function densify(pts, step) {
     if (pts.length < 2) return pts;
@@ -358,24 +363,41 @@
     // the edge of a flat ribbon leaves a hairline of grass lying over it. A
     // short vertical band hanging from each kerb hides that from every angle
     // for two quads per cross-section, and doubles as the kerb face.
-    var skirtBase = out.pos.length / 3;
+    // ONLY WHERE IT IS NEEDED. A skirt down every kerb of every road TRIPLES
+    // the road geometry — measured, 12,960 indices a tile became 77,760 — and
+    // on flat ground it hides nothing, because there is nothing above the
+    // tarmac to hide. Sample the ground just outside each kerb: if it sits
+    // below the carriageway, that side needs no skirt at all, which is most of
+    // every town.
+    var need = [];
     for (var q = 0; q < n; q++) {
       var lq = left[q], rq = right[q];
       var ly = groundAt(frame, lq.x, lq.z, lift), ry = groundAt(frame, rq.x, rq.z, lift);
-      out.pos.push(lq.x, ly, lq.z, lq.x, ly - SKIRT, lq.z,
-                   rq.x, ry, rq.z, rq.x, ry - SKIRT, rq.z);
-      for (var m = 0; m < 4; m++) {
-        out.uv.push(0, m < 2 ? 0.02 : 0.98);
-        out.tone.push(tone);
-        out.rinfo.push(surface || 0, lanes || 2);
-      }
+      var lo = groundAt(frame, lq.x + (lq.x - pts[q].x) * 0.22, lq.z + (lq.z - pts[q].z) * 0.22, 0);
+      var ro = groundAt(frame, rq.x + (rq.x - pts[q].x) * 0.22, rq.z + (rq.z - pts[q].z) * 0.22, 0);
+      need.push({ l: lo > ly - 0.08, r: ro > ry - 0.08, ly: ly, ry: ry });
     }
     for (var t2 = 0; t2 < n - 1; t2++) {
-      var L0 = skirtBase + t2 * 4, L1 = L0 + 1, L2 = L0 + 4, L3 = L0 + 5;
-      out.idx.push(L0, L1, L2, L1, L3, L2);
-      var R0 = L0 + 2, R1 = L0 + 3, R2 = L0 + 6, R3 = L0 + 7;
-      out.idx.push(R0, R2, R1, R1, R2, R3);
+      var a2 = need[t2], b2 = need[t2 + 1];
+      if (a2.l || b2.l) skirtQuad(out, left[t2], a2.ly, left[t2 + 1], b2.ly, tone, surface, lanes, 0.02);
+      if (a2.r || b2.r) skirtQuad(out, right[t2], a2.ry, right[t2 + 1], b2.ry, tone, surface, lanes, 0.98);
     }
+  }
+
+  // One hanging quad under a stretch of kerb.
+  function skirtQuad(out, p0, y0, p1, y1, tone, surface, lanes, v) {
+    var b = out.pos.length / 3;
+    out.pos.push(p0.x, y0, p0.z, p0.x, y0 - SKIRT, p0.z,
+                 p1.x, y1, p1.z, p1.x, y1 - SKIRT, p1.z);
+    for (var i = 0; i < 4; i++) {
+      out.uv.push(0, v);
+      out.tone.push(tone);
+      out.rinfo.push(surface || 0, lanes || 2);
+    }
+    // Both windings, because which way a kerb faces depends on which side of
+    // the road it is and the culling rule is global.
+    out.idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+    out.idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
   }
   var SKIRT = 0.55;   // metres of kerb face hanging below the carriageway
 

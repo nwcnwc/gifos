@@ -34,7 +34,7 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','minimap','mapcanvas','map-scale',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','minimap','mapcanvas','map-scale',
      'street','passing','recent',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
@@ -268,6 +268,11 @@
       root.Sound.unlock(this.value);
       note(this.value === 'off' ? 'Silent.' : 'Engine on.');
     });
+    el['ctl-blaster'].addEventListener('change', function () {
+      root.Sources.set({ blaster: this.value });
+      root.Blaster.setEnabled(this.value !== 'off');
+      note(this.value === 'off' ? 'Blaster removed.' : 'Blaster fitted — space, or tap the screen.');
+    });
     el['ctl-wildlife'].addEventListener('change', function () {
       root.Sources.set({ wildlife: this.value });
       note(this.value === 'on' ? 'Watch for animals on the road.' : 'The roads are empty again.');
@@ -330,6 +335,7 @@
     el['ctl-wildlife'].value = root.Sources.current.wildlife;
     el['ctl-traffic'].value = root.Sources.current.traffic;
     el['ctl-sound'].value = root.Sources.current.sound;
+    el['ctl-blaster'].value = root.Sources.current.blaster;
     el['note-steering'].textContent = root.Sources.current.steering === 'tilt'
       ? 'Whatever angle you are holding the phone at when you start becomes straight ahead. Your phone will ask permission the first time.'
       : 'Slide on the pad, or anywhere on the left half of the screen.';
