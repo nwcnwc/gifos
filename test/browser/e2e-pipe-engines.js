@@ -124,7 +124,11 @@ async function capsOf(engine, exe) {
   const b = await pw[engine].launch(launchOpts(engine, exe));
   try {
     const p = await (await b.newContext()).newPage();
-    await p.goto(ORIGIN_PAGE);
+    // playwright's DEFAULT goto timeout is 30s and this page is two files.
+    // Measured 2026-08-07 at loadavg 13: firefox AND webkit both blew it just
+    // launching, leg A reported "the capability page loads" FAIL for both, and
+    // the box's load became a product red. Nothing here is a latency test.
+    await p.goto(ORIGIN_PAGE, { timeout: 120000 });
     await p.addScriptTag({ url: '/js/mesh-pipe.js' });
     return await p.evaluate(() => ({
       ua: navigator.userAgent.slice(0, 90),
@@ -143,7 +147,7 @@ async function moduleChain(engine, exe) {
   try {
     const page = await (await b.newContext()).newPage();
     page.on('pageerror', (e) => console.log('  [' + engine + '] PAGEERROR ' + String(e).slice(0, 160)));
-    await page.goto(ORIGIN_PAGE);
+    await page.goto(ORIGIN_PAGE, { timeout: 120000 });
     await page.addScriptTag({ url: '/js/mesh-pipe.js' });
     return await page.evaluate(async () => {
       const MP = GifOS.meshPipe;
@@ -381,10 +385,25 @@ async function fallbackRoom(engine, exe, cripple) {
     || engines.find((e) => e.name === 'webkit' && caps.webkit && !caps.webkit.transform)
     || engines.find((e) => caps[e.name] && !caps[e.name].transform);
   if (pin && !subject) { check('PIPE_ROOM_ENGINE names an installed engine', false, { pin, installed: engines.map((e) => e.name) }); }
-  const cripple = !subject || !!(subject && caps[subject.name] && caps[subject.name].transform);
   if (!subject) subject = engines[0];
+  // CRIPPLE UNLESS THE GAP IS POSITIVELY MEASURED. The first version read
+  // `caps[subject].transform` as a truthy test, so an engine whose capability
+  // read FAILED — caps entry missing entirely — came out as "gap=NATIVE" and
+  // the room ran with no cripple at all. Measured 2026-08-07: firefox's
+  // capability page timed out at loadavg 13, and leg C then announced
+  // "engine=firefox gap=NATIVE (this engine genuinely has no
+  // RTCRtpScriptTransform)" about the one engine here that HAS it. Had the
+  // room come up, the leg would have printed PASS while exercising the lane it
+  // claims is off — a guard that tests the opposite of its own sentence.
+  // So: NATIVE requires `transform === false`, measured. Unknown means
+  // simulate, and say the reason out loud.
+  const known = caps[subject.name];
+  const cripple = !(known && known.transform === false);
+  check('leg C: the subject engine had its capability actually MEASURED (an unread engine can never be called a native gap)',
+    !!known, { engine: subject.name, note: 'capsOf failed for this engine — leg C is falling back to the SIMULATED gap, which is correct but is not the coverage this box could give' });
   console.log('  [leg C] engine=' + subject.name + (cripple
-    ? '  gap=SIMULATED (RTCRtpScriptTransform deleted before page scripts — every installed engine has it)'
+    ? '  gap=SIMULATED (RTCRtpScriptTransform deleted before page scripts) because '
+      + (!known ? 'this engine\'s capability was never read' : 'this engine HAS the transform')
     : '  gap=NATIVE (this engine genuinely has no RTCRtpScriptTransform)'));
 
   let room;
