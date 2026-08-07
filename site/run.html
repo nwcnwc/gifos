@@ -11323,12 +11323,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (p) { try { p.dc && p.dc.close(); } catch (e) {} try { p.pc && p.pc.close(); } catch (e) {} }
         return { ok: true, severed: String(pid).slice(0, 8), ms: ms || 20000 };
       },
+      // THE ONE pwState. It answers two different questions and both callers
+      // are gates, so they live in ONE object literal — a second `pwState:`
+      // key later in this same literal does not extend it, it DELETES this one
+      // (last key wins), and every field the other caller reads comes back
+      // `undefined`. That is exactly what happened: 31b7617 appended a §LOCK
+      // pwState down beside relaySend, and e2e-pw-heal's `epoch`/`rekeyAt`
+      // silently became undefined — the drill read `ep1 >= 1` as false and
+      // died on the next wait. Nothing in the product was broken. Add fields
+      // HERE; test/unit/debug-api-keys.js fails the build if anyone appends a
+      // duplicate key to this API again.
+      //
       // rekeyAt: when the CURRENT key actually took over (0 = never rotated
       // this page-life). storePw flips .pw BEFORE the async derive completes,
       // so ".pw changed" alone is a race — a frame sealed under the new key
       // in that window drops silently (events aren't re-minted). Tests that
       // speak after a rotation must gate on rekeyAt advancing, not on .pw.
-      pwState: () => ({ pw: roomPw || '', epoch: pwEpoch, havePrevKey: !!prevRoomE2E, haveGrant: !!retainedGrant, rekeyAt }),
+      //
+      // fromStore/probe/held/stored/storedAt: §LOCK forensics — is the
+      // password I hold this room's own word, or one I merely REMEMBERED under
+      // its name, and where did the open-key probe get to. e2e-meet-password
+      // reads these to prove the divergence heal.
+      pwState: () => ({ pw: roomPw || '', epoch: pwEpoch, havePrevKey: !!prevRoomE2E, haveGrant: !!retainedGrant, rekeyAt,
+        fromStore: pwFromStore, probe: pwProbe, held: !!pwHeld,
+        stored: (() => { try { return localStorage.getItem(pwKey()) || ''; } catch (e) { return ''; } })(),
+        storedAt: (() => { try { return parseInt(localStorage.getItem(pwAtKey()), 10) || 0; } catch (e) { return 0; } })() }),
       // Stager upload collapse: my MAIN senders (v/a) per peer — 'parked'
       // while I'm staged — plus each peer tile's visibility.
       mainSenders: () => Array.from(peers.values()).map((p) => ({
@@ -11566,12 +11585,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       mainAudioSending: (pid) => { const p = peers.get(pid); return !!(p && p.mainA && p.mainA.track); },
       room: () => room,
       roomPw: () => roomPw,
-      // §LOCK forensics: is the password I hold this room's own word, or one I
-      // merely REMEMBERED under its name — and where did the open-key probe get
-      // to. e2e-meet-password reads this to prove the divergence heal.
-      pwState: () => ({ pw: roomPw, fromStore: pwFromStore, probe: pwProbe, held: !!pwHeld,
-        stored: (() => { try { return localStorage.getItem(pwKey()) || ''; } catch (e) { return ''; } })(),
-        storedAt: (() => { try { return parseInt(localStorage.getItem(pwAtKey()), 10) || 0; } catch (e) { return 0; } })() }),
+      // (§LOCK's pwState fields were merged into the single pwState above —
+      // a second key here shadowed the heal fields off the API entirely.)
       // DEBUG: put a raw object on the relay socket. The client refuses to
       // SEND orders it knows it cannot issue (a non-admin setpw), so proving
       // the RELAY's own gate needs a path around the client's — this is it.
