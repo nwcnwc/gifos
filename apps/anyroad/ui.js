@@ -356,6 +356,10 @@
     var txt = lines.join(' · ');
     if (el.attribution) el.attribution.textContent = txt;
     if (el.attribution2) el.attribution2.textContent = txt;
+    // …and on the drive HUD itself, because attribution that disappears the
+    // moment the data appears is not attribution (ODbL; MapTiler ToS).
+    var hudEl = $('attribution3');
+    if (hudEl) hudEl.textContent = lines.slice(0, 3).join(' · ');
   }
 
   function refreshCacheSize() {
