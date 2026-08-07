@@ -202,28 +202,71 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // 36s; a feed whose decoded-frame counter stalls >=12s while its track is
     // live and unmuted is the freeze (old code: recurring 14-20s stalls at
     // healthy fps, 120s+ at crawl fps — either trips this).
+    //
+    // TWO CORRECTIONS TO THE DETECTOR (2026-08-06, measured — the assertion is
+    // unchanged, its inputs are):
+    //
+    // 1. A CLAIM SWAP IS NOT A FREEZE. `feedsInfo().frames` is the ELEMENT's
+    //    totalVideoFrames, and a redundancy swap (failover/failback, or an
+    //    announcer re-shipping a new container) installs a NEW <video> whose
+    //    counter restarts at zero. The old rule then waited for the new element
+    //    to climb past the OLD element's total — tens of seconds at 15fps —
+    //    and called that a 12s bright freeze. Measured on clawbox: of three
+    //    stalls reported in one run, TWO were exactly this, at seats that were
+    //    decoding perfectly on a fresh container. So key the baseline by
+    //    (via, streamId) and re-baseline when the container changes.
+    // 2. SAY WHETHER THE PIPE WAS DELIVERING. The dossier
+    //    (docs/bug-pipe-stg-freeze-2026-08-05.md) could not tell a starved
+    //    decoder from a dark pipe. Carry inbound BYTES for the slot across the
+    //    stall, and grab that flow's framesDecoded/keyFramesDecoded when it
+    //    fires. That is what turned "some feeds freeze" into the real shape:
+    //    25-50 kB arriving during a 13s freeze with keyFramesDecoded flat —
+    //    bytes without a decodable frame, not a pipe that went quiet.
     {
       const stalls = [];
-      const last = new Map(); // `${i}:${key}` -> { fr, at }
+      const swaps = [];       // container changes seen (the churn, printed not asserted)
+      const last = new Map(); // `${i}:${key}` -> { fr, at, via, sid, b0 }
       const tW0 = Date.now();
+      const snap = (i) => pages[i].evaluate(async () => {
+        const m = __gifosVideo.mosaic();
+        const sidOf = new Map((m.claimVia || []).map((c) => [c.rk, String(c.sid).slice(0, 8)]));
+        const st = await __gifosVideo.avStats();
+        const bytes = {};
+        for (const s of st) if (s.dir === 'in' && s.slot) bytes[s.slot] = (bytes[s.slot] || 0) + (s.bytes || 0);
+        return __gifosVideo.feedsInfo().filter((f) => f.key.indexOf('stg:') === 0 || f.key === 'sgs')
+          .map((f) => ({ key: f.key, fr: f.frames, vw: f.vw, muted: f.vMuted, state: f.vState,
+            via: f.via, sid: sidOf.get(f.key) || '?', b: bytes['in:' + f.key] || 0 }));
+      }).catch(() => []);
       while (Date.now() - tW0 < 36000) {
         for (let i = 0; i < N; i++) {
-          const feeds = await pages[i].evaluate(() =>
-            __gifosVideo.feedsInfo().filter((f) => f.key.indexOf('stg:') === 0 || f.key === 'sgs')
-              .map((f) => ({ key: f.key, fr: f.frames, vw: f.vw, muted: f.vMuted, state: f.vState }))).catch(() => []);
+          const feeds = await snap(i);
           for (const f of feeds) {
             const k = i + ':' + f.key;
             const rec = last.get(k);
             const bright = f.vw > 0 && f.state === 'live' && f.muted === false;
-            if (!rec || f.fr > rec.fr) { last.set(k, { fr: f.fr, at: Date.now() }); continue; }
+            if (!rec) { last.set(k, { fr: f.fr, at: Date.now(), via: f.via, sid: f.sid, b0: f.b }); continue; }
+            if (rec.via !== f.via || rec.sid !== f.sid) {   // new container: a new decoder, a new baseline
+              swaps.push({ seat: 'P' + i, key: f.key.slice(0, 14), atS: Math.round((Date.now() - tW0) / 1000),
+                from: rec.via + '/' + rec.sid, to: f.via + '/' + f.sid });
+              last.set(k, { fr: f.fr, at: Date.now(), via: f.via, sid: f.sid, b0: f.b });
+              continue;
+            }
+            if (f.fr > rec.fr) { rec.fr = f.fr; rec.at = Date.now(); rec.b0 = f.b; continue; }
             if (bright && Date.now() - rec.at >= 12000 && !rec.hit) {
               rec.hit = true;
-              stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at });
+              const kf = await pages[i].evaluate(async (key) => {
+                const r = (await __gifosVideo.kfStats()).find((x) => x.dir === 'in' && x.slot === 'in:' + key);
+                return r ? { fdec: r.fdec, kdec: r.kdec } : null;
+              }, f.key).catch(() => null);
+              stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf });
             }
           }
         }
         await sleep(2000);
       }
+      console.log('   MEASURE container swaps on stg/sgs claims during the 36s window: ' + swaps.length
+        + (swaps.length ? '  ' + JSON.stringify(swaps) : ''));
       check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0, { stalls });
       // and the stager's own stg encode never parks into silence while staged
       const stEnc = await pages[deepIdx0].evaluate(async () => {
