@@ -247,6 +247,22 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // swap inside the window. What remains is unambiguous — bytes on a pipe that
   // was parked, and demanded parked, for ten seconds.
   //
+  // AND A RATE IS ONLY EVER AS GOOD AS THE LABEL ON IT. This leg's 0.9.5 gate
+  // red was a PHANTOM row, and here is one caught in the act (pi, 2026-08-07,
+  // dual-label build, the fixed and the old labeller side by side at seat P2):
+  //
+  //   real standby   : k_f199 video mid=10 trk=99005e2b   std:stg:<S>
+  //   PHANTOM        : k_278e video mid=11 trk=99005e2b   OLD std:stg:<S>
+  //                                                       FIXED  null
+  //
+  // A different PEER, a different m-line, no mosaic slot of its own — wearing
+  // the standby's label only because a relay hop with the encoded-passthrough
+  // lane off forwards the ORIGINAL track, so one trackIdentifier is on every
+  // copy in the room, and avStats' id-keyed fallback handed it whichever slot
+  // tagged that id last (mosStandby is tagged second). That phantom was at 0
+  // B/s in this run; at the gate it was at 101 kB/s and this leg reported a
+  // ONE-PIPE violation that never happened. See the run.html fix (2a82fb3).
+  //
   // The retry criterion changes with it. It used to be `stdHot === 0`, i.e.
   // re-roll whenever the assertion failed, which is circular; now it is "the
   // window yielded a measurable, role-stable standby at all" — a manufacture
