@@ -242,11 +242,17 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     await sleep(8000);
     const s2 = await pages[OBS].page.evaluate(async () => ({ t: Date.now(), st: await __gifosVideo.avStats() }));
     const dt = (s2.t - s1.t) / 1000;
-    const am = new Map(s1.st.filter((s) => s.dir === 'in').map((s) => [s.pid + '|' + s.trk, s]));
+    // Key the baseline by the RTP FLOW (m-line), not by (pid, track): a relay
+    // hop with the encoded-passthrough lane off forwards the ORIGINAL remote
+    // track, so one peer can carry the same trackIdentifier on several m-lines
+    // and this map silently keeps only the last. Same defect redun-drill's leg
+    // A was red on at the 0.9.5 gate (2026-08-07).
+    const flowKey = (s) => s.pid + '|' + (s.mid != null ? 'm' + s.mid : 't' + s.trk);
+    const am = new Map(s1.st.filter((s) => s.dir === 'in').map((s) => [flowKey(s), s]));
     let inB = 0, stdB = 0;
     for (const s of s2.st) {
       if (s.dir !== 'in') continue;
-      const p = am.get(s.pid + '|' + s.trk); if (!p) continue;
+      const p = am.get(flowKey(s)); if (!p) continue;
       const bps = ((s.bytes || 0) - (p.bytes || 0)) / dt;
       if (s.slot === 'in:sdn') inB += bps; if (s.slot === 'std:sdn') stdB += bps;
     }

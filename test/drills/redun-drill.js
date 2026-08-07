@@ -40,6 +40,14 @@ const RELAY = 'ws://127.0.0.1:' + RELAY_PORT;
 const BASE = 'http://127.0.0.1:' + SITE_PORT;
 const N = parseInt(process.env.DRILL_N || '6', 10); // 6 @ C=2 = full S1 + a deep row (sdrow + stg + sgs redundancy live) — light enough for a loaded box
 const GRACE_MS = 5000;
+// DRILL_PIPE=off runs the room the way the RELEASE GATE runs it. The gate pins
+// MEET_CHROME to chromium-1193 (Chrome 140), which has no RTCRtpScriptTransform,
+// so the encoded-passthrough lane is dead there and every relay hop transcodes.
+// A box whose only Chromium is current cannot reach that state by choosing a
+// binary — `gifos_pipe=off` is the same switch the product reads, and it is the
+// only way to A/B the gate's media plane off-gate. Default: whatever the browser
+// supports (i.e. what a real user gets).
+const PIPE = (process.env.DRILL_PIPE || '').toLowerCase();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
@@ -82,7 +90,9 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     for (let a = 0; ; a++) {
       const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
       await ctx.addInitScript({ content: 'window.GIFOS_SCALE={C:2};'
-        + `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','${name}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}` });
+        + `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','${name}');localStorage.setItem('gifos_meet_bar','0');`
+        + (PIPE === 'off' ? `localStorage.setItem('gifos_pipe','off');` : '')
+        + `}catch(e){}` });
       const page = await ctx.newPage();
       try {
         await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: 90000 });
@@ -110,6 +120,16 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   check('all ' + N + ' seated', coords.every(Boolean), coords.every(Boolean) ? coords
     : { coords, relayAlive: relayGone === null, relayExit: relayGone, relayErr: relayErr.slice(-200), loadavg: loadNow() });
   console.log('seats: ' + pages.map((e, i) => e.name + '@' + coords[i]).join(' '));
+  // WHICH MEDIA PLANE DID WE JUST MEASURE? The encoded-passthrough pipe lane
+  // needs RTCRtpScriptTransform, which the release gate's MEET_CHROME pin
+  // (chromium-1193 = Chrome 140) does NOT have — so the gate measures a room
+  // where every relay hop TRANSCODES, and a dev box on a current Chromium
+  // measures one where every hop forwards encoded frames. Those are different
+  // products in this drill's exact subject matter, and a run that does not say
+  // which one it took is a measurement nobody can compare with another.
+  const pipeOn = await pages[0].page.evaluate(() => { try { return __gifosVideo.pipeInfo().enabled; } catch (e) { return null; } }).catch(() => null);
+  console.log('media plane: encoded-passthrough pipe lane is ' + (pipeOn ? 'ON' : 'OFF')
+    + ' (chrome=' + (await pages[0].page.evaluate(() => navigator.userAgent.match(/Chrome\/(\d+)/) ? RegExp.$1 : '?').catch(() => '?')) + ')');
 
   // one NON-HEAD page steps on Stage (its stg:* feed then fans/floods
   // room-wide — up the tree, S1 flood, down every branch). Prefer a DEEP
@@ -232,20 +252,30 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // window yielded a measurable, role-stable standby at all" — a manufacture
   // question, decided independently of the outcome.
   let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0, hotWhy = [], stdChurn = [];
+  let lastS1 = null, lastS2 = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const s1 = await Promise.all(pages.map(sample));
     await sleep(SPAN * 1000);
     const s2 = await Promise.all(pages.map(sample));
+    lastS1 = s1; lastS2 = s2;
     priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0; hotWhy = []; stdChurn = [];
     const rates = [];
     for (let i = 0; i < N; i++) {
       const a = s1[i], b = s2[i]; if (!a || !b) continue;
       const dt = (b.t - a.t) / 1000;
-      const am = new Map(a.st.filter((s) => s.dir === 'in').map((s) => [s.pid + '|' + s.trk, s]));
+      // A RATE IS PER RTP FLOW, AND (pid, track) DOES NOT NAME ONE. A relay hop
+      // with the encoded-passthrough lane off forwards the ORIGINAL remote
+      // track, so one peer can carry the same trackIdentifier on several
+      // m-lines; keying the baseline by track then subtracts one flow's byte
+      // count from another's and invents rates out of nothing. The m-line does
+      // name a flow — key by it, and fall back to the track only when a stats
+      // row has no mid at all.
+      const flowKey = (s) => s.pid + '|' + (s.mid != null ? 'm' + s.mid : 't' + s.trk);
+      const am = new Map(a.st.filter((s) => s.dir === 'in').map((s) => [flowKey(s), s]));
       const bySlot = new Map(); // slot -> B/s (video+audio summed)
       for (const s of b.st) {
         if (s.dir !== 'in' || !s.slot) continue;
-        const p = am.get(s.pid + '|' + s.trk); if (!p) continue;
+        const p = am.get(flowKey(s)); if (!p) continue;
         bySlot.set(s.slot, (bySlot.get(s.slot) || 0) + ((s.bytes || 0) - (p.bytes || 0)) / dt);
       }
       for (const [slot, bps] of bySlot) {
@@ -265,6 +295,7 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         const d1 = demOf(a.m, sv1), d2 = demOf(b.m, sv2);
         const why = {
           seat: pages[i].name, slot, bps: Math.round(bps),
+          via: (sv2 || sv1 || {}).via || null, sid: (sv2 || sv1 || {}).sid || null,
           heldBoth: !!(sv1 && sv2 && sv1.sid === sv2.sid && sv1.via === sv2.via),
           wakeAgeMs: f2.wakeAt ? b.t - f2.wakeAt : (f1.wakeAt ? b.t - f1.wakeAt : null),
           dark: !!(f1.dark || f2.dark),
@@ -285,6 +316,40 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   }
   check('primary pipes flow (redundant slots): ' + (priPipes - priDark) + '/' + priPipes + ' > 0', priPipes > 0 && priDark < priPipes, { priPipes, priDark });
   if (hotWhy.length) console.log('  HOT STANDBY forensics: ' + JSON.stringify(hotWhy));
+  // SENDER-SIDE TRUTH. Everything above is the RECEIVER's opinion, and a parked
+  // standby is not an opinion — it is `job.active === false` on the announcer.
+  // The two disagree in three distinguishable ways, and the receiver alone
+  // cannot tell them apart: the demand was never SENT (the announcer fell out
+  // of `cand`, so the debounce map still shows a stale '=i'), it was sent and
+  // IGNORED (streamId/key mismatch — setJobActive bails), or it was honoured and
+  // the bytes are coming from somewhere else entirely. Ask the announcer.
+  if (hotWhy.length) {
+    // AND THE RAW RTP ROWS BEHIND THE NUMBER. A slot rate is a SUM over every
+    // stats row carrying that label, against a baseline keyed by (pid, track) —
+    // both of which assume one label, one flow. Print the rows so a reader can
+    // check that assumption instead of inheriting it.
+    for (const w of hotWhy) {
+      const i = pages.findIndex((p) => p.name === w.seat);
+      const rows = (s) => (s && s[i] ? s[i].st.filter((r) => r.dir === 'in' && r.slot === w.slot)
+        .map((r) => r.pid + ' ' + r.kind + ' mid=' + r.mid + ' trk=' + String(r.trk).slice(0, 8) + ' bytes=' + r.bytes) : []);
+      console.log('  RAW rows labelled ' + w.slot + ' at ' + w.seat + ':\n    t1: ' + rows(lastS1).join('\n    t1: ')
+        + '\n    t2: ' + rows(lastS2).join('\n    t2: '));
+    }
+    const idsH = await Promise.all(pages.map(idOf));
+    for (const w of hotWhy) {
+      if (!w.via) { console.log('  SENDER forensics ' + w.slot + ': no standbyVia recorded'); continue; }
+      const si = idsH.indexOf(w.via);
+      if (si < 0 || !pages[si] || !pages[si].page) { console.log('  SENDER forensics ' + w.slot + ': announcer ' + String(w.via).slice(0, 8) + ' is not one of our pages'); continue; }
+      const rcv = idsH[pages.findIndex((p) => p.name === w.seat)];
+      const dump = await pages[si].page.evaluate((rid) => {
+        const m = __gifosVideo.mosaic();
+        return { jobs: (m.jobsActive || []).filter((j) => j.indexOf('>' + rid) > 0),
+          sig: (m.jobSig || []).filter((j) => j.indexOf('|s') > 0),
+          pipe: (__gifosVideo.pipeInfo ? __gifosVideo.pipeInfo().enabled : null) };
+      }, rcv).catch((e) => String(e).slice(0, 120));
+      console.log('  SENDER forensics — ' + w.slot + ' announcer ' + pages[si].name + ' -> ' + w.seat + ': ' + JSON.stringify(dump));
+    }
+  }
   check('standby pipes are PARKED (~0 B/s): ' + (stdPipes - stdHot) + '/' + stdPipes, stdPipes > 0 && stdHot === 0, { stdPipes, stdHot, hotWhy });
 
   // ---- B. FAILOVER WAKE on a relayed stg:* copy ----------------------------

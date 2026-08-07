@@ -487,11 +487,34 @@ Each spawns its own relay and its own static server for THIS checkout's
 | `e2e-peer-relay-reunion.js` | E5 §1 friend-relay among co-members: ICE-split pair in ONE room, third co-member joins same room → "via Hub" (not a two-meeting merge; that stays R5 pick-one) |
 | `e2e-r5-fork-pick.js` | R5 / E5§2 browser rung: same-key dual greeter halves (forceSeat tear + ICE block) → `#fork-modal` → pick-one → seat only one half. Clustering/faces unit is `mesh/r5-fork-pick.js` (already in `join.sh`) |
 | `mirror-drill.js` | the sdn DORMANT-MIRROR standby: 8 browsers force-seated at C=2, kill the direct relay, the parked mirror wakes |
-| `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake. Turns the stager's CAMERA ON before it steps up: join-quiet + the 20s camera idle-stop leave `mySelfStream()` null, and a stager who broadcasts nothing makes every failover leg unreachable (2026-08-06) |
+| `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake. Turns the stager's CAMERA ON before it steps up: join-quiet + the 20s camera idle-stop leave `mySelfStream()` null, and a stager who broadcasts nothing makes every failover leg unreachable (2026-08-06). **`DRILL_PIPE=off` runs the GATE's media plane** — see below |
 | `e2e-stage-voice.js` | THE ROOM CAN HEAR A CAMERA-OFF STAGER. Three seats, one steps up on the join-quiet default (muted, camera off), and past the 20s camera idle-stop the feed must still be shipped, still be held by every listener as an AUDIO-ONLY stream, and be HEARD (`stageEarLevel`) the moment it unmutes — plus a camera-ON control arm proving the video path is untouched, and a churn bound on the self-stream identity. Guards the 2026-08-06 fix to `mySelfStream()`, which threw the audio track away with the video one |
 | `e2e-vanish-browser.js` | the browser half of D5: pagehide→instant LEAVE, `dc.onclose`→`transportLost`→probe-gated early confirm, with a SIGKILLed victim browser |
 | `e2e-meet-app-prettyurl.js` | an app shared into a meeting STAYS mounted under the pretty `/meet/<room>` URL. Forces the gifos.app-only pretty-URL rewrite locally (route-patches `pretty=true`, blocks the SW) so the document base moves as it does on prod, then asserts the runtime does not 404 `app-owner.js` and the app is not torn down ~1s after mount. Guards the prod-only regression where a relative dynamic script load broke under the moved base |
 | `e2e-meet-app-guest-perms.js` | a GUEST of a meeting mounts a shared network-capable app (the Bible Browser) AND is shown its "reach the internet" challenge, under the pretty `/meet/<room>` base. Same pretty-forcing as above, two participants: guards the CLIENT-side face of the `app-owner.js` moved-base 404 — where `bootClientBus` threw before `mountApp` (so no iframe, no `__gifosPermissions`) and the guest saw a blank space with no challenge |
+
+### THE GATE AND YOUR DESK ARE NOT RUNNING THE SAME MEDIA PLANE
+
+The encoded-passthrough pipe lane needs `RTCRtpScriptTransform`. The release
+gate pins `MEET_CHROME` to **chromium-1193 = Chrome 140, which does not have
+it** — so in the gate every relay hop TRANSCODES, and a hop forwards the
+ORIGINAL remote track (one `trackIdentifier`, many m-lines). On any current
+Chromium (141+ here) the lane is LIVE and each hop ships a fresh CARRIER track
+with its own id. For the media suites those are two different products, and a
+measurement that does not say which one it took cannot be compared with
+another one.
+
+That divergence is not hypothetical: redun-drill was promoted out of quarantine
+2026-08-06 on 13/14 measured with the lane LIVE, and went red at the next gate
+with the lane DEAD, on a phantom the lane had been hiding (see 2026-08-07).
+
+So: **`redun-drill.js` takes `DRILL_PIPE=off`**, which sets the product's own
+`gifos_pipe=off` switch and reproduces the gate's plane on a box whose only
+Chromium is current. Every run of it now prints which plane it measured:
+
+    media plane: encoded-passthrough pipe lane is OFF (chrome=151)
+
+If you are chasing a media red that the gate has and you do not, set it first.
 
 ## swarm/ — scale and live tools
 
