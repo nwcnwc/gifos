@@ -247,3 +247,12 @@ argument (a forgeable early-free is an eviction weapon).
   for policy rejections, which is exactly the shape of hazard this repo keeps
   paying for. Not fixed here (test/servers was out of scope for this pass);
   worth one commit.
+- **Entry 1 — a fourth residual, recorded because it is a trade we CHOSE.** In
+  the squatter race (an empty room founded by a device holding a WRONG stored
+  password, which seeds the plain-room door lock), a member arriving with the
+  room's REAL password is refused, exhausts the probe, and has her correct
+  password forgotten along with the wrong ones — she must type it once more.
+  That is the cost of evicting a password the door has refused, and eviction is
+  what stops the reported trap ("one room name locked against its own guests,
+  forever") from re-arming on every visit. The prompt is already up when the
+  eviction happens, so the retype is one field, not a lockout.
