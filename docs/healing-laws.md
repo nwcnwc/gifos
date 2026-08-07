@@ -875,7 +875,7 @@ broad form (any silent target) minted dups under mass-kill and killed
 severed-but-alive neighbours under adversary churn — both in the commit
 messages of the fix.
 
-## G — the rollup digest (ARGUED 2026-08-05; built in the SIM, browser port gated)
+## G — the rollup digest (ARGUED 2026-08-05; BOTH TWINS BUILT 2026-08-06, flag OFF)
 
 The O(N)-per-node status flood (scale-audit V1) is what this replaces: every
 participant's heartbeat rides the room-wide GSP flood today, so every node
@@ -1059,15 +1059,34 @@ field is added to any relay-carried frame. Below C² participants everyone is in
 Section 1, the tree is one level, the near field is the whole room, and rollup ≡
 flood: the 2-person room and the plane guest behave exactly as they do today.
 
-**Where it is checked.** `test/sim/repro-digest.sh` — root convergence to the
-true count at N=2000 det within the staleness bound, refusal propagation,
-fail-closed partiality, the ON≡OFF trajectory identity (G1/G0), the designated
-checker firing on a lying aggregator *and only there* (G4) with the seating
-trajectory unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb
-is `digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs. **The browser
-port is deliberately NOT done** — the twins diverge here on purpose until the
-sim gates are green at scale AND small-room e2e is byte-identical (scale-audit
-sequencing step 4).
+**Where it is checked — in BOTH twins.** `test/sim/repro-digest.sh` (47
+assertions) is the C++ reference gate: root convergence to the true count at
+N=2000 det within the staleness bound, refusal propagation, fail-closed
+partiality, the ON≡OFF trajectory identity (G1/G0), the designated checker
+firing on a lying aggregator *and only there* (G4) with the seating trajectory
+unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb is
+`digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs.
+
+`test/mesh/digest.js` (45 assertions) is the same gate against the BROWSER twin
+(`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
+— a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
+300), nothing redesigned. **It is flag-gated and DEFAULT OFF** (`env.DIGEST`;
+`mesh-wire.js` reads `window.GIFOS_DIGEST`). The flag stays down until
+`run.html` migrates off the room-wide status flood — scale-audit sequencing step
+4 — so today the digest is built, gated and inert in production.
+
+The acceptance test for the port is the EQUALITY, not the feature, and it is the
+mechanical form of G0+G1: every emit — tick, sender, recipient, and the frame
+with the digest payload stripped — is recorded for a join + 15% kill + heal at
+N=200 with digests ON and with them OFF, at two seeds, and the two logs must be
+**byte-identical**. Measured: 242,291 frames (seed 20260714) and 178,526 (seed
+7), zero divergence, identical convergence ticks, moves, evictions and seating.
+The leg is kept honest at both ends — the ON arm carried 226,281 digest-bearing
+frames, on exactly PHONE/PONG/S1SYNC and nothing else (G0); the OFF arm carried
+none. Browser-side O(C) gauges, measured on the same twin: frames/node/tick max
+3.183 → 3.355 across a 5× range of N (O(N) would be 5×), p50 flat at 0.125, and
+peak per-node digest state 27 at BOTH N=100 and N=500 — under the C-derived
+bound of 39 and, more to the point, identical. N does not appear.
 
 ## The two hard cases — one closed, one open
 
